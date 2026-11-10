@@ -484,7 +484,7 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
   );
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
   assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 12]);
-  assert.equal(game.arrows(), 5);
+  assert.equal(game.arrows(), 10);
   // On retire l'épée : elle va dans le sac, on se bat à mains nues.
   assert.ok(game.unequip("melee"));
   const sword = game.inventory.items.find((i) => i.defId === "epee")!;
@@ -616,7 +616,7 @@ test("ramasser une flèche au sol la remet dans le sac ; la clef ouvre une porte
   game.ground = [{ x: game.hero.x + 1, y: game.hero.y, item: "fleche", count: 2 }];
   assert.ok(game.moveBy(1, 0));
   game.tick();
-  assert.equal(game.arrows(), 7);
+  assert.equal(game.arrows(), 12);
   assert.equal(game.ground.length, 0);
   assert.ok(game.events.some((e) => e.type === "pickup" && e.count === 2));
 

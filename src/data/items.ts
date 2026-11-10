@@ -1,10 +1,11 @@
 import { Dice } from "../core/dice";
 
 /** Ce que le héros peut porter sur lui, à part du sac. */
-export type Slot = "amulet" | "hat" | "armor" | "melee" | "ranged";
+export type Slot = "amulet" | "hat" | "ring" | "armor" | "melee" | "ranged";
 export const SLOTS: { slot: Slot; label: string }[] = [
   { slot: "amulet", label: "Amulette" },
-  { slot: "hat", label: "Chapeau" },
+  { slot: "hat", label: "Heaume" },
+  { slot: "ring", label: "Anneau" },
   { slot: "armor", label: "Armure" },
   { slot: "melee", label: "Corps à corps" },
   { slot: "ranged", label: "Distance" },
@@ -17,7 +18,7 @@ export const UNARMORED_AC = 10;
 export interface ItemDef {
   id: string;
   name: string;
-  /** Les cinq premiers sont aussi des emplacements d'équipement ; munitions et clefs restent dans le sac. */
+  /** Les six premiers sont aussi des emplacements d'équipement ; munitions et clefs restent dans le sac. */
   kind: Slot | "ammo" | "key" | "gold";
   /** Une phrase de description, affichée sur la fiche de l'objet. */
   description: string;
@@ -129,7 +130,8 @@ export const KIND_LABELS: Record<ItemDef["kind"], string> = {
   melee: "Arme de corps à corps",
   ranged: "Arme à distance",
   armor: "Armure",
-  hat: "Chapeau",
+  hat: "Heaume",
+  ring: "Anneau",
   amulet: "Amulette",
   ammo: "Munition",
   key: "Objet utile",

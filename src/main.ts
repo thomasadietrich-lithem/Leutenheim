@@ -485,7 +485,7 @@ function renderBag(): void {
         box.append(itemIcon(worn.defId));
       } else {
         // Emplacement vide : la silhouette estompée de ce qui s'y porte, à la place d'un nom.
-        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("hat"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), ring: uiIcon("ring"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
         ghost.classList.add("ghost");
         box.append(ghost);
       }

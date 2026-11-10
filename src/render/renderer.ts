@@ -165,26 +165,30 @@ export class Renderer {
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     const w = Math.max(1.5, length * 0.09);
-    // Hampe (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
-    ctx.fillStyle = "#b9824a";
-    if (part === "whole") ctx.fillRect(-length / 2, -w / 2, length * 0.82, w);
-    else if (part === "front") ctx.fillRect(-length * 0.05, -w / 2, length * 0.37, w);
-    else ctx.fillRect(-length / 2, -w / 2, length * 0.42, w);
-    if (part !== "back") {
-      // Pointe d'acier.
-      ctx.fillStyle = "#dfe5f5";
+    const L = length;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#120d08";
+    ctx.lineWidth = Math.max(1, L * 0.045);
+    const shape = (color: string, pts: number[][]): void => {
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.moveTo(length / 2, 0);
-      ctx.lineTo(length * 0.26, -w * 1.9);
-      ctx.lineTo(length * 0.26, w * 1.9);
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.closePath();
+      ctx.stroke();
       ctx.fill();
+    };
+    // Hampe (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
+    const [x0, x1] = part === "whole" ? [-L * 0.46, L * 0.26] : part === "front" ? [-L * 0.05, L * 0.26] : [-L * 0.46, -L * 0.08];
+    shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
+    if (part !== "back") {
+      // Pointe d'acier large, à barbelures : c'est elle qui dit où va la flèche.
+      shape("#eef2ff", [[L / 2, 0], [L * 0.14, -w * 2.8], [L * 0.24, 0], [L * 0.14, w * 2.8]]);
     }
     if (part !== "front") {
-      // Empennage rouge.
-      ctx.fillStyle = "#d03a44";
-      ctx.fillRect(-length / 2, -w * 1.7, length * 0.2, w * 1.1);
-      ctx.fillRect(-length / 2, w * 0.6, length * 0.2, w * 1.1);
+      // Empennage rouge couché vers l'arrière, et encoche.
+      for (const side of [-1, 1]) {
+        shape("#d03a44", [[-L * 0.26, (side * w) / 2], [-L * 0.38, side * w * 2.4], [-L * 0.54, side * w * 2.4], [-L * 0.44, (side * w) / 2]]);
+      }
     }
     ctx.restore();
   }
@@ -387,7 +391,7 @@ export class Renderer {
         }
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
-        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.7);
+        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8);
       }
     }
 
@@ -475,7 +479,20 @@ export class Renderer {
       const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
       const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
       // En vol, la pointe suit la trajectoire ; après un rebond, la flèche tournoie en retombant.
-      this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.7);
+      if (!p.tumble) {
+        // Traînée claire derrière la flèche : on lit d'un coup d'œil d'où elle vient.
+        const trail = Math.min(tile * 1.4, Math.hypot(p.x - p.fromX, p.y - p.fromY) * tile * t);
+        const grad = ctx.createLinearGradient(px, py, px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
+        grad.addColorStop(0, "rgba(255,244,214,0.55)");
+        grad.addColorStop(1, "rgba(255,244,214,0)");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = Math.max(1.5, tile * 0.07);
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
+        ctx.stroke();
+      }
+      this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
     }
 
     for (const s of this.slashes) {

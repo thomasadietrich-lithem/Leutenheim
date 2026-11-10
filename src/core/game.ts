@@ -113,7 +113,7 @@ export class Game {
   pendingDoor: Point | null = null;
   /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
   inventory = new Inventory();
-  equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
+  equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, ring: null, armor: null, melee: null, ranged: null };
   /** Objets au sol sur l'étage courant (flèches à ramasser). */
   ground: GroundItem[] = [];
   /** Bourse, expérience et niveau du héros. */

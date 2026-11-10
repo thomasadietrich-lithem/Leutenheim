@@ -45,8 +45,8 @@
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 16px; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
-  #recenter { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); padding: 6px; display: flex; }
-  #recenter:active { transform: translateX(-50%) translateY(1px); }
+  #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
+  #recenter:active { transform: translateY(1px); }
   #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #door-actions button { background: #4a2f12; }
@@ -112,13 +112,13 @@
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
-  /* Ce que le héros porte : amulette et chapeau en haut, arme, armure, arc en bas. */
+  /* Ce que le héros porte : amulette, heaume et anneau en haut, arme, armure, arc en bas. */
   #bag { gap: 6px; justify-content: flex-start; padding-top: 10px; }
   #bag h3 { margin: 2px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
-  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat ." "melee armor ranged"; gap: 4px 10px; }
+  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat ring" "melee armor ranged"; gap: 4px 10px; }
   .slot { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
   .slot-amulet { grid-area: amulet; } .slot-hat { grid-area: hat; } .slot-armor { grid-area: armor; }
-  .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
+  .slot-ring { grid-area: ring; } .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
   .slot-box { width: 64px; height: 64px; padding: 4px; background: #0c0906; border: 3px solid var(--panel-hi);
     box-shadow: inset 2px 2px 0 #000; display: flex; align-items: center; justify-content: center; }
   .slot-box svg { height: 100%; width: auto; max-width: 100%; }

@@ -30,7 +30,7 @@ export const CLASSES = {
       { item: "tunique", count: 1, equip: true },
       { item: "epee", count: 1, equip: true },
       { item: "arc_court", count: 1, equip: true },
-      { item: "fleche", count: 5 },
+      { item: "fleche", count: 10 },
     ],
     lockpickBonus: 0,
     breakBonus: 4,

@@ -45,8 +45,8 @@
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 16px; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
-  #recenter { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); padding: 6px; display: flex; }
-  #recenter:active { transform: translateX(-50%) translateY(1px); }
+  #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
+  #recenter:active { transform: translateY(1px); }
   #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #door-actions button { background: #4a2f12; }
@@ -112,13 +112,13 @@
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
-  /* Ce que le héros porte : amulette et chapeau en haut, arme, armure, arc en bas. */
+  /* Ce que le héros porte : amulette, heaume et anneau en haut, arme, armure, arc en bas. */
   #bag { gap: 6px; justify-content: flex-start; padding-top: 10px; }
   #bag h3 { margin: 2px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
-  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat ." "melee armor ranged"; gap: 4px 10px; }
+  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat ring" "melee armor ranged"; gap: 4px 10px; }
   .slot { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
   .slot-amulet { grid-area: amulet; } .slot-hat { grid-area: hat; } .slot-armor { grid-area: armor; }
-  .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
+  .slot-ring { grid-area: ring; } .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
   .slot-box { width: 64px; height: 64px; padding: 4px; background: #0c0906; border: 3px solid var(--panel-hi);
     box-shadow: inset 2px 2px 0 #000; display: flex; align-items: center; justify-content: center; }
   .slot-box svg { height: 100%; width: auto; max-width: 100%; }
@@ -407,7 +407,7 @@
         { item: "tunique", count: 1, equip: true },
         { item: "epee", count: 1, equip: true },
         { item: "arc_court", count: 1, equip: true },
-        { item: "fleche", count: 5 }
+        { item: "fleche", count: 10 }
       ],
       lockpickBonus: 0,
       breakBonus: 4
@@ -473,7 +473,8 @@
   // src/data/items.ts
   var SLOTS = [
     { slot: "amulet", label: "Amulette" },
-    { slot: "hat", label: "Chapeau" },
+    { slot: "hat", label: "Heaume" },
+    { slot: "ring", label: "Anneau" },
     { slot: "armor", label: "Armure" },
     { slot: "melee", label: "Corps \xE0 corps" },
     { slot: "ranged", label: "Distance" }
@@ -566,7 +567,8 @@
     melee: "Arme de corps \xE0 corps",
     ranged: "Arme \xE0 distance",
     armor: "Armure",
-    hat: "Chapeau",
+    hat: "Heaume",
+    ring: "Anneau",
     amulet: "Amulette",
     ammo: "Munition",
     key: "Objet utile",
@@ -1273,7 +1275,7 @@
       this.pendingDoor = null;
       /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
       this.inventory = new Inventory();
-      this.equipment = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
+      this.equipment = { amulet: null, hat: null, ring: null, armor: null, melee: null, ranged: null };
       /** Objets au sol sur l'étage courant (flèches à ramasser). */
       this.ground = [];
       /** Bourse, expérience et niveau du héros. */
@@ -2210,23 +2212,27 @@
       ctx.translate(cx, cy);
       ctx.rotate(angle);
       const w = Math.max(1.5, length * 0.09);
-      ctx.fillStyle = "#b9824a";
-      if (part === "whole") ctx.fillRect(-length / 2, -w / 2, length * 0.82, w);
-      else if (part === "front") ctx.fillRect(-length * 0.05, -w / 2, length * 0.37, w);
-      else ctx.fillRect(-length / 2, -w / 2, length * 0.42, w);
-      if (part !== "back") {
-        ctx.fillStyle = "#dfe5f5";
+      const L = length;
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#120d08";
+      ctx.lineWidth = Math.max(1, L * 0.045);
+      const shape = (color, pts) => {
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(length / 2, 0);
-        ctx.lineTo(length * 0.26, -w * 1.9);
-        ctx.lineTo(length * 0.26, w * 1.9);
+        pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
         ctx.closePath();
+        ctx.stroke();
         ctx.fill();
+      };
+      const [x0, x1] = part === "whole" ? [-L * 0.46, L * 0.26] : part === "front" ? [-L * 0.05, L * 0.26] : [-L * 0.46, -L * 0.08];
+      shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
+      if (part !== "back") {
+        shape("#eef2ff", [[L / 2, 0], [L * 0.14, -w * 2.8], [L * 0.24, 0], [L * 0.14, w * 2.8]]);
       }
       if (part !== "front") {
-        ctx.fillStyle = "#d03a44";
-        ctx.fillRect(-length / 2, -w * 1.7, length * 0.2, w * 1.1);
-        ctx.fillRect(-length / 2, w * 0.6, length * 0.2, w * 1.1);
+        for (const side of [-1, 1]) {
+          shape("#d03a44", [[-L * 0.26, side * w / 2], [-L * 0.38, side * w * 2.4], [-L * 0.54, side * w * 2.4], [-L * 0.44, side * w / 2]]);
+        }
       }
       ctx.restore();
     }
@@ -2402,7 +2408,7 @@
             ctx.fillRect(gx + (dx - 0.05) * tile, gy + (dy - 0.06) * tile, tile * 0.05, tile * 0.05);
           }
         } else {
-          this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.7);
+          this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8);
         }
       }
       ctx.textAlign = "center";
@@ -2477,7 +2483,19 @@
         const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
         const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
         const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
-        this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.7);
+        if (!p.tumble) {
+          const trail = Math.min(tile * 1.4, Math.hypot(p.x - p.fromX, p.y - p.fromY) * tile * t);
+          const grad = ctx.createLinearGradient(px, py, px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
+          grad.addColorStop(0, "rgba(255,244,214,0.55)");
+          grad.addColorStop(1, "rgba(255,244,214,0)");
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = Math.max(1.5, tile * 0.07);
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
+          ctx.stroke();
+        }
+        this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
       }
       for (const s of this.slashes) {
         if (!s.arc) continue;
@@ -2708,31 +2726,31 @@
       "................................",
       "................................",
       "....KKKKKKKKK......KKKKKKKKK....",
-      "...KTTTTTTTTTK....KTTTTTTTTTK...",
-      "...KTTTTTTTTTK....KTTTTTTTTTK...",
-      "...KTTTTTTTTTTK..KTTTTTTTTTTK...",
-      "...KTTTTTTTTTTKKKKTTTTTTTTTTK...",
-      "...KTTTTTTTTTTTTTTTTTTTTTTTTK...",
-      "...KTTTTTTTTTTTTTTTTTTTTTTTTK...",
-      "...KTTTTTTTTTTTTTTTTTTTTTTTTK...",
-      "....KKKKtTTTTTTTTTTTTTTtKKKK....",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KbbbbbbbbbbbbbbbbK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
-      ".......KtTTTTTTTTTTTTTTtK.......",
+      "...KWWWWWWWWWK....KWWWWWWWWWK...",
+      "...KWWWWWWWWWK....KWWWWWWWWWK...",
+      "...KWWWWWWWWWWK..KWWWWWWWWWWK...",
+      "...KWWWWWWWWWWKKKKWWWWWWWWWWK...",
+      "...KWWWWWWWWWWWWWWWWWWWWWWWWK...",
+      "...KWWWWWWWWWWWWWWWWWWWWWWWWK...",
+      "...KWWWWWWWWWWWWWWWWWWWWWWWWK...",
+      "....KKKKSWWWWWWWWWWWWWWSKKKK....",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KBBBBBBBSDBBBBBBBK.......",
+      ".......KbbbbbbbDDbbbbbbbK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
+      ".......KSWWWWWWWWWWWWWWSK.......",
       "........KKKKKKKKKKKKKKKK........",
       "................................",
       "................................"
@@ -2876,22 +2894,22 @@
       "....KK.........."
     ],
     fleche: [
-      "............KK..",
-      "...........KSWK.",
-      "..........KSWDKK",
-      "..........KSSKSW",
-      ".........KBKKSWD",
-      "........KBK.KSSK",
-      ".......KBK.KBKK.",
-      "......KBK.KBK...",
-      ".....KBK.KBK....",
-      "....KBK.KBK.....",
-      ".K.KBK.KBK......",
-      "KRKBK.KBK.......",
-      "KRBK.KBK........",
-      "KRRRKBK.........",
-      ".KKRBK..........",
-      "..KRRRK........."
+      ".........KKKKKK.",
+      "........KWWWWWWK",
+      ".........KSSSSDK",
+      "..........KSSSDK",
+      "...........KSSDK",
+      "..........KBKSDK",
+      ".........KBK.KDK",
+      "........KBK...K.",
+      ".......KBK......",
+      "......KBK.......",
+      "..K..KBK........",
+      ".KRKKBK.........",
+      "KRRRBK..........",
+      ".KRBRRK.........",
+      "..KKRRRK........",
+      "....KRK........."
     ],
     clef: [
       "................",
@@ -3060,41 +3078,59 @@
       "................",
       "................"
     ],
-    hat: [
+    helm: [
       "................",
-      "........BB......",
-      ".......BBB......",
-      ".......BBBB.....",
-      "......BBBBB.....",
-      "......BBBBB.....",
-      ".....BBBBBBB....",
-      ".....BBBBBBB....",
-      "....bbbbbbbbb...",
-      "....GGGGGGGGG...",
-      "..BBBBBBBBBBBBB.",
-      ".BBBBBBBBBBBBBBB",
-      "..bbbbbbbbbbbbb.",
+      ".....KKKKKK.....",
+      "...KKSSSSSSKK...",
+      "..KSWWSSSSSSDK..",
+      "..KSWSSSSSSSDK..",
+      "..KSWSSSDSSSDK..",
+      "..KDDDDDDDDDDK..",
+      "..KKKKKSDKKKKK..",
+      "..KSWSSSDSSSDK..",
+      "..KSWSSSDSSSDK..",
+      "..KSWKSSDSKSDK..",
+      "..KSWSSSDSSSDK..",
+      "..KSWKSSDSKSDK..",
+      "..KSSSSSDSSDDK..",
+      "...KKKKKKKKKK...",
+      "................"
+    ],
+    ring: [
       "................",
       "................",
+      "......KKKK......",
+      ".....KRRRRK.....",
+      ".....KRrrRK.....",
+      "....KKGGGGKK....",
+      "...KGGKKKKGGK...",
+      "..KGGK....KGgK..",
+      "..KGK......KgK..",
+      "..KGK......KgK..",
+      "..KGK......KgK..",
+      "..KGGK....KggK..",
+      "...KGGKKKKggK...",
+      "....KKGgggKK....",
+      "......KKKK......",
       "................"
     ],
     arrow: [
-      ".............KK.",
-      "............KSWK",
-      "...........KSWDK",
-      "..........KSSSK.",
-      "..........KBDK..",
-      ".........KBKK...",
-      "........KBK.....",
+      ".........KKKKKK.",
+      "........KWWWWWWK",
+      ".........KSSSSDK",
+      "..........KSSSDK",
+      "...........KSSDK",
+      "..........KBKSDK",
+      ".........KBK.KDK",
+      "........KBK...K.",
       ".......KBK......",
       "......KBK.......",
-      ".....KBK........",
-      "....KBK.........",
-      ".KKKBK..........",
-      "KRRBK...........",
-      "KRRRK...........",
-      ".KRRK...........",
-      "..KK............"
+      "..K..KBK........",
+      ".KRKKBK.........",
+      "KRRRBK..........",
+      ".KRBRRK.........",
+      "..KKRRRK........",
+      "....KRK........."
     ],
     wait: [
       "..KKKKKKKKKKKK..",
@@ -3557,7 +3593,7 @@
         if (worn) {
           box.append(itemIcon(worn.defId));
         } else {
-          const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("hat"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+          const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), ring: uiIcon("ring"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
           ghost.classList.add("ghost");
           box.append(ghost);
         }

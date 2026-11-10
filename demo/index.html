@@ -397,6 +397,16 @@
             this.tone(150, 215, 0.17, "triangle", 0.045, 0.03);
             this.noise(0.025, 0.1, 1800, 0.21);
             break;
+          case "key":
+            this.noise(0.03, 0.22, 3200);
+            this.tone(950, 720, 0.03, "square", 0.05, 0.07);
+            this.noise(0.04, 0.3, 1900, 0.17);
+            this.tone(520, 430, 0.03, "square", 0.05, 0.17);
+            this.noise(0.04, 0.3, 1600, 0.29);
+            this.tone(470, 380, 0.03, "square", 0.05, 0.29);
+            this.tone(190, 85, 0.1, "sine", 0.32, 0.43);
+            this.noise(0.09, 0.28, 650, 0.43);
+            break;
           case "unlock":
             this.tone(1200, 1200, 0.03, "square", 0.08);
             this.tone(1600, 1600, 0.04, "square", 0.08, 0.09);
@@ -1730,9 +1740,19 @@
       this.waiting = false;
       this.picking = false;
       this.path = best;
-      if (best.length === 0) this.pendingDoor = { x, y };
-      else this.doorTarget = { x, y };
+      if (best.length === 0) {
+        this.pendingDoor = { x, y };
+        this.useKeyIfAny();
+      } else this.doorTarget = { x, y };
       return true;
+    }
+    /** Devant une porte verrouillée, la clef de l'étage sert d'elle-même : ce sera l'action du prochain tour. */
+    useKeyIfAny() {
+      if (this.inventory.count("clef", this.depth) > 0) this.doorAction = "key";
+    }
+    /** Vrai quand le héros s'apprête à ouvrir avec sa clef la porte devant lui (rien à choisir). */
+    usingKey() {
+      return this.pendingDoor !== null && this.doorAction === "key";
     }
     /** Le joueur choisit de crocheter ou d'enfoncer la porte devant lui : ce sera l'action du prochain tour. */
     actOnDoor(action) {
@@ -1856,6 +1876,7 @@
           if (this.path.length === 0 && this.doorTarget) {
             this.pendingDoor = this.doorTarget;
             this.doorTarget = null;
+            this.useKeyIfAny();
           }
         }
       }
@@ -3852,7 +3873,7 @@
     } else if (e.type === "door") {
       logLines.push(describeDoor(e));
       if (e.action === "key") {
-        sfx.play("unlock");
+        sfx.play("key");
       } else {
         landDie(e.d20, e.success ? "hit" : "miss", false);
         if (e.action === "break") {
@@ -4466,11 +4487,11 @@
     $("xp-fill").style.width = `${100 * game.xp / game.xpToNext()}%`;
     $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;
     const doorOptions = game.doorOptions();
-    doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null;
+    doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
     $("door-key").hidden = !doorOptions.includes("key");
     $("door-pick").hidden = !doorOptions.includes("pick");
     $("door-break").hidden = !doorOptions.includes("break");
-    if (game.pendingDoor && !doorWasPending) {
+    if (game.pendingDoor && !doorWasPending && !game.usingKey()) {
       renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);
       sfx.play("knock");
     }

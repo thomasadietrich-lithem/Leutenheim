@@ -287,7 +287,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "door") {
     logLines.push(describeDoor(e));
     if (e.action === "key") {
-      sfx.play("unlock");
+      sfx.play("key");
     } else {
       landDie(e.d20, e.success ? "hit" : "miss", false);
       if (e.action === "break") {
@@ -992,12 +992,13 @@ function frame(now: number): void {
   $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
-  doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null;
+  // Avec la clef de l'étage, rien à choisir : elle sert toute seule.
+  doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
   $("door-key").hidden = !doorOptions.includes("key");
   $("door-pick").hidden = !doorOptions.includes("pick");
   $("door-break").hidden = !doorOptions.includes("break");
   // En arrivant devant une porte verrouillée, le héros bute dessus.
-  if (game.pendingDoor && !doorWasPending) {
+  if (game.pendingDoor && !doorWasPending && !game.usingKey()) {
     renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);
     sfx.play("knock");
   }

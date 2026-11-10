@@ -525,9 +525,21 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.path = best;
-    if (best.length === 0) this.pendingDoor = { x, y };
-    else this.doorTarget = { x, y };
+    if (best.length === 0) {
+      this.pendingDoor = { x, y };
+      this.useKeyIfAny();
+    } else this.doorTarget = { x, y };
     return true;
+  }
+
+  /** Devant une porte verrouillée, la clef de l'étage sert d'elle-même : ce sera l'action du prochain tour. */
+  private useKeyIfAny(): void {
+    if (this.inventory.count("clef", this.depth) > 0) this.doorAction = "key";
+  }
+
+  /** Vrai quand le héros s'apprête à ouvrir avec sa clef la porte devant lui (rien à choisir). */
+  usingKey(): boolean {
+    return this.pendingDoor !== null && this.doorAction === "key";
   }
 
   /** Le joueur choisit de crocheter ou d'enfoncer la porte devant lui : ce sera l'action du prochain tour. */
@@ -673,6 +685,7 @@ export class Game {
           // Arrivé devant la porte verrouillée : au joueur de décider.
           this.pendingDoor = this.doorTarget;
           this.doorTarget = null;
+          this.useKeyIfAny();
         }
       }
     }
@@ -774,7 +787,7 @@ export class Game {
 
   private resolveDoor(action: DoorAction, door: Point): void {
     if (action === "key") {
-      // La clef ouvre sans jet et sans bruit ; elle est consommée.
+      // La clef ouvre sans jet, sans alerter personne (juste le bruit de la serrure) ; elle est consommée.
       if (!this.inventory.take("clef", 1, this.depth)) return;
       this.map.set(door.x, door.y, Tile.DoorOpen);
       this.light = computeLight(this.map, this.torches);

@@ -17,6 +17,7 @@ export type SoundName =
   | "heal"
   | "bow"
   | "knock"
+  | "key"
   | "pickup"
   | "advantage"
   | "disadvantage"
@@ -139,6 +140,16 @@ export class Sfx {
           this.noise(0.07, 0.16, 320);
           this.tone(150, 215, 0.17, "triangle", 0.045, 0.03);
           this.noise(0.025, 0.1, 1800, 0.21);
+          break;
+        case "key": // la clef entre, deux crans tournent, le pêne claque
+          this.noise(0.03, 0.22, 3200);
+          this.tone(950, 720, 0.03, "square", 0.05, 0.07);
+          this.noise(0.04, 0.3, 1900, 0.17);
+          this.tone(520, 430, 0.03, "square", 0.05, 0.17);
+          this.noise(0.04, 0.3, 1600, 0.29);
+          this.tone(470, 380, 0.03, "square", 0.05, 0.29);
+          this.tone(190, 85, 0.1, "sine", 0.32, 0.43);
+          this.noise(0.09, 0.28, 650, 0.43);
           break;
         case "unlock":
           this.tone(1200, 1200, 0.03, "square", 0.08);

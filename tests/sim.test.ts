@@ -1132,3 +1132,51 @@ test("retoucher sa propre case ramasse l'objet qui s'y trouve, sinon passe un to
   assert.equal(game.turn, turn + 1);
   assert.equal(game.arrows(), 12);
 });
+
+test("avec la clef de l'étage, la porte verrouillée s'ouvre d'elle-même en y arrivant", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 40 && checked < 3; seed++) {
+    const game = new Game(seed);
+    game.monsters = [];
+    let door: { x: number; y: number } | null = null;
+    for (let y = 0; y < game.map.height && !door; y++) {
+      for (let x = 0; x < game.map.width; x++) {
+        if (game.map.get(x, y) === Tile.DoorLocked) {
+          door = { x, y };
+          break;
+        }
+      }
+    }
+    if (!door) continue;
+    game.inventory.add("clef", 1, game.depth);
+    assert.ok(game.setDestination(door.x, door.y, true), `graine ${seed}`);
+    for (let i = 0; i < 400 && game.map.get(door.x, door.y) === Tile.DoorLocked; i++) if (!game.tick()) break;
+    assert.equal(game.map.get(door.x, door.y), Tile.DoorOpen, `graine ${seed} : la porte aurait dû s'ouvrir toute seule`);
+    assert.equal(game.inventory.count("clef", game.depth), 0);
+    assert.ok(game.events.some((e) => e.type === "door" && e.action === "key"));
+    assert.equal(game.pendingDoor, null);
+    checked++;
+  }
+  assert.ok(checked >= 3);
+});
+
+test("sans clef, on garde le choix devant une porte verrouillée", () => {
+  const game = new Game(1);
+  game.monsters = [];
+  let door: { x: number; y: number } | null = null;
+  for (let y = 0; y < game.map.height && !door; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      if (game.map.get(x, y) === Tile.DoorLocked) {
+        door = { x, y };
+        break;
+      }
+    }
+  }
+  assert.ok(door);
+  assert.ok(game.setDestination(door.x, door.y, true));
+  for (let i = 0; i < 400 && !game.pendingDoor; i++) if (!game.tick()) break;
+  assert.ok(game.pendingDoor);
+  assert.equal(game.usingKey(), false);
+  assert.equal(game.tick(), false, "rien ne se passe tant que le joueur n'a pas choisi");
+  assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
+});

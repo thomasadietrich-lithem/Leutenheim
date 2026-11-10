@@ -135,6 +135,7 @@
   .bag-item { position: absolute; padding: 5px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906;
     display: flex; align-items: center; justify-content: center; }
   .bag-item svg { width: 100%; height: 100%; }
+  .bag-item.spent svg { filter: grayscale(1) brightness(0.55); opacity: 0.6; }
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }

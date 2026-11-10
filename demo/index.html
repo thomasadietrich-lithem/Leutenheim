@@ -135,6 +135,7 @@
   .bag-item { position: absolute; padding: 5px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906;
     display: flex; align-items: center; justify-content: center; }
   .bag-item svg { width: 100%; height: 100%; }
+  .bag-item.spent svg { filter: grayscale(1) brightness(0.55); opacity: 0.6; }
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
@@ -573,8 +574,8 @@
       ammo: "fleche"
     },
     fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
-    clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle ferm\xE9e de la section o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
-    or: { id: "or", name: "Pi\xE8ces d'or", kind: "gold", description: "La monnaie du donjon. Elle va dans la bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
+    clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle ferm\xE9e de l'\xE9tage o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
+    or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir ferm\xE9 par une cordelette. Son or va dans votre bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
     tunique: {
       id: "tunique",
       name: "Tunique",
@@ -713,7 +714,7 @@
     narrowShotBonus: 3,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
-    /** Nombre d'étages d'une section (région à thème). Une clef ne sert que dans la section où on l'a trouvée. */
+    /** Nombre d'étages d'une section (région à thème). */
     floorsPerSection: 5,
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
     keyChance: 0.35,
@@ -763,11 +764,11 @@
       return true;
     }
     /** Ajoute des objets : complète d'abord les piles existantes, puis prend la première place libre. Renvoie ce qui n'a pas pu entrer. */
-    add(defId, count = 1) {
+    add(defId, count = 1, floor) {
       const d = ITEMS[defId];
       for (const item of this.items) {
         if (count === 0) break;
-        if (item.defId !== defId) continue;
+        if (item.defId !== defId || item.floor !== floor) continue;
         const room = Math.min(d.maxStack - item.count, count);
         item.count += room;
         count -= room;
@@ -778,7 +779,7 @@
           for (let x = 0; x < this.cols && !placed; x++) {
             if (!this.fits(defId, x, y)) continue;
             const n = Math.min(d.maxStack, count);
-            this.items.push({ uid: this.nextUid++, defId, x, y, count: n });
+            this.items.push({ uid: this.nextUid++, defId, x, y, count: n, floor });
             count -= n;
             placed = true;
           }
@@ -814,15 +815,16 @@
       item.y = y;
       return true;
     }
-    count(defId) {
-      return this.items.reduce((sum, i) => sum + (i.defId === defId ? i.count : 0), 0);
+    /** Combien on en a. Avec `floor` : seulement ceux de cet étage (clefs). */
+    count(defId, floor) {
+      return this.items.reduce((sum, i) => sum + (i.defId === defId && (floor === void 0 || i.floor === floor) ? i.count : 0), 0);
     }
     /** Retire `n` exemplaires (munitions tirées). Renvoie faux s'il n'y en a pas assez. */
-    take(defId, n = 1) {
-      if (this.count(defId) < n) return false;
+    take(defId, n = 1, floor) {
+      if (this.count(defId, floor) < n) return false;
       for (const item of [...this.items].reverse()) {
         if (n === 0) break;
-        if (item.defId !== defId) continue;
+        if (item.defId !== defId || floor !== void 0 && item.floor !== floor) continue;
         const used = Math.min(item.count, n);
         item.count -= used;
         n -= used;
@@ -1424,11 +1426,6 @@
         };
         this.floors.set(depth, state);
       }
-      const section = (d) => Math.floor((d - 1) / RULES.floorsPerSection);
-      if (this.current && section(depth) !== section(this.depth)) {
-        const keys = this.inventory.count("clef");
-        if (keys > 0 && this.inventory.take("clef", keys)) this.events.push({ type: "keysLost", count: keys });
-      }
       this.current = state;
       this.depth = depth;
       this.deepest = Math.max(this.deepest, depth);
@@ -1685,7 +1682,7 @@
       const door = this.pendingDoor;
       if (!door) return [];
       const options2 = [];
-      if (this.inventory.count("clef") > 0) options2.push("key");
+      if (this.inventory.count("clef", this.depth) > 0) options2.push("key");
       if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "pick"))) options2.push("pick");
       if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "break"))) options2.push("break");
       return options2;
@@ -1852,7 +1849,7 @@
     }
     resolveDoor(action, door) {
       if (action === "key") {
-        if (!this.inventory.take("clef", 1)) return;
+        if (!this.inventory.take("clef", 1, this.depth)) return;
         this.map.set(door.x, door.y, Tile.DoorOpen);
         this.light = computeLight(this.map, this.torches);
         this.pendingDoor = null;
@@ -1980,7 +1977,7 @@
           pile.count = 0;
           continue;
         }
-        const left = this.inventory.add(pile.item, pile.count);
+        const left = this.inventory.add(pile.item, pile.count, ITEMS[pile.item].kind === "key" ? this.depth : void 0);
         const taken = pile.count - left;
         pile.count = left;
         if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
@@ -2479,18 +2476,23 @@
           ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
           ctx.fill();
         } else if (g.item === "or") {
-          for (const [dx, dy] of g.count > 1 ? [[0.38, 0.56], [0.6, 0.48], [0.5, 0.66]] : [[0.5, 0.56]]) {
-            ctx.fillStyle = "#a87c1c";
-            ctx.beginPath();
-            ctx.arc(gx + dx * tile, gy + dy * tile + tile * 0.03, tile * 0.12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#f0c050";
-            ctx.beginPath();
-            ctx.arc(gx + dx * tile, gy + dy * tile, tile * 0.12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#fff3c8";
-            ctx.fillRect(gx + (dx - 0.05) * tile, gy + (dy - 0.06) * tile, tile * 0.05, tile * 0.05);
-          }
+          const u = tile / 16;
+          const px = (bx, by, w, h, color) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(gx + bx * u, gy + by * u, w * u + 0.5, h * u + 0.5);
+          };
+          px(5, 7, 7, 7, "#120d08");
+          px(4, 8, 9, 5, "#120d08");
+          px(6, 4, 5, 3, "#120d08");
+          px(5, 8, 7, 5, "#9a6a34");
+          px(6, 7, 5, 7, "#9a6a34");
+          px(10, 9, 2, 4, "#5a3817");
+          px(7, 13, 4, 1, "#5a3817");
+          px(6, 9, 1, 3, "#b9824a");
+          px(7, 8, 1, 1, "#b9824a");
+          px(7, 4, 3, 2, "#9a6a34");
+          px(6, 6, 5, 1, "#e6dcc0");
+          px(11, 7, 1, 2, "#e6dcc0");
         } else {
           this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8);
         }
@@ -3007,21 +3009,21 @@
     ],
     or: [
       "................",
-      "................",
-      "........KKKK....",
-      ".......KLLLGK...",
-      "......KLLLGGGK..",
-      "......KLLGGGGK..",
-      "....KKKLGGGGgK..",
-      "...KLLGGGGGggK..",
-      "..KLLGGGGLLGgK..",
-      "..KLGGGGLLGGGK..",
-      "..KGGGGLLGGGGGK.",
-      "..KGGGGLGGGGGgK.",
-      "...KGGgGGGGGggK.",
-      "....KKKKGGGggK..",
-      "........KGggK...",
-      ".........KKK...."
+      ".....K....K.....",
+      "....KBK..KBK....",
+      "....KBBKKBBK....",
+      ".....KBBBBK.....",
+      "....KLLLLLLK....",
+      ".....KBBBBKLK...",
+      "....KBTBBBBKLK..",
+      "...KBTTBBBBBKK..",
+      "..KBTTBBBBBBbK..",
+      "..KBTBBBBBBBbK..",
+      "..KBBBBBBBBBbK..",
+      "..KBBBBBBBBbbK..",
+      "...KBBBBBBbbK...",
+      "....KKbbbbKK....",
+      "......KKKK......"
     ],
     epee: [
       ".......KK.......",
@@ -3712,8 +3714,6 @@
     } else if (e.type === "noticed") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
-    } else if (e.type === "keysLost") {
-      logLines.push(e.count > 1 ? "Nouvelle section : vos clefs n'ouvrent rien ici, vous les abandonnez." : "Nouvelle section : votre clef n'ouvre rien ici, vous l'abandonnez.");
     } else if (e.type === "stairs") {
       logLines.push(
         e.direction === "down" ? `Vous descendez \xE0 l'\xE9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}` : `Vous remontez \xE0 l'\xE9tage ${game.depth}.`
@@ -3920,7 +3920,8 @@
     grid.replaceChildren(
       ...bag.items.map((item2) => {
         const def2 = bag.def(item2);
-        const node = itemNode(item2, `bag-item${item2.uid === selectedUid ? " selected" : ""}`);
+        const spent = ITEMS[item2.defId].kind === "key" && item2.floor !== game.depth;
+        const node = itemNode(item2, `bag-item${item2.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}`);
         node.style.left = `${100 * item2.x / bag.cols}%`;
         node.style.top = `${100 * item2.y / bag.rows}%`;
         node.style.width = `${100 * def2.w / bag.cols}%`;
@@ -3938,7 +3939,8 @@
       return;
     }
     const def = ITEMS[item.defId];
-    info.replaceChildren(itemCard(def, item.count, selectedSlot ? " \u2014 port\xE9" : ""));
+    const keyNote = def.kind === "key" && item.floor !== void 0 ? ` \u2014 \xE9tage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
+    info.replaceChildren(itemCard(def, item.count, selectedSlot ? " \u2014 port\xE9" : keyNote));
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold";
     action.hidden = !wearable;
     action.textContent = selectedSlot ? "Retirer" : "\xC9quiper";

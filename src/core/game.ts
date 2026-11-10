@@ -32,8 +32,6 @@ export type GameEvent =
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
-  /** En changeant de section, les clefs de l'ancienne ne servent plus : elles sont abandonnées. */
-  | { type: "keysLost"; count: number }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "chest"; gold: number }
@@ -215,12 +213,6 @@ export class Game {
         seenMonsters: new Set<number>(),
       };
       this.floors.set(depth, state);
-    }
-    // Une clef ne vaut que pour sa section : en passant dans une autre, celles qu'on porte sont abandonnées.
-    const section = (d: number) => Math.floor((d - 1) / RULES.floorsPerSection);
-    if (this.current && section(depth) !== section(this.depth)) {
-      const keys = this.inventory.count("clef");
-      if (keys > 0 && this.inventory.take("clef", keys)) this.events.push({ type: "keysLost", count: keys });
     }
     this.current = state;
     this.depth = depth;
@@ -511,7 +503,8 @@ export class Game {
     const door = this.pendingDoor;
     if (!door) return [];
     const options: DoorAction[] = [];
-    if (this.inventory.count("clef") > 0) options.push("key");
+    // Une clef n'ouvre que les portes de l'étage où on l'a trouvée.
+    if (this.inventory.count("clef", this.depth) > 0) options.push("key");
     if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "pick"))) options.push("pick");
     if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "break"))) options.push("break");
     return options;
@@ -702,7 +695,7 @@ export class Game {
   private resolveDoor(action: DoorAction, door: Point): void {
     if (action === "key") {
       // La clef ouvre sans jet et sans bruit ; elle est consommée.
-      if (!this.inventory.take("clef", 1)) return;
+      if (!this.inventory.take("clef", 1, this.depth)) return;
       this.map.set(door.x, door.y, Tile.DoorOpen);
       this.light = computeLight(this.map, this.torches);
       this.pendingDoor = null;
@@ -853,7 +846,8 @@ export class Game {
         pile.count = 0;
         continue;
       }
-      const left = this.inventory.add(pile.item, pile.count);
+      // Une clef garde la marque de son étage.
+      const left = this.inventory.add(pile.item, pile.count, ITEMS[pile.item].kind === "key" ? this.depth : undefined);
       const taken = pile.count - left;
       pile.count = left;
       if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });

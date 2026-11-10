@@ -395,19 +395,24 @@ export class Renderer {
         ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
         ctx.fill();
       } else if (g.item === "or") {
-        // Pièces d'or : deux ou trois petits disques brillants.
-        for (const [dx, dy] of g.count > 1 ? [[0.38, 0.56], [0.6, 0.48], [0.5, 0.66]] : [[0.5, 0.56]]) {
-          ctx.fillStyle = "#a87c1c";
-          ctx.beginPath();
-          ctx.arc(gx + dx * tile, gy + dy * tile + tile * 0.03, tile * 0.12, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#f0c050";
-          ctx.beginPath();
-          ctx.arc(gx + dx * tile, gy + dy * tile, tile * 0.12, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#fff3c8";
-          ctx.fillRect(gx + (dx - 0.05) * tile, gy + (dy - 0.06) * tile, tile * 0.05, tile * 0.05);
-        }
+        // Or : une petite bourse de cuir fermée par une cordelette.
+        const u = tile / 16;
+        const px = (bx: number, by: number, w: number, h: number, color: string) => {
+          ctx.fillStyle = color;
+          ctx.fillRect(gx + bx * u, gy + by * u, w * u + 0.5, h * u + 0.5);
+        };
+        px(5, 7, 7, 7, "#120d08"); // contour
+        px(4, 8, 9, 5, "#120d08");
+        px(6, 4, 5, 3, "#120d08");
+        px(5, 8, 7, 5, "#9a6a34"); // panse
+        px(6, 7, 5, 7, "#9a6a34");
+        px(10, 9, 2, 4, "#5a3817"); // ombre
+        px(7, 13, 4, 1, "#5a3817");
+        px(6, 9, 1, 3, "#b9824a"); // reflet
+        px(7, 8, 1, 1, "#b9824a");
+        px(7, 4, 3, 2, "#9a6a34"); // col froncé
+        px(6, 6, 5, 1, "#e6dcc0"); // cordelette
+        px(11, 7, 1, 2, "#e6dcc0");
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
         this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8);

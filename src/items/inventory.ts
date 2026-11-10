@@ -7,6 +7,8 @@ export interface BagItem {
   x: number;
   y: number;
   count: number;
+  /** Pour une clef : l'étage où on l'a trouvée. Elle n'ouvre que les portes de cet étage. */
+  floor?: number;
 }
 
 /** Sac à cases, à la Diablo : chaque objet occupe un rectangle de cases, les munitions s'empilent. */
@@ -49,11 +51,11 @@ export class Inventory {
   }
 
   /** Ajoute des objets : complète d'abord les piles existantes, puis prend la première place libre. Renvoie ce qui n'a pas pu entrer. */
-  add(defId: ItemId, count = 1): number {
+  add(defId: ItemId, count = 1, floor?: number): number {
     const d: ItemDef = ITEMS[defId];
     for (const item of this.items) {
       if (count === 0) break;
-      if (item.defId !== defId) continue;
+      if (item.defId !== defId || item.floor !== floor) continue; // des clefs d'étages différents ne s'empilent pas
       const room = Math.min(d.maxStack - item.count, count);
       item.count += room;
       count -= room;
@@ -64,7 +66,7 @@ export class Inventory {
         for (let x = 0; x < this.cols && !placed; x++) {
           if (!this.fits(defId, x, y)) continue;
           const n = Math.min(d.maxStack, count);
-          this.items.push({ uid: this.nextUid++, defId, x, y, count: n });
+          this.items.push({ uid: this.nextUid++, defId, x, y, count: n, floor });
           count -= n;
           placed = true;
         }
@@ -104,16 +106,17 @@ export class Inventory {
     return true;
   }
 
-  count(defId: ItemId): number {
-    return this.items.reduce((sum, i) => sum + (i.defId === defId ? i.count : 0), 0);
+  /** Combien on en a. Avec `floor` : seulement ceux de cet étage (clefs). */
+  count(defId: ItemId, floor?: number): number {
+    return this.items.reduce((sum, i) => sum + (i.defId === defId && (floor === undefined || i.floor === floor) ? i.count : 0), 0);
   }
 
   /** Retire `n` exemplaires (munitions tirées). Renvoie faux s'il n'y en a pas assez. */
-  take(defId: ItemId, n = 1): boolean {
-    if (this.count(defId) < n) return false;
+  take(defId: ItemId, n = 1, floor?: number): boolean {
+    if (this.count(defId, floor) < n) return false;
     for (const item of [...this.items].reverse()) {
       if (n === 0) break;
-      if (item.defId !== defId) continue;
+      if (item.defId !== defId || (floor !== undefined && item.floor !== floor)) continue;
       const used = Math.min(item.count, n);
       item.count -= used;
       n -= used;

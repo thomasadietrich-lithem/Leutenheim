@@ -632,7 +632,7 @@ test("ramasser une flèche au sol la remet dans le sac ; la clef ouvre une porte
     }
   }
   assert.ok(door);
-  game.inventory.add("clef", 1);
+  game.inventory.add("clef", 1, game.depth);
   for (let turn = 0; turn < 200 && !game.pendingDoor; turn++) {
     if (game.path.length === 0) assert.ok(game.setDestination(door.x, door.y, true));
     game.tick();
@@ -779,7 +779,7 @@ test("porte : après un échec, la même méthode n'est plus proposée", () => {
       assert.equal(game.actOnDoor(action), false, "on ne peut pas retenter la même méthode");
       assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
       // Une clef rouvre une possibilité.
-      game.inventory.add("clef", 1);
+      game.inventory.add("clef", 1, game.depth);
       assert.deepEqual(game.doorOptions(), ["key", other]);
     }
     assert.ok(found, `aucun échec trouvé pour ${action}`);
@@ -877,27 +877,45 @@ test("coffre : l'ouvrir remplit la bourse", () => {
   assert.fail("aucun coffre trouvé");
 });
 
-test("clef : elle ne sert que dans sa section, et une seule fois", () => {
+test("clef : elle n'ouvre que les portes de son étage, et reste (inutile) dans le sac ailleurs", () => {
   const game = new Game(5);
   game.monsters = [];
-  game.inventory.add("clef", 2);
-  const descend = () => {
-    game.monsters = [];
+  // Une clef ramassée à l'étage 1 porte la marque de cet étage.
+  const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
+  game.ground.push({ x: game.hero.x + side, y: game.hero.y, item: "clef", count: 1 });
+  assert.ok(game.setDestination(game.hero.x + side, game.hero.y, true));
+  game.tick();
+  assert.equal(game.inventory.count("clef", 1), 1);
+  const lockedDoor = () => {
     for (let y = 0; y < game.map.height; y++)
-      for (let x = 0; x < game.map.width; x++)
-        if (game.map.get(x, y) === Tile.StairsDown) Object.assign(game.hero, { x, y, fromX: x, fromY: y });
-    game.pendingStairs = "down";
-    assert.ok(game.takeStairs());
+      for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.DoorLocked) return { x, y };
+    return undefined;
   };
-  // Dans la même section (étages 1 à 5), les clefs suivent le héros.
-  for (let d = 2; d <= RULES.floorsPerSection; d++) descend();
-  assert.equal(game.depth, RULES.floorsPerSection);
-  assert.equal(game.inventory.count("clef"), 2);
-  // En entrant dans la section suivante, elles sont abandonnées.
-  game.events.length = 0;
-  descend();
-  assert.equal(game.inventory.count("clef"), 0);
-  assert.ok(game.events.some((e) => e.type === "keysLost" && e.count === 2));
+  const reach = (door: { x: number; y: number }) => {
+    for (let turn = 0; turn < 300 && !game.pendingDoor; turn++) {
+      if (game.path.length === 0) assert.ok(game.setDestination(door.x, door.y, true));
+      game.tick();
+    }
+    assert.ok(game.pendingDoor);
+  };
+  // À l'étage 2, elle est toujours dans le sac mais n'ouvre rien.
+  for (let y = 0; y < game.map.height; y++)
+    for (let x = 0; x < game.map.width; x++)
+      if (game.map.get(x, y) === Tile.StairsDown) Object.assign(game.hero, { x, y, fromX: x, fromY: y });
+  game.pendingStairs = "down";
+  assert.ok(game.takeStairs());
+  game.monsters = [];
+  assert.equal(game.depth, 2);
+  assert.equal(game.inventory.count("clef"), 1);
+  reach(lockedDoor()!);
+  assert.ok(!game.doorOptions().includes("key"));
+  assert.equal(game.actOnDoor("key"), false);
+  // Une clef trouvée à l'étage 2, elle, fonctionne ; celle de l'étage 1 reste dans le sac.
+  game.inventory.add("clef", 1, 2);
+  assert.ok(game.doorOptions().includes("key"));
+  assert.equal(game.actOnDoor("key"), true);
+  game.tick();
+  assert.deepEqual([game.inventory.count("clef", 1), game.inventory.count("clef", 2)], [1, 0]);
 });
 
 test("tir : à l'aveugle vers une case non vue, et bonus dans un couloir d'une case de large", () => {

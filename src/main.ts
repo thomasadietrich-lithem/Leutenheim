@@ -336,8 +336,6 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
-  } else if (e.type === "keysLost") {
-    logLines.push(e.count > 1 ? "Nouvelle section : vos clefs n'ouvrent rien ici, vous les abandonnez." : "Nouvelle section : votre clef n'ouvre rien ici, vous l'abandonnez.");
   } else if (e.type === "stairs") {
     logLines.push(
       e.direction === "down"
@@ -577,7 +575,9 @@ function renderBag(): void {
   grid.replaceChildren(
     ...bag.items.map((item) => {
       const def = bag.def(item);
-      const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}`);
+      // Une clef d'un autre étage ne sert plus ici : elle reste dans le sac, grisée.
+      const spent = ITEMS[item.defId].kind === "key" && item.floor !== game.depth;
+      const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}`);
       node.style.left = `${(100 * item.x) / bag.cols}%`;
       node.style.top = `${(100 * item.y) / bag.rows}%`;
       node.style.width = `${(100 * def.w) / bag.cols}%`;
@@ -596,7 +596,8 @@ function renderBag(): void {
     return;
   }
   const def: ItemDef = ITEMS[item.defId];
-  info.replaceChildren(itemCard(def, item.count, selectedSlot ? " — porté" : ""));
+  const keyNote = def.kind === "key" && item.floor !== undefined ? ` — étage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
+  info.replaceChildren(itemCard(def, item.count, selectedSlot ? " — porté" : keyNote));
   const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold";
   action.hidden = !wearable;
   action.textContent = selectedSlot ? "Retirer" : "Équiper";

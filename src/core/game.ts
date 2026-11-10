@@ -655,7 +655,9 @@ export class Game {
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
         const here = this.map.get(next.x, next.y);
         this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
-        if (this.opportunityAttacks(threats)) {
+        // Passer une porte pour se mettre à l'abri (y entrer ou en ressortir) ne laisse pas le temps de frapper.
+        const throughDoor = this.map.isDoor(next.x, next.y) || this.map.isDoor(left.x, left.y);
+        if (!throughDoor && this.opportunityAttacks(threats)) {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
           this.doorTarget = null;

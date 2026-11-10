@@ -1839,7 +1839,8 @@
           this.collectGold();
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
-          if (this.opportunityAttacks(threats)) {
+          const throughDoor = this.map.isDoor(next.x, next.y) || this.map.isDoor(left.x, left.y);
+          if (!throughDoor && this.opportunityAttacks(threats)) {
             this.path = [];
             this.doorTarget = null;
           }

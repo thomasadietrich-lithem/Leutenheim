@@ -331,6 +331,9 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
     game.events.length = 0;
     if (!game.setDestination(home.x, home.y, true) || game.path.length < 3) continue;
     const hpBefore = game.hero.hp;
+    // Passer une porte protège de l'attaque d'opportunité : ce cas a son propre test.
+    const step = game.path[0];
+    if (game.map.isDoor(step.x, step.y) || game.map.isDoor(game.hero.x, game.hero.y)) continue;
     game.tick();
     const stillNear = reach(foe.fromX, foe.fromY);
     const reactions = game.events.filter((e) => e.type === "attack" && e.opportunity);
@@ -1040,4 +1043,38 @@ test("un autre ordre interrompt le ramassage en chaîne", () => {
   game.tick();
   assert.equal(game.arrows(), 11);
   assert.equal(game.ground.length, 1);
+});
+
+test("passer une porte au contact d'un monstre ne déclenche pas d'attaque d'opportunité", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 60 && checked < 5; seed++) {
+    const game = new Game(seed);
+    let spot: { x: number; y: number; dx: number; dy: number } | null = null;
+    for (let y = 2; y < game.map.height - 2 && !spot; y++) {
+      for (let x = 2; x < game.map.width - 2 && !spot; x++) {
+        if (game.map.get(x, y) !== Tile.DoorClosed) continue;
+        for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
+          const free = [-2, -1, 1].every((k) => game.map.get(x + k * dx, y + k * dy) === Tile.Floor);
+          if (free) spot = { x, y, dx, dy };
+        }
+      }
+    }
+    if (!spot) continue;
+    const { x, y, dx, dy } = spot;
+    const monster = game.monsters[0] ?? null;
+    if (!monster) continue;
+    game.monsters = [monster];
+    Object.assign(game.hero, { x: x - dx, y: y - dy, hp: 999, maxHp: 999 });
+    Object.assign(monster, { x: x - 2 * dx, y: y - 2 * dy, alerted: true, asleep: false });
+    game.events.length = 0;
+    // Le héros entre dans l'encadrement, puis ressort de l'autre côté : deux désengagements.
+    assert.ok(game.moveBy(dx, dy));
+    game.tick();
+    assert.ok(game.moveBy(dx, dy));
+    game.tick();
+    assert.deepEqual([game.hero.x, game.hero.y], [x + dx, y + dy]);
+    assert.equal(game.events.filter((e) => e.type === "attack" && e.opportunity).length, 0, `graine ${seed}`);
+    checked++;
+  }
+  assert.ok(checked >= 3, `seulement ${checked} portes testées`);
 });

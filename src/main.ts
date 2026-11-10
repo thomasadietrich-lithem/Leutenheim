@@ -78,6 +78,25 @@ let aimShown = "";
 let foundOpen = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
 let seenItems = new Set<ItemId>();
+
+// Encyclopédie : les objets déjà rencontrés, toutes parties confondues (mémorisés sur l'appareil).
+const CODEX_KEY = "leutenheim.codex";
+const codex = new Set<string>();
+try {
+  for (const id of JSON.parse(localStorage.getItem(CODEX_KEY) ?? "[]")) if (id in ITEMS) codex.add(id);
+} catch {
+  // Pas de mémoire disponible : l'encyclopédie repartira de zéro à chaque visite.
+}
+function discover(ids: Iterable<string>): void {
+  const before = codex.size;
+  for (const id of ids) codex.add(id);
+  if (codex.size === before) return;
+  try {
+    localStorage.setItem(CODEX_KEY, JSON.stringify([...codex]));
+  } catch {
+    // Tant pis : la découverte vaut au moins pour cette visite.
+  }
+}
 let started = false;
 /** Race et classe choisies dans l'écran de nouvelle partie. */
 let chosenRace: RaceDef = RACES.humain;
@@ -103,6 +122,7 @@ function newRun(): void {
   foundOpen = false;
   $("found").hidden = true;
   seenItems = new Set<ItemId>(game.heroClass.startingItems.map((g) => g.item));
+  discover(seenItems);
   stepping = false;
   queue = [];
   cue = null;
@@ -266,6 +286,7 @@ function reveal(e: GameEvent): void {
     if (!e.kept) logLines.push("La flèche se brise.");
     else if (!e.hit) logLines.push(e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.");
   } else if (e.type === "pickup") {
+    discover([e.item]);
     const found: ItemDef = ITEMS[e.item];
     logLines.push(found.kind === "gold" ? `Vous ramassez ${e.count} pièce${e.count > 1 ? "s" : ""} d'or.` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
     sfx.play("pickup");
@@ -602,7 +623,7 @@ button("bag-close", () => {
 
 // ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
-/** Encyclopédie : toutes les fiches d'objets du jeu, rangées par genre, y compris celles qu'on ne trouve pas encore. */
+/** Encyclopédie : les fiches des objets déjà rencontrés en jeu (équipement de départ, objets ramassés), rangées par genre. */
 function renderCodex(): void {
   const groups: [string, ItemDef["kind"][]][] = [
     ["Armes de corps à corps", ["melee"]],
@@ -615,9 +636,11 @@ function renderCodex(): void {
   ];
   const nodes: HTMLElement[] = [];
   for (const [title, kinds] of groups) {
-    nodes.push(el("h3", "", title));
-    const defs = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
-    if (defs.length === 0) nodes.push(el("div", "codex-empty", "Rien encore."));
+    // Seuls les objets déjà rencontrés en jeu sont montrés ; le titre dit combien il en reste à découvrir.
+    const all = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
+    const defs = all.filter((d) => codex.has(d.id));
+    nodes.push(el("h3", "", `${title} · ${defs.length} / ${all.length}`));
+    if (defs.length === 0) nodes.push(el("div", "codex-empty", all.length ? "Rien de rencontré pour l'instant." : "Rien encore."));
     for (const def of defs) {
       // Qui commence la partie avec cet objet ?
       const owners = Object.values(CLASSES).filter((c) => c.startingItems.some((s) => s.item === def.id)).map((c) => c.name);

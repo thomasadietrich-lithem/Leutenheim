@@ -885,7 +885,7 @@ test("clef : elle ne sert que dans sa section, et une seule fois", () => {
     game.pendingStairs = "down";
     assert.ok(game.takeStairs());
   };
-  // Dans la même section (étages 1 à 4), les clefs suivent le héros.
+  // Dans la même section (étages 1 à 5), les clefs suivent le héros.
   for (let d = 2; d <= RULES.floorsPerSection; d++) descend();
   assert.equal(game.depth, RULES.floorsPerSection);
   assert.equal(game.inventory.count("clef"), 2);

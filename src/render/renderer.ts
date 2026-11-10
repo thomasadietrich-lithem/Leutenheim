@@ -177,18 +177,16 @@ export class Renderer {
       ctx.stroke();
       ctx.fill();
     };
-    // Hampe (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
+    if (part !== "front") {
+      // Empennage : une petite feuille rouge autour de la queue, la hampe passe par-dessus.
+      shape("#d03a44", [[-L * 0.2, 0], [-L * 0.36, -w * 2.3], [-L * 0.52, 0], [-L * 0.36, w * 2.3]]);
+    }
+    // Hampe fine (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
     const [x0, x1] = part === "whole" ? [-L * 0.46, L * 0.26] : part === "front" ? [-L * 0.05, L * 0.26] : [-L * 0.46, -L * 0.08];
     shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
     if (part !== "back") {
-      // Pointe d'acier large, à barbelures : c'est elle qui dit où va la flèche.
-      shape("#eef2ff", [[L / 2, 0], [L * 0.14, -w * 2.8], [L * 0.24, 0], [L * 0.14, w * 2.8]]);
-    }
-    if (part !== "front") {
-      // Empennage rouge couché vers l'arrière, et encoche.
-      for (const side of [-1, 1]) {
-        shape("#d03a44", [[-L * 0.26, (side * w) / 2], [-L * 0.38, side * w * 2.4], [-L * 0.54, side * w * 2.4], [-L * 0.44, (side * w) / 2]]);
-      }
+      // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
+      shape("#eef2ff", [[L / 2, 0], [L * 0.2, -w * 2.3], [L * 0.2, w * 2.3]]);
     }
     ctx.restore();
   }

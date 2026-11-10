@@ -19,7 +19,7 @@ export const MONSTERS = {
     id: "schrat",
     name: "Schrat",
     family: "schrats",
-    hp: 5,
+    hp: 7,
     armorClass: 12,
     attackBonus: 2,
     damage: { count: 1, sides: 4, bonus: 0 },

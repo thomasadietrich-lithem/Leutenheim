@@ -14,9 +14,9 @@ export const CLASSES = {
   guerrier: {
     id: "guerrier",
     name: "Guerrier",
-    hp: 12,
+    hp: 10,
     armorClass: 15,
     attackBonus: 4,
-    damage: { count: 1, sides: 8, bonus: 2 },
+    damage: { count: 1, sides: 6, bonus: 2 },
   },
 } satisfies Record<string, ClassDef>;

@@ -480,7 +480,7 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
   // Au départ : cotte de mailles, épée et arc sont portés ; seules les flèches sont dans le sac.
   assert.deepEqual(
     [game.equipment.armor?.defId, game.equipment.melee?.defId, game.equipment.ranged?.defId, game.equipment.hat, game.equipment.amulet],
-    ["cotte_mailles", "epee", "arc_court", null, null],
+    ["tunique", "epee", "arc_court", null, null],
   );
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
   assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 15]);
@@ -495,7 +495,7 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
   assert.equal(game.hero.armorClass, 10);
   // On rééquipe : les objets quittent le sac.
   assert.ok(game.equip(sword.uid));
-  assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "cotte_mailles")!.uid));
+  assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "tunique")!.uid));
   assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4, 15]);
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
   // Les flèches ne se portent pas.
@@ -810,4 +810,64 @@ test("une flèche brisée reste quelques tours au sol, puis disparaît", () => {
     return;
   }
   assert.fail("aucune flèche brisée en 200 parties");
+});
+
+test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre et les pièces remplissent la bourse", () => {
+  const game = new Game(4);
+  const foe = game.monsters[0];
+  assert.ok(foe);
+  game.monsters.splice(1);
+  // Trois victoires à 10 points : passage au niveau 2 (30 points), avec 3 PV de plus.
+  const maxHp = game.hero.maxHp;
+  let kills = 0;
+  for (let turn = 0; turn < 400 && kills < 3; turn++) {
+    const target = game.monsters[0];
+    Object.assign(target, { x: game.hero.x + (game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1), y: game.hero.y, hp: 1, alerted: false, asleep: true });
+    assert.ok(game.setDestination(target.x, target.y, true));
+    game.tick();
+    if (game.monsters.length === 0) {
+      kills++;
+      game.monsters.push({ ...foe, id: 1000 + kills, hp: 1 });
+    }
+  }
+  assert.equal(kills, 3);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, 0, 60, maxHp + 3]);
+  assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
+  assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
+
+  // L'or ramassé va dans la bourse, pas dans le sac.
+  game.monsters.splice(0);
+  const purse = game.gold;
+  const bagBefore = game.inventory.items.length;
+  const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
+  game.ground.push({ x: game.hero.x + side, y: game.hero.y, item: "or", count: 7 });
+  assert.ok(game.moveBy(side, 0));
+  game.tick();
+  assert.equal(game.gold, purse + 7);
+  assert.equal(game.inventory.items.length, bagBefore);
+  assert.equal(game.equip(-1), false);
+});
+
+test("coffre : l'ouvrir remplit la bourse", () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const game = new Game(seed);
+    let at: { x: number; y: number } | null = null;
+    for (let y = 0; y < game.map.height && !at; y++) {
+      for (let x = 0; x < game.map.width; x++) {
+        if (game.map.get(x, y) === Tile.Chest) {
+          at = { x, y };
+          break;
+        }
+      }
+    }
+    if (!at) continue;
+    game.monsters.splice(0);
+    Object.assign(game.hero, { x: at.x + 1, y: at.y });
+    assert.ok(game.moveBy(-1, 0));
+    game.tick();
+    assert.equal(game.map.get(at.x, at.y), Tile.ChestOpen);
+    assert.ok(game.gold >= 11 && game.gold <= 23, `or trouvé : ${game.gold}`);
+    return;
+  }
+  assert.fail("aucun coffre trouvé");
 });

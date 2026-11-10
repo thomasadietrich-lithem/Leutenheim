@@ -17,7 +17,7 @@
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   canvas, button, .card { outline: none; }
-  .col { position: relative; width: min(100%, calc((100vh - 225px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  .col { position: relative; width: min(100%, calc((100vh - 250px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
   [hidden] { display: none !important; }
 
   /* Cadre biseauté commun aux panneaux. */
@@ -25,7 +25,11 @@
     border: 3px solid var(--panel-hi); box-shadow: inset 0 0 0 2px var(--panel-lo), 0 0 0 2px var(--panel-lo); }
 
   #hud-text { font-size: 19px; text-align: center; letter-spacing: 0.04em; color: var(--gold); text-transform: uppercase; }
-  .hp { height: 12px; background: #2a0c10; padding: 0; }
+  .hp { position: relative; height: 18px; background: #2a0c10; padding: 0; }
+  .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
+  .hp.xp { height: 14px; background: #0c1626; }
+  .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }
+  #xp-fill { height: 100%; width: 0; background: repeating-linear-gradient(to right, #3a7bd0 0 6px, #24508e 6px 8px); }
   #hp-fill { height: 100%; width: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
   .frame { position: relative; aspect-ratio: 9 / 13; overflow: hidden; background: #070605; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; image-rendering: pixelated; }
@@ -120,7 +124,21 @@
   .slot-box svg { height: 100%; width: auto; max-width: 100%; }
   .slot.empty .slot-box { border-color: #3a3020; }
   .slot.selected .slot-box { border-color: var(--gold); background: #3a2c14; }
-  .slot-label { font-size: 14px; color: var(--dim); text-transform: uppercase; white-space: nowrap; }
+  .slot-box svg.ghost { opacity: 0.2; filter: grayscale(1) brightness(1.7); }
+  /* Fiche d'objet : la même dans l'équipement et quand on trouve quelque chose. */
+  .item-card { display: flex; gap: 8px; text-align: left; width: min(100%, 318px); background: var(--panel); padding: 6px;
+    border: 3px solid var(--panel-hi); box-shadow: inset 0 0 0 2px var(--panel-lo); }
+  .item-card-icon { flex: 0 0 64px; height: 84px; background: #0c0906; box-shadow: inset 2px 2px 0 #000; padding: 4px; display: flex; align-items: center; justify-content: center; }
+  .item-card-icon svg { max-width: 100%; max-height: 100%; }
+  .item-card-body { flex: 1; min-width: 0; }
+  .item-card-name { color: #fff3c8; font-size: 22px; text-transform: uppercase; }
+  .item-card-kind { color: var(--gold); font-size: 15px; text-transform: uppercase; margin-bottom: 2px; }
+  .item-card-stats { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; font-size: 17px; color: var(--dim); }
+  .item-card-value { color: var(--ink); }
+  .item-card-desc { font-size: 15px; color: var(--dim); margin-top: 3px; }
+  #found { z-index: 2; background: rgba(13,10,8,0.92); }
+  #found h2 { margin: 0; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
+  #found button { width: 220px; padding: 10px; font-size: 22px; }
   #bag-info { min-height: 58px; width: min(100%, 318px); font-size: 17px; color: var(--dim); text-align: left; }
   .bag-name { color: #fff3c8; font-size: 21px; text-transform: uppercase; }
   .bag-buttons { display: flex; gap: 8px; }
@@ -129,7 +147,8 @@
 <body>
 <div class="col">
   <div id="hud-text"></div>
-  <div class="hp"><div id="hp-fill"></div></div>
+  <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
+  <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
@@ -152,6 +171,11 @@
     <button id="aim" type="button"></button>
     <button id="open-bag" type="button"></button>
     <button id="open-menu" type="button"></button>
+  </div>
+  <div id="found" class="overlay" hidden>
+    <h2>Trouvé</h2>
+    <div id="found-card"></div>
+    <button id="found-close" type="button">Continuer</button>
   </div>
   <div id="bag" class="overlay" hidden>
     <h2>Équipement</h2>
@@ -380,7 +404,7 @@
       trait: "Bonne armure, et la force d'enfoncer les portes.",
       hp: 10,
       startingItems: [
-        { item: "cotte_mailles", count: 1, equip: true },
+        { item: "tunique", count: 1, equip: true },
         { item: "epee", count: 1, equip: true },
         { item: "arc_court", count: 1, equip: true },
         { item: "fleche", count: 5 }
@@ -456,13 +480,44 @@
   ];
   var UNARMORED_AC = 10;
   var ITEMS = {
-    epee: { id: "epee", name: "\xC9p\xE9e", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 4, damage: { count: 1, sides: 6, bonus: 2 } },
-    dague: { id: "dague", name: "Dague", kind: "melee", w: 1, h: 1, maxStack: 1, attackBonus: 5, damage: { count: 1, sides: 4, bonus: 2 } },
-    baton: { id: "baton", name: "B\xE2ton", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 2, damage: { count: 1, sides: 4, bonus: 0 } },
+    epee: {
+      id: "epee",
+      name: "\xC9p\xE9e",
+      kind: "melee",
+      description: "Une lame droite, sans fioriture. Fiable.",
+      w: 1,
+      h: 2,
+      maxStack: 1,
+      attackBonus: 4,
+      damage: { count: 1, sides: 6, bonus: 2 }
+    },
+    dague: {
+      id: "dague",
+      name: "Dague",
+      kind: "melee",
+      description: "Courte et vive, faite pour les coups en tra\xEEtre.",
+      w: 1,
+      h: 1,
+      maxStack: 1,
+      attackBonus: 5,
+      damage: { count: 1, sides: 4, bonus: 2 }
+    },
+    baton: {
+      id: "baton",
+      name: "B\xE2ton",
+      kind: "melee",
+      description: "Un b\xE2ton de marche. Mieux que rien.",
+      w: 1,
+      h: 2,
+      maxStack: 1,
+      attackBonus: 2,
+      damage: { count: 1, sides: 4, bonus: 0 }
+    },
     arc_court: {
       id: "arc_court",
       name: "Arc court",
       kind: "ranged",
+      description: "Un arc de chasse en bois nu.",
       w: 1,
       h: 2,
       maxStack: 1,
@@ -471,13 +526,52 @@
       range: 6,
       ammo: "fleche"
     },
-    fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", w: 1, h: 1, maxStack: 20 },
-    clef: { id: "clef", name: "Clef", kind: "key", w: 1, h: 1, maxStack: 5 },
-    cotte_mailles: { id: "cotte_mailles", name: "Cotte de mailles", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 15 },
-    armure_cuir: { id: "armure_cuir", name: "Armure de cuir", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 13 },
-    robe: { id: "robe", name: "Robe", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 11 }
+    fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
+    clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une porte verrouill\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
+    or: { id: "or", name: "Pi\xE8ces d'or", kind: "gold", description: "La monnaie du donjon. Elle va dans la bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
+    tunique: {
+      id: "tunique",
+      name: "Tunique",
+      kind: "armor",
+      description: "Une tunique \xE9paisse, ceinte d'une corde.",
+      w: 2,
+      h: 2,
+      maxStack: 1,
+      armorClass: 15
+    },
+    cotte_mailles: {
+      id: "cotte_mailles",
+      name: "Cotte de mailles",
+      kind: "armor",
+      description: "Des anneaux de fer rivet\xE9s. Lourde, mais s\xFBre.",
+      w: 2,
+      h: 2,
+      maxStack: 1,
+      armorClass: 16
+    },
+    armure_cuir: {
+      id: "armure_cuir",
+      name: "Armure de cuir",
+      kind: "armor",
+      description: "Du cuir bouilli, souple et silencieux.",
+      w: 2,
+      h: 2,
+      maxStack: 1,
+      armorClass: 13
+    },
+    robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'\xE9tude. Elle ne prot\xE8ge gu\xE8re.", w: 2, h: 2, maxStack: 1, armorClass: 11 }
   };
   var UNARMED = { attackBonus: 2, damage: { count: 1, sides: 2, bonus: 0 } };
+  var KIND_LABELS = {
+    melee: "Arme de corps \xE0 corps",
+    ranged: "Arme \xE0 distance",
+    armor: "Armure",
+    hat: "Chapeau",
+    amulet: "Amulette",
+    ammo: "Munition",
+    key: "Objet utile",
+    gold: "Monnaie"
+  };
 
   // src/data/monsters.ts
   var MONSTERS = {
@@ -490,6 +584,9 @@
       attackBonus: 2,
       damage: { count: 1, sides: 4, bonus: 0 },
       vision: 6,
+      xp: 10,
+      goldChance: 0.35,
+      goldMax: 4,
       noticeChance: 0.4,
       color: "#d9763a"
     }
@@ -567,6 +664,14 @@
     arrowOvershoot: 4,
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
     keyChance: 0.35,
+    /** Expérience à réunir pour passer au niveau suivant : ce nombre × le niveau actuel. */
+    xpPerLevel: 30,
+    /** Points de vie gagnés à chaque niveau. */
+    hpPerLevel: 3,
+    /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */
+    chestGoldMin: 8,
+    chestGoldMax: 20,
+    chestGoldPerDepth: 3,
     /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
     senseDepth: 3
   };
@@ -1171,6 +1276,10 @@
       this.equipment = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
       /** Objets au sol sur l'étage courant (flèches à ramasser). */
       this.ground = [];
+      /** Bourse, expérience et niveau du héros. */
+      this.gold = 0;
+      this.xp = 0;
+      this.level = 1;
       /** Flèches brisées encore visibles au sol. */
       this.debris = [];
       /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -1373,7 +1482,7 @@
       const item = this.inventory.get(uid);
       if (!item) return false;
       const kind = ITEMS[item.defId].kind;
-      if (kind === "ammo" || kind === "key") return false;
+      if (kind === "ammo" || kind === "key" || kind === "gold") return false;
       const previous = this.equipment[kind];
       const from = { x: item.x, y: item.y };
       this.inventory.removeItem(uid);
@@ -1402,6 +1511,22 @@
       this.hero.damage = melee?.damage ?? UNARMED.damage;
       const armor = this.equipment.armor;
       this.hero.armorClass = armor && ITEMS[armor.defId].armorClass || UNARMORED_AC;
+    }
+    /** Expérience à réunir pour passer au niveau suivant. */
+    xpToNext() {
+      return RULES.xpPerLevel * this.level;
+    }
+    gainXp(amount) {
+      if (amount <= 0) return;
+      this.xp += amount;
+      this.events.push({ type: "xp", amount });
+      while (this.xp >= this.xpToNext()) {
+        this.xp -= this.xpToNext();
+        this.level++;
+        this.hero.maxHp += RULES.hpPerLevel;
+        this.hero.hp += RULES.hpPerLevel;
+        this.events.push({ type: "levelup", level: this.level });
+      }
     }
     arrows() {
       const ammo = this.weapon("ranged")?.ammo;
@@ -1651,7 +1776,9 @@
         this.events.push({ type: "fountain", healed });
       } else if (t === Tile.Chest) {
         this.map.set(x, y, Tile.ChestOpen);
-        this.events.push({ type: "chest" });
+        const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+        this.gold += gold;
+        this.events.push({ type: "chest", gold });
       }
     }
     resolveDoor(action, door) {
@@ -1701,6 +1828,9 @@
       this.monsters.splice(this.monsters.indexOf(monster), 1);
       this.closeDoorAt(monster.x, monster.y);
       this.events.push({ type: "death", actor: monster });
+      const def = MONSTERS[monster.defId];
+      if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
+      if (def) this.gainXp(def.xp);
     }
     /**
      * Tir à l'arc vers une case. La flèche file en ligne droite : elle s'arrête sur le premier monstre rencontré
@@ -1771,6 +1901,12 @@
     /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */
     pickUpAt(x, y) {
       for (const pile of this.ground.filter((g) => g.x === x && g.y === y)) {
+        if (pile.item === "or") {
+          this.gold += pile.count;
+          this.events.push({ type: "pickup", item: pile.item, count: pile.count });
+          pile.count = 0;
+          continue;
+        }
         const left = this.inventory.add(pile.item, pile.count);
         const taken = pile.count - left;
         pile.count = left;
@@ -2252,6 +2388,19 @@
           ctx.beginPath();
           ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
           ctx.fill();
+        } else if (g.item === "or") {
+          for (const [dx, dy] of g.count > 1 ? [[0.38, 0.56], [0.6, 0.48], [0.5, 0.66]] : [[0.5, 0.56]]) {
+            ctx.fillStyle = "#a87c1c";
+            ctx.beginPath();
+            ctx.arc(gx + dx * tile, gy + dy * tile + tile * 0.03, tile * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f0c050";
+            ctx.beginPath();
+            ctx.arc(gx + dx * tile, gy + dy * tile, tile * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#fff3c8";
+            ctx.fillRect(gx + (dx - 0.05) * tile, gy + (dy - 0.06) * tile, tile * 0.05, tile * 0.05);
+          }
         } else {
           this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.7);
         }
@@ -2554,6 +2703,58 @@
   // src/ui/icons.ts
   var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058" };
   var ICONS = {
+    tunique: [
+      "................................",
+      "................................",
+      "................................",
+      "....KKKKKKKKK......KKKKKKKKK....",
+      "...KTTTTTTTTTK....KTTTTTTTTTK...",
+      "...KTTTTTTTTTK....KTTTTTTTTTK...",
+      "...KTTTTTTTTTTK..KTTTTTTTTTTK...",
+      "...KTTTTTTTTTTKKKKTTTTTTTTTTK...",
+      "...KTTTTTTTTTTTTTTTTTTTTTTTTK...",
+      "...KTTTTTTTTTTTTTTTTTTTTTTTTK...",
+      "...KTTTTTTTTTTTTTTTTTTTTTTTTK...",
+      "....KKKKtTTTTTTTTTTTTTTtKKKK....",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KbbbbbbbbbbbbbbbbK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      ".......KtTTTTTTTTTTTTTTtK.......",
+      "........KKKKKKKKKKKKKKKK........",
+      "................................",
+      "................................"
+    ],
+    or: [
+      "................",
+      "................",
+      "........KKKK....",
+      ".......KLLLGK...",
+      "......KLLLGGGK..",
+      "......KLLGGGGK..",
+      "....KKKLGGGGgK..",
+      "...KLLGGGGGggK..",
+      "..KLLGGGGLLGgK..",
+      "..KLGGGGLLGGGK..",
+      "..KGGGGLLGGGGGK.",
+      "..KGGGGLGGGGGgK.",
+      "...KGGgGGGGGggK.",
+      "....KKKKGGGggK..",
+      "........KGggK...",
+      ".........KKK...."
+    ],
     epee: [
       ".......KK.......",
       "......KWDK......",
@@ -2841,6 +3042,42 @@
     return svg;
   }
   var UI_ICONS = {
+    amulet: [
+      "................",
+      "..L..........L..",
+      "..L..........L..",
+      "...L........L...",
+      "...L........L...",
+      "....L......L....",
+      "....L......L....",
+      ".....L....L.....",
+      "......L..L......",
+      "......GGGG......",
+      ".....GRRRRG.....",
+      ".....GRRRRG.....",
+      ".....GRRRRG.....",
+      "......GGGG......",
+      "................",
+      "................"
+    ],
+    hat: [
+      "................",
+      "........BB......",
+      ".......BBB......",
+      ".......BBBB.....",
+      "......BBBBB.....",
+      "......BBBBB.....",
+      ".....BBBBBBB....",
+      ".....BBBBBBB....",
+      "....bbbbbbbbb...",
+      "....GGGGGGGGG...",
+      "..BBBBBBBBBBBBB.",
+      ".BBBBBBBBBBBBBBB",
+      "..bbbbbbbbbbbbb.",
+      "................",
+      "................",
+      "................"
+    ],
     arrow: [
       ".............KK.",
       "............KSWK",
@@ -2985,6 +3222,8 @@
   var aimMode = false;
   var doorWasPending = false;
   var aimShown = "";
+  var foundOpen = false;
+  var seenItems = /* @__PURE__ */ new Set();
   var started = false;
   var chosenRace = RACES.humain;
   var chosenClass = CLASSES.guerrier;
@@ -3000,6 +3239,9 @@
     game = new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass);
     aimMode = false;
     doorWasPending = false;
+    foundOpen = false;
+    $("found").hidden = true;
+    seenItems = new Set(game.heroClass.startingItems.map((g) => g.item));
     stepping = false;
     queue = [];
     cue = null;
@@ -3123,8 +3365,21 @@
       if (!e.kept) logLines.push("La fl\xE8che se brise.");
       else if (!e.hit) logLines.push(e.via ? "La fl\xE8che rebondit et retombe au sol." : "La fl\xE8che se plante au sol.");
     } else if (e.type === "pickup") {
-      logLines.push(`Vous ramassez : ${ITEMS[e.item].name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`);
+      const found = ITEMS[e.item];
+      logLines.push(found.kind === "gold" ? `Vous ramassez ${e.count} pi\xE8ce${e.count > 1 ? "s" : ""} d'or.` : `Vous ramassez : ${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`);
       sfx.play("pickup");
+      if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
+        seenItems.add(e.item);
+        $("found-card").replaceChildren(itemCard(found, e.count));
+        $("found").hidden = false;
+        foundOpen = true;
+      }
+    } else if (e.type === "xp") {
+      renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
+    } else if (e.type === "levelup") {
+      logLines.push(`Niveau ${e.level} ! Vous gagnez ${RULES.hpPerLevel} points de vie.`);
+      shownHp = game.hero.hp;
+      sfx.play("heal");
     } else if (e.type === "death") {
       if (e.actor.kind === "hero") {
         overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
@@ -3151,7 +3406,7 @@
       shownHp = game.hero.hp;
       sfx.play("heal");
     } else if (e.type === "chest") {
-      logLines.push("Le coffre est vide pour l'instant : le butin arrive avec les objets.");
+      logLines.push(`Le coffre contient ${e.gold} pi\xE8ces d'or.`);
       sfx.play("unlock");
     }
     renderLog();
@@ -3193,7 +3448,7 @@
   }
   bindInput(canvas, {
     onTap(px, py) {
-      if (menuOpen || bagOpen) return;
+      if (menuOpen || bagOpen || foundOpen) return;
       const t = renderer.screenToTile(px, py);
       if (aimMode) {
         const refusal = game.shoot(t.x, t.y);
@@ -3215,7 +3470,7 @@
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
     },
     onMove(dx, dy) {
-      if (menuOpen || bagOpen) return;
+      if (menuOpen || bagOpen || foundOpen) return;
       if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
     },
     onPan(dx, dy) {
@@ -3266,15 +3521,23 @@
     $(id).title = label;
   }
   $("aim").setAttribute("aria-label", "Tirer \xE0 l'arc");
-  function itemStats(def) {
-    const lines = [];
-    if (def.attackBonus !== void 0 && def.damage) {
-      lines.push(`Attaque : d20 ${signedBonus(def.attackBonus)} \xB7 D\xE9g\xE2ts : ${diceLabel(def.damage)}`);
-    }
-    if (def.range) lines.push(`Port\xE9e : ${def.range} cases \xB7 Munition : ${ITEMS[def.ammo].name.toLowerCase()}`);
-    if (def.kind === "ammo") lines.push("Munition pour l'arc.");
-    if (def.kind === "key") lines.push("Ouvre une porte verrouill\xE9e, sans bruit.");
-    return lines;
+  function itemCard(def, count = 1, note = "") {
+    const card = el("div", "item-card");
+    const picture = el("div", "item-card-icon");
+    picture.append(itemIcon(def.id));
+    const body = el("div", "item-card-body");
+    body.append(el("div", "item-card-name", `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "item-card-kind", `${KIND_LABELS[def.kind]}${note}`));
+    const rows = [];
+    if (def.attackBonus !== void 0) rows.push(["Attaque", `d20 ${signedBonus(def.attackBonus)}`]);
+    if (def.damage) rows.push(["D\xE9g\xE2ts", diceLabel(def.damage)]);
+    if (def.range) rows.push(["Port\xE9e", `${def.range} cases`]);
+    if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
+    if (def.kind !== "gold") rows.push(["Place", `${def.w} \xD7 ${def.h}`]);
+    const stats = el("div", "item-card-stats");
+    for (const [label, value] of rows) stats.append(el("span", "", label), el("span", "item-card-value", value));
+    body.append(stats, el("div", "item-card-desc", def.description));
+    card.append(picture, body);
+    return card;
   }
   function itemNode(item, className) {
     const node = el("div", className);
@@ -3291,8 +3554,16 @@
         const worn = game.equipment[slot];
         const node = el("div", `slot slot-${slot}${slot === selectedSlot ? " selected" : ""}${worn ? "" : " empty"}`);
         const box = el("div", "slot-box");
-        if (worn) box.append(itemIcon(worn.defId));
-        node.append(box, el("div", "slot-label", label));
+        if (worn) {
+          box.append(itemIcon(worn.defId));
+        } else {
+          const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("hat"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+          ghost.classList.add("ghost");
+          box.append(ghost);
+        }
+        node.append(box);
+        node.title = label;
+        node.setAttribute("aria-label", label);
         node.addEventListener("click", () => {
           sfx.play("click");
           selected = worn && selectedSlot !== slot ? { slot } : null;
@@ -3325,13 +3596,8 @@
       return;
     }
     const def = ITEMS[item.defId];
-    const lines = itemStats(def);
-    if (def.armorClass) lines.push(`Classe d'armure : ${def.armorClass}`);
-    info.replaceChildren(
-      el("div", "bag-name", `${def.name}${item.count > 1 ? ` \xD7${item.count}` : ""}${selectedSlot ? " \u2014 port\xE9" : ""}`),
-      ...lines.map((line) => el("div", "", line))
-    );
-    const wearable = def.kind !== "ammo" && def.kind !== "key";
+    info.replaceChildren(itemCard(def, item.count, selectedSlot ? " \u2014 port\xE9" : ""));
+    const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold";
     action.hidden = !wearable;
     action.textContent = selectedSlot ? "Retirer" : "\xC9quiper";
   }
@@ -3364,6 +3630,10 @@
     selected = null;
     $("bag").hidden = false;
     renderBag();
+  });
+  button("found-close", () => {
+    foundOpen = false;
+    $("found").hidden = true;
   });
   button("bag-close", () => {
     bagOpen = false;
@@ -3503,7 +3773,7 @@
         }
       }
     }
-    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen) {
+    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen) {
       shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
       const before = { x: game.hero.x, y: game.hero.y };
@@ -3518,8 +3788,11 @@
     if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
     const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange);
-    hudText.textContent = `\xC9tage ${game.depth} \xB7 PV ${shownHp}/${game.hero.maxHp} \xB7 CA ${game.hero.armorClass} \xB7 Tour ${game.turn}`;
+    hudText.textContent = `\xC9tage ${game.depth} \xB7 Niv ${game.level} \xB7 CA ${game.hero.armorClass} \xB7 Or ${game.gold}`;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
+    $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
+    $("xp-fill").style.width = `${100 * game.xp / game.xpToNext()}%`;
+    $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;
     const doorOptions = game.doorOptions();
     doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null;
     $("door-key").hidden = !doorOptions.includes("key");

@@ -18,7 +18,9 @@ export interface ItemDef {
   id: string;
   name: string;
   /** Les cinq premiers sont aussi des emplacements d'équipement ; munitions et clefs restent dans le sac. */
-  kind: Slot | "ammo" | "key";
+  kind: Slot | "ammo" | "key" | "gold";
+  /** Une phrase de description, affichée sur la fiche de l'objet. */
+  description: string;
   /** Place occupée dans le sac, en cases (largeur × hauteur). */
   w: number;
   h: number;
@@ -35,13 +37,44 @@ export interface ItemDef {
 }
 
 export const ITEMS = {
-  epee: { id: "epee", name: "Épée", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 4, damage: { count: 1, sides: 6, bonus: 2 } },
-  dague: { id: "dague", name: "Dague", kind: "melee", w: 1, h: 1, maxStack: 1, attackBonus: 5, damage: { count: 1, sides: 4, bonus: 2 } },
-  baton: { id: "baton", name: "Bâton", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 2, damage: { count: 1, sides: 4, bonus: 0 } },
+  epee: {
+    id: "epee",
+    name: "Épée",
+    kind: "melee",
+    description: "Une lame droite, sans fioriture. Fiable.",
+    w: 1,
+    h: 2,
+    maxStack: 1,
+    attackBonus: 4,
+    damage: { count: 1, sides: 6, bonus: 2 },
+  },
+  dague: {
+    id: "dague",
+    name: "Dague",
+    kind: "melee",
+    description: "Courte et vive, faite pour les coups en traître.",
+    w: 1,
+    h: 1,
+    maxStack: 1,
+    attackBonus: 5,
+    damage: { count: 1, sides: 4, bonus: 2 },
+  },
+  baton: {
+    id: "baton",
+    name: "Bâton",
+    kind: "melee",
+    description: "Un bâton de marche. Mieux que rien.",
+    w: 1,
+    h: 2,
+    maxStack: 1,
+    attackBonus: 2,
+    damage: { count: 1, sides: 4, bonus: 0 },
+  },
   arc_court: {
     id: "arc_court",
     name: "Arc court",
     kind: "ranged",
+    description: "Un arc de chasse en bois nu.",
     w: 1,
     h: 2,
     maxStack: 1,
@@ -50,14 +83,55 @@ export const ITEMS = {
     range: 6,
     ammo: "fleche",
   },
-  fleche: { id: "fleche", name: "Flèches", kind: "ammo", w: 1, h: 1, maxStack: 20 },
-  clef: { id: "clef", name: "Clef", kind: "key", w: 1, h: 1, maxStack: 5 },
-  cotte_mailles: { id: "cotte_mailles", name: "Cotte de mailles", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 15 },
-  armure_cuir: { id: "armure_cuir", name: "Armure de cuir", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 13 },
-  robe: { id: "robe", name: "Robe", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 11 },
+  fleche: { id: "fleche", name: "Flèches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
+  clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une porte verrouillée, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
+  or: { id: "or", name: "Pièces d'or", kind: "gold", description: "La monnaie du donjon. Elle va dans la bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
+  tunique: {
+    id: "tunique",
+    name: "Tunique",
+    kind: "armor",
+    description: "Une tunique épaisse, ceinte d'une corde.",
+    w: 2,
+    h: 2,
+    maxStack: 1,
+    armorClass: 15,
+  },
+  cotte_mailles: {
+    id: "cotte_mailles",
+    name: "Cotte de mailles",
+    kind: "armor",
+    description: "Des anneaux de fer rivetés. Lourde, mais sûre.",
+    w: 2,
+    h: 2,
+    maxStack: 1,
+    armorClass: 16,
+  },
+  armure_cuir: {
+    id: "armure_cuir",
+    name: "Armure de cuir",
+    kind: "armor",
+    description: "Du cuir bouilli, souple et silencieux.",
+    w: 2,
+    h: 2,
+    maxStack: 1,
+    armorClass: 13,
+  },
+  robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'étude. Elle ne protège guère.", w: 2, h: 2, maxStack: 1, armorClass: 11 },
 } satisfies Record<string, ItemDef>;
 
 export type ItemId = keyof typeof ITEMS;
 
 /** Sans arme de mêlée équipée, on se bat à mains nues. */
 export const UNARMED = { attackBonus: 2, damage: { count: 1, sides: 2, bonus: 0 } as Dice };
+
+/** Le genre d'un objet, en clair, pour sa fiche. */
+export const KIND_LABELS: Record<ItemDef["kind"], string> = {
+  melee: "Arme de corps à corps",
+  ranged: "Arme à distance",
+  armor: "Armure",
+  hat: "Chapeau",
+  amulet: "Amulette",
+  ammo: "Munition",
+  key: "Objet utile",
+  gold: "Monnaie",
+};

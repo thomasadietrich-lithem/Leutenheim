@@ -1,8 +1,9 @@
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
+import { RULES } from "./data/rules";
 import { CLASSES, ClassDef } from "./data/classes";
-import { ITEMS, ItemDef, ItemId, Slot, SLOTS, UNARMORED_AC } from "./data/items";
+import { ITEMS, ItemDef, ItemId, KIND_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
@@ -73,6 +74,10 @@ let selected: { uid: number } | { slot: Slot } | null = null;
 let aimMode = false;
 let doorWasPending = false;
 let aimShown = "";
+/** Une fiche d'objet est affichée par-dessus le jeu (objet trouvé pour la première fois). */
+let foundOpen = false;
+/** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
+let seenItems = new Set<ItemId>();
 let started = false;
 /** Race et classe choisies dans l'écran de nouvelle partie. */
 let chosenRace: RaceDef = RACES.humain;
@@ -95,6 +100,9 @@ function newRun(): void {
   game = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass);
   aimMode = false;
   doorWasPending = false;
+  foundOpen = false;
+  $("found").hidden = true;
+  seenItems = new Set<ItemId>(game.heroClass.startingItems.map((g) => g.item));
   stepping = false;
   queue = [];
   cue = null;
@@ -258,8 +266,22 @@ function reveal(e: GameEvent): void {
     if (!e.kept) logLines.push("La flèche se brise.");
     else if (!e.hit) logLines.push(e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.");
   } else if (e.type === "pickup") {
-    logLines.push(`Vous ramassez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
+    const found: ItemDef = ITEMS[e.item];
+    logLines.push(found.kind === "gold" ? `Vous ramassez ${e.count} pièce${e.count > 1 ? "s" : ""} d'or.` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
     sfx.play("pickup");
+    if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
+      // Première trouvaille de ce genre d'objet : on montre sa fiche.
+      seenItems.add(e.item);
+      $("found-card").replaceChildren(itemCard(found, e.count));
+      $("found").hidden = false;
+      foundOpen = true;
+    }
+  } else if (e.type === "xp") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
+  } else if (e.type === "levelup") {
+    logLines.push(`Niveau ${e.level} ! Vous gagnez ${RULES.hpPerLevel} points de vie.`);
+    shownHp = game.hero.hp;
+    sfx.play("heal");
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       overText.textContent = `Vous êtes mort à l'étage ${game.depth}, au tour ${game.turn}.`;
@@ -288,7 +310,7 @@ function reveal(e: GameEvent): void {
     shownHp = game.hero.hp;
     sfx.play("heal");
   } else if (e.type === "chest") {
-    logLines.push("Le coffre est vide pour l'instant : le butin arrive avec les objets.");
+    logLines.push(`Le coffre contient ${e.gold} pièces d'or.`);
     sfx.play("unlock");
   }
   renderLog();
@@ -337,7 +359,7 @@ function collectEvents(): void {
 
 bindInput(canvas, {
   onTap(px, py) {
-    if (menuOpen || bagOpen) return;
+    if (menuOpen || bagOpen || foundOpen) return;
     const t = renderer.screenToTile(px, py);
     if (aimMode) {
       // Mode arc : chaque toucher tire vers la case désignée, quelle qu'elle soit.
@@ -360,7 +382,7 @@ bindInput(canvas, {
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
   },
   onMove(dx, dy) {
-    if (menuOpen || bagOpen) return;
+    if (menuOpen || bagOpen || foundOpen) return;
     if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
   },
   onPan(dx, dy) {
@@ -418,15 +440,27 @@ $("aim").setAttribute("aria-label", "Tirer à l'arc");
 
 // ---------- Sac : grille de cases à la Diablo ----------
 
-function itemStats(def: ItemDef): string[] {
-  const lines: string[] = [];
-  if (def.attackBonus !== undefined && def.damage) {
-    lines.push(`Attaque : d20 ${signedBonus(def.attackBonus)} · Dégâts : ${diceLabel(def.damage)}`);
-  }
-  if (def.range) lines.push(`Portée : ${def.range} cases · Munition : ${ITEMS[def.ammo as ItemId].name.toLowerCase()}`);
-  if (def.kind === "ammo") lines.push("Munition pour l'arc.");
-  if (def.kind === "key") lines.push("Ouvre une porte verrouillée, sans bruit.");
-  return lines;
+/**
+ * Fiche d'un objet : son image, son nom, son genre, ses chiffres et une phrase de description.
+ * La même fiche sert dans l'écran d'équipement et quand on trouve un objet dans le donjon.
+ */
+function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
+  const card = el("div", "item-card");
+  const picture = el("div", "item-card-icon");
+  picture.append(itemIcon(def.id as ItemId));
+  const body = el("div", "item-card-body");
+  body.append(el("div", "item-card-name", `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "item-card-kind", `${KIND_LABELS[def.kind]}${note}`));
+  const rows: [string, string][] = [];
+  if (def.attackBonus !== undefined) rows.push(["Attaque", `d20 ${signedBonus(def.attackBonus)}`]);
+  if (def.damage) rows.push(["Dégâts", diceLabel(def.damage)]);
+  if (def.range) rows.push(["Portée", `${def.range} cases`]);
+  if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
+  if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
+  const stats = el("div", "item-card-stats");
+  for (const [label, value] of rows) stats.append(el("span", "", label), el("span", "item-card-value", value));
+  body.append(stats, el("div", "item-card-desc", def.description));
+  card.append(picture, body);
+  return card;
 }
 
 function itemNode(item: { defId: ItemId; count: number }, className: string): HTMLElement {
@@ -447,8 +481,17 @@ function renderBag(): void {
       const worn = game.equipment[slot];
       const node = el("div", `slot slot-${slot}${slot === selectedSlot ? " selected" : ""}${worn ? "" : " empty"}`);
       const box = el("div", "slot-box");
-      if (worn) box.append(itemIcon(worn.defId));
-      node.append(box, el("div", "slot-label", label));
+      if (worn) {
+        box.append(itemIcon(worn.defId));
+      } else {
+        // Emplacement vide : la silhouette estompée de ce qui s'y porte, à la place d'un nom.
+        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("hat"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+        ghost.classList.add("ghost");
+        box.append(ghost);
+      }
+      node.append(box);
+      node.title = label;
+      node.setAttribute("aria-label", label);
       node.addEventListener("click", () => {
         sfx.play("click");
         selected = worn && selectedSlot !== slot ? { slot } : null;
@@ -484,13 +527,8 @@ function renderBag(): void {
     return;
   }
   const def: ItemDef = ITEMS[item.defId];
-  const lines = itemStats(def);
-  if (def.armorClass) lines.push(`Classe d'armure : ${def.armorClass}`);
-  info.replaceChildren(
-    el("div", "bag-name", `${def.name}${item.count > 1 ? ` ×${item.count}` : ""}${selectedSlot ? " — porté" : ""}`),
-    ...lines.map((line) => el("div", "", line)),
-  );
-  const wearable = def.kind !== "ammo" && def.kind !== "key";
+  info.replaceChildren(itemCard(def, item.count, selectedSlot ? " — porté" : ""));
+  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold";
   action.hidden = !wearable;
   action.textContent = selectedSlot ? "Retirer" : "Équiper";
 }
@@ -524,6 +562,10 @@ button("open-bag", () => {
   selected = null;
   $("bag").hidden = false;
   renderBag();
+});
+button("found-close", () => {
+  foundOpen = false;
+  $("found").hidden = true;
 });
 button("bag-close", () => {
   bagOpen = false;
@@ -695,7 +737,7 @@ function frame(now: number): void {
     }
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
-  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen) {
+  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };
@@ -711,8 +753,11 @@ function frame(now: number): void {
   if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange);
-  hudText.textContent = `Étage ${game.depth} · PV ${shownHp}/${game.hero.maxHp} · CA ${game.hero.armorClass} · Tour ${game.turn}`;
+  hudText.textContent = `Étage ${game.depth} · Niv ${game.level} · CA ${game.hero.armorClass} · Or ${game.gold}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
+  $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
+  $("xp-fill").style.width = `${(100 * game.xp) / game.xpToNext()}%`;
+  $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
   doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null;

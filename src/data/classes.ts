@@ -27,7 +27,7 @@ export const CLASSES = {
     trait: "Bonne armure, et la force d'enfoncer les portes.",
     hp: 10,
     startingItems: [
-      { item: "cotte_mailles", count: 1, equip: true },
+      { item: "tunique", count: 1, equip: true },
       { item: "epee", count: 1, equip: true },
       { item: "arc_court", count: 1, equip: true },
       { item: "fleche", count: 5 },

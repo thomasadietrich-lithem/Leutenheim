@@ -371,6 +371,20 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
         ctx.fill();
+      } else if (g.item === "or") {
+        // Pièces d'or : deux ou trois petits disques brillants.
+        for (const [dx, dy] of g.count > 1 ? [[0.38, 0.56], [0.6, 0.48], [0.5, 0.66]] : [[0.5, 0.56]]) {
+          ctx.fillStyle = "#a87c1c";
+          ctx.beginPath();
+          ctx.arc(gx + dx * tile, gy + dy * tile + tile * 0.03, tile * 0.12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#f0c050";
+          ctx.beginPath();
+          ctx.arc(gx + dx * tile, gy + dy * tile, tile * 0.12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#fff3c8";
+          ctx.fillRect(gx + (dx - 0.05) * tile, gy + (dy - 0.06) * tile, tile * 0.05, tile * 0.05);
+        }
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
         this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.7);

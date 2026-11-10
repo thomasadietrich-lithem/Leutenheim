@@ -34,7 +34,9 @@ export type GameEvent =
   | { type: "stairs"; direction: "down" | "up"; healed: number }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
-  | { type: "chest" }
+  | { type: "chest"; gold: number }
+  | { type: "xp"; amount: number }
+  | { type: "levelup"; level: number }
   | {
       type: "door";
       action: DoorAction;
@@ -114,6 +116,10 @@ export class Game {
   equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
   /** Objets au sol sur l'étage courant (flèches à ramasser). */
   ground: GroundItem[] = [];
+  /** Bourse, expérience et niveau du héros. */
+  gold = 0;
+  xp = 0;
+  level = 1;
   /** Flèches brisées encore visibles au sol. */
   debris: Debris[] = [];
   /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -345,7 +351,7 @@ export class Game {
     const item = this.inventory.get(uid);
     if (!item) return false;
     const kind = ITEMS[item.defId].kind;
-    if (kind === "ammo" || kind === "key") return false;
+    if (kind === "ammo" || kind === "key" || kind === "gold") return false;
     const previous = this.equipment[kind];
     const from = { x: item.x, y: item.y };
     this.inventory.removeItem(uid);
@@ -377,6 +383,25 @@ export class Game {
     this.hero.damage = melee?.damage ?? UNARMED.damage;
     const armor = this.equipment.armor;
     this.hero.armorClass = (armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC;
+  }
+
+  /** Expérience à réunir pour passer au niveau suivant. */
+  xpToNext(): number {
+    return RULES.xpPerLevel * this.level;
+  }
+
+  private gainXp(amount: number): void {
+    if (amount <= 0) return;
+    this.xp += amount;
+    this.events.push({ type: "xp", amount });
+    while (this.xp >= this.xpToNext()) {
+      this.xp -= this.xpToNext();
+      this.level++;
+      // PROPOSITION à valider : un niveau donne quelques points de vie de plus, et rien d'autre pour l'instant.
+      this.hero.maxHp += RULES.hpPerLevel;
+      this.hero.hp += RULES.hpPerLevel;
+      this.events.push({ type: "levelup", level: this.level });
+    }
   }
 
   arrows(): number {
@@ -657,7 +682,9 @@ export class Game {
       this.events.push({ type: "fountain", healed });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
-      this.events.push({ type: "chest" }); // le butin arrivera avec les objets (jalon J4)
+      const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+      this.gold += gold;
+      this.events.push({ type: "chest", gold });
     }
   }
 
@@ -715,6 +742,10 @@ export class Game {
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
     this.events.push({ type: "death", actor: monster });
+    // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
+    const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
+    if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
+    if (def) this.gainXp(def.xp);
   }
 
   /**
@@ -798,6 +829,13 @@ export class Game {
   /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */
   private pickUpAt(x: number, y: number): void {
     for (const pile of this.ground.filter((g) => g.x === x && g.y === y)) {
+      if (pile.item === "or") {
+        // L'or va dans la bourse, pas dans le sac.
+        this.gold += pile.count;
+        this.events.push({ type: "pickup", item: pile.item, count: pile.count });
+        pile.count = 0;
+        continue;
+      }
       const left = this.inventory.add(pile.item, pile.count);
       const taken = pile.count - left;
       pile.count = left;

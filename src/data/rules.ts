@@ -28,6 +28,14 @@ export const RULES = {
   arrowOvershoot: 4,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
   keyChance: 0.35,
+  /** Expérience à réunir pour passer au niveau suivant : ce nombre × le niveau actuel. */
+  xpPerLevel: 30,
+  /** Points de vie gagnés à chaque niveau. */
+  hpPerLevel: 3,
+  /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */
+  chestGoldMin: 8,
+  chestGoldMax: 20,
+  chestGoldPerDepth: 3,
   /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
   senseDepth: 3,
 };

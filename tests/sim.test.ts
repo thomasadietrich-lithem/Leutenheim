@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { RULES } from "../src/data/rules";
+import { ITEMS } from "../src/data/items";
 import { test } from "node:test";
 import { Game } from "../src/core/game";
 import { rollAttack } from "../src/core/combat";
@@ -573,7 +574,7 @@ test("tir à l'arc : portée, flèche consommée, récupérable 6 fois sur 10 si
     game.inventory.add("fleche", 15);
     for (let shot = 0; shot < 20; shot++) {
       const before = game.arrows();
-      if (!game.isVisible(foe.x, foe.y) || Math.max(Math.abs(foe.x - game.hero.x), Math.abs(foe.y - game.hero.y)) > 6) break;
+      if (!game.isVisible(foe.x, foe.y) || Math.max(Math.abs(foe.x - game.hero.x), Math.abs(foe.y - game.hero.y)) > ITEMS.arc_court.range!) break;
       if (game.shoot(foe.x, foe.y) !== null) break;
       game.tick();
       assert.equal(game.arrows(), before - 1, "un tir consomme une flèche");
@@ -596,7 +597,7 @@ test("tir à l'arc : portée, flèche consommée, récupérable 6 fois sur 10 si
       game.inventory.add("fleche", 1);
       const far = game.monsters[0];
       const savedX = far.x;
-      far.x = game.hero.x + 7;
+      far.x = game.hero.x + ITEMS.arc_court.range! + 1;
       const visible = game.visible;
       visible[game.map.index(far.x, far.y)] = 1;
       if (game.map.inBounds(far.x, far.y)) {

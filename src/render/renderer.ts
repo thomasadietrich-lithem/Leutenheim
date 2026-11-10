@@ -300,7 +300,9 @@ export class Renderer {
 
         if (game.isVisible(x, y)) {
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
-          const lit = game.light[game.map.index(x, y)];
+          // Un mur ne montre que la lumière qui tombe sur la face qu'on regarde : celle des cases dégagées
+          // en vue qui le touchent. Le feu d'une salle qu'on ne voit pas ne colore pas l'autre côté du mur.
+          const lit = wall ? this.wallLight(game, x, y) : game.light[game.map.index(x, y)];
           const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
           ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
@@ -322,6 +324,8 @@ export class Renderer {
     for (const torch of game.torches) {
       if (!game.isExplored(torch.x, torch.y)) continue;
       if (torch.hearth) {
+        // Tant qu'on n'a pas vu la salle qu'elle chauffe, on ne voit que le dos du mur : ni foyer ni flammes.
+        if (!game.isExplored(torch.x + torch.faceX, torch.y + torch.faceY)) continue;
         this.drawHearth(game, torch, ox + torch.x * tile, oy + torch.y * tile, flicker);
         continue;
       }
@@ -723,6 +727,20 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Lumière visible sur un mur : la plus forte parmi les cases dégagées en vue qui le touchent. */
+  private wallLight(game: Game, x: number, y: number): number {
+    let best = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if ((dx === 0 && dy === 0) || !game.map.inBounds(nx, ny) || !game.map.isWalkable(nx, ny) || !game.isVisible(nx, ny)) continue;
+        best = Math.max(best, game.light[game.map.index(nx, ny)]);
+      }
+    }
+    return best;
+  }
+
   /**
    * Cheminée encastrée dans un mur : un manteau de pierre claire, un foyer sombre ouvert vers la salle, des bûches,
    * et des flammes si elle est allumée. Le dessin est tourné pour que le foyer regarde la salle.
@@ -750,7 +768,9 @@ export class Renderer {
     px(3, 4, 10, 12, "#120d08");
     px(3, 4, 10, 1, "#2a2118");
     // Bûches.
-    const lit = hearth.lit !== false;
+    // Le feu ne se voit brûler que si l'on a la salle sous les yeux ; de mémoire, le foyer est sombre.
+    const inView = game.isVisible(hearth.x + hearth.faceX, hearth.y + hearth.faceY);
+    const lit = hearth.lit !== false && inView;
     px(4, 13, 8, 2, lit ? "#7a5230" : "#4a3a2c");
     px(5, 12, 6, 1, lit ? "#9a6a34" : "#5a4a3a");
     if (lit) {
@@ -769,7 +789,7 @@ export class Renderer {
     }
     ctx.restore();
     // Hors de vue, elle prend le même voile que le mur qui la porte.
-    if (!game.isVisible(hearth.x, hearth.y)) {
+    if (!inView) {
       ctx.fillStyle = "rgba(8,7,14,0.72)";
       ctx.fillRect(Math.round(sx), Math.round(sy), Math.round(sx + tile) - Math.round(sx), Math.round(sy + tile) - Math.round(sy));
     }

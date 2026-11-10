@@ -81,7 +81,7 @@ export const ITEMS = {
     maxStack: 1,
     attackBonus: 3,
     damage: { count: 1, sides: 6, bonus: 0 },
-    range: 6,
+    range: 9,
     ammo: "fleche",
   },
   fleche: { id: "fleche", name: "Flèches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },

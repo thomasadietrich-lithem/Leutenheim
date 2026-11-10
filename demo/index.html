@@ -42,10 +42,34 @@
   #detail { background: rgba(12,11,18,0.97); border-radius: 10px; z-index: 3; }
   #detail-body { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.4; text-align: left; max-width: 300px; }
   #detail-body div:first-child { color: #9a94b0; font-style: italic; margin-bottom: 4px; }
+  #seed { font-size: 11px; color: #5f5a78; margin-top: 8px; }
+  .bar button.active { background: #7a5a1c; outline: 1px solid #e0b040; }
+  /* Sac : esthétique rétro, cases en creux, objets en gros pixels. */
+  #bag { background: rgba(8,7,12,0.96); border-radius: 10px; z-index: 2; padding: 14px; font-family: "Courier New", ui-monospace, monospace; }
+  #bag h2 { margin: 0; font-size: 20px; color: #e0b040; letter-spacing: 0.2em; text-transform: uppercase; }
+  #bag-grid { --cols: 6; --rows: 4; position: relative; width: min(100%, 318px); aspect-ratio: var(--cols) / var(--rows);
+    background-color: #14121c; border: 3px solid #5a4a2a; box-shadow: inset 0 0 0 2px #0a0910; cursor: pointer;
+    background-image: linear-gradient(to right, #2c2838 2px, transparent 2px), linear-gradient(to bottom, #2c2838 2px, transparent 2px);
+    background-size: calc(100% / var(--cols)) calc(100% / var(--rows)); }
+  .bag-item { position: absolute; padding: 5px; background: #24202e; box-shadow: inset 0 0 0 2px #3d3750; display: flex; align-items: center; justify-content: center; }
+  .bag-item svg { width: 100%; height: 100%; image-rendering: pixelated; }
+  .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
+  .bag-item.selected { background: #3a3046; box-shadow: inset 0 0 0 2px #e0b040; }
+  .bag-count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; font-weight: 700; color: #fff; text-shadow: 1px 1px 0 #000; }
+  #bag-info { min-height: 62px; width: min(100%, 318px); font-size: 12px; line-height: 1.45; color: #b4aecb; text-align: left; }
+  .bag-name { color: #f0ecff; font-weight: 700; font-size: 14px; }
+  .bag-buttons { display: flex; gap: 8px; }
+  #bag button { font-family: inherit; padding: 10px 16px; }
+  #recenter { position: absolute; top: 8px; right: 8px; padding: 6px 10px; font-size: 12px; background: rgba(58,53,80,0.9); border: 1px solid #77718f; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
   .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
-  .dice { flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .dice { flex: 0 0 auto; min-width: 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .dice-row { display: flex; gap: 4px; }
+  .die[hidden] { display: none; }
+  .die.dropped { opacity: 0.4; transform: scale(0.8); border-color: #3a3550; color: #9a94b0; }
+  #die-who.advantage { color: #ffd75e; font-weight: 700; }
+  #die-who.disadvantage { color: #ff6b7a; font-weight: 700; }
   .die { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
     border: 2px solid #3a3550; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums;
     transition: border-color 0.25s, box-shadow 0.25s; }
@@ -61,7 +85,7 @@
     100% { transform: rotate(-14deg) scale(1.08); }
   }
   @keyframes land { 0% { transform: scale(1.55) rotate(8deg); } 55% { transform: scale(0.9); } 100% { transform: scale(1); } }
-  #die-who { font-size: 10px; color: #9a94b0; height: 12px; }
+  #die-who { font-size: 10px; color: #9a94b0; height: 12px; white-space: nowrap; }
   #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
   #log div:last-child { color: #e6e2f4; }
   .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
@@ -77,9 +101,11 @@
   <div class="hp"><div id="hp-fill"></div></div>
   <div class="frame">
     <canvas id="game"></canvas>
+    <button id="recenter" type="button" hidden>Recentrer</button>
     <div id="door-actions" hidden>
-      <button id="door-pick" type="button"></button>
-      <button id="door-break" type="button"></button>
+      <button id="door-key" type="button" hidden>Utiliser la clef</button>
+      <button id="door-pick" type="button">Crocheter</button>
+      <button id="door-break" type="button">Enfoncer</button>
     </div>
     <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
@@ -87,13 +113,23 @@
     </div>
   </div>
   <div class="panel">
-    <div class="dice"><div id="die" class="die"></div><div id="die-who"></div></div>
+    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   <div class="bar">
     <button id="wait" type="button">Attendre</button>
+    <button id="aim" type="button">Épée</button>
+    <button id="open-bag" type="button">Sac</button>
     <button id="open-menu" type="button">Menu</button>
-    <span id="seed"></span>
+  </div>
+  <div id="bag" class="overlay" hidden>
+    <h2>Sac</h2>
+    <div id="bag-grid"></div>
+    <div id="bag-info"></div>
+    <div class="bag-buttons">
+      <button id="bag-equip" type="button" hidden></button>
+      <button id="bag-close" type="button">Fermer</button>
+    </div>
   </div>
   <div id="menu" class="overlay">
     <section id="screen-main">
@@ -102,6 +138,7 @@
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-settings" type="button">Paramètres</button>
+      <span id="seed"></span>
     </section>
     <section id="screen-new" hidden>
       <h2>Nouvelle partie</h2>
@@ -205,21 +242,28 @@
             for (let i = 0; i < 6; i++) this.noise(0.03, 0.12, 2400 - i * 150, i * 0.06);
             break;
           case "hit":
-            this.tone(170, 60, 0.13, "triangle", 0.3);
-            this.noise(0.06, 0.15, 1500);
+            this.noise(0.05, 0.22, 2600);
+            this.tone(190, 70, 0.12, "triangle", 0.28);
+            this.tone(1700, 1250, 0.07, "triangle", 0.06, 0.01);
             break;
           case "miss":
-            this.noise(0.14, 0.1, 900);
+            this.noise(0.07, 0.05, 1400);
+            this.noise(0.1, 0.09, 3200, 0.04);
             break;
           case "crit":
-            this.tone(170, 50, 0.18, "triangle", 0.35);
-            this.tone(880, 1320, 0.22, "sine", 0.18, 0.03);
+            this.noise(0.08, 0.3, 2800);
+            this.tone(170, 45, 0.22, "triangle", 0.38);
+            this.tone(1320, 1320, 0.25, "sine", 0.12, 0.04);
+            this.tone(1980, 1980, 0.3, "sine", 0.07, 0.06);
             break;
           case "hurt":
-            this.tone(230, 90, 0.16, "square", 0.12);
+            this.noise(0.06, 0.2, 700);
+            this.tone(150, 60, 0.18, "sawtooth", 0.14);
+            this.tone(90, 55, 0.2, "sine", 0.2, 0.02);
             break;
           case "kill":
-            this.tone(300, 80, 0.2, "sawtooth", 0.1);
+            this.tone(260, 60, 0.28, "sawtooth", 0.1);
+            this.noise(0.16, 0.14, 450, 0.12);
             break;
           case "death":
             [330, 262, 196, 131].forEach((f, i) => this.tone(f, f * 0.97, 0.3, "triangle", 0.2, i * 0.18));
@@ -237,12 +281,35 @@
             this.tone(1600, 1600, 0.04, "square", 0.08, 0.09);
             break;
           case "break":
-            this.noise(0.3, 0.4, 1200);
-            this.tone(120, 40, 0.25, "square", 0.2);
+            this.noise(0.35, 0.5, 1400);
+            this.tone(130, 38, 0.3, "square", 0.25);
+            this.noise(0.3, 0.2, 500, 0.22);
+            this.noise(0.4, 0.1, 300, 0.5);
             break;
           case "thud":
-            this.noise(0.15, 0.3, 500);
-            this.tone(100, 50, 0.12, "sine", 0.25);
+            this.noise(0.18, 0.4, 500);
+            this.tone(100, 45, 0.16, "sine", 0.32);
+            this.noise(0.3, 0.12, 280, 0.2);
+            this.noise(0.35, 0.06, 220, 0.45);
+            break;
+          case "bow":
+            this.tone(420, 180, 0.09, "triangle", 0.14);
+            this.noise(0.08, 0.06, 3e3, 0.02);
+            break;
+          case "knock":
+            this.noise(0.06, 0.16, 380);
+            this.tone(95, 70, 0.07, "sine", 0.12);
+            break;
+          case "advantage":
+            this.tone(784, 784, 0.09, "sine", 0.13);
+            this.tone(1175, 1175, 0.16, "sine", 0.13, 0.08);
+            break;
+          case "disadvantage":
+            this.tone(330, 330, 0.1, "triangle", 0.12);
+            this.tone(233, 233, 0.18, "triangle", 0.12, 0.09);
+            break;
+          case "pickup":
+            this.tone(660, 990, 0.07, "sine", 0.1);
             break;
           case "descend":
             [392, 330, 262].forEach((f, i) => this.tone(f, f, 0.12, "sine", 0.15, i * 0.09));
@@ -280,8 +347,11 @@
       trait: "Bonne armure, et la force d'enfoncer les portes.",
       hp: 10,
       armorClass: 15,
-      attackBonus: 4,
-      damage: { count: 1, sides: 6, bonus: 2 },
+      startingItems: [
+        { item: "epee", count: 1, equip: true },
+        { item: "arc_court", count: 1, equip: true },
+        { item: "fleche", count: 5 }
+      ],
       lockpickBonus: 0,
       breakBonus: 4
     },
@@ -293,8 +363,11 @@
       trait: "Gros d\xE9g\xE2ts sur un ennemi qui ne l'a pas remarqu\xE9 ; croch\xE8te facilement.",
       hp: 8,
       armorClass: 13,
-      attackBonus: 5,
-      damage: { count: 1, sides: 6, bonus: 1 },
+      startingItems: [
+        { item: "dague", count: 1, equip: true },
+        { item: "arc_court", count: 1, equip: true },
+        { item: "fleche", count: 8 }
+      ],
       lockpickBonus: 5,
       breakBonus: 0
     },
@@ -306,8 +379,7 @@
       trait: "Sorts en nombre limit\xE9, recharg\xE9s par le repos.",
       hp: 6,
       armorClass: 11,
-      attackBonus: 2,
-      damage: { count: 1, sides: 4, bonus: 0 },
+      startingItems: [{ item: "baton", count: 1, equip: true }],
       lockpickBonus: 1,
       breakBonus: -1
     }
@@ -333,9 +405,32 @@
     ],
     specialRoomMinSize: 3,
     specialRoomMaxSize: 5,
+    pillarChance: 0.45,
     torchChance: 0.5,
     torchRadius: 6
   };
+
+  // src/data/items.ts
+  var ITEMS = {
+    epee: { id: "epee", name: "\xC9p\xE9e", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 4, damage: { count: 1, sides: 6, bonus: 2 } },
+    dague: { id: "dague", name: "Dague", kind: "melee", w: 1, h: 1, maxStack: 1, attackBonus: 5, damage: { count: 1, sides: 4, bonus: 2 } },
+    baton: { id: "baton", name: "B\xE2ton", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 2, damage: { count: 1, sides: 4, bonus: 0 } },
+    arc_court: {
+      id: "arc_court",
+      name: "Arc court",
+      kind: "ranged",
+      w: 1,
+      h: 2,
+      maxStack: 1,
+      attackBonus: 3,
+      damage: { count: 1, sides: 6, bonus: 0 },
+      range: 6,
+      ammo: "fleche"
+    },
+    fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", w: 1, h: 1, maxStack: 20 },
+    clef: { id: "clef", name: "Clef", kind: "key", w: 1, h: 1, maxStack: 5 }
+  };
+  var UNARMED = { attackBonus: 2, damage: { count: 1, sides: 2, bonus: 0 } };
 
   // src/data/monsters.ts
   var MONSTERS = {
@@ -409,8 +504,100 @@
     /** Un monstre endormi remarque moins bien le héros ; un monstre qui se promène, mieux. */
     noticeAsleep: 0.5,
     noticeAwake: 1.5,
+    /** Flèche qui touche : chance de la retrouver intacte sur la case de la cible. */
+    arrowKeepOnHit: 0.6,
+    /** Flèche qui rate : elle file dans le décor ; chance qu'elle ne se casse pas. */
+    arrowKeepOnMiss: 0.5,
+    /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
+    arrowOvershoot: 4,
+    /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
+    keyChance: 0.35,
     /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
     senseDepth: 3
+  };
+
+  // src/items/inventory.ts
+  var Inventory = class {
+    constructor(cols = 6, rows = 4) {
+      this.cols = cols;
+      this.rows = rows;
+      this.items = [];
+      this.nextUid = 1;
+    }
+    def(item) {
+      return ITEMS[item.defId];
+    }
+    /** L'objet qui occupe une case donnée, s'il y en a un. */
+    at(x, y) {
+      return this.items.find((i) => {
+        const d = this.def(i);
+        return x >= i.x && x < i.x + d.w && y >= i.y && y < i.y + d.h;
+      });
+    }
+    get(uid) {
+      return this.items.find((i) => i.uid === uid);
+    }
+    /** Un objet de cette fiche tient-il à cet endroit ? (`ignoreUid` : l'objet qu'on est en train de déplacer.) */
+    fits(defId, x, y, ignoreUid) {
+      const d = ITEMS[defId];
+      if (x < 0 || y < 0 || x + d.w > this.cols || y + d.h > this.rows) return false;
+      for (let cy = y; cy < y + d.h; cy++) {
+        for (let cx = x; cx < x + d.w; cx++) {
+          const other = this.at(cx, cy);
+          if (other && other.uid !== ignoreUid) return false;
+        }
+      }
+      return true;
+    }
+    /** Ajoute des objets : complète d'abord les piles existantes, puis prend la première place libre. Renvoie ce qui n'a pas pu entrer. */
+    add(defId, count = 1) {
+      const d = ITEMS[defId];
+      for (const item of this.items) {
+        if (count === 0) break;
+        if (item.defId !== defId) continue;
+        const room = Math.min(d.maxStack - item.count, count);
+        item.count += room;
+        count -= room;
+      }
+      while (count > 0) {
+        let placed = false;
+        for (let y = 0; y < this.rows && !placed; y++) {
+          for (let x = 0; x < this.cols && !placed; x++) {
+            if (!this.fits(defId, x, y)) continue;
+            const n = Math.min(d.maxStack, count);
+            this.items.push({ uid: this.nextUid++, defId, x, y, count: n });
+            count -= n;
+            placed = true;
+          }
+        }
+        if (!placed) break;
+      }
+      return count;
+    }
+    /** Déplace un objet vers une autre case, si la place est libre. */
+    moveTo(uid, x, y) {
+      const item = this.get(uid);
+      if (!item || !this.fits(item.defId, x, y, uid)) return false;
+      item.x = x;
+      item.y = y;
+      return true;
+    }
+    count(defId) {
+      return this.items.reduce((sum, i) => sum + (i.defId === defId ? i.count : 0), 0);
+    }
+    /** Retire `n` exemplaires (munitions tirées). Renvoie faux s'il n'y en a pas assez. */
+    take(defId, n = 1) {
+      if (this.count(defId) < n) return false;
+      for (const item of [...this.items].reverse()) {
+        if (n === 0) break;
+        if (item.defId !== defId) continue;
+        const used = Math.min(item.count, n);
+        item.count -= used;
+        n -= used;
+      }
+      this.items = this.items.filter((i) => i.count > 0);
+      return true;
+    }
   };
 
   // src/world/fov.ts
@@ -529,7 +716,8 @@
     Fountain: 6,
     FountainDry: 7,
     Chest: 8,
-    ChestOpen: 9
+    ChestOpen: 9,
+    Pillar: 10
   };
   var GameMap = class {
     constructor(width, height) {
@@ -552,12 +740,12 @@
     /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
     isWalkable(x, y) {
       const t = this.get(x, y);
-      return t !== Tile.Wall && t !== Tile.DoorLocked;
+      return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar;
     }
     /** Bloque la vue et la lumière : murs et portes non ouvertes. */
     blocksSight(x, y) {
       const t = this.get(x, y);
-      return t === Tile.Wall || t === Tile.DoorClosed || t === Tile.DoorLocked;
+      return t === Tile.Wall || t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.Pillar;
     }
     isDoor(x, y) {
       const t = this.get(x, y);
@@ -781,13 +969,34 @@
       specials.push({ room, kind });
     }
     const torches = [];
+    const outlines = rooms.map((room) => {
+      const cells = ringCells(room);
+      return { cells, openings: cells.filter((c) => map.get(c.x, c.y) !== Tile.Wall) };
+    });
+    const bypassed = (c) => outlines.some(
+      (o) => o.cells.some((k) => k.x === c.x && k.y === c.y) && o.openings.some((k) => (k.x !== c.x || k.y !== c.y) && Math.abs(k.x - c.x) + Math.abs(k.y - c.y) <= 3)
+    );
     rooms.forEach((room, index) => {
       const ring = ringCells(room);
       const doorways = ring.filter(
         (c) => map.get(c.x, c.y) === Tile.Floor && map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall
       );
       for (const c of doorways) {
-        if (!doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
+        if (!bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
+          map.set(c.x, c.y, Tile.DoorClosed);
+        }
+      }
+      if (room.w >= 5 && room.h >= 5 && rng.chance(cfg.pillarChance)) {
+        const spots = [
+          { x: room.x + 1, y: room.y + 1 },
+          { x: room.x + room.w - 2, y: room.y + 1 },
+          { x: room.x + 1, y: room.y + room.h - 2 },
+          { x: room.x + room.w - 2, y: room.y + room.h - 2 }
+        ];
+        const all = rng.chance(0.5);
+        for (const p of spots) {
+          if (map.get(p.x, p.y) === Tile.Floor && (all || rng.chance(0.5))) map.set(p.x, p.y, Tile.Pillar);
+        }
       }
       if (index === 0 || rng.chance(cfg.torchChance)) {
         const walls = ring.filter((c) => map.get(c.x, c.y) === Tile.Wall);
@@ -856,11 +1065,17 @@
       this.torches = [];
       /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
       this.pendingDoor = null;
+      /** Le sac du héros, et les armes qu'il a en main (identifiants d'objets du sac). */
+      this.inventory = new Inventory();
+      this.equipped = { melee: null, ranged: null };
+      /** Objets au sol sur l'étage courant (flèches à ramasser). */
+      this.ground = [];
       /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
       this.events = [];
       this.nextId = 1;
       this.targetId = null;
       this.waiting = false;
+      this.shotTargetId = null;
       this.doorTarget = null;
       this.doorAction = null;
       this.seenMonsters = /* @__PURE__ */ new Set();
@@ -878,12 +1093,21 @@
         hp: maxHp,
         maxHp,
         armorClass: heroClass.armorClass,
-        attackBonus: heroClass.attackBonus,
-        damage: heroClass.damage,
+        attackBonus: UNARMED.attackBonus,
+        damage: UNARMED.damage,
         vision: race.darkVision,
         alerted: true,
         asleep: false
       };
+      for (const start of heroClass.startingItems) {
+        this.inventory.add(start.item, start.count);
+        if (start.equip) {
+          const placed = this.inventory.items.find((i) => i.defId === start.item);
+          const kind = ITEMS[start.item].kind;
+          if (placed && (kind === "melee" || kind === "ranged")) this.equipped[kind] = placed.uid;
+        }
+      }
+      this.refreshWeapon();
       this.enterFloor(1);
     }
     // ---------- Mise en place d'un étage ----------
@@ -898,6 +1122,8 @@
       this.path = [];
       this.targetId = null;
       this.waiting = false;
+      this.shotTargetId = null;
+      this.ground = [];
       this.clearDoorOrders();
       this.explored = new Uint8Array(this.map.width * this.map.height);
       this.sensed = new Uint8Array(this.map.width * this.map.height);
@@ -905,6 +1131,7 @@
       this.rooms = floor.rooms;
       this.light = computeLight(this.map, this.torches);
       this.spawnMonsters(floor.rooms);
+      this.placeKey(floor.rooms);
       this.seenMonsters.clear();
       this.updateVision();
     }
@@ -947,6 +1174,18 @@
         }
       }
     }
+    /** Avec un peu de chance, une clef traîne dans une salle de l'étage. */
+    placeKey(rooms) {
+      if (!this.rng.chance(RULES.keyChance)) return;
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const room = rooms[this.rng.int(0, rooms.length - 1)];
+        const x = this.rng.int(room.x, room.x + room.w - 1);
+        const y = this.rng.int(room.y, room.y + room.h - 1);
+        if (this.map.get(x, y) !== Tile.Floor || x === this.hero.x && y === this.hero.y) continue;
+        this.ground.push({ x, y, item: "clef", count: 1 });
+        return;
+      }
+    }
     // ---------- Consultation ----------
     monsterAt(x, y) {
       return this.monsters.find((m) => m.x === x && m.y === y);
@@ -974,7 +1213,50 @@
     visibleMonsters() {
       return this.monsters.filter((m) => this.isVisible(m.x, m.y));
     }
+    // ---------- Équipement ----------
+    /** L'arme de mêlée ou à distance en main, s'il y en a une. */
+    weapon(kind) {
+      const uid = this.equipped[kind];
+      const item = uid === null ? void 0 : this.inventory.get(uid);
+      return item ? ITEMS[item.defId] : void 0;
+    }
+    /** Prend en main une arme du sac, ou la range si elle y est déjà. Ne coûte pas de tour. */
+    toggleEquip(uid) {
+      const item = this.inventory.get(uid);
+      if (!item) return false;
+      const kind = ITEMS[item.defId].kind;
+      if (kind !== "melee" && kind !== "ranged") return false;
+      this.equipped[kind] = this.equipped[kind] === uid ? null : uid;
+      this.refreshWeapon();
+      return true;
+    }
+    /** Les statistiques d'attaque du héros sont celles de son arme de mêlée (ou ses poings). */
+    refreshWeapon() {
+      const melee = this.weapon("melee");
+      this.hero.attackBonus = melee?.attackBonus ?? UNARMED.attackBonus;
+      this.hero.damage = melee?.damage ?? UNARMED.damage;
+    }
+    arrows() {
+      const ammo = this.weapon("ranged")?.ammo;
+      return ammo ? this.inventory.count(ammo) : 0;
+    }
     // ---------- Ordres du joueur ----------
+    /** Tirer sur le monstre qui se trouve sur cette case. Renvoie la raison du refus, ou null si le tir est lancé. */
+    shoot(x, y) {
+      const bow = this.weapon("ranged");
+      if (this.over || !bow) return "no-bow";
+      if (this.arrows() < 1) return "no-ammo";
+      const target = this.monsterAt(x, y);
+      if (!target || !this.isVisible(x, y)) return "no-target";
+      const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
+      if (distance > (bow.range ?? 0)) return "out-of-range";
+      this.clearDoorOrders();
+      this.path = [];
+      this.targetId = null;
+      this.waiting = false;
+      this.shotTargetId = target.id;
+      return null;
+    }
     /**
      * Le joueur désigne une case. Sur un monstre en vue : on va l'attaquer. Sur sa propre case : on attend un tour.
      * Sinon on s'y rend. `ignoreFog` (réservé aux tests) autorise les cases jamais vues.
@@ -997,6 +1279,7 @@
       this.targetId = monster ? monster.id : null;
       this.path = path;
       this.waiting = false;
+      this.shotTargetId = null;
       return true;
     }
     /** Se rendre devant une porte verrouillée (ou s'y arrêter si on y est déjà) pour choisir quoi en faire. */
@@ -1025,6 +1308,7 @@
     /** Le joueur choisit de crocheter ou d'enfoncer la porte devant lui : ce sera l'action du prochain tour. */
     actOnDoor(action) {
       if (this.over || !this.pendingDoor) return false;
+      if (action === "key" && this.inventory.count("clef") < 1) return false;
       this.doorAction = action;
       return true;
     }
@@ -1042,6 +1326,7 @@
       if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
       this.clearDoorOrders();
       this.targetId = null;
+      this.shotTargetId = null;
       this.path = [{ x: this.hero.x + dx, y: this.hero.y + dy }];
       return true;
     }
@@ -1051,6 +1336,7 @@
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
+      this.shotTargetId = null;
       this.waiting = true;
     }
     // ---------- Déroulement d'un tour ----------
@@ -1061,7 +1347,11 @@
         a.fromX = a.x;
         a.fromY = a.y;
       }
-      if (this.doorAction && this.pendingDoor) {
+      const shotTarget = this.shotTargetId === null ? void 0 : this.monsters.find((m) => m.id === this.shotTargetId);
+      this.shotTargetId = null;
+      if (shotTarget) {
+        this.heroShoots(shotTarget);
+      } else if (this.doorAction && this.pendingDoor) {
         this.resolveDoor(this.doorAction, this.pendingDoor);
         this.doorAction = null;
       } else if (this.waiting) {
@@ -1069,7 +1359,7 @@
       } else {
         if (this.targetId !== null) {
           const target = this.monsters.find((m) => m.id === this.targetId);
-          this.path = target ? findPath(this.map, this.hero, target) ?? [] : [];
+          this.path = target ? this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : findPath(this.map, this.hero, target) ?? [] : [];
           if (!target) this.targetId = null;
         }
         const next = this.path[0];
@@ -1088,6 +1378,7 @@
           this.openDoorAt(next.x, next.y);
           this.closeDoorAt(left.x, left.y);
           this.useFeatureAt(next.x, next.y);
+          this.pickUpAt(next.x, next.y);
           if (this.opportunityAttacks(threats)) {
             this.path = [];
             this.doorTarget = null;
@@ -1103,11 +1394,32 @@
       this.monstersAct();
       return true;
     }
-    /** Vrai si `a` peut frapper `b` : case voisine, sans coin de mur entre les deux. */
+    /**
+     * Vrai si `a` peut frapper `b` : case voisine. En diagonale, on peut frapper par-delà un coin de mur,
+     * mais pas à travers deux murs qui se touchent par le coin.
+     */
     inReach(a, b) {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-      return Math.max(Math.abs(dx), Math.abs(dy)) === 1 && canStep(this.map, a.x, a.y, dx, dy);
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return false;
+      if (dx === 0 || dy === 0) return true;
+      return this.map.isWalkable(a.x + dx, a.y) || this.map.isWalkable(a.x, a.y + dy);
+    }
+    /** Vrai si `a` et `b` se touchent en diagonale autour d'un coin de mur : celui qui frappe surprend l'autre. */
+    aroundCorner(a, b) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      if (Math.abs(dx) !== 1 || Math.abs(dy) !== 1) return false;
+      return this.map.isWalkable(a.x + dx, a.y) !== this.map.isWalkable(a.x, a.y + dy);
+    }
+    /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
+    heroHasAdvantageOn(monster) {
+      return !monster.alerted || this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
+    }
+    /** Le héros est-il en mauvaise posture ? (dans une porte, ou un ennemi alerté le guette au coin d'un mur) */
+    heroExposed() {
+      const foes = this.monsters.filter((m) => m.alerted);
+      return foes.length > 0 && this.map.isDoor(this.hero.x, this.hero.y) || foes.some((m) => this.aroundCorner(m, this.hero));
     }
     /** Chaque monstre que le héros vient de quitter l'attaque une fois. Renvoie vrai s'il y a eu au moins une attaque. */
     opportunityAttacks(threats) {
@@ -1152,6 +1464,14 @@
       }
     }
     resolveDoor(action, door) {
+      if (action === "key") {
+        if (!this.inventory.take("clef", 1)) return;
+        this.map.set(door.x, door.y, Tile.DoorOpen);
+        this.light = computeLight(this.map, this.torches);
+        this.pendingDoor = null;
+        this.events.push({ type: "door", action, x: door.x, y: door.y, d20: 0, bonus: 0, total: 0, dc: 0, success: true, alerted: 0 });
+        return;
+      }
       const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
       const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
       const d20 = this.rng.int(1, 20);
@@ -1176,17 +1496,65 @@
       this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
     }
     heroAttacks(monster) {
-      const ambush = !monster.alerted || this.map.isDoor(monster.x, monster.y);
-      const result = rollAttack(this.rng, this.hero, monster, ambush ? "advantage" : "normal");
+      const result = rollAttack(this.rng, this.hero, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
       monster.alerted = true;
       monster.asleep = false;
       monster.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
-      if (monster.hp <= 0) {
-        this.monsters = this.monsters.filter((m) => m !== monster);
-        this.closeDoorAt(monster.x, monster.y);
-        this.events.push({ type: "death", actor: monster });
+      this.removeIfDead(monster);
+    }
+    removeIfDead(monster) {
+      if (monster.hp > 0) return;
+      this.monsters = this.monsters.filter((m) => m !== monster);
+      this.closeDoorAt(monster.x, monster.y);
+      this.events.push({ type: "death", actor: monster });
+    }
+    /** Tir à l'arc : consomme une flèche, qui pourra parfois être ramassée ensuite. */
+    heroShoots(monster) {
+      const bow = this.weapon("ranged");
+      if (!bow || !bow.ammo || !this.inventory.take(bow.ammo, 1)) return;
+      const favoured = !monster.alerted || this.map.isDoor(monster.x, monster.y);
+      const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+      const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
+      const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, monster, mode);
+      monster.alerted = true;
+      monster.asleep = false;
+      monster.hp -= result.damage;
+      this.events.push({ type: "attack", attacker: this.hero, target: monster, result, ranged: true });
+      const landing = result.hit ? { x: monster.x, y: monster.y } : this.flyPast(monster);
+      const kept = this.rng.chance(result.hit ? RULES.arrowKeepOnHit : RULES.arrowKeepOnMiss);
+      if (kept) this.dropItem(landing.x, landing.y, bow.ammo, 1);
+      this.events.push({ type: "arrow", fromX: this.hero.x, fromY: this.hero.y, x: landing.x, y: landing.y, hit: result.hit, kept });
+      this.removeIfDead(monster);
+    }
+    /** Une flèche ratée continue tout droit au-delà de la cible, jusqu'à un mur ou une porte fermée. */
+    flyPast(target) {
+      const dx = target.x - this.hero.x;
+      const dy = target.y - this.hero.y;
+      const n = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
+      let last2 = { x: target.x, y: target.y };
+      for (let k = 1; k <= RULES.arrowOvershoot; k++) {
+        const cx = Math.round(target.x + dx / n * k);
+        const cy = Math.round(target.y + dy / n * k);
+        if (!this.map.isWalkable(cx, cy) || this.map.blocksSight(cx, cy)) break;
+        last2 = { x: cx, y: cy };
       }
+      return last2;
+    }
+    dropItem(x, y, item, count) {
+      const pile = this.ground.find((g) => g.x === x && g.y === y && g.item === item);
+      if (pile) pile.count += count;
+      else this.ground.push({ x, y, item, count });
+    }
+    /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */
+    pickUpAt(x, y) {
+      for (const pile of this.ground.filter((g) => g.x === x && g.y === y)) {
+        const left = this.inventory.add(pile.item, pile.count);
+        const taken = pile.count - left;
+        pile.count = left;
+        if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
+      }
+      this.ground = this.ground.filter((g) => g.count > 0);
     }
     monstersAct() {
       for (const m of [...this.monsters]) {
@@ -1206,8 +1574,8 @@
           }
           continue;
         }
-        if (distance === 1 && canStep(this.map, m.x, m.y, dx, dy)) {
-          const ambush = this.map.isDoor(this.hero.x, this.hero.y);
+        if (this.inReach(m, this.hero)) {
+          const ambush = this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero);
           const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
           this.hero.hp = Math.max(0, this.hero.hp - result.damage);
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
@@ -1310,6 +1678,7 @@
   function bindInput(canvas2, handlers) {
     const pointers = /* @__PURE__ */ new Map();
     let downAt = { x: 0, y: 0 };
+    let lastAt = { x: 0, y: 0 };
     let isGesture = false;
     let pinchDistance = 0;
     const distance = () => {
@@ -1325,6 +1694,7 @@
       if (pointers.size === 1) {
         isGesture = false;
         downAt = { x: e.clientX, y: e.clientY };
+        lastAt = { x: e.clientX, y: e.clientY };
       } else if (pointers.size === 2) {
         isGesture = true;
         pinchDistance = distance();
@@ -1338,8 +1708,10 @@
         const d = distance();
         if (pinchDistance > 0 && d > 0) handlers.onZoom(d / pinchDistance);
         pinchDistance = d;
-      } else if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) {
-        isGesture = true;
+      } else if (pointers.size === 1) {
+        if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) isGesture = true;
+        if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
+        lastAt = { x: e.clientX, y: e.clientY };
       }
     });
     const release = (e, cancelled) => {
@@ -1394,6 +1766,7 @@
     return ((h ^ h >>> 16) >>> 0) / 4294967296;
   }
   var SLASH_MS = 220;
+  var PROJECTILE_MS = 170;
   var Renderer = class {
     constructor(canvas2) {
       this.canvas = canvas2;
@@ -1403,9 +1776,13 @@
       this.columns = COLUMNS;
       this.camX = 0;
       this.camY = 0;
+      /** Décalage de la vue par rapport au héros, en cases (quand le joueur a fait glisser la carte). */
+      this.panX = 0;
+      this.panY = 0;
       this.time = 0;
       this.floats = [];
       this.slashes = [];
+      this.projectiles = [];
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -1424,20 +1801,45 @@
       this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
       this.tile = this.width / this.columns;
     }
+    /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
+    panBy(dxPixels, dyPixels) {
+      const limit = 24;
+      const nx = Math.max(-limit, Math.min(limit, this.panX - dxPixels / this.tile));
+      const ny = Math.max(-limit, Math.min(limit, this.panY - dyPixels / this.tile));
+      this.camX += nx - this.panX;
+      this.camY += ny - this.panY;
+      this.panX = nx;
+      this.panY = ny;
+    }
+    /** Ramène la vue sur le héros (en douceur). */
+    recenter() {
+      this.panX = 0;
+      this.panY = 0;
+    }
+    isPanned() {
+      return Math.abs(this.panX) > 0.5 || Math.abs(this.panY) > 0.5;
+    }
     /** Recentre immédiatement la vue (nouvel étage). */
     snapTo(game2) {
+      this.panX = 0;
+      this.panY = 0;
       this.camX = game2.hero.x;
       this.camY = game2.hero.y;
       this.floats = [];
       this.slashes = [];
+      this.projectiles = [];
     }
     /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
     addFloatingText(x, y, text, color) {
       this.floats.push({ x, y, text, color, age: 0 });
     }
     /** Anime une attaque : l'attaquant s'élance vers sa cible et une lame balaie la case visée. */
-    addSlash(attackerId, fromX, fromY, x, y, color) {
-      this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0 });
+    addSlash(attackerId, fromX, fromY, x, y, color, arc = true) {
+      this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0, arc });
+    }
+    /** Fait voler une flèche d'une case à une autre. */
+    addProjectile(fromX, fromY, x, y) {
+      this.projectiles.push({ fromX, fromY, x, y, age: 0 });
     }
     originX() {
       return this.width / 2 - (this.camX + 0.5) * this.tile;
@@ -1473,8 +1875,8 @@
       };
       const hero = shown(game2.hero);
       const follow = 1 - Math.exp(-dt / 140);
-      this.camX += (hero.x - this.camX) * follow;
-      this.camY += (hero.y - this.camY) * follow;
+      this.camX += (hero.x + this.panX - this.camX) * follow;
+      this.camY += (hero.y + this.panY - this.camY) * follow;
       const ox = this.originX();
       const oy = this.originY();
       const flicker = 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
@@ -1498,13 +1900,27 @@
           }
           const t = game2.map.get(x, y);
           const wall = t === Tile.Wall;
-          if (wall) {
+          if (t === Tile.Pillar) {
+            this.drawFloor(x, y, sx, sy);
+            ctx.fillStyle = "rgba(12,11,18,0.45)";
+            ctx.beginPath();
+            ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#6e7290";
+            ctx.beginPath();
+            ctx.arc(sx + tile * 0.5, sy + tile * 0.5, tile * 0.38, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#9296b6";
+            ctx.beginPath();
+            ctx.arc(sx + tile * 0.46, sy + tile * 0.45, tile * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (wall) {
             this.drawWall(game2, x, y, sx, sy);
           } else {
             this.drawFloor(x, y, sx, sy);
           }
           this.drawFeature(t, sx, sy);
-          const shade = wall ? 0.6 : 1;
+          const shade = wall || t === Tile.Pillar ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
             const lit = game2.light[game2.map.index(x, y)];
             const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game2.race.darkVision + 1.5));
@@ -1527,14 +1943,14 @@
         const fy = torch.faceY;
         const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
         const baseY = oy + (torch.y + 0.5 + fy * 0.47) * tile;
-        const cx = ox + (torch.x + 0.5 + fx * 0.06) * tile;
-        const cy = oy + (torch.y + 0.5 + fy * 0.06) * tile;
+        const cx = ox + (torch.x + 0.5 + fx * 0.22) * tile;
+        const cy = oy + (torch.y + 0.5 + fy * 0.22) * tile;
         ctx.strokeStyle = "#6b4a2a";
         ctx.lineWidth = Math.max(2, tile * 0.09);
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(baseX, baseY);
-        ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.16) * tile, oy + (torch.y + 0.5 + fy * 0.16) * tile);
+        ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.32) * tile, oy + (torch.y + 0.5 + fy * 0.32) * tile);
         ctx.stroke();
         ctx.lineCap = "butt";
         ctx.fillStyle = "#ff8a2a";
@@ -1558,6 +1974,32 @@
         ctx.arc(ox + (p.x + 0.5) * tile, oy + (p.y + 0.5) * tile, tile * (last2 ? 0.22 : 0.08), 0, Math.PI * 2);
         ctx.fill();
       });
+      for (const g of game2.ground) {
+        if (!game2.isExplored(g.x, g.y)) continue;
+        const gx = ox + g.x * tile;
+        const gy = oy + g.y * tile;
+        if (g.item === "clef") {
+          ctx.fillStyle = COLORS.lock;
+          ctx.beginPath();
+          ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.13, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillRect(gx + tile * 0.45, gy + tile * 0.37, tile * 0.3, tile * 0.07);
+          ctx.fillRect(gx + tile * 0.66, gy + tile * 0.4, tile * 0.07, tile * 0.13);
+          ctx.fillStyle = COLORS.floor;
+          ctx.beginPath();
+          ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = "#d9c9a0";
+          ctx.lineWidth = Math.max(1.5, tile * 0.05);
+          ctx.beginPath();
+          ctx.moveTo(gx + tile * 0.28, gy + tile * 0.72);
+          ctx.lineTo(gx + tile * 0.72, gy + tile * 0.28);
+          ctx.stroke();
+          ctx.fillStyle = "#cfd6ea";
+          ctx.fillRect(gx + tile * 0.66, gy + tile * 0.22, tile * 0.12, tile * 0.12);
+        }
+      }
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       for (const m of [...game2.visibleMonsters(), ...ghosts2]) {
@@ -1573,6 +2015,11 @@
         ctx.lineTo(cx - r, cy);
         ctx.closePath();
         ctx.fill();
+        if (game2.heroHasAdvantageOn(m)) {
+          ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+          ctx.lineWidth = Math.max(2, tile * 0.07);
+          ctx.stroke();
+        }
         if (!m.alerted) {
           ctx.fillStyle = "#ffffff";
           ctx.font = `bold ${Math.round(tile * 0.36)}px system-ui, sans-serif`;
@@ -1592,7 +2039,28 @@
       ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      if (game2.heroExposed()) {
+        ctx.strokeStyle = `rgba(255,90,100,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+        ctx.lineWidth = Math.max(2, tile * 0.07);
+        ctx.beginPath();
+        ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.44, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      this.projectiles = this.projectiles.filter((p) => (p.age += dt) < PROJECTILE_MS);
+      for (const p of this.projectiles) {
+        const t = p.age / PROJECTILE_MS;
+        const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
+        const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
+        const angle = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+        ctx.strokeStyle = "#f0e6c8";
+        ctx.lineWidth = Math.max(2, tile * 0.07);
+        ctx.beginPath();
+        ctx.moveTo(px - Math.cos(angle) * tile * 0.3, py - Math.sin(angle) * tile * 0.3);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+      }
       for (const s of this.slashes) {
+        if (!s.arc) continue;
         const t = s.age / SLASH_MS;
         const cx = ox + (s.x + 0.5) * tile;
         const cy = oy + (s.y + 0.5) * tile;
@@ -1624,8 +2092,8 @@
       ctx.globalAlpha = 1;
     }
     /**
-     * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; certaines sont
-     * fendues en deux, fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
+     * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; quelques-unes sont
+     * fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
      */
     drawFloor(x, y, sx, sy) {
       const { ctx, tile } = this;
@@ -1633,14 +2101,10 @@
       ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
       ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
       const kind = noise(x, y, 21);
-      ctx.fillStyle = "rgba(20,18,30,0.5)";
-      ctx.strokeStyle = "rgba(20,18,30,0.55)";
+      ctx.fillStyle = "rgba(20,18,30,0.45)";
+      ctx.strokeStyle = "rgba(20,18,30,0.45)";
       ctx.lineWidth = Math.max(1, tile * 0.03);
-      if (kind < 0.12) {
-        const at = 0.35 + 0.3 * noise(x, y, 22);
-        if (noise(x, y, 23) < 0.5) ctx.fillRect(sx + at * tile, sy + 0.5, Math.max(1, tile * 0.04), tile - 1);
-        else ctx.fillRect(sx + 0.5, sy + at * tile, tile - 1, Math.max(1, tile * 0.04));
-      } else if (kind < 0.24) {
+      if (kind < 0.09) {
         const ax = 0.15 + 0.3 * noise(x, y, 24);
         const ay = 0.15 + 0.7 * noise(x, y, 25);
         ctx.beginPath();
@@ -1648,7 +2112,7 @@
         ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
         ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
         ctx.stroke();
-      } else if (kind < 0.38) {
+      } else if (kind < 0.2) {
         for (let i = 0; i < 3; i++) {
           ctx.beginPath();
           ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
@@ -1657,31 +2121,46 @@
       }
     }
     /**
-     * Mur de briques : trois rangées par case, des joints placés au hasard (mais toujours au même endroit
-     * pour une case donnée) et des briques de teintes légèrement différentes. Les murs voisins se raccordent :
+     * Mur de pierres : trois assises de hauteurs inégales, des joints placés au hasard (mais toujours au même
+     * endroit pour une case donnée), des pierres aux coins décalés et de teintes légèrement différentes. Les murs voisins se raccordent :
      * pas de bordure entre deux cases de mur, un rebord clair seulement là où le mur s'arrête.
      */
     drawWall(game2, x, y, sx, sy) {
       const { ctx, tile } = this;
-      const rows = 3;
-      const rowH = tile / rows;
       const gap = Math.max(1, tile * 0.05);
       ctx.fillStyle = COLORS.mortar;
       ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
-      for (let r = 0; r < rows; r++) {
-        const row = y * rows + r;
+      const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
+      ctx.lineJoin = "round";
+      for (let r = 0; r < 3; r++) {
+        const row = y * 3 + r;
         const cuts = [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
         for (let i = 0; i + 1 < cuts.length; i++) {
           const first = i === 0;
           const last2 = i + 2 === cuts.length;
           const tint = first ? noise(x, row, 9) : last2 ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
-          const light = 0.86 + 0.28 * tint;
-          ctx.fillStyle = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
+          const light = 0.84 + 0.3 * tint;
+          const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
           const left = sx + cuts[i] * tile + (first ? 0 : gap / 2);
           const right = sx + cuts[i + 1] * tile - (last2 ? -0.5 : gap / 2);
-          ctx.fillRect(left, sy + r * rowH + gap / 2, right - left, rowH - gap);
+          const top = sy + levels[r] * tile + gap / 2;
+          const bottom = sy + levels[r + 1] * tile - gap / 2;
+          const j = (k) => (noise(x * 4 + i, row, 50 + k) - 0.5) * tile * 0.07;
+          const soft = Math.max(1, tile * 0.05);
+          ctx.fillStyle = color;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = soft;
+          ctx.beginPath();
+          ctx.moveTo(left + (first ? 0 : soft / 2 + Math.abs(j(0))), top + soft / 2 + Math.abs(j(1)));
+          ctx.lineTo(right - (last2 ? 0 : soft / 2 + Math.abs(j(2))), top + soft / 2 + Math.abs(j(3)));
+          ctx.lineTo(right - (last2 ? 0 : soft / 2 + Math.abs(j(4))), bottom - soft / 2 - Math.abs(j(5)));
+          ctx.lineTo(left + (first ? 0 : soft / 2 + Math.abs(j(6))), bottom - soft / 2 - Math.abs(j(7)));
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
         }
       }
+      ctx.lineJoin = "miter";
       if (game2.map.inBounds(x, y - 1) && game2.map.get(x, y - 1) !== Tile.Wall) {
         ctx.fillStyle = "rgba(190,196,230,0.35)";
         ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
@@ -1745,6 +2224,91 @@
     }
   };
 
+  // src/ui/icons.ts
+  var ICONS = {
+    epee: {
+      w: 8,
+      h: 16,
+      rects: [
+        [3, 1, 2, 9, "#cfd6ea"],
+        [3, 1, 1, 9, "#eef2ff"],
+        [1, 10, 6, 1, "#e0b040"],
+        [3, 11, 2, 3, "#6b4a2a"],
+        [3, 14, 2, 1, "#e0b040"]
+      ]
+    },
+    dague: {
+      w: 8,
+      h: 8,
+      rects: [
+        [3, 0, 2, 4, "#cfd6ea"],
+        [2, 4, 4, 1, "#e0b040"],
+        [3, 5, 2, 2, "#6b4a2a"]
+      ]
+    },
+    baton: {
+      w: 8,
+      h: 16,
+      rects: [
+        [3, 1, 2, 14, "#8a5a2b"],
+        [2, 1, 4, 2, "#b9824a"]
+      ]
+    },
+    arc_court: {
+      w: 8,
+      h: 16,
+      rects: [
+        [2, 1, 2, 1, "#8a5a2b"],
+        [4, 2, 1, 2, "#8a5a2b"],
+        [5, 4, 1, 8, "#b9824a"],
+        [4, 12, 1, 2, "#8a5a2b"],
+        [2, 14, 2, 1, "#8a5a2b"],
+        [2, 2, 1, 12, "#d8d4e6"]
+      ]
+    },
+    fleche: {
+      w: 8,
+      h: 8,
+      rects: [
+        [1, 6, 1, 1, "#e05060"],
+        [2, 5, 1, 1, "#b9824a"],
+        [3, 4, 1, 1, "#b9824a"],
+        [4, 3, 1, 1, "#b9824a"],
+        [5, 2, 1, 1, "#b9824a"],
+        [5, 1, 2, 1, "#cfd6ea"],
+        [6, 1, 1, 2, "#cfd6ea"]
+      ]
+    },
+    clef: {
+      w: 8,
+      h: 8,
+      rects: [
+        [1, 1, 3, 3, "#e0b040"],
+        [2, 2, 1, 1, "#1c1a28"],
+        [4, 2, 3, 1, "#e0b040"],
+        [5, 3, 1, 1, "#e0b040"],
+        [6, 3, 1, 2, "#e0b040"]
+      ]
+    }
+  };
+  function itemIcon(id) {
+    const ns = "http://www.w3.org/2000/svg";
+    const icon = ICONS[id];
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${icon.w} ${icon.h}`);
+    svg.setAttribute("shape-rendering", "crispEdges");
+    for (const [x, y, w, h, color] of icon.rects) {
+      const r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", String(x));
+      r.setAttribute("y", String(y));
+      r.setAttribute("width", String(w));
+      r.setAttribute("height", String(h));
+      r.setAttribute("fill", color);
+      svg.appendChild(r);
+    }
+    return svg;
+  }
+
   // src/main.ts
   function stepDuration(pathLength) {
     if (pathLength <= 3) return 180;
@@ -1764,6 +2328,7 @@
   var hudText = $("hud-text");
   var hpFill = $("hp-fill");
   var die = $("die");
+  var die2 = $("die2");
   var dieWho = $("die-who");
   var log = $("log");
   var over = $("over");
@@ -1788,6 +2353,10 @@
   var game;
   var logLines = [];
   var menuOpen = true;
+  var bagOpen = false;
+  var selectedUid = null;
+  var aimMode = false;
+  var doorWasPending = false;
   var started = false;
   var chosenRace = RACES.humain;
   var chosenClass = CLASSES.guerrier;
@@ -1801,9 +2370,8 @@
   var stepTime = 0;
   function newRun() {
     game = new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass);
-    const signed = (n) => n < 0 ? `\u2212 ${-n}` : `+ ${n}`;
-    $("door-pick").textContent = `Crocheter (d20 ${signed(chosenClass.lockpickBonus)} contre ${RULES.lockpickDc})`;
-    $("door-break").textContent = `Enfoncer (d20 ${signed(chosenClass.breakBonus)} contre ${RULES.breakDc}) \u2014 bruyant`;
+    aimMode = false;
+    doorWasPending = false;
     stepping = false;
     queue = [];
     cue = null;
@@ -1819,6 +2387,7 @@
   function clearDie() {
     die.textContent = "";
     die.className = "die";
+    die2.hidden = true;
     dieWho.textContent = "";
   }
   function renderLog() {
@@ -1831,29 +2400,50 @@
       })
     );
   }
-  var isRoll = (e) => e.type === "attack" || e.type === "door";
+  var isRoll = (e) => e.type === "attack" || e.type === "door" && e.action !== "key";
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   function describeAttack(e) {
     const r = e.result;
-    const who = e.attacker.kind === "hero" ? `Vous attaquez ${e.target.name}` : e.opportunity ? `Attaque d'opportunit\xE9 de ${e.attacker.name}` : `${e.attacker.name} vous attaque`;
+    const who = e.attacker.kind === "hero" ? `${e.ranged ? "Vous tirez sur" : "Vous attaquez"} ${e.target.name}` : e.opportunity ? `Attaque d'opportunit\xE9 de ${e.attacker.name}` : `${e.attacker.name} vous attaque`;
     const outcome = r.critical ? `coup critique, ${r.damage} d\xE9g\xE2ts` : r.hit ? `touch\xE9, ${r.damage} d\xE9g\xE2ts` : r.d20 === 1 ? "\xE9chec critique" : "rat\xE9";
-    const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : "";
-    return `${who} : ${r.d20} + ${r.bonus} = ${r.total} contre CA ${r.targetAc}${mode} \u2014 ${outcome}`;
+    const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : r.mode === "disadvantage" ? ` (d\xE9savantage : ${r.rolls.join(" et ")})` : "";
+    return `${who} : ${r.d20} + ${r.bonus} = ${r.total}${mode} \u2014 ${outcome}`;
   }
   function describeDoor(e) {
+    if (e.action === "key") return "Vous ouvrez la porte avec la clef.";
     const what = e.action === "pick" ? "Vous crochetez la serrure" : "Vous enfoncez la porte";
     const outcome = e.action === "pick" ? e.success ? "elle s'ouvre" : "rat\xE9" : e.success ? "elle c\xE8de" : "elle r\xE9siste";
-    const noise2 = e.action === "break" ? e.alerted > 0 ? ` Le vacarme alerte ${e.alerted} monstre${e.alerted > 1 ? "s" : ""}.` : " Le vacarme r\xE9sonne, sans r\xE9ponse." : "";
-    return `${what} : ${e.d20} + ${e.bonus} = ${e.total} contre ${e.dc} \u2014 ${outcome}.${noise2}`;
+    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `\u2212 ${-e.bonus}`;
+    return `${what} : ${e.d20} ${bonus} = ${e.total} \u2014 ${outcome}.`;
   }
   function startRoll(e) {
-    die.className = `die rolling${byFoe(e) ? " foe" : ""}`;
-    dieWho.textContent = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
+    const foe = byFoe(e);
+    const mode = e.type === "attack" ? e.result.mode : "normal";
+    die.className = `die rolling${foe ? " foe" : ""}`;
+    die2.hidden = mode === "normal";
+    die2.className = `die rolling${foe ? " foe" : ""}`;
+    const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
+    dieWho.textContent = mode === "advantage" ? `${who} \xB7 avantage` : mode === "disadvantage" ? `${who} \xB7 d\xE9savantage` : who;
+    dieWho.className = mode === "normal" ? "" : mode;
     sfx.play("dice");
+    if (mode !== "normal") sfx.play(mode);
+    if (e.type === "attack") {
+      if (mode !== "normal") {
+        const good = mode === "advantage" !== foe;
+        renderer.addFloatingText(e.attacker.x, e.attacker.y, mode === "advantage" ? "Avantage !" : "D\xE9savantage", good ? "#ffd75e" : "#ff6b7a");
+      }
+      if (e.ranged) sfx.play("bow");
+    }
   }
-  function landDie(value, outcome, foe) {
+  function landDie(value, outcome, foe, other) {
     die.textContent = String(value);
     die.className = `die land ${outcome}${foe ? " foe" : ""}`;
+    if (other === void 0) {
+      die2.hidden = true;
+    } else {
+      die2.textContent = String(other);
+      die2.className = `die dropped${foe ? " foe" : ""}`;
+    }
   }
   function reveal(e) {
     if (e.type === "attack") {
@@ -1861,8 +2451,9 @@
       const foe = e.attacker.kind === "monster";
       logLines.push(describeAttack(e));
       if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunit\xE9 !", "#ffd75e");
-      renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
-      landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
+      if (!e.ranged) renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
+      const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : void 0;
+      landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
       renderer.addFloatingText(
         e.target.x,
         e.target.y,
@@ -1873,13 +2464,25 @@
       sfx.play(r.critical ? "crit" : r.hit ? foe ? "hurt" : "hit" : "miss");
     } else if (e.type === "door") {
       logLines.push(describeDoor(e));
-      landDie(e.d20, e.success ? "hit" : "miss", false);
-      if (e.action === "break") {
-        renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
-        sfx.play(e.success ? "break" : "thud");
+      if (e.action === "key") {
+        sfx.play("unlock");
       } else {
-        sfx.play(e.success ? "unlock" : "click");
+        landDie(e.d20, e.success ? "hit" : "miss", false);
+        if (e.action === "break") {
+          renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
+          renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
+          sfx.play(e.success ? "break" : "thud");
+        } else {
+          sfx.play(e.success ? "unlock" : "click");
+        }
       }
+    } else if (e.type === "arrow") {
+      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+      if (!e.kept) logLines.push(e.hit ? "La fl\xE8che se brise." : "La fl\xE8che se brise contre le d\xE9cor.");
+      else if (!e.hit) logLines.push("La fl\xE8che se plante plus loin : elle est r\xE9cup\xE9rable.");
+    } else if (e.type === "pickup") {
+      logLines.push(`Vous ramassez : ${ITEMS[e.item].name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`);
+      sfx.play("pickup");
     } else if (e.type === "death") {
       if (e.actor.kind === "hero") {
         overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
@@ -1924,6 +2527,7 @@
         if (cue.time - cue.lastFace >= 55) {
           cue.lastFace = cue.time;
           die.textContent = String(1 + Math.floor(Math.random() * 20));
+          die2.textContent = String(1 + Math.floor(Math.random() * 20));
         }
         return;
       }
@@ -1945,13 +2549,32 @@
   }
   bindInput(canvas, {
     onTap(px, py) {
-      if (menuOpen) return;
+      if (menuOpen || bagOpen) return;
       const t = renderer.screenToTile(px, py);
+      if (aimMode && game.monsterAt(t.x, t.y) && game.isVisible(t.x, t.y)) {
+        const refusal = game.shoot(t.x, t.y);
+        if (refusal) {
+          const why = {
+            "no-bow": "Aucun arc en main.",
+            "no-ammo": "Plus de fl\xE8ches.",
+            "no-target": "Aucune cible visible ici.",
+            "out-of-range": `Hors de port\xE9e (${game.weapon("ranged")?.range ?? 0} cases).`
+          }[refusal];
+          logLines.push(why);
+          renderLog();
+        } else {
+          stepMs = COMBAT_STEP_MS;
+        }
+        return;
+      }
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
     },
     onMove(dx, dy) {
-      if (menuOpen) return;
+      if (menuOpen || bagOpen) return;
       if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
+    },
+    onPan(dx, dy) {
+      if (!menuOpen && !bagOpen) renderer.panBy(dx, dy);
     },
     onZoom(factor) {
       renderer.zoomBy(factor);
@@ -1974,6 +2597,83 @@
   var doorButton = (id, action) => button(id, () => game.actOnDoor(action));
   doorButton("door-pick", "pick");
   doorButton("door-break", "break");
+  doorButton("door-key", "key");
+  button("recenter", () => renderer.recenter());
+  button("aim", () => {
+    aimMode = !aimMode;
+  });
+  function itemStats(def) {
+    const lines = [];
+    if (def.attackBonus !== void 0 && def.damage) {
+      lines.push(`Attaque : d20 ${signedBonus(def.attackBonus)} \xB7 D\xE9g\xE2ts : ${diceLabel(def.damage)}`);
+    }
+    if (def.range) lines.push(`Port\xE9e : ${def.range} cases \xB7 Munition : ${ITEMS[def.ammo].name.toLowerCase()}`);
+    if (def.kind === "ammo") lines.push("Munition pour l'arc. Se ramasse parfois apr\xE8s le tir.");
+    if (def.kind === "key") lines.push("Ouvre une porte verrouill\xE9e, sans bruit.");
+    return lines;
+  }
+  function renderBag() {
+    const bag = game.inventory;
+    const grid = $("bag-grid");
+    grid.style.setProperty("--cols", String(bag.cols));
+    grid.style.setProperty("--rows", String(bag.rows));
+    grid.replaceChildren(
+      ...bag.items.map((item) => {
+        const def2 = bag.def(item);
+        const equipped = game.equipped.melee === item.uid || game.equipped.ranged === item.uid;
+        const node = el("div", `bag-item${equipped ? " equipped" : ""}${item.uid === selectedUid ? " selected" : ""}`);
+        node.style.left = `${100 * item.x / bag.cols}%`;
+        node.style.top = `${100 * item.y / bag.rows}%`;
+        node.style.width = `${100 * def2.w / bag.cols}%`;
+        node.style.height = `${100 * def2.h / bag.rows}%`;
+        node.append(itemIcon(item.defId));
+        if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
+        return node;
+      })
+    );
+    const selected = selectedUid === null ? void 0 : bag.get(selectedUid);
+    const info = $("bag-info");
+    const equip = $("bag-equip");
+    if (!selected) {
+      info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner, puis une case libre pour le d\xE9placer."));
+      equip.hidden = true;
+      return;
+    }
+    const def = bag.def(selected);
+    const inHand = game.equipped.melee === selected.uid || game.equipped.ranged === selected.uid;
+    info.replaceChildren(
+      el("div", "bag-name", `${def.name}${selected.count > 1 ? ` \xD7${selected.count}` : ""}${inHand ? " \u2014 en main" : ""}`),
+      ...itemStats(def).map((line) => el("div", "", line))
+    );
+    equip.hidden = def.kind !== "melee" && def.kind !== "ranged";
+    equip.textContent = inHand ? "Ranger" : "Prendre en main";
+  }
+  $("bag-grid").addEventListener("click", (e) => {
+    const grid = $("bag-grid");
+    const rect = grid.getBoundingClientRect();
+    const bag = game.inventory;
+    const x = Math.floor((e.clientX - rect.left) / rect.width * bag.cols);
+    const y = Math.floor((e.clientY - rect.top) / rect.height * bag.rows);
+    const hit = bag.at(x, y);
+    if (hit) selectedUid = hit.uid === selectedUid ? null : hit.uid;
+    else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
+    sfx.play("click");
+    renderBag();
+  });
+  button("bag-equip", () => {
+    if (selectedUid !== null) game.toggleEquip(selectedUid);
+    renderBag();
+  });
+  button("open-bag", () => {
+    bagOpen = true;
+    selectedUid = null;
+    $("bag").hidden = false;
+    renderBag();
+  });
+  button("bag-close", () => {
+    bagOpen = false;
+    $("bag").hidden = true;
+  });
   function showScreen(screen) {
     menuOpen = screen !== null;
     menu.hidden = !menuOpen;
@@ -2001,20 +2701,26 @@
     };
   }
   function classCard(c) {
+    const gear = c.startingItems.map((g) => ({ def: ITEMS[g.item], count: g.count }));
+    const weapons = gear.filter((g) => g.def.kind === "melee" || g.def.kind === "ranged");
     return {
       id: c.id,
       name: c.name,
       available: c.available,
       tagline: c.tagline,
-      basics: [`PV ${c.hp} \xB7 CA ${c.armorClass}`, `D\xE9g\xE2ts ${diceLabel(c.damage)}`],
+      basics: [`PV ${c.hp} \xB7 CA ${c.armorClass}`, weapons.map((g) => g.def.name).join(" \xB7 ")],
       details: [
         c.tagline,
         `Points de vie : ${c.hp}`,
         `Classe d'armure : ${c.armorClass}`,
-        `Attaque : d20 ${signedBonus(c.attackBonus)}`,
-        `D\xE9g\xE2ts : ${diceLabel(c.damage)}`,
         `Crocheter une serrure : d20 ${signedBonus(c.lockpickBonus)}`,
         `Enfoncer une porte : d20 ${signedBonus(c.breakBonus)}`,
+        "\xC9quipement de d\xE9part :",
+        ...gear.map((g) => {
+          const d = g.def;
+          if (d.attackBonus === void 0 || !d.damage) return `\u2022 ${d.name} \xD7${g.count}`;
+          return `\u2022 ${d.name} : d20 ${signedBonus(d.attackBonus)}, d\xE9g\xE2ts ${diceLabel(d.damage)}${d.range ? `, port\xE9e ${d.range} cases` : ""}`;
+        }),
         `Style \u2014 ${c.trait}`
       ]
     };
@@ -2101,7 +2807,7 @@
         }
       }
     }
-    if (!stepping && !cue && queue.length === 0 && !menuOpen) {
+    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen) {
       shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
       const before = { x: game.hero.x, y: game.hero.y };
@@ -2118,6 +2824,19 @@
     hudText.textContent = `\xC9tage ${game.depth} \xB7 PV ${shownHp}/${game.hero.maxHp} \xB7 CA ${game.hero.armorClass} \xB7 Tour ${game.turn}`;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
     doorActions.hidden = !game.pendingDoor || game.over || cue !== null;
+    $("door-key").hidden = game.inventory.count("clef") < 1;
+    if (game.pendingDoor && !doorWasPending) {
+      renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);
+      sfx.play("knock");
+    }
+    doorWasPending = game.pendingDoor !== null;
+    $("recenter").hidden = !renderer.isPanned();
+    const bow = game.weapon("ranged");
+    const aim = $("aim");
+    aim.hidden = !bow;
+    if (!bow) aimMode = false;
+    aim.textContent = aimMode ? `Arc (${game.arrows()})` : "\xC9p\xE9e";
+    aim.classList.toggle("active", aimMode);
     requestAnimationFrame(frame);
   }
   newRun();

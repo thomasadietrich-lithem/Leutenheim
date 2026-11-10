@@ -19,6 +19,8 @@ export interface FloorConfig {
   specialRoomCounts: { count: number; weight: number }[];
   specialRoomMinSize: number;
   specialRoomMaxSize: number;
+  /** Probabilité qu'une salle assez grande (5×5 au moins) ait des colonnes, derrière lesquelles se cacher. */
+  pillarChance: number;
   /** Probabilité qu'une salle ait une torche murale (la salle de départ en a toujours une). */
   torchChance: number;
   torchRadius: number;
@@ -43,6 +45,7 @@ export const DEFAULT_FLOOR: FloorConfig = {
   ],
   specialRoomMinSize: 3,
   specialRoomMaxSize: 5,
+  pillarChance: 0.45,
   torchChance: 0.5,
   torchRadius: 6,
 };

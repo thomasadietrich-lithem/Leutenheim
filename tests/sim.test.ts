@@ -5,6 +5,7 @@ import { rollAttack } from "../src/core/combat";
 import { Rng } from "../src/core/rng";
 import { DEFAULT_FLOOR } from "../src/data/floors";
 import { spawnsForDepth } from "../src/data/monsters";
+import { Inventory } from "../src/items/inventory";
 import { generateFloor } from "../src/world/generator";
 import { Tile } from "../src/world/map";
 import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
@@ -13,7 +14,7 @@ import { canStep, distanceField, findPath } from "../src/world/pathfinding";
 const FLOORS = 1000;
 
 test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière une porte verrouillée`, () => {
-  const stats = { doors: 0, locked: 0, torches: 0, specials: [0, 0, 0, 0] };
+  const stats = { doors: 0, locked: 0, torches: 0, pillars: 0, specials: [0, 0, 0, 0] };
   for (let seed = 1; seed <= FLOORS; seed++) {
     const { map, rooms, start, stairs, torches, specials } = generateFloor(seed, DEFAULT_FLOOR);
     assert.ok(rooms.length >= DEFAULT_FLOOR.minRooms, `graine ${seed} : pas assez de salles`);
@@ -48,6 +49,21 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
       }
     }
 
+    // Une porte n'a jamais un autre passage ouvert juste à côté dans le mur de sa salle.
+    for (const r of rooms) {
+      const ring: { x: number; y: number }[] = [];
+      for (let x = r.x; x < r.x + r.w; x++) ring.push({ x, y: r.y - 1 }, { x, y: r.y + r.h });
+      for (let y = r.y; y < r.y + r.h; y++) ring.push({ x: r.x - 1, y }, { x: r.x + r.w, y });
+      const open = ring.filter((c) => map.get(c.x, c.y) !== Tile.Wall);
+      for (const d of open.filter((c) => map.get(c.x, c.y) === Tile.DoorClosed)) {
+        for (const o of open) {
+          if (o === d || map.isDoor(o.x, o.y)) continue;
+          const dist = Math.abs(o.x - d.x) + Math.abs(o.y - d.y);
+          assert.ok(dist > 3, `graine ${seed} : porte (${d.x},${d.y}) contournable par (${o.x},${o.y})`);
+        }
+      }
+    }
+
     // Sans ouvrir aucune porte verrouillée, on atteint l'escalier.
     assert.notEqual(distanceField(map, start)[map.index(stairs.x, stairs.y)], -1, `graine ${seed} : escalier enfermé`);
 
@@ -56,6 +72,7 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
     let stairsCount = 0;
     for (let i = 0; i < open.tiles.length; i++) {
       if (open.tiles[i] === Tile.DoorClosed) stats.doors++;
+      if (open.tiles[i] === Tile.Pillar) stats.pillars++;
       if (open.tiles[i] === Tile.DoorLocked) {
         stats.locked++;
         open.tiles[i] = Tile.DoorClosed;
@@ -76,9 +93,9 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
   }
   const mean = stats.locked / FLOORS;
   console.log(
-    `Par étage en moyenne : ${(stats.doors / FLOORS).toFixed(1)} portes, ${(stats.torches / FLOORS).toFixed(1)} torches, ${mean.toFixed(2)} salles spéciales (1 salle : ${stats.specials[1]}, 2 : ${stats.specials[2]}, 3 : ${stats.specials[3]} sur ${FLOORS})`,
+    `Par étage en moyenne : ${(stats.doors / FLOORS).toFixed(1)} portes, ${(stats.torches / FLOORS).toFixed(1)} torches, ${(stats.pillars / FLOORS).toFixed(1)} colonnes, ${mean.toFixed(2)} salles spéciales (1 salle : ${stats.specials[1]}, 2 : ${stats.specials[2]}, 3 : ${stats.specials[3]} sur ${FLOORS})`,
   );
-  assert.ok(stats.doors > FLOORS);
+  assert.ok(stats.doors > FLOORS && stats.pillars > FLOORS);
   assert.ok(mean > 1.35 && mean < 1.65, `moyenne de salles spéciales : ${mean}`);
   assert.ok(stats.specials[3] > 0 && stats.specials[3] < stats.specials[2] && stats.specials[2] < stats.specials[1]);
 });
@@ -415,4 +432,174 @@ test("fontaine : y marcher rend tous les points de vie, une seule fois", () => {
     return;
   }
   assert.fail("aucune fontaine trouvée en 300 parties");
+});
+
+test("sac : objets de deux cases, piles de flèches, pas de chevauchement", () => {
+  const bag = new Inventory(6, 4);
+  assert.equal(bag.add("epee"), 0);
+  assert.equal(bag.add("arc_court"), 0);
+  assert.equal(bag.add("fleche", 5), 0);
+  const [sword, bow, arrows] = bag.items;
+  assert.deepEqual([bag.def(sword).w, bag.def(sword).h, bag.def(bow).h], [1, 2, 2]);
+  assert.equal(bag.at(sword.x, sword.y + 1), sword, "l'épée occupe deux cases");
+  // Les flèches s'empilent dans la même case.
+  bag.add("fleche", 3);
+  assert.equal(bag.items.length, 3);
+  assert.equal(arrows.count, 8);
+  // Déplacements : refusés hors du sac ou sur un autre objet, acceptés sur une place libre.
+  assert.equal(bag.moveTo(sword.uid, bow.x, bow.y), false);
+  assert.equal(bag.moveTo(sword.uid, 0, 3), false, "dépasserait en bas");
+  assert.equal(bag.moveTo(sword.uid, 5, 2), true);
+  assert.equal(bag.at(5, 3), sword);
+  // Une pile pleine déborde sur une nouvelle case ; un sac plein refuse le surplus.
+  bag.add("fleche", 30);
+  assert.equal(bag.count("fleche"), 38);
+  assert.ok(bag.items.filter((i) => i.defId === "fleche").every((i) => i.count <= 20));
+  assert.ok(bag.take("fleche", 38) && bag.count("fleche") === 0 && !bag.take("fleche", 1));
+  const full = new Inventory(1, 2);
+  assert.equal(full.add("epee"), 0);
+  assert.equal(full.add("fleche", 2), 2);
+});
+
+test("les statistiques d'attaque viennent de l'arme en main", () => {
+  const game = new Game(1);
+  assert.deepEqual([game.hero.attackBonus, game.hero.damage], [4, { count: 1, sides: 6, bonus: 2 }]);
+  assert.equal(game.arrows(), 5);
+  const sword = game.inventory.items.find((i) => i.defId === "epee")!;
+  game.toggleEquip(sword.uid); // on range l'épée : on se bat à mains nues
+  assert.deepEqual([game.hero.attackBonus, game.hero.damage.sides], [2, 2]);
+  game.toggleEquip(sword.uid);
+  assert.equal(game.hero.attackBonus, 4);
+});
+
+test("tir à l'arc : portée, flèche consommée, récupérable 6 fois sur 10 si elle touche, 1 fois sur 2 sinon", () => {
+  const stats = { hit: 0, hitKept: 0, miss: 0, missKept: 0 };
+  let rangeChecked = false;
+  for (let seed = 1; seed <= 400; seed++) {
+    const game = new Game(seed);
+    const foe = game.monsters[0];
+    if (!foe) continue;
+    // On installe un monstre increvable dans la salle de départ, à 3 cases du héros, et on vide le reste.
+    const spot = [[3, 0], [-3, 0], [0, 3], [0, -3]]
+      .map(([dx, dy]) => ({ x: game.hero.x + dx, y: game.hero.y + dy }))
+      .find((p) => game.map.get(p.x, p.y) === Tile.Floor && hasLineOfSight(game.map, game.hero, p));
+    if (!spot) continue;
+    game.monsters = [foe];
+    Object.assign(foe, { ...spot, hp: 100000, maxHp: 100000, asleep: true, alerted: false });
+    game.hero.hp = game.hero.maxHp = 100000;
+    game.wait();
+    game.tick(); // met à jour ce que le héros voit
+    game.events.length = 0;
+    game.inventory.add("fleche", 15);
+    for (let shot = 0; shot < 20; shot++) {
+      const before = game.arrows();
+      if (!game.isVisible(foe.x, foe.y) || Math.max(Math.abs(foe.x - game.hero.x), Math.abs(foe.y - game.hero.y)) > 6) break;
+      if (game.shoot(foe.x, foe.y) !== null) break;
+      game.tick();
+      assert.equal(game.arrows(), before - 1, "un tir consomme une flèche");
+      const arrow = game.events.find((e) => e.type === "arrow");
+      assert.ok(arrow && arrow.type === "arrow");
+      if (arrow.hit) {
+        stats.hit++;
+        if (arrow.kept) stats.hitKept++;
+        assert.deepEqual([arrow.x, arrow.y], [foe.fromX, foe.fromY], "une flèche qui touche tombe sur la cible");
+      } else {
+        stats.miss++;
+        if (arrow.kept) stats.missKept++;
+        assert.ok(game.map.isWalkable(arrow.x, arrow.y), "une flèche ratée finit sur une case praticable");
+      }
+      if (arrow.kept) assert.ok(game.ground.some((g) => g.item === "fleche" && g.x === arrow.x && g.y === arrow.y));
+      game.events.length = 0;
+    }
+    if (!rangeChecked) {
+      // Hors de portée : refus, sans consommer de flèche.
+      game.inventory.add("fleche", 1);
+      const far = game.monsters[0];
+      const savedX = far.x;
+      far.x = game.hero.x + 7;
+      const visible = game.visible;
+      visible[game.map.index(far.x, far.y)] = 1;
+      if (game.map.inBounds(far.x, far.y)) {
+        assert.equal(game.shoot(far.x, far.y), "out-of-range");
+        rangeChecked = true;
+      }
+      far.x = savedX;
+    }
+  }
+  console.log(
+    `Flèches : ${stats.hit} touchées dont ${stats.hitKept} récupérables (${((100 * stats.hitKept) / stats.hit).toFixed(0)} %), ${stats.miss} ratées dont ${stats.missKept} récupérables (${((100 * stats.missKept) / stats.miss).toFixed(0)} %)`,
+  );
+  assert.ok(stats.hit > 300 && stats.miss > 300 && rangeChecked);
+  assert.ok(Math.abs(stats.hitKept / stats.hit - 0.6) < 0.06);
+  assert.ok(Math.abs(stats.missKept / stats.miss - 0.5) < 0.06);
+});
+
+test("ramasser une flèche au sol la remet dans le sac ; la clef ouvre une porte verrouillée", () => {
+  const game = new Game(3);
+  game.monsters = [];
+  game.ground = [{ x: game.hero.x + 1, y: game.hero.y, item: "fleche", count: 2 }];
+  assert.ok(game.moveBy(1, 0));
+  game.tick();
+  assert.equal(game.arrows(), 7);
+  assert.equal(game.ground.length, 0);
+  assert.ok(game.events.some((e) => e.type === "pickup" && e.count === 2));
+
+  // Clef : pas de jet, pas de bruit, la clef est consommée.
+  let door: { x: number; y: number } | null = null;
+  for (let y = 0; y < game.map.height && !door; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      if (game.map.get(x, y) === Tile.DoorLocked) {
+        door = { x, y };
+        break;
+      }
+    }
+  }
+  assert.ok(door);
+  game.inventory.add("clef", 1);
+  for (let turn = 0; turn < 200 && !game.pendingDoor; turn++) {
+    if (game.path.length === 0) assert.ok(game.setDestination(door.x, door.y, true));
+    game.tick();
+  }
+  assert.ok(game.pendingDoor);
+  assert.equal(game.actOnDoor("key"), true);
+  game.tick();
+  assert.equal(game.map.get(door.x, door.y), Tile.DoorOpen);
+  assert.equal(game.inventory.count("clef"), 0);
+  assert.equal(game.actOnDoor("key"), false);
+});
+
+test("coin de mur : on peut frapper en diagonale par-delà, avec l'avantage, dans les deux sens", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 60 && checked < 10; seed++) {
+    const game = new Game(seed);
+    const foe = game.monsters[0];
+    if (!foe) continue;
+    const map = game.map;
+    // Deux cases en diagonale, avec un mur d'un seul côté du coin.
+    let pair: { a: { x: number; y: number }; b: { x: number; y: number } } | null = null;
+    for (let y = 1; y < map.height - 1 && !pair; y++) {
+      for (let x = 1; x < map.width - 1 && !pair; x++) {
+        if (map.get(x, y) !== Tile.Floor || map.get(x + 1, y + 1) !== Tile.Floor) continue;
+        if (map.get(x + 1, y) === Tile.Wall && map.get(x, y + 1) === Tile.Floor) pair = { a: { x, y }, b: { x: x + 1, y: y + 1 } };
+      }
+    }
+    if (!pair) continue;
+    game.monsters = [foe];
+    Object.assign(foe, { ...pair.b, alerted: true, asleep: false, hp: 1000, maxHp: 1000 });
+    Object.assign(game.hero, { ...pair.a, hp: 1000, maxHp: 1000 });
+    game.wait();
+    game.tick(); // met la vision à jour ; le monstre frappe déjà
+    const theirs = game.events.find((e) => e.type === "attack" && e.attacker === foe);
+    assert.ok(theirs && theirs.type === "attack" && theirs.result.mode === "advantage", `graine ${seed} : le monstre n'a pas l'avantage au coin`);
+    game.events.length = 0;
+    assert.ok(game.heroHasAdvantageOn(foe));
+    assert.ok(game.setDestination(foe.x, foe.y, true));
+    const before = { x: game.hero.x, y: game.hero.y };
+    game.tick();
+    const mine = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
+    assert.ok(mine && mine.type === "attack" && mine.result.mode === "advantage", `graine ${seed} : pas d'attaque avec avantage au coin`);
+    assert.deepEqual({ x: game.hero.x, y: game.hero.y }, before, "le héros frappe sans se déplacer");
+    checked++;
+  }
+  assert.ok(checked >= 5);
 });

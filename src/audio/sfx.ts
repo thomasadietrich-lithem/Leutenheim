@@ -15,6 +15,11 @@ export type SoundName =
   | "thud"
   | "descend"
   | "heal"
+  | "bow"
+  | "knock"
+  | "pickup"
+  | "advantage"
+  | "disadvantage"
   | "click";
 
 type Wave = OscillatorType;
@@ -100,22 +105,29 @@ export class Sfx {
         case "dice": // le dé qui roule : une série de petits chocs
           for (let i = 0; i < 6; i++) this.noise(0.03, 0.12, 2400 - i * 150, i * 0.06);
           break;
-        case "hit":
-          this.tone(170, 60, 0.13, "triangle", 0.3);
-          this.noise(0.06, 0.15, 1500);
+        case "hit": // la lame entaille : choc sourd + éclat métallique bref
+          this.noise(0.05, 0.22, 2600);
+          this.tone(190, 70, 0.12, "triangle", 0.28);
+          this.tone(1700, 1250, 0.07, "triangle", 0.06, 0.01);
           break;
-        case "miss":
-          this.noise(0.14, 0.1, 900);
+        case "miss": // la lame fend l'air
+          this.noise(0.07, 0.05, 1400);
+          this.noise(0.1, 0.09, 3200, 0.04);
           break;
-        case "crit":
-          this.tone(170, 50, 0.18, "triangle", 0.35);
-          this.tone(880, 1320, 0.22, "sine", 0.18, 0.03);
+        case "crit": // coup lourd, puis tintement
+          this.noise(0.08, 0.3, 2800);
+          this.tone(170, 45, 0.22, "triangle", 0.38);
+          this.tone(1320, 1320, 0.25, "sine", 0.12, 0.04);
+          this.tone(1980, 1980, 0.3, "sine", 0.07, 0.06);
           break;
-        case "hurt":
-          this.tone(230, 90, 0.16, "square", 0.12);
+        case "hurt": // le héros encaisse : impact mat et grave
+          this.noise(0.06, 0.2, 700);
+          this.tone(150, 60, 0.18, "sawtooth", 0.14);
+          this.tone(90, 55, 0.2, "sine", 0.2, 0.02);
           break;
-        case "kill":
-          this.tone(300, 80, 0.2, "sawtooth", 0.1);
+        case "kill": // le monstre s'effondre
+          this.tone(260, 60, 0.28, "sawtooth", 0.1);
+          this.noise(0.16, 0.14, 450, 0.12);
           break;
         case "death":
           [330, 262, 196, 131].forEach((f, i) => this.tone(f, f * 0.97, 0.3, "triangle", 0.2, i * 0.18));
@@ -132,13 +144,36 @@ export class Sfx {
           this.tone(1200, 1200, 0.03, "square", 0.08);
           this.tone(1600, 1600, 0.04, "square", 0.08, 0.09);
           break;
-        case "break":
-          this.noise(0.3, 0.4, 1200);
-          this.tone(120, 40, 0.25, "square", 0.2);
+        case "break": // le fracas, puis l'écho qui roule dans les couloirs
+          this.noise(0.35, 0.5, 1400);
+          this.tone(130, 38, 0.3, "square", 0.25);
+          this.noise(0.3, 0.2, 500, 0.22);
+          this.noise(0.4, 0.1, 300, 0.5);
           break;
-        case "thud":
-          this.noise(0.15, 0.3, 500);
-          this.tone(100, 50, 0.12, "sine", 0.25);
+        case "thud": // coup d'épaule : la porte tient, mais ça résonne
+          this.noise(0.18, 0.4, 500);
+          this.tone(100, 45, 0.16, "sine", 0.32);
+          this.noise(0.3, 0.12, 280, 0.2);
+          this.noise(0.35, 0.06, 220, 0.45);
+          break;
+        case "bow":
+          this.tone(420, 180, 0.09, "triangle", 0.14);
+          this.noise(0.08, 0.06, 3000, 0.02);
+          break;
+        case "knock":
+          this.noise(0.06, 0.16, 380);
+          this.tone(95, 70, 0.07, "sine", 0.12);
+          break;
+        case "advantage": // deux notes claires qui montent : la chance est de votre côté
+          this.tone(784, 784, 0.09, "sine", 0.13);
+          this.tone(1175, 1175, 0.16, "sine", 0.13, 0.08);
+          break;
+        case "disadvantage": // deux notes sourdes qui descendent
+          this.tone(330, 330, 0.1, "triangle", 0.12);
+          this.tone(233, 233, 0.18, "triangle", 0.12, 0.09);
+          break;
+        case "pickup":
+          this.tone(660, 990, 0.07, "sine", 0.1);
           break;
         case "descend":
           [392, 330, 262].forEach((f, i) => this.tone(f, f, 0.12, "sine", 0.15, i * 0.09));

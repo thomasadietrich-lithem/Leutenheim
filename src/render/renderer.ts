@@ -46,7 +46,19 @@ interface Slash {
   y: number;
   color: string;
   age: number;
+  /** Faux : simple élan sans trace de lame (rebond contre une porte). */
+  arc: boolean;
 }
+
+/** Une flèche en vol. */
+interface Projectile {
+  fromX: number;
+  fromY: number;
+  x: number;
+  y: number;
+  age: number;
+}
+const PROJECTILE_MS = 170;
 
 interface FloatingText {
   x: number;
@@ -65,9 +77,13 @@ export class Renderer {
   private columns = COLUMNS;
   private camX = 0;
   private camY = 0;
+  /** Décalage de la vue par rapport au héros, en cases (quand le joueur a fait glisser la carte). */
+  private panX = 0;
+  private panY = 0;
   private time = 0;
   private floats: FloatingText[] = [];
   private slashes: Slash[] = [];
+  private projectiles: Projectile[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -91,12 +107,37 @@ export class Renderer {
     this.tile = this.width / this.columns;
   }
 
+  /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
+  panBy(dxPixels: number, dyPixels: number): void {
+    const limit = 24;
+    const nx = Math.max(-limit, Math.min(limit, this.panX - dxPixels / this.tile));
+    const ny = Math.max(-limit, Math.min(limit, this.panY - dyPixels / this.tile));
+    // On déplace aussi la caméra tout de suite, pour que la carte suive le doigt sans retard.
+    this.camX += nx - this.panX;
+    this.camY += ny - this.panY;
+    this.panX = nx;
+    this.panY = ny;
+  }
+
+  /** Ramène la vue sur le héros (en douceur). */
+  recenter(): void {
+    this.panX = 0;
+    this.panY = 0;
+  }
+
+  isPanned(): boolean {
+    return Math.abs(this.panX) > 0.5 || Math.abs(this.panY) > 0.5;
+  }
+
   /** Recentre immédiatement la vue (nouvel étage). */
   snapTo(game: Game): void {
+    this.panX = 0;
+    this.panY = 0;
     this.camX = game.hero.x;
     this.camY = game.hero.y;
     this.floats = [];
     this.slashes = [];
+    this.projectiles = [];
   }
 
   /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
@@ -105,8 +146,13 @@ export class Renderer {
   }
 
   /** Anime une attaque : l'attaquant s'élance vers sa cible et une lame balaie la case visée. */
-  addSlash(attackerId: number, fromX: number, fromY: number, x: number, y: number, color: string): void {
-    this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0 });
+  addSlash(attackerId: number, fromX: number, fromY: number, x: number, y: number, color: string, arc = true): void {
+    this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0, arc });
+  }
+
+  /** Fait voler une flèche d'une case à une autre. */
+  addProjectile(fromX: number, fromY: number, x: number, y: number): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: 0 });
   }
 
   private originX(): number {
@@ -147,8 +193,8 @@ export class Renderer {
     };
     const hero = shown(game.hero);
     const follow = 1 - Math.exp(-dt / 140);
-    this.camX += (hero.x - this.camX) * follow;
-    this.camY += (hero.y - this.camY) * follow;
+    this.camX += (hero.x + this.panX - this.camX) * follow;
+    this.camY += (hero.y + this.panY - this.camY) * follow;
     const ox = this.originX();
     const oy = this.originY();
     // Vacillement des torches : deux ondes lentes superposées.
@@ -176,6 +222,22 @@ export class Renderer {
         }
         const t = game.map.get(x, y);
         const wall = t === Tile.Wall;
+        if (t === Tile.Pillar) {
+          // Colonne : une dalle de sol, et un fût de pierre rond vu du dessus.
+          this.drawFloor(x, y, sx, sy);
+          ctx.fillStyle = "rgba(12,11,18,0.45)";
+          ctx.beginPath();
+          ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#6e7290";
+          ctx.beginPath();
+          ctx.arc(sx + tile * 0.5, sy + tile * 0.5, tile * 0.38, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#9296b6";
+          ctx.beginPath();
+          ctx.arc(sx + tile * 0.46, sy + tile * 0.45, tile * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        } else
         if (wall) {
           this.drawWall(game, x, y, sx, sy);
         } else {
@@ -183,7 +245,7 @@ export class Renderer {
         }
         this.drawFeature(t, sx, sy);
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
-        const shade = wall ? 0.6 : 1;
+        const shade = wall || t === Tile.Pillar ? 0.6 : 1;
 
         if (game.isVisible(x, y)) {
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
@@ -211,14 +273,14 @@ export class Renderer {
       // La tige part de la limite du mur (côté salle) et la flamme brûle vers l'intérieur du mur.
       const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
       const baseY = oy + (torch.y + 0.5 + fy * 0.47) * tile;
-      const cx = ox + (torch.x + 0.5 + fx * 0.06) * tile;
-      const cy = oy + (torch.y + 0.5 + fy * 0.06) * tile;
+      const cx = ox + (torch.x + 0.5 + fx * 0.22) * tile;
+      const cy = oy + (torch.y + 0.5 + fy * 0.22) * tile;
       ctx.strokeStyle = "#6b4a2a";
       ctx.lineWidth = Math.max(2, tile * 0.09);
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(baseX, baseY);
-      ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.16) * tile, oy + (torch.y + 0.5 + fy * 0.16) * tile);
+      ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.32) * tile, oy + (torch.y + 0.5 + fy * 0.32) * tile);
       ctx.stroke();
       ctx.lineCap = "butt";
       ctx.fillStyle = "#ff8a2a";
@@ -247,6 +309,34 @@ export class Renderer {
       ctx.fill();
     });
 
+    // Objets au sol : flèches à ramasser, clef.
+    for (const g of game.ground) {
+      if (!game.isExplored(g.x, g.y)) continue;
+      const gx = ox + g.x * tile;
+      const gy = oy + g.y * tile;
+      if (g.item === "clef") {
+        ctx.fillStyle = COLORS.lock;
+        ctx.beginPath();
+        ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(gx + tile * 0.45, gy + tile * 0.37, tile * 0.3, tile * 0.07);
+        ctx.fillRect(gx + tile * 0.66, gy + tile * 0.4, tile * 0.07, tile * 0.13);
+        ctx.fillStyle = COLORS.floor;
+        ctx.beginPath();
+        ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = "#d9c9a0";
+        ctx.lineWidth = Math.max(1.5, tile * 0.05);
+        ctx.beginPath();
+        ctx.moveTo(gx + tile * 0.28, gy + tile * 0.72);
+        ctx.lineTo(gx + tile * 0.72, gy + tile * 0.28);
+        ctx.stroke();
+        ctx.fillStyle = "#cfd6ea";
+        ctx.fillRect(gx + tile * 0.66, gy + tile * 0.22, tile * 0.12, tile * 0.12);
+      }
+    }
+
     // Monstres en vue : un losange de la couleur de leur fiche.
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -263,6 +353,12 @@ export class Renderer {
       ctx.lineTo(cx - r, cy);
       ctx.closePath();
       ctx.fill();
+      // Liseré doré qui palpite : le héros aurait l'avantage en l'attaquant maintenant.
+      if (game.heroHasAdvantageOn(m)) {
+        ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+        ctx.lineWidth = Math.max(2, tile * 0.07);
+        ctx.stroke();
+      }
       if (!m.alerted) {
         // « z » : il dort. « ? » : il se promène sans avoir remarqué le héros.
         ctx.fillStyle = "#ffffff";
@@ -285,9 +381,33 @@ export class Renderer {
     ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    // Liseré rouge : le héros se tient dans une porte, les ennemis ont l'avantage sur lui.
+    if (game.heroExposed()) {
+      ctx.strokeStyle = `rgba(255,90,100,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, tile * 0.07);
+      ctx.beginPath();
+      ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.44, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // Coups d'épée ou de griffe : un arc qui balaie la case visée, perpendiculaire à la direction du coup.
+    // Flèches en vol : un trait qui file de l'archer vers sa cible.
+    this.projectiles = this.projectiles.filter((p) => (p.age += dt) < PROJECTILE_MS);
+    for (const p of this.projectiles) {
+      const t = p.age / PROJECTILE_MS;
+      const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
+      const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
+      const angle = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+      ctx.strokeStyle = "#f0e6c8";
+      ctx.lineWidth = Math.max(2, tile * 0.07);
+      ctx.beginPath();
+      ctx.moveTo(px - Math.cos(angle) * tile * 0.3, py - Math.sin(angle) * tile * 0.3);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+    }
+
     for (const s of this.slashes) {
+      if (!s.arc) continue;
       const t = s.age / SLASH_MS;
       const cx = ox + (s.x + 0.5) * tile;
       const cy = oy + (s.y + 0.5) * tile;
@@ -322,8 +442,8 @@ export class Renderer {
   }
 
   /**
-   * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; certaines sont
-   * fendues en deux, fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
+   * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; quelques-unes sont
+   * fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
    */
   private drawFloor(x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
@@ -331,16 +451,11 @@ export class Renderer {
     ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
     ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
     const kind = noise(x, y, 21);
-    ctx.fillStyle = "rgba(20,18,30,0.5)";
-    ctx.strokeStyle = "rgba(20,18,30,0.55)";
+    ctx.fillStyle = "rgba(20,18,30,0.45)";
+    ctx.strokeStyle = "rgba(20,18,30,0.45)";
     ctx.lineWidth = Math.max(1, tile * 0.03);
-    if (kind < 0.12) {
-      // Dalle fendue en deux.
-      const at = 0.35 + 0.3 * noise(x, y, 22);
-      if (noise(x, y, 23) < 0.5) ctx.fillRect(sx + at * tile, sy + 0.5, Math.max(1, tile * 0.04), tile - 1);
-      else ctx.fillRect(sx + 0.5, sy + at * tile, tile - 1, Math.max(1, tile * 0.04));
-    } else if (kind < 0.24) {
-      // Fissure : une ligne brisée.
+    if (kind < 0.09) {
+      // Fissure : une ligne brisée, rare.
       const ax = 0.15 + 0.3 * noise(x, y, 24);
       const ay = 0.15 + 0.7 * noise(x, y, 25);
       ctx.beginPath();
@@ -348,7 +463,7 @@ export class Renderer {
       ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
       ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
       ctx.stroke();
-    } else if (kind < 0.38) {
+    } else if (kind < 0.2) {
       // Gravillons.
       for (let i = 0; i < 3; i++) {
         ctx.beginPath();
@@ -359,33 +474,49 @@ export class Renderer {
   }
 
   /**
-   * Mur de briques : trois rangées par case, des joints placés au hasard (mais toujours au même endroit
-   * pour une case donnée) et des briques de teintes légèrement différentes. Les murs voisins se raccordent :
+   * Mur de pierres : trois assises de hauteurs inégales, des joints placés au hasard (mais toujours au même
+   * endroit pour une case donnée), des pierres aux coins décalés et de teintes légèrement différentes. Les murs voisins se raccordent :
    * pas de bordure entre deux cases de mur, un rebord clair seulement là où le mur s'arrête.
    */
   private drawWall(game: Game, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
-    const rows = 3;
-    const rowH = tile / rows;
     const gap = Math.max(1, tile * 0.05);
     ctx.fillStyle = COLORS.mortar;
     ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
-    for (let r = 0; r < rows; r++) {
-      const row = y * rows + r;
-      // Deux joints par rangée : aucune brique ne dépasse environ deux tiers de case, même à cheval sur deux cases.
+    // Trois assises de hauteurs inégales (les mêmes sur toute la ligne de la carte, pour que les murs se raccordent).
+    const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
+    ctx.lineJoin = "round";
+    for (let r = 0; r < 3; r++) {
+      const row = y * 3 + r;
       const cuts = [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
       for (let i = 0; i + 1 < cuts.length; i++) {
         const first = i === 0;
         const last = i + 2 === cuts.length;
-        // Les briques du bord continuent dans la case voisine : même teinte des deux côtés, pas de joint.
+        // Les pierres du bord continuent dans la case voisine : même teinte des deux côtés, pas de joint.
         const tint = first ? noise(x, row, 9) : last ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
-        const light = 0.86 + 0.28 * tint;
-        ctx.fillStyle = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
+        const light = 0.84 + 0.3 * tint;
+        const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
         const left = sx + cuts[i] * tile + (first ? 0 : gap / 2);
         const right = sx + cuts[i + 1] * tile - (last ? -0.5 : gap / 2);
-        ctx.fillRect(left, sy + r * rowH + gap / 2, right - left, rowH - gap);
+        const top = sy + levels[r] * tile + gap / 2;
+        const bottom = sy + levels[r + 1] * tile - gap / 2;
+        // Pierre taillée à la main : chaque coin est légèrement décalé, et les arêtes sont adoucies.
+        const j = (k: number) => (noise(x * 4 + i, row, 50 + k) - 0.5) * tile * 0.07;
+        const soft = Math.max(1, tile * 0.05);
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = soft;
+        ctx.beginPath();
+        ctx.moveTo(left + (first ? 0 : soft / 2 + Math.abs(j(0))), top + soft / 2 + Math.abs(j(1)));
+        ctx.lineTo(right - (last ? 0 : soft / 2 + Math.abs(j(2))), top + soft / 2 + Math.abs(j(3)));
+        ctx.lineTo(right - (last ? 0 : soft / 2 + Math.abs(j(4))), bottom - soft / 2 - Math.abs(j(5)));
+        ctx.lineTo(left + (first ? 0 : soft / 2 + Math.abs(j(6))), bottom - soft / 2 - Math.abs(j(7)));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
       }
     }
+    ctx.lineJoin = "miter";
     // Rebord clair en haut et ombre en bas, uniquement là où le mur s'arrête.
     if (game.map.inBounds(x, y - 1) && game.map.get(x, y - 1) !== Tile.Wall) {
       ctx.fillStyle = "rgba(190,196,230,0.35)";

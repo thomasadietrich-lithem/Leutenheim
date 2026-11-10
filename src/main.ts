@@ -2,11 +2,12 @@ import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
+import { ITEMS, ItemDef, ItemId } from "./data/items";
 import { RACES, RaceDef } from "./data/races";
-import { RULES } from "./data/rules";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
+import { itemIcon } from "./ui/icons";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
 function stepDuration(pathLength: number): number {
@@ -31,6 +32,7 @@ const canvas = $("game") as HTMLCanvasElement;
 const hudText = $("hud-text");
 const hpFill = $("hp-fill");
 const die = $("die");
+const die2 = $("die2");
 const dieWho = $("die-who");
 const log = $("log");
 const over = $("over");
@@ -64,6 +66,11 @@ const renderer = new Renderer(canvas);
 let game: Game;
 let logLines: string[] = [];
 let menuOpen = true;
+let bagOpen = false;
+let selectedUid: number | null = null;
+/** Vrai : toucher un monstre tire à l'arc au lieu d'aller le frapper. */
+let aimMode = false;
+let doorWasPending = false;
 let started = false;
 /** Race et classe choisies dans l'écran de nouvelle partie. */
 let chosenRace: RaceDef = RACES.humain;
@@ -84,9 +91,8 @@ let stepTime = 0;
 function newRun(): void {
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
   game = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass);
-  const signed = (n: number) => (n < 0 ? `− ${-n}` : `+ ${n}`);
-  $("door-pick").textContent = `Crocheter (d20 ${signed(chosenClass.lockpickBonus)} contre ${RULES.lockpickDc})`;
-  $("door-break").textContent = `Enfoncer (d20 ${signed(chosenClass.breakBonus)} contre ${RULES.breakDc}) — bruyant`;
+  aimMode = false;
+  doorWasPending = false;
   stepping = false;
   queue = [];
   cue = null;
@@ -104,6 +110,7 @@ function newRun(): void {
 function clearDie(): void {
   die.textContent = "";
   die.className = "die";
+  die2.hidden = true;
   dieWho.textContent = "";
 }
 
@@ -121,14 +128,14 @@ function renderLog(): void {
 // ---------- Mise en scène des événements ----------
 
 const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" }> =>
-  e.type === "attack" || e.type === "door";
+  e.type === "attack" || (e.type === "door" && e.action !== "key");
 const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind === "monster";
 
 function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
   const r = e.result;
   const who =
     e.attacker.kind === "hero"
-      ? `Vous attaquez ${e.target.name}`
+      ? `${e.ranged ? "Vous tirez sur" : "Vous attaquez"} ${e.target.name}`
       : e.opportunity
         ? `Attaque d'opportunité de ${e.attacker.name}`
         : `${e.attacker.name} vous attaque`;
@@ -139,33 +146,57 @@ function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
       : r.d20 === 1
         ? "échec critique"
         : "raté";
-  const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : "";
-  return `${who} : ${r.d20} + ${r.bonus} = ${r.total} contre CA ${r.targetAc}${mode} — ${outcome}`;
+  const mode =
+    r.mode === "advantage"
+      ? ` (avantage : ${r.rolls.join(" et ")})`
+      : r.mode === "disadvantage"
+        ? ` (désavantage : ${r.rolls.join(" et ")})`
+        : "";
+  // La difficulté à atteindre n'est jamais affichée : seulement le jet et son résultat.
+  return `${who} : ${r.d20} + ${r.bonus} = ${r.total}${mode} — ${outcome}`;
 }
 
 function describeDoor(e: Extract<GameEvent, { type: "door" }>): string {
+  if (e.action === "key") return "Vous ouvrez la porte avec la clef.";
   const what = e.action === "pick" ? "Vous crochetez la serrure" : "Vous enfoncez la porte";
   const outcome =
     e.action === "pick" ? (e.success ? "elle s'ouvre" : "raté") : e.success ? "elle cède" : "elle résiste";
-  const noise =
-    e.action === "break"
-      ? e.alerted > 0
-        ? ` Le vacarme alerte ${e.alerted} monstre${e.alerted > 1 ? "s" : ""}.`
-        : " Le vacarme résonne, sans réponse."
-      : "";
-  return `${what} : ${e.d20} + ${e.bonus} = ${e.total} contre ${e.dc} — ${outcome}.${noise}`;
+  const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
+  return `${what} : ${e.d20} ${bonus} = ${e.total} — ${outcome}.`;
 }
 
-/** Le dé commence à rouler. */
+/** Le dé commence à rouler. Avec avantage ou désavantage, un second dé roule à côté, et ça s'entend. */
 function startRoll(e: GameEvent): void {
-  die.className = `die rolling${byFoe(e) ? " foe" : ""}`;
-  dieWho.textContent = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
+  const foe = byFoe(e);
+  const mode = e.type === "attack" ? e.result.mode : "normal";
+  die.className = `die rolling${foe ? " foe" : ""}`;
+  die2.hidden = mode === "normal";
+  die2.className = `die rolling${foe ? " foe" : ""}`;
+  const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
+  dieWho.textContent = mode === "advantage" ? `${who} · avantage` : mode === "disadvantage" ? `${who} · désavantage` : who;
+  dieWho.className = mode === "normal" ? "" : mode;
   sfx.play("dice");
+  if (mode !== "normal") sfx.play(mode);
+  if (e.type === "attack") {
+    if (mode !== "normal") {
+      // Avantage au joueur ou contre lui : on l'annonce au-dessus de celui qui en profite ou en pâtit.
+      const good = (mode === "advantage") !== foe;
+      renderer.addFloatingText(e.attacker.x, e.attacker.y, mode === "advantage" ? "Avantage !" : "Désavantage", good ? "#ffd75e" : "#ff6b7a");
+    }
+    if (e.ranged) sfx.play("bow");
+  }
 }
 
-function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean): void {
+function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean, other?: number): void {
   die.textContent = String(value);
   die.className = `die land ${outcome}${foe ? " foe" : ""}`;
+  if (other === undefined) {
+    die2.hidden = true;
+  } else {
+    // Le dé écarté reste visible, estompé.
+    die2.textContent = String(other);
+    die2.className = `die dropped${foe ? " foe" : ""}`;
+  }
 }
 
 /** Le résultat d'un événement est montré : texte, son, effets. */
@@ -175,8 +206,9 @@ function reveal(e: GameEvent): void {
     const foe = e.attacker.kind === "monster";
     logLines.push(describeAttack(e));
     if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunité !", "#ffd75e");
-    renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
-    landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
+    if (!e.ranged) renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
+    const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
+    landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
     renderer.addFloatingText(
       e.target.x,
       e.target.y,
@@ -187,13 +219,26 @@ function reveal(e: GameEvent): void {
     sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : "hit") : "miss");
   } else if (e.type === "door") {
     logLines.push(describeDoor(e));
-    landDie(e.d20, e.success ? "hit" : "miss", false);
-    if (e.action === "break") {
-      renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
-      sfx.play(e.success ? "break" : "thud");
+    if (e.action === "key") {
+      sfx.play("unlock");
     } else {
-      sfx.play(e.success ? "unlock" : "click");
+      landDie(e.d20, e.success ? "hit" : "miss", false);
+      if (e.action === "break") {
+        // Le héros se jette contre la porte : élan, choc, et le fracas qui résonne.
+        renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
+        renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
+        sfx.play(e.success ? "break" : "thud");
+      } else {
+        sfx.play(e.success ? "unlock" : "click");
+      }
     }
+  } else if (e.type === "arrow") {
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+    if (!e.kept) logLines.push(e.hit ? "La flèche se brise." : "La flèche se brise contre le décor.");
+    else if (!e.hit) logLines.push("La flèche se plante plus loin : elle est récupérable.");
+  } else if (e.type === "pickup") {
+    logLines.push(`Vous ramassez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
+    sfx.play("pickup");
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       overText.textContent = `Vous êtes mort à l'étage ${game.depth}, au tour ${game.turn}.`;
@@ -241,6 +286,7 @@ function advanceCues(dt: number): void {
       if (cue.time - cue.lastFace >= 55) {
         cue.lastFace = cue.time;
         die.textContent = String(1 + Math.floor(Math.random() * 20));
+        die2.textContent = String(1 + Math.floor(Math.random() * 20));
       }
       return;
     }
@@ -266,13 +312,33 @@ function collectEvents(): void {
 
 bindInput(canvas, {
   onTap(px, py) {
-    if (menuOpen) return;
+    if (menuOpen || bagOpen) return;
     const t = renderer.screenToTile(px, py);
+    if (aimMode && game.monsterAt(t.x, t.y) && game.isVisible(t.x, t.y)) {
+      // Mode arc : toucher un monstre en vue, c'est lui tirer dessus.
+      const refusal = game.shoot(t.x, t.y);
+      if (refusal) {
+        const why = {
+          "no-bow": "Aucun arc en main.",
+          "no-ammo": "Plus de flèches.",
+          "no-target": "Aucune cible visible ici.",
+          "out-of-range": `Hors de portée (${game.weapon("ranged")?.range ?? 0} cases).`,
+        }[refusal];
+        logLines.push(why);
+        renderLog();
+      } else {
+        stepMs = COMBAT_STEP_MS;
+      }
+      return;
+    }
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
   },
   onMove(dx, dy) {
-    if (menuOpen) return;
+    if (menuOpen || bagOpen) return;
     if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
+  },
+  onPan(dx, dy) {
+    if (!menuOpen && !bagOpen) renderer.panBy(dx, dy);
   },
   onZoom(factor) {
     renderer.zoomBy(factor);
@@ -297,6 +363,88 @@ button("over-new-run", () => showScreen("new"));
 const doorButton = (id: string, action: DoorAction) => button(id, () => game.actOnDoor(action));
 doorButton("door-pick", "pick");
 doorButton("door-break", "break");
+doorButton("door-key", "key");
+button("recenter", () => renderer.recenter());
+button("aim", () => {
+  aimMode = !aimMode;
+});
+
+// ---------- Sac : grille de cases à la Diablo ----------
+
+function itemStats(def: ItemDef): string[] {
+  const lines: string[] = [];
+  if (def.attackBonus !== undefined && def.damage) {
+    lines.push(`Attaque : d20 ${signedBonus(def.attackBonus)} · Dégâts : ${diceLabel(def.damage)}`);
+  }
+  if (def.range) lines.push(`Portée : ${def.range} cases · Munition : ${ITEMS[def.ammo as ItemId].name.toLowerCase()}`);
+  if (def.kind === "ammo") lines.push("Munition pour l'arc. Se ramasse parfois après le tir.");
+  if (def.kind === "key") lines.push("Ouvre une porte verrouillée, sans bruit.");
+  return lines;
+}
+
+function renderBag(): void {
+  const bag = game.inventory;
+  const grid = $("bag-grid");
+  grid.style.setProperty("--cols", String(bag.cols));
+  grid.style.setProperty("--rows", String(bag.rows));
+  grid.replaceChildren(
+    ...bag.items.map((item) => {
+      const def = bag.def(item);
+      const equipped = game.equipped.melee === item.uid || game.equipped.ranged === item.uid;
+      const node = el("div", `bag-item${equipped ? " equipped" : ""}${item.uid === selectedUid ? " selected" : ""}`);
+      node.style.left = `${(100 * item.x) / bag.cols}%`;
+      node.style.top = `${(100 * item.y) / bag.rows}%`;
+      node.style.width = `${(100 * def.w) / bag.cols}%`;
+      node.style.height = `${(100 * def.h) / bag.rows}%`;
+      node.append(itemIcon(item.defId));
+      if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
+      return node;
+    }),
+  );
+  const selected = selectedUid === null ? undefined : bag.get(selectedUid);
+  const info = $("bag-info");
+  const equip = $("bag-equip");
+  if (!selected) {
+    info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner, puis une case libre pour le déplacer."));
+    equip.hidden = true;
+    return;
+  }
+  const def = bag.def(selected);
+  const inHand = game.equipped.melee === selected.uid || game.equipped.ranged === selected.uid;
+  info.replaceChildren(
+    el("div", "bag-name", `${def.name}${selected.count > 1 ? ` ×${selected.count}` : ""}${inHand ? " — en main" : ""}`),
+    ...itemStats(def).map((line) => el("div", "", line)),
+  );
+  equip.hidden = def.kind !== "melee" && def.kind !== "ranged";
+  equip.textContent = inHand ? "Ranger" : "Prendre en main";
+}
+
+$("bag-grid").addEventListener("click", (e) => {
+  const grid = $("bag-grid");
+  const rect = grid.getBoundingClientRect();
+  const bag = game.inventory;
+  const x = Math.floor(((e.clientX - rect.left) / rect.width) * bag.cols);
+  const y = Math.floor(((e.clientY - rect.top) / rect.height) * bag.rows);
+  const hit = bag.at(x, y);
+  if (hit) selectedUid = hit.uid === selectedUid ? null : hit.uid;
+  else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
+  sfx.play("click");
+  renderBag();
+});
+button("bag-equip", () => {
+  if (selectedUid !== null) game.toggleEquip(selectedUid);
+  renderBag();
+});
+button("open-bag", () => {
+  bagOpen = true;
+  selectedUid = null;
+  $("bag").hidden = false;
+  renderBag();
+});
+button("bag-close", () => {
+  bagOpen = false;
+  $("bag").hidden = true;
+});
 
 // ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
@@ -343,20 +491,27 @@ function raceCard(r: RaceDef): Card {
 }
 
 function classCard(c: ClassDef): Card {
+  // Les statistiques d'attaque sont celles des armes de départ, pas de la classe.
+  const gear = c.startingItems.map((g) => ({ def: ITEMS[g.item] as ItemDef, count: g.count }));
+  const weapons = gear.filter((g) => g.def.kind === "melee" || g.def.kind === "ranged");
   return {
     id: c.id,
     name: c.name,
     available: c.available,
     tagline: c.tagline,
-    basics: [`PV ${c.hp} · CA ${c.armorClass}`, `Dégâts ${diceLabel(c.damage)}`],
+    basics: [`PV ${c.hp} · CA ${c.armorClass}`, weapons.map((g) => g.def.name).join(" · ")],
     details: [
       c.tagline,
       `Points de vie : ${c.hp}`,
       `Classe d'armure : ${c.armorClass}`,
-      `Attaque : d20 ${signedBonus(c.attackBonus)}`,
-      `Dégâts : ${diceLabel(c.damage)}`,
       `Crocheter une serrure : d20 ${signedBonus(c.lockpickBonus)}`,
       `Enfoncer une porte : d20 ${signedBonus(c.breakBonus)}`,
+      "Équipement de départ :",
+      ...gear.map((g) => {
+        const d = g.def;
+        if (d.attackBonus === undefined || !d.damage) return `• ${d.name} ×${g.count}`;
+        return `• ${d.name} : d20 ${signedBonus(d.attackBonus)}, dégâts ${diceLabel(d.damage)}${d.range ? `, portée ${d.range} cases` : ""}`;
+      }),
       `Style — ${c.trait}`,
     ],
   };
@@ -455,7 +610,7 @@ function frame(now: number): void {
     }
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
-  if (!stepping && !cue && queue.length === 0 && !menuOpen) {
+  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };
@@ -473,6 +628,20 @@ function frame(now: number): void {
   hudText.textContent = `Étage ${game.depth} · PV ${shownHp}/${game.hero.maxHp} · CA ${game.hero.armorClass} · Tour ${game.turn}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
   doorActions.hidden = !game.pendingDoor || game.over || cue !== null;
+  $("door-key").hidden = game.inventory.count("clef") < 1;
+  // En arrivant devant une porte verrouillée, le héros bute dessus.
+  if (game.pendingDoor && !doorWasPending) {
+    renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);
+    sfx.play("knock");
+  }
+  doorWasPending = game.pendingDoor !== null;
+  $("recenter").hidden = !renderer.isPanned();
+  const bow = game.weapon("ranged");
+  const aim = $("aim");
+  aim.hidden = !bow;
+  if (!bow) aimMode = false;
+  aim.textContent = aimMode ? `Arc (${game.arrows()})` : "Épée";
+  aim.classList.toggle("active", aimMode);
   requestAnimationFrame(frame);
 }
 

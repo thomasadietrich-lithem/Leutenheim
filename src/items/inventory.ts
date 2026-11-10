@@ -1,0 +1,103 @@
+import { ITEMS, ItemDef, ItemId } from "../data/items";
+
+/** Un objet rangé dans le sac : sa fiche, sa case en haut à gauche, et combien il y en a (pile). */
+export interface BagItem {
+  uid: number;
+  defId: ItemId;
+  x: number;
+  y: number;
+  count: number;
+}
+
+/** Sac à cases, à la Diablo : chaque objet occupe un rectangle de cases, les munitions s'empilent. */
+export class Inventory {
+  items: BagItem[] = [];
+  private nextUid = 1;
+
+  constructor(
+    readonly cols = 6,
+    readonly rows = 4,
+  ) {}
+
+  def(item: BagItem): ItemDef {
+    return ITEMS[item.defId];
+  }
+
+  /** L'objet qui occupe une case donnée, s'il y en a un. */
+  at(x: number, y: number): BagItem | undefined {
+    return this.items.find((i) => {
+      const d = this.def(i);
+      return x >= i.x && x < i.x + d.w && y >= i.y && y < i.y + d.h;
+    });
+  }
+
+  get(uid: number): BagItem | undefined {
+    return this.items.find((i) => i.uid === uid);
+  }
+
+  /** Un objet de cette fiche tient-il à cet endroit ? (`ignoreUid` : l'objet qu'on est en train de déplacer.) */
+  fits(defId: ItemId, x: number, y: number, ignoreUid?: number): boolean {
+    const d: ItemDef = ITEMS[defId];
+    if (x < 0 || y < 0 || x + d.w > this.cols || y + d.h > this.rows) return false;
+    for (let cy = y; cy < y + d.h; cy++) {
+      for (let cx = x; cx < x + d.w; cx++) {
+        const other = this.at(cx, cy);
+        if (other && other.uid !== ignoreUid) return false;
+      }
+    }
+    return true;
+  }
+
+  /** Ajoute des objets : complète d'abord les piles existantes, puis prend la première place libre. Renvoie ce qui n'a pas pu entrer. */
+  add(defId: ItemId, count = 1): number {
+    const d: ItemDef = ITEMS[defId];
+    for (const item of this.items) {
+      if (count === 0) break;
+      if (item.defId !== defId) continue;
+      const room = Math.min(d.maxStack - item.count, count);
+      item.count += room;
+      count -= room;
+    }
+    while (count > 0) {
+      let placed = false;
+      for (let y = 0; y < this.rows && !placed; y++) {
+        for (let x = 0; x < this.cols && !placed; x++) {
+          if (!this.fits(defId, x, y)) continue;
+          const n = Math.min(d.maxStack, count);
+          this.items.push({ uid: this.nextUid++, defId, x, y, count: n });
+          count -= n;
+          placed = true;
+        }
+      }
+      if (!placed) break; // sac plein
+    }
+    return count;
+  }
+
+  /** Déplace un objet vers une autre case, si la place est libre. */
+  moveTo(uid: number, x: number, y: number): boolean {
+    const item = this.get(uid);
+    if (!item || !this.fits(item.defId, x, y, uid)) return false;
+    item.x = x;
+    item.y = y;
+    return true;
+  }
+
+  count(defId: ItemId): number {
+    return this.items.reduce((sum, i) => sum + (i.defId === defId ? i.count : 0), 0);
+  }
+
+  /** Retire `n` exemplaires (munitions tirées). Renvoie faux s'il n'y en a pas assez. */
+  take(defId: ItemId, n = 1): boolean {
+    if (this.count(defId) < n) return false;
+    for (const item of [...this.items].reverse()) {
+      if (n === 0) break;
+      if (item.defId !== defId) continue;
+      const used = Math.min(item.count, n);
+      item.count -= used;
+      n -= used;
+    }
+    this.items = this.items.filter((i) => i.count > 0);
+    return true;
+  }
+}

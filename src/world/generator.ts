@@ -198,6 +198,17 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
 
   // 6. Portes et torches des salles ordinaires.
   const torches: LightSource[] = [];
+  // Ouvertures de chaque salle (une case de pourtour peut appartenir à deux salles voisines).
+  const outlines = rooms.map((room) => {
+    const cells = ringCells(room);
+    return { cells, openings: cells.filter((c) => map.get(c.x, c.y) !== Tile.Wall) };
+  });
+  const bypassed = (c: { x: number; y: number }) =>
+    outlines.some(
+      (o) =>
+        o.cells.some((k) => k.x === c.x && k.y === c.y) &&
+        o.openings.some((k) => (k.x !== c.x || k.y !== c.y) && Math.abs(k.x - c.x) + Math.abs(k.y - c.y) <= 3),
+    );
   rooms.forEach((room, index) => {
     const ring = ringCells(room);
     // Une « entrée étroite » : un passage d'une case, avec un mur de chaque côté.
@@ -207,9 +218,25 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
         map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall &&
         map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall,
     );
-    // Une porte n'est posée que s'il n'y en a pas déjà une toute proche : jamais deux portes à la suite.
+    // Une porte doit avoir un sens : pas de porte s'il y en a déjà une toute proche (jamais deux à la suite),
+    // ni si un autre passage s'ouvre dans le même mur juste à côté (on la contournerait).
     for (const c of doorways) {
-      if (!doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
+      if (!bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
+        map.set(c.x, c.y, Tile.DoorClosed);
+      }
+    }
+    // Colonnes : aux quatre « coins intérieurs » d'une grande salle, parfois seulement une partie d'entre elles.
+    if (room.w >= 5 && room.h >= 5 && rng.chance(cfg.pillarChance)) {
+      const spots = [
+        { x: room.x + 1, y: room.y + 1 },
+        { x: room.x + room.w - 2, y: room.y + 1 },
+        { x: room.x + 1, y: room.y + room.h - 2 },
+        { x: room.x + room.w - 2, y: room.y + room.h - 2 },
+      ];
+      const all = rng.chance(0.5);
+      for (const p of spots) {
+        if (map.get(p.x, p.y) === Tile.Floor && (all || rng.chance(0.5))) map.set(p.x, p.y, Tile.Pillar);
+      }
     }
     // Torche murale : sur un mur du pourtour de la salle.
     if (index === 0 || rng.chance(cfg.torchChance)) {

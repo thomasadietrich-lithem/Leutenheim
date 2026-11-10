@@ -42,10 +42,34 @@
   #detail { background: rgba(12,11,18,0.97); border-radius: 10px; z-index: 3; }
   #detail-body { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.4; text-align: left; max-width: 300px; }
   #detail-body div:first-child { color: #9a94b0; font-style: italic; margin-bottom: 4px; }
+  #seed { font-size: 11px; color: #5f5a78; margin-top: 8px; }
+  .bar button.active { background: #7a5a1c; outline: 1px solid #e0b040; }
+  /* Sac : esthétique rétro, cases en creux, objets en gros pixels. */
+  #bag { background: rgba(8,7,12,0.96); border-radius: 10px; z-index: 2; padding: 14px; font-family: "Courier New", ui-monospace, monospace; }
+  #bag h2 { margin: 0; font-size: 20px; color: #e0b040; letter-spacing: 0.2em; text-transform: uppercase; }
+  #bag-grid { --cols: 6; --rows: 4; position: relative; width: min(100%, 318px); aspect-ratio: var(--cols) / var(--rows);
+    background-color: #14121c; border: 3px solid #5a4a2a; box-shadow: inset 0 0 0 2px #0a0910; cursor: pointer;
+    background-image: linear-gradient(to right, #2c2838 2px, transparent 2px), linear-gradient(to bottom, #2c2838 2px, transparent 2px);
+    background-size: calc(100% / var(--cols)) calc(100% / var(--rows)); }
+  .bag-item { position: absolute; padding: 5px; background: #24202e; box-shadow: inset 0 0 0 2px #3d3750; display: flex; align-items: center; justify-content: center; }
+  .bag-item svg { width: 100%; height: 100%; image-rendering: pixelated; }
+  .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
+  .bag-item.selected { background: #3a3046; box-shadow: inset 0 0 0 2px #e0b040; }
+  .bag-count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; font-weight: 700; color: #fff; text-shadow: 1px 1px 0 #000; }
+  #bag-info { min-height: 62px; width: min(100%, 318px); font-size: 12px; line-height: 1.45; color: #b4aecb; text-align: left; }
+  .bag-name { color: #f0ecff; font-weight: 700; font-size: 14px; }
+  .bag-buttons { display: flex; gap: 8px; }
+  #bag button { font-family: inherit; padding: 10px 16px; }
+  #recenter { position: absolute; top: 8px; right: 8px; padding: 6px 10px; font-size: 12px; background: rgba(58,53,80,0.9); border: 1px solid #77718f; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
   .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
-  .dice { flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .dice { flex: 0 0 auto; min-width: 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .dice-row { display: flex; gap: 4px; }
+  .die[hidden] { display: none; }
+  .die.dropped { opacity: 0.4; transform: scale(0.8); border-color: #3a3550; color: #9a94b0; }
+  #die-who.advantage { color: #ffd75e; font-weight: 700; }
+  #die-who.disadvantage { color: #ff6b7a; font-weight: 700; }
   .die { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
     border: 2px solid #3a3550; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums;
     transition: border-color 0.25s, box-shadow 0.25s; }
@@ -61,7 +85,7 @@
     100% { transform: rotate(-14deg) scale(1.08); }
   }
   @keyframes land { 0% { transform: scale(1.55) rotate(8deg); } 55% { transform: scale(0.9); } 100% { transform: scale(1); } }
-  #die-who { font-size: 10px; color: #9a94b0; height: 12px; }
+  #die-who { font-size: 10px; color: #9a94b0; height: 12px; white-space: nowrap; }
   #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
   #log div:last-child { color: #e6e2f4; }
   .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
@@ -77,9 +101,11 @@
   <div class="hp"><div id="hp-fill"></div></div>
   <div class="frame">
     <canvas id="game"></canvas>
+    <button id="recenter" type="button" hidden>Recentrer</button>
     <div id="door-actions" hidden>
-      <button id="door-pick" type="button"></button>
-      <button id="door-break" type="button"></button>
+      <button id="door-key" type="button" hidden>Utiliser la clef</button>
+      <button id="door-pick" type="button">Crocheter</button>
+      <button id="door-break" type="button">Enfoncer</button>
     </div>
     <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
@@ -87,13 +113,23 @@
     </div>
   </div>
   <div class="panel">
-    <div class="dice"><div id="die" class="die"></div><div id="die-who"></div></div>
+    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   <div class="bar">
     <button id="wait" type="button">Attendre</button>
+    <button id="aim" type="button">Épée</button>
+    <button id="open-bag" type="button">Sac</button>
     <button id="open-menu" type="button">Menu</button>
-    <span id="seed"></span>
+  </div>
+  <div id="bag" class="overlay" hidden>
+    <h2>Sac</h2>
+    <div id="bag-grid"></div>
+    <div id="bag-info"></div>
+    <div class="bag-buttons">
+      <button id="bag-equip" type="button" hidden></button>
+      <button id="bag-close" type="button">Fermer</button>
+    </div>
   </div>
   <div id="menu" class="overlay">
     <section id="screen-main">
@@ -102,6 +138,7 @@
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-settings" type="button">Paramètres</button>
+      <span id="seed"></span>
     </section>
     <section id="screen-new" hidden>
       <h2>Nouvelle partie</h2>

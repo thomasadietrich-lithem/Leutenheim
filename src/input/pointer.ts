@@ -13,6 +13,8 @@ export interface InputHandlers {
   onTap(px: number, py: number): void;
   /** Flèches du clavier (pour tester sur ordinateur). */
   onMove(dx: number, dy: number): void;
+  /** Glisser un doigt (ou la souris, bouton enfoncé) : déplacer la vue, en pixels. */
+  onPan(dx: number, dy: number): void;
   /** Zoom : facteur > 1 pour agrandir, < 1 pour réduire (molette ou pincement à deux doigts). */
   onZoom(factor: number): void;
 }
@@ -20,6 +22,7 @@ export interface InputHandlers {
 export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): void {
   const pointers = new Map<number, { x: number; y: number }>();
   let downAt = { x: 0, y: 0 };
+  let lastAt = { x: 0, y: 0 };
   let isGesture = false; // vrai dès qu'un deuxième doigt se pose ou que le doigt glisse
   let pinchDistance = 0;
 
@@ -38,6 +41,7 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
     if (pointers.size === 1) {
       isGesture = false;
       downAt = { x: e.clientX, y: e.clientY };
+      lastAt = { x: e.clientX, y: e.clientY };
     } else if (pointers.size === 2) {
       isGesture = true;
       pinchDistance = distance();
@@ -52,8 +56,10 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
       const d = distance();
       if (pinchDistance > 0 && d > 0) handlers.onZoom(d / pinchDistance);
       pinchDistance = d;
-    } else if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) {
-      isGesture = true;
+    } else if (pointers.size === 1) {
+      if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) isGesture = true;
+      if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
+      lastAt = { x: e.clientX, y: e.clientY };
     }
   });
 

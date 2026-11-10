@@ -14,6 +14,7 @@ export const Tile = {
   FountainDry: 7,
   Chest: 8,
   ChestOpen: 9,
+  Pillar: 10,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -47,13 +48,13 @@ export class GameMap {
   /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
   isWalkable(x: number, y: number): boolean {
     const t = this.get(x, y);
-    return t !== Tile.Wall && t !== Tile.DoorLocked;
+    return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar;
   }
 
   /** Bloque la vue et la lumière : murs et portes non ouvertes. */
   blocksSight(x: number, y: number): boolean {
     const t = this.get(x, y);
-    return t === Tile.Wall || t === Tile.DoorClosed || t === Tile.DoorLocked;
+    return t === Tile.Wall || t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.Pillar;
   }
 
   isDoor(x: number, y: number): boolean {

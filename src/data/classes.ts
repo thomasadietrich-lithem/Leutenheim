@@ -1,4 +1,4 @@
-import { Dice } from "../core/dice";
+import { ItemId } from "./items";
 
 /** Une classe fixe la base de combat et la façon de jouer. */
 export interface ClassDef {
@@ -12,8 +12,8 @@ export interface ClassDef {
   trait: string;
   hp: number;
   armorClass: number;
-  attackBonus: number;
-  damage: Dice;
+  /** Équipement de départ. Les statistiques d'attaque viennent des armes (voir src/data/items.ts). */
+  startingItems: { item: ItemId; count: number; equip?: boolean }[];
   /** Bonus au d20 pour crocheter une serrure et pour enfoncer une porte. */
   lockpickBonus: number;
   breakBonus: number;
@@ -28,8 +28,11 @@ export const CLASSES = {
     trait: "Bonne armure, et la force d'enfoncer les portes.",
     hp: 10,
     armorClass: 15,
-    attackBonus: 4,
-    damage: { count: 1, sides: 6, bonus: 2 },
+    startingItems: [
+      { item: "epee", count: 1, equip: true },
+      { item: "arc_court", count: 1, equip: true },
+      { item: "fleche", count: 5 },
+    ],
     lockpickBonus: 0,
     breakBonus: 4,
   },
@@ -41,8 +44,11 @@ export const CLASSES = {
     trait: "Gros dégâts sur un ennemi qui ne l'a pas remarqué ; crochète facilement.",
     hp: 8,
     armorClass: 13,
-    attackBonus: 5,
-    damage: { count: 1, sides: 6, bonus: 1 },
+    startingItems: [
+      { item: "dague", count: 1, equip: true },
+      { item: "arc_court", count: 1, equip: true },
+      { item: "fleche", count: 8 },
+    ],
     lockpickBonus: 5,
     breakBonus: 0,
   },
@@ -54,8 +60,7 @@ export const CLASSES = {
     trait: "Sorts en nombre limité, rechargés par le repos.",
     hp: 6,
     armorClass: 11,
-    attackBonus: 2,
-    damage: { count: 1, sides: 4, bonus: 0 },
+    startingItems: [{ item: "baton", count: 1, equip: true }],
     lockpickBonus: 1,
     breakBonus: -1,
   },

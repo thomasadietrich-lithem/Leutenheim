@@ -13,9 +13,7 @@ const FLOAT_MS = 900;
 
 const COLORS = {
   background: "#0c0b12",
-  wall: "#676b88",
-  wallTop: "#8b90b0",
-  wallShade: "#484b64",
+  mortar: "#3c3f55",
   floor: "#4b4560",
   sensed: "rgba(75,69,96,0.3)",
   stairs: "#e0b040",
@@ -28,6 +26,13 @@ const COLORS = {
   hpBack: "#3a1520",
   hpFill: "#e05060",
 };
+
+/** Nombre pseudo-aléatoire entre 0 et 1, toujours le même pour les mêmes entrées (décor uniquement). */
+function noise(a: number, b: number, c: number): number {
+  let h = Math.imul(a, 374761393) ^ Math.imul(b, 668265263) ^ Math.imul(c, 2147483647);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 
 interface FloatingText {
   x: number;
@@ -143,13 +148,7 @@ export class Renderer {
         const t = game.map.get(x, y);
         const wall = t === Tile.Wall;
         if (wall) {
-          // Mur : un bloc de pierre plein, plus clair que le sol, avec un rebord éclairé et une base sombre.
-          ctx.fillStyle = COLORS.wall;
-          ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
-          ctx.fillStyle = COLORS.wallTop;
-          ctx.fillRect(sx, sy, tile + 0.5, tile * 0.16);
-          ctx.fillStyle = COLORS.wallShade;
-          ctx.fillRect(sx, sy + tile * 0.84, tile + 0.5, tile * 0.16 + 0.5);
+          this.drawWall(game, x, y, sx, sy);
         } else {
           ctx.fillStyle = COLORS.floor;
           ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
@@ -261,6 +260,47 @@ export class Renderer {
       ctx.fillText(f.text, fx, fy);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Mur de briques : trois rangées par case, des joints placés au hasard (mais toujours au même endroit
+   * pour une case donnée) et des briques de teintes légèrement différentes. Les murs voisins se raccordent :
+   * pas de bordure entre deux cases de mur, un rebord clair seulement là où le mur s'arrête.
+   */
+  private drawWall(game: Game, x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    const rows = 3;
+    const rowH = tile / rows;
+    const gap = Math.max(1, tile * 0.05);
+    ctx.fillStyle = COLORS.mortar;
+    ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+    for (let r = 0; r < rows; r++) {
+      const row = y * rows + r;
+      // Un ou deux joints verticaux par rangée, à des positions irrégulières.
+      const cuts = [0, 0.18 + 0.3 * noise(x, row, 1)];
+      if (noise(x, row, 2) > 0.35) cuts.push(cuts[1] + 0.28 + 0.2 * noise(x, row, 3));
+      cuts.push(1);
+      for (let i = 0; i + 1 < cuts.length; i++) {
+        const first = i === 0;
+        const last = i + 2 === cuts.length;
+        // Les briques du bord continuent dans la case voisine : même teinte des deux côtés, pas de joint.
+        const tint = first ? noise(x, row, 9) : last ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
+        const light = 0.86 + 0.28 * tint;
+        ctx.fillStyle = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
+        const left = sx + cuts[i] * tile + (first ? 0 : gap / 2);
+        const right = sx + cuts[i + 1] * tile - (last ? -0.5 : gap / 2);
+        ctx.fillRect(left, sy + r * rowH + gap / 2, right - left, rowH - gap);
+      }
+    }
+    // Rebord clair en haut et ombre en bas, uniquement là où le mur s'arrête.
+    if (game.map.inBounds(x, y - 1) && game.map.get(x, y - 1) !== Tile.Wall) {
+      ctx.fillStyle = "rgba(190,196,230,0.35)";
+      ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
+    }
+    if (game.map.inBounds(x, y + 1) && game.map.get(x, y + 1) !== Tile.Wall) {
+      ctx.fillStyle = "rgba(12,11,18,0.4)";
+      ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
+    }
   }
 
   /** Escalier et portes, dessinés par-dessus le sol. */

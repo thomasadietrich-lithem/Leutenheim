@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Leutenheim — démo</title>
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  canvas, button, .card { outline: none; }
   html, body { margin: 0; height: 100%; background: #0c0b12; color: #d8d4e6;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; }

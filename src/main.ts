@@ -4,11 +4,13 @@ import { DoorAction, Game, GameEvent } from "./core/game";
 import { RULES } from "./data/rules";
 import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
+import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
 import { itemIcon, uiIcon } from "./ui/icons";
+import { Tile } from "./world/map";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
 function stepDuration(pathLength: number): number {
@@ -83,7 +85,7 @@ let seenItems = new Set<ItemId>();
 const CODEX_KEY = "leutenheim.codex";
 const codex = new Set<string>();
 try {
-  for (const id of JSON.parse(localStorage.getItem(CODEX_KEY) ?? "[]")) if (id in ITEMS) codex.add(id);
+  for (const id of JSON.parse(localStorage.getItem(CODEX_KEY) ?? "[]")) if (typeof id === "string") codex.add(id);
 } catch {
   // Pas de mémoire disponible : l'encyclopédie repartira de zéro à chaque visite.
 }
@@ -623,31 +625,125 @@ button("bag-close", () => {
 
 // ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
-/** Encyclopédie : les fiches des objets déjà rencontrés en jeu (équipement de départ, objets ramassés), rangées par genre. */
+// ---------- Encyclopédie : trois catégories (objets, créatures, lieux), seulement ce qu'on a déjà rencontré ----------
+
+type CodexTab = "objets" | "creatures" | "lieux";
+let codexTab: CodexTab = "objets";
+
+/** Ce qu'on peut croiser dans le donjon, hors objets et créatures. La clef d'encyclopédie est « l:<id> ». */
+const PLACES: { id: string; name: string; kind: string; color: string; description: string }[] = [
+  { id: "porte", name: "Porte verrouillée", kind: "Passage", color: "#f0c050", description: "Elle garde une salle spéciale. On la crochète, on l'enfonce, ou on l'ouvre avec une clef." },
+  { id: "fontaine", name: "Fontaine", kind: "Salle spéciale", color: "#4aa8d8", description: "Son eau rend tous les points de vie. Elle ne sert qu'une fois." },
+  { id: "coffre", name: "Coffre", kind: "Salle spéciale", color: "#b9824a", description: "Il renferme de l'or, davantage dans les profondeurs." },
+  { id: "torche", name: "Torche murale", kind: "Décor", color: "#ff9a3c", description: "Elle éclaire sa salle : on y voit plus loin, mais on y est remarqué plus vite." },
+  { id: "colonne", name: "Colonne", kind: "Décor", color: "#9296b6", description: "Elle bloque le passage et la vue : on peut se cacher derrière." },
+  { id: "escalier", name: "Escalier", kind: "Passage", color: "#e0b040", description: "Il mène à l'étage du dessous, ou ramène à celui du dessus." },
+];
+
+/** Une fiche d'encyclopédie sans objet : un pictogramme de couleur, un nom, un genre, une description. */
+function codexCard(shape: "diamond" | "square", color: string, name: string, kind: string, description: string): HTMLElement {
+  const card = el("div", "item-card");
+  const picture = el("div", "item-card-icon");
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.classList.add("codex-glyph");
+  const mark = document.createElementNS(ns, shape === "diamond" ? "polygon" : "rect");
+  if (shape === "diamond") mark.setAttribute("points", "8,1 15,8 8,15 1,8");
+  else for (const [k, v] of [["x", "3"], ["y", "3"], ["width", "10"], ["height", "10"]]) mark.setAttribute(k, v);
+  mark.setAttribute("fill", color);
+  svg.append(mark);
+  picture.append(svg);
+  const body = el("div", "item-card-body");
+  body.append(el("div", "item-card-name", name), el("div", "item-card-kind", kind), el("div", "item-card-desc", description));
+  card.append(picture, body);
+  return card;
+}
+
 function renderCodex(): void {
-  const groups: [string, ItemDef["kind"][]][] = [
-    ["Armes de corps à corps", ["melee"]],
-    ["Armes à distance et munitions", ["ranged", "ammo"]],
-    ["Armures", ["armor"]],
-    ["Heaumes", ["hat"]],
-    ["Amulettes", ["amulet"]],
-    ["Artefacts", ["artifact"]],
-    ["Divers", ["key", "gold"]],
-  ];
   const nodes: HTMLElement[] = [];
-  for (const [title, kinds] of groups) {
-    // Seuls les objets déjà rencontrés en jeu sont montrés ; le titre dit combien il en reste à découvrir.
-    const all = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
-    const defs = all.filter((d) => codex.has(d.id));
-    nodes.push(el("h3", "", `${title} · ${defs.length} / ${all.length}`));
-    if (defs.length === 0) nodes.push(el("div", "codex-empty", all.length ? "Rien de rencontré pour l'instant." : "Rien encore."));
-    for (const def of defs) {
-      // Qui commence la partie avec cet objet ?
-      const owners = Object.values(CLASSES).filter((c) => c.startingItems.some((s) => s.item === def.id)).map((c) => c.name);
-      nodes.push(itemCard(def, 1, owners.length ? ` — départ : ${owners.join(", ")}` : ""));
+  /** Un titre de rubrique avec son compte « rencontrés / existants », puis les fiches ou un mot d'attente. */
+  const section = (title: string, total: number, cards: HTMLElement[]) => {
+    nodes.push(el("h3", "", `${title} · ${cards.length} / ${total}`));
+    if (cards.length === 0) nodes.push(el("div", "codex-empty", total ? "Rien de rencontré pour l'instant." : "Rien encore."));
+    nodes.push(...cards);
+  };
+  if (codexTab === "objets") {
+    const groups: [string, ItemDef["kind"][]][] = [
+      ["Armes de corps à corps", ["melee"]],
+      ["Armes à distance et munitions", ["ranged", "ammo"]],
+      ["Armures", ["armor"]],
+      ["Heaumes", ["hat"]],
+      ["Amulettes", ["amulet"]],
+      ["Artefacts", ["artifact"]],
+      ["Divers", ["key", "gold"]],
+    ];
+    for (const [title, kinds] of groups) {
+      const all = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
+      const cards = all
+        .filter((d) => codex.has(d.id))
+        .map((def) => {
+          // Qui commence la partie avec cet objet ?
+          const owners = Object.values(CLASSES).filter((c) => c.startingItems.some((s) => s.item === def.id)).map((c) => c.name);
+          return itemCard(def, 1, owners.length ? ` — départ : ${owners.join(", ")}` : "");
+        });
+      section(title, all.length, cards);
+    }
+  } else if (codexTab === "creatures") {
+    // Une rubrique par famille de créatures.
+    const all = Object.values(MONSTERS) as MonsterDef[];
+    for (const family of [...new Set(all.map((m) => m.family))]) {
+      const members = all.filter((m) => m.family === family);
+      const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Créature", m.description));
+      section(`Famille : ${family}`, members.length, cards);
+    }
+  } else {
+    for (const kind of [...new Set(PLACES.map((p) => p.kind))]) {
+      const members = PLACES.filter((p) => p.kind === kind);
+      const cards = members.filter((p) => codex.has(`l:${p.id}`)).map((p) => codexCard("square", p.color, p.name, p.kind, p.description));
+      section(kind, members.length, cards);
     }
   }
   $("codex-list").replaceChildren(...nodes);
+  $("codex-tabs").replaceChildren(
+    ...([["objets", "Objets"], ["creatures", "Créatures"], ["lieux", "Lieux"]] as const).map(([tab, label]) => {
+      const b = el("button", tab === codexTab ? "active" : "", label) as HTMLButtonElement;
+      b.type = "button";
+      b.addEventListener("click", () => {
+        codexTab = tab;
+        sfx.play("click");
+        renderCodex();
+      });
+      return b;
+    }),
+  );
+}
+
+/** Note dans l'encyclopédie les créatures et les lieux que le héros a sous les yeux. */
+let codexSeenAt = -1;
+function discoverSurroundings(): void {
+  const stamp = game.depth * 100000 + game.turn;
+  if (stamp === codexSeenAt) return;
+  codexSeenAt = stamp;
+  const found: string[] = game.visibleMonsters().map((m) => `m:${m.defId}`);
+  const byTile: Partial<Record<Tile, string>> = {
+    [Tile.DoorLocked]: "l:porte",
+    [Tile.Fountain]: "l:fontaine",
+    [Tile.FountainDry]: "l:fontaine",
+    [Tile.Chest]: "l:coffre",
+    [Tile.ChestOpen]: "l:coffre",
+    [Tile.Pillar]: "l:colonne",
+    [Tile.StairsDown]: "l:escalier",
+    [Tile.StairsUp]: "l:escalier",
+  };
+  for (let y = 0; y < game.map.height; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      const id = byTile[game.map.get(x, y)];
+      if (id && game.isVisible(x, y)) found.push(id);
+    }
+  }
+  if (game.torches.some((t) => game.isVisible(t.x, t.y))) found.push("l:torche");
+  discover(found);
 }
 
 type Screen = "main" | "new" | "settings" | "codex";
@@ -830,6 +926,7 @@ function frame(now: number): void {
   }
 
   if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
+  if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   hudText.textContent = `Étage ${game.depth} · Niv ${game.level} · CA ${game.hero.armorClass} · Or ${game.gold}`;

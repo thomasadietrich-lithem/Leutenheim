@@ -295,6 +295,8 @@ export class Game {
         }
       }
     }
+    // Il y a toujours au moins un promeneur sur l'étage : si tout le monde dort, le dernier venu se lève.
+    if (this.monsters.length > 0 && this.monsters.every((m) => m.asleep)) this.monsters[this.monsters.length - 1].asleep = false;
   }
 
   /** Avec un peu de chance, une clef traîne dans une salle de l'étage. */

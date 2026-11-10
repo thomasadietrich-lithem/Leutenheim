@@ -138,6 +138,10 @@
   /* Fiche d'objet : la même dans l'équipement et quand on trouve quelque chose. */
   /* Encyclopédie : toutes les fiches d'objets, rangées par genre, dans une liste qui défile. */
   #screen-codex { height: 100%; min-height: 0; }
+  #codex-tabs { display: flex; gap: 6px; width: 100%; }
+  #codex-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
+  #codex-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
+  .codex-glyph { width: 40px; height: 40px; }
   #codex-list { flex: 1; min-height: 0; overflow-y: auto; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-right: 2px; }
   #codex-list h3 { align-self: stretch; border-bottom: 2px solid var(--panel-hi); }
   .codex-empty { font-size: 16px; color: var(--dim); align-self: flex-start; }
@@ -215,6 +219,7 @@
     </section>
     <section id="screen-codex" hidden>
       <h2>Encyclopédie</h2>
+      <div id="codex-tabs"></div>
       <div id="codex-list"></div>
       <button id="codex-back" type="button" class="ghost">Retour</button>
     </section>

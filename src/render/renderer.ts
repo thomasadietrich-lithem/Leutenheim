@@ -571,11 +571,27 @@ export class Renderer {
    * endroit pour une case donnée), des pierres aux coins décalés et de teintes légèrement différentes. Les murs voisins se raccordent :
    * pas de bordure entre deux cases de mur, un rebord clair seulement là où le mur s'arrête.
    */
-  private drawWall(game: Game, x: number, y: number, sx: number, sy: number): void {
+  private drawWall(game: Game, mx: number, my: number, screenX: number, screenY: number): void {
     const { ctx, tile } = this;
+    const open = (dx: number, dy: number) => game.map.inBounds(mx + dx, my + dy) && game.map.get(mx + dx, my + dy) !== Tile.Wall;
+    // Orientation du mur : s'il borde un passage par la gauche ou la droite (et pas par le haut ni le bas),
+    // c'est un pan vertical. On le dessine alors pivoté d'un quart de tour : mêmes pierres, assises verticales.
+    const vertical = (open(-1, 0) || open(1, 0)) && !open(0, -1) && !open(0, 1);
+    // Repère du dessin : pour un pan vertical, « à droite » veut dire « vers le bas de l'écran ».
+    const x = vertical ? my : mx;
+    const y = vertical ? -mx : my;
+    const sx = vertical ? -tile / 2 : screenX;
+    const sy = vertical ? -tile / 2 : screenY;
+    const openAbove = vertical ? open(1, 0) : open(0, -1);
+    const openBelow = vertical ? open(-1, 0) : open(0, 1);
+    ctx.save();
+    if (vertical) {
+      ctx.translate(screenX + tile / 2, screenY + tile / 2);
+      ctx.rotate(Math.PI / 2);
+    }
     const gap = Math.max(1, tile * 0.05);
     ctx.fillStyle = COLORS.mortar;
-    ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+    ctx.fillRect(sx - 0.25, sy - 0.25, tile + 0.5, tile + 0.5);
     // Trois assises de hauteurs inégales (les mêmes sur toute la ligne de la carte, pour que les murs se raccordent).
     const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
     ctx.lineJoin = "round";
@@ -611,61 +627,50 @@ export class Renderer {
     }
     ctx.lineJoin = "miter";
     // Rebord clair en haut et ombre en bas, uniquement là où le mur s'arrête.
-    if (game.map.inBounds(x, y - 1) && game.map.get(x, y - 1) !== Tile.Wall) {
+    if (openAbove) {
       ctx.fillStyle = "rgba(190,196,230,0.35)";
       ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
     }
-    if (game.map.inBounds(x, y + 1) && game.map.get(x, y + 1) !== Tile.Wall) {
+    if (openBelow) {
       ctx.fillStyle = "rgba(12,11,18,0.4)";
       ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
     }
+    ctx.restore();
   }
 
   /**
-   * Porte : battant de planches cerclé de fer, avec anneau de poignée ou cadenas doré. Le battant est le même
-   * partout ; ce qui suit le mur, ce sont les montants de pierre et le côté où le battant se rabat en s'ouvrant.
+   * Porte : battant de planches cerclé de fer entre deux montants de pierre, avec anneau de poignée ou cadenas
+   * doré. Il n'y a qu'un seul dessin : dans un mur vertical, la case entière est pivotée d'un quart de tour,
+   * exactement comme les cases de mur qui l'entourent.
    */
   private drawDoor(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
-    // Si les murs sont au-dessus et en dessous, la porte est dans un mur latéral.
-    const sideways = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
+    // Murs au-dessus et en dessous : la porte est dans un pan de mur vertical.
+    const vertical = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
     ctx.save();
     ctx.translate(sx + tile / 2, sy + tile / 2);
+    if (vertical) ctx.rotate(Math.PI / 2);
     const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
     const px = (gx: number, gy: number, w: number, h: number, color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
     };
-    // Seuil sombre, puis montants de pierre du côté des murs : en haut et en bas pour un mur latéral,
-    // à gauche et à droite sinon.
+    // Seuil sombre, puis un montant de pierre de chaque côté, contre les murs.
     px(0, 0, 16, 16, "#2a2533");
-    if (sideways) {
-      px(0, 0, 16, 2, "#8b90b0");
-      px(0, 14, 16, 2, "#8b90b0");
-    } else {
-      px(0, 0, 2, 16, "#8b90b0");
-      px(14, 0, 2, 16, "#8b90b0");
-    }
-    // Le battant occupe l'espace entre les montants.
-    const x0 = sideways ? 1 : 2;
-    const y0 = sideways ? 2 : 1;
-    const w = sideways ? 14 : 12;
-    const h = sideways ? 12 : 14;
+    px(0, 0, 2, 16, "#8b90b0");
+    px(14, 0, 2, 16, "#8b90b0");
+    const x0 = 2;
+    const y0 = 1;
+    const w = 12;
+    const h = 14;
     if (t === Tile.DoorOpen) {
       // Ouverte : le battant est rabattu contre un montant, dans le sens du passage.
-      if (sideways) {
-        px(x0, y0, w, 3, "#8a5a2b");
-        px(x0, y0, w, 1, "#b9824a");
-        px(x0 + 3, y0, 1, 3, "#4a4e5e");
-        px(x0 + w - 4, y0, 1, 3, "#4a4e5e");
-      } else {
-        px(x0, y0, 3, h, "#8a5a2b");
-        px(x0, y0, 1, h, "#b9824a");
-        px(x0, y0 + 3, 3, 1, "#4a4e5e");
-        px(x0, y0 + h - 4, 3, 1, "#4a4e5e");
-      }
+      px(x0, y0, 3, h, "#8a5a2b");
+      px(x0, y0, 1, h, "#b9824a");
+      px(x0, y0 + 3, 3, 1, "#4a4e5e");
+      px(x0, y0 + h - 4, 3, 1, "#4a4e5e");
     } else {
-      // Fermée : le même battant partout. Planches verticales et leurs joints.
+      // Fermée : planches et leurs joints.
       px(x0, y0, w, h, "#8a5a2b");
       for (let gx = x0; gx < x0 + w; gx += 3) px(gx, y0, 1, h, "#b9824a");
       for (let gx = x0 + 2; gx < x0 + w; gx += 3) px(gx, y0, 1, h, "#5a3817");

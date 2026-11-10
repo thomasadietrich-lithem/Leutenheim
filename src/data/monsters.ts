@@ -4,6 +4,8 @@ export interface MonsterDef {
   id: string;
   name: string;
   family: string;
+  /** Une ou deux phrases pour l'encyclopédie (jamais de chiffres de défense : le joueur les découvre en jouant). */
+  description: string;
   hp: number;
   armorClass: number;
   attackBonus: number;
@@ -24,6 +26,7 @@ export const MONSTERS = {
     id: "schrat",
     name: "Schrat",
     family: "schrats",
+    description: "Petit pillard écailleux des premières galeries. Il dort volontiers, mais une fois réveillé il ne lâche plus sa proie.",
     hp: 7,
     armorClass: 12,
     attackBonus: 2,
@@ -60,7 +63,7 @@ export function spawnsForDepth(depth: number): FloorSpawns {
   return {
     roomChance: Math.min(0.3 + depth * 0.05, 0.7),
     // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
-    sleepChance: Math.max(0.2, 0.85 - (depth - 1) * 0.1),
+    sleepChance: Math.max(0.2, 0.65 - (depth - 1) * 0.1),
     entries: [{ monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) }],
   };
 }

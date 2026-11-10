@@ -2359,6 +2359,677 @@
     });
   }
 
+  // src/render/sprites/guerrier.ts
+  var GUERRIER_PALETTE = {
+    B: "#966230",
+    D: "#e2ca8c",
+    G: "#b0763e",
+    H: "#804e28",
+    M: "#e0e6ec",
+    O: "#18121e",
+    P: "#4e5474",
+    Q: "#784a26",
+    R: "#d64a3e",
+    S: "#eebe91",
+    T: "#e8e8dc",
+    U: "#5496de",
+    W: "#f2eee2",
+    b: "#623e1e",
+    d: "#a8884e",
+    h: "#523018",
+    k: "#3c3442",
+    m: "#848e9c",
+    p: "#422e1e",
+    q: "#383c58",
+    r: "#a02c28",
+    s: "#c68e64",
+    u: "#3468b0",
+    w: "#c4beb0",
+    x: "#969086"
+  };
+  var GUERRIER = {
+    idleDown: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMOOPPOOPPO....",
+        "OMmOOppOOppO....",
+        "MOO..OO..OO.....",
+        "O..............."
+      ],
+      [
+        "................",
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMOOppOOppO....",
+        "OMmO.OO..OO.....",
+        "MOO............."
+      ]
+    ],
+    idleSide: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO..O.",
+        "...OUhHSSOSO.OMO",
+        "...OUuhSSSO.OMO.",
+        "....OQWWWWOOMmO.",
+        "....OQWWwwObOO..",
+        ".....OBBBMSO....",
+        ".....OxWWWO.....",
+        ".....OPPPPO.....",
+        ".....OppOppO....",
+        "......OO.OO.....",
+        "................"
+      ],
+      [
+        "................",
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO..O.",
+        "...OUhHSSOSO.OMO",
+        "...OUuhSSSO.OMO.",
+        "....OQWWWWOOMmO.",
+        "....OQWWwwObOO..",
+        ".....OBBBMSO....",
+        ".....OxWWWO.....",
+        ".....OppOppO....",
+        "......OO.OO.....",
+        "................"
+      ]
+    ],
+    idleUp: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxObO..",
+        "....OPPOOPPOOMO.",
+        "....OppOOppOOmMO",
+        ".....OO..OO..OOM",
+        "...............O"
+      ]
+    ],
+    walkDown: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMOOPPOOPPO....",
+        "OMmOOppOOppO....",
+        "MOO..OO..OO.....",
+        "O..............."
+      ],
+      [
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMO.OOOOOO.....",
+        "OMmOOPPOOppO....",
+        "MOO.OPPO.OO.....",
+        "O...OppO........",
+        ".....OO........."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMOOPPOOPPO....",
+        "OMmOOppOOppO....",
+        "MOO..OO..OO.....",
+        "O..............."
+      ],
+      [
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMO.OOOOOO.....",
+        "OMmOOppOOPPO....",
+        "MOO..OO.OPPO....",
+        "O.......OppO....",
+        ".........OO....."
+      ]
+    ],
+    walkSide: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO..O.",
+        "...OUhHSSOSO.OMO",
+        "...OUuhSSSO.OMO.",
+        "....OQWWWWOOMmO.",
+        "....OQWWwwObOO..",
+        ".....OBBBMSO....",
+        ".....OxWWWO.....",
+        ".....OPPPPO.....",
+        "....OqqOOPPO....",
+        "....OppOOpppO...",
+        ".....OO..OOO...."
+      ],
+      [
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO..O.",
+        "...OUhHSSOSO.OMO",
+        "...OUuhSSSO.OMO.",
+        "....OQWWWWOOMmO.",
+        "....OQWWwwObOO..",
+        ".....OBBBMSO....",
+        ".....OxWWWO.....",
+        "......OOOO......",
+        ".....OqPPO......",
+        "......OPPO......",
+        "......OpppO.....",
+        ".......OOO......"
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO..O.",
+        "...OUhHSSOSO.OMO",
+        "...OUuhSSSO.OMO.",
+        "....OQWWWWOOMmO.",
+        "....OQWWwwObOO..",
+        ".....OBBBMSO....",
+        ".....OxWWWO.....",
+        ".....OPPPPO.....",
+        ".....OppOppO....",
+        "......OO.OO.....",
+        "................"
+      ],
+      [
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO..O.",
+        "...OUhHSSOSO.OMO",
+        "...OUuhSSSO.OMO.",
+        "....OQWWWWOOMmO.",
+        "....OQWWwwObOO..",
+        ".....OBBBMSO....",
+        ".....OxWWWO.....",
+        "......OOOO......",
+        ".....OqPPO......",
+        "......OPPO......",
+        "......OpppO.....",
+        ".......OOO......"
+      ]
+    ],
+    walkUp: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxObO..",
+        "....OPPOOPPOOMO.",
+        "....OppOOppOOmMO",
+        ".....OO..OO..OOM",
+        "...............O"
+      ],
+      [
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxObO..",
+        ".....OOOOOO.OMO.",
+        "....OPPOOppOOmMO",
+        "....OPPO.OO..OOM",
+        "....OppO.......O",
+        ".....OO........."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxObO..",
+        "....OPPOOPPOOMO.",
+        "....OppOOppOOmMO",
+        ".....OO..OO..OOM",
+        "...............O"
+      ],
+      [
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxObO..",
+        ".....OOOOOO.OMO.",
+        "....OppOOPPOOmMO",
+        ".....OO.OPPO.OOM",
+        "........OppO...O",
+        ".........OO....."
+      ]
+    ],
+    swordDown: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "...OOHHHHHHO....",
+        "..OMOHSSSSHO....",
+        "..OMOSOSSOSUO...",
+        ".OmMOOSssSOUuO..",
+        "..OMOWWWWWWOO...",
+        "..ObwWWWWWWwO...",
+        "..OSSBBMBBBSO...",
+        "...OOwWWWWxO....",
+        "....OPPOOPPO....",
+        "....OppOOppO....",
+        ".....OO..OO.....",
+        "................"
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "...OwwWWWWxO....",
+        "....OSPOOppO....",
+        "....OPbO.OO.....",
+        "....OpMO........",
+        ".....OmMO......."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWWWWWOO...",
+        "...OwWWWWWWwO...",
+        "...OSBBMBBBSO...",
+        "..ObOwWWWWxO....",
+        ".OMOOPPOOPPO....",
+        "OMmOOppOOppO....",
+        "MOO..OO..OO.....",
+        "O..............."
+      ]
+    ],
+    swordSide: [
+      [
+        "................",
+        "......OOOO......",
+        "...O.OHGGHO.....",
+        "..OMOHGGHHHO....",
+        "..OMmHHHHHHO....",
+        "...OMHHHSSSO....",
+        "...ObhHSSOSO....",
+        "...OUShSSSO.....",
+        "....OwWWWWO.....",
+        "....OQwWwWO.....",
+        ".....OBBBMO.....",
+        ".....OxWWWO.....",
+        ".....OPPPPO.....",
+        ".....OppOppO....",
+        "......OO.OO.....",
+        "................"
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO....",
+        "...OUhHSSOSO....",
+        "...OUuhSSSO.....",
+        "....OQWWWWOOOOO.",
+        "....OQWWwwSbMMMO",
+        ".....OBBBMOOmmO.",
+        ".....OxWWWO.OO..",
+        ".....OPPPPO.....",
+        "....OqqOOPPO....",
+        "....OppOOpppO...",
+        ".....OO..OOO...."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHSSSO....",
+        "...OUhHSSOSO....",
+        "...OUuhSSSO.....",
+        "....OQWWWWO.....",
+        "....OQWWwwO.....",
+        ".....OBBBMSO....",
+        ".....OxWWWObO...",
+        ".....OPPPPOOMO..",
+        ".....OppOppOOMO.",
+        "......OO.OO..OMO",
+        "..............O."
+      ]
+    ],
+    swordUp: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSOO..",
+        "....OwWWWWxOSbO.",
+        "....OPPOOPPOOOMO",
+        "....OppOOppO..OM",
+        ".....OO..OO....O",
+        "................"
+      ],
+      [
+        "......OOOO...O..",
+        ".....OHGGHO.OMO.",
+        "....OHGGHHHOOMmO",
+        "....OHHHHHHOOMmO",
+        "....OHHHHHHOOMO.",
+        "....OhHHHHUuObO.",
+        ".....OhsshUUOSO.",
+        "....OWWWQQWOOwO.",
+        "...OwWWQQWWwwO..",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxO....",
+        ".....OOOOOO.....",
+        "....OppOOPPO....",
+        ".....OO.OPPO....",
+        "........OppO....",
+        ".........OO....."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        ".....OhsshUUO...",
+        "....OWWWQQWO....",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxObO..",
+        "....OPPOOPPOOMO.",
+        "....OppOOppOOmMO",
+        ".....OO..OO..OOM",
+        "...............O"
+      ]
+    ],
+    bowDown: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHO....",
+        "....OHSSSSHO....",
+        "....OSOSSOSUO...",
+        ".....OSssSOUuO..",
+        "....OWWSSWWOO...",
+        "....OWkUukWO....",
+        "...OOkBhBBkOO...",
+        "..ODTwWhWWxTDO..",
+        "...ODOOhOOODO...",
+        "....ODdSSdDO....",
+        ".....OOMOOO.....",
+        "......OMO......."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        "...O.OHGGHO.....",
+        "..ODOHGGHHHO....",
+        ".ODTOHHHHHHO....",
+        "ODOTOHSSSSHO....",
+        "ODOTOSOSSOSUO...",
+        "OdOTOOSssSOUuO..",
+        "ODSTOWWWWWWOO...",
+        "ODOwwWWWWWWwO...",
+        "OdOTOBBMBBBSO...",
+        "ODOTOwWWWWxO....",
+        ".ODTOPPOOPPO....",
+        "..OOOppOOppO....",
+        ".....OO..OO.....",
+        "................"
+      ]
+    ],
+    bowSide: [
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHDO...",
+        "....OHHHSSSTDO..",
+        "...OUhHSSOTOODO.",
+        "...OUuhSSTOOSDO.",
+        "....OQWWShhhhhMO",
+        "....OQWwwTOOODO.",
+        ".....OBBBMTOODO.",
+        ".....OxWWWOTDO..",
+        ".....OPPPPODO...",
+        ".....OppOppO....",
+        "......OO.OO.....",
+        "................"
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.....",
+        "....OHGGHHHO....",
+        "....OHHHHHHDO...",
+        "....OHHHSSSTDO..",
+        "...OUhHSSOSTODO.",
+        "...OUuhSSSOTODO.",
+        "....OQWWWWOTSDO.",
+        "....OQWWwwwTODO.",
+        ".....OBBBMOTODO.",
+        ".....OxWWWOTDO..",
+        ".....OPPPPODO...",
+        ".....OppOppO....",
+        "......OO.OO.....",
+        "................"
+      ]
+    ],
+    bowUp: [
+      [
+        "......OMO.......",
+        ".....OOMMOO.....",
+        "....OdDOODdO....",
+        "...ODOOOOOODO...",
+        "..ODOOHGGHOODO..",
+        ".ODOOHGGHHHOODO.",
+        "..O.OHHHHHHO.O..",
+        "....OHHHHHHO....",
+        "....OhHHHHUuO...",
+        "...O.OhsshUUO...",
+        "..OSOWWWQQWOSO..",
+        "...OwWWQQWWwO...",
+        "...OSBQQBBBSO...",
+        "....OwWWWWxO....",
+        "....OppOOppO....",
+        ".....OO..OO....."
+      ],
+      [
+        "................",
+        "......OOOO......",
+        ".....OHGGHO.O...",
+        "....OHGGHHHODO..",
+        "....OHHHHHHOTDO.",
+        "....OHHHHHHOTODO",
+        "....OhHHHHUOTODO",
+        ".....OhsshUOTOdO",
+        "....OWWWQQWOTSDO",
+        "...OwWWQQWWwwODO",
+        "...OSBQQBBBOTOdO",
+        "....OwWWWWxOTODO",
+        "....OPPOOPPOTDO.",
+        "....OppOOppODO..",
+        ".....OO..OO.O...",
+        "................"
+      ]
+    ],
+    hurt: [
+      [
+        "................",
+        ".....OOOO.......",
+        "....OHGGHO......",
+        "...OHGGHHHO.....",
+        "...OHHHHHHO.....",
+        "...OHHHSSSO.....",
+        "..OUhHSSOSO.....",
+        "..OUuhSSSO......",
+        "...OQRRRRO......",
+        "...OQRRrrO......",
+        "....OBBBMSO.....",
+        "....OrRRRObO....",
+        ".....OPPPPOMO...",
+        ".....OppOppOMO..",
+        "......OO.OO.OMO.",
+        ".............O.."
+      ]
+    ],
+    dead: [
+      [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "...............O",
+        "..............OM",
+        "...OOO...O...OMO",
+        "..OHHHOOOSO.ObO.",
+        ".OHGHHSwWWwOOOOO",
+        ".OHHHSOWWWBWPPpp",
+        ".OHHHSSWWWBWPPOO",
+        ".OhHHSOWWWBWPPpp",
+        "..OhhhOwWWxOSOOO",
+        "...OOO.OOOO.O..."
+      ]
+    ]
+  };
+
   // src/render/renderer.ts
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
@@ -2385,6 +3056,8 @@
     return ((h ^ h >>> 16) >>> 0) / 4294967296;
   }
   var SLASH_MS = 220;
+  var BOW_MS = 320;
+  var HURT_MS = 260;
   var PROJECTILE_MS = 170;
   var Renderer = class {
     constructor(canvas2) {
@@ -2402,6 +3075,12 @@
       this.floats = [];
       this.slashes = [];
       this.projectiles = [];
+      /** Animation du héros : de quel côté il regarde, et depuis combien de temps il tire ou encaisse. */
+      this.heroFacing = "down";
+      this.bowAge = Infinity;
+      this.hurtAge = Infinity;
+      this.heroDown = false;
+      this.spriteCache = /* @__PURE__ */ new Map();
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -2447,6 +3126,84 @@
       this.floats = [];
       this.slashes = [];
       this.projectiles = [];
+      this.bowAge = Infinity;
+      this.hurtAge = Infinity;
+      this.heroDown = game2.over && game2.hero.hp <= 0;
+    }
+    /** Le héros tire à l'arc dans cette direction : il se tourne et tend son arc. */
+    heroShoots(dx, dy) {
+      this.face(dx, dy);
+      this.bowAge = 0;
+    }
+    /** Le héros vient d'être blessé. */
+    heroHurt() {
+      this.hurtAge = 0;
+    }
+    /** Le héros est tombé : il reste étendu au sol. */
+    heroFalls() {
+      this.heroDown = true;
+    }
+    face(dx, dy) {
+      if (dx === 0 && dy === 0) return;
+      this.heroFacing = Math.abs(dx) >= Math.abs(dy) ? dx > 0 ? "right" : "left" : dy > 0 ? "down" : "up";
+    }
+    /** Une image de sprite (rangées de lettres) peinte une fois pour toutes sur un petit canevas 16×16. */
+    sprite(rows) {
+      let c = this.spriteCache.get(rows);
+      if (!c) {
+        c = document.createElement("canvas");
+        c.width = rows[0].length;
+        c.height = rows.length;
+        const g = c.getContext("2d");
+        rows.forEach((row, y) => {
+          for (let x = 0; x < row.length; x++) {
+            const color = GUERRIER_PALETTE[row[x]];
+            if (!color) continue;
+            g.fillStyle = color;
+            g.fillRect(x, y, 1, 1);
+          }
+        });
+        this.spriteCache.set(rows, c);
+      }
+      return c;
+    }
+    /** Le héros : son sprite selon ce qu'il fait (repos, marche, coup d'épée, tir, blessure, mort) et où il regarde. */
+    drawHero(game2, at, ox, oy, progress) {
+      const { ctx, tile } = this;
+      const h = game2.hero;
+      const mdx = h.x - h.fromX;
+      const mdy = h.y - h.fromY;
+      const moving = progress < 1 && (mdx !== 0 || mdy !== 0);
+      const slash = this.slashes.find((sl) => sl.attackerId === h.id);
+      if (slash) this.face(slash.x - slash.fromX, slash.y - slash.fromY);
+      else if (moving && this.bowAge >= BOW_MS) this.face(mdx, mdy);
+      const dir = this.heroFacing === "down" ? "Down" : this.heroFacing === "up" ? "Up" : "Side";
+      let rows;
+      if (this.heroDown) rows = GUERRIER.dead[0];
+      else if (this.hurtAge < HURT_MS) rows = GUERRIER.hurt[0];
+      else if (slash) rows = GUERRIER[`sword${dir}`][Math.min(2, Math.floor(3 * slash.age / SLASH_MS))];
+      else if (this.bowAge < BOW_MS) rows = GUERRIER[`bow${dir}`][this.bowAge < BOW_MS * 0.5 ? 0 : 1];
+      else if (moving) rows = GUERRIER[`walk${dir}`][((h.x + h.y & 1) * 2 + (progress < 0.5 ? 0 : 1)) % 4];
+      else {
+        const idle = GUERRIER[`idle${dir}`];
+        rows = idle[Math.floor(Math.abs(this.time) / 520) % idle.length];
+      }
+      const cx = ox + (at.x + 0.5) * tile;
+      const cy = oy + (at.y + 0.5) * tile;
+      ctx.fillStyle = "rgba(10,8,16,0.45)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + tile * 0.4, tile * 0.3, tile * 0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const size = Math.round(tile * 1.3);
+      const top = Math.round(cy - size / 2 - tile * 0.12);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.translate(Math.round(cx), 0);
+      if (this.heroFacing === "left") ctx.scale(-1, 1);
+      ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
+      ctx.restore();
+      ctx.imageSmoothingEnabled = smooth;
     }
     /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
     addFloatingText(x, y, text, color) {
@@ -2513,6 +3270,8 @@
       const { ctx, tile } = this;
       this.time += dt;
       this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
+      this.bowAge += dt;
+      this.hurtAge += dt;
       const shown = (a) => {
         const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
         const s = this.slashes.find((sl) => sl.attackerId === a.id);
@@ -2737,13 +3496,7 @@
           ctx.stroke();
         }
       }
-      ctx.fillStyle = COLORS.hero;
-      ctx.strokeStyle = COLORS.heroEdge;
-      ctx.lineWidth = Math.max(2, tile * 0.08);
-      ctx.beginPath();
-      ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      this.drawHero(game2, hero, ox, oy, progress);
       if (game2.heroExposed()) {
         ctx.strokeStyle = `rgba(255,90,100,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
         ctx.lineWidth = Math.max(2, tile * 0.07);
@@ -3825,6 +4578,8 @@
   function launchArrow(e) {
     if (!e || e.type !== "arrow" || launched.has(e)) return;
     launched.add(e);
+    const aim = e.via ?? e;
+    renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
     if (e.via) {
       renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
       renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true);
@@ -3881,6 +4636,7 @@
       );
       if (foe) shownHp = Math.max(0, shownHp - r.damage);
       if (foe && r.hit) {
+        renderer.heroHurt();
         pulse(hpBar, "hit");
         pulse(mapFrame, "hurt");
       }
@@ -3926,6 +4682,7 @@
       sfx.play("heal");
     } else if (e.type === "death") {
       if (e.actor.kind === "hero") {
+        renderer.heroFalls();
         overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
         over.hidden = false;
         sfx.play("death");

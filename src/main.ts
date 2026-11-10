@@ -216,6 +216,8 @@ const launched = new WeakSet<object>();
 function launchArrow(e: GameEvent | undefined): void {
   if (!e || e.type !== "arrow" || launched.has(e)) return;
   launched.add(e);
+  const aim = e.via ?? e;
+  renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
   if (e.via) {
     // Elle heurte l'obstacle, puis retombe en tournoyant.
     renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
@@ -280,6 +282,7 @@ function reveal(e: GameEvent): void {
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
     if (foe && r.hit) {
+      renderer.heroHurt();
       pulse(hpBar, "hit");
       pulse(mapFrame, "hurt");
     }
@@ -327,6 +330,7 @@ function reveal(e: GameEvent): void {
     sfx.play("heal");
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
+      renderer.heroFalls();
       overText.textContent = `Vous êtes mort à l'étage ${game.depth}, au tour ${game.turn}.`;
       over.hidden = false;
       sfx.play("death");

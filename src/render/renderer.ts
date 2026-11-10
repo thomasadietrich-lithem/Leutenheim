@@ -4,6 +4,7 @@ import { MONSTERS } from "../data/monsters";
 import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
+import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
 const COLUMNS = 11;
@@ -38,6 +39,10 @@ function noise(a: number, b: number, c: number): number {
 
 /** Durée d'un coup (élan de l'attaquant + trace de la lame), en ms. */
 const SLASH_MS = 220;
+/** Durée du geste de tir à l'arc, et de la grimace quand le héros est blessé. */
+const BOW_MS = 320;
+const HURT_MS = 260;
+type Facing = "down" | "up" | "left" | "right";
 
 /** Un coup porté de (fromX, fromY) vers (x, y). */
 interface Slash {
@@ -88,6 +93,12 @@ export class Renderer {
   private floats: FloatingText[] = [];
   private slashes: Slash[] = [];
   private projectiles: Projectile[] = [];
+  /** Animation du héros : de quel côté il regarde, et depuis combien de temps il tire ou encaisse. */
+  private heroFacing: Facing = "down";
+  private bowAge = Infinity;
+  private hurtAge = Infinity;
+  private heroDown = false;
+  private readonly spriteCache = new Map<readonly string[], HTMLCanvasElement>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -142,6 +153,93 @@ export class Renderer {
     this.floats = [];
     this.slashes = [];
     this.projectiles = [];
+    this.bowAge = Infinity;
+    this.hurtAge = Infinity;
+    this.heroDown = game.over && game.hero.hp <= 0;
+  }
+
+  /** Le héros tire à l'arc dans cette direction : il se tourne et tend son arc. */
+  heroShoots(dx: number, dy: number): void {
+    this.face(dx, dy);
+    this.bowAge = 0;
+  }
+
+  /** Le héros vient d'être blessé. */
+  heroHurt(): void {
+    this.hurtAge = 0;
+  }
+
+  /** Le héros est tombé : il reste étendu au sol. */
+  heroFalls(): void {
+    this.heroDown = true;
+  }
+
+  private face(dx: number, dy: number): void {
+    if (dx === 0 && dy === 0) return;
+    this.heroFacing = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+  }
+
+  /** Une image de sprite (rangées de lettres) peinte une fois pour toutes sur un petit canevas 16×16. */
+  private sprite(rows: readonly string[]): HTMLCanvasElement {
+    let c = this.spriteCache.get(rows);
+    if (!c) {
+      c = document.createElement("canvas");
+      c.width = rows[0].length;
+      c.height = rows.length;
+      const g = c.getContext("2d")!;
+      rows.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+          const color = GUERRIER_PALETTE[row[x]];
+          if (!color) continue;
+          g.fillStyle = color;
+          g.fillRect(x, y, 1, 1);
+        }
+      });
+      this.spriteCache.set(rows, c);
+    }
+    return c;
+  }
+
+  /** Le héros : son sprite selon ce qu'il fait (repos, marche, coup d'épée, tir, blessure, mort) et où il regarde. */
+  private drawHero(game: Game, at: Point, ox: number, oy: number, progress: number): void {
+    const { ctx, tile } = this;
+    const h = game.hero;
+    const mdx = h.x - h.fromX;
+    const mdy = h.y - h.fromY;
+    const moving = progress < 1 && (mdx !== 0 || mdy !== 0);
+    const slash = this.slashes.find((sl) => sl.attackerId === h.id);
+    if (slash) this.face(slash.x - slash.fromX, slash.y - slash.fromY);
+    else if (moving && this.bowAge >= BOW_MS) this.face(mdx, mdy);
+    const dir = this.heroFacing === "down" ? "Down" : this.heroFacing === "up" ? "Up" : "Side";
+    let rows: readonly string[];
+    if (this.heroDown) rows = GUERRIER.dead[0];
+    else if (this.hurtAge < HURT_MS) rows = GUERRIER.hurt[0];
+    else if (slash) rows = GUERRIER[`sword${dir}`][Math.min(2, Math.floor((3 * slash.age) / SLASH_MS))];
+    else if (this.bowAge < BOW_MS) rows = GUERRIER[`bow${dir}`][this.bowAge < BOW_MS * 0.5 ? 0 : 1];
+    else if (moving) rows = GUERRIER[`walk${dir}`][(((h.x + h.y) & 1) * 2 + (progress < 0.5 ? 0 : 1)) % 4];
+    else {
+      const idle = GUERRIER[`idle${dir}`];
+      // Le temps peut être très légèrement négatif à la toute première image : on prend sa valeur absolue.
+      rows = idle[Math.floor(Math.abs(this.time) / 520) % idle.length];
+    }
+    const cx = ox + (at.x + 0.5) * tile;
+    const cy = oy + (at.y + 0.5) * tile;
+    // Ombre au sol.
+    ctx.fillStyle = "rgba(10,8,16,0.45)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + tile * 0.4, tile * 0.3, tile * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Le sprite dépasse un peu de sa case pour que le personnage ait la taille d'un occupant, armes comprises.
+    const size = Math.round(tile * 1.3);
+    const top = Math.round(cy - size / 2 - tile * 0.12);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(Math.round(cx), 0);
+    if (this.heroFacing === "left") ctx.scale(-1, 1);
+    ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = smooth;
   }
 
   /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
@@ -219,6 +317,8 @@ export class Renderer {
     const { ctx, tile } = this;
     this.time += dt;
     this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
+    this.bowAge += dt;
+    this.hurtAge += dt;
     const shown = (a: Actor): Point => {
       const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
       // Élan : l'attaquant avance d'un tiers de case vers sa cible, puis revient.
@@ -482,14 +582,8 @@ export class Renderer {
       }
     }
 
-    // Héros : un disque vert.
-    ctx.fillStyle = COLORS.hero;
-    ctx.strokeStyle = COLORS.heroEdge;
-    ctx.lineWidth = Math.max(2, tile * 0.08);
-    ctx.beginPath();
-    ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    // Héros : son sprite animé.
+    this.drawHero(game, hero, ox, oy, progress);
     // Liseré rouge : le héros se tient dans une porte, les ennemis ont l'avantage sur lui.
     if (game.heroExposed()) {
       ctx.strokeStyle = `rgba(255,90,100,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;

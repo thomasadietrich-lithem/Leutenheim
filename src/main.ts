@@ -143,6 +143,7 @@ function clearDie(): void {
   die.textContent = "";
   die.className = "die";
   die2.hidden = true;
+  die.parentElement?.classList.toggle("pair", !die2.hidden);
   dieWho.textContent = "";
 }
 
@@ -220,6 +221,7 @@ function startRoll(e: GameEvent): void {
   const mode = e.type === "attack" ? e.result.mode : "normal";
   die.className = `die rolling${foe ? " foe" : ""}`;
   die2.hidden = mode === "normal";
+  die.parentElement?.classList.toggle("pair", !die2.hidden);
   die2.className = `die rolling${foe ? " foe" : ""}`;
   const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
   dieWho.textContent = mode === "advantage" ? `${who} · avantage` : mode === "disadvantage" ? `${who} · désavantage` : who;
@@ -242,6 +244,7 @@ function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean, 
   die.className = `die land ${outcome}${foe ? " foe" : ""}`;
   if (other === undefined) {
     die2.hidden = true;
+    die.parentElement?.classList.toggle("pair", !die2.hidden);
   } else {
     // Le dé écarté reste visible, estompé.
     die2.textContent = String(other);

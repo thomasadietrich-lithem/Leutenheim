@@ -57,9 +57,9 @@
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 100px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; }
-  .dice-row { position: relative; width: 58px; height: 58px; flex: none; }
-  #die2 { position: absolute; left: 8px; top: 4px; transform: scale(0.55); transform-origin: 100% 100%; }
-  #die2.rolling, #die2.dropped { animation: none; transform: scale(0.55); }
+  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
+  /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
+  .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
   .die { --edge: #5a4a30; --face: #3a2e1c; --side: #2a2114; --low: #1c160c; --rim-a: #241c10; --rim-b: #17110a;
@@ -78,7 +78,7 @@
   .die.foe { --rim-a: #3a1016; --rim-b: #2a0c10; }
   .die.rolling { --edge: #fff; color: #fff; --face: #6a5a40; --side: #4a3e2a; --low: #32291a; animation: roll 0.16s steps(4) infinite; }
   .die.land { animation: land 0.2s steps(3); }
-  .die.dropped { opacity: 0.4; transform: scale(0.8); --edge: #4a3e2a; color: var(--dim); }
+  .die.dropped { opacity: 0.35; transform: scale(0.85); --edge: #4a3e2a; color: var(--dim); }
   @keyframes roll { 0% { transform: rotate(-14deg); } 25% { transform: rotate(10deg) translateY(-4px); }
     50% { transform: rotate(-8deg); } 75% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg); } }
   @keyframes land { 0% { transform: scale(1.5); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
@@ -2613,8 +2613,13 @@
      */
     drawWall(game2, mx, my, screenX, screenY) {
       const { ctx, tile } = this;
-      const open = (dx, dy) => game2.map.inBounds(mx + dx, my + dy) && game2.map.get(mx + dx, my + dy) !== Tile.Wall;
-      const vertical = (open(-1, 0) || open(1, 0)) && !open(0, -1) && !open(0, 1);
+      const isOpen = (cx, cy) => game2.map.inBounds(cx, cy) && game2.map.get(cx, cy) !== Tile.Wall;
+      const open = (dx, dy) => isOpen(mx + dx, my + dy);
+      const isVertical = (cx, cy) => (isOpen(cx - 1, cy) || isOpen(cx + 1, cy)) && !isOpen(cx, cy - 1) && !isOpen(cx, cy + 1);
+      const vertical = isVertical(mx, my);
+      const sameRun = (cx, cy) => game2.map.inBounds(cx, cy) && game2.map.get(cx, cy) === Tile.Wall && isVertical(cx, cy) === vertical;
+      const joinBefore = vertical ? sameRun(mx, my - 1) : sameRun(mx - 1, my);
+      const joinAfter = vertical ? sameRun(mx, my + 1) : sameRun(mx + 1, my);
       const x = vertical ? my : mx;
       const y = vertical ? -mx : my;
       const sx = vertical ? -tile / 2 : screenX;
@@ -2628,16 +2633,19 @@
       }
       const gap = Math.max(1, tile * 0.05);
       ctx.fillStyle = COLORS.mortar;
-      ctx.fillRect(sx - 0.25, sy - 0.25, tile + 0.5, tile + 0.5);
+      if (vertical) ctx.fillRect(sx, sy - 0.5, tile + 0.5, tile + 1);
+      else ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
       const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
       ctx.lineJoin = "round";
       for (let r = 0; r < 3; r++) {
         const row = y * 3 + r;
         const cuts = [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
         for (let i = 0; i + 1 < cuts.length; i++) {
-          const first = i === 0;
-          const last2 = i + 2 === cuts.length;
-          const tint = first ? noise(x, row, 9) : last2 ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
+          const firstStone = i === 0;
+          const lastStone = i + 2 === cuts.length;
+          const first = firstStone && joinBefore;
+          const last2 = lastStone && joinAfter;
+          const tint = firstStone ? noise(x, row, 9) : lastStone ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
           const light = 0.84 + 0.3 * tint;
           const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
           const left = sx + cuts[i] * tile + (first ? 0 : gap / 2);
@@ -3362,6 +3370,7 @@
     die.textContent = "";
     die.className = "die";
     die2.hidden = true;
+    die.parentElement?.classList.toggle("pair", !die2.hidden);
     dieWho.textContent = "";
   }
   function renderLog() {
@@ -3407,6 +3416,7 @@
     const mode = e.type === "attack" ? e.result.mode : "normal";
     die.className = `die rolling${foe ? " foe" : ""}`;
     die2.hidden = mode === "normal";
+    die.parentElement?.classList.toggle("pair", !die2.hidden);
     die2.className = `die rolling${foe ? " foe" : ""}`;
     const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
     dieWho.textContent = mode === "advantage" ? `${who} \xB7 avantage` : mode === "disadvantage" ? `${who} \xB7 d\xE9savantage` : who;
@@ -3427,6 +3437,7 @@
     die.className = `die land ${outcome}${foe ? " foe" : ""}`;
     if (other === void 0) {
       die2.hidden = true;
+      die.parentElement?.classList.toggle("pair", !die2.hidden);
     } else {
       die2.textContent = String(other);
       die2.className = `die dropped${foe ? " foe" : ""}`;

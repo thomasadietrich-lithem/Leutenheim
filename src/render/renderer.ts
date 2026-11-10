@@ -573,10 +573,17 @@ export class Renderer {
    */
   private drawWall(game: Game, mx: number, my: number, screenX: number, screenY: number): void {
     const { ctx, tile } = this;
-    const open = (dx: number, dy: number) => game.map.inBounds(mx + dx, my + dy) && game.map.get(mx + dx, my + dy) !== Tile.Wall;
+    const isOpen = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) !== Tile.Wall;
+    const open = (dx: number, dy: number) => isOpen(mx + dx, my + dy);
     // Orientation du mur : s'il borde un passage par la gauche ou la droite (et pas par le haut ni le bas),
     // c'est un pan vertical. On le dessine alors pivoté d'un quart de tour : mêmes pierres, assises verticales.
-    const vertical = (open(-1, 0) || open(1, 0)) && !open(0, -1) && !open(0, 1);
+    const isVertical = (cx: number, cy: number) => (isOpen(cx - 1, cy) || isOpen(cx + 1, cy)) && !isOpen(cx, cy - 1) && !isOpen(cx, cy + 1);
+    const vertical = isVertical(mx, my);
+    // Les pierres du bord ne se prolongent dans la case voisine que si c'est un mur de même orientation ;
+    // sinon le pan se termine proprement par un joint (là où un pan vertical rencontre un pan horizontal, ou une porte).
+    const sameRun = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) === Tile.Wall && isVertical(cx, cy) === vertical;
+    const joinBefore = vertical ? sameRun(mx, my - 1) : sameRun(mx - 1, my);
+    const joinAfter = vertical ? sameRun(mx, my + 1) : sameRun(mx + 1, my);
     // Repère du dessin : pour un pan vertical, « à droite » veut dire « vers le bas de l'écran ».
     const x = vertical ? my : mx;
     const y = vertical ? -mx : my;
@@ -591,7 +598,10 @@ export class Renderer {
     }
     const gap = Math.max(1, tile * 0.05);
     ctx.fillStyle = COLORS.mortar;
-    ctx.fillRect(sx - 0.25, sy - 0.25, tile + 0.5, tile + 0.5);
+    // Chaque case déborde d'un demi-pixel vers la droite et le bas de l'écran pour ne laisser aucun jour entre
+    // deux cases. Une case pivotée déborde donc aussi par son « haut » (qui est la droite de l'écran).
+    if (vertical) ctx.fillRect(sx, sy - 0.5, tile + 0.5, tile + 1);
+    else ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
     // Trois assises de hauteurs inégales (les mêmes sur toute la ligne de la carte, pour que les murs se raccordent).
     const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
     ctx.lineJoin = "round";
@@ -599,10 +609,12 @@ export class Renderer {
       const row = y * 3 + r;
       const cuts = [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
       for (let i = 0; i + 1 < cuts.length; i++) {
-        const first = i === 0;
-        const last = i + 2 === cuts.length;
+        const firstStone = i === 0;
+        const lastStone = i + 2 === cuts.length;
         // Les pierres du bord continuent dans la case voisine : même teinte des deux côtés, pas de joint.
-        const tint = first ? noise(x, row, 9) : last ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
+        const first = firstStone && joinBefore;
+        const last = lastStone && joinAfter;
+        const tint = firstStone ? noise(x, row, 9) : lastStone ? noise(x + 1, row, 9) : noise(x, row, 10 + i);
         const light = 0.84 + 0.3 * tint;
         const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
         const left = sx + cuts[i] * tile + (first ? 0 : gap / 2);

@@ -57,9 +57,9 @@
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 100px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; }
-  .dice-row { position: relative; width: 58px; height: 58px; flex: none; }
-  #die2 { position: absolute; left: 8px; top: 4px; transform: scale(0.55); transform-origin: 100% 100%; }
-  #die2.rolling, #die2.dropped { animation: none; transform: scale(0.55); }
+  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
+  /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
+  .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
   .die { --edge: #5a4a30; --face: #3a2e1c; --side: #2a2114; --low: #1c160c; --rim-a: #241c10; --rim-b: #17110a;
@@ -78,7 +78,7 @@
   .die.foe { --rim-a: #3a1016; --rim-b: #2a0c10; }
   .die.rolling { --edge: #fff; color: #fff; --face: #6a5a40; --side: #4a3e2a; --low: #32291a; animation: roll 0.16s steps(4) infinite; }
   .die.land { animation: land 0.2s steps(3); }
-  .die.dropped { opacity: 0.4; transform: scale(0.8); --edge: #4a3e2a; color: var(--dim); }
+  .die.dropped { opacity: 0.35; transform: scale(0.85); --edge: #4a3e2a; color: var(--dim); }
   @keyframes roll { 0% { transform: rotate(-14deg); } 25% { transform: rotate(10deg) translateY(-4px); }
     50% { transform: rotate(-8deg); } 75% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg); } }
   @keyframes land { 0% { transform: scale(1.5); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }

@@ -278,6 +278,8 @@ export class Renderer {
           this.drawWall(game, x, y, sx, sy);
         } else {
           this.drawFloor(x, y, sx, sy);
+          // Verdure et champignons : seulement sur le sol nu, et différents à chaque étage.
+          if (t === Tile.Floor) this.drawPlants(x, y, sx, sy, 100 + (game.runSeed % 997) + game.depth * 13);
         }
         this.drawFeature(game, t, x, y, sx, sy);
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
@@ -295,7 +297,9 @@ export class Renderer {
             ctx.fillRect(sx, sy, tile, tile);
           }
         } else {
-          ctx.fillStyle = `rgba(12,11,18,${(0.74 * shade).toFixed(3)})`;
+          // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
+          // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
+          ctx.fillStyle = `rgba(8,7,14,${(wall || t === Tile.Pillar ? 0.72 : 0.82).toFixed(3)})`;
           ctx.fillRect(sx, sy, tile, tile);
         }
       }
@@ -558,6 +562,48 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+  }
+
+  /**
+   * Décor végétal, sans effet sur le jeu : des touffes d'herbe regroupées par zones (une zone = un pâté de
+   * 4×4 cases tiré au sort), et de petits champignons çà et là, plus fréquents dans ces zones humides.
+   * Tout est tiré du numéro de case : la même case montre toujours la même chose.
+   */
+  private drawPlants(x: number, y: number, sx: number, sy: number, salt: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const px = (gx: number, gy: number, w: number, h: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(sx + gx * u, sy + gy * u, w * u + 0.5, h * u + 0.5);
+    };
+    const lush = noise(x >> 2, y >> 2, salt) < 0.22; // cette zone est-elle envahie par la verdure ?
+    const roll = noise(x, y, salt + 1);
+    if (lush && roll < 0.55) {
+      // Une à trois touffes : quelques brins de hauteurs inégales, deux verts.
+      const tufts = 1 + Math.floor(noise(x, y, salt + 2) * 3);
+      for (let i = 0; i < tufts; i++) {
+        const bx = 2 + Math.floor(noise(x, y, salt + 10 + i) * 10);
+        const by = 6 + Math.floor(noise(x, y, salt + 20 + i) * 8);
+        px(bx, by - 3, 1, 4, "#4f8a3c");
+        px(bx + 1, by - 5, 1, 6, "#6fae4a");
+        px(bx + 2, by - 2, 1, 3, "#3d6e30");
+        px(bx + 3, by - 4, 1, 5, "#5a9a40");
+        px(bx, by + 1, 4, 1, "#2c4a26");
+      }
+    }
+    if (noise(x, y, salt + 3) < (lush ? 0.14 : 0.025)) {
+      // Petit champignon : pied clair, chapeau rouge ou brun, parfois deux côte à côte.
+      const red = noise(x, y, salt + 4) < 0.5;
+      const count = noise(x, y, salt + 5) < 0.35 ? 2 : 1;
+      for (let i = 0; i < count; i++) {
+        const mx = 3 + Math.floor(noise(x, y, salt + 30 + i) * 9);
+        const my = 5 + Math.floor(noise(x, y, salt + 40 + i) * 8);
+        px(mx + 1, my + 1, 1, 2, "#e6dcc0");
+        px(mx, my, 3, 1, red ? "#c23a3a" : "#a8743a");
+        px(mx + 1, my - 1, 1, 1, red ? "#e05a4a" : "#c89858");
+        if (red) px(mx, my, 1, 1, "#f4e8d0");
       }
     }
   }

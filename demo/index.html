@@ -993,10 +993,15 @@
           this.path = [];
           this.targetId = null;
         } else {
+          const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
           this.path.shift();
           this.hero.x = next.x;
           this.hero.y = next.y;
           this.openDoorAt(next.x, next.y);
+          if (this.opportunityAttacks(threats)) {
+            this.path = [];
+            this.doorTarget = null;
+          }
           if (this.path.length === 0 && this.doorTarget) {
             this.pendingDoor = this.doorTarget;
             this.doorTarget = null;
@@ -1007,6 +1012,28 @@
       this.updateVision();
       this.monstersAct();
       return true;
+    }
+    /** Vrai si `a` peut frapper `b` : case voisine, sans coin de mur entre les deux. */
+    inReach(a, b) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      return Math.max(Math.abs(dx), Math.abs(dy)) === 1 && canStep(this.map, a.x, a.y, dx, dy);
+    }
+    /** Chaque monstre que le héros vient de quitter l'attaque une fois. Renvoie vrai s'il y a eu au moins une attaque. */
+    opportunityAttacks(threats) {
+      let attacked = false;
+      for (const m of threats) {
+        if (this.over || this.inReach(m, this.hero)) continue;
+        const result = rollAttack(this.rng, m, this.hero);
+        this.hero.hp = Math.max(0, this.hero.hp - result.damage);
+        this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
+        attacked = true;
+        if (this.hero.hp === 0) {
+          this.over = true;
+          this.events.push({ type: "death", actor: this.hero });
+        }
+      }
+      return attacked;
     }
     /** Entrer dans une porte fermée l'ouvre ; la lumière et la vue passent alors au travers. */
     openDoorAt(x, y) {
@@ -1616,7 +1643,7 @@
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   function describeAttack(e) {
     const r = e.result;
-    const who = e.attacker.kind === "hero" ? `Vous attaquez ${e.target.name}` : `${e.attacker.name} vous attaque`;
+    const who = e.attacker.kind === "hero" ? `Vous attaquez ${e.target.name}` : e.opportunity ? `Attaque d'opportunit\xE9 de ${e.attacker.name}` : `${e.attacker.name} vous attaque`;
     const outcome = r.critical ? `coup critique, ${r.damage} d\xE9g\xE2ts` : r.hit ? `touch\xE9, ${r.damage} d\xE9g\xE2ts` : r.d20 === 1 ? "\xE9chec critique" : "rat\xE9";
     const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : "";
     return `${who} : ${r.d20} + ${r.bonus} = ${r.total} contre CA ${r.targetAc}${mode} \u2014 ${outcome}`;
@@ -1641,6 +1668,7 @@
       const r = e.result;
       const foe = e.attacker.kind === "monster";
       logLines.push(describeAttack(e));
+      if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunit\xE9 !", "#ffd75e");
       renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
       landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
       renderer.addFloatingText(

@@ -239,3 +239,43 @@ test("même graine et mêmes ordres : même partie", () => {
   const b = playRun(99, 400);
   assert.deepEqual([a.depth, a.turn, a.hero.hp, a.monsters.length], [b.depth, b.turn, b.hero.hp, b.monsters.length]);
 });
+
+test("se désengager provoque une attaque d'opportunité, puis le déplacement s'arrête", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 200 && checked < 20; seed++) {
+    const game = new Game(seed);
+    const home = { x: game.hero.x, y: game.hero.y };
+    // Aller au contact d'un monstre et attendre qu'il soit alerté.
+    for (let turn = 0; turn < 300 && !game.over; turn++) {
+      const foe = game.monsters[0];
+      if (!foe) break;
+      const near = Math.max(Math.abs(foe.x - game.hero.x), Math.abs(foe.y - game.hero.y)) === 1;
+      if (near && foe.alerted) break;
+      if (near) game.wait();
+      else if (game.path.length === 0) game.setDestination(foe.x, foe.y, true);
+      game.tick();
+    }
+    const foe = game.monsters[0];
+    if (game.over || !foe || !foe.alerted) continue;
+    if (Math.max(Math.abs(foe.x - game.hero.x), Math.abs(foe.y - game.hero.y)) !== 1) continue;
+    // Repartir vers la salle de départ : un trajet de plusieurs cases.
+    game.events.length = 0;
+    if (!game.setDestination(home.x, home.y, true) || game.path.length < 3) continue;
+    const hpBefore = game.hero.hp;
+    game.tick();
+    const stillNear = Math.max(Math.abs(foe.fromX - game.hero.x), Math.abs(foe.fromY - game.hero.y)) === 1;
+    const reactions = game.events.filter((e) => e.type === "attack" && e.opportunity);
+    if (stillNear) {
+      assert.equal(reactions.length, 0, `graine ${seed} : attaque d'opportunité sans désengagement`);
+      continue;
+    }
+    assert.ok(reactions.length >= 1, `graine ${seed} : pas d'attaque d'opportunité`);
+    assert.equal(game.path.length, 0, `graine ${seed} : le déplacement aurait dû s'arrêter`);
+    // Dans le même tour, un monstre n'attaque pas deux fois : au plus une attaque par monstre.
+    const attackers = game.events.filter((e) => e.type === "attack" && e.attacker.kind === "monster").map((e) => (e.type === "attack" ? e.attacker.id : -1));
+    assert.equal(new Set(attackers).size, attackers.length, `graine ${seed} : un monstre a attaqué deux fois`);
+    assert.ok(game.hero.hp <= hpBefore);
+    checked++;
+  }
+  assert.ok(checked >= 5, `seulement ${checked} situations de désengagement testées`);
+});

@@ -13,7 +13,7 @@ import { floorSeed, Rng } from "./rng";
 
 /** Ce qui s'est passé pendant un tour, pour que l'affichage puisse le montrer. */
 export type GameEvent =
-  | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult }
+  | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult; opportunity?: boolean }
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
   | { type: "descend"; healed: number }
@@ -308,10 +308,17 @@ export class Game {
         this.path = [];
         this.targetId = null; // un toucher = une attaque
       } else {
+        // Les monstres alertés au contact avant le pas : s'en éloigner leur offre une attaque d'opportunité.
+        const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
         this.path.shift();
         this.hero.x = next.x;
         this.hero.y = next.y;
         this.openDoorAt(next.x, next.y);
+        if (this.opportunityAttacks(threats)) {
+          // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
+          this.path = [];
+          this.doorTarget = null;
+        }
         if (this.path.length === 0 && this.doorTarget) {
           // Arrivé devant la porte verrouillée : au joueur de décider.
           this.pendingDoor = this.doorTarget;
@@ -324,6 +331,30 @@ export class Game {
     this.updateVision();
     this.monstersAct();
     return true;
+  }
+
+  /** Vrai si `a` peut frapper `b` : case voisine, sans coin de mur entre les deux. */
+  private inReach(a: Point, b: Point): boolean {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    return Math.max(Math.abs(dx), Math.abs(dy)) === 1 && canStep(this.map, a.x, a.y, dx, dy);
+  }
+
+  /** Chaque monstre que le héros vient de quitter l'attaque une fois. Renvoie vrai s'il y a eu au moins une attaque. */
+  private opportunityAttacks(threats: Actor[]): boolean {
+    let attacked = false;
+    for (const m of threats) {
+      if (this.over || this.inReach(m, this.hero)) continue;
+      const result = rollAttack(this.rng, m, this.hero);
+      this.hero.hp = Math.max(0, this.hero.hp - result.damage);
+      this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
+      attacked = true;
+      if (this.hero.hp === 0) {
+        this.over = true;
+        this.events.push({ type: "death", actor: this.hero });
+      }
+    }
+    return attacked;
   }
 
   /** Entrer dans une porte fermée l'ouvre ; la lumière et la vue passent alors au travers. */

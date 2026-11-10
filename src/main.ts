@@ -126,7 +126,12 @@ const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind 
 
 function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
   const r = e.result;
-  const who = e.attacker.kind === "hero" ? `Vous attaquez ${e.target.name}` : `${e.attacker.name} vous attaque`;
+  const who =
+    e.attacker.kind === "hero"
+      ? `Vous attaquez ${e.target.name}`
+      : e.opportunity
+        ? `Attaque d'opportunité de ${e.attacker.name}`
+        : `${e.attacker.name} vous attaque`;
   const outcome = r.critical
     ? `coup critique, ${r.damage} dégâts`
     : r.hit
@@ -169,6 +174,7 @@ function reveal(e: GameEvent): void {
     const r = e.result;
     const foe = e.attacker.kind === "monster";
     logLines.push(describeAttack(e));
+    if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunité !", "#ffd75e");
     renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
     renderer.addFloatingText(

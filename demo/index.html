@@ -24,7 +24,7 @@
   <div class="frame"><canvas id="game"></canvas></div>
   <div class="bar">
     <button id="new-run" type="button">Nouvelle partie</button>
-    <span>Touchez une case pour vous y rendre. L'escalier doré mène à l'étage suivant.</span>
+    <span>Touchez une case pour vous y rendre. Molette ou deux doigts pour zoomer.</span>
   </div>
 <script>
 "use strict";
@@ -309,22 +309,72 @@
     ArrowLeft: [-1, 0],
     ArrowRight: [1, 0]
   };
-  function bindInput(canvas2, onTap, onMove) {
+  var TAP_SLOP = 12;
+  function bindInput(canvas2, handlers) {
+    const pointers = /* @__PURE__ */ new Map();
+    let downAt = { x: 0, y: 0 };
+    let isGesture = false;
+    let pinchDistance = 0;
+    const distance = () => {
+      const [a, b] = [...pointers.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
     canvas2.addEventListener("pointerdown", (e) => {
-      const rect = canvas2.getBoundingClientRect();
-      onTap(e.clientX - rect.left, e.clientY - rect.top);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try {
+        canvas2.setPointerCapture(e.pointerId);
+      } catch {
+      }
+      if (pointers.size === 1) {
+        isGesture = false;
+        downAt = { x: e.clientX, y: e.clientY };
+      } else if (pointers.size === 2) {
+        isGesture = true;
+        pinchDistance = distance();
+      }
       e.preventDefault();
     });
+    canvas2.addEventListener("pointermove", (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        const d = distance();
+        if (pinchDistance > 0 && d > 0) handlers.onZoom(d / pinchDistance);
+        pinchDistance = d;
+      } else if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) {
+        isGesture = true;
+      }
+    });
+    const release = (e, cancelled) => {
+      if (!pointers.delete(e.pointerId)) return;
+      pinchDistance = 0;
+      if (!cancelled && !isGesture && pointers.size === 0) {
+        const rect = canvas2.getBoundingClientRect();
+        handlers.onTap(e.clientX - rect.left, e.clientY - rect.top);
+      }
+    };
+    canvas2.addEventListener("pointerup", (e) => release(e, false));
+    canvas2.addEventListener("pointercancel", (e) => release(e, true));
+    canvas2.addEventListener(
+      "wheel",
+      (e) => {
+        handlers.onZoom(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+        e.preventDefault();
+      },
+      { passive: false }
+    );
     window.addEventListener("keydown", (e) => {
       const dir = KEYS[e.key];
       if (!dir) return;
-      onMove(dir[0], dir[1]);
+      handlers.onMove(dir[0], dir[1]);
       e.preventDefault();
     });
   }
 
   // src/render/renderer.ts
   var COLUMNS = 11;
+  var MIN_COLUMNS = 6;
+  var MAX_COLUMNS = 28;
   var COLORS = {
     background: "#14121c",
     wall: "#2a2638",
@@ -340,6 +390,7 @@
       this.width = 0;
       this.height = 0;
       this.tile = 32;
+      this.columns = COLUMNS;
       // Positions affichées, qui glissent vers les positions réelles pour un mouvement fluide.
       this.camX = 0;
       this.camY = 0;
@@ -354,7 +405,12 @@
       this.canvas.width = Math.round(rect.width * dpr);
       this.canvas.height = Math.round(rect.height * dpr);
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      this.tile = this.width / COLUMNS;
+      this.tile = this.width / this.columns;
+    }
+    /** Zoom : facteur > 1 pour agrandir les cases, < 1 pour en voir davantage. */
+    zoomBy(factor) {
+      this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
+      this.tile = this.width / this.columns;
     }
     /** Recentre immédiatement la vue (nouvel étage). */
     snapTo(game2) {
@@ -442,16 +498,18 @@
     stepFrom = null;
     renderer.snapTo(game);
   }
-  bindInput(
-    canvas,
-    (px, py) => {
+  bindInput(canvas, {
+    onTap(px, py) {
       const t = renderer.screenToTile(px, py);
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
     },
-    (dx, dy) => {
+    onMove(dx, dy) {
       if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
+    },
+    onZoom(factor) {
+      renderer.zoomBy(factor);
     }
-  );
+  });
   newRunButton.addEventListener("click", newRun);
   window.addEventListener("resize", () => renderer.resize());
   var last = performance.now();

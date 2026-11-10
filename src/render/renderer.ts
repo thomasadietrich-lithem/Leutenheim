@@ -1,8 +1,10 @@
 import { Game } from "../core/game";
 import { Point, Tile } from "../world/map";
 
-/** Nombre de cases visibles en largeur (écran portrait). */
+/** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
 const COLUMNS = 11;
+const MIN_COLUMNS = 6;
+const MAX_COLUMNS = 28;
 
 const COLORS = {
   background: "#14121c",
@@ -20,6 +22,7 @@ export class Renderer {
   private width = 0;
   private height = 0;
   private tile = 32;
+  private columns = COLUMNS;
   // Positions affichées, qui glissent vers les positions réelles pour un mouvement fluide.
   private camX = 0;
   private camY = 0;
@@ -37,7 +40,13 @@ export class Renderer {
     this.canvas.width = Math.round(rect.width * dpr);
     this.canvas.height = Math.round(rect.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.tile = this.width / COLUMNS;
+    this.tile = this.width / this.columns;
+  }
+
+  /** Zoom : facteur > 1 pour agrandir les cases, < 1 pour en voir davantage. */
+  zoomBy(factor: number): void {
+    this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
+    this.tile = this.width / this.columns;
   }
 
   /** Recentre immédiatement la vue (nouvel étage). */

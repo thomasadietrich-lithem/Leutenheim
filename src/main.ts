@@ -30,16 +30,18 @@ function newRun(): void {
   renderer.snapTo(game);
 }
 
-bindInput(
-  canvas,
-  (px, py) => {
+bindInput(canvas, {
+  onTap(px, py) {
     const t = renderer.screenToTile(px, py);
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
   },
-  (dx, dy) => {
+  onMove(dx, dy) {
     if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
   },
-);
+  onZoom(factor) {
+    renderer.zoomBy(factor);
+  },
+});
 newRunButton.addEventListener("click", newRun);
 window.addEventListener("resize", () => renderer.resize());
 

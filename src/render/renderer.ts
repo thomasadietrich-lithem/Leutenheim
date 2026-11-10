@@ -1,5 +1,6 @@
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
+import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 
@@ -158,27 +159,33 @@ export class Renderer {
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
-  private drawArrow(cx: number, cy: number, angle: number, length: number): void {
+  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole"): void {
     const { ctx } = this;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     const w = Math.max(1.5, length * 0.09);
-    // Hampe.
+    // Hampe (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
     ctx.fillStyle = "#b9824a";
-    ctx.fillRect(-length / 2, -w / 2, length * 0.82, w);
-    // Pointe d'acier.
-    ctx.fillStyle = "#dfe5f5";
-    ctx.beginPath();
-    ctx.moveTo(length / 2, 0);
-    ctx.lineTo(length * 0.26, -w * 1.9);
-    ctx.lineTo(length * 0.26, w * 1.9);
-    ctx.closePath();
-    ctx.fill();
-    // Empennage rouge.
-    ctx.fillStyle = "#d03a44";
-    ctx.fillRect(-length / 2, -w * 1.7, length * 0.2, w * 1.1);
-    ctx.fillRect(-length / 2, w * 0.6, length * 0.2, w * 1.1);
+    if (part === "whole") ctx.fillRect(-length / 2, -w / 2, length * 0.82, w);
+    else if (part === "front") ctx.fillRect(-length * 0.05, -w / 2, length * 0.37, w);
+    else ctx.fillRect(-length / 2, -w / 2, length * 0.42, w);
+    if (part !== "back") {
+      // Pointe d'acier.
+      ctx.fillStyle = "#dfe5f5";
+      ctx.beginPath();
+      ctx.moveTo(length / 2, 0);
+      ctx.lineTo(length * 0.26, -w * 1.9);
+      ctx.lineTo(length * 0.26, w * 1.9);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (part !== "front") {
+      // Empennage rouge.
+      ctx.fillStyle = "#d03a44";
+      ctx.fillRect(-length / 2, -w * 1.7, length * 0.2, w * 1.1);
+      ctx.fillRect(-length / 2, w * 0.6, length * 0.2, w * 1.1);
+    }
     ctx.restore();
   }
 
@@ -335,6 +342,18 @@ export class Renderer {
       ctx.arc(ox + (p.x + 0.5) * tile, oy + (p.y + 0.5) * tile, tile * (last ? 0.22 : 0.08), 0, Math.PI * 2);
       ctx.fill();
     });
+
+    // Flèches brisées : deux morceaux qui s'effacent doucement au fil des tours.
+    for (const d of game.debris) {
+      if (!game.isExplored(d.x, d.y)) continue;
+      const left = d.until - game.turn + (1 - progress);
+      ctx.globalAlpha = Math.max(0, Math.min(1, left / RULES.brokenArrowFadeTurns));
+      const cx = ox + (d.x + 0.5) * tile;
+      const cy = oy + (d.y + 0.5) * tile;
+      this.drawArrow(cx + Math.cos(d.angle) * tile * 0.16, cy + Math.sin(d.angle) * tile * 0.16, d.angle + 0.5, tile * 0.7, "front");
+      this.drawArrow(cx - Math.cos(d.angle) * tile * 0.16, cy - Math.sin(d.angle) * tile * 0.16, d.angle - 0.35, tile * 0.7, "back");
+    }
+    ctx.globalAlpha = 1;
 
     // Objets au sol : flèches à ramasser, clef.
     for (const g of game.ground) {
@@ -568,8 +587,8 @@ export class Renderer {
   }
 
   /**
-   * Porte, vue du dessus : un battant de bois cerclé de fer entre deux montants de pierre. Le même dessin sert
-   * partout, tourné selon que le mur est latéral ou non, pour qu'elle barre le passage et s'ouvre dans le bon sens.
+   * Porte : battant de planches cerclé de fer, avec anneau de poignée ou cadenas doré. Le battant est le même
+   * partout ; ce qui suit le mur, ce sont les montants de pierre et le côté où le battant se rabat en s'ouvrant.
    */
   private drawDoor(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
@@ -577,47 +596,64 @@ export class Renderer {
     const sideways = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
     ctx.save();
     ctx.translate(sx + tile / 2, sy + tile / 2);
-    // Le dessin de base est celui d'une porte de mur latéral (passage de gauche à droite) ;
-    // pour un mur du haut ou du bas, on le tourne d'un quart de tour.
-    if (!sideways) ctx.rotate(Math.PI / 2);
     const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
     const px = (gx: number, gy: number, w: number, h: number, color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
     };
-    // Seuil sombre, et montants de pierre aux deux bouts du battant.
+    // Seuil sombre, puis montants de pierre du côté des murs : en haut et en bas pour un mur latéral,
+    // à gauche et à droite sinon.
     px(0, 0, 16, 16, "#2a2533");
-    px(0, 0, 16, 2, "#8b90b0");
-    px(0, 14, 16, 2, "#8b90b0");
-    if (t === Tile.DoorOpen) {
-      // Ouverte : le battant a pivoté d'un quart de tour sur ses gonds et se range le long du passage.
-      px(5, 2, 9, 4, "#8a5a2b");
-      px(5, 2, 9, 1, "#b9824a");
-      px(5, 5, 9, 1, "#5a3817");
-      px(7, 2, 1, 4, "#4a4e5e");
-      px(11, 2, 1, 4, "#4a4e5e");
-      px(5, 2, 1, 4, "#c3cbe0"); // les gonds
+    if (sideways) {
+      px(0, 0, 16, 2, "#8b90b0");
+      px(0, 14, 16, 2, "#8b90b0");
     } else {
-      // Fermée : le battant barre le passage d'un montant à l'autre.
-      px(6, 2, 5, 12, "#8a5a2b");
-      px(6, 2, 1, 12, "#b9824a");
-      px(10, 2, 1, 12, "#5a3817");
-      for (const gy of [4, 11]) {
-        px(5, gy, 7, 1, "#4a4e5e");
-        px(5, gy, 1, 1, "#c3cbe0");
-        px(11, gy, 1, 1, "#c3cbe0");
+      px(0, 0, 2, 16, "#8b90b0");
+      px(14, 0, 2, 16, "#8b90b0");
+    }
+    // Le battant occupe l'espace entre les montants.
+    const x0 = sideways ? 1 : 2;
+    const y0 = sideways ? 2 : 1;
+    const w = sideways ? 14 : 12;
+    const h = sideways ? 12 : 14;
+    if (t === Tile.DoorOpen) {
+      // Ouverte : le battant est rabattu contre un montant, dans le sens du passage.
+      if (sideways) {
+        px(x0, y0, w, 3, "#8a5a2b");
+        px(x0, y0, w, 1, "#b9824a");
+        px(x0 + 3, y0, 1, 3, "#4a4e5e");
+        px(x0 + w - 4, y0, 1, 3, "#4a4e5e");
+      } else {
+        px(x0, y0, 3, h, "#8a5a2b");
+        px(x0, y0, 1, h, "#b9824a");
+        px(x0, y0 + 3, 3, 1, "#4a4e5e");
+        px(x0, y0 + h - 4, 3, 1, "#4a4e5e");
+      }
+    } else {
+      // Fermée : le même battant partout. Planches verticales et leurs joints.
+      px(x0, y0, w, h, "#8a5a2b");
+      for (let gx = x0; gx < x0 + w; gx += 3) px(gx, y0, 1, h, "#b9824a");
+      for (let gx = x0 + 2; gx < x0 + w; gx += 3) px(gx, y0, 1, h, "#5a3817");
+      // Deux ferrures et leurs rivets.
+      for (const gy of [y0 + 2, y0 + h - 4]) {
+        px(x0, gy, w, 2, "#4a4e5e");
+        px(x0, gy, w, 1, "#7a7f94");
+        for (const gx of [x0 + 1, x0 + Math.floor(w / 2), x0 + w - 2]) px(gx, gy, 1, 1, "#c3cbe0");
       }
       if (t === Tile.DoorLocked) {
-        // Cadenas doré, visible des deux côtés.
-        for (const gx of [2, 11]) {
-          px(gx, 6, 3, 4, "#f0c050");
-          px(gx, 9, 3, 1, "#a87c1c");
-          px(gx + 1, 7, 1, 2, "#1c1410");
-        }
+        // Cadenas doré.
+        px(6, 6, 4, 1, "#f0c050");
+        px(6, 6, 1, 2, "#f0c050");
+        px(9, 6, 1, 2, "#f0c050");
+        px(5, 8, 6, 3, "#f0c050");
+        px(5, 10, 6, 1, "#a87c1c");
+        px(7, 8, 2, 2, "#1c1410");
       } else {
-        // Poignées.
-        px(4, 7, 2, 2, "#c3cbe0");
-        px(11, 7, 2, 2, "#c3cbe0");
+        // Anneau de poignée.
+        px(10, 7, 2, 1, "#c3cbe0");
+        px(10, 9, 2, 1, "#c3cbe0");
+        px(10, 7, 1, 3, "#c3cbe0");
+        px(12, 8, 1, 1, "#c3cbe0");
       }
     }
     ctx.restore();

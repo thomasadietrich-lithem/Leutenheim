@@ -61,10 +61,19 @@ interface FloorState {
   torches: LightSource[];
   monsters: Actor[];
   ground: GroundItem[];
+  debris: Debris[];
   explored: Uint8Array;
   sensed: Uint8Array;
   rng: Rng;
   seenMonsters: Set<number>;
+}
+
+/** Débris sans usage (flèche brisée) : il reste au sol jusqu'au tour `until`, puis disparaît. */
+export interface Debris {
+  x: number;
+  y: number;
+  angle: number;
+  until: number;
 }
 
 /** Un objet posé au sol. */
@@ -105,6 +114,8 @@ export class Game {
   equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
   /** Objets au sol sur l'étage courant (flèches à ramasser). */
   ground: GroundItem[] = [];
+  /** Flèches brisées encore visibles au sol. */
+  debris: Debris[] = [];
   /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
   events: GameEvent[] = [];
 
@@ -172,6 +183,7 @@ export class Game {
       // On range l'étage qu'on quitte.
       this.current.monsters = this.monsters;
       this.current.ground = this.ground;
+      this.current.debris = this.debris;
     }
     let state = this.floors.get(depth);
     const fresh = !state;
@@ -188,6 +200,7 @@ export class Game {
         torches: floor.torches,
         monsters: [],
         ground: [],
+        debris: [],
         explored: new Uint8Array(floor.map.width * floor.map.height),
         sensed: new Uint8Array(floor.map.width * floor.map.height),
         rng: new Rng(seed ^ 0x5bd1e995), // hasard des combats et des monstres, propre à l'étage
@@ -207,6 +220,7 @@ export class Game {
     this.seenMonsters = state.seenMonsters;
     this.monsters = state.monsters;
     this.ground = state.ground;
+    this.debris = state.debris.filter((d) => d.until > this.turn);
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
     this.hero.x = this.hero.fromX = arrival.x;
@@ -559,6 +573,7 @@ export class Game {
     }
 
     this.turn++;
+    if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
     this.updateVision();
     this.monstersAct();
     return true;
@@ -768,6 +783,7 @@ export class Game {
     const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
     const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
     if (kept) this.dropItem(landing.x, landing.y, bow.ammo as ItemId, 1, angle);
+    else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
     if (victim) this.removeIfDead(victim);
   }

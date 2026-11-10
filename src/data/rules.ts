@@ -21,6 +21,9 @@ export const RULES = {
   /** Une flèche qui heurte un obstacle rebondit d'une à deux cases en arrière avant de tomber. */
   arrowBounceMin: 1,
   arrowBounceMax: 2,
+  /** Une flèche brisée reste visible au sol ce nombre de tours, et s'efface sur les derniers. */
+  brokenArrowTurns: 8,
+  brokenArrowFadeTurns: 4,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */

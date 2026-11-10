@@ -784,3 +784,30 @@ test("porte : après un échec, la même méthode n'est plus proposée", () => {
     assert.ok(found, `aucun échec trouvé pour ${action}`);
   }
 });
+
+test("une flèche brisée reste quelques tours au sol, puis disparaît", () => {
+  for (let seed = 1; seed <= 200; seed++) {
+    const game = new Game(seed);
+    game.monsters.splice(0);
+    const target = [[2, 0], [-2, 0], [0, 2], [0, -2]]
+      .map(([dx, dy]) => ({ x: game.hero.x + dx, y: game.hero.y + dy }))
+      .find((p) => game.map.get(p.x, p.y) === Tile.Floor && game.isVisible(p.x, p.y));
+    if (!target || game.shoot(target.x, target.y) !== null) continue;
+    game.tick();
+    const arrow = game.events.find((e) => e.type === "arrow");
+    if (!arrow || arrow.type !== "arrow" || arrow.kept) continue; // on cherche une flèche qui se brise
+    assert.equal(game.debris.length, 1);
+    assert.deepEqual([game.debris[0].x, game.debris[0].y], [arrow.x, arrow.y]);
+    assert.ok(!game.ground.some((g) => g.item === "fleche"), "une flèche brisée ne se ramasse pas");
+    for (let turn = 1; turn < 7; turn++) {
+      game.wait();
+      game.tick();
+      assert.equal(game.debris.length, 1, `disparue trop tôt, au tour ${turn}`);
+    }
+    game.wait();
+    game.tick();
+    assert.equal(game.debris.length, 0);
+    return;
+  }
+  assert.fail("aucune flèche brisée en 200 parties");
+});

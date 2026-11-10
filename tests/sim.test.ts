@@ -1181,3 +1181,39 @@ test("sans clef, on garde le choix devant une porte verrouillée", () => {
   assert.equal(game.tick(), false, "rien ne se passe tant que le joueur n'a pas choisi");
   assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
 });
+
+test("une torche n'éclaire que de son côté du mur : aucune lumière sur une case qu'on ne peut pas rejoindre sans traverser un mur", () => {
+  let leaks = 0;
+  let lit = 0;
+  for (let seed = 1; seed <= 150; seed++) {
+    const game = new Game(seed);
+    const { map } = game;
+    for (const torch of game.torches) {
+      const light = computeLight(map, [torch]);
+      const start = { x: torch.x + torch.faceX, y: torch.y + torch.faceY };
+      // Cases joignables depuis le pied de la torche sans traverser ce qui arrête la vue (pas à pas, sans couper les coins).
+      const seen = new Set<number>([map.index(start.x, start.y)]);
+      const queue = [start];
+      while (queue.length > 0) {
+        const c = queue.pop()!;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = c.x + dx;
+          const ny = c.y + dy;
+          if (!map.inBounds(nx, ny) || map.blocksSight(nx, ny) || seen.has(map.index(nx, ny))) continue;
+          if (Math.hypot(nx - start.x, ny - start.y) > torch.radius + 2) continue;
+          seen.add(map.index(nx, ny));
+          queue.push({ x: nx, y: ny });
+        }
+      }
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          if (map.blocksSight(x, y) || light[map.index(x, y)] <= 0) continue;
+          lit++;
+          if (!seen.has(map.index(x, y))) leaks++;
+        }
+      }
+    }
+  }
+  console.log(`Lumière des torches : ${lit} cases éclairées, ${leaks} de l'autre côté d'un mur`);
+  assert.equal(leaks, 0);
+});

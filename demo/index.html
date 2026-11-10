@@ -3364,6 +3364,8 @@
         }
         const fx = torch.faceX;
         const fy = torch.faceY;
+        if (!game2.isExplored(torch.x + fx, torch.y + fy)) continue;
+        const burning = game2.isVisible(torch.x + fx, torch.y + fy);
         const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
         const baseY = oy + (torch.y + 0.5 + fy * 0.47) * tile;
         const cx = ox + (torch.x + 0.5 + fx * 0.22) * tile;
@@ -3376,6 +3378,7 @@
         ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.32) * tile, oy + (torch.y + 0.5 + fy * 0.32) * tile);
         ctx.stroke();
         ctx.lineCap = "butt";
+        if (!burning) continue;
         ctx.fillStyle = "#ff8a2a";
         ctx.beginPath();
         ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);

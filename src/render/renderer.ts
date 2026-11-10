@@ -431,6 +431,9 @@ export class Renderer {
       }
       const fx = torch.faceX;
       const fy = torch.faceY;
+      // Une torche est accrochée du côté de sa salle : depuis l'autre côté du mur, on ne voit ni tige ni flamme.
+      if (!game.isExplored(torch.x + fx, torch.y + fy)) continue;
+      const burning = game.isVisible(torch.x + fx, torch.y + fy);
       // La tige part de la limite du mur (côté salle) et la flamme brûle vers l'intérieur du mur.
       const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
       const baseY = oy + (torch.y + 0.5 + fy * 0.47) * tile;
@@ -444,6 +447,8 @@ export class Renderer {
       ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.32) * tile, oy + (torch.y + 0.5 + fy * 0.32) * tile);
       ctx.stroke();
       ctx.lineCap = "butt";
+      // La flamme ne se voit danser que si l'on a la salle sous les yeux.
+      if (!burning) continue;
       ctx.fillStyle = "#ff8a2a";
       ctx.beginPath();
       ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);

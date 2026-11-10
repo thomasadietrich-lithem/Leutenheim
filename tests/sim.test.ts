@@ -895,3 +895,31 @@ test("clef : elle ne sert que dans sa section, et une seule fois", () => {
   assert.equal(game.inventory.count("clef"), 0);
   assert.ok(game.events.some((e) => e.type === "keysLost" && e.count === 2));
 });
+
+test("tir : à l'aveugle vers une case non vue, et bonus dans un couloir d'une case de large", () => {
+  const game = new Game(9);
+  game.monsters.splice(1);
+  const m = game.monsters[0];
+  // Un couloir étroit : trois cases de sol alignées, murées de part et d'autre.
+  let spot: { x: number; y: number; dx: number; dy: number } | undefined;
+  const map = game.map;
+  const floor = (x: number, y: number) => map.get(x, y) === Tile.Floor;
+  for (let y = 2; y < map.height - 2 && !spot; y++)
+    for (let x = 2; x < map.width - 4 && !spot; x++)
+      if ([0, 1, 2].every((k) => floor(x + k, y) && !map.isWalkable(x + k, y - 1) && !map.isWalkable(x + k, y + 1))) spot = { x, y, dx: 1, dy: 0 };
+  assert.ok(spot, "l'étage a bien un couloir d'une case de large");
+  Object.assign(game.hero, { x: spot.x, y: spot.y, fromX: spot.x, fromY: spot.y });
+  Object.assign(m, { x: spot.x + 2, y: spot.y, fromX: spot.x + 2, fromY: spot.y, asleep: true, alerted: false, hp: 1000, maxHp: 1000 });
+  game.wait();
+  game.events.length = 0;
+  assert.equal(game.shoot(m.x, m.y), null);
+  game.tick();
+  const shot = game.events.find((e) => e.type === "attack" && e.ranged);
+  assert.ok(shot && shot.type === "attack");
+  assert.equal(shot.result.bonus, (game.weapon("ranged")?.attackBonus ?? 0) + RULES.narrowShotBonus);
+  // Tir à l'aveugle : une case jamais vue, à portée, est acceptée.
+  game.visible.fill(0);
+  game.inventory.add("fleche", 1);
+  assert.equal(game.shoot(game.hero.x, game.hero.y - 1), null);
+  assert.equal(game.shoot(game.hero.x, game.hero.y), "no-target");
+});

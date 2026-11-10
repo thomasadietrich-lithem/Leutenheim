@@ -683,6 +683,8 @@
     /** Une flèche brisée reste visible au sol ce nombre de tours, et s'efface sur les derniers. */
     brokenArrowTurns: 8,
     brokenArrowFadeTurns: 4,
+    /** Tir sur une cible engagée dans un couloir d'une case de large : bonus au d20 (la flèche n'a guère où passer à côté). */
+    narrowShotBonus: 3,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
     /** Nombre d'étages d'une section (région à thème). Une clef ne sert que dans la section où on l'a trouvée. */
@@ -1571,7 +1573,7 @@
       const bow = this.weapon("ranged");
       if (this.over || !bow) return "no-bow";
       if (this.arrows() < 1) return "no-ammo";
-      if (!this.isVisible(x, y) || x === this.hero.x && y === this.hero.y) return "no-target";
+      if (!this.map.inBounds(x, y) || x === this.hero.x && y === this.hero.y) return "no-target";
       const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
       if (distance > (bow.range ?? 0)) return "out-of-range";
       this.clearDoorOrders();
@@ -1893,10 +1895,14 @@
         if (victim) break;
       }
       if (victim) {
-        const favoured = !victim.alerted || this.map.isDoor(victim.x, victim.y);
-        const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+        const blind = !this.isVisible(victim.x, victim.y);
+        const favoured = !blind && (!victim.alerted || this.map.isDoor(victim.x, victim.y));
+        const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
         const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
-        const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+        const open = (dx, dy) => this.map.isWalkable(victim.x + dx, victim.y + dy);
+        const narrow = !open(-1, 0) && !open(1, 0) || !open(0, -1) && !open(0, 1);
+        const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0);
+        const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
         victim.alerted = true;
         victim.asleep = false;
         victim.hp -= result.damage;
@@ -3595,7 +3601,7 @@
       const why = {
         "no-bow": "Aucun arc en main.",
         "no-ammo": "Plus de fl\xE8ches.",
-        "no-target": "Vous ne voyez pas cet endroit.",
+        "no-target": "Impossible de tirer l\xE0.",
         "out-of-range": `Hors de port\xE9e (${game.weapon("ranged")?.range ?? 0} cases).`
       }[refusal];
       logLines.push(why);

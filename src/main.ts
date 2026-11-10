@@ -431,7 +431,7 @@ function fireAt(x: number, y: number): void {
     const why = {
       "no-bow": "Aucun arc en main.",
       "no-ammo": "Plus de flèches.",
-      "no-target": "Vous ne voyez pas cet endroit.",
+      "no-target": "Impossible de tirer là.",
       "out-of-range": `Hors de portée (${game.weapon("ranged")?.range ?? 0} cases).`,
     }[refusal];
     logLines.push(why);

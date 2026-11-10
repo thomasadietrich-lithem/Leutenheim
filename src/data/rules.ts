@@ -24,6 +24,8 @@ export const RULES = {
   /** Une flèche brisée reste visible au sol ce nombre de tours, et s'efface sur les derniers. */
   brokenArrowTurns: 8,
   brokenArrowFadeTurns: 4,
+  /** Tir sur une cible engagée dans un couloir d'une case de large : bonus au d20 (la flèche n'a guère où passer à côté). */
+  narrowShotBonus: 3,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
   /** Nombre d'étages d'une section (région à thème). Une clef ne sert que dans la section où on l'a trouvée. */

@@ -427,7 +427,8 @@ export class Game {
     const bow = this.weapon("ranged");
     if (this.over || !bow) return "no-bow";
     if (this.arrows() < 1) return "no-ammo";
-    if (!this.isVisible(x, y) || (x === this.hero.x && y === this.hero.y)) return "no-target";
+    // On peut tirer vers une case qu'on ne voit pas (à l'aveugle), mais pas sur soi ni hors de la carte.
+    if (!this.map.inBounds(x, y) || (x === this.hero.x && y === this.hero.y)) return "no-target";
     const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
     if (distance > (bow.range ?? 0)) return "out-of-range";
     this.clearDoorOrders();
@@ -793,10 +794,16 @@ export class Game {
 
     if (victim) {
       // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.
-      const favoured = !victim.alerted || this.map.isDoor(victim.x, victim.y);
-      const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+      // Une cible qu'on ne voit pas (tir à l'aveugle) : jamais d'avantage, et désavantage.
+      const blind = !this.isVisible(victim.x, victim.y);
+      const favoured = !blind && (!victim.alerted || this.map.isDoor(victim.x, victim.y));
+      const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
-      const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+      // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
+      const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);
+      const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
+      const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0);
+      const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
       victim.alerted = true;
       victim.asleep = false;
       victim.hp -= result.damage;

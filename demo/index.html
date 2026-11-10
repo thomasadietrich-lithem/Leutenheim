@@ -2300,9 +2300,14 @@
     let lastAt = { x: 0, y: 0 };
     let isGesture = false;
     let pinchDistance = 0;
+    let pinchCenter = { x: 0, y: 0 };
     const distance = () => {
       const [a, b] = [...pointers.values()];
       return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    const center2 = () => {
+      const [a, b] = [...pointers.values()];
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     };
     canvas2.addEventListener("pointerdown", (e) => {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -2317,6 +2322,7 @@
       } else if (pointers.size === 2) {
         isGesture = true;
         pinchDistance = distance();
+        pinchCenter = center2();
       }
       e.preventDefault();
     });
@@ -2327,6 +2333,9 @@
         const d = distance();
         if (pinchDistance > 0 && d > 0) handlers.onZoom(d / pinchDistance);
         pinchDistance = d;
+        const c = center2();
+        handlers.onPan(c.x - pinchCenter.x, c.y - pinchCenter.y);
+        pinchCenter = c;
       } else if (pointers.size === 1) {
         if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) isGesture = true;
         if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
@@ -2336,6 +2345,14 @@
     const release = (e, cancelled) => {
       if (!pointers.delete(e.pointerId)) return;
       pinchDistance = 0;
+      if (pointers.size === 1) {
+        const [rest] = [...pointers.values()];
+        lastAt = { x: rest.x, y: rest.y };
+        downAt = { x: rest.x, y: rest.y };
+      } else if (pointers.size === 2) {
+        pinchDistance = distance();
+        pinchCenter = center2();
+      }
       if (!cancelled && !isGesture && pointers.size === 0) {
         const rect = canvas2.getBoundingClientRect();
         handlers.onTap(e.clientX - rect.left, e.clientY - rect.top);

@@ -26,9 +26,15 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
   let isGesture = false; // vrai dès qu'un deuxième doigt se pose ou que le doigt glisse
   let pinchDistance = 0;
 
+  let pinchCenter = { x: 0, y: 0 };
+
   const distance = (): number => {
     const [a, b] = [...pointers.values()];
     return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+  const center = (): { x: number; y: number } => {
+    const [a, b] = [...pointers.values()];
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   };
 
   canvas.addEventListener("pointerdown", (e) => {
@@ -45,6 +51,7 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
     } else if (pointers.size === 2) {
       isGesture = true;
       pinchDistance = distance();
+      pinchCenter = center();
     }
     e.preventDefault();
   });
@@ -56,6 +63,10 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
       const d = distance();
       if (pinchDistance > 0 && d > 0) handlers.onZoom(d / pinchDistance);
       pinchDistance = d;
+      // Les deux doigts qui glissent ensemble déplacent aussi la vue, en suivant leur milieu.
+      const c = center();
+      handlers.onPan(c.x - pinchCenter.x, c.y - pinchCenter.y);
+      pinchCenter = c;
     } else if (pointers.size === 1) {
       if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) isGesture = true;
       if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
@@ -66,6 +77,16 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
   const release = (e: PointerEvent, cancelled: boolean) => {
     if (!pointers.delete(e.pointerId)) return;
     pinchDistance = 0;
+    if (pointers.size === 1) {
+      // Il reste un doigt après un pincement : on repart de SA position, sinon la vue sauterait
+      // de tout l'écart avec l'endroit où le premier doigt s'était posé.
+      const [rest] = [...pointers.values()];
+      lastAt = { x: rest.x, y: rest.y };
+      downAt = { x: rest.x, y: rest.y };
+    } else if (pointers.size === 2) {
+      pinchDistance = distance();
+      pinchCenter = center();
+    }
     if (!cancelled && !isGesture && pointers.size === 0) {
       const rect = canvas.getBoundingClientRect();
       handlers.onTap(e.clientX - rect.left, e.clientY - rect.top);

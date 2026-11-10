@@ -7,7 +7,7 @@ import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
-import { itemIcon } from "./ui/icons";
+import { itemIcon, uiIcon } from "./ui/icons";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
 function stepDuration(pathLength: number): number {
@@ -69,7 +69,7 @@ let menuOpen = true;
 let bagOpen = false;
 /** Objet sélectionné dans l'écran du sac : dans le sac (par identifiant) ou porté (par emplacement). */
 let selected: { uid: number } | { slot: Slot } | null = null;
-/** Vrai : toucher un monstre tire à l'arc au lieu d'aller le frapper. */
+/** Vrai : l'arc est bandé, le prochain toucher tire une flèche. Puis on revient à l'arme de corps à corps. */
 let aimMode = false;
 let doorWasPending = false;
 let aimShown = "";
@@ -168,6 +168,22 @@ function describeDoor(e: Extract<GameEvent, { type: "door" }>): string {
   return `${what} : ${e.d20} ${bonus} = ${e.total} — ${outcome}.${dead}`;
 }
 
+/** Flèches déjà parties à l'écran (pour ne pas les faire voler deux fois). */
+const launched = new WeakSet<object>();
+
+/** Fait partir la flèche à l'écran : elle vole dès le tir, pas après le résultat du dé. */
+function launchArrow(e: GameEvent | undefined): void {
+  if (!e || e.type !== "arrow" || launched.has(e)) return;
+  launched.add(e);
+  if (e.via) {
+    // Elle heurte l'obstacle, puis retombe en tournoyant.
+    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
+    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true);
+  } else {
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+  }
+}
+
 /** Le dé commence à rouler. Avec avantage ou désavantage, un second dé roule à côté, et ça s'entend. */
 function startRoll(e: GameEvent): void {
   const foe = byFoe(e);
@@ -180,6 +196,7 @@ function startRoll(e: GameEvent): void {
   dieWho.className = mode === "normal" ? "" : mode;
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
+  if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
   if (e.type === "attack") {
     if (mode !== "normal") {
       // Avantage au joueur ou contre lui : on l'annonce au-dessus de celui qui en profite ou en pâtit.
@@ -236,13 +253,8 @@ function reveal(e: GameEvent): void {
       }
     }
   } else if (e.type === "arrow") {
-    if (e.via) {
-      // Elle heurte l'obstacle, puis retombe une case en arrière.
-      renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
-      renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170);
-    } else {
-      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
-    }
+    if (!launched.has(e)) sfx.play("bow");
+    launchArrow(e);
     if (!e.kept) logLines.push("La flèche se brise.");
     else if (!e.hit) logLines.push(e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.");
   } else if (e.type === "pickup") {
@@ -341,6 +353,7 @@ bindInput(canvas, {
         renderLog();
       } else {
         stepMs = COMBAT_STEP_MS;
+        aimMode = false; // une flèche par visée : on revient à l'arme de corps à corps
       }
       return;
     }
@@ -379,17 +392,29 @@ doorButton("door-break", "break");
 doorButton("door-key", "key");
 button("recenter", () => renderer.recenter());
 button("aim", () => {
-  aimMode = !aimMode;
-  // Mode d'emploi, rappelé à chaque passage à l'arc.
-  logLines.push(
-    aimMode
-      ? game.arrows() > 0
-        ? "Arc en main : touchez une cible à portée pour tirer. Retouchez ce bouton pour reprendre l'épée."
-        : "Arc en main, mais plus de flèches."
-      : "Épée en main : touchez un monstre pour aller le frapper.",
-  );
+  if (!aimMode && game.isThreatened()) {
+    logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
+  } else if (!aimMode && game.arrows() < 1) {
+    logLines.push("Plus de flèches.");
+  } else {
+    aimMode = !aimMode;
+    if (aimMode) logLines.push("Arc bandé : touchez une cible à portée pour tirer.");
+  }
   renderLog();
 });
+
+// Boutons sans texte : un pictogramme, et un nom lisible par les aides à la lecture.
+for (const [id, icon, label] of [
+  ["wait", "wait", "Attendre un tour"],
+  ["open-bag", "bag", "Équipement et sac"],
+  ["open-menu", "menu", "Menu"],
+  ["recenter", "recenter", "Recentrer la vue"],
+] as const) {
+  $(id).replaceChildren(uiIcon(icon));
+  $(id).setAttribute("aria-label", label);
+  $(id).title = label;
+}
+$("aim").setAttribute("aria-label", "Tirer à l'arc");
 
 // ---------- Sac : grille de cases à la Diablo ----------
 
@@ -705,14 +730,18 @@ function frame(now: number): void {
   const aim = $("aim");
   aim.hidden = !bow;
   if (!bow) aimMode = false;
-  // Le bouton montre l'arme qui servira au prochain toucher, avec son icône.
-  const aimKey = aimMode ? `arc ×${game.arrows()}` : "épée";
+  // Dès qu'un ennemi arrive au contact, on repasse à l'arme de corps à corps.
+  if (aimMode && game.isThreatened()) {
+    aimMode = false;
+    logLines.push("Ennemi au contact : vous reprenez votre arme de corps à corps.");
+    renderLog();
+  }
+  // Le bouton : le pictogramme de l'arc et le nombre de flèches. Il s'allume quand l'arc est bandé.
+  const aimKey = `${bow?.id}|${game.arrows()}`;
   if (aimKey !== aimShown) {
     aimShown = aimKey;
-    const melee = game.equipment.melee;
     const ranged = game.equipment.ranged;
-    const shown = aimMode ? ranged : melee;
-    aim.replaceChildren(...(shown ? [itemIcon(shown.defId)] : []), document.createTextNode(aimMode ? `Arc ×${game.arrows()}` : melee ? ITEMS[melee.defId].name : "Poings"));
+    aim.replaceChildren(...(ranged ? [itemIcon(ranged.defId)] : []), document.createTextNode(`×${game.arrows()}`));
   }
   aim.classList.toggle("active", aimMode);
   requestAnimationFrame(frame);

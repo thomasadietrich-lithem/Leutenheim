@@ -41,7 +41,9 @@
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 16px; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
-  #recenter { position: absolute; top: 8px; right: 8px; font-size: 16px; padding: 5px 8px; }
+  #recenter { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); padding: 6px; display: flex; }
+  #recenter:active { transform: translateX(-50%) translateY(1px); }
+  #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #door-actions button { background: #4a2f12; }
 
@@ -69,7 +71,8 @@
 
   .bar { display: flex; align-items: stretch; gap: 6px; }
   .bar button { flex: 1; padding: 8px 4px; display: flex; align-items: center; justify-content: center; gap: 4px; }
-  .bar button svg { width: 12px; height: 24px; flex: none; }
+  .bar button { min-height: 44px; font-size: 24px; }
+  .bar button svg { height: 30px; width: auto; flex: none; }
 
   /* Menus. */
   #menu { z-index: 2; }
@@ -129,7 +132,7 @@
   <div class="hp"><div id="hp-fill"></div></div>
   <div class="frame">
     <canvas id="game"></canvas>
-    <button id="recenter" type="button" hidden>Recentrer</button>
+    <button id="recenter" type="button" hidden></button>
     <div id="door-actions" hidden>
       <button id="door-key" type="button" hidden>Utiliser la clef</button>
       <button id="door-pick" type="button">Crocheter</button>
@@ -145,10 +148,10 @@
     <div id="log"></div>
   </div>
   <div class="bar">
-    <button id="wait" type="button">Attendre</button>
+    <button id="wait" type="button"></button>
     <button id="aim" type="button"></button>
-    <button id="open-bag" type="button">Sac</button>
-    <button id="open-menu" type="button">Menu</button>
+    <button id="open-bag" type="button"></button>
+    <button id="open-menu" type="button"></button>
   </div>
   <div id="bag" class="overlay" hidden>
     <h2>Équipement</h2>
@@ -429,6 +432,7 @@
     wideCorridorChance: 0.3,
     doorChance: 0.6,
     doorSpacing: 5,
+    doorDetour: 14,
     // 1 salle : 60 %, 2 salles : 30 %, 3 salles : 10 % → 1,5 en moyenne.
     specialRoomCounts: [
       { count: 1, weight: 6 },
@@ -553,6 +557,9 @@
     arrowKeepOnMiss: 0.5,
     /** Flèche tirée sur le décor (sol, mur, porte) : chance qu'elle ne se casse pas. */
     arrowKeepOnScenery: 0.5,
+    /** Une flèche qui heurte un obstacle rebondit d'une à deux cases en arrière avant de tomber. */
+    arrowBounceMin: 1,
+    arrowBounceMax: 2,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
@@ -1070,7 +1077,10 @@
         (c) => map.get(c.x, c.y) === Tile.Floor && map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall
       );
       for (const c of doorways) {
-        if (!bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
+        const around = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
+        const detour = around[map.index(c.x - c.nx, c.y - c.ny)];
+        const pointless = detour !== -1 && detour <= cfg.doorDetour;
+        if (!pointless && !bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
           map.set(c.x, c.y, Tile.DoorClosed);
         }
       }
@@ -1584,6 +1594,10 @@
     heroHasAdvantageOn(monster) {
       return !monster.alerted || this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
     }
+    /** Un ennemi alerté est-il au contact du héros ? */
+    isThreatened() {
+      return this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+    }
     /** Le héros est-il en mauvaise posture ? (dans une porte, ou un ennemi alerté le guette au coin d'un mur) */
     heroExposed() {
       const foes = this.monsters.filter((m) => m.alerted);
@@ -1696,7 +1710,8 @@
       const fly = (c) => {
         if (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y)) {
           via = trail[trail.length - 1];
-          landing = trail[Math.max(0, trail.length - 2)];
+          const back = this.rng.int(RULES.arrowBounceMin, RULES.arrowBounceMax);
+          landing = trail[Math.max(0, trail.length - 1 - back)];
           return false;
         }
         trail.push(c);
@@ -1731,14 +1746,17 @@
         }
       }
       const kept = this.rng.chance(keepChance);
-      if (kept) this.dropItem(landing.x, landing.y, bow.ammo, 1);
+      const end = trail[trail.length - 1];
+      const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
+      const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
+      if (kept) this.dropItem(landing.x, landing.y, bow.ammo, 1, angle);
       this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
       if (victim) this.removeIfDead(victim);
     }
-    dropItem(x, y, item, count) {
-      const pile = this.ground.find((g) => g.x === x && g.y === y && g.item === item);
+    dropItem(x, y, item, count, angle) {
+      const pile = angle === void 0 ? this.ground.find((g) => g.x === x && g.y === y && g.item === item && g.angle === void 0) : void 0;
       if (pile) pile.count += count;
-      else this.ground.push({ x, y, item, count });
+      else this.ground.push({ x, y, item, count, angle });
     }
     /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */
     pickUpAt(x, y) {
@@ -2036,8 +2054,29 @@
       this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0, arc });
     }
     /** Fait voler une flèche d'une case à une autre. */
-    addProjectile(fromX, fromY, x, y, delay = 0) {
-      this.projectiles.push({ fromX, fromY, x, y, age: -delay });
+    addProjectile(fromX, fromY, x, y, delay = 0, tumble = false) {
+      this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble });
+    }
+    /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
+    drawArrow(cx, cy, angle, length) {
+      const { ctx } = this;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      const w = Math.max(1.5, length * 0.09);
+      ctx.fillStyle = "#b9824a";
+      ctx.fillRect(-length / 2, -w / 2, length * 0.82, w);
+      ctx.fillStyle = "#dfe5f5";
+      ctx.beginPath();
+      ctx.moveTo(length / 2, 0);
+      ctx.lineTo(length * 0.26, -w * 1.9);
+      ctx.lineTo(length * 0.26, w * 1.9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#d03a44";
+      ctx.fillRect(-length / 2, -w * 1.7, length * 0.2, w * 1.1);
+      ctx.fillRect(-length / 2, w * 0.6, length * 0.2, w * 1.1);
+      ctx.restore();
     }
     originX() {
       return this.width / 2 - (this.camX + 0.5) * this.tile;
@@ -2188,14 +2227,7 @@
           ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          ctx.strokeStyle = "#d9c9a0";
-          ctx.lineWidth = Math.max(1.5, tile * 0.05);
-          ctx.beginPath();
-          ctx.moveTo(gx + tile * 0.28, gy + tile * 0.72);
-          ctx.lineTo(gx + tile * 0.72, gy + tile * 0.28);
-          ctx.stroke();
-          ctx.fillStyle = "#cfd6ea";
-          ctx.fillRect(gx + tile * 0.66, gy + tile * 0.22, tile * 0.12, tile * 0.12);
+          this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.7);
         }
       }
       ctx.textAlign = "center";
@@ -2269,13 +2301,8 @@
         const t = p.age / PROJECTILE_MS;
         const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
         const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
-        const angle = Math.atan2(p.y - p.fromY, p.x - p.fromX);
-        ctx.strokeStyle = "#f0e6c8";
-        ctx.lineWidth = Math.max(2, tile * 0.07);
-        ctx.beginPath();
-        ctx.moveTo(px - Math.cos(angle) * tile * 0.3, py - Math.sin(angle) * tile * 0.3);
-        ctx.lineTo(px, py);
-        ctx.stroke();
+        const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+        this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.7);
       }
       for (const s of this.slashes) {
         if (!s.arc) continue;
@@ -2389,82 +2416,48 @@
       }
     }
     /**
-     * Porte : battant de planches cerclé de fer, dans un encadrement de pierre. Elle est tournée selon le mur
-     * qui la porte. Verrouillée : un cadenas doré. Ouverte : le battant est rabattu contre le montant.
+     * Porte, vue du dessus : un battant de bois cerclé de fer entre deux montants de pierre. Le même dessin sert
+     * partout, tourné selon que le mur est latéral ou non, pour qu'elle barre le passage et s'ouvre dans le bon sens.
      */
     drawDoor(game2, t, x, y, sx, sy) {
       const { ctx, tile } = this;
       const sideways = !game2.map.isWalkable(x, y - 1) && !game2.map.isWalkable(x, y + 1);
       ctx.save();
       ctx.translate(sx + tile / 2, sy + tile / 2);
+      if (!sideways) ctx.rotate(Math.PI / 2);
       const u = tile / 16;
       const px = (gx, gy, w, h, color) => {
         ctx.fillStyle = color;
         ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
       };
-      if (sideways) {
-        px(0, 0, 16, 16, "#2a2533");
-        px(0, 0, 16, 2, "#8b90b0");
-        px(0, 14, 16, 2, "#8b90b0");
-        if (t === Tile.DoorOpen) {
-          px(6, 2, 8, 3, "#8a5a2b");
-          px(6, 2, 8, 1, "#b9824a");
-          px(8, 2, 1, 3, "#4a4e5e");
-          px(12, 2, 1, 3, "#4a4e5e");
-        } else {
-          px(6, 2, 4, 12, "#8a5a2b");
-          px(6, 2, 1, 12, "#b9824a");
-          px(9, 2, 1, 12, "#5a3817");
-          for (const gy of [4, 11]) {
-            px(5, gy, 6, 1, "#4a4e5e");
-            px(5, gy, 1, 1, "#c3cbe0");
-            px(10, gy, 1, 1, "#c3cbe0");
-          }
-          if (t === Tile.DoorLocked) {
-            px(10, 6, 3, 4, "#f0c050");
-            px(10, 9, 3, 1, "#a87c1c");
-            px(11, 7, 1, 2, "#1c1410");
-            px(3, 6, 3, 4, "#f0c050");
-            px(3, 9, 3, 1, "#a87c1c");
-            px(4, 7, 1, 2, "#1c1410");
-          } else {
-            px(10, 7, 1, 2, "#c3cbe0");
-            px(5, 7, 1, 2, "#c3cbe0");
-          }
-        }
-        ctx.restore();
-        return;
-      }
       px(0, 0, 16, 16, "#2a2533");
-      px(0, 0, 2, 16, "#8b90b0");
-      px(14, 0, 2, 16, "#8b90b0");
-      px(0, 0, 16, 1, "#6e7290");
+      px(0, 0, 16, 2, "#8b90b0");
+      px(0, 14, 16, 2, "#8b90b0");
       if (t === Tile.DoorOpen) {
-        px(2, 1, 3, 14, "#8a5a2b");
-        px(2, 1, 1, 14, "#b9824a");
-        px(2, 4, 3, 1, "#4a4e5e");
-        px(2, 11, 3, 1, "#4a4e5e");
+        px(5, 2, 9, 4, "#8a5a2b");
+        px(5, 2, 9, 1, "#b9824a");
+        px(5, 5, 9, 1, "#5a3817");
+        px(7, 2, 1, 4, "#4a4e5e");
+        px(11, 2, 1, 4, "#4a4e5e");
+        px(5, 2, 1, 4, "#c3cbe0");
       } else {
-        px(2, 1, 12, 14, "#8a5a2b");
-        for (const gx of [2, 5, 8, 11]) px(gx, 1, 1, 14, "#b9824a");
-        for (const gx of [4, 7, 10, 13]) px(gx, 1, 1, 14, "#5a3817");
-        for (const gy of [3, 11]) {
-          px(2, gy, 12, 2, "#4a4e5e");
-          px(2, gy, 12, 1, "#7a7f94");
-          for (const gx of [3, 7, 12]) px(gx, gy, 1, 1, "#c3cbe0");
+        px(6, 2, 5, 12, "#8a5a2b");
+        px(6, 2, 1, 12, "#b9824a");
+        px(10, 2, 1, 12, "#5a3817");
+        for (const gy of [4, 11]) {
+          px(5, gy, 7, 1, "#4a4e5e");
+          px(5, gy, 1, 1, "#c3cbe0");
+          px(11, gy, 1, 1, "#c3cbe0");
         }
         if (t === Tile.DoorLocked) {
-          px(6, 6, 4, 1, "#f0c050");
-          px(6, 6, 1, 2, "#f0c050");
-          px(9, 6, 1, 2, "#f0c050");
-          px(5, 8, 6, 3, "#f0c050");
-          px(5, 10, 6, 1, "#a87c1c");
-          px(7, 8, 2, 2, "#1c1410");
+          for (const gx of [2, 11]) {
+            px(gx, 6, 3, 4, "#f0c050");
+            px(gx, 9, 3, 1, "#a87c1c");
+            px(gx + 1, 7, 1, 2, "#1c1410");
+          }
         } else {
-          px(10, 7, 2, 1, "#c3cbe0");
-          px(10, 9, 2, 1, "#c3cbe0");
-          px(10, 7, 1, 3, "#c3cbe0");
-          px(12, 8, 1, 1, "#c3cbe0");
+          px(4, 7, 2, 2, "#c3cbe0");
+          px(11, 7, 2, 2, "#c3cbe0");
         }
       }
       ctx.restore();
@@ -2779,8 +2772,10 @@
     ]
   };
   function itemIcon(id) {
+    return buildIcon(ICONS[id]);
+  }
+  function buildIcon(rows) {
     const ns = "http://www.w3.org/2000/svg";
-    const rows = ICONS[id];
     const svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", `0 0 ${rows[0].length} ${rows.length}`);
     svg.setAttribute("shape-rendering", "crispEdges");
@@ -2802,6 +2797,83 @@
       }
     });
     return svg;
+  }
+  var UI_ICONS = {
+    wait: [
+      "..KKKKKKKKKKKK..",
+      "..KGGGGGGGGGGK..",
+      "...KLLLLLLLLK...",
+      "...KLTTTTTTLK...",
+      "....KLTTTTLK....",
+      ".....KLTTLK.....",
+      "......KLLK......",
+      "......KLLK......",
+      ".....KL..LK.....",
+      "....KL.TT.LK....",
+      "...KL.TTTT.LK...",
+      "...KLTTTTTTLK...",
+      "..KGGGGGGGGGGK..",
+      "..KKKKKKKKKKKK..",
+      "................",
+      "................"
+    ],
+    bag: [
+      ".....KKKKKK.....",
+      "....KB....BK....",
+      "...KKBKKKKBKK...",
+      "..KTTTTTTTTTTK..",
+      "..KTTTTTTTTTTK..",
+      "..KTbbbbbbbbTK..",
+      "..KTTTTGGTTTTK..",
+      "..KTTTTGGTTTTK..",
+      ".KKTTTTTTTTTTKK.",
+      ".KBKTbbbbbbTKBK.",
+      ".KBKTbTTTTbTKBK.",
+      ".KBKTbTTTTbTKBK.",
+      ".KKKTbbbbbbTKKK.",
+      "..KTTTTTTTTTTK..",
+      "...KKKKKKKKKK...",
+      "................"
+    ],
+    menu: [
+      "................",
+      "..KKKKKKKKKKKK..",
+      "..KLLLLLLLLLLK..",
+      "..KLLLLLLLLLLK..",
+      "..KKKKKKKKKKKK..",
+      "................",
+      "..KKKKKKKKKKKK..",
+      "..KLLLLLLLLLLK..",
+      "..KLLLLLLLLLLK..",
+      "..KKKKKKKKKKKK..",
+      "................",
+      "..KKKKKKKKKKKK..",
+      "..KLLLLLLLLLLK..",
+      "..KLLLLLLLLLLK..",
+      "..KKKKKKKKKKKK..",
+      "................"
+    ],
+    recenter: [
+      ".......LL.......",
+      ".......LL.......",
+      "....LLLLLLLL....",
+      "...LL......LL...",
+      "..LL........LL..",
+      "..L....GG....L..",
+      "..L...GGGG...L..",
+      "LLL...GGGG...LLL",
+      "LLL...GGGG...LLL",
+      "..L...GGGG...L..",
+      "..L....GG....L..",
+      "..LL........LL..",
+      "...LL......LL...",
+      "....LLLLLLLL....",
+      ".......LL.......",
+      ".......LL......."
+    ]
+  };
+  function uiIcon(name) {
+    return buildIcon(UI_ICONS[name]);
   }
 
   // src/main.ts
@@ -2913,6 +2985,17 @@
     const dead = !e.success && game.doorOptions().length === 0 ? " Il vous faudrait une clef." : "";
     return `${what} : ${e.d20} ${bonus} = ${e.total} \u2014 ${outcome}.${dead}`;
   }
+  var launched = /* @__PURE__ */ new WeakSet();
+  function launchArrow(e) {
+    if (!e || e.type !== "arrow" || launched.has(e)) return;
+    launched.add(e);
+    if (e.via) {
+      renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
+      renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true);
+    } else {
+      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+    }
+  }
   function startRoll(e) {
     const foe = byFoe(e);
     const mode = e.type === "attack" ? e.result.mode : "normal";
@@ -2924,6 +3007,7 @@
     dieWho.className = mode === "normal" ? "" : mode;
     sfx.play("dice");
     if (mode !== "normal") sfx.play(mode);
+    if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
     if (e.type === "attack") {
       if (mode !== "normal") {
         const good = mode === "advantage" !== foe;
@@ -2974,12 +3058,8 @@
         }
       }
     } else if (e.type === "arrow") {
-      if (e.via) {
-        renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
-        renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170);
-      } else {
-        renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
-      }
+      if (!launched.has(e)) sfx.play("bow");
+      launchArrow(e);
       if (!e.kept) logLines.push("La fl\xE8che se brise.");
       else if (!e.hit) logLines.push(e.via ? "La fl\xE8che rebondit et retombe au sol." : "La fl\xE8che se plante au sol.");
     } else if (e.type === "pickup") {
@@ -3068,6 +3148,7 @@
           renderLog();
         } else {
           stepMs = COMBAT_STEP_MS;
+          aimMode = false;
         }
         return;
       }
@@ -3104,12 +3185,27 @@
   doorButton("door-key", "key");
   button("recenter", () => renderer.recenter());
   button("aim", () => {
-    aimMode = !aimMode;
-    logLines.push(
-      aimMode ? game.arrows() > 0 ? "Arc en main : touchez une cible \xE0 port\xE9e pour tirer. Retouchez ce bouton pour reprendre l'\xE9p\xE9e." : "Arc en main, mais plus de fl\xE8ches." : "\xC9p\xE9e en main : touchez un monstre pour aller le frapper."
-    );
+    if (!aimMode && game.isThreatened()) {
+      logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
+    } else if (!aimMode && game.arrows() < 1) {
+      logLines.push("Plus de fl\xE8ches.");
+    } else {
+      aimMode = !aimMode;
+      if (aimMode) logLines.push("Arc band\xE9 : touchez une cible \xE0 port\xE9e pour tirer.");
+    }
     renderLog();
   });
+  for (const [id, icon, label] of [
+    ["wait", "wait", "Attendre un tour"],
+    ["open-bag", "bag", "\xC9quipement et sac"],
+    ["open-menu", "menu", "Menu"],
+    ["recenter", "recenter", "Recentrer la vue"]
+  ]) {
+    $(id).replaceChildren(uiIcon(icon));
+    $(id).setAttribute("aria-label", label);
+    $(id).title = label;
+  }
+  $("aim").setAttribute("aria-label", "Tirer \xE0 l'arc");
   function itemStats(def) {
     const lines = [];
     if (def.attackBonus !== void 0 && def.damage) {
@@ -3379,13 +3475,16 @@
     const aim = $("aim");
     aim.hidden = !bow;
     if (!bow) aimMode = false;
-    const aimKey = aimMode ? `arc \xD7${game.arrows()}` : "\xE9p\xE9e";
+    if (aimMode && game.isThreatened()) {
+      aimMode = false;
+      logLines.push("Ennemi au contact : vous reprenez votre arme de corps \xE0 corps.");
+      renderLog();
+    }
+    const aimKey = `${bow?.id}|${game.arrows()}`;
     if (aimKey !== aimShown) {
       aimShown = aimKey;
-      const melee = game.equipment.melee;
       const ranged = game.equipment.ranged;
-      const shown = aimMode ? ranged : melee;
-      aim.replaceChildren(...shown ? [itemIcon(shown.defId)] : [], document.createTextNode(aimMode ? `Arc \xD7${game.arrows()}` : melee ? ITEMS[melee.defId].name : "Poings"));
+      aim.replaceChildren(...ranged ? [itemIcon(ranged.defId)] : [], document.createTextNode(`\xD7${game.arrows()}`));
     }
     aim.classList.toggle("active", aimMode);
     requestAnimationFrame(frame);

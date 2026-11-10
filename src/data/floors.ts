@@ -15,6 +15,8 @@ export interface FloorConfig {
   doorChance: number;
   /** Deux portes ne sont jamais à moins de ce nombre de cases l'une de l'autre (pas de portes à la suite). */
   doorSpacing: number;
+  /** Une porte n'est posée que si la contourner demande plus de pas que ceci (sinon elle ne sert à rien). */
+  doorDetour: number;
   /** Nombre de salles spéciales (verrouillées) par étage, avec le poids de chaque cas. Toujours au moins une. */
   specialRoomCounts: { count: number; weight: number }[];
   specialRoomMinSize: number;
@@ -37,6 +39,7 @@ export const DEFAULT_FLOOR: FloorConfig = {
   wideCorridorChance: 0.3,
   doorChance: 0.6,
   doorSpacing: 5,
+  doorDetour: 14,
   // 1 salle : 60 %, 2 salles : 30 %, 3 salles : 10 % → 1,5 en moyenne.
   specialRoomCounts: [
     { count: 1, weight: 6 },

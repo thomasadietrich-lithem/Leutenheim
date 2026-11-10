@@ -57,6 +57,8 @@ interface Projectile {
   x: number;
   y: number;
   age: number;
+  /** Vrai : la flèche tournoie (après un rebond). */
+  tumble: boolean;
 }
 const PROJECTILE_MS = 170;
 
@@ -151,8 +153,33 @@ export class Renderer {
   }
 
   /** Fait voler une flèche d'une case à une autre. */
-  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0): void {
-    this.projectiles.push({ fromX, fromY, x, y, age: -delay }); // un âge négatif : elle partira après ce délai
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble }); // un âge négatif : elle partira après ce délai
+  }
+
+  /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
+  private drawArrow(cx: number, cy: number, angle: number, length: number): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const w = Math.max(1.5, length * 0.09);
+    // Hampe.
+    ctx.fillStyle = "#b9824a";
+    ctx.fillRect(-length / 2, -w / 2, length * 0.82, w);
+    // Pointe d'acier.
+    ctx.fillStyle = "#dfe5f5";
+    ctx.beginPath();
+    ctx.moveTo(length / 2, 0);
+    ctx.lineTo(length * 0.26, -w * 1.9);
+    ctx.lineTo(length * 0.26, w * 1.9);
+    ctx.closePath();
+    ctx.fill();
+    // Empennage rouge.
+    ctx.fillStyle = "#d03a44";
+    ctx.fillRect(-length / 2, -w * 1.7, length * 0.2, w * 1.1);
+    ctx.fillRect(-length / 2, w * 0.6, length * 0.2, w * 1.1);
+    ctx.restore();
   }
 
   private originX(): number {
@@ -326,14 +353,8 @@ export class Renderer {
         ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        ctx.strokeStyle = "#d9c9a0";
-        ctx.lineWidth = Math.max(1.5, tile * 0.05);
-        ctx.beginPath();
-        ctx.moveTo(gx + tile * 0.28, gy + tile * 0.72);
-        ctx.lineTo(gx + tile * 0.72, gy + tile * 0.28);
-        ctx.stroke();
-        ctx.fillStyle = "#cfd6ea";
-        ctx.fillRect(gx + tile * 0.66, gy + tile * 0.22, tile * 0.12, tile * 0.12);
+        // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
+        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.7);
       }
     }
 
@@ -419,13 +440,9 @@ export class Renderer {
       const t = p.age / PROJECTILE_MS;
       const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
       const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
-      const angle = Math.atan2(p.y - p.fromY, p.x - p.fromX);
-      ctx.strokeStyle = "#f0e6c8";
-      ctx.lineWidth = Math.max(2, tile * 0.07);
-      ctx.beginPath();
-      ctx.moveTo(px - Math.cos(angle) * tile * 0.3, py - Math.sin(angle) * tile * 0.3);
-      ctx.lineTo(px, py);
-      ctx.stroke();
+      const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+      // En vol, la pointe suit la trajectoire ; après un rebond, la flèche tournoie en retombant.
+      this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.7);
     }
 
     for (const s of this.slashes) {
@@ -551,8 +568,8 @@ export class Renderer {
   }
 
   /**
-   * Porte : battant de planches cerclé de fer, dans un encadrement de pierre. Elle est tournée selon le mur
-   * qui la porte. Verrouillée : un cadenas doré. Ouverte : le battant est rabattu contre le montant.
+   * Porte, vue du dessus : un battant de bois cerclé de fer entre deux montants de pierre. Le même dessin sert
+   * partout, tourné selon que le mur est latéral ou non, pour qu'elle barre le passage et s'ouvre dans le bon sens.
    */
   private drawDoor(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
@@ -560,83 +577,47 @@ export class Renderer {
     const sideways = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
     ctx.save();
     ctx.translate(sx + tile / 2, sy + tile / 2);
+    // Le dessin de base est celui d'une porte de mur latéral (passage de gauche à droite) ;
+    // pour un mur du haut ou du bas, on le tourne d'un quart de tour.
+    if (!sideways) ctx.rotate(Math.PI / 2);
     const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
     const px = (gx: number, gy: number, w: number, h: number, color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
     };
-    if (sideways) {
-      // Porte d'un mur latéral : on la voit par la tranche, comme un battant dressé en travers du passage.
-      px(0, 0, 16, 16, "#2a2533");
-      px(0, 0, 16, 2, "#8b90b0");
-      px(0, 14, 16, 2, "#8b90b0");
-      if (t === Tile.DoorOpen) {
-        // Battant rabattu contre le montant du haut.
-        px(6, 2, 8, 3, "#8a5a2b");
-        px(6, 2, 8, 1, "#b9824a");
-        px(8, 2, 1, 3, "#4a4e5e");
-        px(12, 2, 1, 3, "#4a4e5e");
-      } else {
-        px(6, 2, 4, 12, "#8a5a2b");
-        px(6, 2, 1, 12, "#b9824a");
-        px(9, 2, 1, 12, "#5a3817");
-        // Ferrures qui débordent de chaque côté, et poignées.
-        for (const gy of [4, 11]) {
-          px(5, gy, 6, 1, "#4a4e5e");
-          px(5, gy, 1, 1, "#c3cbe0");
-          px(10, gy, 1, 1, "#c3cbe0");
-        }
-        if (t === Tile.DoorLocked) {
-          px(10, 6, 3, 4, "#f0c050");
-          px(10, 9, 3, 1, "#a87c1c");
-          px(11, 7, 1, 2, "#1c1410");
-          px(3, 6, 3, 4, "#f0c050");
-          px(3, 9, 3, 1, "#a87c1c");
-          px(4, 7, 1, 2, "#1c1410");
-        } else {
-          px(10, 7, 1, 2, "#c3cbe0");
-          px(5, 7, 1, 2, "#c3cbe0");
-        }
-      }
-      ctx.restore();
-      return;
-    }
-    // Encadrement de pierre et seuil sombre.
+    // Seuil sombre, et montants de pierre aux deux bouts du battant.
     px(0, 0, 16, 16, "#2a2533");
-    px(0, 0, 2, 16, "#8b90b0");
-    px(14, 0, 2, 16, "#8b90b0");
-    px(0, 0, 16, 1, "#6e7290");
+    px(0, 0, 16, 2, "#8b90b0");
+    px(0, 14, 16, 2, "#8b90b0");
     if (t === Tile.DoorOpen) {
-      // Battant rabattu sur le côté gauche, vu par la tranche.
-      px(2, 1, 3, 14, "#8a5a2b");
-      px(2, 1, 1, 14, "#b9824a");
-      px(2, 4, 3, 1, "#4a4e5e");
-      px(2, 11, 3, 1, "#4a4e5e");
+      // Ouverte : le battant a pivoté d'un quart de tour sur ses gonds et se range le long du passage.
+      px(5, 2, 9, 4, "#8a5a2b");
+      px(5, 2, 9, 1, "#b9824a");
+      px(5, 5, 9, 1, "#5a3817");
+      px(7, 2, 1, 4, "#4a4e5e");
+      px(11, 2, 1, 4, "#4a4e5e");
+      px(5, 2, 1, 4, "#c3cbe0"); // les gonds
     } else {
-      // Planches verticales, avec leurs joints.
-      px(2, 1, 12, 14, "#8a5a2b");
-      for (const gx of [2, 5, 8, 11]) px(gx, 1, 1, 14, "#b9824a");
-      for (const gx of [4, 7, 10, 13]) px(gx, 1, 1, 14, "#5a3817");
-      // Deux ferrures et leurs rivets.
-      for (const gy of [3, 11]) {
-        px(2, gy, 12, 2, "#4a4e5e");
-        px(2, gy, 12, 1, "#7a7f94");
-        for (const gx of [3, 7, 12]) px(gx, gy, 1, 1, "#c3cbe0");
+      // Fermée : le battant barre le passage d'un montant à l'autre.
+      px(6, 2, 5, 12, "#8a5a2b");
+      px(6, 2, 1, 12, "#b9824a");
+      px(10, 2, 1, 12, "#5a3817");
+      for (const gy of [4, 11]) {
+        px(5, gy, 7, 1, "#4a4e5e");
+        px(5, gy, 1, 1, "#c3cbe0");
+        px(11, gy, 1, 1, "#c3cbe0");
       }
       if (t === Tile.DoorLocked) {
-        // Cadenas doré.
-        px(6, 6, 4, 1, "#f0c050");
-        px(6, 6, 1, 2, "#f0c050");
-        px(9, 6, 1, 2, "#f0c050");
-        px(5, 8, 6, 3, "#f0c050");
-        px(5, 10, 6, 1, "#a87c1c");
-        px(7, 8, 2, 2, "#1c1410");
+        // Cadenas doré, visible des deux côtés.
+        for (const gx of [2, 11]) {
+          px(gx, 6, 3, 4, "#f0c050");
+          px(gx, 9, 3, 1, "#a87c1c");
+          px(gx + 1, 7, 1, 2, "#1c1410");
+        }
       } else {
-        // Anneau de poignée.
-        px(10, 7, 2, 1, "#c3cbe0");
-        px(10, 9, 2, 1, "#c3cbe0");
-        px(10, 7, 1, 3, "#c3cbe0");
-        px(12, 8, 1, 1, "#c3cbe0");
+        // Poignées.
+        px(4, 7, 2, 2, "#c3cbe0");
+        px(11, 7, 2, 2, "#c3cbe0");
       }
     }
     ctx.restore();

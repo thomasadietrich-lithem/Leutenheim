@@ -268,10 +268,14 @@ const ICONS: Record<ItemId, string[]> = {
   ],
 };
 
-/** Construit l'icône SVG d'un objet : un rectangle par suite de pixels de même couleur. */
+/** Construit l'icône SVG d'un objet. */
 export function itemIcon(id: ItemId): SVGSVGElement {
+  return buildIcon(ICONS[id]);
+}
+
+/** Transforme des rangées de lettres en image SVG : un rectangle par suite de pixels de même couleur. */
+function buildIcon(rows: string[]): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
-  const rows = ICONS[id];
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", `0 0 ${rows[0].length} ${rows.length}`);
   svg.setAttribute("shape-rendering", "crispEdges");
@@ -293,4 +297,84 @@ export function itemIcon(id: ItemId): SVGSVGElement {
     }
   });
   return svg;
+}
+
+/** Pictogrammes de l'interface (boutons sans texte), dessinés de la même façon que les objets. */
+const UI_ICONS = {
+  wait: [
+    "..KKKKKKKKKKKK..",
+    "..KGGGGGGGGGGK..",
+    "...KLLLLLLLLK...",
+    "...KLTTTTTTLK...",
+    "....KLTTTTLK....",
+    ".....KLTTLK.....",
+    "......KLLK......",
+    "......KLLK......",
+    ".....KL..LK.....",
+    "....KL.TT.LK....",
+    "...KL.TTTT.LK...",
+    "...KLTTTTTTLK...",
+    "..KGGGGGGGGGGK..",
+    "..KKKKKKKKKKKK..",
+    "................",
+    "................",
+  ],
+  bag: [
+    ".....KKKKKK.....",
+    "....KB....BK....",
+    "...KKBKKKKBKK...",
+    "..KTTTTTTTTTTK..",
+    "..KTTTTTTTTTTK..",
+    "..KTbbbbbbbbTK..",
+    "..KTTTTGGTTTTK..",
+    "..KTTTTGGTTTTK..",
+    ".KKTTTTTTTTTTKK.",
+    ".KBKTbbbbbbTKBK.",
+    ".KBKTbTTTTbTKBK.",
+    ".KBKTbTTTTbTKBK.",
+    ".KKKTbbbbbbTKKK.",
+    "..KTTTTTTTTTTK..",
+    "...KKKKKKKKKK...",
+    "................",
+  ],
+  menu: [
+    "................",
+    "..KKKKKKKKKKKK..",
+    "..KLLLLLLLLLLK..",
+    "..KLLLLLLLLLLK..",
+    "..KKKKKKKKKKKK..",
+    "................",
+    "..KKKKKKKKKKKK..",
+    "..KLLLLLLLLLLK..",
+    "..KLLLLLLLLLLK..",
+    "..KKKKKKKKKKKK..",
+    "................",
+    "..KKKKKKKKKKKK..",
+    "..KLLLLLLLLLLK..",
+    "..KLLLLLLLLLLK..",
+    "..KKKKKKKKKKKK..",
+    "................",
+  ],
+  recenter: [
+    ".......LL.......",
+    ".......LL.......",
+    "....LLLLLLLL....",
+    "...LL......LL...",
+    "..LL........LL..",
+    "..L....GG....L..",
+    "..L...GGGG...L..",
+    "LLL...GGGG...LLL",
+    "LLL...GGGG...LLL",
+    "..L...GGGG...L..",
+    "..L....GG....L..",
+    "..LL........LL..",
+    "...LL......LL...",
+    "....LLLLLLLL....",
+    ".......LL.......",
+    ".......LL.......",
+  ],
+} satisfies Record<string, string[]>;
+
+export function uiIcon(name: keyof typeof UI_ICONS): SVGSVGElement {
+  return buildIcon(UI_ICONS[name]);
 }

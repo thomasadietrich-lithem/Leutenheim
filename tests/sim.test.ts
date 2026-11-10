@@ -64,6 +64,16 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
       }
     }
 
+    // Une porte se mérite : on ne peut pas la contourner par un petit détour.
+    for (const d of doors.filter((c) => map.get(c.x, c.y) === Tile.DoorClosed)) {
+      const sides = [[1, 0], [0, 1]]
+        .map(([dx, dy]) => [{ x: d.x + dx, y: d.y + dy }, { x: d.x - dx, y: d.y - dy }])
+        .find(([a, b]) => map.isWalkable(a.x, a.y) && map.isWalkable(b.x, b.y));
+      assert.ok(sides, `graine ${seed} : porte (${d.x},${d.y}) sans passage de part et d'autre`);
+      const around = distanceField(map, sides[0], (x, y) => x !== d.x || y !== d.y)[map.index(sides[1].x, sides[1].y)];
+      assert.ok(around === -1 || around > DEFAULT_FLOOR.doorDetour, `graine ${seed} : porte (${d.x},${d.y}) contournable en ${around} pas`);
+    }
+
     // Sans ouvrir aucune porte verrouillée, on atteint l'escalier.
     assert.notEqual(distanceField(map, start)[map.index(stairs.x, stairs.y)], -1, `graine ${seed} : escalier enfermé`);
 
@@ -525,7 +535,11 @@ test("tirer sur le décor : la flèche se plante au sol, ou rebondit d'une case 
       const arrow = game.events.find((e) => e.type === "arrow");
       assert.ok(arrow && arrow.type === "arrow" && arrow.via);
       assert.deepEqual(arrow.via, { x: wall.x - dx, y: wall.y - dy }, "elle heurte le mur depuis la case voisine");
-      assert.deepEqual([arrow.x, arrow.y], [wall.x - dx * 2, wall.y - dy * 2], "elle retombe une case en arrière");
+      const back = Math.abs(arrow.x - arrow.via.x) + Math.abs(arrow.y - arrow.via.y);
+      assert.ok(back === 1 || back === 2, `rebond de ${back} cases`);
+      assert.deepEqual([arrow.x, arrow.y], [arrow.via.x - dx * back, arrow.via.y - dy * back], "elle retombe en arrière, dans l'axe");
+      const lying = game.ground.find((g) => g.x === arrow.x && g.y === arrow.y);
+      if (arrow.kept) assert.ok(lying && typeof lying.angle === "number", "une flèche au sol a une orientation");
       game.events.length = 0;
       wallShots++;
       break;

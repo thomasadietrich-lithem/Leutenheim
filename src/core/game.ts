@@ -73,6 +73,8 @@ export interface GroundItem {
   y: number;
   item: ItemId;
   count: number;
+  /** Orientation de l'objet posé au sol (radians), pour les flèches : dans quel sens elle est tombée ou plantée. */
+  angle?: number;
 }
 
 /** Crocheter (silencieux) ou enfoncer (bruyant) une porte verrouillée. */
@@ -587,6 +589,11 @@ export class Game {
     return !monster.alerted || this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
   }
 
+  /** Un ennemi alerté est-il au contact du héros ? */
+  isThreatened(): boolean {
+    return this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+  }
+
   /** Le héros est-il en mauvaise posture ? (dans une porte, ou un ennemi alerté le guette au coin d'un mur) */
   heroExposed(): boolean {
     const foes = this.monsters.filter((m) => m.alerted);
@@ -713,9 +720,10 @@ export class Game {
     /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
     const fly = (c: Point): boolean => {
       if (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y)) {
-        // Rebond : elle retombe une case en arrière de l'endroit où elle a heurté l'obstacle.
+        // Rebond : elle retombe une ou deux cases en arrière de l'endroit où elle a heurté l'obstacle.
         via = trail[trail.length - 1];
-        landing = trail[Math.max(0, trail.length - 2)];
+        const back = this.rng.int(RULES.arrowBounceMin, RULES.arrowBounceMax);
+        landing = trail[Math.max(0, trail.length - 1 - back)];
         return false;
       }
       trail.push(c);
@@ -755,15 +763,20 @@ export class Game {
     }
 
     const kept = this.rng.chance(keepChance);
-    if (kept) this.dropItem(landing.x, landing.y, bow.ammo as ItemId, 1);
+    // Orientation au sol : plantée dans le sens du tir, ou couchée de travers après un rebond.
+    const end = trail[trail.length - 1];
+    const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
+    const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
+    if (kept) this.dropItem(landing.x, landing.y, bow.ammo as ItemId, 1, angle);
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
     if (victim) this.removeIfDead(victim);
   }
 
-  private dropItem(x: number, y: number, item: ItemId, count: number): void {
-    const pile = this.ground.find((g) => g.x === x && g.y === y && g.item === item);
+  private dropItem(x: number, y: number, item: ItemId, count: number, angle?: number): void {
+    // Un objet orienté (une flèche tombée) garde sa propre place au sol ; les autres s'empilent.
+    const pile = angle === undefined ? this.ground.find((g) => g.x === x && g.y === y && g.item === item && g.angle === undefined) : undefined;
     if (pile) pile.count += count;
-    else this.ground.push({ x, y, item, count });
+    else this.ground.push({ x, y, item, count, angle });
   }
 
   /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */

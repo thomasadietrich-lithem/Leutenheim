@@ -221,7 +221,11 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
     // Une porte doit avoir un sens : pas de porte s'il y en a déjà une toute proche (jamais deux à la suite),
     // ni si un autre passage s'ouvre dans le même mur juste à côté (on la contournerait).
     for (const c of doorways) {
-      if (!bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
+      // Peut-on passer d'un côté à l'autre de la porte par un petit détour ? Alors elle ne servirait à rien.
+      const around = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
+      const detour = around[map.index(c.x - c.nx, c.y - c.ny)];
+      const pointless = detour !== -1 && detour <= cfg.doorDetour;
+      if (!pointless && !bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
         map.set(c.x, c.y, Tile.DoorClosed);
       }
     }

@@ -3,6 +3,9 @@ import { GameMap, Point } from "./map";
 /** Une source de lumière fixe (torche murale). */
 export interface LightSource extends Point {
   radius: number;
+  /** Direction de la salle que la torche éclaire (elle est fixée dans un mur et n'éclaire pas l'autre côté). */
+  faceX: number;
+  faceY: number;
 }
 
 /** Vrai si rien ne bloque la vue entre deux cases (les cases de départ et d'arrivée ne comptent pas). */
@@ -87,7 +90,10 @@ function spreadToWalls(map: GameMap, values: Uint8Array | Float32Array): void {
 /** Carte d'éclairage : pour chaque case, 0 (noir) à 1 (au pied d'une torche). */
 export function computeLight(map: GameMap, sources: readonly LightSource[]): Float32Array {
   const light = new Float32Array(map.width * map.height);
-  for (const s of sources) {
+  for (const torch of sources) {
+    // La lumière part de la case devant la torche, côté salle : elle ne traverse pas le mur qui la porte.
+    const s = { x: torch.x + torch.faceX, y: torch.y + torch.faceY, radius: torch.radius };
+    light[map.index(torch.x, torch.y)] = 1;
     for (let y = s.y - s.radius; y <= s.y + s.radius; y++) {
       for (let x = s.x - s.radius; x <= s.x + s.radius; x++) {
         if (!map.inBounds(x, y)) continue;

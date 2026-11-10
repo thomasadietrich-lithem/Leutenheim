@@ -42,6 +42,8 @@ export interface SpawnEntry {
 export interface FloorSpawns {
   /** Chance qu'une salle (hors salle de départ) contienne un groupe. */
   roomChance: number;
+  /** Chance qu'un groupe dorme. Les autres se promènent d'une salle à l'autre. */
+  sleepChance: number;
   entries: SpawnEntry[];
 }
 
@@ -49,6 +51,8 @@ export interface FloorSpawns {
 export function spawnsForDepth(depth: number): FloorSpawns {
   return {
     roomChance: Math.min(0.3 + depth * 0.05, 0.7),
+    // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
+    sleepChance: Math.max(0.2, 0.85 - (depth - 1) * 0.1),
     entries: [{ monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) }],
   };
 }

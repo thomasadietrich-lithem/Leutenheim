@@ -14,6 +14,7 @@ export type SoundName =
   | "break"
   | "thud"
   | "descend"
+  | "heal"
   | "click";
 
 type Wave = OscillatorType;
@@ -77,11 +78,12 @@ export class Sfx {
    */
   crackle(level: number, dt: number): void {
     if (!this.enabled || !this.ctx || this.ctx.state !== "running" || level <= 0.03) return;
-    this.crackleDebt += dt * 0.006 * (0.4 + level) * (0.5 + Math.random());
+    // Rare et discret : quelques petits craquements sourds par seconde, jamais un grésillement continu.
+    this.crackleDebt += dt * 0.0022 * (0.3 + level) * (0.4 + 1.2 * Math.random());
     while (this.crackleDebt >= 1) {
       this.crackleDebt -= 1;
       try {
-        this.noise(0.012 + Math.random() * 0.03, (0.03 + Math.random() * 0.09) * level, 2500 + Math.random() * 4500, Math.random() * 0.06);
+        this.noise(0.03 + Math.random() * 0.05, (0.006 + Math.random() * 0.018) * level, 700 + Math.random() * 1300, Math.random() * 0.08);
       } catch {
         return;
       }
@@ -121,8 +123,10 @@ export class Sfx {
         case "notice":
           this.tone(520, 880, 0.09, "square", 0.07);
           break;
-        case "door":
-          this.tone(110, 75, 0.2, "sawtooth", 0.08);
+        case "door": // bois : le battant qui grince, puis le loquet
+          this.noise(0.07, 0.16, 320);
+          this.tone(150, 215, 0.17, "triangle", 0.045, 0.03);
+          this.noise(0.025, 0.1, 1800, 0.21);
           break;
         case "unlock":
           this.tone(1200, 1200, 0.03, "square", 0.08);
@@ -138,6 +142,9 @@ export class Sfx {
           break;
         case "descend":
           [392, 330, 262].forEach((f, i) => this.tone(f, f, 0.12, "sine", 0.15, i * 0.09));
+          break;
+        case "heal":
+          [523, 659, 784].forEach((f, i) => this.tone(f, f, 0.18, "sine", 0.12, i * 0.08));
           break;
         case "click":
           this.tone(700, 700, 0.03, "square", 0.05);

@@ -18,6 +18,8 @@ export type GameEvent =
   | { type: "noticed"; actor: Actor }
   | { type: "descend"; healed: number }
   | { type: "opened"; x: number; y: number }
+  | { type: "fountain"; healed: number }
+  | { type: "chest" }
   | {
       type: "door";
       action: DoorAction;
@@ -65,6 +67,7 @@ export class Game {
   private doorTarget: Point | null = null;
   private doorAction: DoorAction | null = null;
   private seenMonsters = new Set<number>();
+  private rooms: Room[] = [];
 
   constructor(
     readonly runSeed: number,
@@ -89,6 +92,7 @@ export class Game {
       damage: heroClass.damage,
       vision: race.darkVision,
       alerted: true,
+      asleep: false,
     };
     this.enterFloor(1);
   }
@@ -110,6 +114,7 @@ export class Game {
     this.explored = new Uint8Array(this.map.width * this.map.height);
     this.sensed = new Uint8Array(this.map.width * this.map.height);
     this.torches = floor.torches;
+    this.rooms = floor.rooms;
     this.light = computeLight(this.map, this.torches);
     this.spawnMonsters(floor.rooms);
     this.seenMonsters.clear();
@@ -126,6 +131,7 @@ export class Game {
       const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
       const def = MONSTERS[entry.monster];
       const count = this.rng.int(entry.packMin, entry.packMax);
+      const asleep = this.rng.chance(spawns.sleepChance); // tout le groupe dort, ou tout le groupe se promène
       for (let i = 0; i < count; i++) {
         // Quelques essais pour trouver une case libre dans la salle.
         for (let attempt = 0; attempt < 20; attempt++) {
@@ -148,6 +154,7 @@ export class Game {
             damage: def.damage,
             vision: def.vision,
             alerted: false,
+            asleep,
           });
           break;
         }
@@ -310,10 +317,13 @@ export class Game {
       } else {
         // Les monstres alertés au contact avant le pas : s'en éloigner leur offre une attaque d'opportunité.
         const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
+        const left = { x: this.hero.x, y: this.hero.y };
         this.path.shift();
         this.hero.x = next.x;
         this.hero.y = next.y;
         this.openDoorAt(next.x, next.y);
+        this.closeDoorAt(left.x, left.y);
+        this.useFeatureAt(next.x, next.y);
         if (this.opportunityAttacks(threats)) {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
@@ -365,6 +375,27 @@ export class Game {
     this.events.push({ type: "opened", x, y });
   }
 
+  /** Une porte se referme dès que plus personne ne se tient dans son encadrement. */
+  private closeDoorAt(x: number, y: number): void {
+    if (this.map.get(x, y) !== Tile.DoorOpen || this.actorAt(x, y)) return;
+    this.map.set(x, y, Tile.DoorClosed);
+    this.light = computeLight(this.map, this.torches);
+  }
+
+  /** Ce qui se déclenche quand le héros marche sur une case particulière (fontaine, coffre). */
+  private useFeatureAt(x: number, y: number): void {
+    const t = this.map.get(x, y);
+    if (t === Tile.Fountain) {
+      const healed = this.hero.maxHp - this.hero.hp;
+      this.hero.hp = this.hero.maxHp;
+      this.map.set(x, y, Tile.FountainDry);
+      this.events.push({ type: "fountain", healed });
+    } else if (t === Tile.Chest) {
+      this.map.set(x, y, Tile.ChestOpen);
+      this.events.push({ type: "chest" }); // le butin arrivera avec les objets (jalon J4)
+    }
+  }
+
   private resolveDoor(action: DoorAction, door: Point): void {
     const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
     const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
@@ -384,6 +415,7 @@ export class Game {
         const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
         if (!m.alerted && d <= RULES.noiseRadius) {
           m.alerted = true;
+          m.asleep = false;
           alerted++;
         }
       }
@@ -393,12 +425,16 @@ export class Game {
 
   private heroAttacks(monster: Actor): void {
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
-    const result = rollAttack(this.rng, this.hero, monster, monster.alerted ? "normal" : "advantage");
+    // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
+    const ambush = !monster.alerted || this.map.isDoor(monster.x, monster.y);
+    const result = rollAttack(this.rng, this.hero, monster, ambush ? "advantage" : "normal");
     monster.alerted = true;
+    monster.asleep = false;
     monster.hp -= result.damage;
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
     if (monster.hp <= 0) {
       this.monsters = this.monsters.filter((m) => m !== monster);
+      this.closeDoorAt(monster.x, monster.y);
       this.events.push({ type: "death", actor: monster });
     }
   }
@@ -412,16 +448,24 @@ export class Game {
 
       if (!m.alerted) {
         const def = MONSTERS[m.defId as keyof typeof MONSTERS];
-        const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark);
+        const chance =
+          def.noticeChance *
+          (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) *
+          (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake);
         if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(chance)) {
           m.alerted = true;
+          m.asleep = false;
           this.events.push({ type: "noticed", actor: m });
+        } else if (!m.asleep) {
+          this.wander(m);
         }
         continue;
       }
 
       if (distance === 1 && canStep(this.map, m.x, m.y, dx, dy)) {
-        const result = rollAttack(this.rng, m, this.hero);
+        // Un héros qui se tient dans l'encadrement d'une porte est pris en embuscade : le monstre a l'avantage.
+        const ambush = this.map.isDoor(this.hero.x, this.hero.y);
+        const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
         this.hero.hp = Math.max(0, this.hero.hp - result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
         if (this.hero.hp === 0) {
@@ -432,16 +476,34 @@ export class Game {
         continue;
       }
 
-      const step = findPath(this.map, m, this.hero)?.[0];
-      if (step && !this.actorAt(step.x, step.y)) {
-        m.x = step.x;
-        m.y = step.y;
-        if (this.map.get(m.x, m.y) === Tile.DoorClosed) {
-          this.openDoorAt(m.x, m.y);
-          this.updateVision();
-        }
-      }
+      this.stepToward(m, this.hero);
     }
+  }
+
+  /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
+  private stepToward(m: Actor, target: Point): boolean {
+    const step = findPath(this.map, m, target)?.[0];
+    if (!step) return false;
+    if (!this.actorAt(step.x, step.y)) {
+      const left = { x: m.x, y: m.y };
+      const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
+      m.x = step.x;
+      m.y = step.y;
+      this.openDoorAt(m.x, m.y);
+      this.closeDoorAt(left.x, left.y);
+      if (doorMoved) this.updateVision();
+    }
+    return true;
+  }
+
+  /** Promenade : le monstre va de salle en salle, au hasard. */
+  private wander(m: Actor): void {
+    if (!m.goal || (m.goal.x === m.x && m.goal.y === m.y)) {
+      const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+      m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+    }
+    // Destination inaccessible (salle verrouillée) : il en choisira une autre au tour suivant.
+    if (!this.stepToward(m, m.goal)) m.goal = undefined;
   }
 
   private updateVision(): void {

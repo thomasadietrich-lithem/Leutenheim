@@ -9,6 +9,9 @@ export const RULES = {
   /** Un monstre remarque plus facilement un héros éclairé par une torche, moins facilement dans le noir. */
   noticeInLight: 1.5,
   noticeInDark: 0.6,
+  /** Un monstre endormi remarque moins bien le héros ; un monstre qui se promène, mieux. */
+  noticeAsleep: 0.5,
+  noticeAwake: 1.5,
   /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
   senseDepth: 3,
 };

@@ -213,6 +213,13 @@ function reveal(e: GameEvent): void {
     sfx.play("descend");
   } else if (e.type === "opened") {
     sfx.play("door");
+  } else if (e.type === "fountain") {
+    logLines.push(e.healed > 0 ? `Vous buvez à la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez à la fontaine. Elle se tarit.");
+    shownHp = game.hero.hp;
+    sfx.play("heal");
+  } else if (e.type === "chest") {
+    logLines.push("Le coffre est vide pour l'instant : le butin arrive avec les objets.");
+    sfx.play("unlock");
   }
   renderLog();
 }

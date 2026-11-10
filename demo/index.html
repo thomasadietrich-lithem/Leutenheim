@@ -184,11 +184,11 @@
      */
     crackle(level, dt) {
       if (!this.enabled || !this.ctx || this.ctx.state !== "running" || level <= 0.03) return;
-      this.crackleDebt += dt * 6e-3 * (0.4 + level) * (0.5 + Math.random());
+      this.crackleDebt += dt * 22e-4 * (0.3 + level) * (0.4 + 1.2 * Math.random());
       while (this.crackleDebt >= 1) {
         this.crackleDebt -= 1;
         try {
-          this.noise(0.012 + Math.random() * 0.03, (0.03 + Math.random() * 0.09) * level, 2500 + Math.random() * 4500, Math.random() * 0.06);
+          this.noise(0.03 + Math.random() * 0.05, (6e-3 + Math.random() * 0.018) * level, 700 + Math.random() * 1300, Math.random() * 0.08);
         } catch {
           return;
         }
@@ -228,7 +228,9 @@
             this.tone(520, 880, 0.09, "square", 0.07);
             break;
           case "door":
-            this.tone(110, 75, 0.2, "sawtooth", 0.08);
+            this.noise(0.07, 0.16, 320);
+            this.tone(150, 215, 0.17, "triangle", 0.045, 0.03);
+            this.noise(0.025, 0.1, 1800, 0.21);
             break;
           case "unlock":
             this.tone(1200, 1200, 0.03, "square", 0.08);
@@ -244,6 +246,9 @@
             break;
           case "descend":
             [392, 330, 262].forEach((f, i) => this.tone(f, f, 0.12, "sine", 0.15, i * 0.09));
+            break;
+          case "heal":
+            [523, 659, 784].forEach((f, i) => this.tone(f, f, 0.18, "sine", 0.12, i * 0.08));
             break;
           case "click":
             this.tone(700, 700, 0.03, "square", 0.05);
@@ -320,7 +325,14 @@
     wideCorridorChance: 0.3,
     doorChance: 0.6,
     doorSpacing: 5,
-    lockChance: 0.5,
+    // 1 salle : 60 %, 2 salles : 30 %, 3 salles : 10 % → 1,5 en moyenne.
+    specialRoomCounts: [
+      { count: 1, weight: 6 },
+      { count: 2, weight: 3 },
+      { count: 3, weight: 1 }
+    ],
+    specialRoomMinSize: 3,
+    specialRoomMaxSize: 5,
     torchChance: 0.5,
     torchRadius: 6
   };
@@ -343,6 +355,8 @@
   function spawnsForDepth(depth) {
     return {
       roomChance: Math.min(0.3 + depth * 0.05, 0.7),
+      // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
+      sleepChance: Math.max(0.2, 0.85 - (depth - 1) * 0.1),
       entries: [{ monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) }]
     };
   }
@@ -392,6 +406,9 @@
     /** Un monstre remarque plus facilement un héros éclairé par une torche, moins facilement dans le noir. */
     noticeInLight: 1.5,
     noticeInDark: 0.6,
+    /** Un monstre endormi remarque moins bien le héros ; un monstre qui se promène, mieux. */
+    noticeAsleep: 0.5,
+    noticeAwake: 1.5,
     /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
     senseDepth: 3
   };
@@ -459,7 +476,9 @@
   }
   function computeLight(map, sources) {
     const light = new Float32Array(map.width * map.height);
-    for (const s of sources) {
+    for (const torch of sources) {
+      const s = { x: torch.x + torch.faceX, y: torch.y + torch.faceY, radius: torch.radius };
+      light[map.index(torch.x, torch.y)] = 1;
       for (let y = s.y - s.radius; y <= s.y + s.radius; y++) {
         for (let x = s.x - s.radius; x <= s.x + s.radius; x++) {
           if (!map.inBounds(x, y)) continue;
@@ -506,7 +525,11 @@
     StairsDown: 2,
     DoorClosed: 3,
     DoorOpen: 4,
-    DoorLocked: 5
+    DoorLocked: 5,
+    Fountain: 6,
+    FountainDry: 7,
+    Chest: 8,
+    ChestOpen: 9
   };
   var GameMap = class {
     constructor(width, height) {
@@ -541,6 +564,12 @@
       return t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked;
     }
   };
+
+  // src/data/specialRooms.ts
+  var SPECIAL_ROOMS = [
+    { id: "fontaine", name: "Salle de la fontaine", weight: 1, feature: Tile.Fountain },
+    { id: "tresor", name: "Salle au tr\xE9sor", weight: 1, feature: Tile.Chest }
+  ];
 
   // src/world/pathfinding.ts
   var DIRS = [
@@ -619,7 +648,9 @@
       const size = wide ? 2 : 1;
       for (let oy = 0; oy < size; oy++) {
         for (let ox = 0; ox < size; ox++) {
-          if (cx + ox <= map.width - 2 && cy + oy <= map.height - 2) map.set(cx + ox, cy + oy, Tile.Floor);
+          if (cx + ox <= map.width - 2 && cy + oy <= map.height - 2 && map.get(cx + ox, cy + oy) === Tile.Wall) {
+            map.set(cx + ox, cy + oy, Tile.Floor);
+          }
         }
       }
     };
@@ -646,6 +677,13 @@
     dig(x, y);
   }
   function generateFloor(seed, cfg) {
+    let floor = buildFloor(seed, cfg);
+    for (let retry = 1; floor.specials.length === 0 && retry <= 30; retry++) {
+      floor = buildFloor(seed + Math.imul(retry, 2654435761) >>> 0, cfg);
+    }
+    return floor;
+  }
+  function buildFloor(seed, cfg) {
     const rng = new Rng(seed);
     const map = new GameMap(cfg.width, cfg.height);
     const rooms = [];
@@ -700,32 +738,66 @@
       }
     }
     map.set(stairs.x, stairs.y, Tile.StairsDown);
+    const specials = [];
+    let pickCount = rng.next() * cfg.specialRoomCounts.reduce((sum, c) => sum + c.weight, 0);
+    const wanted = (cfg.specialRoomCounts.find((c) => (pickCount -= c.weight) < 0) ?? cfg.specialRoomCounts[0]).count;
+    for (let attempt = 0; attempt < 300 && specials.length < wanted; attempt++) {
+      const w = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
+      const h = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
+      const room = { x: rng.int(2, cfg.width - w - 2), y: rng.int(2, cfg.height - h - 2), w, h };
+      let free = true;
+      for (let y = room.y - 1; y <= room.y + h && free; y++) {
+        for (let x = room.x - 1; x <= room.x + w; x++) {
+          if (map.get(x, y) !== Tile.Wall) {
+            free = false;
+            break;
+          }
+        }
+      }
+      if (!free) continue;
+      const backup = map.tiles.slice();
+      for (let y = room.y; y < room.y + h; y++) {
+        for (let x = room.x; x < room.x + w; x++) map.set(x, y, Tile.Floor);
+      }
+      const c = center(room);
+      const nearest = rooms.reduce((a, b) => {
+        const da = Math.abs(center(a).x - c.x) + Math.abs(center(a).y - c.y);
+        const db = Math.abs(center(b).x - c.x) + Math.abs(center(b).y - c.y);
+        return db < da ? b : a;
+      });
+      carveCorridor(map, rng, c, center(nearest), 0);
+      const openings = ringCells(room).filter((r) => map.get(r.x, r.y) !== Tile.Wall);
+      const door = openings[0];
+      const valid = openings.length === 1 && map.get(door.x + door.tx, door.y + door.ty) === Tile.Wall && map.get(door.x - door.tx, door.y - door.ty) === Tile.Wall && !doorNearby(map, door.x, door.y, cfg.doorSpacing) && // Le nouveau couloir ne doit pas avoir percé une salle spéciale déjà posée.
+      specials.every((sp) => ringCells(sp.room).filter((r) => map.get(r.x, r.y) !== Tile.Wall).length === 1);
+      if (!valid) {
+        map.tiles.set(backup);
+        continue;
+      }
+      map.set(door.x, door.y, Tile.DoorLocked);
+      let pickKind = rng.next() * SPECIAL_ROOMS.reduce((sum, k) => sum + k.weight, 0);
+      const kind = SPECIAL_ROOMS.find((k) => (pickKind -= k.weight) < 0) ?? SPECIAL_ROOMS[0];
+      map.set(c.x, c.y, kind.feature);
+      specials.push({ room, kind });
+    }
     const torches = [];
     rooms.forEach((room, index) => {
       const ring = ringCells(room);
-      const entrances = ring.filter((c) => map.get(c.x, c.y) !== Tile.Wall);
-      const doorways = entrances.filter(
-        (c) => map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall
+      const doorways = ring.filter(
+        (c) => map.get(c.x, c.y) === Tile.Floor && map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall
       );
-      const hasStairs = stairs.x >= room.x && stairs.x < room.x + room.w && stairs.y >= room.y && stairs.y < room.y + room.h;
-      const deadEnd = index > 0 && !hasStairs && entrances.length === 1 && doorways.length === 1;
-      const canHaveDoor = (c) => map.get(c.x, c.y) === Tile.Floor && !doorNearby(map, c.x, c.y, cfg.doorSpacing);
-      if (deadEnd && canHaveDoor(doorways[0]) && rng.chance(cfg.lockChance)) {
-        map.set(doorways[0].x, doorways[0].y, Tile.DoorLocked);
-      } else {
-        for (const c of doorways) {
-          if (canHaveDoor(c) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
-        }
+      for (const c of doorways) {
+        if (!doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
       }
       if (index === 0 || rng.chance(cfg.torchChance)) {
         const walls = ring.filter((c) => map.get(c.x, c.y) === Tile.Wall);
         if (walls.length > 0) {
           const w = walls[rng.int(0, walls.length - 1)];
-          torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius });
+          torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius, faceX: w.nx, faceY: w.ny });
         }
       }
     });
-    return { map, rooms, start, stairs, torches };
+    return { map, rooms, start, stairs, torches, specials };
   }
   function doorNearby(map, x, y, spacing) {
     for (let dy = -spacing + 1; dy < spacing; dy++) {
@@ -738,10 +810,10 @@
   function ringCells(r) {
     const cells = [];
     for (let x = r.x; x < r.x + r.w; x++) {
-      cells.push({ x, y: r.y - 1, tx: 1, ty: 0 }, { x, y: r.y + r.h, tx: 1, ty: 0 });
+      cells.push({ x, y: r.y - 1, tx: 1, ty: 0, nx: 0, ny: 1 }, { x, y: r.y + r.h, tx: 1, ty: 0, nx: 0, ny: -1 });
     }
     for (let y = r.y; y < r.y + r.h; y++) {
-      cells.push({ x: r.x - 1, y, tx: 0, ty: 1 }, { x: r.x + r.w, y, tx: 0, ty: 1 });
+      cells.push({ x: r.x - 1, y, tx: 0, ty: 1, nx: 1, ny: 0 }, { x: r.x + r.w, y, tx: 0, ty: 1, nx: -1, ny: 0 });
     }
     return cells;
   }
@@ -792,6 +864,7 @@
       this.doorTarget = null;
       this.doorAction = null;
       this.seenMonsters = /* @__PURE__ */ new Set();
+      this.rooms = [];
       const maxHp = heroClass.hp + race.hpBonus;
       this.hero = {
         id: 0,
@@ -808,7 +881,8 @@
         attackBonus: heroClass.attackBonus,
         damage: heroClass.damage,
         vision: race.darkVision,
-        alerted: true
+        alerted: true,
+        asleep: false
       };
       this.enterFloor(1);
     }
@@ -828,6 +902,7 @@
       this.explored = new Uint8Array(this.map.width * this.map.height);
       this.sensed = new Uint8Array(this.map.width * this.map.height);
       this.torches = floor.torches;
+      this.rooms = floor.rooms;
       this.light = computeLight(this.map, this.torches);
       this.spawnMonsters(floor.rooms);
       this.seenMonsters.clear();
@@ -843,6 +918,7 @@
         const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
         const def = MONSTERS[entry.monster];
         const count = this.rng.int(entry.packMin, entry.packMax);
+        const asleep = this.rng.chance(spawns.sleepChance);
         for (let i = 0; i < count; i++) {
           for (let attempt = 0; attempt < 20; attempt++) {
             const x = this.rng.int(room.x, room.x + room.w - 1);
@@ -863,7 +939,8 @@
               attackBonus: def.attackBonus,
               damage: def.damage,
               vision: def.vision,
-              alerted: false
+              alerted: false,
+              asleep
             });
             break;
           }
@@ -1004,10 +1081,13 @@
           this.targetId = null;
         } else {
           const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
+          const left = { x: this.hero.x, y: this.hero.y };
           this.path.shift();
           this.hero.x = next.x;
           this.hero.y = next.y;
           this.openDoorAt(next.x, next.y);
+          this.closeDoorAt(left.x, left.y);
+          this.useFeatureAt(next.x, next.y);
           if (this.opportunityAttacks(threats)) {
             this.path = [];
             this.doorTarget = null;
@@ -1052,6 +1132,25 @@
       this.light = computeLight(this.map, this.torches);
       this.events.push({ type: "opened", x, y });
     }
+    /** Une porte se referme dès que plus personne ne se tient dans son encadrement. */
+    closeDoorAt(x, y) {
+      if (this.map.get(x, y) !== Tile.DoorOpen || this.actorAt(x, y)) return;
+      this.map.set(x, y, Tile.DoorClosed);
+      this.light = computeLight(this.map, this.torches);
+    }
+    /** Ce qui se déclenche quand le héros marche sur une case particulière (fontaine, coffre). */
+    useFeatureAt(x, y) {
+      const t = this.map.get(x, y);
+      if (t === Tile.Fountain) {
+        const healed = this.hero.maxHp - this.hero.hp;
+        this.hero.hp = this.hero.maxHp;
+        this.map.set(x, y, Tile.FountainDry);
+        this.events.push({ type: "fountain", healed });
+      } else if (t === Tile.Chest) {
+        this.map.set(x, y, Tile.ChestOpen);
+        this.events.push({ type: "chest" });
+      }
+    }
     resolveDoor(action, door) {
       const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
       const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
@@ -1069,6 +1168,7 @@
           const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
           if (!m.alerted && d <= RULES.noiseRadius) {
             m.alerted = true;
+            m.asleep = false;
             alerted++;
           }
         }
@@ -1076,12 +1176,15 @@
       this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
     }
     heroAttacks(monster) {
-      const result = rollAttack(this.rng, this.hero, monster, monster.alerted ? "normal" : "advantage");
+      const ambush = !monster.alerted || this.map.isDoor(monster.x, monster.y);
+      const result = rollAttack(this.rng, this.hero, monster, ambush ? "advantage" : "normal");
       monster.alerted = true;
+      monster.asleep = false;
       monster.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
       if (monster.hp <= 0) {
         this.monsters = this.monsters.filter((m) => m !== monster);
+        this.closeDoorAt(monster.x, monster.y);
         this.events.push({ type: "death", actor: monster });
       }
     }
@@ -1093,15 +1196,19 @@
         const distance = Math.max(Math.abs(dx), Math.abs(dy));
         if (!m.alerted) {
           const def = MONSTERS[m.defId];
-          const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark);
+          const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) * (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake);
           if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(chance)) {
             m.alerted = true;
+            m.asleep = false;
             this.events.push({ type: "noticed", actor: m });
+          } else if (!m.asleep) {
+            this.wander(m);
           }
           continue;
         }
         if (distance === 1 && canStep(this.map, m.x, m.y, dx, dy)) {
-          const result = rollAttack(this.rng, m, this.hero);
+          const ambush = this.map.isDoor(this.hero.x, this.hero.y);
+          const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
           this.hero.hp = Math.max(0, this.hero.hp - result.damage);
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
           if (this.hero.hp === 0) {
@@ -1111,16 +1218,31 @@
           }
           continue;
         }
-        const step = findPath(this.map, m, this.hero)?.[0];
-        if (step && !this.actorAt(step.x, step.y)) {
-          m.x = step.x;
-          m.y = step.y;
-          if (this.map.get(m.x, m.y) === Tile.DoorClosed) {
-            this.openDoorAt(m.x, m.y);
-            this.updateVision();
-          }
-        }
+        this.stepToward(m, this.hero);
       }
+    }
+    /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
+    stepToward(m, target) {
+      const step = findPath(this.map, m, target)?.[0];
+      if (!step) return false;
+      if (!this.actorAt(step.x, step.y)) {
+        const left = { x: m.x, y: m.y };
+        const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
+        m.x = step.x;
+        m.y = step.y;
+        this.openDoorAt(m.x, m.y);
+        this.closeDoorAt(left.x, left.y);
+        if (doorMoved) this.updateVision();
+      }
+      return true;
+    }
+    /** Promenade : le monstre va de salle en salle, au hasard. */
+    wander(m) {
+      if (!m.goal || m.goal.x === m.x && m.goal.y === m.y) {
+        const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+        m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+      }
+      if (!this.stepToward(m, m.goal)) m.goal = void 0;
     }
     updateVision() {
       this.visible = computeFov(this.map, this.hero, this.race.darkVision, this.race.sight, this.light);
@@ -1379,8 +1501,7 @@
           if (wall) {
             this.drawWall(game2, x, y, sx, sy);
           } else {
-            ctx.fillStyle = COLORS.floor;
-            ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+            this.drawFloor(x, y, sx, sy);
           }
           this.drawFeature(t, sx, sy);
           const shade = wall ? 0.6 : 1;
@@ -1402,19 +1523,20 @@
       }
       for (const torch of game2.torches) {
         if (!game2.isExplored(torch.x, torch.y)) continue;
-        let fx = 0;
-        let fy = 0;
-        for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-          if (game2.map.isWalkable(torch.x + dx, torch.y + dy)) {
-            fx = dx;
-            fy = dy;
-            break;
-          }
-        }
-        const cx = ox + (torch.x + 0.5 + fx * 0.36) * tile;
-        const cy = oy + (torch.y + 0.5 + fy * 0.36) * tile;
-        ctx.fillStyle = "#3a2a1a";
-        ctx.fillRect(cx - tile * 0.05 - fx * tile * 0.1, cy - tile * 0.05 - fy * tile * 0.1 + tile * 0.08, tile * 0.1, tile * 0.16);
+        const fx = torch.faceX;
+        const fy = torch.faceY;
+        const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
+        const baseY = oy + (torch.y + 0.5 + fy * 0.47) * tile;
+        const cx = ox + (torch.x + 0.5 + fx * 0.06) * tile;
+        const cy = oy + (torch.y + 0.5 + fy * 0.06) * tile;
+        ctx.strokeStyle = "#6b4a2a";
+        ctx.lineWidth = Math.max(2, tile * 0.09);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.16) * tile, oy + (torch.y + 0.5 + fy * 0.16) * tile);
+        ctx.stroke();
+        ctx.lineCap = "butt";
         ctx.fillStyle = "#ff8a2a";
         ctx.beginPath();
         ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);
@@ -1454,7 +1576,7 @@
         if (!m.alerted) {
           ctx.fillStyle = "#ffffff";
           ctx.font = `bold ${Math.round(tile * 0.36)}px system-ui, sans-serif`;
-          ctx.fillText("z", cx + tile * 0.3, cy - tile * 0.3);
+          ctx.fillText(m.asleep ? "z" : "?", cx + tile * 0.3, cy - tile * 0.3);
         }
         if (m.hp < m.maxHp) {
           ctx.fillStyle = COLORS.hpBack;
@@ -1500,6 +1622,39 @@
         ctx.fillText(f.text, fx, fy);
       }
       ctx.globalAlpha = 1;
+    }
+    /**
+     * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; certaines sont
+     * fendues en deux, fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
+     */
+    drawFloor(x, y, sx, sy) {
+      const { ctx, tile } = this;
+      const light = 0.92 + 0.16 * noise(x, y, 20);
+      ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
+      ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+      const kind = noise(x, y, 21);
+      ctx.fillStyle = "rgba(20,18,30,0.5)";
+      ctx.strokeStyle = "rgba(20,18,30,0.55)";
+      ctx.lineWidth = Math.max(1, tile * 0.03);
+      if (kind < 0.12) {
+        const at = 0.35 + 0.3 * noise(x, y, 22);
+        if (noise(x, y, 23) < 0.5) ctx.fillRect(sx + at * tile, sy + 0.5, Math.max(1, tile * 0.04), tile - 1);
+        else ctx.fillRect(sx + 0.5, sy + at * tile, tile - 1, Math.max(1, tile * 0.04));
+      } else if (kind < 0.24) {
+        const ax = 0.15 + 0.3 * noise(x, y, 24);
+        const ay = 0.15 + 0.7 * noise(x, y, 25);
+        ctx.beginPath();
+        ctx.moveTo(sx + ax * tile, sy + ay * tile);
+        ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
+        ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
+        ctx.stroke();
+      } else if (kind < 0.38) {
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
     /**
      * Mur de briques : trois rangées par case, des joints placés au hasard (mais toujours au même endroit
@@ -1554,6 +1709,33 @@
           ctx.fillRect(sx + tile * 0.36, sy + tile * 0.38, tile * 0.28, tile * 0.24);
           ctx.fillStyle = COLORS.doorEdge;
           ctx.fillRect(sx + tile * 0.47, sy + tile * 0.45, tile * 0.06, tile * 0.12);
+        }
+      } else if (t === Tile.Fountain || t === Tile.FountainDry) {
+        const cx = sx + tile / 2;
+        const cy = sy + tile / 2;
+        ctx.fillStyle = "#8a8ea8";
+        ctx.beginPath();
+        ctx.arc(cx, cy, tile * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = t === Tile.Fountain ? "#4fb4e8" : "#3a3c4e";
+        ctx.beginPath();
+        ctx.arc(cx, cy, tile * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        if (t === Tile.Fountain) {
+          ctx.fillStyle = "#c8ecff";
+          ctx.beginPath();
+          ctx.arc(cx - tile * 0.08, cy - tile * 0.08, tile * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (t === Tile.Chest || t === Tile.ChestOpen) {
+        ctx.fillStyle = COLORS.doorEdge;
+        ctx.fillRect(sx + tile * 0.18, sy + tile * 0.3, tile * 0.64, tile * 0.46);
+        ctx.fillStyle = t === Tile.Chest ? COLORS.door : "#1c1410";
+        ctx.fillRect(sx + tile * 0.22, sy + tile * 0.34, tile * 0.56, t === Tile.Chest ? tile * 0.38 : tile * 0.2);
+        if (t === Tile.Chest) {
+          ctx.fillStyle = COLORS.lock;
+          ctx.fillRect(sx + tile * 0.18, sy + tile * 0.47, tile * 0.64, tile * 0.06);
+          ctx.fillRect(sx + tile * 0.45, sy + tile * 0.44, tile * 0.1, tile * 0.14);
         }
       } else if (t === Tile.DoorOpen) {
         ctx.fillStyle = COLORS.door;
@@ -1717,6 +1899,13 @@
       sfx.play("descend");
     } else if (e.type === "opened") {
       sfx.play("door");
+    } else if (e.type === "fountain") {
+      logLines.push(e.healed > 0 ? `Vous buvez \xE0 la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez \xE0 la fontaine. Elle se tarit.");
+      shownHp = game.hero.hp;
+      sfx.play("heal");
+    } else if (e.type === "chest") {
+      logLines.push("Le coffre est vide pour l'instant : le butin arrive avec les objets.");
+      sfx.play("unlock");
     }
     renderLog();
   }

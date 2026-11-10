@@ -15,8 +15,10 @@ export interface FloorConfig {
   doorChance: number;
   /** Deux portes ne sont jamais à moins de ce nombre de cases l'une de l'autre (pas de portes à la suite). */
   doorSpacing: number;
-  /** Probabilité qu'une salle en cul-de-sac soit fermée à clé. */
-  lockChance: number;
+  /** Nombre de salles spéciales (verrouillées) par étage, avec le poids de chaque cas. Toujours au moins une. */
+  specialRoomCounts: { count: number; weight: number }[];
+  specialRoomMinSize: number;
+  specialRoomMaxSize: number;
   /** Probabilité qu'une salle ait une torche murale (la salle de départ en a toujours une). */
   torchChance: number;
   torchRadius: number;
@@ -33,7 +35,14 @@ export const DEFAULT_FLOOR: FloorConfig = {
   wideCorridorChance: 0.3,
   doorChance: 0.6,
   doorSpacing: 5,
-  lockChance: 0.5,
+  // 1 salle : 60 %, 2 salles : 30 %, 3 salles : 10 % → 1,5 en moyenne.
+  specialRoomCounts: [
+    { count: 1, weight: 6 },
+    { count: 2, weight: 3 },
+    { count: 3, weight: 1 },
+  ],
+  specialRoomMinSize: 3,
+  specialRoomMaxSize: 5,
   torchChance: 0.5,
   torchRadius: 6,
 };

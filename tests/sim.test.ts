@@ -4,18 +4,31 @@ import { Game } from "../src/core/game";
 import { rollAttack } from "../src/core/combat";
 import { Rng } from "../src/core/rng";
 import { DEFAULT_FLOOR } from "../src/data/floors";
+import { spawnsForDepth } from "../src/data/monsters";
 import { generateFloor } from "../src/world/generator";
 import { Tile } from "../src/world/map";
 import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
-import { distanceField, findPath } from "../src/world/pathfinding";
+import { canStep, distanceField, findPath } from "../src/world/pathfinding";
 
 const FLOORS = 1000;
 
 test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière une porte verrouillée`, () => {
-  const stats = { doors: 0, locked: 0, torches: 0 };
+  const stats = { doors: 0, locked: 0, torches: 0, specials: [0, 0, 0, 0] };
   for (let seed = 1; seed <= FLOORS; seed++) {
-    const { map, rooms, start, stairs, torches } = generateFloor(seed, DEFAULT_FLOOR);
+    const { map, rooms, start, stairs, torches, specials } = generateFloor(seed, DEFAULT_FLOOR);
     assert.ok(rooms.length >= DEFAULT_FLOOR.minRooms, `graine ${seed} : pas assez de salles`);
+    // Une à trois salles spéciales, chacune derrière sa porte verrouillée, avec son contenu au centre.
+    assert.ok(specials.length >= 1 && specials.length <= 3, `graine ${seed} : ${specials.length} salles spéciales`);
+    stats.specials[specials.length]++;
+    let lockedHere = 0;
+    for (const t of map.tiles) if (t === Tile.DoorLocked) lockedHere++;
+    assert.equal(lockedHere, specials.length, `graine ${seed} : portes verrouillées et salles spéciales ne correspondent pas`);
+    for (const sp of specials) {
+      const cx = sp.room.x + Math.floor(sp.room.w / 2);
+      const cy = sp.room.y + Math.floor(sp.room.h / 2);
+      assert.equal(map.get(cx, cy), sp.kind.feature, `graine ${seed} : salle spéciale sans contenu`);
+      assert.equal(distanceField(map, start)[map.index(cx, cy)], -1, `graine ${seed} : salle spéciale accessible sans ouvrir sa porte`);
+    }
     assert.ok(stairs.x !== start.x || stairs.y !== start.y, `graine ${seed} : escalier sur le départ`);
     assert.equal(map.get(stairs.x, stairs.y), Tile.StairsDown);
     assert.ok(torches.length >= 1, `graine ${seed} : pas de torche dans la salle de départ`);
@@ -61,10 +74,13 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
     }
     assert.equal(stairsCount, 1, `graine ${seed} : ${stairsCount} escaliers`);
   }
+  const mean = stats.locked / FLOORS;
   console.log(
-    `Par étage en moyenne : ${(stats.doors / FLOORS).toFixed(1)} portes, ${(stats.locked / FLOORS).toFixed(2)} porte verrouillée, ${(stats.torches / FLOORS).toFixed(1)} torches`,
+    `Par étage en moyenne : ${(stats.doors / FLOORS).toFixed(1)} portes, ${(stats.torches / FLOORS).toFixed(1)} torches, ${mean.toFixed(2)} salles spéciales (1 salle : ${stats.specials[1]}, 2 : ${stats.specials[2]}, 3 : ${stats.specials[3]} sur ${FLOORS})`,
   );
-  assert.ok(stats.doors > FLOORS && stats.locked > FLOORS / 10);
+  assert.ok(stats.doors > FLOORS);
+  assert.ok(mean > 1.35 && mean < 1.65, `moyenne de salles spéciales : ${mean}`);
+  assert.ok(stats.specials[3] > 0 && stats.specials[3] < stats.specials[2] && stats.specials[2] < stats.specials[1]);
 });
 
 test("lumière : une case éclairée voit une torche ; la lumière ne fait qu'agrandir le champ de vision", () => {
@@ -74,7 +90,7 @@ test("lumière : une case éclairée voit une torche ; la lumière ne fait qu'ag
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         if (light[map.index(x, y)] > 0 && !map.blocksSight(x, y)) {
-          assert.ok(torches.some((t) => hasLineOfSight(map, t, { x, y })));
+          assert.ok(torches.some((t) => hasLineOfSight(map, { x: t.x + t.faceX, y: t.y + t.faceY }, { x, y })));
         }
       }
     }
@@ -231,6 +247,10 @@ function playRun(seed: number, maxTurns: number): Game {
       assert.ok(a.hp <= a.maxHp && (a.kind === "hero" ? a.hp >= 0 : a.hp > 0));
     }
     assert.equal(game.over, game.hero.hp === 0);
+    // Les portes se referment : une porte ouverte a forcément quelqu'un dans son encadrement.
+    for (let i = 0; i < game.map.tiles.length; i++) {
+      if (game.map.tiles[i] === Tile.DoorOpen) assert.ok(cells.has(i), `graine ${seed} : porte restée ouverte`);
+    }
     game.events.length = 0;
   }
   return game;
@@ -270,13 +290,17 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
     }
     const foe = game.monsters[0];
     if (game.over || !foe || !foe.alerted) continue;
-    if (Math.max(Math.abs(foe.x - game.hero.x), Math.abs(foe.y - game.hero.y)) !== 1) continue;
+    // « Au contact » : case voisine, sans coin de mur entre les deux.
+    const reach = (fx: number, fy: number) =>
+      Math.max(Math.abs(game.hero.x - fx), Math.abs(game.hero.y - fy)) === 1 &&
+      canStep(game.map, fx, fy, game.hero.x - fx, game.hero.y - fy);
+    if (!reach(foe.x, foe.y)) continue;
     // Repartir vers la salle de départ : un trajet de plusieurs cases.
     game.events.length = 0;
     if (!game.setDestination(home.x, home.y, true) || game.path.length < 3) continue;
     const hpBefore = game.hero.hp;
     game.tick();
-    const stillNear = Math.max(Math.abs(foe.fromX - game.hero.x), Math.abs(foe.fromY - game.hero.y)) === 1;
+    const stillNear = reach(foe.fromX, foe.fromY);
     const reactions = game.events.filter((e) => e.type === "attack" && e.opportunity);
     if (stillNear) {
       assert.equal(reactions.length, 0, `graine ${seed} : attaque d'opportunité sans désengagement`);
@@ -291,4 +315,104 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
     checked++;
   }
   assert.ok(checked >= 5, `seulement ${checked} situations de désengagement testées`);
+});
+
+test("les endormis ne bougent pas, les promeneurs si ; on dort moins en profondeur", () => {
+  assert.ok(spawnsForDepth(1).sleepChance > spawnsForDepth(4).sleepChance);
+  assert.ok(spawnsForDepth(4).sleepChance > spawnsForDepth(8).sleepChance);
+  let sleepers = 0;
+  let walkers = 0;
+  let walkersMoved = 0;
+  for (let seed = 1; seed <= 150; seed++) {
+    const game = new Game(seed);
+    const before = game.monsters.map((m) => ({ m, x: m.x, y: m.y, asleep: m.asleep }));
+    for (let turn = 0; turn < 25 && !game.over; turn++) {
+      game.wait();
+      game.tick();
+    }
+    for (const b of before) {
+      if (b.m.alerted) continue; // a remarqué le héros entre-temps : hors sujet
+      if (b.asleep) {
+        sleepers++;
+        assert.ok(b.m.x === b.x && b.m.y === b.y, `graine ${seed} : un endormi a bougé`);
+      } else {
+        walkers++;
+        if (b.m.x !== b.x || b.m.y !== b.y) walkersMoved++;
+      }
+    }
+  }
+  assert.ok(sleepers > walkers, "au premier étage, la plupart devraient dormir");
+  assert.ok(walkers >= 5 && walkersMoved >= walkers * 0.9, `promeneurs immobiles : ${walkers - walkersMoved}/${walkers}`);
+});
+
+test("embuscade : un monstre a l'avantage contre un héros dans l'encadrement d'une porte", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 100 && checked < 10; seed++) {
+    const game = new Game(seed);
+    const foe = game.monsters[0];
+    if (!foe) continue;
+    // On place le héros dans une porte et le monstre, alerté, sur une case voisine.
+    let door: { x: number; y: number } | null = null;
+    for (let y = 0; y < game.map.height && !door; y++) {
+      for (let x = 0; x < game.map.width; x++) {
+        if (game.map.get(x, y) === Tile.DoorClosed) {
+          door = { x, y };
+          break;
+        }
+      }
+    }
+    if (!door) continue;
+    const side = [[0, 1], [0, -1], [1, 0], [-1, 0]].find(([dx, dy]) => game.map.get(door!.x + dx, door!.y + dy) === Tile.Floor);
+    if (!side) continue;
+    game.monsters = [foe];
+    Object.assign(foe, { x: door.x + side[0], y: door.y + side[1], alerted: true, asleep: false });
+    Object.assign(game.hero, { x: door.x, y: door.y, hp: 1000, maxHp: 1000 });
+    game.wait();
+    game.tick();
+    const inDoor = game.events.find((e) => e.type === "attack" && e.attacker === foe);
+    assert.ok(inDoor && inDoor.type === "attack" && inDoor.result.mode === "advantage", `graine ${seed} : pas d'avantage dans la porte`);
+    // Hors de la porte, jet normal.
+    game.events.length = 0;
+    Object.assign(game.hero, { x: door.x + side[0], y: door.y + side[1] });
+    Object.assign(foe, { x: door.x, y: door.y });
+    game.wait();
+    game.tick();
+    const outside = game.events.find((e) => e.type === "attack" && e.attacker === foe);
+    assert.ok(outside && outside.type === "attack" && outside.result.mode === "normal", `graine ${seed} : avantage hors de la porte`);
+    // Symétrie : le monstre est maintenant dans la porte, le héros qui l'y attend a l'avantage.
+    game.events.length = 0;
+    foe.hp = foe.maxHp = 1000;
+    assert.ok(game.setDestination(foe.x, foe.y, true));
+    game.tick();
+    const mine = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
+    assert.ok(mine && mine.type === "attack" && mine.result.mode === "advantage", `graine ${seed} : le héros n'a pas l'avantage`);
+    checked++;
+  }
+  assert.ok(checked >= 5);
+});
+
+test("fontaine : y marcher rend tous les points de vie, une seule fois", () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const game = new Game(seed);
+    let at: { x: number; y: number } | null = null;
+    for (let y = 0; y < game.map.height && !at; y++) {
+      for (let x = 0; x < game.map.width; x++) {
+        if (game.map.get(x, y) === Tile.Fountain) {
+          at = { x, y };
+          break;
+        }
+      }
+    }
+    if (!at) continue;
+    // On pose le héros blessé à côté de la fontaine, sans monstre, puis il y entre.
+    game.monsters = [];
+    Object.assign(game.hero, { x: at.x + 1, y: at.y, hp: 3 });
+    assert.ok(game.moveBy(-1, 0));
+    game.tick();
+    assert.equal(game.hero.hp, game.hero.maxHp);
+    assert.equal(game.map.get(at.x, at.y), Tile.FountainDry);
+    assert.ok(game.events.some((e) => e.type === "fountain" && e.healed === game.hero.maxHp - 3));
+    return;
+  }
+  assert.fail("aucune fontaine trouvée en 300 parties");
 });

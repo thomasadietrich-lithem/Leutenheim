@@ -1,5 +1,6 @@
 import { Rng } from "../core/rng";
 import { FloorConfig } from "../data/floors";
+import { SPECIAL_ROOMS, SpecialRoomDef } from "../data/specialRooms";
 import { GameMap, Point, Tile } from "./map";
 import { LightSource } from "./fov";
 import { distanceField } from "./pathfinding";
@@ -17,6 +18,8 @@ export interface Floor {
   start: Point;
   stairs: Point;
   torches: LightSource[];
+  /** Salles spéciales : en cul-de-sac, derrière une porte verrouillée. */
+  specials: { room: Room; kind: SpecialRoomDef }[];
 }
 
 function center(r: Room): Point {
@@ -36,7 +39,9 @@ function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point, wideChance: n
     const size = wide ? 2 : 1;
     for (let oy = 0; oy < size; oy++) {
       for (let ox = 0; ox < size; ox++) {
-        if (cx + ox <= map.width - 2 && cy + oy <= map.height - 2) map.set(cx + ox, cy + oy, Tile.Floor);
+        if (cx + ox <= map.width - 2 && cy + oy <= map.height - 2 && map.get(cx + ox, cy + oy) === Tile.Wall) {
+          map.set(cx + ox, cy + oy, Tile.Floor); // on ne creuse que dans le mur : ni escalier ni porte écrasés
+        }
       }
     }
   };
@@ -63,8 +68,19 @@ function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point, wideChance: n
   dig(x, y);
 }
 
-/** Génère un étage : des salles, reliées par des couloirs, un départ et un escalier. */
+/**
+ * Génère un étage : des salles reliées par des couloirs, un départ, un escalier, et une à trois salles spéciales.
+ * Si aucune salle spéciale n'a pu être placée (étage trop encombré), on retire un étage avec une graine dérivée.
+ */
 export function generateFloor(seed: number, cfg: FloorConfig): Floor {
+  let floor = buildFloor(seed, cfg);
+  for (let retry = 1; floor.specials.length === 0 && retry <= 30; retry++) {
+    floor = buildFloor((seed + Math.imul(retry, 0x9e3779b1)) >>> 0, cfg);
+  }
+  return floor;
+}
+
+function buildFloor(seed: number, cfg: FloorConfig): Floor {
   const rng = new Rng(seed);
   const map = new GameMap(cfg.width, cfg.height);
 
@@ -128,39 +144,84 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
   }
   map.set(stairs.x, stairs.y, Tile.StairsDown);
 
-  // 5. Portes et torches, salle par salle.
+  // 5. Salles spéciales : petites salles en cul-de-sac, reliées par un seul couloir, fermées à clé.
+  const specials: { room: Room; kind: SpecialRoomDef }[] = [];
+  let pickCount = rng.next() * cfg.specialRoomCounts.reduce((sum, c) => sum + c.weight, 0);
+  const wanted = (cfg.specialRoomCounts.find((c) => (pickCount -= c.weight) < 0) ?? cfg.specialRoomCounts[0]).count;
+  for (let attempt = 0; attempt < 300 && specials.length < wanted; attempt++) {
+    const w = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
+    const h = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
+    const room: Room = { x: rng.int(2, cfg.width - w - 2), y: rng.int(2, cfg.height - h - 2), w, h };
+    // L'emplacement et son pourtour doivent être de la roche pleine.
+    let free = true;
+    for (let y = room.y - 1; y <= room.y + h && free; y++) {
+      for (let x = room.x - 1; x <= room.x + w; x++) {
+        if (map.get(x, y) !== Tile.Wall) {
+          free = false;
+          break;
+        }
+      }
+    }
+    if (!free) continue;
+
+    const backup = map.tiles.slice();
+    for (let y = room.y; y < room.y + h; y++) {
+      for (let x = room.x; x < room.x + w; x++) map.set(x, y, Tile.Floor);
+    }
+    const c = center(room);
+    const nearest = rooms.reduce((a, b) => {
+      const da = Math.abs(center(a).x - c.x) + Math.abs(center(a).y - c.y);
+      const db = Math.abs(center(b).x - c.x) + Math.abs(center(b).y - c.y);
+      return db < da ? b : a;
+    });
+    carveCorridor(map, rng, c, center(nearest), 0);
+    // La salle ne doit avoir qu'une seule entrée, étroite, loin de toute autre porte.
+    const openings = ringCells(room).filter((r) => map.get(r.x, r.y) !== Tile.Wall);
+    const door = openings[0];
+    const valid =
+      openings.length === 1 &&
+      map.get(door.x + door.tx, door.y + door.ty) === Tile.Wall &&
+      map.get(door.x - door.tx, door.y - door.ty) === Tile.Wall &&
+      !doorNearby(map, door.x, door.y, cfg.doorSpacing) &&
+      // Le nouveau couloir ne doit pas avoir percé une salle spéciale déjà posée.
+      specials.every((sp) => ringCells(sp.room).filter((r) => map.get(r.x, r.y) !== Tile.Wall).length === 1);
+    if (!valid) {
+      map.tiles.set(backup);
+      continue;
+    }
+    map.set(door.x, door.y, Tile.DoorLocked);
+    let pickKind = rng.next() * SPECIAL_ROOMS.reduce((sum, k) => sum + k.weight, 0);
+    const kind = SPECIAL_ROOMS.find((k) => (pickKind -= k.weight) < 0) ?? SPECIAL_ROOMS[0];
+    map.set(c.x, c.y, kind.feature);
+    specials.push({ room, kind });
+  }
+
+  // 6. Portes et torches des salles ordinaires.
   const torches: LightSource[] = [];
   rooms.forEach((room, index) => {
     const ring = ringCells(room);
-    // Toute ouverture compte, y compris une porte déjà posée par une salle voisine.
-    const entrances = ring.filter((c) => map.get(c.x, c.y) !== Tile.Wall);
     // Une « entrée étroite » : un passage d'une case, avec un mur de chaque côté.
-    const doorways = entrances.filter(
-      (c) => map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall,
+    const doorways = ring.filter(
+      (c) =>
+        map.get(c.x, c.y) === Tile.Floor &&
+        map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall &&
+        map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall,
     );
-    const hasStairs = stairs.x >= room.x && stairs.x < room.x + room.w && stairs.y >= room.y && stairs.y < room.y + room.h;
-    const deadEnd = index > 0 && !hasStairs && entrances.length === 1 && doorways.length === 1;
     // Une porte n'est posée que s'il n'y en a pas déjà une toute proche : jamais deux portes à la suite.
-    const canHaveDoor = (c: { x: number; y: number }) =>
-      map.get(c.x, c.y) === Tile.Floor && !doorNearby(map, c.x, c.y, cfg.doorSpacing);
-    if (deadEnd && canHaveDoor(doorways[0]) && rng.chance(cfg.lockChance)) {
-      map.set(doorways[0].x, doorways[0].y, Tile.DoorLocked);
-    } else {
-      for (const c of doorways) {
-        if (canHaveDoor(c) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
-      }
+    for (const c of doorways) {
+      if (!doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
     }
     // Torche murale : sur un mur du pourtour de la salle.
     if (index === 0 || rng.chance(cfg.torchChance)) {
       const walls = ring.filter((c) => map.get(c.x, c.y) === Tile.Wall);
       if (walls.length > 0) {
         const w = walls[rng.int(0, walls.length - 1)];
-        torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius });
+        torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius, faceX: w.nx, faceY: w.ny });
       }
     }
   });
 
-  return { map, rooms, start, stairs, torches };
+  return { map, rooms, start, stairs, torches, specials };
 }
 
 /** Vrai s'il existe déjà une porte à moins de `spacing` cases (distance en pas droits). */
@@ -173,14 +234,25 @@ function doorNearby(map: GameMap, x: number, y: number, spacing: number): boolea
   return false;
 }
 
-/** Cases du pourtour d'une salle (hors coins), avec la direction qui longe le mur (tx, ty). */
-function ringCells(r: Room): { x: number; y: number; tx: number; ty: number }[] {
-  const cells: { x: number; y: number; tx: number; ty: number }[] = [];
+interface RingCell {
+  x: number;
+  y: number;
+  /** Direction qui longe le mur. */
+  tx: number;
+  ty: number;
+  /** Direction vers l'intérieur de la salle. */
+  nx: number;
+  ny: number;
+}
+
+/** Cases du pourtour d'une salle (hors coins). */
+function ringCells(r: Room): RingCell[] {
+  const cells: RingCell[] = [];
   for (let x = r.x; x < r.x + r.w; x++) {
-    cells.push({ x, y: r.y - 1, tx: 1, ty: 0 }, { x, y: r.y + r.h, tx: 1, ty: 0 });
+    cells.push({ x, y: r.y - 1, tx: 1, ty: 0, nx: 0, ny: 1 }, { x, y: r.y + r.h, tx: 1, ty: 0, nx: 0, ny: -1 });
   }
   for (let y = r.y; y < r.y + r.h; y++) {
-    cells.push({ x: r.x - 1, y, tx: 0, ty: 1 }, { x: r.x + r.w, y, tx: 0, ty: 1 });
+    cells.push({ x: r.x - 1, y, tx: 0, ty: 1, nx: 1, ny: 0 }, { x: r.x + r.w, y, tx: 0, ty: 1, nx: -1, ny: 0 });
   }
   return cells;
 }

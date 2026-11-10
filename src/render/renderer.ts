@@ -179,8 +179,7 @@ export class Renderer {
         if (wall) {
           this.drawWall(game, x, y, sx, sy);
         } else {
-          ctx.fillStyle = COLORS.floor;
-          ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+          this.drawFloor(x, y, sx, sy);
         }
         this.drawFeature(t, sx, sy);
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
@@ -207,21 +206,21 @@ export class Renderer {
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
       if (!game.isExplored(torch.x, torch.y)) continue;
-      // Accrochée à la face du mur qui donne sur la salle, pas au milieu de la case.
-      let fx = 0;
-      let fy = 0;
-      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-        if (game.map.isWalkable(torch.x + dx, torch.y + dy)) {
-          fx = dx;
-          fy = dy;
-          break;
-        }
-      }
-      const cx = ox + (torch.x + 0.5 + fx * 0.36) * tile;
-      const cy = oy + (torch.y + 0.5 + fy * 0.36) * tile;
-      // Support de la torche.
-      ctx.fillStyle = "#3a2a1a";
-      ctx.fillRect(cx - tile * 0.05 - fx * tile * 0.1, cy - tile * 0.05 - fy * tile * 0.1 + tile * 0.08, tile * 0.1, tile * 0.16);
+      const fx = torch.faceX;
+      const fy = torch.faceY;
+      // La tige part de la limite du mur (côté salle) et la flamme brûle vers l'intérieur du mur.
+      const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
+      const baseY = oy + (torch.y + 0.5 + fy * 0.47) * tile;
+      const cx = ox + (torch.x + 0.5 + fx * 0.06) * tile;
+      const cy = oy + (torch.y + 0.5 + fy * 0.06) * tile;
+      ctx.strokeStyle = "#6b4a2a";
+      ctx.lineWidth = Math.max(2, tile * 0.09);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.16) * tile, oy + (torch.y + 0.5 + fy * 0.16) * tile);
+      ctx.stroke();
+      ctx.lineCap = "butt";
       ctx.fillStyle = "#ff8a2a";
       ctx.beginPath();
       ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);
@@ -265,10 +264,10 @@ export class Renderer {
       ctx.closePath();
       ctx.fill();
       if (!m.alerted) {
-        // « z » : le monstre n'a pas remarqué le héros.
+        // « z » : il dort. « ? » : il se promène sans avoir remarqué le héros.
         ctx.fillStyle = "#ffffff";
         ctx.font = `bold ${Math.round(tile * 0.36)}px system-ui, sans-serif`;
-        ctx.fillText("z", cx + tile * 0.3, cy - tile * 0.3);
+        ctx.fillText(m.asleep ? "z" : "?", cx + tile * 0.3, cy - tile * 0.3);
       }
       if (m.hp < m.maxHp) {
         ctx.fillStyle = COLORS.hpBack;
@@ -320,6 +319,43 @@ export class Renderer {
       ctx.fillText(f.text, fx, fy);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; certaines sont
+   * fendues en deux, fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
+   */
+  private drawFloor(x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    const light = 0.92 + 0.16 * noise(x, y, 20);
+    ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
+    ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+    const kind = noise(x, y, 21);
+    ctx.fillStyle = "rgba(20,18,30,0.5)";
+    ctx.strokeStyle = "rgba(20,18,30,0.55)";
+    ctx.lineWidth = Math.max(1, tile * 0.03);
+    if (kind < 0.12) {
+      // Dalle fendue en deux.
+      const at = 0.35 + 0.3 * noise(x, y, 22);
+      if (noise(x, y, 23) < 0.5) ctx.fillRect(sx + at * tile, sy + 0.5, Math.max(1, tile * 0.04), tile - 1);
+      else ctx.fillRect(sx + 0.5, sy + at * tile, tile - 1, Math.max(1, tile * 0.04));
+    } else if (kind < 0.24) {
+      // Fissure : une ligne brisée.
+      const ax = 0.15 + 0.3 * noise(x, y, 24);
+      const ay = 0.15 + 0.7 * noise(x, y, 25);
+      ctx.beginPath();
+      ctx.moveTo(sx + ax * tile, sy + ay * tile);
+      ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
+      ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
+      ctx.stroke();
+    } else if (kind < 0.38) {
+      // Gravillons.
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
   /**
@@ -380,6 +416,35 @@ export class Renderer {
         ctx.fillRect(sx + tile * 0.36, sy + tile * 0.38, tile * 0.28, tile * 0.24);
         ctx.fillStyle = COLORS.doorEdge;
         ctx.fillRect(sx + tile * 0.47, sy + tile * 0.45, tile * 0.06, tile * 0.12);
+      }
+    } else if (t === Tile.Fountain || t === Tile.FountainDry) {
+      // Fontaine : une vasque de pierre, pleine d'eau claire ou à sec.
+      const cx = sx + tile / 2;
+      const cy = sy + tile / 2;
+      ctx.fillStyle = "#8a8ea8";
+      ctx.beginPath();
+      ctx.arc(cx, cy, tile * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = t === Tile.Fountain ? "#4fb4e8" : "#3a3c4e";
+      ctx.beginPath();
+      ctx.arc(cx, cy, tile * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      if (t === Tile.Fountain) {
+        ctx.fillStyle = "#c8ecff";
+        ctx.beginPath();
+        ctx.arc(cx - tile * 0.08, cy - tile * 0.08, tile * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (t === Tile.Chest || t === Tile.ChestOpen) {
+      // Coffre : fermé avec sa ferrure dorée, ou ouvert et sombre.
+      ctx.fillStyle = COLORS.doorEdge;
+      ctx.fillRect(sx + tile * 0.18, sy + tile * 0.3, tile * 0.64, tile * 0.46);
+      ctx.fillStyle = t === Tile.Chest ? COLORS.door : "#1c1410";
+      ctx.fillRect(sx + tile * 0.22, sy + tile * 0.34, tile * 0.56, t === Tile.Chest ? tile * 0.38 : tile * 0.2);
+      if (t === Tile.Chest) {
+        ctx.fillStyle = COLORS.lock;
+        ctx.fillRect(sx + tile * 0.18, sy + tile * 0.47, tile * 0.64, tile * 0.06);
+        ctx.fillRect(sx + tile * 0.45, sy + tile * 0.44, tile * 0.1, tile * 0.14);
       }
     } else if (t === Tile.DoorOpen) {
       // Porte ouverte : seuls les montants restent.

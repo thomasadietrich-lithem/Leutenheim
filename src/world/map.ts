@@ -10,6 +10,10 @@ export const Tile = {
   DoorClosed: 3,
   DoorOpen: 4,
   DoorLocked: 5,
+  Fountain: 6,
+  FountainDry: 7,
+  Chest: 8,
+  ChestOpen: 9,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 

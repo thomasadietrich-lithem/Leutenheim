@@ -21,4 +21,8 @@ export interface Actor {
   vision: number;
   /** Un monstre non alerté n'a pas remarqué le héros : il ne bouge pas et se fait attaquer avec avantage. */
   alerted: boolean;
+  /** Monstre endormi : immobile, remarque mal le héros. Un monstre ni alerté ni endormi se promène. */
+  asleep: boolean;
+  /** Destination de promenade d'un monstre qui se balade. */
+  goal?: { x: number; y: number };
 }

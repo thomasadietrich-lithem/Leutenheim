@@ -69,6 +69,25 @@ export class Sfx {
     src.start(t);
   }
 
+  private crackleDebt = 0;
+
+  /**
+   * Crépitement des torches, à appeler à chaque image. `level` (0 à 1) est l'éclairage reçu par le héros :
+   * plus il est près d'une torche, plus les crépitements sont forts et nombreux.
+   */
+  crackle(level: number, dt: number): void {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "running" || level <= 0.03) return;
+    this.crackleDebt += dt * 0.006 * (0.4 + level) * (0.5 + Math.random());
+    while (this.crackleDebt >= 1) {
+      this.crackleDebt -= 1;
+      try {
+        this.noise(0.012 + Math.random() * 0.03, (0.03 + Math.random() * 0.09) * level, 2500 + Math.random() * 4500, Math.random() * 0.06);
+      } catch {
+        return;
+      }
+    }
+  }
+
   play(name: SoundName): void {
     if (!this.enabled || !this.ctx || this.ctx.state !== "running") return;
     try {

@@ -18,10 +18,28 @@
   .overlay { position: absolute; inset: 0; background: rgba(12,11,18,0.86); display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 20px; font-size: 16px; }
   .overlay[hidden], #door-actions[hidden], button[hidden] { display: none; }
-  #menu { background: rgba(12,11,18,0.94); border-radius: 10px; z-index: 2; }
+  #menu { background: rgba(12,11,18,0.95); border-radius: 10px; z-index: 2; padding: 14px; }
+  #menu section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+  #menu section[hidden], #detail[hidden] { display: none; }
   #menu h1 { margin: 0; font-size: 34px; letter-spacing: 0.06em; color: #e0b040; font-weight: 700; }
+  #menu h2 { margin: 0 0 4px; font-size: 20px; color: #e0b040; font-weight: 700; }
+  #menu h3 { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a94b0; font-weight: 600; align-self: flex-start; }
   #menu p { margin: 0 0 14px; font-size: 13px; color: #9a94b0; }
-  #menu button { width: 200px; padding: 12px; font-size: 15px; }
+  #menu section > button, #detail > button { width: 200px; padding: 12px; font-size: 15px; }
+  #menu button.ghost { background: transparent; border: 1px solid #3a3550; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  .card { position: relative; background: #1c1a28; border: 2px solid #3a3550; border-radius: 10px; padding: 26px 6px 10px;
+    min-height: 104px; cursor: pointer; text-align: center; }
+  .card.selected { border-color: #e0b040; background: #2a2436; }
+  .card.locked { opacity: 0.45; cursor: default; }
+  .card-name { font-size: 14px; font-weight: 700; color: #f0ecff; margin-bottom: 4px; }
+  .card-info { font-size: 11px; color: #b4aecb; line-height: 1.45; font-variant-numeric: tabular-nums; }
+  .card-soon { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #e0b040; margin-top: 4px; }
+  .card .more { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    font-size: 17px; line-height: 1; background: #3a3550; }
+  #detail { background: rgba(12,11,18,0.97); border-radius: 10px; z-index: 3; }
+  #detail-body { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.4; text-align: left; max-width: 300px; }
+  #detail-body div:first-child { color: #9a94b0; font-style: italic; margin-bottom: 4px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
   .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
@@ -76,11 +94,32 @@
     <span id="seed"></span>
   </div>
   <div id="menu" class="overlay">
-    <h1>LEUTENHEIM</h1>
-    <p>Démo de travail</p>
-    <button id="menu-play" type="button">Jouer</button>
-    <button id="menu-new" type="button" hidden>Nouvelle partie</button>
-    <button id="menu-sound" type="button">Sons : activés</button>
+    <section id="screen-main">
+      <h1>LEUTENHEIM</h1>
+      <p>Démo de travail</p>
+      <button id="menu-resume" type="button" hidden>Reprendre</button>
+      <button id="menu-new" type="button">Nouvelle partie</button>
+      <button id="menu-settings" type="button">Paramètres</button>
+    </section>
+    <section id="screen-new" hidden>
+      <h2>Nouvelle partie</h2>
+      <h3>Race</h3>
+      <div id="race-cards" class="cards"></div>
+      <h3>Classe</h3>
+      <div id="class-cards" class="cards"></div>
+      <button id="new-start" type="button">Commencer</button>
+      <button id="new-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-settings" hidden>
+      <h2>Paramètres</h2>
+      <button id="settings-sound" type="button"></button>
+      <button id="settings-back" type="button" class="ghost">Retour</button>
+    </section>
+    <div id="detail" class="overlay" hidden>
+      <h2 id="detail-title"></h2>
+      <div id="detail-body"></div>
+      <button id="detail-close" type="button">Fermer</button>
+    </div>
   </div>
 </div>
 <script>

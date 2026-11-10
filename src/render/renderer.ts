@@ -13,7 +13,9 @@ const FLOAT_MS = 900;
 
 const COLORS = {
   background: "#0c0b12",
-  wall: "#2a2638",
+  wall: "#676b88",
+  wallTop: "#8b90b0",
+  wallShade: "#484b64",
   floor: "#4b4560",
   sensed: "rgba(75,69,96,0.3)",
   stairs: "#e0b040",
@@ -139,23 +141,36 @@ export class Renderer {
           continue;
         }
         const t = game.map.get(x, y);
-        ctx.fillStyle = t === Tile.Wall ? COLORS.wall : COLORS.floor;
-        ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+        const wall = t === Tile.Wall;
+        if (wall) {
+          // Mur : un bloc de pierre plein, plus clair que le sol, avec un rebord éclairé et une base sombre.
+          ctx.fillStyle = COLORS.wall;
+          ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+          ctx.fillStyle = COLORS.wallTop;
+          ctx.fillRect(sx, sy, tile + 0.5, tile * 0.16);
+          ctx.fillStyle = COLORS.wallShade;
+          ctx.fillRect(sx, sy + tile * 0.84, tile + 0.5, tile * 0.16 + 0.5);
+        } else {
+          ctx.fillStyle = COLORS.floor;
+          ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+        }
         this.drawFeature(t, sx, sy);
+        // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
+        const shade = wall ? 0.6 : 1;
 
         if (game.isVisible(x, y)) {
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
           const lit = game.light[game.map.index(x, y)];
           const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
-          ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55).toFixed(3)})`;
+          ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
           ctx.fillRect(sx, sy, tile, tile);
           if (lit > 0) {
             ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
             ctx.fillRect(sx, sy, tile, tile);
           }
         } else {
-          ctx.fillStyle = "rgba(12,11,18,0.72)";
+          ctx.fillStyle = `rgba(12,11,18,${(0.74 * shade).toFixed(3)})`;
           ctx.fillRect(sx, sy, tile, tile);
         }
       }

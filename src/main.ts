@@ -1,5 +1,8 @@
 import { Sfx } from "./audio/sfx";
+import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
+import { CLASSES, ClassDef } from "./data/classes";
+import { RACES, RaceDef } from "./data/races";
 import { RULES } from "./data/rules";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
@@ -62,6 +65,9 @@ let game: Game;
 let logLines: string[] = [];
 let menuOpen = true;
 let started = false;
+/** Race et classe choisies dans l'écran de nouvelle partie. */
+let chosenRace: RaceDef = RACES.humain;
+let chosenClass: ClassDef = CLASSES.guerrier;
 /** Points de vie affichés : ils ne baissent qu'au moment où le coup est montré. */
 let shownHp = 0;
 /** Événements du tour en attente d'être montrés, l'un après l'autre. */
@@ -77,7 +83,10 @@ let stepTime = 0;
 
 function newRun(): void {
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
-  game = new Game(Math.floor(Math.random() * 0xffffffff));
+  game = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass);
+  const signed = (n: number) => (n < 0 ? `− ${-n}` : `+ ${n}`);
+  $("door-pick").textContent = `Crocheter (d20 ${signed(chosenClass.lockpickBonus)} contre ${RULES.lockpickDc})`;
+  $("door-break").textContent = `Enfoncer (d20 ${signed(chosenClass.breakBonus)} contre ${RULES.breakDc}) — bruyant`;
   stepping = false;
   queue = [];
   cue = null;
@@ -270,39 +279,142 @@ button("wait", () => {
   game.wait();
   stepMs = COMBAT_STEP_MS;
 });
-button("over-new-run", newRun);
+button("over-new-run", () => showScreen("new"));
 const doorButton = (id: string, action: DoorAction) => button(id, () => game.actOnDoor(action));
 doorButton("door-pick", "pick");
 doorButton("door-break", "break");
 
-// ---------- Menu principal ----------
+// ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
-function renderMenu(): void {
+type Screen = "main" | "new" | "settings";
+
+function showScreen(screen: Screen | null): void {
+  menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  $("menu-play").textContent = started ? "Reprendre" : "Jouer";
-  $("menu-new").hidden = !started;
-  $("menu-sound").textContent = `Sons : ${options.sound ? "activés" : "désactivés"}`;
+  for (const name of ["main", "new", "settings"] as const) $(`screen-${name}`).hidden = screen !== name;
+  $("detail").hidden = true;
+  $("menu-resume").hidden = !started || game.over;
+  $("settings-sound").textContent = `Sons : ${options.sound ? "activés" : "désactivés"}`;
+  if (screen === "new") renderCards();
 }
-button("open-menu", () => {
-  menuOpen = true;
-  renderMenu();
+
+interface Card {
+  id: string;
+  name: string;
+  available: boolean;
+  tagline: string;
+  /** Deux lignes d'infos de base, visibles sur la case. */
+  basics: string[];
+  /** Fiche complète, ouverte par le bouton +. */
+  details: string[];
+}
+
+const signedBonus = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
+
+function raceCard(r: RaceDef): Card {
+  return {
+    id: r.id,
+    name: r.name,
+    available: r.available,
+    tagline: r.tagline,
+    basics: [`PV ${signedBonus(r.hpBonus)}`, `Vue ${r.darkVision} / ${r.sight}`],
+    details: [
+      r.tagline,
+      `Points de vie : ${signedBonus(r.hpBonus)}`,
+      `Vue dans le noir : ${r.darkVision} cases`,
+      `Vue des zones éclairées : ${r.sight} cases`,
+      `Trait — ${r.trait}`,
+    ],
+  };
+}
+
+function classCard(c: ClassDef): Card {
+  return {
+    id: c.id,
+    name: c.name,
+    available: c.available,
+    tagline: c.tagline,
+    basics: [`PV ${c.hp} · CA ${c.armorClass}`, `Dégâts ${diceLabel(c.damage)}`],
+    details: [
+      c.tagline,
+      `Points de vie : ${c.hp}`,
+      `Classe d'armure : ${c.armorClass}`,
+      `Attaque : d20 ${signedBonus(c.attackBonus)}`,
+      `Dégâts : ${diceLabel(c.damage)}`,
+      `Crocheter une serrure : d20 ${signedBonus(c.lockpickBonus)}`,
+      `Enfoncer une porte : d20 ${signedBonus(c.breakBonus)}`,
+      `Style — ${c.trait}`,
+    ],
+  };
+}
+
+function el(tag: string, className: string, text = ""): HTMLElement {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+function buildCards(container: HTMLElement, cards: Card[], selectedId: string, onSelect: (id: string) => void): void {
+  container.replaceChildren(
+    ...cards.map((card) => {
+      const node = el("div", `card${card.available ? "" : " locked"}${card.id === selectedId ? " selected" : ""}`);
+      const more = el("button", "more", "+");
+      more.setAttribute("aria-label", `Détail : ${card.name}`);
+      more.addEventListener("click", (e) => {
+        e.stopPropagation();
+        sfx.play("click");
+        showDetail(card);
+      });
+      node.append(more, el("div", "card-name", card.name), ...card.basics.map((line) => el("div", "card-info", line)));
+      if (!card.available) node.append(el("div", "card-soon", "Bientôt"));
+      node.addEventListener("click", () => {
+        if (!card.available) return;
+        sfx.play("click");
+        onSelect(card.id);
+        renderCards();
+      });
+      return node;
+    }),
+  );
+}
+
+function renderCards(): void {
+  buildCards($("race-cards"), Object.values(RACES).map(raceCard), chosenRace.id, (id) => {
+    chosenRace = RACES[id as keyof typeof RACES];
+  });
+  buildCards($("class-cards"), Object.values(CLASSES).map(classCard), chosenClass.id, (id) => {
+    chosenClass = CLASSES[id as keyof typeof CLASSES];
+  });
+}
+
+function showDetail(card: Card): void {
+  $("detail-title").textContent = card.name;
+  const lines = card.available ? card.details : [...card.details, "Pas encore jouable : valeurs provisoires."];
+  $("detail-body").replaceChildren(...lines.map((line) => el("div", "", line)));
+  $("detail").hidden = false;
+}
+
+button("open-menu", () => showScreen("main"));
+button("menu-resume", () => showScreen(null));
+button("menu-new", () => showScreen("new"));
+button("menu-settings", () => showScreen("settings"));
+button("new-back", () => showScreen("main"));
+button("settings-back", () => showScreen("main"));
+button("detail-close", () => {
+  $("detail").hidden = true;
 });
-button("menu-play", () => {
-  menuOpen = false;
-  started = true;
-  renderMenu();
-});
-button("menu-new", () => {
+button("new-start", () => {
   newRun();
-  menuOpen = false;
-  renderMenu();
+  started = true;
+  showScreen(null);
 });
-button("menu-sound", () => {
+button("settings-sound", () => {
   options.sound = !options.sound;
   sfx.enabled = options.sound;
   saveOptions();
   sfx.play("click");
-  renderMenu();
+  showScreen("settings");
 });
 
 // ---------- Boucle d'affichage ----------
@@ -342,6 +454,7 @@ function frame(now: number): void {
     }
   }
 
+  if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts);
   hudText.textContent = `Étage ${game.depth} · PV ${shownHp}/${game.hero.maxHp} · CA ${game.hero.armorClass} · Tour ${game.turn}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
@@ -349,10 +462,8 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-$("door-pick").textContent = `Crocheter (d20 + ${new Game(1).heroClass.lockpickBonus} contre ${RULES.lockpickDc})`;
-$("door-break").textContent = `Enfoncer (d20 + ${new Game(1).heroClass.breakBonus} contre ${RULES.breakDc}) — bruyant`;
 newRun();
-renderMenu();
+showScreen("main");
 requestAnimationFrame(frame);
 
 // Accès de débogage pour les tests automatiques dans un navigateur (sans effet sur le jeu).

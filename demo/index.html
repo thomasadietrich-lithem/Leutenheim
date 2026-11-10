@@ -18,10 +18,28 @@
   .overlay { position: absolute; inset: 0; background: rgba(12,11,18,0.86); display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 20px; font-size: 16px; }
   .overlay[hidden], #door-actions[hidden], button[hidden] { display: none; }
-  #menu { background: rgba(12,11,18,0.94); border-radius: 10px; z-index: 2; }
+  #menu { background: rgba(12,11,18,0.95); border-radius: 10px; z-index: 2; padding: 14px; }
+  #menu section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+  #menu section[hidden], #detail[hidden] { display: none; }
   #menu h1 { margin: 0; font-size: 34px; letter-spacing: 0.06em; color: #e0b040; font-weight: 700; }
+  #menu h2 { margin: 0 0 4px; font-size: 20px; color: #e0b040; font-weight: 700; }
+  #menu h3 { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a94b0; font-weight: 600; align-self: flex-start; }
   #menu p { margin: 0 0 14px; font-size: 13px; color: #9a94b0; }
-  #menu button { width: 200px; padding: 12px; font-size: 15px; }
+  #menu section > button, #detail > button { width: 200px; padding: 12px; font-size: 15px; }
+  #menu button.ghost { background: transparent; border: 1px solid #3a3550; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  .card { position: relative; background: #1c1a28; border: 2px solid #3a3550; border-radius: 10px; padding: 26px 6px 10px;
+    min-height: 104px; cursor: pointer; text-align: center; }
+  .card.selected { border-color: #e0b040; background: #2a2436; }
+  .card.locked { opacity: 0.45; cursor: default; }
+  .card-name { font-size: 14px; font-weight: 700; color: #f0ecff; margin-bottom: 4px; }
+  .card-info { font-size: 11px; color: #b4aecb; line-height: 1.45; font-variant-numeric: tabular-nums; }
+  .card-soon { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #e0b040; margin-top: 4px; }
+  .card .more { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    font-size: 17px; line-height: 1; background: #3a3550; }
+  #detail { background: rgba(12,11,18,0.97); border-radius: 10px; z-index: 3; }
+  #detail-body { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.4; text-align: left; max-width: 300px; }
+  #detail-body div:first-child { color: #9a94b0; font-style: italic; margin-bottom: 4px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
   .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
@@ -76,11 +94,32 @@
     <span id="seed"></span>
   </div>
   <div id="menu" class="overlay">
-    <h1>LEUTENHEIM</h1>
-    <p>Démo de travail</p>
-    <button id="menu-play" type="button">Jouer</button>
-    <button id="menu-new" type="button" hidden>Nouvelle partie</button>
-    <button id="menu-sound" type="button">Sons : activés</button>
+    <section id="screen-main">
+      <h1>LEUTENHEIM</h1>
+      <p>Démo de travail</p>
+      <button id="menu-resume" type="button" hidden>Reprendre</button>
+      <button id="menu-new" type="button">Nouvelle partie</button>
+      <button id="menu-settings" type="button">Paramètres</button>
+    </section>
+    <section id="screen-new" hidden>
+      <h2>Nouvelle partie</h2>
+      <h3>Race</h3>
+      <div id="race-cards" class="cards"></div>
+      <h3>Classe</h3>
+      <div id="class-cards" class="cards"></div>
+      <button id="new-start" type="button">Commencer</button>
+      <button id="new-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-settings" hidden>
+      <h2>Paramètres</h2>
+      <button id="settings-sound" type="button"></button>
+      <button id="settings-back" type="button" class="ghost">Retour</button>
+    </section>
+    <div id="detail" class="overlay" hidden>
+      <h2 id="detail-title"></h2>
+      <div id="detail-body"></div>
+      <button id="detail-close" type="button">Fermer</button>
+    </div>
   </div>
 </div>
 <script>
@@ -91,6 +130,7 @@
     constructor() {
       this.enabled = true;
       this.ctx = null;
+      this.crackleDebt = 0;
     }
     /** À appeler depuis un geste du joueur (toucher, clic) : les navigateurs n'autorisent le son qu'ainsi. */
     unlock() {
@@ -135,6 +175,22 @@
       gain.gain.exponentialRampToValueAtTime(1e-3, t + duration);
       src.connect(filter).connect(gain).connect(ctx.destination);
       src.start(t);
+    }
+    /**
+     * Crépitement des torches, à appeler à chaque image. `level` (0 à 1) est l'éclairage reçu par le héros :
+     * plus il est près d'une torche, plus les crépitements sont forts et nombreux.
+     */
+    crackle(level, dt) {
+      if (!this.enabled || !this.ctx || this.ctx.state !== "running" || level <= 0.03) return;
+      this.crackleDebt += dt * 6e-3 * (0.4 + level) * (0.5 + Math.random());
+      while (this.crackleDebt >= 1) {
+        this.crackleDebt -= 1;
+        try {
+          this.noise(0.012 + Math.random() * 0.03, (0.03 + Math.random() * 0.09) * level, 2500 + Math.random() * 4500, Math.random() * 0.06);
+        } catch {
+          return;
+        }
+      }
     }
     play(name) {
       if (!this.enabled || !this.ctx || this.ctx.state !== "running") return;
@@ -196,17 +252,57 @@
     }
   };
 
+  // src/core/dice.ts
+  function rollDice(rng, dice, critical = false) {
+    let total = dice.bonus;
+    const count = critical ? dice.count * 2 : dice.count;
+    for (let i = 0; i < count; i++) total += rng.int(1, dice.sides);
+    return Math.max(1, total);
+  }
+  function diceLabel(d) {
+    return `${d.count}d${d.sides}${d.bonus > 0 ? `+${d.bonus}` : d.bonus < 0 ? d.bonus : ""}`;
+  }
+
   // src/data/classes.ts
   var CLASSES = {
     guerrier: {
       id: "guerrier",
       name: "Guerrier",
+      available: true,
+      tagline: "Encaisse et frappe fort.",
+      trait: "Bonne armure, et la force d'enfoncer les portes.",
       hp: 10,
       armorClass: 15,
       attackBonus: 4,
       damage: { count: 1, sides: 6, bonus: 2 },
       lockpickBonus: 0,
       breakBonus: 4
+    },
+    assassin: {
+      id: "assassin",
+      name: "Assassin",
+      available: false,
+      tagline: "Frappe par surprise.",
+      trait: "Gros d\xE9g\xE2ts sur un ennemi qui ne l'a pas remarqu\xE9 ; croch\xE8te facilement.",
+      hp: 8,
+      armorClass: 13,
+      attackBonus: 5,
+      damage: { count: 1, sides: 6, bonus: 1 },
+      lockpickBonus: 5,
+      breakBonus: 0
+    },
+    magicien: {
+      id: "magicien",
+      name: "Magicien",
+      available: false,
+      tagline: "Sorts \xE0 distance, fragile.",
+      trait: "Sorts en nombre limit\xE9, recharg\xE9s par le repos.",
+      hp: 6,
+      armorClass: 11,
+      attackBonus: 2,
+      damage: { count: 1, sides: 4, bonus: 0 },
+      lockpickBonus: 1,
+      breakBonus: -1
     }
   };
 
@@ -250,7 +346,36 @@
 
   // src/data/races.ts
   var RACES = {
-    humain: { id: "humain", name: "Humain", hpBonus: 2, darkVision: 4, sight: 11 }
+    humain: {
+      id: "humain",
+      name: "Humain",
+      available: true,
+      tagline: "Polyvalent et endurant.",
+      trait: "Robuste : 2 points de vie suppl\xE9mentaires.",
+      hpBonus: 2,
+      darkVision: 4,
+      sight: 11
+    },
+    halfelin: {
+      id: "halfelin",
+      name: "Halfelin",
+      available: false,
+      tagline: "Petit et chanceux.",
+      trait: "Chanceux : relance tout 1 obtenu au d\xE9 \xE0 20 faces.",
+      hpBonus: 0,
+      darkVision: 4,
+      sight: 11
+    },
+    elfe: {
+      id: "elfe",
+      name: "Elfe",
+      available: false,
+      tagline: "Une vue per\xE7ante.",
+      trait: "Voit plus loin dans le noir et rep\xE8re les pi\xE8ges.",
+      hpBonus: 0,
+      darkVision: 6,
+      sight: 13
+    }
   };
 
   // src/data/rules.ts
@@ -258,7 +383,7 @@
     /** Crocheter une serrure : d20 + bonus de classe contre cette difficulté. Silencieux. */
     lockpickDc: 12,
     /** Enfoncer une porte : d20 + bonus de classe contre cette difficulté. Bruyant, réussite ou non. */
-    breakDc: 11,
+    breakDc: 8,
     /** Le bruit d'une porte enfoncée alerte les monstres jusqu'à cette distance (en cases). */
     noiseRadius: 10,
     /** Un monstre remarque plus facilement un héros éclairé par une torche, moins facilement dans le noir. */
@@ -588,14 +713,6 @@
       cells.push({ x: r.x - 1, y, tx: 0, ty: 1 }, { x: r.x + r.w, y, tx: 0, ty: 1 });
     }
     return cells;
-  }
-
-  // src/core/dice.ts
-  function rollDice(rng, dice, critical = false) {
-    let total = dice.bonus;
-    const count = critical ? dice.count * 2 : dice.count;
-    for (let i = 0; i < count; i++) total += rng.int(1, dice.sides);
-    return Math.max(1, total);
   }
 
   // src/core/combat.ts
@@ -1078,7 +1195,9 @@
   var FLOAT_MS = 900;
   var COLORS = {
     background: "#0c0b12",
-    wall: "#2a2638",
+    wall: "#676b88",
+    wallTop: "#8b90b0",
+    wallShade: "#484b64",
     floor: "#4b4560",
     sensed: "rgba(75,69,96,0.3)",
     stairs: "#e0b040",
@@ -1181,21 +1300,32 @@
             continue;
           }
           const t = game2.map.get(x, y);
-          ctx.fillStyle = t === Tile.Wall ? COLORS.wall : COLORS.floor;
-          ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+          const wall = t === Tile.Wall;
+          if (wall) {
+            ctx.fillStyle = COLORS.wall;
+            ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+            ctx.fillStyle = COLORS.wallTop;
+            ctx.fillRect(sx, sy, tile + 0.5, tile * 0.16);
+            ctx.fillStyle = COLORS.wallShade;
+            ctx.fillRect(sx, sy + tile * 0.84, tile + 0.5, tile * 0.16 + 0.5);
+          } else {
+            ctx.fillStyle = COLORS.floor;
+            ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+          }
           this.drawFeature(t, sx, sy);
+          const shade = wall ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
             const lit = game2.light[game2.map.index(x, y)];
             const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game2.race.darkVision + 1.5));
             const brightness = Math.min(1, Math.max(lit * flicker, glow));
-            ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55).toFixed(3)})`;
+            ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
             ctx.fillRect(sx, sy, tile, tile);
             if (lit > 0) {
               ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
               ctx.fillRect(sx, sy, tile, tile);
             }
           } else {
-            ctx.fillStyle = "rgba(12,11,18,0.72)";
+            ctx.fillStyle = `rgba(12,11,18,${(0.74 * shade).toFixed(3)})`;
             ctx.fillRect(sx, sy, tile, tile);
           }
         }
@@ -1345,6 +1475,8 @@
   var logLines = [];
   var menuOpen = true;
   var started = false;
+  var chosenRace = RACES.humain;
+  var chosenClass = CLASSES.guerrier;
   var shownHp = 0;
   var queue = [];
   var cue = null;
@@ -1354,7 +1486,10 @@
   var stepping = false;
   var stepTime = 0;
   function newRun() {
-    game = new Game(Math.floor(Math.random() * 4294967295));
+    game = new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass);
+    const signed = (n) => n < 0 ? `\u2212 ${-n}` : `+ ${n}`;
+    $("door-pick").textContent = `Crocheter (d20 ${signed(chosenClass.lockpickBonus)} contre ${RULES.lockpickDc})`;
+    $("door-break").textContent = `Enfoncer (d20 ${signed(chosenClass.breakBonus)} contre ${RULES.breakDc}) \u2014 bruyant`;
     stepping = false;
     queue = [];
     cue = null;
@@ -1512,36 +1647,118 @@
     game.wait();
     stepMs = COMBAT_STEP_MS;
   });
-  button("over-new-run", newRun);
+  button("over-new-run", () => showScreen("new"));
   var doorButton = (id, action) => button(id, () => game.actOnDoor(action));
   doorButton("door-pick", "pick");
   doorButton("door-break", "break");
-  function renderMenu() {
+  function showScreen(screen) {
+    menuOpen = screen !== null;
     menu.hidden = !menuOpen;
-    $("menu-play").textContent = started ? "Reprendre" : "Jouer";
-    $("menu-new").hidden = !started;
-    $("menu-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
+    for (const name of ["main", "new", "settings"]) $(`screen-${name}`).hidden = screen !== name;
+    $("detail").hidden = true;
+    $("menu-resume").hidden = !started || game.over;
+    $("settings-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
+    if (screen === "new") renderCards();
   }
-  button("open-menu", () => {
-    menuOpen = true;
-    renderMenu();
+  var signedBonus = (n) => n >= 0 ? `+${n}` : `${n}`;
+  function raceCard(r) {
+    return {
+      id: r.id,
+      name: r.name,
+      available: r.available,
+      tagline: r.tagline,
+      basics: [`PV ${signedBonus(r.hpBonus)}`, `Vue ${r.darkVision} / ${r.sight}`],
+      details: [
+        r.tagline,
+        `Points de vie : ${signedBonus(r.hpBonus)}`,
+        `Vue dans le noir : ${r.darkVision} cases`,
+        `Vue des zones \xE9clair\xE9es : ${r.sight} cases`,
+        `Trait \u2014 ${r.trait}`
+      ]
+    };
+  }
+  function classCard(c) {
+    return {
+      id: c.id,
+      name: c.name,
+      available: c.available,
+      tagline: c.tagline,
+      basics: [`PV ${c.hp} \xB7 CA ${c.armorClass}`, `D\xE9g\xE2ts ${diceLabel(c.damage)}`],
+      details: [
+        c.tagline,
+        `Points de vie : ${c.hp}`,
+        `Classe d'armure : ${c.armorClass}`,
+        `Attaque : d20 ${signedBonus(c.attackBonus)}`,
+        `D\xE9g\xE2ts : ${diceLabel(c.damage)}`,
+        `Crocheter une serrure : d20 ${signedBonus(c.lockpickBonus)}`,
+        `Enfoncer une porte : d20 ${signedBonus(c.breakBonus)}`,
+        `Style \u2014 ${c.trait}`
+      ]
+    };
+  }
+  function el(tag, className, text = "") {
+    const node = document.createElement(tag);
+    node.className = className;
+    node.textContent = text;
+    return node;
+  }
+  function buildCards(container, cards, selectedId, onSelect) {
+    container.replaceChildren(
+      ...cards.map((card) => {
+        const node = el("div", `card${card.available ? "" : " locked"}${card.id === selectedId ? " selected" : ""}`);
+        const more = el("button", "more", "+");
+        more.setAttribute("aria-label", `D\xE9tail : ${card.name}`);
+        more.addEventListener("click", (e) => {
+          e.stopPropagation();
+          sfx.play("click");
+          showDetail(card);
+        });
+        node.append(more, el("div", "card-name", card.name), ...card.basics.map((line) => el("div", "card-info", line)));
+        if (!card.available) node.append(el("div", "card-soon", "Bient\xF4t"));
+        node.addEventListener("click", () => {
+          if (!card.available) return;
+          sfx.play("click");
+          onSelect(card.id);
+          renderCards();
+        });
+        return node;
+      })
+    );
+  }
+  function renderCards() {
+    buildCards($("race-cards"), Object.values(RACES).map(raceCard), chosenRace.id, (id) => {
+      chosenRace = RACES[id];
+    });
+    buildCards($("class-cards"), Object.values(CLASSES).map(classCard), chosenClass.id, (id) => {
+      chosenClass = CLASSES[id];
+    });
+  }
+  function showDetail(card) {
+    $("detail-title").textContent = card.name;
+    const lines = card.available ? card.details : [...card.details, "Pas encore jouable : valeurs provisoires."];
+    $("detail-body").replaceChildren(...lines.map((line) => el("div", "", line)));
+    $("detail").hidden = false;
+  }
+  button("open-menu", () => showScreen("main"));
+  button("menu-resume", () => showScreen(null));
+  button("menu-new", () => showScreen("new"));
+  button("menu-settings", () => showScreen("settings"));
+  button("new-back", () => showScreen("main"));
+  button("settings-back", () => showScreen("main"));
+  button("detail-close", () => {
+    $("detail").hidden = true;
   });
-  button("menu-play", () => {
-    menuOpen = false;
-    started = true;
-    renderMenu();
-  });
-  button("menu-new", () => {
+  button("new-start", () => {
     newRun();
-    menuOpen = false;
-    renderMenu();
+    started = true;
+    showScreen(null);
   });
-  button("menu-sound", () => {
+  button("settings-sound", () => {
     options.sound = !options.sound;
     sfx.enabled = options.sound;
     saveOptions();
     sfx.play("click");
-    renderMenu();
+    showScreen("settings");
   });
   var last = performance.now();
   function frame(now) {
@@ -1573,16 +1790,15 @@
         stepTime = 0;
       }
     }
+    if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts);
     hudText.textContent = `\xC9tage ${game.depth} \xB7 PV ${shownHp}/${game.hero.maxHp} \xB7 CA ${game.hero.armorClass} \xB7 Tour ${game.turn}`;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
     doorActions.hidden = !game.pendingDoor || game.over || cue !== null;
     requestAnimationFrame(frame);
   }
-  $("door-pick").textContent = `Crocheter (d20 + ${new Game(1).heroClass.lockpickBonus} contre ${RULES.lockpickDc})`;
-  $("door-break").textContent = `Enfoncer (d20 + ${new Game(1).heroClass.breakBonus} contre ${RULES.breakDc}) \u2014 bruyant`;
   newRun();
-  renderMenu();
+  showScreen("main");
   requestAnimationFrame(frame);
   window.leutenheim = { game: () => game };
 })();

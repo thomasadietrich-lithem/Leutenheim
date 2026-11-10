@@ -32,6 +32,8 @@ export type GameEvent =
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
+  /** En changeant de section, les clefs de l'ancienne ne servent plus : elles sont abandonnées. */
+  | { type: "keysLost"; count: number }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "chest"; gold: number }
@@ -213,6 +215,12 @@ export class Game {
         seenMonsters: new Set<number>(),
       };
       this.floors.set(depth, state);
+    }
+    // Une clef ne vaut que pour sa section : en passant dans une autre, celles qu'on porte sont abandonnées.
+    const section = (d: number) => Math.floor((d - 1) / RULES.floorsPerSection);
+    if (this.current && section(depth) !== section(this.depth)) {
+      const keys = this.inventory.count("clef");
+      if (keys > 0 && this.inventory.take("clef", keys)) this.events.push({ type: "keysLost", count: keys });
     }
     this.current = state;
     this.depth = depth;

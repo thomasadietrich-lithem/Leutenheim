@@ -549,7 +549,7 @@
       ammo: "fleche"
     },
     fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
-    clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une porte verrouill\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
+    clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle ferm\xE9e de la section o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
     or: { id: "or", name: "Pi\xE8ces d'or", kind: "gold", description: "La monnaie du donjon. Elle va dans la bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
     tunique: {
       id: "tunique",
@@ -685,6 +685,8 @@
     brokenArrowFadeTurns: 4,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
+    /** Nombre d'étages d'une section (région à thème). Une clef ne sert que dans la section où on l'a trouvée. */
+    floorsPerSection: 4,
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
     keyChance: 0.35,
     /** Expérience à réunir pour passer au niveau suivant : ce nombre × le niveau actuel. */
@@ -1383,6 +1385,11 @@
           seenMonsters: /* @__PURE__ */ new Set()
         };
         this.floors.set(depth, state);
+      }
+      const section = (d) => Math.floor((d - 1) / RULES.floorsPerSection);
+      if (this.current && section(depth) !== section(this.depth)) {
+        const keys = this.inventory.count("clef");
+        if (keys > 0 && this.inventory.take("clef", keys)) this.events.push({ type: "keysLost", count: keys });
       }
       this.current = state;
       this.depth = depth;
@@ -3489,6 +3496,8 @@
     } else if (e.type === "noticed") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
+    } else if (e.type === "keysLost") {
+      logLines.push(e.count > 1 ? "Nouvelle section : vos clefs n'ouvrent rien ici, vous les abandonnez." : "Nouvelle section : votre clef n'ouvre rien ici, vous l'abandonnez.");
     } else if (e.type === "stairs") {
       logLines.push(
         e.direction === "down" ? `Vous descendez \xE0 l'\xE9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}` : `Vous remontez \xE0 l'\xE9tage ${game.depth}.`

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { RULES } from "../src/data/rules";
 import { test } from "node:test";
 import { Game } from "../src/core/game";
 import { rollAttack } from "../src/core/combat";
@@ -870,4 +871,27 @@ test("coffre : l'ouvrir remplit la bourse", () => {
     return;
   }
   assert.fail("aucun coffre trouvé");
+});
+
+test("clef : elle ne sert que dans sa section, et une seule fois", () => {
+  const game = new Game(5);
+  game.monsters = [];
+  game.inventory.add("clef", 2);
+  const descend = () => {
+    game.monsters = [];
+    for (let y = 0; y < game.map.height; y++)
+      for (let x = 0; x < game.map.width; x++)
+        if (game.map.get(x, y) === Tile.StairsDown) Object.assign(game.hero, { x, y, fromX: x, fromY: y });
+    game.pendingStairs = "down";
+    assert.ok(game.takeStairs());
+  };
+  // Dans la même section (étages 1 à 4), les clefs suivent le héros.
+  for (let d = 2; d <= RULES.floorsPerSection; d++) descend();
+  assert.equal(game.depth, RULES.floorsPerSection);
+  assert.equal(game.inventory.count("clef"), 2);
+  // En entrant dans la section suivante, elles sont abandonnées.
+  game.events.length = 0;
+  descend();
+  assert.equal(game.inventory.count("clef"), 0);
+  assert.ok(game.events.some((e) => e.type === "keysLost" && e.count === 2));
 });

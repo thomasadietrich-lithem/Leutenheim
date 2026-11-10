@@ -295,6 +295,8 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
+  } else if (e.type === "keysLost") {
+    logLines.push(e.count > 1 ? "Nouvelle section : vos clefs n'ouvrent rien ici, vous les abandonnez." : "Nouvelle section : votre clef n'ouvre rien ici, vous l'abandonnez.");
   } else if (e.type === "stairs") {
     logLines.push(
       e.direction === "down"

@@ -85,7 +85,7 @@ export const ITEMS = {
     ammo: "fleche",
   },
   fleche: { id: "fleche", name: "Flèches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
-  clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une porte verrouillée, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
+  clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle fermée de la section où on l'a trouvée, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
   or: { id: "or", name: "Pièces d'or", kind: "gold", description: "La monnaie du donjon. Elle va dans la bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
   tunique: {
     id: "tunique",

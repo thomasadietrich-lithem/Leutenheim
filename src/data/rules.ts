@@ -26,6 +26,8 @@ export const RULES = {
   brokenArrowFadeTurns: 4,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
+  /** Nombre d'étages d'une section (région à thème). Une clef ne sert que dans la section où on l'a trouvée. */
+  floorsPerSection: 4,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
   keyChance: 0.35,
   /** Expérience à réunir pour passer au niveau suivant : ce nombre × le niveau actuel. */

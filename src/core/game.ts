@@ -135,6 +135,8 @@ export class Game {
   private targetId: number | null = null;
   private waiting = false;
   private picking = false;
+  /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
+  private pickingItem: ItemId | null = null;
   private shotTarget: Point | null = null;
   private doorTarget: Point | null = null;
   private doorAction: DoorAction | null = null;
@@ -242,6 +244,7 @@ export class Game {
     this.path = [];
     this.targetId = null;
     this.waiting = false;
+    this.picking = false;
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
@@ -466,6 +469,7 @@ export class Game {
     this.path = [];
     this.targetId = null;
     this.waiting = false;
+    this.picking = false;
     this.shotTarget = { x, y };
     return null;
   }
@@ -493,6 +497,7 @@ export class Game {
     this.targetId = monster ? monster.id : null;
     this.path = path;
     this.waiting = false;
+    this.picking = false;
     this.shotTarget = null;
     return true;
   }
@@ -515,6 +520,7 @@ export class Game {
     this.clearDoorOrders();
     this.targetId = null;
     this.waiting = false;
+    this.picking = false;
     this.path = best;
     if (best.length === 0) this.pendingDoor = { x, y };
     else this.doorTarget = { x, y };
@@ -548,6 +554,8 @@ export class Game {
   }
 
   private clearDoorOrders(): void {
+    // Tout nouvel ordre interrompt aussi un ramassage en cours.
+    this.picking = false;
     this.pendingDoor = null;
     this.doorTarget = null;
     this.doorAction = null;
@@ -582,6 +590,7 @@ export class Game {
     this.shotTarget = null;
     this.waiting = false;
     this.picking = true;
+    this.pickingItem = null;
     return true;
   }
 
@@ -613,8 +622,8 @@ export class Game {
       this.resolveDoor(this.doorAction, this.pendingDoor);
       this.doorAction = null;
     } else if (this.picking) {
-      this.picking = false;
-      this.pickUpOne();
+      // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.
+      this.picking = this.pickUpOne();
     } else if (this.waiting) {
       this.waiting = false;
     } else {
@@ -642,6 +651,7 @@ export class Game {
         this.openDoorAt(next.x, next.y);
         this.closeDoorAt(left.x, left.y);
         this.useFeatureAt(next.x, next.y);
+        this.collectGold();
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
         const here = this.map.get(next.x, next.y);
         this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
@@ -894,24 +904,34 @@ export class Game {
     else this.ground.push({ x, y, item, count, angle });
   }
 
-  /** Le héros ramasse le premier objet de sa case (un seul tas à la fois), s'il a la place. */
-  private pickUpOne(): void {
-    const pile = this.itemsHere()[0];
-    if (!pile) return;
-    if (pile.item === "or") {
-      // L'or va dans la bourse, pas dans le sac.
+  /** L'or se ramasse tout seul en marchant dessus, sans y passer de tour. */
+  private collectGold(): void {
+    for (const pile of this.itemsHere()) {
+      if (pile.item !== "or") continue;
       this.gold += pile.count;
       this.events.push({ type: "pickup", item: pile.item, count: pile.count });
       pile.count = 0;
-    } else {
-      // Une clef garde la marque de son étage.
-      const left = this.inventory.add(pile.item, pile.count, ITEMS[pile.item].kind === "key" ? this.depth : undefined);
-      const taken = pile.count - left;
-      pile.count = left;
-      if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
-      else this.events.push({ type: "bagFull" });
     }
-    for (let i = this.ground.length - 1; i >= 0; i--) if (this.ground[i].count <= 0) this.ground.splice(i, 1);
+    this.ground = this.ground.filter((g) => g.count > 0);
+  }
+
+  /**
+   * Le héros ramasse le premier objet de sa case (un seul tas à la fois), s'il a la place.
+   * Renvoie vrai s'il reste sur la case un objet identique à ramasser au tour suivant.
+   */
+  private pickUpOne(): boolean {
+    const pile = this.itemsHere().find((g) => g.item === this.pickingItem) ?? this.itemsHere()[0];
+    if (!pile) return false;
+    const item = pile.item;
+    this.pickingItem = item;
+    // Une clef garde la marque de son étage.
+    const left = this.inventory.add(item, pile.count, ITEMS[item].kind === "key" ? this.depth : undefined);
+    const taken = pile.count - left;
+    pile.count = left;
+    if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
+    else this.events.push({ type: "bagFull" });
+    this.ground = this.ground.filter((g) => g.count > 0);
+    return left === 0 && this.itemsHere().some((g) => g.item === item);
   }
 
   private monstersAct(): void {

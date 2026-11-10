@@ -307,8 +307,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "pickup") {
     discover([e.item]);
     const found: ItemDef = ITEMS[e.item];
-    logLines.push(found.kind === "gold" ? `Vous ramassez ${e.count} pièce${e.count > 1 ? "s" : ""} d'or.` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
+    logLines.push(found.kind === "gold" ? `Bourse : or ×${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
     sfx.play("pickup");
+    if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or ×${e.count}`, "#f0c850");
     if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
       // Première trouvaille de ce genre d'objet : on montre sa fiche.
       seenItems.add(e.item);

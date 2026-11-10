@@ -854,9 +854,9 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   game.ground.push({ x: game.hero.x + side, y: game.hero.y, item: "or", count: 7 });
   assert.ok(game.moveBy(side, 0));
   game.tick();
-  assert.ok(game.pickUp());
-  game.tick();
+  // L'or se ramasse tout seul, sans ordre ni tour supplémentaire.
   assert.equal(game.gold, purse + 7);
+  assert.equal(game.pickUp(), false);
   assert.equal(game.inventory.items.length, bagBefore);
   assert.equal(game.equip(-1), false);
 });
@@ -994,4 +994,50 @@ test("coins logiques : deux pans de mur vus font apparaître le coin qui les rel
   assert.ok(game.isVisible(3, 4) && game.isVisible(4, 4), "le coin en haut à gauche et le mur qui y mène apparaissent");
   assert.ok(game.isVisible(11, 4) && game.isVisible(10, 4), "de même en haut à droite");
   assert.ok(!game.isVisible(0, 0), "un mur sans rapport reste caché");
+});
+
+test("ramasser un objet entraîne ses semblables de la case, un par tour, mais pas les autres objets", () => {
+  const game = new Game(3);
+  game.monsters = [];
+  const x = game.hero.x + 1;
+  const y = game.hero.y;
+  game.ground = [
+    { x, y, item: "fleche", count: 1, angle: 0.3 },
+    { x, y, item: "clef", count: 1 },
+    { x, y, item: "fleche", count: 1, angle: 1.2 },
+    { x, y, item: "fleche", count: 1, angle: 2 },
+  ];
+  assert.ok(game.moveBy(1, 0));
+  game.tick();
+  assert.equal(game.itemsHere().length, 4);
+  assert.ok(game.pickUp());
+  assert.ok(game.tick());
+  assert.equal(game.arrows(), 11);
+  // Les deux autres flèches suivent sans nouvel ordre, une par tour.
+  assert.ok(game.tick());
+  assert.equal(game.arrows(), 12);
+  assert.ok(game.tick());
+  assert.equal(game.arrows(), 13);
+  // La clef, elle, attend qu'on la demande.
+  assert.equal(game.tick(), false);
+  assert.deepEqual(game.itemsHere().map((g) => g.item), ["clef"]);
+});
+
+test("un autre ordre interrompt le ramassage en chaîne", () => {
+  const game = new Game(3);
+  game.monsters = [];
+  const x = game.hero.x + 1;
+  const y = game.hero.y;
+  game.ground = [
+    { x, y, item: "fleche", count: 1, angle: 0.3 },
+    { x, y, item: "fleche", count: 1, angle: 1.2 },
+  ];
+  assert.ok(game.moveBy(1, 0));
+  game.tick();
+  assert.ok(game.pickUp());
+  game.tick();
+  assert.ok(game.moveBy(-1, 0));
+  game.tick();
+  assert.equal(game.arrows(), 11);
+  assert.equal(game.ground.length, 1);
 });

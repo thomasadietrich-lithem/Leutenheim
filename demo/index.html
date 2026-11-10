@@ -596,7 +596,7 @@
     },
     fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
     clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle ferm\xE9e de l'\xE9tage o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
-    or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir ferm\xE9 par une cordelette. Son or va dans votre bourse, pas dans le sac.", w: 1, h: 1, maxStack: 9999 },
+    or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir ferm\xE9 par une cordelette. Son or rejoint votre bourse d\xE8s que vous marchez dessus.", w: 1, h: 1, maxStack: 9999 },
     tunique: {
       id: "tunique",
       name: "Tunique",
@@ -1380,6 +1380,8 @@
       this.targetId = null;
       this.waiting = false;
       this.picking = false;
+      /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
+      this.pickingItem = null;
       this.shotTarget = null;
       this.doorTarget = null;
       this.doorAction = null;
@@ -1475,6 +1477,7 @@
       this.path = [];
       this.targetId = null;
       this.waiting = false;
+      this.picking = false;
       this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
@@ -1671,6 +1674,7 @@
       this.path = [];
       this.targetId = null;
       this.waiting = false;
+      this.picking = false;
       this.shotTarget = { x, y };
       return null;
     }
@@ -1696,6 +1700,7 @@
       this.targetId = monster ? monster.id : null;
       this.path = path;
       this.waiting = false;
+      this.picking = false;
       this.shotTarget = null;
       return true;
     }
@@ -1717,6 +1722,7 @@
       this.clearDoorOrders();
       this.targetId = null;
       this.waiting = false;
+      this.picking = false;
       this.path = best;
       if (best.length === 0) this.pendingDoor = { x, y };
       else this.doorTarget = { x, y };
@@ -1745,6 +1751,7 @@
       return options2;
     }
     clearDoorOrders() {
+      this.picking = false;
       this.pendingDoor = null;
       this.doorTarget = null;
       this.doorAction = null;
@@ -1776,6 +1783,7 @@
       this.shotTarget = null;
       this.waiting = false;
       this.picking = true;
+      this.pickingItem = null;
       return true;
     }
     wait() {
@@ -1803,8 +1811,7 @@
         this.resolveDoor(this.doorAction, this.pendingDoor);
         this.doorAction = null;
       } else if (this.picking) {
-        this.picking = false;
-        this.pickUpOne();
+        this.picking = this.pickUpOne();
       } else if (this.waiting) {
         this.waiting = false;
       } else {
@@ -1829,6 +1836,7 @@
           this.openDoorAt(next.x, next.y);
           this.closeDoorAt(left.x, left.y);
           this.useFeatureAt(next.x, next.y);
+          this.collectGold();
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
           if (this.opportunityAttacks(threats)) {
@@ -2044,22 +2052,32 @@
       if (pile) pile.count += count;
       else this.ground.push({ x, y, item, count, angle });
     }
-    /** Le héros ramasse le premier objet de sa case (un seul tas à la fois), s'il a la place. */
-    pickUpOne() {
-      const pile = this.itemsHere()[0];
-      if (!pile) return;
-      if (pile.item === "or") {
+    /** L'or se ramasse tout seul en marchant dessus, sans y passer de tour. */
+    collectGold() {
+      for (const pile of this.itemsHere()) {
+        if (pile.item !== "or") continue;
         this.gold += pile.count;
         this.events.push({ type: "pickup", item: pile.item, count: pile.count });
         pile.count = 0;
-      } else {
-        const left = this.inventory.add(pile.item, pile.count, ITEMS[pile.item].kind === "key" ? this.depth : void 0);
-        const taken = pile.count - left;
-        pile.count = left;
-        if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
-        else this.events.push({ type: "bagFull" });
       }
-      for (let i = this.ground.length - 1; i >= 0; i--) if (this.ground[i].count <= 0) this.ground.splice(i, 1);
+      this.ground = this.ground.filter((g) => g.count > 0);
+    }
+    /**
+     * Le héros ramasse le premier objet de sa case (un seul tas à la fois), s'il a la place.
+     * Renvoie vrai s'il reste sur la case un objet identique à ramasser au tour suivant.
+     */
+    pickUpOne() {
+      const pile = this.itemsHere().find((g) => g.item === this.pickingItem) ?? this.itemsHere()[0];
+      if (!pile) return false;
+      const item = pile.item;
+      this.pickingItem = item;
+      const left = this.inventory.add(item, pile.count, ITEMS[item].kind === "key" ? this.depth : void 0);
+      const taken = pile.count - left;
+      pile.count = left;
+      if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
+      else this.events.push({ type: "bagFull" });
+      this.ground = this.ground.filter((g) => g.count > 0);
+      return left === 0 && this.itemsHere().some((g) => g.item === item);
     }
     monstersAct() {
       for (const m of [...this.monsters]) {
@@ -3807,8 +3825,9 @@
     } else if (e.type === "pickup") {
       discover([e.item]);
       const found = ITEMS[e.item];
-      logLines.push(found.kind === "gold" ? `Vous ramassez ${e.count} pi\xE8ce${e.count > 1 ? "s" : ""} d'or.` : `Vous ramassez : ${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`);
+      logLines.push(found.kind === "gold" ? `Bourse : or \xD7${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`);
       sfx.play("pickup");
+      if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or \xD7${e.count}`, "#f0c850");
       if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
         seenItems.add(e.item);
         document.querySelector("#found h2").textContent = "Trouv\xE9";

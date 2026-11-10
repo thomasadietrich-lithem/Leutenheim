@@ -607,7 +607,14 @@ export class Renderer {
     // (La case est déjà découpée sur ses pixels par l'appelant : rien ne déborde sur les voisines.)
     ctx.save();
     if (isCorner(mx, my)) {
-      this.drawCornerStone(mx, my, screenX, screenY, open);
+      // De quel côté part le pan horizontal, de quel côté part le pan vertical ? On préfère le voisin qui est
+      // vraiment un pan de ce sens ; à défaut n'importe quel mur ; à défaut le côté opposé au vide.
+      const wallAt = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) === Tile.Wall;
+      const hScore = (d: number) => (!wallAt(mx + d, my) ? 0 : !isCorner(mx + d, my) && !isVertical(mx + d, my) && (isOpen(mx + d, my - 1) || isOpen(mx + d, my + 1)) ? 2 : 1);
+      const vScore = (d: number) => (!wallAt(mx, my + d) ? 0 : !isCorner(mx, my + d) && isVertical(mx, my + d) ? 2 : 1);
+      const hdir = hScore(1) >= hScore(-1) ? 1 : -1;
+      const vdir = vScore(1) >= vScore(-1) ? 1 : -1;
+      this.drawCornerBricks(mx, my, screenX, screenY, hdir, vdir, open);
       ctx.restore();
       return;
     }
@@ -735,28 +742,75 @@ export class Renderer {
   }
 
   /**
-   * Pierre d'angle : un seul gros bloc taillé, avec un panneau en creux, qui ferme proprement la rencontre d'un
-   * pan horizontal et d'un pan vertical. Rebord clair ou ombre sur chaque côté qui donne sur le vide.
+   * Coin de mur en briques : les trois assises du pan horizontal tournent l'angle et deviennent les trois assises
+   * du pan vertical, en trois « L » emboîtés. À chaque assise, la brique d'angle appartient tantôt au pan
+   * horizontal, tantôt au pan vertical : les briques se croisent comme dans un vrai mur. Les hauteurs d'assise
+   * sont celles des deux pans voisins, pour que tout se raccorde.
+   * Dessiné dans un repère où le pan horizontal part vers la droite et le pan vertical vers le bas, puis retourné.
    */
-  private drawCornerStone(x: number, y: number, sx: number, sy: number, open: (dx: number, dy: number) => boolean): void {
+  private drawCornerBricks(mx: number, my: number, sx: number, sy: number, hdir: number, vdir: number, open: (dx: number, dy: number) => boolean): void {
     const { ctx, tile } = this;
     const gap = Math.max(1, tile * 0.05);
+    const soft = Math.max(1, tile * 0.05);
+    ctx.save();
+    ctx.translate(sx + tile / 2, sy + tile / 2);
+    ctx.scale(hdir, vdir);
+    ctx.translate(-tile / 2, -tile / 2);
     ctx.fillStyle = COLORS.mortar;
-    ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
-    const light = 0.92 + 0.16 * noise(x, y, 90);
-    const tone = (k: number) => `rgb(${Math.round(103 * light * k)},${Math.round(107 * light * k)},${Math.round(136 * light * k)})`;
-    // Le bloc, puis son panneau en creux (arête sombre en haut et à gauche, claire en bas et à droite).
-    ctx.fillStyle = tone(1.08);
-    ctx.fillRect(sx + gap / 2, sy + gap / 2, tile - gap, tile - gap);
-    const inset = tile * 0.2;
-    const side = tile - inset * 2;
-    const line = Math.max(1, tile * 0.05);
-    ctx.fillStyle = tone(0.78);
-    ctx.fillRect(sx + inset, sy + inset, side, side);
-    ctx.fillStyle = tone(1.22);
-    ctx.fillRect(sx + inset + line, sy + inset + line, side - line, side - line);
-    ctx.fillStyle = tone(0.96);
-    ctx.fillRect(sx + inset + line, sy + inset + line, side - line * 2, side - line * 2);
+    ctx.fillRect(-1, -1, tile + 2, tile + 2);
+    // Assises du pan horizontal (mesurées depuis le haut de l'écran) et du pan vertical (depuis la droite de l'écran).
+    const lh = [0, 0.29 + 0.1 * noise(my, 0, 4), 0.62 + 0.1 * noise(my, 0, 5), 1];
+    const lv = [0, 0.29 + 0.1 * noise(-mx, 0, 4), 0.62 + 0.1 * noise(-mx, 0, 5), 1];
+    const rows = vdir > 0 ? lh : [0, 1 - lh[2], 1 - lh[1], 1];
+    const cols = hdir > 0 ? [0, 1 - lv[2], 1 - lv[1], 1] : lv;
+    ctx.lineJoin = "round";
+    let n = 0;
+    /** Une brique taillée à la main, comme celles des pans : coins un peu décalés, arêtes adoucies. */
+    const brick = (x0: number, y0: number, x1: number, y1: number) => {
+      if (x1 - x0 < 0.06 || y1 - y0 < 0.06) return;
+      const id = n++;
+      const light = 0.84 + 0.3 * noise(mx * 7 + id, my, 61);
+      const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
+      const j = (k: number) => Math.abs(noise(mx * 5 + id, my, 70 + k) - 0.5) * tile * 0.07;
+      const l = x0 * tile + (x0 <= 0 ? 0 : gap / 2 + soft / 2);
+      const r = x1 * tile - (x1 >= 1 ? -0.5 : gap / 2 + soft / 2);
+      const t = y0 * tile + (y0 <= 0 ? 0 : gap / 2 + soft / 2);
+      const b = y1 * tile - (y1 >= 1 ? -0.5 : gap / 2 + soft / 2);
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = soft;
+      ctx.beginPath();
+      ctx.moveTo(l + j(0), t + j(1));
+      ctx.lineTo(r - j(2), t + j(3));
+      ctx.lineTo(r - j(4), b - j(5));
+      ctx.lineTo(l + j(6), b - j(7));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+    for (let k = 0; k < 3; k++) {
+      const [x0, x1] = [cols[k], cols[k + 1]];
+      const [y0, y1] = [rows[k], rows[k + 1]];
+      if (k % 2 === 0) {
+        // La brique d'angle court le long du pan horizontal ; le pan vertical vient buter dessous.
+        const cut = Math.min(1, x1 + 0.3 + 0.12 * noise(mx, my, 80 + k));
+        brick(x0, y0, cut, y1);
+        brick(cut, y0, 1, y1);
+        const mid = y1 + (1 - y1) * (0.45 + 0.15 * noise(mx, my, 83 + k));
+        brick(x0, y1, x1, 1 - y1 > 0.5 ? mid : 1);
+        if (1 - y1 > 0.5) brick(x0, mid, x1, 1);
+      } else {
+        // La brique d'angle court le long du pan vertical ; le pan horizontal vient buter contre elle.
+        const cut = Math.min(1, y1 + 0.3 + 0.12 * noise(mx, my, 86 + k));
+        brick(x0, y0, x1, cut);
+        brick(x0, cut, x1, 1);
+        const mid = x1 + (1 - x1) * (0.45 + 0.15 * noise(mx, my, 89 + k));
+        brick(x1, y0, 1 - x1 > 0.5 ? mid : 1, y1);
+        if (1 - x1 > 0.5) brick(mid, y0, 1, y1);
+      }
+    }
+    ctx.lineJoin = "miter";
+    ctx.restore();
     // Côtés donnant sur le vide : même convention que les pans de mur (clair en haut et à droite, ombre en bas et à gauche).
     ctx.fillStyle = "rgba(190,196,230,0.35)";
     if (open(0, -1)) ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);

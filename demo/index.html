@@ -412,7 +412,12 @@
   };
 
   // src/main.ts
-  var TURN_MS = 90;
+  function stepDuration(pathLength) {
+    if (pathLength <= 3) return 220;
+    if (pathLength <= 7) return 150;
+    return 90;
+  }
+  var turnMs = 150;
   var canvas = document.getElementById("game");
   var hud = document.getElementById("hud");
   var newRunButton = document.getElementById("new-run");
@@ -426,10 +431,13 @@
     canvas,
     (px, py) => {
       const t = renderer.screenToTile(px, py);
-      game.setDestination(t.x, t.y);
+      if (game.setDestination(t.x, t.y)) {
+        turnMs = stepDuration(game.path.length);
+        pending = turnMs;
+      }
     },
     (dx, dy) => {
-      if (game.path.length === 0) game.moveBy(dx, dy);
+      if (game.path.length === 0 && game.moveBy(dx, dy)) turnMs = 170;
     }
   );
   newRunButton.addEventListener("click", newRun);
@@ -439,8 +447,8 @@
   function frame(now) {
     pending += Math.min(now - last, 250);
     last = now;
-    while (pending >= TURN_MS) {
-      pending -= TURN_MS;
+    while (pending >= turnMs) {
+      pending -= turnMs;
       const depth = game.depth;
       game.tick();
       if (game.depth !== depth) renderer.snapTo(game);

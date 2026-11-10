@@ -312,6 +312,7 @@ function reveal(e: GameEvent): void {
     if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
       // Première trouvaille de ce genre d'objet : on montre sa fiche.
       seenItems.add(e.item);
+      (document.querySelector("#found h2") as HTMLElement).textContent = "Trouvé";
       $("found-card").replaceChildren(itemCard(found, e.count));
       $("found").hidden = false;
       foundOpen = true;
@@ -336,6 +337,8 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
+  } else if (e.type === "bagFull") {
+    logLines.push("Le sac est plein : l'objet reste au sol.");
   } else if (e.type === "stairs") {
     logLines.push(
       e.direction === "down"
@@ -491,6 +494,36 @@ button("aim", () => {
   }
   renderLog();
 });
+
+// ---------- Objet au sol : la languette pour ramasser (un à la fois) ou lire la fiche ----------
+
+let hereKey = "";
+function renderHere(): void {
+  const piles = started && !game.over ? game.itemsHere() : [];
+  const top = piles[0];
+  $("here").classList.toggle("open", !!top);
+  if (!top) return;
+  const key = `${top.item}:${top.count}:${piles.length}`;
+  if (key === hereKey) return;
+  hereKey = key;
+  const def: ItemDef = ITEMS[top.item];
+  $("here-icon").replaceChildren(itemIcon(top.item));
+  $("here-name").textContent = `${def.name}${top.count > 1 ? ` ×${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`;
+}
+button("here-take", () => {
+  if (game.pickUp()) stepMs = COMBAT_STEP_MS;
+});
+button("here-info", () => {
+  const top = game.itemsHere()[0];
+  if (!top) return;
+  (document.querySelector("#found h2") as HTMLElement).textContent = "Au sol";
+  $("found-card").replaceChildren(itemCard(ITEMS[top.item], top.count));
+  $("found").hidden = false;
+  foundOpen = true;
+});
+$("here-take").replaceChildren(uiIcon("bag"));
+$("here-take").setAttribute("aria-label", "Ramasser");
+$("here-info").setAttribute("aria-label", "Fiche de l'objet");
 
 // Boutons sans texte : un pictogramme, et un nom lisible par les aides à la lecture.
 for (const [id, icon, label] of [
@@ -952,6 +985,7 @@ function frame(now: number): void {
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   hudText.textContent = `Étage ${game.depth} · Niv ${game.level} · CA ${game.hero.armorClass} · Or ${game.gold}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
+  renderHere();
   $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
   $("xp-fill").style.width = `${(100 * game.xp) / game.xpToNext()}%`;
   $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;

@@ -62,6 +62,19 @@
   #door-actions button { background: #4a2f12; }
 
   /* Dés et journal. */
+  /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
+     (un objet à la fois) ou lire sa fiche. Elle recouvre le bas de la carte et ne déplace rien. */
+  .panel-wrap { position: relative; flex: none; }
+  .panel-wrap .panel { position: relative; z-index: 1; }
+  #here { position: absolute; left: 0; bottom: 100%; z-index: 0; display: flex; align-items: center; gap: 6px; height: 50px; max-width: 100%;
+    padding: 4px 6px; background: var(--panel); border: 3px solid var(--panel-hi); border-bottom: none; box-shadow: inset 0 0 0 2px var(--panel-lo);
+    transform: translateY(100%); transition: transform 0.2s steps(5); pointer-events: none; }
+  #here.open { transform: translateY(0); pointer-events: auto; }
+  #here-icon { width: 34px; height: 34px; flex: none; background: #0c0906; padding: 2px; }
+  #here-icon svg { width: 100%; height: 100%; }
+  #here-name { font-size: 18px; color: #fff3c8; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #here button { width: 38px; height: 38px; padding: 3px; flex: none; font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  #here button svg { width: 100%; height: 100%; }
   /* Taille FIXE : ni la hauteur du panneau ni la largeur de la zone du dé ne bougent, quel que soit le texte
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
@@ -198,9 +211,17 @@
       <button id="over-new-run" type="button">Nouvelle partie</button>
     </div>
   </div>
+  <div class="panel-wrap">
+  <div id="here">
+    <div id="here-icon"></div>
+    <div id="here-name"></div>
+    <button id="here-take" type="button"></button>
+    <button id="here-info" type="button">?</button>
+  </div>
   <div class="panel">
     <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
     <div id="log"></div>
+  </div>
   </div>
   <div class="bar">
     <button id="wait" type="button"></button>
@@ -512,7 +533,7 @@
     torchChance: 0.5,
     torchRadius: 6,
     hearthChance: 0.3,
-    hearthLitChance: 0.5,
+    hearthLitChance: 1,
     hearthRadius: 5
   };
 
@@ -1358,6 +1379,7 @@
       this.nextId = 1;
       this.targetId = null;
       this.waiting = false;
+      this.picking = false;
       this.shotTarget = null;
       this.doorTarget = null;
       this.doorAction = null;
@@ -1741,8 +1763,24 @@
       return true;
     }
     /** Passer un tour sur place. */
+    /** Ce qui traîne sur la case du héros, dans l'ordre où on le ramassera. */
+    itemsHere() {
+      return this.ground.filter((g) => g.x === this.hero.x && g.y === this.hero.y);
+    }
+    /** Ordre : ramasser le premier objet de la case (un seul à la fois ; cela prend un tour). */
+    pickUp() {
+      if (this.over || this.itemsHere().length === 0) return false;
+      this.clearDoorOrders();
+      this.path = [];
+      this.targetId = null;
+      this.shotTarget = null;
+      this.waiting = false;
+      this.picking = true;
+      return true;
+    }
     wait() {
       if (this.over) return;
+      this.picking = false;
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
@@ -1764,6 +1802,9 @@
       } else if (this.doorAction && this.pendingDoor) {
         this.resolveDoor(this.doorAction, this.pendingDoor);
         this.doorAction = null;
+      } else if (this.picking) {
+        this.picking = false;
+        this.pickUpOne();
       } else if (this.waiting) {
         this.waiting = false;
       } else {
@@ -1788,7 +1829,6 @@
           this.openDoorAt(next.x, next.y);
           this.closeDoorAt(left.x, left.y);
           this.useFeatureAt(next.x, next.y);
-          this.pickUpAt(next.x, next.y);
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
           if (this.opportunityAttacks(threats)) {
@@ -2004,19 +2044,20 @@
       if (pile) pile.count += count;
       else this.ground.push({ x, y, item, count, angle });
     }
-    /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */
-    pickUpAt(x, y) {
-      for (const pile of this.ground.filter((g) => g.x === x && g.y === y)) {
-        if (pile.item === "or") {
-          this.gold += pile.count;
-          this.events.push({ type: "pickup", item: pile.item, count: pile.count });
-          pile.count = 0;
-          continue;
-        }
+    /** Le héros ramasse le premier objet de sa case (un seul tas à la fois), s'il a la place. */
+    pickUpOne() {
+      const pile = this.itemsHere()[0];
+      if (!pile) return;
+      if (pile.item === "or") {
+        this.gold += pile.count;
+        this.events.push({ type: "pickup", item: pile.item, count: pile.count });
+        pile.count = 0;
+      } else {
         const left = this.inventory.add(pile.item, pile.count, ITEMS[pile.item].kind === "key" ? this.depth : void 0);
         const taken = pile.count - left;
         pile.count = left;
         if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
+        else this.events.push({ type: "bagFull" });
       }
       for (let i = this.ground.length - 1; i >= 0; i--) if (this.ground[i].count <= 0) this.ground.splice(i, 1);
     }
@@ -3770,6 +3811,7 @@
       sfx.play("pickup");
       if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
         seenItems.add(e.item);
+        document.querySelector("#found h2").textContent = "Trouv\xE9";
         $("found-card").replaceChildren(itemCard(found, e.count));
         $("found").hidden = false;
         foundOpen = true;
@@ -3794,6 +3836,8 @@
     } else if (e.type === "noticed") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
+    } else if (e.type === "bagFull") {
+      logLines.push("Le sac est plein : l'objet reste au sol.");
     } else if (e.type === "stairs") {
       logLines.push(
         e.direction === "down" ? `Vous descendez \xE0 l'\xE9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}` : `Vous remontez \xE0 l'\xE9tage ${game.depth}.`
@@ -3932,6 +3976,33 @@
     }
     renderLog();
   });
+  var hereKey = "";
+  function renderHere() {
+    const piles = started && !game.over ? game.itemsHere() : [];
+    const top = piles[0];
+    $("here").classList.toggle("open", !!top);
+    if (!top) return;
+    const key = `${top.item}:${top.count}:${piles.length}`;
+    if (key === hereKey) return;
+    hereKey = key;
+    const def = ITEMS[top.item];
+    $("here-icon").replaceChildren(itemIcon(top.item));
+    $("here-name").textContent = `${def.name}${top.count > 1 ? ` \xD7${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`;
+  }
+  button("here-take", () => {
+    if (game.pickUp()) stepMs = COMBAT_STEP_MS;
+  });
+  button("here-info", () => {
+    const top = game.itemsHere()[0];
+    if (!top) return;
+    document.querySelector("#found h2").textContent = "Au sol";
+    $("found-card").replaceChildren(itemCard(ITEMS[top.item], top.count));
+    $("found").hidden = false;
+    foundOpen = true;
+  });
+  $("here-take").replaceChildren(uiIcon("bag"));
+  $("here-take").setAttribute("aria-label", "Ramasser");
+  $("here-info").setAttribute("aria-label", "Fiche de l'objet");
   for (const [id, icon, label] of [
     ["wait", "wait", "Attendre un tour"],
     ["open-bag", "bag", "\xC9quipement et sac"],
@@ -4325,6 +4396,7 @@
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
     hudText.textContent = `\xC9tage ${game.depth} \xB7 Niv ${game.level} \xB7 CA ${game.hero.armorClass} \xB7 Or ${game.gold}`;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
+    renderHere();
     $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
     $("xp-fill").style.width = `${100 * game.xp / game.xpToNext()}%`;
     $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;

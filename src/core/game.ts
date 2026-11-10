@@ -32,6 +32,8 @@ export type GameEvent =
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
+  /** Le sac est plein : l'objet reste au sol. */
+  | { type: "bagFull" }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "chest"; gold: number }
@@ -132,6 +134,7 @@ export class Game {
   private nextId = 1;
   private targetId: number | null = null;
   private waiting = false;
+  private picking = false;
   private shotTarget: Point | null = null;
   private doorTarget: Point | null = null;
   private doorAction: DoorAction | null = null;
@@ -565,8 +568,26 @@ export class Game {
   }
 
   /** Passer un tour sur place. */
+  /** Ce qui traîne sur la case du héros, dans l'ordre où on le ramassera. */
+  itemsHere(): GroundItem[] {
+    return this.ground.filter((g) => g.x === this.hero.x && g.y === this.hero.y);
+  }
+
+  /** Ordre : ramasser le premier objet de la case (un seul à la fois ; cela prend un tour). */
+  pickUp(): boolean {
+    if (this.over || this.itemsHere().length === 0) return false;
+    this.clearDoorOrders();
+    this.path = [];
+    this.targetId = null;
+    this.shotTarget = null;
+    this.waiting = false;
+    this.picking = true;
+    return true;
+  }
+
   wait(): void {
     if (this.over) return;
+    this.picking = false;
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
@@ -591,6 +612,9 @@ export class Game {
     } else if (this.doorAction && this.pendingDoor) {
       this.resolveDoor(this.doorAction, this.pendingDoor);
       this.doorAction = null;
+    } else if (this.picking) {
+      this.picking = false;
+      this.pickUpOne();
     } else if (this.waiting) {
       this.waiting = false;
     } else {
@@ -618,7 +642,6 @@ export class Game {
         this.openDoorAt(next.x, next.y);
         this.closeDoorAt(left.x, left.y);
         this.useFeatureAt(next.x, next.y);
-        this.pickUpAt(next.x, next.y);
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
         const here = this.map.get(next.x, next.y);
         this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
@@ -871,21 +894,22 @@ export class Game {
     else this.ground.push({ x, y, item, count, angle });
   }
 
-  /** Le héros ramasse ce qui traîne sur sa case, tant qu'il a de la place. */
-  private pickUpAt(x: number, y: number): void {
-    for (const pile of this.ground.filter((g) => g.x === x && g.y === y)) {
-      if (pile.item === "or") {
-        // L'or va dans la bourse, pas dans le sac.
-        this.gold += pile.count;
-        this.events.push({ type: "pickup", item: pile.item, count: pile.count });
-        pile.count = 0;
-        continue;
-      }
+  /** Le héros ramasse le premier objet de sa case (un seul tas à la fois), s'il a la place. */
+  private pickUpOne(): void {
+    const pile = this.itemsHere()[0];
+    if (!pile) return;
+    if (pile.item === "or") {
+      // L'or va dans la bourse, pas dans le sac.
+      this.gold += pile.count;
+      this.events.push({ type: "pickup", item: pile.item, count: pile.count });
+      pile.count = 0;
+    } else {
       // Une clef garde la marque de son étage.
       const left = this.inventory.add(pile.item, pile.count, ITEMS[pile.item].kind === "key" ? this.depth : undefined);
       const taken = pile.count - left;
       pile.count = left;
       if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
+      else this.events.push({ type: "bagFull" });
     }
     for (let i = this.ground.length - 1; i >= 0; i--) if (this.ground[i].count <= 0) this.ground.splice(i, 1);
   }

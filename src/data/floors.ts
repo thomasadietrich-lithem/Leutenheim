@@ -56,6 +56,6 @@ export const DEFAULT_FLOOR: FloorConfig = {
   torchChance: 0.5,
   torchRadius: 6,
   hearthChance: 0.3,
-  hearthLitChance: 0.5,
+  hearthLitChance: 1,
   hearthRadius: 5,
 };

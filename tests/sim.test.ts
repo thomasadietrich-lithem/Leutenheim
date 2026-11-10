@@ -617,7 +617,13 @@ test("ramasser une flèche au sol la remet dans le sac ; la clef ouvre une porte
   game.ground = [{ x: game.hero.x + 1, y: game.hero.y, item: "fleche", count: 2 }];
   assert.ok(game.moveBy(1, 0));
   game.tick();
+  // Marcher sur un objet ne le ramasse plus : il faut le décider, et cela prend un tour.
+  assert.equal(game.arrows(), 10);
+  assert.equal(game.itemsHere().length, 1);
+  assert.ok(game.pickUp());
+  game.tick();
   assert.equal(game.arrows(), 12);
+  assert.equal(game.pickUp(), false, "plus rien à ramasser");
   assert.equal(game.ground.length, 0);
   assert.ok(game.events.some((e) => e.type === "pickup" && e.count === 2));
 
@@ -848,6 +854,8 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   game.ground.push({ x: game.hero.x + side, y: game.hero.y, item: "or", count: 7 });
   assert.ok(game.moveBy(side, 0));
   game.tick();
+  assert.ok(game.pickUp());
+  game.tick();
   assert.equal(game.gold, purse + 7);
   assert.equal(game.inventory.items.length, bagBefore);
   assert.equal(game.equip(-1), false);
@@ -884,6 +892,8 @@ test("clef : elle n'ouvre que les portes de son étage, et reste (inutile) dans 
   const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
   game.ground.push({ x: game.hero.x + side, y: game.hero.y, item: "clef", count: 1 });
   assert.ok(game.setDestination(game.hero.x + side, game.hero.y, true));
+  game.tick();
+  assert.ok(game.pickUp());
   game.tick();
   assert.equal(game.inventory.count("clef", 1), 1);
   const lockedDoor = () => {

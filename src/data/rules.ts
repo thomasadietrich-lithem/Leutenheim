@@ -26,6 +26,10 @@ export const RULES = {
   brokenArrowFadeTurns: 4,
   /** Tir sur une cible engagée dans un couloir d'une case de large : bonus au d20 (la flèche n'a guère où passer à côté). */
   narrowShotBonus: 3,
+  /** Séries de ratés du héros : à partir de ce nombre d'attaques manquées d'affilée, les suivantes sont aidées… */
+  missStreakStart: 3,
+  /** …de ce bonus au d20 par raté au-delà (3, puis 6, puis 9…), jusqu'au premier coup qui porte. */
+  missStreakBonus: 3,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
   /** Nombre d'étages d'une section (région à thème). */

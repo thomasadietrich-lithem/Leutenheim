@@ -733,6 +733,10 @@
     brokenArrowFadeTurns: 4,
     /** Tir sur une cible engagée dans un couloir d'une case de large : bonus au d20 (la flèche n'a guère où passer à côté). */
     narrowShotBonus: 3,
+    /** Séries de ratés du héros : à partir de ce nombre d'attaques manquées d'affilée, les suivantes sont aidées… */
+    missStreakStart: 3,
+    /** …de ce bonus au d20 par raté au-delà (3, puis 6, puis 9…), jusqu'au premier coup qui porte. */
+    missStreakBonus: 3,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
     /** Nombre d'étages d'une section (région à thème). */
@@ -1379,6 +1383,8 @@
       this.nextId = 1;
       this.targetId = null;
       this.waiting = false;
+      /** Attaques du héros manquées d'affilée. */
+      this.heroMisses = 0;
       this.picking = false;
       /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
       this.pickingItem = null;
@@ -1966,8 +1972,21 @@
       }
       this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
     }
+    /**
+     * Coup de pouce contre les séries de ratés : après plusieurs attaques manquées d'affilée (épée ou arc),
+     * chaque attaque suivante gagne un bonus qui grossit jusqu'à ce qu'un coup porte.
+     */
+    streakBonus() {
+      const extra = this.heroMisses - RULES.missStreakStart + 1;
+      return extra > 0 ? extra * RULES.missStreakBonus : 0;
+    }
+    noteHeroAttack(hit) {
+      this.heroMisses = hit ? 0 : this.heroMisses + 1;
+    }
     heroAttacks(monster) {
-      const result = rollAttack(this.rng, this.hero, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
+      const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
+      const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
+      this.noteHeroAttack(result.hit);
       monster.alerted = true;
       monster.asleep = false;
       monster.hp -= result.damage;
@@ -2020,8 +2039,9 @@
         const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
         const open = (dx, dy) => this.map.isWalkable(victim.x + dx, victim.y + dy);
         const narrow = !open(-1, 0) && !open(1, 0) || !open(0, -1) && !open(0, 1);
-        const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0);
+        const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
         const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+        this.noteHeroAttack(result.hit);
         victim.alerted = true;
         victim.asleep = false;
         victim.hp -= result.damage;

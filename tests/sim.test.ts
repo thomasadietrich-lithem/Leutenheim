@@ -1078,3 +1078,32 @@ test("passer une porte au contact d'un monstre ne déclenche pas d'attaque d'opp
   }
   assert.ok(checked >= 3, `seulement ${checked} portes testées`);
 });
+
+test("après 3 attaques ratées d'affilée, les suivantes sont aidées jusqu'au premier coup qui porte", () => {
+  const game = new Game(4);
+  const foe = game.monsters[0];
+  assert.ok(foe);
+  game.monsters = [foe];
+  // Un monstre intouchable sans aide (sauf 20 naturel), collé au héros.
+  const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
+  Object.assign(foe, { x: game.hero.x + side, y: game.hero.y, armorClass: 30, hp: 9999, maxHp: 9999, alerted: true, asleep: false });
+  Object.assign(game.hero, { hp: 99999, maxHp: 99999 });
+  const base = game.hero.attackBonus;
+  const bonuses: number[] = [];
+  let landed = false;
+  for (let i = 0; i < 40 && !landed; i++) {
+    game.events.length = 0;
+    assert.ok(game.setDestination(foe.x, foe.y, true));
+    game.tick();
+    const mine = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
+    assert.ok(mine && mine.type === "attack");
+    bonuses.push(mine.result.bonus - base);
+    landed = mine.result.hit;
+  }
+  // Trois premiers coups sans aide, puis +3, +6, +9…
+  assert.deepEqual(bonuses.slice(0, 5), [0, 0, 0, 3, 6]);
+  assert.ok(landed, "le coup finit par porter");
+  assert.ok(bonuses.length <= 12, `série trop longue : ${bonuses.length}`);
+  assert.equal(game.heroMisses, 0);
+  assert.equal(game.streakBonus(), 0);
+});

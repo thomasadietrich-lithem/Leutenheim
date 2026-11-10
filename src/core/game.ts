@@ -134,6 +134,8 @@ export class Game {
   private nextId = 1;
   private targetId: number | null = null;
   private waiting = false;
+  /** Attaques du héros manquées d'affilée. */
+  heroMisses = 0;
   private picking = false;
   /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
   private pickingItem: ItemId | null = null;
@@ -800,10 +802,25 @@ export class Game {
     this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
   }
 
+  /**
+   * Coup de pouce contre les séries de ratés : après plusieurs attaques manquées d'affilée (épée ou arc),
+   * chaque attaque suivante gagne un bonus qui grossit jusqu'à ce qu'un coup porte.
+   */
+  streakBonus(): number {
+    const extra = this.heroMisses - RULES.missStreakStart + 1;
+    return extra > 0 ? extra * RULES.missStreakBonus : 0;
+  }
+
+  private noteHeroAttack(hit: boolean): void {
+    this.heroMisses = hit ? 0 : this.heroMisses + 1;
+  }
+
   private heroAttacks(monster: Actor): void {
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
     // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
-    const result = rollAttack(this.rng, this.hero, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
+    const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
+    const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
+    this.noteHeroAttack(result.hit);
     monster.alerted = true;
     monster.asleep = false;
     monster.hp -= result.damage;
@@ -867,8 +884,9 @@ export class Game {
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
       const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);
       const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
-      const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0);
+      const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
       const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+      this.noteHeroAttack(result.hit);
       victim.alerted = true;
       victim.asleep = false;
       victim.hp -= result.damage;

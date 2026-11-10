@@ -2,7 +2,7 @@ import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
-import { ITEMS, ItemDef, ItemId } from "./data/items";
+import { ITEMS, ItemDef, ItemId, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
@@ -67,7 +67,8 @@ let game: Game;
 let logLines: string[] = [];
 let menuOpen = true;
 let bagOpen = false;
-let selectedUid: number | null = null;
+/** Objet sélectionné dans l'écran du sac : dans le sac (par identifiant) ou porté (par emplacement). */
+let selected: { uid: number } | { slot: Slot } | null = null;
 /** Vrai : toucher un monstre tire à l'arc au lieu d'aller le frapper. */
 let aimMode = false;
 let doorWasPending = false;
@@ -234,9 +235,15 @@ function reveal(e: GameEvent): void {
       }
     }
   } else if (e.type === "arrow") {
-    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
-    if (!e.kept) logLines.push(e.hit ? "La flèche se brise." : "La flèche se brise contre le décor.");
-    else if (!e.hit) logLines.push("La flèche se plante plus loin : elle est récupérable.");
+    if (e.via) {
+      // Elle heurte l'obstacle, puis retombe une case en arrière.
+      renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
+      renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170);
+    } else {
+      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+    }
+    if (!e.kept) logLines.push("La flèche se brise.");
+    else if (!e.hit) logLines.push(e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.");
   } else if (e.type === "pickup") {
     logLines.push(`Vous ramassez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
     sfx.play("pickup");
@@ -319,14 +326,14 @@ bindInput(canvas, {
   onTap(px, py) {
     if (menuOpen || bagOpen) return;
     const t = renderer.screenToTile(px, py);
-    if (aimMode && game.monsterAt(t.x, t.y) && game.isVisible(t.x, t.y)) {
-      // Mode arc : toucher un monstre en vue, c'est lui tirer dessus.
+    if (aimMode) {
+      // Mode arc : chaque toucher tire vers la case désignée, quelle qu'elle soit.
       const refusal = game.shoot(t.x, t.y);
       if (refusal) {
         const why = {
           "no-bow": "Aucun arc en main.",
           "no-ammo": "Plus de flèches.",
-          "no-target": "Aucune cible visible ici.",
+          "no-target": "Vous ne voyez pas cet endroit.",
           "out-of-range": `Hors de portée (${game.weapon("ranged")?.range ?? 0} cases).`,
         }[refusal];
         logLines.push(why);
@@ -376,7 +383,7 @@ button("aim", () => {
   logLines.push(
     aimMode
       ? game.arrows() > 0
-        ? "Arc en main : touchez un monstre encadré pour lui tirer dessus."
+        ? "Arc en main : touchez une cible à portée pour tirer. Retouchez ce bouton pour reprendre l'épée."
         : "Arc en main, mais plus de flèches."
       : "Épée en main : touchez un monstre pour aller le frapper.",
   );
@@ -396,41 +403,70 @@ function itemStats(def: ItemDef): string[] {
   return lines;
 }
 
+function itemNode(item: { defId: ItemId; count: number }, className: string): HTMLElement {
+  const node = el("div", className);
+  node.append(itemIcon(item.defId));
+  if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
+  return node;
+}
+
 function renderBag(): void {
   const bag = game.inventory;
+  const selectedUid = selected && "uid" in selected ? selected.uid : null;
+  const selectedSlot = selected && "slot" in selected ? selected.slot : null;
+
+  // Ce que le héros porte : un emplacement par type d'objet.
+  $("doll").replaceChildren(
+    ...SLOTS.map(({ slot, label }) => {
+      const worn = game.equipment[slot];
+      const node = el("div", `slot slot-${slot}${slot === selectedSlot ? " selected" : ""}${worn ? "" : " empty"}`);
+      const box = el("div", "slot-box");
+      if (worn) box.append(itemIcon(worn.defId));
+      node.append(box, el("div", "slot-label", label));
+      node.addEventListener("click", () => {
+        sfx.play("click");
+        selected = worn && selectedSlot !== slot ? { slot } : null;
+        renderBag();
+      });
+      return node;
+    }),
+  );
+
+  // Le sac : grille de cases.
   const grid = $("bag-grid");
   grid.style.setProperty("--cols", String(bag.cols));
   grid.style.setProperty("--rows", String(bag.rows));
   grid.replaceChildren(
     ...bag.items.map((item) => {
       const def = bag.def(item);
-      const equipped = game.equipped.melee === item.uid || game.equipped.ranged === item.uid;
-      const node = el("div", `bag-item${equipped ? " equipped" : ""}${item.uid === selectedUid ? " selected" : ""}`);
+      const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}`);
       node.style.left = `${(100 * item.x) / bag.cols}%`;
       node.style.top = `${(100 * item.y) / bag.rows}%`;
       node.style.width = `${(100 * def.w) / bag.cols}%`;
       node.style.height = `${(100 * def.h) / bag.rows}%`;
-      node.append(itemIcon(item.defId));
-      if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
       return node;
     }),
   );
-  const selected = selectedUid === null ? undefined : bag.get(selectedUid);
+
   const info = $("bag-info");
-  const equip = $("bag-equip");
-  if (!selected) {
-    info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner, puis une case libre pour le déplacer."));
-    equip.hidden = true;
+  const action = $("bag-equip");
+  const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
+  if (!item) {
+    selected = null;
+    info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner. Dans le sac, touchez ensuite une case libre pour le déplacer."));
+    action.hidden = true;
     return;
   }
-  const def = bag.def(selected);
-  const inHand = game.equipped.melee === selected.uid || game.equipped.ranged === selected.uid;
+  const def: ItemDef = ITEMS[item.defId];
+  const lines = itemStats(def);
+  if (def.armorClass) lines.push(`Classe d'armure : ${def.armorClass}`);
   info.replaceChildren(
-    el("div", "bag-name", `${def.name}${selected.count > 1 ? ` ×${selected.count}` : ""}${inHand ? " — en main" : ""}`),
-    ...itemStats(def).map((line) => el("div", "", line)),
+    el("div", "bag-name", `${def.name}${item.count > 1 ? ` ×${item.count}` : ""}${selectedSlot ? " — porté" : ""}`),
+    ...lines.map((line) => el("div", "", line)),
   );
-  equip.hidden = def.kind !== "melee" && def.kind !== "ranged";
-  equip.textContent = inHand ? "Ranger" : "Prendre en main";
+  const wearable = def.kind !== "ammo" && def.kind !== "key";
+  action.hidden = !wearable;
+  action.textContent = selectedSlot ? "Retirer" : "Équiper";
 }
 
 $("bag-grid").addEventListener("click", (e) => {
@@ -440,18 +476,26 @@ $("bag-grid").addEventListener("click", (e) => {
   const x = Math.floor(((e.clientX - rect.left) / rect.width) * bag.cols);
   const y = Math.floor(((e.clientY - rect.top) / rect.height) * bag.rows);
   const hit = bag.at(x, y);
-  if (hit) selectedUid = hit.uid === selectedUid ? null : hit.uid;
+  const selectedUid = selected && "uid" in selected ? selected.uid : null;
+  if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
   else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
   sfx.play("click");
   renderBag();
 });
 button("bag-equip", () => {
-  if (selectedUid !== null) game.toggleEquip(selectedUid);
+  if (selected && "uid" in selected) {
+    if (!game.equip(selected.uid)) logLines.push("Pas assez de place dans le sac pour échanger.");
+  } else if (selected && "slot" in selected) {
+    if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
+  }
+  selected = null;
+  aimShown = "";
+  renderLog();
   renderBag();
 });
 button("open-bag", () => {
   bagOpen = true;
-  selectedUid = null;
+  selected = null;
   $("bag").hidden = false;
   renderBag();
 });
@@ -508,21 +552,22 @@ function classCard(c: ClassDef): Card {
   // Les statistiques d'attaque sont celles des armes de départ, pas de la classe.
   const gear = c.startingItems.map((g) => ({ def: ITEMS[g.item] as ItemDef, count: g.count }));
   const weapons = gear.filter((g) => g.def.kind === "melee" || g.def.kind === "ranged");
+  const armorClass = gear.find((g) => g.def.armorClass)?.def.armorClass ?? UNARMORED_AC;
   return {
     id: c.id,
     name: c.name,
     available: c.available,
     tagline: c.tagline,
-    basics: [`PV ${c.hp} · CA ${c.armorClass}`, weapons.map((g) => g.def.name).join(" · ")],
+    basics: [`PV ${c.hp} · CA ${armorClass}`, weapons.map((g) => g.def.name).join(" · ")],
     details: [
       c.tagline,
       `Points de vie : ${c.hp}`,
-      `Classe d'armure : ${c.armorClass}`,
       `Crocheter une serrure : d20 ${signedBonus(c.lockpickBonus)}`,
       `Enfoncer une porte : d20 ${signedBonus(c.breakBonus)}`,
       "Équipement de départ :",
       ...gear.map((g) => {
         const d = g.def;
+        if (d.armorClass) return `• ${d.name} : classe d'armure ${d.armorClass}`;
         if (d.attackBonus === undefined || !d.damage) return `• ${d.name} ×${g.count}`;
         return `• ${d.name} : d20 ${signedBonus(d.attackBonus)}, dégâts ${diceLabel(d.damage)}${d.range ? `, portée ${d.range} cases` : ""}`;
       }),
@@ -659,8 +704,8 @@ function frame(now: number): void {
   const aimKey = aimMode ? `arc ×${game.arrows()}` : "épée";
   if (aimKey !== aimShown) {
     aimShown = aimKey;
-    const melee = game.inventory.get(game.equipped.melee ?? -1);
-    const ranged = game.inventory.get(game.equipped.ranged ?? -1);
+    const melee = game.equipment.melee;
+    const ranged = game.equipment.ranged;
     const shown = aimMode ? ranged : melee;
     aim.replaceChildren(...(shown ? [itemIcon(shown.defId)] : []), document.createTextNode(aimMode ? `Arc ×${game.arrows()}` : melee ? ITEMS[melee.defId].name : "Poings"));
   }

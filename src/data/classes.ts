@@ -11,8 +11,7 @@ export interface ClassDef {
   /** Style de jeu, décrit dans la fiche détaillée. */
   trait: string;
   hp: number;
-  armorClass: number;
-  /** Équipement de départ. Les statistiques d'attaque viennent des armes (voir src/data/items.ts). */
+  /** Équipement de départ. L'attaque vient des armes et la classe d'armure de l'armure (voir src/data/items.ts). */
   startingItems: { item: ItemId; count: number; equip?: boolean }[];
   /** Bonus au d20 pour crocheter une serrure et pour enfoncer une porte. */
   lockpickBonus: number;
@@ -27,8 +26,8 @@ export const CLASSES = {
     tagline: "Encaisse et frappe fort.",
     trait: "Bonne armure, et la force d'enfoncer les portes.",
     hp: 10,
-    armorClass: 15,
     startingItems: [
+      { item: "cotte_mailles", count: 1, equip: true },
       { item: "epee", count: 1, equip: true },
       { item: "arc_court", count: 1, equip: true },
       { item: "fleche", count: 5 },
@@ -43,8 +42,8 @@ export const CLASSES = {
     tagline: "Frappe par surprise.",
     trait: "Gros dégâts sur un ennemi qui ne l'a pas remarqué ; crochète facilement.",
     hp: 8,
-    armorClass: 13,
     startingItems: [
+      { item: "armure_cuir", count: 1, equip: true },
       { item: "dague", count: 1, equip: true },
       { item: "arc_court", count: 1, equip: true },
       { item: "fleche", count: 8 },
@@ -59,8 +58,10 @@ export const CLASSES = {
     tagline: "Sorts à distance, fragile.",
     trait: "Sorts en nombre limité, rechargés par le repos.",
     hp: 6,
-    armorClass: 11,
-    startingItems: [{ item: "baton", count: 1, equip: true }],
+    startingItems: [
+      { item: "robe", count: 1, equip: true },
+      { item: "baton", count: 1, equip: true },
+    ],
     lockpickBonus: 1,
     breakBonus: -1,
   },

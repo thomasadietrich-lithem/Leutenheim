@@ -105,7 +105,20 @@
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
-  #bag-info { min-height: 70px; width: min(100%, 318px); font-size: 17px; color: var(--dim); text-align: left; }
+  /* Ce que le héros porte : amulette et chapeau en haut, arme, armure, arc en bas. */
+  #bag { gap: 6px; justify-content: flex-start; padding-top: 10px; }
+  #bag h3 { margin: 2px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
+  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat ." "melee armor ranged"; gap: 4px 10px; }
+  .slot { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .slot-amulet { grid-area: amulet; } .slot-hat { grid-area: hat; } .slot-armor { grid-area: armor; }
+  .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
+  .slot-box { width: 64px; height: 64px; padding: 4px; background: #0c0906; border: 3px solid var(--panel-hi);
+    box-shadow: inset 2px 2px 0 #000; display: flex; align-items: center; justify-content: center; }
+  .slot-box svg { height: 100%; width: auto; max-width: 100%; }
+  .slot.empty .slot-box { border-color: #3a3020; }
+  .slot.selected .slot-box { border-color: var(--gold); background: #3a2c14; }
+  .slot-label { font-size: 14px; color: var(--dim); text-transform: uppercase; white-space: nowrap; }
+  #bag-info { min-height: 58px; width: min(100%, 318px); font-size: 17px; color: var(--dim); text-align: left; }
   .bag-name { color: #fff3c8; font-size: 21px; text-transform: uppercase; }
   .bag-buttons { display: flex; gap: 8px; }
 </style>
@@ -138,7 +151,9 @@
     <button id="open-menu" type="button">Menu</button>
   </div>
   <div id="bag" class="overlay" hidden>
-    <h2>Sac</h2>
+    <h2>Équipement</h2>
+    <div id="doll"></div>
+    <h3>Sac</h3>
     <div id="bag-grid"></div>
     <div id="bag-info"></div>
     <div class="bag-buttons">
@@ -361,8 +376,8 @@
       tagline: "Encaisse et frappe fort.",
       trait: "Bonne armure, et la force d'enfoncer les portes.",
       hp: 10,
-      armorClass: 15,
       startingItems: [
+        { item: "cotte_mailles", count: 1, equip: true },
         { item: "epee", count: 1, equip: true },
         { item: "arc_court", count: 1, equip: true },
         { item: "fleche", count: 5 }
@@ -377,8 +392,8 @@
       tagline: "Frappe par surprise.",
       trait: "Gros d\xE9g\xE2ts sur un ennemi qui ne l'a pas remarqu\xE9 ; croch\xE8te facilement.",
       hp: 8,
-      armorClass: 13,
       startingItems: [
+        { item: "armure_cuir", count: 1, equip: true },
         { item: "dague", count: 1, equip: true },
         { item: "arc_court", count: 1, equip: true },
         { item: "fleche", count: 8 }
@@ -393,8 +408,10 @@
       tagline: "Sorts \xE0 distance, fragile.",
       trait: "Sorts en nombre limit\xE9, recharg\xE9s par le repos.",
       hp: 6,
-      armorClass: 11,
-      startingItems: [{ item: "baton", count: 1, equip: true }],
+      startingItems: [
+        { item: "robe", count: 1, equip: true },
+        { item: "baton", count: 1, equip: true }
+      ],
       lockpickBonus: 1,
       breakBonus: -1
     }
@@ -426,6 +443,14 @@
   };
 
   // src/data/items.ts
+  var SLOTS = [
+    { slot: "amulet", label: "Amulette" },
+    { slot: "hat", label: "Chapeau" },
+    { slot: "armor", label: "Armure" },
+    { slot: "melee", label: "Corps \xE0 corps" },
+    { slot: "ranged", label: "Distance" }
+  ];
+  var UNARMORED_AC = 10;
   var ITEMS = {
     epee: { id: "epee", name: "\xC9p\xE9e", kind: "melee", w: 1, h: 2, maxStack: 1, attackBonus: 4, damage: { count: 1, sides: 6, bonus: 2 } },
     dague: { id: "dague", name: "Dague", kind: "melee", w: 1, h: 1, maxStack: 1, attackBonus: 5, damage: { count: 1, sides: 4, bonus: 2 } },
@@ -443,7 +468,10 @@
       ammo: "fleche"
     },
     fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", w: 1, h: 1, maxStack: 20 },
-    clef: { id: "clef", name: "Clef", kind: "key", w: 1, h: 1, maxStack: 5 }
+    clef: { id: "clef", name: "Clef", kind: "key", w: 1, h: 1, maxStack: 5 },
+    cotte_mailles: { id: "cotte_mailles", name: "Cotte de mailles", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 15 },
+    armure_cuir: { id: "armure_cuir", name: "Armure de cuir", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 13 },
+    robe: { id: "robe", name: "Robe", kind: "armor", w: 2, h: 2, maxStack: 1, armorClass: 11 }
   };
   var UNARMED = { attackBonus: 2, damage: { count: 1, sides: 2, bonus: 0 } };
 
@@ -523,6 +551,8 @@
     arrowKeepOnHit: 0.6,
     /** Flèche qui rate : elle file dans le décor ; chance qu'elle ne se casse pas. */
     arrowKeepOnMiss: 0.5,
+    /** Flèche tirée sur le décor (sol, mur, porte) : chance qu'elle ne se casse pas. */
+    arrowKeepOnScenery: 0.5,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
@@ -589,6 +619,25 @@
       }
       return count;
     }
+    /** Sort un objet du sac (pour le porter). */
+    removeItem(uid) {
+      const item = this.get(uid);
+      if (item) this.items = this.items.filter((i) => i !== item);
+      return item;
+    }
+    /** Remet dans le sac un objet qu'on portait, à la première place libre. Renvoie faux si le sac est plein. */
+    placeItem(item) {
+      for (let y = 0; y < this.rows; y++) {
+        for (let x = 0; x < this.cols; x++) {
+          if (!this.fits(item.defId, x, y)) continue;
+          item.x = x;
+          item.y = y;
+          this.items.push(item);
+          return true;
+        }
+      }
+      return false;
+    }
     /** Déplace un objet vers une autre case, si la place est libre. */
     moveTo(uid, x, y) {
       const item = this.get(uid);
@@ -640,6 +689,29 @@
       }
     }
     return true;
+  }
+  function lineBetween(from, to) {
+    const cells = [];
+    let x = from.x;
+    let y = from.y;
+    const dx = Math.abs(to.x - x);
+    const dy = Math.abs(to.y - y);
+    const sx = x < to.x ? 1 : -1;
+    const sy = y < to.y ? 1 : -1;
+    let err = dx - dy;
+    while (x !== to.x || y !== to.y) {
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+      cells.push({ x, y });
+    }
+    return cells;
   }
   function computeFov(map, origin, nearRadius, farRadius = nearRadius, light) {
     const visible = new Uint8Array(map.width * map.height);
@@ -1081,9 +1153,9 @@
       this.torches = [];
       /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
       this.pendingDoor = null;
-      /** Le sac du héros, et les armes qu'il a en main (identifiants d'objets du sac). */
+      /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
       this.inventory = new Inventory();
-      this.equipped = { melee: null, ranged: null };
+      this.equipment = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
       /** Objets au sol sur l'étage courant (flèches à ramasser). */
       this.ground = [];
       /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -1091,7 +1163,7 @@
       this.nextId = 1;
       this.targetId = null;
       this.waiting = false;
-      this.shotTargetId = null;
+      this.shotTarget = null;
       this.doorTarget = null;
       this.doorAction = null;
       this.seenMonsters = /* @__PURE__ */ new Set();
@@ -1114,7 +1186,7 @@
         fromY: 0,
         hp: maxHp,
         maxHp,
-        armorClass: heroClass.armorClass,
+        armorClass: UNARMORED_AC,
         attackBonus: UNARMED.attackBonus,
         damage: UNARMED.damage,
         vision: race.darkVision,
@@ -1123,13 +1195,10 @@
       };
       for (const start of heroClass.startingItems) {
         this.inventory.add(start.item, start.count);
-        if (start.equip) {
-          const placed = this.inventory.items.find((i) => i.defId === start.item);
-          const kind = ITEMS[start.item].kind;
-          if (placed && (kind === "melee" || kind === "ranged")) this.equipped[kind] = placed.uid;
-        }
+        const placed = this.inventory.items.find((i) => i.defId === start.item);
+        if (start.equip && placed) this.equip(placed.uid);
       }
-      this.refreshWeapon();
+      this.refreshStats();
       this.enterFloor(1, "down");
     }
     // ---------- Mise en place d'un étage ----------
@@ -1182,7 +1251,7 @@
       this.path = [];
       this.targetId = null;
       this.waiting = false;
-      this.shotTargetId = null;
+      this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
       this.light = computeLight(this.map, this.torches);
@@ -1276,45 +1345,65 @@
     // ---------- Équipement ----------
     /** L'arme de mêlée ou à distance en main, s'il y en a une. */
     weapon(kind) {
-      const uid = this.equipped[kind];
-      const item = uid === null ? void 0 : this.inventory.get(uid);
+      const item = this.equipment[kind];
       return item ? ITEMS[item.defId] : void 0;
     }
-    /** Prend en main une arme du sac, ou la range si elle y est déjà. Ne coûte pas de tour. */
-    toggleEquip(uid) {
+    /** Porte un objet du sac. S'il y avait déjà quelque chose à cet emplacement, il retourne dans le sac. Ne coûte pas de tour. */
+    equip(uid) {
       const item = this.inventory.get(uid);
       if (!item) return false;
       const kind = ITEMS[item.defId].kind;
-      if (kind !== "melee" && kind !== "ranged") return false;
-      this.equipped[kind] = this.equipped[kind] === uid ? null : uid;
-      this.refreshWeapon();
+      if (kind === "ammo" || kind === "key") return false;
+      const previous = this.equipment[kind];
+      const from = { x: item.x, y: item.y };
+      this.inventory.removeItem(uid);
+      if (previous && !this.inventory.placeItem(previous)) {
+        item.x = from.x;
+        item.y = from.y;
+        this.inventory.items.push(item);
+        return false;
+      }
+      this.equipment[kind] = item;
+      this.refreshStats();
       return true;
     }
-    /** Les statistiques d'attaque du héros sont celles de son arme de mêlée (ou ses poings). */
-    refreshWeapon() {
+    /** Retire ce qui est porté à cet emplacement et le range dans le sac, s'il y a de la place. */
+    unequip(slot) {
+      const item = this.equipment[slot];
+      if (!item || !this.inventory.placeItem(item)) return false;
+      this.equipment[slot] = null;
+      this.refreshStats();
+      return true;
+    }
+    /** L'attaque du héros vient de son arme de mêlée (ou de ses poings), sa classe d'armure de son armure. */
+    refreshStats() {
       const melee = this.weapon("melee");
       this.hero.attackBonus = melee?.attackBonus ?? UNARMED.attackBonus;
       this.hero.damage = melee?.damage ?? UNARMED.damage;
+      const armor = this.equipment.armor;
+      this.hero.armorClass = armor && ITEMS[armor.defId].armorClass || UNARMORED_AC;
     }
     arrows() {
       const ammo = this.weapon("ranged")?.ammo;
       return ammo ? this.inventory.count(ammo) : 0;
     }
     // ---------- Ordres du joueur ----------
-    /** Tirer sur le monstre qui se trouve sur cette case. Renvoie la raison du refus, ou null si le tir est lancé. */
+    /**
+     * Tirer une flèche vers une case en vue, quelle qu'elle soit : monstre, sol, mur, porte.
+     * Renvoie la raison du refus, ou null si le tir est lancé.
+     */
     shoot(x, y) {
       const bow = this.weapon("ranged");
       if (this.over || !bow) return "no-bow";
       if (this.arrows() < 1) return "no-ammo";
-      const target = this.monsterAt(x, y);
-      if (!target || !this.isVisible(x, y)) return "no-target";
+      if (!this.isVisible(x, y) || x === this.hero.x && y === this.hero.y) return "no-target";
       const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
       if (distance > (bow.range ?? 0)) return "out-of-range";
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
       this.waiting = false;
-      this.shotTargetId = target.id;
+      this.shotTarget = { x, y };
       return null;
     }
     /**
@@ -1339,7 +1428,7 @@
       this.targetId = monster ? monster.id : null;
       this.path = path;
       this.waiting = false;
-      this.shotTargetId = null;
+      this.shotTarget = null;
       return true;
     }
     /** Se rendre devant une porte verrouillée (ou s'y arrêter si on y est déjà) pour choisir quoi en faire. */
@@ -1386,7 +1475,7 @@
       if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
       this.clearDoorOrders();
       this.targetId = null;
-      this.shotTargetId = null;
+      this.shotTarget = null;
       this.path = [{ x: this.hero.x + dx, y: this.hero.y + dy }];
       return true;
     }
@@ -1396,7 +1485,7 @@
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
-      this.shotTargetId = null;
+      this.shotTarget = null;
       this.waiting = true;
     }
     // ---------- Déroulement d'un tour ----------
@@ -1407,8 +1496,8 @@
         a.fromX = a.x;
         a.fromY = a.y;
       }
-      const shotTarget = this.shotTargetId === null ? void 0 : this.monsters.find((m) => m.id === this.shotTargetId);
-      this.shotTargetId = null;
+      const shotTarget = this.shotTarget;
+      this.shotTarget = null;
       if (shotTarget) {
         this.heroShoots(shotTarget);
       } else if (this.doorAction && this.pendingDoor) {
@@ -1571,37 +1660,61 @@
       this.closeDoorAt(monster.x, monster.y);
       this.events.push({ type: "death", actor: monster });
     }
-    /** Tir à l'arc : consomme une flèche, qui pourra parfois être ramassée ensuite. */
-    heroShoots(monster) {
+    /**
+     * Tir à l'arc vers une case. La flèche file en ligne droite : elle s'arrête sur le premier monstre rencontré
+     * (jet d'attaque), rebondit d'une case sur un mur, une colonne ou une porte fermée, ou se plante dans la case visée.
+     */
+    heroShoots(target) {
       const bow = this.weapon("ranged");
       if (!bow || !bow.ammo || !this.inventory.take(bow.ammo, 1)) return;
-      const favoured = !monster.alerted || this.map.isDoor(monster.x, monster.y);
-      const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
-      const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
-      const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, monster, mode);
-      monster.alerted = true;
-      monster.asleep = false;
-      monster.hp -= result.damage;
-      this.events.push({ type: "attack", attacker: this.hero, target: monster, result, ranged: true });
-      const landing = result.hit ? { x: monster.x, y: monster.y } : this.flyPast(monster);
-      const kept = this.rng.chance(result.hit ? RULES.arrowKeepOnHit : RULES.arrowKeepOnMiss);
-      if (kept) this.dropItem(landing.x, landing.y, bow.ammo, 1);
-      this.events.push({ type: "arrow", fromX: this.hero.x, fromY: this.hero.y, x: landing.x, y: landing.y, hit: result.hit, kept });
-      this.removeIfDead(monster);
-    }
-    /** Une flèche ratée continue tout droit au-delà de la cible, jusqu'à un mur ou une porte fermée. */
-    flyPast(target) {
-      const dx = target.x - this.hero.x;
-      const dy = target.y - this.hero.y;
-      const n = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
-      let last2 = { x: target.x, y: target.y };
-      for (let k = 1; k <= RULES.arrowOvershoot; k++) {
-        const cx = Math.round(target.x + dx / n * k);
-        const cy = Math.round(target.y + dy / n * k);
-        if (!this.map.isWalkable(cx, cy) || this.map.blocksSight(cx, cy)) break;
-        last2 = { x: cx, y: cy };
+      const origin = { x: this.hero.x, y: this.hero.y };
+      const trail = [origin];
+      let landing = origin;
+      let via;
+      let hit = false;
+      let keepChance = RULES.arrowKeepOnScenery;
+      let victim;
+      const fly = (c) => {
+        if (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y)) {
+          via = trail[trail.length - 1];
+          landing = trail[Math.max(0, trail.length - 2)];
+          return false;
+        }
+        trail.push(c);
+        landing = c;
+        return true;
+      };
+      for (const c of lineBetween(origin, target)) {
+        if (!fly(c)) break;
+        victim = this.monsterAt(c.x, c.y);
+        if (victim) break;
       }
-      return last2;
+      if (victim) {
+        const favoured = !victim.alerted || this.map.isDoor(victim.x, victim.y);
+        const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+        const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
+        const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+        victim.alerted = true;
+        victim.asleep = false;
+        victim.hp -= result.damage;
+        this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
+        hit = result.hit;
+        if (hit) {
+          keepChance = RULES.arrowKeepOnHit;
+        } else {
+          keepChance = RULES.arrowKeepOnMiss;
+          const dx = victim.x - origin.x;
+          const dy = victim.y - origin.y;
+          const n = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
+          for (let k = 1; k <= RULES.arrowOvershoot; k++) {
+            if (!fly({ x: Math.round(victim.x + dx / n * k), y: Math.round(victim.y + dy / n * k) })) break;
+          }
+        }
+      }
+      const kept = this.rng.chance(keepChance);
+      if (kept) this.dropItem(landing.x, landing.y, bow.ammo, 1);
+      this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
+      if (victim) this.removeIfDead(victim);
     }
     dropItem(x, y, item, count) {
       const pile = this.ground.find((g) => g.x === x && g.y === y && g.item === item);
@@ -1904,8 +2017,8 @@
       this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0, arc });
     }
     /** Fait voler une flèche d'une case à une autre. */
-    addProjectile(fromX, fromY, x, y) {
-      this.projectiles.push({ fromX, fromY, x, y, age: 0 });
+    addProjectile(fromX, fromY, x, y, delay = 0) {
+      this.projectiles.push({ fromX, fromY, x, y, age: -delay });
     }
     originX() {
       return this.width / 2 - (this.camX + 0.5) * this.tile;
@@ -1985,7 +2098,7 @@
           } else {
             this.drawFloor(x, y, sx, sy);
           }
-          this.drawFeature(t, sx, sy);
+          this.drawFeature(game2, t, x, y, sx, sy);
           const shade = wall || t === Tile.Pillar ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
             const lit = game2.light[game2.map.index(x, y)];
@@ -2133,6 +2246,7 @@
       }
       this.projectiles = this.projectiles.filter((p) => (p.age += dt) < PROJECTILE_MS);
       for (const p of this.projectiles) {
+        if (p.age < 0) continue;
         const t = p.age / PROJECTILE_MS;
         const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
         const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
@@ -2255,8 +2369,57 @@
         ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
       }
     }
-    /** Escalier et portes, dessinés par-dessus le sol. */
-    drawFeature(t, sx, sy) {
+    /**
+     * Porte : battant de planches cerclé de fer, dans un encadrement de pierre. Elle est tournée selon le mur
+     * qui la porte. Verrouillée : un cadenas doré. Ouverte : le battant est rabattu contre le montant.
+     */
+    drawDoor(game2, t, x, y, sx, sy) {
+      const { ctx, tile } = this;
+      const sideways = !game2.map.isWalkable(x, y - 1) && !game2.map.isWalkable(x, y + 1);
+      ctx.save();
+      ctx.translate(sx + tile / 2, sy + tile / 2);
+      if (sideways) ctx.rotate(Math.PI / 2);
+      const u = tile / 16;
+      const px = (gx, gy, w, h, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
+      };
+      px(0, 0, 16, 16, "#2a2533");
+      px(0, 0, 2, 16, "#8b90b0");
+      px(14, 0, 2, 16, "#8b90b0");
+      px(0, 0, 16, 1, "#6e7290");
+      if (t === Tile.DoorOpen) {
+        px(2, 1, 3, 14, "#8a5a2b");
+        px(2, 1, 1, 14, "#b9824a");
+        px(2, 4, 3, 1, "#4a4e5e");
+        px(2, 11, 3, 1, "#4a4e5e");
+      } else {
+        px(2, 1, 12, 14, "#8a5a2b");
+        for (const gx of [2, 5, 8, 11]) px(gx, 1, 1, 14, "#b9824a");
+        for (const gx of [4, 7, 10, 13]) px(gx, 1, 1, 14, "#5a3817");
+        for (const gy of [3, 11]) {
+          px(2, gy, 12, 2, "#4a4e5e");
+          px(2, gy, 12, 1, "#7a7f94");
+          for (const gx of [3, 7, 12]) px(gx, gy, 1, 1, "#c3cbe0");
+        }
+        if (t === Tile.DoorLocked) {
+          px(6, 6, 4, 1, "#f0c050");
+          px(6, 6, 1, 2, "#f0c050");
+          px(9, 6, 1, 2, "#f0c050");
+          px(5, 8, 6, 3, "#f0c050");
+          px(5, 10, 6, 1, "#a87c1c");
+          px(7, 8, 2, 2, "#1c1410");
+        } else {
+          px(10, 7, 2, 1, "#c3cbe0");
+          px(10, 9, 2, 1, "#c3cbe0");
+          px(10, 7, 1, 3, "#c3cbe0");
+          px(12, 8, 1, 1, "#c3cbe0");
+        }
+      }
+      ctx.restore();
+    }
+    /** Escalier, fontaine et coffre, dessinés par-dessus le sol. */
+    drawFeature(game2, t, x, y, sx, sy) {
       const { ctx, tile } = this;
       if (t === Tile.StairsDown) {
         ctx.fillStyle = COLORS.stairs;
@@ -2269,17 +2432,8 @@
           const w = tile * (0.7 - i * 0.2);
           ctx.fillRect(sx + tile * 0.85 - w, sy + tile * (0.64 - i * 0.22), w, tile * 0.14);
         }
-      } else if (t === Tile.DoorClosed || t === Tile.DoorLocked) {
-        ctx.fillStyle = COLORS.door;
-        ctx.fillRect(sx + tile * 0.1, sy + tile * 0.1, tile * 0.8, tile * 0.8);
-        ctx.fillStyle = COLORS.doorEdge;
-        ctx.fillRect(sx + tile * 0.47, sy + tile * 0.1, tile * 0.06, tile * 0.8);
-        if (t === Tile.DoorLocked) {
-          ctx.fillStyle = COLORS.lock;
-          ctx.fillRect(sx + tile * 0.36, sy + tile * 0.38, tile * 0.28, tile * 0.24);
-          ctx.fillStyle = COLORS.doorEdge;
-          ctx.fillRect(sx + tile * 0.47, sy + tile * 0.45, tile * 0.06, tile * 0.12);
-        }
+      } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
+        this.drawDoor(game2, t, x, y, sx, sy);
       } else if (t === Tile.Fountain || t === Tile.FountainDry) {
         const cx = sx + tile / 2;
         const cy = sy + tile / 2;
@@ -2307,96 +2461,295 @@
           ctx.fillRect(sx + tile * 0.18, sy + tile * 0.47, tile * 0.64, tile * 0.06);
           ctx.fillRect(sx + tile * 0.45, sy + tile * 0.44, tile * 0.1, tile * 0.14);
         }
-      } else if (t === Tile.DoorOpen) {
-        ctx.fillStyle = COLORS.door;
-        ctx.fillRect(sx + 0.5, sy + 0.5, tile * 0.14, tile - 1);
-        ctx.fillRect(sx + tile * 0.86, sy + 0.5, tile * 0.14 - 0.5, tile - 1);
       }
     }
   };
 
   // src/ui/icons.ts
+  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058" };
   var ICONS = {
-    epee: {
-      w: 8,
-      h: 16,
-      rects: [
-        [3, 1, 2, 9, "#cfd6ea"],
-        [3, 1, 1, 9, "#eef2ff"],
-        [1, 10, 6, 1, "#e0b040"],
-        [3, 11, 2, 3, "#6b4a2a"],
-        [3, 14, 2, 1, "#e0b040"]
-      ]
-    },
-    dague: {
-      w: 8,
-      h: 8,
-      rects: [
-        [3, 0, 2, 4, "#cfd6ea"],
-        [2, 4, 4, 1, "#e0b040"],
-        [3, 5, 2, 2, "#6b4a2a"]
-      ]
-    },
-    baton: {
-      w: 8,
-      h: 16,
-      rects: [
-        [3, 1, 2, 14, "#8a5a2b"],
-        [2, 1, 4, 2, "#b9824a"]
-      ]
-    },
-    arc_court: {
-      w: 8,
-      h: 16,
-      rects: [
-        [2, 1, 2, 1, "#8a5a2b"],
-        [4, 2, 1, 2, "#8a5a2b"],
-        [5, 4, 1, 8, "#b9824a"],
-        [4, 12, 1, 2, "#8a5a2b"],
-        [2, 14, 2, 1, "#8a5a2b"],
-        [2, 2, 1, 12, "#d8d4e6"]
-      ]
-    },
-    fleche: {
-      w: 8,
-      h: 8,
-      rects: [
-        [1, 6, 1, 1, "#e05060"],
-        [2, 5, 1, 1, "#b9824a"],
-        [3, 4, 1, 1, "#b9824a"],
-        [4, 3, 1, 1, "#b9824a"],
-        [5, 2, 1, 1, "#b9824a"],
-        [5, 1, 2, 1, "#cfd6ea"],
-        [6, 1, 1, 2, "#cfd6ea"]
-      ]
-    },
-    clef: {
-      w: 8,
-      h: 8,
-      rects: [
-        [1, 1, 3, 3, "#e0b040"],
-        [2, 2, 1, 1, "#1c1a28"],
-        [4, 2, 3, 1, "#e0b040"],
-        [5, 3, 1, 1, "#e0b040"],
-        [6, 3, 1, 2, "#e0b040"]
-      ]
-    }
+    epee: [
+      ".......KK.......",
+      "......KWDK......",
+      "......KWDK......",
+      ".....KWSSDK.....",
+      ".....KWWSDK.....",
+      ".....KWSSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWSSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWSSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "..K..KWWSDK..K..",
+      ".KGKKKWSSDKKKGK.",
+      ".KGGGGGGGGGGGGK.",
+      ".KggggggggggggK.",
+      "..KKKKKBbKKKKK..",
+      "......KbBK......",
+      "......KBbK......",
+      "......KbBK......",
+      "......KBbK......",
+      "......KbBK......",
+      ".....KGGGGK.....",
+      ".....KggggK.....",
+      "......KKKK......"
+    ],
+    dague: [
+      ".......KK.......",
+      "......KWSK......",
+      "......KWDK......",
+      "......KWDK......",
+      "......KWDK......",
+      "......KWDK......",
+      "......KWDK......",
+      "......KWDK......",
+      "....KKKWDKKK....",
+      "...KGGGGGGGGK...",
+      "....KKKBbKKK....",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KGgK......",
+      ".......KK......."
+    ],
+    baton: [
+      ".......KK.......",
+      "......KTTK......",
+      ".....KTPPTK.....",
+      ".....KTPpTK.....",
+      ".....KTTTTK.....",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      ".......KK......."
+    ],
+    arc_court: [
+      "....KK..........",
+      "...KLbK.........",
+      "...KLBbK........",
+      "...KLKBbK.......",
+      "...KLKBbK.......",
+      "...KLKKBbK......",
+      "...KLK.KBbK.....",
+      "...KLK.KBbK.....",
+      "...KLK..KBbK....",
+      "...KLK..KBbK....",
+      "...KLK...KBbK...",
+      "...KLK...KBbK...",
+      "...KLK....KBbK..",
+      "...KLK....KTtK..",
+      "...KLK....KTtK..",
+      "...KLK....KTtK..",
+      "...KLK....KTtK..",
+      "...KLK....KTtK..",
+      "...KLK....KTtK..",
+      "...KLK....KBbK..",
+      "...KLK...KBbK...",
+      "...KLK...KBbK...",
+      "...KLK..KBbK....",
+      "...KLK..KBbK....",
+      "...KLK.KBbK.....",
+      "...KLK.KBbK.....",
+      "...KLKKBbK......",
+      "...KLKBbK.......",
+      "...KLKBbK.......",
+      "...KLBbK........",
+      "...KLbK.........",
+      "....KK.........."
+    ],
+    fleche: [
+      "............KK..",
+      "...........KSWK.",
+      "..........KSWDKK",
+      "..........KSSKSW",
+      ".........KBKKSWD",
+      "........KBK.KSSK",
+      ".......KBK.KBKK.",
+      "......KBK.KBK...",
+      ".....KBK.KBK....",
+      "....KBK.KBK.....",
+      ".K.KBK.KBK......",
+      "KRKBK.KBK.......",
+      "KRBK.KBK........",
+      "KRRRKBK.........",
+      ".KKRBK..........",
+      "..KRRRK........."
+    ],
+    clef: [
+      "................",
+      "................",
+      "................",
+      "...KKKK.........",
+      "..KGGGGKK.......",
+      "..KGKKKGGK......",
+      ".KGK...KGKKKKK..",
+      ".KGK...KGGGGGGK.",
+      ".KGK...KggggggK.",
+      "..KGKKKGKKKGKGK.",
+      "...KGGGK..KGKGK.",
+      "....KKK....KKGK.",
+      ".............K..",
+      "................",
+      "................",
+      "................"
+    ],
+    cotte_mailles: [
+      "................................",
+      "................................",
+      "...KKKKKKKKK........KKKKKKKKK...",
+      "..KHHHHHHHHHK......KHHHHHHHHHK..",
+      "..KCcCcCcCcCcK....KCcCcCcCcCcK..",
+      "..KcCcCcCcCcCK....KcCcCcCcCcCK..",
+      "..KHHHHHHHHHHHKKKKHHHHHHHHHHHK..",
+      "..KcCcCcCcCcCcCcCcCcCcCcCcCcCK..",
+      "..KCcCcCcCcCcCcCcCcCcCcCcCcCcK..",
+      "..KHHHHHHHHHHHHHHHHHHHHHHHHHHK..",
+      "..KCcCcCcCcCcCcCcCcCcCcCcCcCcK..",
+      "..KcCcCcCcCcCcCcCcCcCcCcCcCcCK..",
+      "...KKKKKHHHHHHHHHHHHHHHHKKKKK...",
+      ".......KCcCcCcCcCcCcCcCcK.......",
+      ".......KcCcCcCcCcCcCcCcCK.......",
+      ".......KHHHHHHHHHHHHHHHHK.......",
+      ".......KcCcCcCcCcCcCcCcCK.......",
+      ".......KCcCcCcCcCcCcCcCcK.......",
+      ".......KHHHHHHHHHHHHHHHHK.......",
+      ".......KCcCcCcCcCcCcCcCcK.......",
+      ".......KcCcCcCcCcCcCcCcCK.......",
+      ".......KHHHHHHHHHHHHHHHHK.......",
+      ".......KbbbbbbbGGbbbbbbbK.......",
+      ".......KBBBBBBBggBBBBBBBK.......",
+      ".......KHHHHHHHHHHHHHHHHK.......",
+      "......KcCcCcCcCcCcCcCcCcCK......",
+      "......KCcCcCcCcCcCcCcCcCcK......",
+      "......KHHHHHHHHHHHHHHHHHHK......",
+      "......KCcCcCcCcCcCcCcCcCcK......",
+      "......KcCcCcCcCcCcCcCcCcCK......",
+      ".......KKKKKKKKKKKKKKKKKK.......",
+      "................................"
+    ],
+    armure_cuir: [
+      "................................",
+      "................................",
+      "...KKKKKKKKK........KKKKKKKKK...",
+      "..KTTTBBBTTTK......KBTTTBBBTTK..",
+      "..KBBBTTTBBBTK....KTTBBBTTTBBK..",
+      "..KBBBTTTBBBTK....KTTBBBTTTBBK..",
+      "..KBBBTTTBBBTTKKKKTTTBBBTTTBBK..",
+      "..KBBBTTTBBBTTTBBBTTTBBBTTTBBK..",
+      "..KTTTBBBTTTBBBttTBBBTTTBBBTTK..",
+      "..KTTTBBBTTTBBBttTBBBTTTBBBTTK..",
+      "..KTTTBBBTTTBBBGtTBBBTTTBBBTTK..",
+      "..KTTTBBBTTTBBBttTBBBTTTBBBTTK..",
+      "...KKKKKTBBBTTTttBTTTBBBKKKKK...",
+      ".......KTBBBTTTttBTTTBBBK.......",
+      ".......KTBBBTTTGtBTTTBBBK.......",
+      ".......KTBBBTTTttBTTTBBBK.......",
+      ".......KBTTTBBBttTBBBTTTK.......",
+      ".......KBTTTBBBttTBBBTTTK.......",
+      ".......KBTTTBBBGtTBBBTTTK.......",
+      ".......KBTTTBBBttTBBBTTTK.......",
+      ".......KTBBBTTTttBTTTBBBK.......",
+      ".......KTBBBTTTttBTTTBBBK.......",
+      ".......KbbbbbbbbbbbbbbbbK.......",
+      ".......KttttttttttttttttK.......",
+      ".......KBTTTBBBttTBBBTTTK.......",
+      "......KBBTTTBBBttTBBBTTTBK......",
+      "......KBBTTTBBBttTBBBTTTBK......",
+      "......KBBTTTBBBttTBBBTTTBK......",
+      "......KTTBBBTTTttBTTTBBBTK......",
+      "......KTTBBBTTTttBTTTBBBTK......",
+      ".......KKKKKKKKKKKKKKKKKK.......",
+      "................................"
+    ],
+    robe: [
+      "................................",
+      "................................",
+      "...KKKKKKKKK........KKKKKKKKK...",
+      "..KPPPpPPPPPK......KPPPPpPPPPK..",
+      "..KPPPpPPPPPpK....KPPPPPpPPPPK..",
+      "..KPPPpPPPPPpK....KPPPPPpPPPPK..",
+      "..KPPPpPPPPPpPKKKKpPPPPPpPPPPK..",
+      "..KPPPpPPPPPpPPPPPpPPPPPpPPPPK..",
+      "..KPPPpPPPPPpPPPPPpPPPPPpPPPPK..",
+      "..KPPPpPPPPPpPPPPPpPPPPPpPPPPK..",
+      "..KPPPpPPPPPpPPPPPpPPPPPpPPPPK..",
+      "..KPPPpPPPPPpPPPPPpPPPPPpPPPPK..",
+      "...KKKKKPPPPpPPPPPpPPPPPKKKKK...",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KggggggggggggggggK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      ".......KPPPPpPPPPPpPPPPPK.......",
+      "......KPPPPPpPPPPPpPPPPPpK......",
+      "......KPPPPPpPPPPPpPPPPPpK......",
+      "......KPPPPPpPPPPPpPPPPPpK......",
+      "......KGGGGGGGGGGGGGGGGGGK......",
+      "......KggggggggggggggggggK......",
+      ".......KKKKKKKKKKKKKKKKKK.......",
+      "................................"
+    ]
   };
   function itemIcon(id) {
     const ns = "http://www.w3.org/2000/svg";
-    const icon = ICONS[id];
+    const rows = ICONS[id];
     const svg = document.createElementNS(ns, "svg");
-    svg.setAttribute("viewBox", `0 0 ${icon.w} ${icon.h}`);
+    svg.setAttribute("viewBox", `0 0 ${rows[0].length} ${rows.length}`);
     svg.setAttribute("shape-rendering", "crispEdges");
-    for (const [x, y, w, h, color] of icon.rects) {
-      const r = document.createElementNS(ns, "rect");
-      r.setAttribute("x", String(x));
-      r.setAttribute("y", String(y));
-      r.setAttribute("width", String(w));
-      r.setAttribute("height", String(h));
-      r.setAttribute("fill", color);
-      svg.appendChild(r);
-    }
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; ) {
+        const c = row[x];
+        let end = x + 1;
+        while (end < row.length && row[end] === c) end++;
+        if (c !== ".") {
+          const r = document.createElementNS(ns, "rect");
+          r.setAttribute("x", String(x));
+          r.setAttribute("y", String(y));
+          r.setAttribute("width", String(end - x));
+          r.setAttribute("height", "1");
+          r.setAttribute("fill", PALETTE[c]);
+          svg.appendChild(r);
+        }
+        x = end;
+      }
+    });
     return svg;
   }
 
@@ -2445,7 +2798,7 @@
   var logLines = [];
   var menuOpen = true;
   var bagOpen = false;
-  var selectedUid = null;
+  var selected = null;
   var aimMode = false;
   var doorWasPending = false;
   var aimShown = "";
@@ -2569,9 +2922,14 @@
         }
       }
     } else if (e.type === "arrow") {
-      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
-      if (!e.kept) logLines.push(e.hit ? "La fl\xE8che se brise." : "La fl\xE8che se brise contre le d\xE9cor.");
-      else if (!e.hit) logLines.push("La fl\xE8che se plante plus loin : elle est r\xE9cup\xE9rable.");
+      if (e.via) {
+        renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
+        renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170);
+      } else {
+        renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+      }
+      if (!e.kept) logLines.push("La fl\xE8che se brise.");
+      else if (!e.hit) logLines.push(e.via ? "La fl\xE8che rebondit et retombe au sol." : "La fl\xE8che se plante au sol.");
     } else if (e.type === "pickup") {
       logLines.push(`Vous ramassez : ${ITEMS[e.item].name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`);
       sfx.play("pickup");
@@ -2645,13 +3003,13 @@
     onTap(px, py) {
       if (menuOpen || bagOpen) return;
       const t = renderer.screenToTile(px, py);
-      if (aimMode && game.monsterAt(t.x, t.y) && game.isVisible(t.x, t.y)) {
+      if (aimMode) {
         const refusal = game.shoot(t.x, t.y);
         if (refusal) {
           const why = {
             "no-bow": "Aucun arc en main.",
             "no-ammo": "Plus de fl\xE8ches.",
-            "no-target": "Aucune cible visible ici.",
+            "no-target": "Vous ne voyez pas cet endroit.",
             "out-of-range": `Hors de port\xE9e (${game.weapon("ranged")?.range ?? 0} cases).`
           }[refusal];
           logLines.push(why);
@@ -2696,7 +3054,7 @@
   button("aim", () => {
     aimMode = !aimMode;
     logLines.push(
-      aimMode ? game.arrows() > 0 ? "Arc en main : touchez un monstre encadr\xE9 pour lui tirer dessus." : "Arc en main, mais plus de fl\xE8ches." : "\xC9p\xE9e en main : touchez un monstre pour aller le frapper."
+      aimMode ? game.arrows() > 0 ? "Arc en main : touchez une cible \xE0 port\xE9e pour tirer. Retouchez ce bouton pour reprendre l'\xE9p\xE9e." : "Arc en main, mais plus de fl\xE8ches." : "\xC9p\xE9e en main : touchez un monstre pour aller le frapper."
     );
     renderLog();
   });
@@ -2710,41 +3068,64 @@
     if (def.kind === "key") lines.push("Ouvre une porte verrouill\xE9e, sans bruit.");
     return lines;
   }
+  function itemNode(item, className) {
+    const node = el("div", className);
+    node.append(itemIcon(item.defId));
+    if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
+    return node;
+  }
   function renderBag() {
     const bag = game.inventory;
+    const selectedUid = selected && "uid" in selected ? selected.uid : null;
+    const selectedSlot = selected && "slot" in selected ? selected.slot : null;
+    $("doll").replaceChildren(
+      ...SLOTS.map(({ slot, label }) => {
+        const worn = game.equipment[slot];
+        const node = el("div", `slot slot-${slot}${slot === selectedSlot ? " selected" : ""}${worn ? "" : " empty"}`);
+        const box = el("div", "slot-box");
+        if (worn) box.append(itemIcon(worn.defId));
+        node.append(box, el("div", "slot-label", label));
+        node.addEventListener("click", () => {
+          sfx.play("click");
+          selected = worn && selectedSlot !== slot ? { slot } : null;
+          renderBag();
+        });
+        return node;
+      })
+    );
     const grid = $("bag-grid");
     grid.style.setProperty("--cols", String(bag.cols));
     grid.style.setProperty("--rows", String(bag.rows));
     grid.replaceChildren(
-      ...bag.items.map((item) => {
-        const def2 = bag.def(item);
-        const equipped = game.equipped.melee === item.uid || game.equipped.ranged === item.uid;
-        const node = el("div", `bag-item${equipped ? " equipped" : ""}${item.uid === selectedUid ? " selected" : ""}`);
-        node.style.left = `${100 * item.x / bag.cols}%`;
-        node.style.top = `${100 * item.y / bag.rows}%`;
+      ...bag.items.map((item2) => {
+        const def2 = bag.def(item2);
+        const node = itemNode(item2, `bag-item${item2.uid === selectedUid ? " selected" : ""}`);
+        node.style.left = `${100 * item2.x / bag.cols}%`;
+        node.style.top = `${100 * item2.y / bag.rows}%`;
         node.style.width = `${100 * def2.w / bag.cols}%`;
         node.style.height = `${100 * def2.h / bag.rows}%`;
-        node.append(itemIcon(item.defId));
-        if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
         return node;
       })
     );
-    const selected = selectedUid === null ? void 0 : bag.get(selectedUid);
     const info = $("bag-info");
-    const equip = $("bag-equip");
-    if (!selected) {
-      info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner, puis une case libre pour le d\xE9placer."));
-      equip.hidden = true;
+    const action = $("bag-equip");
+    const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
+    if (!item) {
+      selected = null;
+      info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner. Dans le sac, touchez ensuite une case libre pour le d\xE9placer."));
+      action.hidden = true;
       return;
     }
-    const def = bag.def(selected);
-    const inHand = game.equipped.melee === selected.uid || game.equipped.ranged === selected.uid;
+    const def = ITEMS[item.defId];
+    const lines = itemStats(def);
+    if (def.armorClass) lines.push(`Classe d'armure : ${def.armorClass}`);
     info.replaceChildren(
-      el("div", "bag-name", `${def.name}${selected.count > 1 ? ` \xD7${selected.count}` : ""}${inHand ? " \u2014 en main" : ""}`),
-      ...itemStats(def).map((line) => el("div", "", line))
+      el("div", "bag-name", `${def.name}${item.count > 1 ? ` \xD7${item.count}` : ""}${selectedSlot ? " \u2014 port\xE9" : ""}`),
+      ...lines.map((line) => el("div", "", line))
     );
-    equip.hidden = def.kind !== "melee" && def.kind !== "ranged";
-    equip.textContent = inHand ? "Ranger" : "Prendre en main";
+    const wearable = def.kind !== "ammo" && def.kind !== "key";
+    action.hidden = !wearable;
+    action.textContent = selectedSlot ? "Retirer" : "\xC9quiper";
   }
   $("bag-grid").addEventListener("click", (e) => {
     const grid = $("bag-grid");
@@ -2753,18 +3134,26 @@
     const x = Math.floor((e.clientX - rect.left) / rect.width * bag.cols);
     const y = Math.floor((e.clientY - rect.top) / rect.height * bag.rows);
     const hit = bag.at(x, y);
-    if (hit) selectedUid = hit.uid === selectedUid ? null : hit.uid;
+    const selectedUid = selected && "uid" in selected ? selected.uid : null;
+    if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
     else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
     sfx.play("click");
     renderBag();
   });
   button("bag-equip", () => {
-    if (selectedUid !== null) game.toggleEquip(selectedUid);
+    if (selected && "uid" in selected) {
+      if (!game.equip(selected.uid)) logLines.push("Pas assez de place dans le sac pour \xE9changer.");
+    } else if (selected && "slot" in selected) {
+      if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
+    }
+    selected = null;
+    aimShown = "";
+    renderLog();
     renderBag();
   });
   button("open-bag", () => {
     bagOpen = true;
-    selectedUid = null;
+    selected = null;
     $("bag").hidden = false;
     renderBag();
   });
@@ -2801,21 +3190,22 @@
   function classCard(c) {
     const gear = c.startingItems.map((g) => ({ def: ITEMS[g.item], count: g.count }));
     const weapons = gear.filter((g) => g.def.kind === "melee" || g.def.kind === "ranged");
+    const armorClass = gear.find((g) => g.def.armorClass)?.def.armorClass ?? UNARMORED_AC;
     return {
       id: c.id,
       name: c.name,
       available: c.available,
       tagline: c.tagline,
-      basics: [`PV ${c.hp} \xB7 CA ${c.armorClass}`, weapons.map((g) => g.def.name).join(" \xB7 ")],
+      basics: [`PV ${c.hp} \xB7 CA ${armorClass}`, weapons.map((g) => g.def.name).join(" \xB7 ")],
       details: [
         c.tagline,
         `Points de vie : ${c.hp}`,
-        `Classe d'armure : ${c.armorClass}`,
         `Crocheter une serrure : d20 ${signedBonus(c.lockpickBonus)}`,
         `Enfoncer une porte : d20 ${signedBonus(c.breakBonus)}`,
         "\xC9quipement de d\xE9part :",
         ...gear.map((g) => {
           const d = g.def;
+          if (d.armorClass) return `\u2022 ${d.name} : classe d'armure ${d.armorClass}`;
           if (d.attackBonus === void 0 || !d.damage) return `\u2022 ${d.name} \xD7${g.count}`;
           return `\u2022 ${d.name} : d20 ${signedBonus(d.attackBonus)}, d\xE9g\xE2ts ${diceLabel(d.damage)}${d.range ? `, port\xE9e ${d.range} cases` : ""}`;
         }),
@@ -2937,8 +3327,8 @@
     const aimKey = aimMode ? `arc \xD7${game.arrows()}` : "\xE9p\xE9e";
     if (aimKey !== aimShown) {
       aimShown = aimKey;
-      const melee = game.inventory.get(game.equipped.melee ?? -1);
-      const ranged = game.inventory.get(game.equipped.ranged ?? -1);
+      const melee = game.equipment.melee;
+      const ranged = game.equipment.ranged;
       const shown = aimMode ? ranged : melee;
       aim.replaceChildren(...shown ? [itemIcon(shown.defId)] : [], document.createTextNode(aimMode ? `Arc \xD7${game.arrows()}` : melee ? ITEMS[melee.defId].name : "Poings"));
     }

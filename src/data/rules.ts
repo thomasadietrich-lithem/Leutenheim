@@ -16,6 +16,8 @@ export const RULES = {
   arrowKeepOnHit: 0.6,
   /** Flèche qui rate : elle file dans le décor ; chance qu'elle ne se casse pas. */
   arrowKeepOnMiss: 0.5,
+  /** Flèche tirée sur le décor (sol, mur, porte) : chance qu'elle ne se casse pas. */
+  arrowKeepOnScenery: 0.5,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */

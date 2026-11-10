@@ -74,6 +74,27 @@ export class Inventory {
     return count;
   }
 
+  /** Sort un objet du sac (pour le porter). */
+  removeItem(uid: number): BagItem | undefined {
+    const item = this.get(uid);
+    if (item) this.items = this.items.filter((i) => i !== item);
+    return item;
+  }
+
+  /** Remet dans le sac un objet qu'on portait, à la première place libre. Renvoie faux si le sac est plein. */
+  placeItem(item: BagItem): boolean {
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if (!this.fits(item.defId, x, y)) continue;
+        item.x = x;
+        item.y = y;
+        this.items.push(item);
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Déplace un objet vers une autre case, si la place est libre. */
   moveTo(uid: number, x: number, y: number): boolean {
     const item = this.get(uid);

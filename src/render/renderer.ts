@@ -151,8 +151,8 @@ export class Renderer {
   }
 
   /** Fait voler une flèche d'une case à une autre. */
-  addProjectile(fromX: number, fromY: number, x: number, y: number): void {
-    this.projectiles.push({ fromX, fromY, x, y, age: 0 });
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: -delay }); // un âge négatif : elle partira après ce délai
   }
 
   private originX(): number {
@@ -243,7 +243,7 @@ export class Renderer {
         } else {
           this.drawFloor(x, y, sx, sy);
         }
-        this.drawFeature(t, sx, sy);
+        this.drawFeature(game, t, x, y, sx, sy);
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
         const shade = wall || t === Tile.Pillar ? 0.6 : 1;
 
@@ -415,6 +415,7 @@ export class Renderer {
     // Flèches en vol : un trait qui file de l'archer vers sa cible.
     this.projectiles = this.projectiles.filter((p) => (p.age += dt) < PROJECTILE_MS);
     for (const p of this.projectiles) {
+      if (p.age < 0) continue;
       const t = p.age / PROJECTILE_MS;
       const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
       const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
@@ -549,8 +550,65 @@ export class Renderer {
     }
   }
 
-  /** Escalier et portes, dessinés par-dessus le sol. */
-  private drawFeature(t: Tile, sx: number, sy: number): void {
+  /**
+   * Porte : battant de planches cerclé de fer, dans un encadrement de pierre. Elle est tournée selon le mur
+   * qui la porte. Verrouillée : un cadenas doré. Ouverte : le battant est rabattu contre le montant.
+   */
+  private drawDoor(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    // Si les murs sont au-dessus et en dessous, la porte est dans un mur vertical : on tourne le dessin d'un quart.
+    const sideways = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
+    ctx.save();
+    ctx.translate(sx + tile / 2, sy + tile / 2);
+    if (sideways) ctx.rotate(Math.PI / 2);
+    const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
+    const px = (gx: number, gy: number, w: number, h: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
+    };
+    // Encadrement de pierre et seuil sombre.
+    px(0, 0, 16, 16, "#2a2533");
+    px(0, 0, 2, 16, "#8b90b0");
+    px(14, 0, 2, 16, "#8b90b0");
+    px(0, 0, 16, 1, "#6e7290");
+    if (t === Tile.DoorOpen) {
+      // Battant rabattu sur le côté gauche, vu par la tranche.
+      px(2, 1, 3, 14, "#8a5a2b");
+      px(2, 1, 1, 14, "#b9824a");
+      px(2, 4, 3, 1, "#4a4e5e");
+      px(2, 11, 3, 1, "#4a4e5e");
+    } else {
+      // Planches verticales, avec leurs joints.
+      px(2, 1, 12, 14, "#8a5a2b");
+      for (const gx of [2, 5, 8, 11]) px(gx, 1, 1, 14, "#b9824a");
+      for (const gx of [4, 7, 10, 13]) px(gx, 1, 1, 14, "#5a3817");
+      // Deux ferrures et leurs rivets.
+      for (const gy of [3, 11]) {
+        px(2, gy, 12, 2, "#4a4e5e");
+        px(2, gy, 12, 1, "#7a7f94");
+        for (const gx of [3, 7, 12]) px(gx, gy, 1, 1, "#c3cbe0");
+      }
+      if (t === Tile.DoorLocked) {
+        // Cadenas doré.
+        px(6, 6, 4, 1, "#f0c050");
+        px(6, 6, 1, 2, "#f0c050");
+        px(9, 6, 1, 2, "#f0c050");
+        px(5, 8, 6, 3, "#f0c050");
+        px(5, 10, 6, 1, "#a87c1c");
+        px(7, 8, 2, 2, "#1c1410");
+      } else {
+        // Anneau de poignée.
+        px(10, 7, 2, 1, "#c3cbe0");
+        px(10, 9, 2, 1, "#c3cbe0");
+        px(10, 7, 1, 3, "#c3cbe0");
+        px(12, 8, 1, 1, "#c3cbe0");
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Escalier, fontaine et coffre, dessinés par-dessus le sol. */
+  private drawFeature(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
     if (t === Tile.StairsDown) {
       ctx.fillStyle = COLORS.stairs;
@@ -564,18 +622,8 @@ export class Renderer {
         const w = tile * (0.7 - i * 0.2);
         ctx.fillRect(sx + tile * 0.85 - w, sy + tile * (0.64 - i * 0.22), w, tile * 0.14);
       }
-    } else if (t === Tile.DoorClosed || t === Tile.DoorLocked) {
-      ctx.fillStyle = COLORS.door;
-      ctx.fillRect(sx + tile * 0.1, sy + tile * 0.1, tile * 0.8, tile * 0.8);
-      ctx.fillStyle = COLORS.doorEdge;
-      ctx.fillRect(sx + tile * 0.47, sy + tile * 0.1, tile * 0.06, tile * 0.8);
-      if (t === Tile.DoorLocked) {
-        // Serrure dorée.
-        ctx.fillStyle = COLORS.lock;
-        ctx.fillRect(sx + tile * 0.36, sy + tile * 0.38, tile * 0.28, tile * 0.24);
-        ctx.fillStyle = COLORS.doorEdge;
-        ctx.fillRect(sx + tile * 0.47, sy + tile * 0.45, tile * 0.06, tile * 0.12);
-      }
+    } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
+      this.drawDoor(game, t, x, y, sx, sy);
     } else if (t === Tile.Fountain || t === Tile.FountainDry) {
       // Fontaine : une vasque de pierre, pleine d'eau claire ou à sec.
       const cx = sx + tile / 2;
@@ -605,11 +653,6 @@ export class Renderer {
         ctx.fillRect(sx + tile * 0.18, sy + tile * 0.47, tile * 0.64, tile * 0.06);
         ctx.fillRect(sx + tile * 0.45, sy + tile * 0.44, tile * 0.1, tile * 0.14);
       }
-    } else if (t === Tile.DoorOpen) {
-      // Porte ouverte : seuls les montants restent.
-      ctx.fillStyle = COLORS.door;
-      ctx.fillRect(sx + 0.5, sy + 0.5, tile * 0.14, tile - 1);
-      ctx.fillRect(sx + tile * 0.86, sy + 0.5, tile * 0.14 - 0.5, tile - 1);
     }
   }
 }

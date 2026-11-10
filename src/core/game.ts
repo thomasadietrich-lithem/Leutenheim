@@ -1,12 +1,12 @@
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
-import { ITEMS, ItemDef, ItemId, UNARMED } from "../data/items";
+import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
 import { MONSTERS, spawnsForDepth } from "../data/monsters";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
-import { Inventory } from "../items/inventory";
-import { computeFov, computeLight, LightSource } from "../world/fov";
+import { BagItem, Inventory } from "../items/inventory";
+import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
@@ -16,7 +16,18 @@ import { floorSeed, Rng } from "./rng";
 /** Ce qui s'est passé pendant un tour, pour que l'affichage puisse le montrer. */
 export type GameEvent =
   | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult; opportunity?: boolean; ranged?: boolean }
-  | { type: "arrow"; fromX: number; fromY: number; x: number; y: number; hit: boolean; kept: boolean }
+  | {
+      type: "arrow";
+      fromX: number;
+      fromY: number;
+      /** Où la flèche finit sa course. */
+      x: number;
+      y: number;
+      /** Si elle a rebondi : la case où elle a heurté l'obstacle avant de retomber. */
+      via?: Point;
+      hit: boolean;
+      kept: boolean;
+    }
   | { type: "pickup"; item: ItemId; count: number }
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
@@ -87,9 +98,9 @@ export class Game {
   light!: Float32Array;
   /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
   pendingDoor: Point | null = null;
-  /** Le sac du héros, et les armes qu'il a en main (identifiants d'objets du sac). */
+  /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
   inventory = new Inventory();
-  equipped: { melee: number | null; ranged: number | null } = { melee: null, ranged: null };
+  equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, armor: null, melee: null, ranged: null };
   /** Objets au sol sur l'étage courant (flèches à ramasser). */
   ground: GroundItem[] = [];
   /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -99,7 +110,7 @@ export class Game {
   private nextId = 1;
   private targetId: number | null = null;
   private waiting = false;
-  private shotTargetId: number | null = null;
+  private shotTarget: Point | null = null;
   private doorTarget: Point | null = null;
   private doorAction: DoorAction | null = null;
   private seenMonsters = new Set<number>();
@@ -130,7 +141,7 @@ export class Game {
       fromY: 0,
       hp: maxHp,
       maxHp,
-      armorClass: heroClass.armorClass,
+      armorClass: UNARMORED_AC,
       attackBonus: UNARMED.attackBonus,
       damage: UNARMED.damage,
       vision: race.darkVision,
@@ -139,13 +150,10 @@ export class Game {
     };
     for (const start of heroClass.startingItems) {
       this.inventory.add(start.item, start.count);
-      if (start.equip) {
-        const placed = this.inventory.items.find((i) => i.defId === start.item);
-        const kind = ITEMS[start.item].kind;
-        if (placed && (kind === "melee" || kind === "ranged")) this.equipped[kind] = placed.uid;
-      }
+      const placed = this.inventory.items.find((i) => i.defId === start.item);
+      if (start.equip && placed) this.equip(placed.uid);
     }
-    this.refreshWeapon();
+    this.refreshStats();
     this.enterFloor(1, "down");
   }
 
@@ -202,7 +210,7 @@ export class Game {
     this.path = [];
     this.targetId = null;
     this.waiting = false;
-    this.shotTargetId = null;
+    this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
     this.light = computeLight(this.map, this.torches);
@@ -310,27 +318,47 @@ export class Game {
 
   /** L'arme de mêlée ou à distance en main, s'il y en a une. */
   weapon(kind: "melee" | "ranged"): ItemDef | undefined {
-    const uid = this.equipped[kind];
-    const item = uid === null ? undefined : this.inventory.get(uid);
+    const item = this.equipment[kind];
     return item ? ITEMS[item.defId] : undefined;
   }
 
-  /** Prend en main une arme du sac, ou la range si elle y est déjà. Ne coûte pas de tour. */
-  toggleEquip(uid: number): boolean {
+  /** Porte un objet du sac. S'il y avait déjà quelque chose à cet emplacement, il retourne dans le sac. Ne coûte pas de tour. */
+  equip(uid: number): boolean {
     const item = this.inventory.get(uid);
     if (!item) return false;
     const kind = ITEMS[item.defId].kind;
-    if (kind !== "melee" && kind !== "ranged") return false;
-    this.equipped[kind] = this.equipped[kind] === uid ? null : uid;
-    this.refreshWeapon();
+    if (kind === "ammo" || kind === "key") return false;
+    const previous = this.equipment[kind];
+    const from = { x: item.x, y: item.y };
+    this.inventory.removeItem(uid);
+    if (previous && !this.inventory.placeItem(previous)) {
+      // Pas de place pour ranger l'ancien : on annule.
+      item.x = from.x;
+      item.y = from.y;
+      this.inventory.items.push(item);
+      return false;
+    }
+    this.equipment[kind] = item;
+    this.refreshStats();
     return true;
   }
 
-  /** Les statistiques d'attaque du héros sont celles de son arme de mêlée (ou ses poings). */
-  private refreshWeapon(): void {
+  /** Retire ce qui est porté à cet emplacement et le range dans le sac, s'il y a de la place. */
+  unequip(slot: Slot): boolean {
+    const item = this.equipment[slot];
+    if (!item || !this.inventory.placeItem(item)) return false;
+    this.equipment[slot] = null;
+    this.refreshStats();
+    return true;
+  }
+
+  /** L'attaque du héros vient de son arme de mêlée (ou de ses poings), sa classe d'armure de son armure. */
+  private refreshStats(): void {
     const melee = this.weapon("melee");
     this.hero.attackBonus = melee?.attackBonus ?? UNARMED.attackBonus;
     this.hero.damage = melee?.damage ?? UNARMED.damage;
+    const armor = this.equipment.armor;
+    this.hero.armorClass = (armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC;
   }
 
   arrows(): number {
@@ -340,23 +368,24 @@ export class Game {
 
   // ---------- Ordres du joueur ----------
 
-  /** Tirer sur le monstre qui se trouve sur cette case. Renvoie la raison du refus, ou null si le tir est lancé. */
+  /**
+   * Tirer une flèche vers une case en vue, quelle qu'elle soit : monstre, sol, mur, porte.
+   * Renvoie la raison du refus, ou null si le tir est lancé.
+   */
   shoot(x: number, y: number): ShootRefusal | null {
     const bow = this.weapon("ranged");
     if (this.over || !bow) return "no-bow";
     if (this.arrows() < 1) return "no-ammo";
-    const target = this.monsterAt(x, y);
-    if (!target || !this.isVisible(x, y)) return "no-target";
+    if (!this.isVisible(x, y) || (x === this.hero.x && y === this.hero.y)) return "no-target";
     const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
     if (distance > (bow.range ?? 0)) return "out-of-range";
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
     this.waiting = false;
-    this.shotTargetId = target.id;
+    this.shotTarget = { x, y };
     return null;
   }
-
 
   /**
    * Le joueur désigne une case. Sur un monstre en vue : on va l'attaquer. Sur sa propre case : on attend un tour.
@@ -381,7 +410,7 @@ export class Game {
     this.targetId = monster ? monster.id : null;
     this.path = path;
     this.waiting = false;
-    this.shotTargetId = null;
+    this.shotTarget = null;
     return true;
   }
 
@@ -432,7 +461,7 @@ export class Game {
     if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
     this.clearDoorOrders();
     this.targetId = null;
-    this.shotTargetId = null;
+    this.shotTarget = null;
     this.path = [{ x: this.hero.x + dx, y: this.hero.y + dy }];
     return true;
   }
@@ -443,7 +472,7 @@ export class Game {
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
-    this.shotTargetId = null;
+    this.shotTarget = null;
     this.waiting = true;
   }
 
@@ -457,8 +486,8 @@ export class Game {
       a.fromY = a.y;
     }
 
-    const shotTarget = this.shotTargetId === null ? undefined : this.monsters.find((m) => m.id === this.shotTargetId);
-    this.shotTargetId = null;
+    const shotTarget = this.shotTarget;
+    this.shotTarget = null;
     if (shotTarget) {
       this.heroShoots(shotTarget);
     } else if (this.doorAction && this.pendingDoor) {
@@ -645,41 +674,69 @@ export class Game {
     this.events.push({ type: "death", actor: monster });
   }
 
-  /** Tir à l'arc : consomme une flèche, qui pourra parfois être ramassée ensuite. */
-  private heroShoots(monster: Actor): void {
+  /**
+   * Tir à l'arc vers une case. La flèche file en ligne droite : elle s'arrête sur le premier monstre rencontré
+   * (jet d'attaque), rebondit d'une case sur un mur, une colonne ou une porte fermée, ou se plante dans la case visée.
+   */
+  private heroShoots(target: Point): void {
     const bow = this.weapon("ranged");
     if (!bow || !bow.ammo || !this.inventory.take(bow.ammo as ItemId, 1)) return;
-    // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.
-    const favoured = !monster.alerted || this.map.isDoor(monster.x, monster.y);
-    const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
-    const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
-    const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, monster, mode);
-    monster.alerted = true;
-    monster.asleep = false;
-    monster.hp -= result.damage;
-    this.events.push({ type: "attack", attacker: this.hero, target: monster, result, ranged: true });
+    const origin = { x: this.hero.x, y: this.hero.y };
+    const trail: Point[] = [origin];
+    let landing: Point = origin;
+    let via: Point | undefined;
+    let hit = false;
+    let keepChance = RULES.arrowKeepOnScenery;
+    let victim: Actor | undefined;
 
-    // Où finit la flèche ? Sur la cible si elle touche, plus loin dans le décor si elle rate.
-    const landing = result.hit ? { x: monster.x, y: monster.y } : this.flyPast(monster);
-    const kept = this.rng.chance(result.hit ? RULES.arrowKeepOnHit : RULES.arrowKeepOnMiss);
-    if (kept) this.dropItem(landing.x, landing.y, bow.ammo as ItemId, 1);
-    this.events.push({ type: "arrow", fromX: this.hero.x, fromY: this.hero.y, x: landing.x, y: landing.y, hit: result.hit, kept });
-    this.removeIfDead(monster);
-  }
+    /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
+    const fly = (c: Point): boolean => {
+      if (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y)) {
+        // Rebond : elle retombe une case en arrière de l'endroit où elle a heurté l'obstacle.
+        via = trail[trail.length - 1];
+        landing = trail[Math.max(0, trail.length - 2)];
+        return false;
+      }
+      trail.push(c);
+      landing = c;
+      return true;
+    };
 
-  /** Une flèche ratée continue tout droit au-delà de la cible, jusqu'à un mur ou une porte fermée. */
-  private flyPast(target: Point): Point {
-    const dx = target.x - this.hero.x;
-    const dy = target.y - this.hero.y;
-    const n = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
-    let last = { x: target.x, y: target.y };
-    for (let k = 1; k <= RULES.arrowOvershoot; k++) {
-      const cx = Math.round(target.x + (dx / n) * k);
-      const cy = Math.round(target.y + (dy / n) * k);
-      if (!this.map.isWalkable(cx, cy) || this.map.blocksSight(cx, cy)) break;
-      last = { x: cx, y: cy };
+    for (const c of lineBetween(origin, target)) {
+      if (!fly(c)) break;
+      victim = this.monsterAt(c.x, c.y);
+      if (victim) break;
     }
-    return last;
+
+    if (victim) {
+      // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.
+      const favoured = !victim.alerted || this.map.isDoor(victim.x, victim.y);
+      const threatened = this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+      const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
+      const result = rollAttack(this.rng, { attackBonus: bow.attackBonus ?? 0, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+      victim.alerted = true;
+      victim.asleep = false;
+      victim.hp -= result.damage;
+      this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
+      hit = result.hit;
+      if (hit) {
+        keepChance = RULES.arrowKeepOnHit;
+      } else {
+        // Ratée : elle continue tout droit au-delà de la cible.
+        keepChance = RULES.arrowKeepOnMiss;
+        const dx = victim.x - origin.x;
+        const dy = victim.y - origin.y;
+        const n = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
+        for (let k = 1; k <= RULES.arrowOvershoot; k++) {
+          if (!fly({ x: Math.round(victim.x + (dx / n) * k), y: Math.round(victim.y + (dy / n) * k) })) break;
+        }
+      }
+    }
+
+    const kept = this.rng.chance(keepChance);
+    if (kept) this.dropItem(landing.x, landing.y, bow.ammo as ItemId, 1);
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
+    if (victim) this.removeIfDead(victim);
   }
 
   private dropItem(x: number, y: number, item: ItemId, count: number): void {

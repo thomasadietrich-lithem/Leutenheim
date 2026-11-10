@@ -36,6 +36,31 @@ export function hasLineOfSight(map: GameMap, from: Point, to: Point): boolean {
   return true;
 }
 
+/** Cases traversées en ligne droite de `from` (exclu) à `to` (inclus). */
+export function lineBetween(from: Point, to: Point): Point[] {
+  const cells: Point[] = [];
+  let x = from.x;
+  let y = from.y;
+  const dx = Math.abs(to.x - x);
+  const dy = Math.abs(to.y - y);
+  const sx = x < to.x ? 1 : -1;
+  const sy = y < to.y ? 1 : -1;
+  let err = dx - dy;
+  while (x !== to.x || y !== to.y) {
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+    cells.push({ x, y });
+  }
+  return cells;
+}
+
 /**
  * Champ de vision. Une case en ligne de vue est visible si elle est proche (`nearRadius`, la lueur
  * que porte le héros) ou si elle est éclairée par une source et pas trop loin (`farRadius`).

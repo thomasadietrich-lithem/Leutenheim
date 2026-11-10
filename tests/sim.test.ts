@@ -462,15 +462,73 @@ test("sac : objets de deux cases, piles de flèches, pas de chevauchement", () =
   assert.equal(full.add("fleche", 2), 2);
 });
 
-test("les statistiques d'attaque viennent de l'arme en main", () => {
+test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent de l'équipement", () => {
   const game = new Game(1);
-  assert.deepEqual([game.hero.attackBonus, game.hero.damage], [4, { count: 1, sides: 6, bonus: 2 }]);
+  // Au départ : cotte de mailles, épée et arc sont portés ; seules les flèches sont dans le sac.
+  assert.deepEqual(
+    [game.equipment.armor?.defId, game.equipment.melee?.defId, game.equipment.ranged?.defId, game.equipment.hat, game.equipment.amulet],
+    ["cotte_mailles", "epee", "arc_court", null, null],
+  );
+  assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
+  assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 15]);
   assert.equal(game.arrows(), 5);
+  // On retire l'épée : elle va dans le sac, on se bat à mains nues.
+  assert.ok(game.unequip("melee"));
   const sword = game.inventory.items.find((i) => i.defId === "epee")!;
-  game.toggleEquip(sword.uid); // on range l'épée : on se bat à mains nues
+  assert.ok(sword && game.equipment.melee === null);
   assert.deepEqual([game.hero.attackBonus, game.hero.damage.sides], [2, 2]);
-  game.toggleEquip(sword.uid);
-  assert.equal(game.hero.attackBonus, 4);
+  // On retire l'armure : classe d'armure de base.
+  assert.ok(game.unequip("armor"));
+  assert.equal(game.hero.armorClass, 10);
+  // On rééquipe : les objets quittent le sac.
+  assert.ok(game.equip(sword.uid));
+  assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "cotte_mailles")!.uid));
+  assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4, 15]);
+  assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
+  // Les flèches ne se portent pas.
+  assert.equal(game.equip(game.inventory.items[0].uid), false);
+});
+
+test("tirer sur le décor : la flèche se plante au sol, ou rebondit d'une case sur un mur", () => {
+  let floorShots = 0;
+  let wallShots = 0;
+  for (let seed = 1; seed <= 80; seed++) {
+    const game = new Game(seed);
+    game.monsters.splice(0);
+    game.inventory.add("fleche", 10);
+    const hero = { x: game.hero.x, y: game.hero.y };
+    // Une case de sol à deux pas, bien en vue.
+    const ground = [[2, 0], [-2, 0], [0, 2], [0, -2]]
+      .map(([dx, dy]) => ({ x: hero.x + dx, y: hero.y + dy }))
+      .find((p) => game.map.get(p.x, p.y) === Tile.Floor && game.map.get((p.x + hero.x) / 2, (p.y + hero.y) / 2) === Tile.Floor && game.isVisible(p.x, p.y));
+    if (ground) {
+      assert.equal(game.shoot(ground.x, ground.y), null);
+      game.tick();
+      const arrow = game.events.find((e) => e.type === "arrow");
+      assert.ok(arrow && arrow.type === "arrow" && !arrow.hit && !arrow.via);
+      assert.deepEqual([arrow.x, arrow.y], [ground.x, ground.y], "la flèche se plante dans la case visée");
+      assert.ok(!game.events.some((e) => e.type === "attack"));
+      game.events.length = 0;
+      floorShots++;
+    }
+    // Un mur en vue, dans l'axe : la flèche le heurte et retombe une case en arrière.
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      let d = 1;
+      while (d <= 6 && game.map.get(hero.x + dx * d, hero.y + dy * d) === Tile.Floor) d++;
+      const wall = { x: hero.x + dx * d, y: hero.y + dy * d };
+      if (d < 3 || d > 6 || game.map.get(wall.x, wall.y) !== Tile.Wall || !game.isVisible(wall.x, wall.y)) continue;
+      assert.equal(game.shoot(wall.x, wall.y), null);
+      game.tick();
+      const arrow = game.events.find((e) => e.type === "arrow");
+      assert.ok(arrow && arrow.type === "arrow" && arrow.via);
+      assert.deepEqual(arrow.via, { x: wall.x - dx, y: wall.y - dy }, "elle heurte le mur depuis la case voisine");
+      assert.deepEqual([arrow.x, arrow.y], [wall.x - dx * 2, wall.y - dy * 2], "elle retombe une case en arrière");
+      game.events.length = 0;
+      wallShots++;
+      break;
+    }
+  }
+  assert.ok(floorShots >= 20 && wallShots >= 20, `tirs au sol : ${floorShots}, sur un mur : ${wallShots}`);
 });
 
 test("tir à l'arc : portée, flèche consommée, récupérable 6 fois sur 10 si elle touche, 1 fois sur 2 sinon", () => {

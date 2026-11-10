@@ -55,15 +55,25 @@
   .panel { display: flex; gap: 8px; align-items: stretch; min-height: 84px; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 auto; min-width: 56px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .dice-row { display: flex; gap: 4px; }
-  .die { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; font-size: 34px;
-    background: #0c0906; color: var(--dim); border: 3px solid #4a3e2a; box-shadow: inset 2px 2px 0 #000; }
-  .die.hit { border-color: #5fd38d; color: #5fd38d; }
-  .die.miss { border-color: #8a8070; color: #d8ccb0; }
-  .die.crit { border-color: var(--gold); color: #fff3c8; background: #4a3408; }
-  .die.foe { background: #2a0c10; }
-  .die.rolling { border-color: #fff; color: #fff; animation: roll 0.16s steps(4) infinite; }
+  /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
+     et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
+  .die { --edge: #5a4a30; --face: #3a2e1c; --side: #2a2114; --low: #1c160c; --rim-a: #241c10; --rim-b: #17110a;
+    position: relative; isolation: isolate; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center;
+    font-size: 27px; color: var(--dim); text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+    filter: drop-shadow(1px 0 0 var(--edge)) drop-shadow(-1px 0 0 var(--edge)) drop-shadow(0 1px 0 var(--edge)) drop-shadow(0 -1px 0 var(--edge)); }
+  .die::before, .die::after { content: ""; position: absolute; inset: 0; z-index: -1; }
+  .die::before { clip-path: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+    background: conic-gradient(var(--rim-a) 0 60deg, var(--rim-b) 0 120deg, var(--rim-a) 0 180deg, var(--rim-b) 0 240deg, var(--rim-a) 0 300deg, var(--rim-b) 0); }
+  .die::after { clip-path: polygon(6.7% 25%, 93.3% 25%, 50% 100%);
+    background: linear-gradient(to bottom, transparent 62.5%, var(--low) 0),
+      linear-gradient(300deg, transparent 59.15%, var(--side) 0), linear-gradient(60deg, transparent 59.15%, var(--low) 0), var(--face); }
+  .die.hit { --edge: #5fd38d; color: #8ff0b4; --face: #1f4a30; --side: #17382a; --low: #102a1e; }
+  .die.miss { --edge: #8a8070; color: #d8ccb0; --face: #4a4334; --side: #383225; --low: #26221a; }
+  .die.crit { --edge: var(--gold); color: #fff3c8; --face: #8a6410; --side: #6a4a0c; --low: #4a3408; --rim-a: #3a2a08; --rim-b: #2a1e06; }
+  .die.foe { --rim-a: #3a1016; --rim-b: #2a0c10; }
+  .die.rolling { --edge: #fff; color: #fff; --face: #6a5a40; --side: #4a3e2a; --low: #32291a; animation: roll 0.16s steps(4) infinite; }
   .die.land { animation: land 0.2s steps(3); }
-  .die.dropped { opacity: 0.4; transform: scale(0.8); border-color: #4a3e2a; color: var(--dim); }
+  .die.dropped { opacity: 0.4; transform: scale(0.8); --edge: #4a3e2a; color: var(--dim); }
   @keyframes roll { 0% { transform: rotate(-14deg); } 25% { transform: rotate(10deg) translateY(-4px); }
     50% { transform: rotate(-8deg); } 75% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg); } }
   @keyframes land { 0% { transform: scale(1.5); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }

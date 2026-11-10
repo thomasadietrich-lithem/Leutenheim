@@ -40,6 +40,12 @@ export const RULES = {
   chestGoldMin: 8,
   chestGoldMax: 20,
   chestGoldPerDepth: 3,
+  /** Repeuplement : tous les tant de tours, si l'étage compte moins de monstres qu'à l'origine, un promeneur arrive. */
+  respawnTurns: 40,
+  /** Il apparaît hors de vue, au moins à cette distance du héros (en cases). */
+  respawnDistance: 8,
+  /** Coin de mur « logique » : deux pans vus qui se rejoindraient à moins de tant de cases font apparaître leur coin. */
+  cornerReach: 4,
   /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
   senseDepth: 3,
 };

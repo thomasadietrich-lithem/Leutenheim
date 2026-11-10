@@ -945,3 +945,43 @@ test("tir : à l'aveugle vers une case non vue, et bonus dans un couloir d'une c
   assert.equal(game.shoot(game.hero.x, game.hero.y - 1), null);
   assert.equal(game.shoot(game.hero.x, game.hero.y), "no-target");
 });
+
+test("repeuplement : un étage vidé retrouve des promeneurs, sans dépasser sa population d'origine", () => {
+  const game = new Game(4);
+  game.hero.hp = game.hero.maxHp = 100000;
+  const original = Math.max(1, game.monsters.length);
+  game.monsters = [];
+  for (let t = 0; t <= RULES.respawnTurns; t++) {
+    game.wait();
+    game.tick();
+  }
+  assert.equal(game.monsters.length, 1, "un renfort est arrivé");
+  assert.equal(game.monsters[0].asleep, false, "c'est un promeneur");
+  for (let t = 0; t < RULES.respawnTurns * (original + 3); t++) {
+    game.wait();
+    game.tick();
+    assert.ok(game.monsters.length <= original, "jamais plus de monstres qu'à l'origine");
+  }
+});
+
+test("coins logiques : deux pans de mur vus font apparaître le coin qui les relie", () => {
+  const game = new Game(2);
+  game.monsters = [];
+  game.torches.length = 0;
+  const map = game.map;
+  // Une salle (sol de 4..10 × 5..9) dans un bloc de mur, avec une porte ouverte en haut et un couloir au-dessus.
+  for (let y = 0; y < 14; y++) for (let x = 0; x < 15; x++) map.set(x, y, Tile.Wall);
+  for (let y = 5; y <= 9; y++) for (let x = 4; x <= 10; x++) map.set(x, y, Tile.Floor);
+  map.set(7, 4, Tile.DoorOpen);
+  map.set(7, 3, Tile.Floor);
+  map.set(7, 2, Tile.Floor);
+  Object.assign(game.hero, { x: 7, y: 4, fromX: 7, fromY: 4 });
+  game.wait();
+  game.tick();
+  // Depuis la porte on voit le mur de gauche et le haut du mur près de la porte, mais pas la case de sol du coin.
+  assert.ok(game.isVisible(3, 6), "le mur de gauche est en vue");
+  assert.ok(game.isVisible(6, 4), "le mur du haut, près de la porte, est en vue");
+  assert.ok(game.isVisible(3, 4) && game.isVisible(4, 4), "le coin en haut à gauche et le mur qui y mène apparaissent");
+  assert.ok(game.isVisible(11, 4) && game.isVisible(10, 4), "de même en haut à droite");
+  assert.ok(!game.isVisible(0, 0), "un mur sans rapport reste caché");
+});

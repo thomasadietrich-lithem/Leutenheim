@@ -1,7 +1,7 @@
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
-import { MONSTERS, spawnsForDepth } from "../data/monsters";
+import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
@@ -68,6 +68,9 @@ interface FloorState {
   sensed: Uint8Array;
   rng: Rng;
   seenMonsters: Set<number>;
+  /** Repeuplement : nombre de monstres à l'origine, et tour du prochain renfort possible. */
+  population: number;
+  nextRespawn: number;
 }
 
 /** Débris sans usage (flèche brisée) : il reste au sol jusqu'au tour `until`, puis disparaît. */
@@ -211,6 +214,8 @@ export class Game {
         sensed: new Uint8Array(floor.map.width * floor.map.height),
         rng: new Rng(seed ^ 0x5bd1e995), // hasard des combats et des monstres, propre à l'étage
         seenMonsters: new Set<number>(),
+        population: 0,
+        nextRespawn: 0,
       };
       this.floors.set(depth, state);
     }
@@ -240,6 +245,8 @@ export class Game {
     this.light = computeLight(this.map, this.torches);
     if (fresh) {
       this.spawnMonsters(state.rooms);
+      state.population = Math.max(1, this.monsters.length);
+      state.nextRespawn = this.turn + RULES.respawnTurns;
       this.placeKey(state.rooms);
     }
     for (const m of this.monsters) {
@@ -265,30 +272,57 @@ export class Game {
           const x = this.rng.int(room.x, room.x + room.w - 1);
           const y = this.rng.int(room.y, room.y + room.h - 1);
           if (this.map.get(x, y) !== Tile.Floor || this.actorAt(x, y)) continue;
-          this.monsters.push({
-            id: this.nextId++,
-            kind: "monster",
-            defId: def.id,
-            name: def.name,
-            x,
-            y,
-            fromX: x,
-            fromY: y,
-            hp: def.hp,
-            maxHp: def.hp,
-            armorClass: def.armorClass,
-            attackBonus: def.attackBonus,
-            damage: def.damage,
-            vision: def.vision,
-            alerted: false,
-            asleep,
-          });
+          this.monsters.push(this.newMonster(def, x, y, asleep));
           break;
         }
       }
     }
     // Il y a toujours au moins un promeneur sur l'étage : si tout le monde dort, le dernier venu se lève.
     if (this.monsters.length > 0 && this.monsters.every((m) => m.asleep)) this.monsters[this.monsters.length - 1].asleep = false;
+  }
+
+  private newMonster(def: MonsterDef, x: number, y: number, asleep: boolean): Actor {
+    return {
+      id: this.nextId++,
+      kind: "monster",
+      defId: def.id,
+      name: def.name,
+      x,
+      y,
+      fromX: x,
+      fromY: y,
+      hp: def.hp,
+      maxHp: def.hp,
+      armorClass: def.armorClass,
+      attackBonus: def.attackBonus,
+      damage: def.damage,
+      vision: def.vision,
+      alerted: false,
+      asleep,
+    };
+  }
+
+  /**
+   * Repeuplement : de temps en temps, si l'étage a perdu des monstres, un promeneur arrive dans une salle
+   * hors de vue et loin du héros. L'étage ne dépasse jamais sa population d'origine.
+   */
+  private respawn(): void {
+    const state = this.current;
+    if (this.turn < state.nextRespawn) return;
+    state.nextRespawn = this.turn + RULES.respawnTurns;
+    if (this.monsters.length >= state.population || this.rooms.length === 0) return;
+    const spawns = spawnsForDepth(this.depth);
+    let pick = this.rng.next() * spawns.entries.reduce((sum, e) => sum + e.weight, 0);
+    const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+      const x = this.rng.int(room.x, room.x + room.w - 1);
+      const y = this.rng.int(room.y, room.y + room.h - 1);
+      const far = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) >= RULES.respawnDistance;
+      if (this.map.get(x, y) !== Tile.Floor || this.actorAt(x, y) || this.isVisible(x, y) || !far) continue;
+      this.monsters.push(this.newMonster(MONSTERS[entry.monster], x, y, false));
+      return;
+    }
   }
 
   /** Avec un peu de chance, une clef traîne dans une salle de l'étage. */
@@ -602,6 +636,7 @@ export class Game {
     }
 
     this.turn++;
+    this.respawn();
     if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
     this.updateVision();
     this.monstersAct();
@@ -924,6 +959,7 @@ export class Game {
 
   private updateVision(): void {
     this.visible = computeFov(this.map, this.hero, this.race.darkVision, this.race.sight, this.light);
+    this.completeCorners();
     for (let i = 0; i < this.visible.length; i++) {
       if (this.visible[i]) this.explored[i] = 1;
     }
@@ -937,6 +973,54 @@ export class Game {
         this.doorTarget = null;
       }
     }
+  }
+
+  /**
+   * Coins « logiques » : quand on voit deux pans de mur qui, prolongés tout droit sur quelques cases de mur,
+   * se rejoignent en un coin, on montre aussi ce coin et les cases de mur qui y mènent. L'œil le devinait déjà.
+   */
+  private completeCorners(): void {
+    const isWall = (x: number, y: number) => this.map.inBounds(x, y) && this.map.get(x, y) === Tile.Wall;
+    const seen = (x: number, y: number) => this.visible[this.map.index(x, y)] === 1;
+    // On ne révèle que de vrais parements : des murs qui touchent (même en diagonale) autre chose que du mur.
+    // L'intérieur d'un massif de pierre reste caché.
+    const faces = (x: number, y: number) => {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.inBounds(x + dx, y + dy) && this.map.get(x + dx, y + dy) !== Tile.Wall) return true;
+      return false;
+    };
+    const reach = RULES.cornerReach;
+    const reveal: number[] = [];
+    for (let y = 0; y < this.map.height; y++) {
+      for (let x = 0; x < this.map.width; x++) {
+        if (!isWall(x, y) || !seen(x, y)) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          // On prolonge ce pan tout droit, tant que c'est du mur.
+          const along: number[] = [];
+          for (let k = 1; k <= reach; k++) {
+            const px = x + dx * k;
+            const py = y + dy * k;
+            if (!isWall(px, py) || !faces(px, py)) break;
+            along.push(this.map.index(px, py));
+            if (seen(px, py)) continue;
+            // Cette case serait un coin si, de là, un pan perpendiculaire rejoint un mur que l'on voit.
+            for (const [ex, ey] of [[dy, dx], [-dy, -dx]]) {
+              const across: number[] = [];
+              for (let j = 1; j <= reach; j++) {
+                const qx = px + ex * j;
+                const qy = py + ey * j;
+                if (!isWall(qx, qy) || !faces(qx, qy)) break;
+                if (seen(qx, qy)) {
+                  reveal.push(...along, ...across);
+                  break;
+                }
+                across.push(this.map.index(qx, qy));
+              }
+            }
+          }
+        }
+      }
+    }
+    for (const i of reveal) this.visible[i] = 1;
   }
 
   /** Devine les passages proches de ce qu'on voit : on « sent » un couloir sans le voir. */

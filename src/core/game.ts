@@ -20,7 +20,7 @@ export type GameEvent =
   | { type: "pickup"; item: ItemId; count: number }
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
-  | { type: "descend"; healed: number }
+  | { type: "stairs"; direction: "down" | "up"; healed: number }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "chest" }
@@ -40,6 +40,21 @@ export type GameEvent =
 
 /** Pourquoi un tir est refusé. */
 export type ShootRefusal = "no-bow" | "no-ammo" | "no-target" | "out-of-range";
+
+/** Tout ce qu'il faut garder d'un étage pour le retrouver tel quel en y revenant. */
+interface FloorState {
+  map: GameMap;
+  start: Point;
+  stairs: Point;
+  rooms: Room[];
+  torches: LightSource[];
+  monsters: Actor[];
+  ground: GroundItem[];
+  explored: Uint8Array;
+  sensed: Uint8Array;
+  rng: Rng;
+  seenMonsters: Set<number>;
+}
 
 /** Un objet posé au sol. */
 export interface GroundItem {
@@ -89,6 +104,13 @@ export class Game {
   private doorAction: DoorAction | null = null;
   private seenMonsters = new Set<number>();
   private rooms: Room[] = [];
+  /** Étages déjà visités, gardés en l'état. */
+  private floors = new Map<number, FloorState>();
+  private current!: FloorState;
+  /** Le héros vient de marcher sur un escalier : il le prendra à la fin de son pas. */
+  pendingStairs: "down" | "up" | null = null;
+  /** Étage le plus profond atteint dans cette partie. */
+  deepest = 0;
 
   constructor(
     readonly runSeed: number,
@@ -124,38 +146,78 @@ export class Game {
       }
     }
     this.refreshWeapon();
-    this.enterFloor(1);
+    this.enterFloor(1, "down");
   }
 
   // ---------- Mise en place d'un étage ----------
 
-  private enterFloor(depth: number): void {
-    const seed = floorSeed(this.runSeed, depth);
-    const floor = generateFloor(seed, this.floorConfig);
-    this.rng = new Rng(seed ^ 0x5bd1e995); // hasard des combats et des monstres, propre à l'étage
+  /**
+   * Arrive sur un étage. S'il a déjà été visité, on le retrouve exactement comme on l'a laissé (monstres,
+   * portes, objets au sol, carte explorée). `via` : par quel escalier on arrive.
+   */
+  private enterFloor(depth: number, via: "down" | "up"): void {
+    if (this.current) {
+      // On range l'étage qu'on quitte.
+      this.current.monsters = this.monsters;
+      this.current.ground = this.ground;
+    }
+    let state = this.floors.get(depth);
+    const fresh = !state;
+    if (!state) {
+      const seed = floorSeed(this.runSeed, depth);
+      const floor = generateFloor(seed, this.floorConfig);
+      // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
+      if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
+      state = {
+        map: floor.map,
+        start: floor.start,
+        stairs: floor.stairs,
+        rooms: floor.rooms,
+        torches: floor.torches,
+        monsters: [],
+        ground: [],
+        explored: new Uint8Array(floor.map.width * floor.map.height),
+        sensed: new Uint8Array(floor.map.width * floor.map.height),
+        rng: new Rng(seed ^ 0x5bd1e995), // hasard des combats et des monstres, propre à l'étage
+        seenMonsters: new Set<number>(),
+      };
+      this.floors.set(depth, state);
+    }
+    this.current = state;
     this.depth = depth;
-    this.map = floor.map;
-    this.hero.x = this.hero.fromX = floor.start.x;
-    this.hero.y = this.hero.fromY = floor.start.y;
+    this.deepest = Math.max(this.deepest, depth);
+    this.map = state.map;
+    this.rng = state.rng;
+    this.rooms = state.rooms;
+    this.torches = state.torches;
+    this.explored = state.explored;
+    this.sensed = state.sensed;
+    this.seenMonsters = state.seenMonsters;
+    this.monsters = state.monsters;
+    this.ground = state.ground;
+    // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
+    const arrival = via === "down" ? state.start : state.stairs;
+    this.hero.x = this.hero.fromX = arrival.x;
+    this.hero.y = this.hero.fromY = arrival.y;
     this.path = [];
     this.targetId = null;
     this.waiting = false;
     this.shotTargetId = null;
-    this.ground = [];
+    this.pendingStairs = null;
     this.clearDoorOrders();
-    this.explored = new Uint8Array(this.map.width * this.map.height);
-    this.sensed = new Uint8Array(this.map.width * this.map.height);
-    this.torches = floor.torches;
-    this.rooms = floor.rooms;
     this.light = computeLight(this.map, this.torches);
-    this.spawnMonsters(floor.rooms);
-    this.placeKey(floor.rooms);
-    this.seenMonsters.clear();
+    if (fresh) {
+      this.spawnMonsters(state.rooms);
+      this.placeKey(state.rooms);
+    }
+    for (const m of this.monsters) {
+      m.fromX = m.x;
+      m.fromY = m.y;
+    }
     this.updateVision();
   }
 
   private spawnMonsters(rooms: Room[]): void {
-    this.monsters = [];
     const spawns = spawnsForDepth(this.depth);
     const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
     for (const room of rooms.slice(1)) {
@@ -430,6 +492,9 @@ export class Game {
         this.closeDoorAt(left.x, left.y);
         this.useFeatureAt(next.x, next.y);
         this.pickUpAt(next.x, next.y);
+        // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
+        const here = this.map.get(next.x, next.y);
+        this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
         if (this.opportunityAttacks(threats)) {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
@@ -575,7 +640,7 @@ export class Game {
 
   private removeIfDead(monster: Actor): void {
     if (monster.hp > 0) return;
-    this.monsters = this.monsters.filter((m) => m !== monster);
+    this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
     this.events.push({ type: "death", actor: monster });
   }
@@ -631,7 +696,7 @@ export class Game {
       pile.count = left;
       if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
     }
-    this.ground = this.ground.filter((g) => g.count > 0);
+    for (let i = this.ground.length - 1; i >= 0; i--) if (this.ground[i].count <= 0) this.ground.splice(i, 1);
   }
 
   private monstersAct(): void {
@@ -747,15 +812,19 @@ export class Game {
   }
 
   /**
-   * Si le héros est sur l'escalier, passe à l'étage suivant.
-   * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : descendre rend la moitié des PV manquants.
+   * Prend l'escalier sur lequel le héros vient de marcher (vers le bas ou vers le haut).
+   * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : découvrir un nouvel étage rend la moitié des PV
+   * manquants. Revenir sur un étage déjà visité ne soigne pas.
    */
-  descendIfOnStairs(): boolean {
-    if (this.over || this.map.get(this.hero.x, this.hero.y) !== Tile.StairsDown) return false;
-    const healed = Math.ceil((this.hero.maxHp - this.hero.hp) / 2);
+  takeStairs(): boolean {
+    const direction = this.pendingStairs;
+    if (this.over || !direction) return false;
+    const target = this.depth + (direction === "down" ? 1 : -1);
+    if (target < 1) return false;
+    const healed = target > this.deepest ? Math.ceil((this.hero.maxHp - this.hero.hp) / 2) : 0;
     this.hero.hp += healed;
-    this.enterFloor(this.depth + 1);
-    this.events.push({ type: "descend", healed });
+    this.enterFloor(target, direction);
+    this.events.push({ type: "stairs", direction, healed });
     return true;
   }
 }

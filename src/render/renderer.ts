@@ -557,6 +557,13 @@ export class Renderer {
       for (let i = 0; i < 3; i++) {
         ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), tile * (0.3 + i * 0.2), tile * 0.14);
       }
+    } else if (t === Tile.StairsUp) {
+      // Escalier qui remonte : marches claires qui se resserrent vers le haut.
+      ctx.fillStyle = "#b9c0dc";
+      for (let i = 0; i < 3; i++) {
+        const w = tile * (0.7 - i * 0.2);
+        ctx.fillRect(sx + tile * 0.85 - w, sy + tile * (0.64 - i * 0.22), w, tile * 0.14);
+      }
     } else if (t === Tile.DoorClosed || t === Tile.DoorLocked) {
       ctx.fillStyle = COLORS.door;
       ctx.fillRect(sx + tile * 0.1, sy + tile * 0.1, tile * 0.8, tile * 0.8);

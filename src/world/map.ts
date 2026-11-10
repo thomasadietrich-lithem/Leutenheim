@@ -15,6 +15,7 @@ export const Tile = {
   Chest: 8,
   ChestOpen: 9,
   Pillar: 10,
+  StairsUp: 11,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 

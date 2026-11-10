@@ -253,8 +253,12 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
-  } else if (e.type === "descend") {
-    logLines.push(`Étage ${game.depth}.${e.healed > 0 ? ` Vous récupérez ${e.healed} PV.` : ""}`);
+  } else if (e.type === "stairs") {
+    logLines.push(
+      e.direction === "down"
+        ? `Vous descendez à l'étage ${game.depth}.${e.healed > 0 ? ` Vous récupérez ${e.healed} PV.` : ""}`
+        : `Vous remontez à l'étage ${game.depth}.`,
+    );
     shownHp = game.hero.hp;
     sfx.play("descend");
   } else if (e.type === "opened") {
@@ -613,7 +617,7 @@ function frame(now: number): void {
       // Tour terminé ; le reste de temps est reporté sur le suivant pour garder une vitesse constante.
       stepTime -= stepMs;
       stepping = false;
-      if (game.descendIfOnStairs()) {
+      if (game.takeStairs()) {
         renderer.snapTo(game);
         collectEvents();
       }

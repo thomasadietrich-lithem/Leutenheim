@@ -732,7 +732,8 @@
     FountainDry: 7,
     Chest: 8,
     ChestOpen: 9,
-    Pillar: 10
+    Pillar: 10,
+    StairsUp: 11
   };
   var GameMap = class {
     constructor(width, height) {
@@ -1095,6 +1096,12 @@
       this.doorAction = null;
       this.seenMonsters = /* @__PURE__ */ new Set();
       this.rooms = [];
+      /** Étages déjà visités, gardés en l'état. */
+      this.floors = /* @__PURE__ */ new Map();
+      /** Le héros vient de marcher sur un escalier : il le prendra à la fin de son pas. */
+      this.pendingStairs = null;
+      /** Étage le plus profond atteint dans cette partie. */
+      this.deepest = 0;
       const maxHp = heroClass.hp + race.hpBonus;
       this.hero = {
         id: 0,
@@ -1123,35 +1130,73 @@
         }
       }
       this.refreshWeapon();
-      this.enterFloor(1);
+      this.enterFloor(1, "down");
     }
     // ---------- Mise en place d'un étage ----------
-    enterFloor(depth) {
-      const seed = floorSeed(this.runSeed, depth);
-      const floor = generateFloor(seed, this.floorConfig);
-      this.rng = new Rng(seed ^ 1540483477);
+    /**
+     * Arrive sur un étage. S'il a déjà été visité, on le retrouve exactement comme on l'a laissé (monstres,
+     * portes, objets au sol, carte explorée). `via` : par quel escalier on arrive.
+     */
+    enterFloor(depth, via) {
+      if (this.current) {
+        this.current.monsters = this.monsters;
+        this.current.ground = this.ground;
+      }
+      let state = this.floors.get(depth);
+      const fresh = !state;
+      if (!state) {
+        const seed = floorSeed(this.runSeed, depth);
+        const floor = generateFloor(seed, this.floorConfig);
+        if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
+        state = {
+          map: floor.map,
+          start: floor.start,
+          stairs: floor.stairs,
+          rooms: floor.rooms,
+          torches: floor.torches,
+          monsters: [],
+          ground: [],
+          explored: new Uint8Array(floor.map.width * floor.map.height),
+          sensed: new Uint8Array(floor.map.width * floor.map.height),
+          rng: new Rng(seed ^ 1540483477),
+          // hasard des combats et des monstres, propre à l'étage
+          seenMonsters: /* @__PURE__ */ new Set()
+        };
+        this.floors.set(depth, state);
+      }
+      this.current = state;
       this.depth = depth;
-      this.map = floor.map;
-      this.hero.x = this.hero.fromX = floor.start.x;
-      this.hero.y = this.hero.fromY = floor.start.y;
+      this.deepest = Math.max(this.deepest, depth);
+      this.map = state.map;
+      this.rng = state.rng;
+      this.rooms = state.rooms;
+      this.torches = state.torches;
+      this.explored = state.explored;
+      this.sensed = state.sensed;
+      this.seenMonsters = state.seenMonsters;
+      this.monsters = state.monsters;
+      this.ground = state.ground;
+      const arrival = via === "down" ? state.start : state.stairs;
+      this.hero.x = this.hero.fromX = arrival.x;
+      this.hero.y = this.hero.fromY = arrival.y;
       this.path = [];
       this.targetId = null;
       this.waiting = false;
       this.shotTargetId = null;
-      this.ground = [];
+      this.pendingStairs = null;
       this.clearDoorOrders();
-      this.explored = new Uint8Array(this.map.width * this.map.height);
-      this.sensed = new Uint8Array(this.map.width * this.map.height);
-      this.torches = floor.torches;
-      this.rooms = floor.rooms;
       this.light = computeLight(this.map, this.torches);
-      this.spawnMonsters(floor.rooms);
-      this.placeKey(floor.rooms);
-      this.seenMonsters.clear();
+      if (fresh) {
+        this.spawnMonsters(state.rooms);
+        this.placeKey(state.rooms);
+      }
+      for (const m of this.monsters) {
+        m.fromX = m.x;
+        m.fromY = m.y;
+      }
       this.updateVision();
     }
     spawnMonsters(rooms) {
-      this.monsters = [];
       const spawns = spawnsForDepth(this.depth);
       const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
       for (const room of rooms.slice(1)) {
@@ -1394,6 +1439,8 @@
           this.closeDoorAt(left.x, left.y);
           this.useFeatureAt(next.x, next.y);
           this.pickUpAt(next.x, next.y);
+          const here = this.map.get(next.x, next.y);
+          this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
           if (this.opportunityAttacks(threats)) {
             this.path = [];
             this.doorTarget = null;
@@ -1520,7 +1567,7 @@
     }
     removeIfDead(monster) {
       if (monster.hp > 0) return;
-      this.monsters = this.monsters.filter((m) => m !== monster);
+      this.monsters.splice(this.monsters.indexOf(monster), 1);
       this.closeDoorAt(monster.x, monster.y);
       this.events.push({ type: "death", actor: monster });
     }
@@ -1569,7 +1616,7 @@
         pile.count = left;
         if (taken > 0) this.events.push({ type: "pickup", item: pile.item, count: taken });
       }
-      this.ground = this.ground.filter((g) => g.count > 0);
+      for (let i = this.ground.length - 1; i >= 0; i--) if (this.ground[i].count <= 0) this.ground.splice(i, 1);
     }
     monstersAct() {
       for (const m of [...this.monsters]) {
@@ -1669,15 +1716,19 @@
       }
     }
     /**
-     * Si le héros est sur l'escalier, passe à l'étage suivant.
-     * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : descendre rend la moitié des PV manquants.
+     * Prend l'escalier sur lequel le héros vient de marcher (vers le bas ou vers le haut).
+     * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : découvrir un nouvel étage rend la moitié des PV
+     * manquants. Revenir sur un étage déjà visité ne soigne pas.
      */
-    descendIfOnStairs() {
-      if (this.over || this.map.get(this.hero.x, this.hero.y) !== Tile.StairsDown) return false;
-      const healed = Math.ceil((this.hero.maxHp - this.hero.hp) / 2);
+    takeStairs() {
+      const direction = this.pendingStairs;
+      if (this.over || !direction) return false;
+      const target = this.depth + (direction === "down" ? 1 : -1);
+      if (target < 1) return false;
+      const healed = target > this.deepest ? Math.ceil((this.hero.maxHp - this.hero.hp) / 2) : 0;
       this.hero.hp += healed;
-      this.enterFloor(this.depth + 1);
-      this.events.push({ type: "descend", healed });
+      this.enterFloor(target, direction);
+      this.events.push({ type: "stairs", direction, healed });
       return true;
     }
   };
@@ -2212,6 +2263,12 @@
         for (let i = 0; i < 3; i++) {
           ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), tile * (0.3 + i * 0.2), tile * 0.14);
         }
+      } else if (t === Tile.StairsUp) {
+        ctx.fillStyle = "#b9c0dc";
+        for (let i = 0; i < 3; i++) {
+          const w = tile * (0.7 - i * 0.2);
+          ctx.fillRect(sx + tile * 0.85 - w, sy + tile * (0.64 - i * 0.22), w, tile * 0.14);
+        }
       } else if (t === Tile.DoorClosed || t === Tile.DoorLocked) {
         ctx.fillStyle = COLORS.door;
         ctx.fillRect(sx + tile * 0.1, sy + tile * 0.1, tile * 0.8, tile * 0.8);
@@ -2531,8 +2588,10 @@
     } else if (e.type === "noticed") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
-    } else if (e.type === "descend") {
-      logLines.push(`\xC9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}`);
+    } else if (e.type === "stairs") {
+      logLines.push(
+        e.direction === "down" ? `Vous descendez \xE0 l'\xE9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}` : `Vous remontez \xE0 l'\xE9tage ${game.depth}.`
+      );
       shownHp = game.hero.hp;
       sfx.play("descend");
     } else if (e.type === "opened") {
@@ -2840,7 +2899,7 @@
       if (stepTime >= stepMs) {
         stepTime -= stepMs;
         stepping = false;
-        if (game.descendIfOnStairs()) {
+        if (game.takeStairs()) {
           renderer.snapTo(game);
           collectEvents();
         }

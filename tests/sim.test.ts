@@ -239,7 +239,8 @@ test("champ de vision : le héros se voit, rien n'est vu au-delà du rayon ni à
 function playRun(seed: number, maxTurns: number): Game {
   const game = new Game(seed);
   while (!game.over && game.turn < maxTurns) {
-    if (game.descendIfOnStairs()) continue; // comme la boucle d'affichage après chaque pas
+    // Comme la boucle d'affichage après chaque pas, mais ce joueur-ci ne remonte jamais.
+    if (game.pendingStairs === "down" && game.takeStairs()) continue;
     const foes = game.visibleMonsters();
     if (foes.length > 0) {
       const d = (m: { x: number; y: number }) => Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
@@ -602,4 +603,70 @@ test("coin de mur : on peut frapper en diagonale par-delà, avec l'avantage, dan
     checked++;
   }
   assert.ok(checked >= 5);
+});
+
+test("escaliers : on peut remonter, et chaque étage est retrouvé tel qu'on l'a laissé", () => {
+  const game = new Game(5);
+  const find = (tile: number) => {
+    for (let y = 0; y < game.map.height; y++) {
+      for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === tile) return { x, y };
+    }
+    return null;
+  };
+  /** Marche jusqu'à une case sans rien d'autre en jeu, puis prend l'escalier s'il y en a un. */
+  const walkTo = (p: { x: number; y: number }) => {
+    for (let turn = 0; turn < 300 && (game.hero.x !== p.x || game.hero.y !== p.y); turn++) {
+      if (game.path.length === 0) assert.ok(game.setDestination(p.x, p.y, true));
+      game.tick();
+    }
+    assert.deepEqual({ x: game.hero.x, y: game.hero.y }, p);
+  };
+  assert.equal(find(Tile.StairsUp), null, "pas d'escalier qui monte au premier étage");
+  // Étage 1 : on retire les monstres sauf un, on laisse une flèche par terre, puis on descend.
+  game.hero.hp = game.hero.maxHp = 1000;
+  game.monsters.splice(1);
+  game.ground.push({ x: game.hero.x, y: game.hero.y, item: "fleche", count: 3 });
+  const floor1 = game.map;
+  const down1 = find(Tile.StairsDown)!;
+  for (const m of game.monsters) Object.assign(m, { asleep: true, alerted: false });
+  walkTo(down1);
+  const explored1 = game.explored.reduce((n, v) => n + v, 0);
+  assert.equal(game.pendingStairs, "down");
+  const survivors = game.monsters.length; // ce qu'il reste au moment de quitter l'étage
+  assert.ok(game.takeStairs());
+  assert.equal(game.depth, 2);
+
+  // Étage 2 : on arrive sur l'escalier qui remonte, sans repartir aussitôt.
+  const up2 = find(Tile.StairsUp)!;
+  assert.deepEqual({ x: game.hero.x, y: game.hero.y }, up2);
+  assert.equal(game.pendingStairs, null);
+  assert.equal(game.takeStairs(), false);
+  const floor2 = game.map;
+  game.monsters.splice(0);
+  // On s'écarte d'une case, puis on revient sur l'escalier pour remonter.
+  const side = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: up2.x + dx, y: up2.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor)!;
+  walkTo(side);
+  walkTo(up2);
+  assert.equal(game.pendingStairs, "up");
+  const hpBefore = game.hero.hp;
+  assert.ok(game.takeStairs());
+
+  // De retour à l'étage 1 : même carte, même exploration, mêmes monstres, flèche toujours là.
+  assert.equal(game.depth, 1);
+  assert.equal(game.map, floor1);
+  assert.deepEqual({ x: game.hero.x, y: game.hero.y }, down1);
+  assert.equal(game.monsters.length, survivors);
+  assert.ok(game.explored.reduce((n, v) => n + v, 0) >= explored1);
+  assert.ok(game.ground.some((g) => g.item === "fleche" && g.count === 3));
+  assert.equal(game.hero.hp, hpBefore, "remonter ne soigne pas");
+  assert.ok(game.events.some((e) => e.type === "stairs" && e.direction === "up"));
+
+  // Et en redescendant, l'étage 2 est le même qu'avant, toujours vide de monstres.
+  const beside = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: down1.x + dx, y: down1.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor)!;
+  for (const m of game.monsters) Object.assign(m, { asleep: true, alerted: false });
+  walkTo(beside);
+  walkTo(down1);
+  assert.ok(game.takeStairs());
+  assert.equal(game.map, floor2);
+  assert.equal(game.monsters.length, 0);
 });

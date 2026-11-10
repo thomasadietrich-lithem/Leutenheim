@@ -1,6 +1,7 @@
 import { Rng } from "../core/rng";
 import { FloorConfig } from "../data/floors";
 import { GameMap, Point, Tile } from "./map";
+import { LightSource } from "./fov";
 import { distanceField } from "./pathfinding";
 
 export interface Room {
@@ -15,6 +16,7 @@ export interface Floor {
   rooms: Room[];
   start: Point;
   stairs: Point;
+  torches: LightSource[];
 }
 
 function center(r: Room): Point {
@@ -126,5 +128,46 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
   }
   map.set(stairs.x, stairs.y, Tile.StairsDown);
 
-  return { map, rooms, start, stairs };
+  // 5. Portes et torches, salle par salle.
+  const torches: LightSource[] = [];
+  rooms.forEach((room, index) => {
+    const ring = ringCells(room);
+    // Toute ouverture compte, y compris une porte déjà posée par une salle voisine.
+    const entrances = ring.filter((c) => map.get(c.x, c.y) !== Tile.Wall);
+    // Une « entrée étroite » : un passage d'une case, avec un mur de chaque côté.
+    const doorways = entrances.filter(
+      (c) => map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall,
+    );
+    const hasStairs = stairs.x >= room.x && stairs.x < room.x + room.w && stairs.y >= room.y && stairs.y < room.y + room.h;
+    const deadEnd = index > 0 && !hasStairs && entrances.length === 1 && doorways.length === 1;
+    if (deadEnd && map.get(doorways[0].x, doorways[0].y) === Tile.Floor && rng.chance(cfg.lockChance)) {
+      map.set(doorways[0].x, doorways[0].y, Tile.DoorLocked);
+    } else {
+      for (const c of doorways) {
+        if (map.get(c.x, c.y) === Tile.Floor && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
+      }
+    }
+    // Torche murale : sur un mur du pourtour de la salle.
+    if (index === 0 || rng.chance(cfg.torchChance)) {
+      const walls = ring.filter((c) => map.get(c.x, c.y) === Tile.Wall);
+      if (walls.length > 0) {
+        const w = walls[rng.int(0, walls.length - 1)];
+        torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius });
+      }
+    }
+  });
+
+  return { map, rooms, start, stairs, torches };
+}
+
+/** Cases du pourtour d'une salle (hors coins), avec la direction qui longe le mur (tx, ty). */
+function ringCells(r: Room): { x: number; y: number; tx: number; ty: number }[] {
+  const cells: { x: number; y: number; tx: number; ty: number }[] = [];
+  for (let x = r.x; x < r.x + r.w; x++) {
+    cells.push({ x, y: r.y - 1, tx: 1, ty: 0 }, { x, y: r.y + r.h, tx: 1, ty: 0 });
+  }
+  for (let y = r.y; y < r.y + r.h; y++) {
+    cells.push({ x: r.x - 1, y, tx: 0, ty: 1 }, { x: r.x + r.w, y, tx: 0, ty: 1 });
+  }
+  return cells;
 }

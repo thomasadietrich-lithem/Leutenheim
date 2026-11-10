@@ -3,28 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Leutenheim — démo J2</title>
+<title>Leutenheim — démo</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #0c0b12; color: #d8d4e6;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 6px; }
-  .col { width: min(100%, calc((100vh - 200px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; }
+  .col { position: relative; width: min(100%, calc((100vh - 215px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
   #hud-text { font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
   .hp { height: 6px; background: #3a1520; border-radius: 3px; overflow: hidden; }
   #hp-fill { height: 100%; width: 100%; background: #e05060; transition: width 0.2s; }
   .frame { position: relative; aspect-ratio: 9 / 13; border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
-  #over { position: absolute; inset: 0; background: rgba(12,11,18,0.82); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; font-size: 16px; }
-  #over[hidden] { display: none; }
-  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 62px; }
-  .die { flex: 0 0 54px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
-    border: 2px solid #5a5475; border-radius: 10px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
+  .overlay { position: absolute; inset: 0; background: rgba(12,11,18,0.86); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 20px; font-size: 16px; }
+  .overlay[hidden], #door-actions[hidden], button[hidden] { display: none; }
+  #menu { background: rgba(12,11,18,0.94); border-radius: 10px; z-index: 2; }
+  #menu h1 { margin: 0; font-size: 34px; letter-spacing: 0.06em; color: #e0b040; font-weight: 700; }
+  #menu p { margin: 0 0 14px; font-size: 13px; color: #9a94b0; }
+  #menu button { width: 200px; padding: 12px; font-size: 15px; }
+  #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+  #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
+  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
+  .dice { flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .die { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
+    border: 2px solid #5a5475; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
   .die.hit { border-color: #5fd38d; color: #5fd38d; }
   .die.miss { border-color: #77718f; color: #c9c4dc; }
-  .die.crit { border-color: #ffd75e; color: #ffd75e; }
-  .die.foe { background: #2a1620; }
+  .die.crit { border-color: #ffd75e; color: #ffd75e; box-shadow: 0 0 14px rgba(255,215,94,0.6); }
+  .die.foe { background: #3a1722; }
+  .die.rolling { border-color: #ffffff; color: #ffffff; animation: roll 0.16s linear infinite; }
+  .die.land { animation: land 0.24s ease-out; }
+  @keyframes roll {
+    0% { transform: rotate(-14deg) scale(1.08); } 25% { transform: rotate(11deg) translateY(-4px) scale(1.12); }
+    50% { transform: rotate(-9deg) scale(1.06); } 75% { transform: rotate(13deg) translateY(3px) scale(1.1); }
+    100% { transform: rotate(-14deg) scale(1.08); }
+  }
+  @keyframes land { 0% { transform: scale(1.55) rotate(8deg); } 55% { transform: scale(0.9); } 100% { transform: scale(1); } }
+  #die-who { font-size: 10px; color: #9a94b0; height: 12px; }
   #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
   #log div:last-child { color: #e6e2f4; }
   .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
@@ -40,24 +56,145 @@
   <div class="hp"><div id="hp-fill"></div></div>
   <div class="frame">
     <canvas id="game"></canvas>
-    <div id="over" hidden>
+    <div id="door-actions" hidden>
+      <button id="door-pick" type="button"></button>
+      <button id="door-break" type="button"></button>
+    </div>
+    <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
       <button id="over-new-run" type="button">Nouvelle partie</button>
     </div>
   </div>
   <div class="panel">
-    <div id="die" class="die">d20</div>
+    <div class="dice"><div id="die" class="die">d20</div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   <div class="bar">
     <button id="wait" type="button">Attendre</button>
-    <button id="new-run" type="button">Nouvelle partie</button>
+    <button id="open-menu" type="button">Menu</button>
     <span id="seed"></span>
+  </div>
+  <div id="menu" class="overlay">
+    <h1>LEUTENHEIM</h1>
+    <p>Démo de travail</p>
+    <button id="menu-play" type="button">Jouer</button>
+    <button id="menu-new" type="button" hidden>Nouvelle partie</button>
+    <button id="menu-sound" type="button">Sons : activés</button>
   </div>
 </div>
 <script>
 "use strict";
 (() => {
+  // src/audio/sfx.ts
+  var Sfx = class {
+    constructor() {
+      this.enabled = true;
+      this.ctx = null;
+    }
+    /** À appeler depuis un geste du joueur (toucher, clic) : les navigateurs n'autorisent le son qu'ainsi. */
+    unlock() {
+      try {
+        if (!this.ctx) {
+          const Ctor = window.AudioContext ?? window.webkitAudioContext;
+          this.ctx = new Ctor();
+        }
+        if (this.ctx.state === "suspended") void this.ctx.resume();
+      } catch {
+        this.ctx = null;
+      }
+    }
+    tone(from, to, duration, wave, volume, delay = 0) {
+      const ctx = this.ctx;
+      const t = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(from, t);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), t + duration);
+      gain.gain.setValueAtTime(volume, t);
+      gain.gain.exponentialRampToValueAtTime(1e-3, t + duration);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + duration + 0.02);
+    }
+    noise(duration, volume, cutoff, delay = 0) {
+      const ctx = this.ctx;
+      const t = ctx.currentTime + delay;
+      const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
+      const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = cutoff;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(volume, t);
+      gain.gain.exponentialRampToValueAtTime(1e-3, t + duration);
+      src.connect(filter).connect(gain).connect(ctx.destination);
+      src.start(t);
+    }
+    play(name) {
+      if (!this.enabled || !this.ctx || this.ctx.state !== "running") return;
+      try {
+        switch (name) {
+          case "step":
+            this.noise(0.04, 0.05, 700);
+            break;
+          case "dice":
+            for (let i = 0; i < 6; i++) this.noise(0.03, 0.12, 2400 - i * 150, i * 0.06);
+            break;
+          case "hit":
+            this.tone(170, 60, 0.13, "triangle", 0.3);
+            this.noise(0.06, 0.15, 1500);
+            break;
+          case "miss":
+            this.noise(0.14, 0.1, 900);
+            break;
+          case "crit":
+            this.tone(170, 50, 0.18, "triangle", 0.35);
+            this.tone(880, 1320, 0.22, "sine", 0.18, 0.03);
+            break;
+          case "hurt":
+            this.tone(230, 90, 0.16, "square", 0.12);
+            break;
+          case "kill":
+            this.tone(300, 80, 0.2, "sawtooth", 0.1);
+            break;
+          case "death":
+            [330, 262, 196, 131].forEach((f, i) => this.tone(f, f * 0.97, 0.3, "triangle", 0.2, i * 0.18));
+            break;
+          case "notice":
+            this.tone(520, 880, 0.09, "square", 0.07);
+            break;
+          case "door":
+            this.tone(110, 75, 0.2, "sawtooth", 0.08);
+            break;
+          case "unlock":
+            this.tone(1200, 1200, 0.03, "square", 0.08);
+            this.tone(1600, 1600, 0.04, "square", 0.08, 0.09);
+            break;
+          case "break":
+            this.noise(0.3, 0.4, 1200);
+            this.tone(120, 40, 0.25, "square", 0.2);
+            break;
+          case "thud":
+            this.noise(0.15, 0.3, 500);
+            this.tone(100, 50, 0.12, "sine", 0.25);
+            break;
+          case "descend":
+            [392, 330, 262].forEach((f, i) => this.tone(f, f, 0.12, "sine", 0.15, i * 0.09));
+            break;
+          case "click":
+            this.tone(700, 700, 0.03, "square", 0.05);
+            break;
+        }
+      } catch {
+      }
+    }
+  };
+
   // src/data/classes.ts
   var CLASSES = {
     guerrier: {
@@ -66,7 +203,9 @@
       hp: 10,
       armorClass: 15,
       attackBonus: 4,
-      damage: { count: 1, sides: 6, bonus: 2 }
+      damage: { count: 1, sides: 6, bonus: 2 },
+      lockpickBonus: 0,
+      breakBonus: 4
     }
   };
 
@@ -79,7 +218,11 @@
     roomMinSize: 4,
     roomMaxSize: 8,
     extraLinks: 2,
-    wideCorridorChance: 0.3
+    wideCorridorChance: 0.3,
+    doorChance: 0.6,
+    lockChance: 0.5,
+    torchChance: 0.5,
+    torchRadius: 6
   };
 
   // src/data/monsters.ts
@@ -106,7 +249,22 @@
 
   // src/data/races.ts
   var RACES = {
-    humain: { id: "humain", name: "Humain", hpBonus: 2, vision: 7 }
+    humain: { id: "humain", name: "Humain", hpBonus: 2, darkVision: 4, sight: 11 }
+  };
+
+  // src/data/rules.ts
+  var RULES = {
+    /** Crocheter une serrure : d20 + bonus de classe contre cette difficulté. Silencieux. */
+    lockpickDc: 12,
+    /** Enfoncer une porte : d20 + bonus de classe contre cette difficulté. Bruyant, réussite ou non. */
+    breakDc: 11,
+    /** Le bruit d'une porte enfoncée alerte les monstres jusqu'à cette distance (en cases). */
+    noiseRadius: 10,
+    /** Un monstre remarque plus facilement un héros éclairé par une torche, moins facilement dans le noir. */
+    noticeInLight: 1.5,
+    noticeInDark: 0.6,
+    /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
+    senseDepth: 3
   };
 
   // src/world/fov.ts
@@ -119,31 +277,53 @@
     const sy = y < to.y ? 1 : -1;
     let err = dx - dy;
     while (x !== to.x || y !== to.y) {
-      if ((x !== from.x || y !== from.y) && !map.isWalkable(x, y)) return false;
+      if ((x !== from.x || y !== from.y) && map.blocksSight(x, y)) return false;
       const e2 = 2 * err;
-      if (e2 > -dy) {
+      const stepX = e2 > -dy;
+      const stepY = e2 < dx;
+      if (stepX && stepY && map.blocksSight(x + sx, y) && map.blocksSight(x, y + sy)) return false;
+      if (stepX) {
         err -= dy;
         x += sx;
       }
-      if (e2 < dx) {
+      if (stepY) {
         err += dx;
         y += sy;
       }
     }
     return true;
   }
-  function computeFov(map, origin, radius) {
+  function computeFov(map, origin, nearRadius, farRadius = nearRadius, light) {
     const visible = new Uint8Array(map.width * map.height);
-    const limit = radius * radius + radius;
-    for (let y = origin.y - radius; y <= origin.y + radius; y++) {
-      for (let x = origin.x - radius; x <= origin.x + radius; x++) {
+    const nearLimit = nearRadius * nearRadius + nearRadius;
+    const farLimit = farRadius * farRadius + farRadius;
+    for (let y = origin.y - farRadius; y <= origin.y + farRadius; y++) {
+      for (let x = origin.x - farRadius; x <= origin.x + farRadius; x++) {
         if (!map.inBounds(x, y)) continue;
+        const i = map.index(x, y);
         const d2 = (x - origin.x) ** 2 + (y - origin.y) ** 2;
-        if (d2 > limit) continue;
-        if (hasLineOfSight(map, origin, { x, y })) visible[map.index(x, y)] = 1;
+        const near = d2 <= nearLimit;
+        const litAndFar = d2 <= farLimit && light !== void 0 && light[i] > 0;
+        if (!near && !litAndFar) continue;
+        if (hasLineOfSight(map, origin, { x, y })) visible[i] = 1;
       }
     }
     return visible;
+  }
+  function computeLight(map, sources) {
+    const light = new Float32Array(map.width * map.height);
+    for (const s of sources) {
+      for (let y = s.y - s.radius; y <= s.y + s.radius; y++) {
+        for (let x = s.x - s.radius; x <= s.x + s.radius; x++) {
+          if (!map.inBounds(x, y)) continue;
+          const d = Math.hypot(x - s.x, y - s.y);
+          if (d > s.radius + 0.5 || !hasLineOfSight(map, s, { x, y })) continue;
+          const i = map.index(x, y);
+          light[i] = Math.max(light[i], 1 - d / (s.radius + 1));
+        }
+      }
+    }
+    return light;
   }
 
   // src/core/rng.ts
@@ -175,7 +355,10 @@
   var Tile = {
     Wall: 0,
     Floor: 1,
-    StairsDown: 2
+    StairsDown: 2,
+    DoorClosed: 3,
+    DoorOpen: 4,
+    DoorLocked: 5
   };
   var GameMap = class {
     constructor(width, height) {
@@ -195,8 +378,19 @@
     set(x, y, tile) {
       this.tiles[this.index(x, y)] = tile;
     }
+    /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
     isWalkable(x, y) {
-      return this.get(x, y) !== Tile.Wall;
+      const t = this.get(x, y);
+      return t !== Tile.Wall && t !== Tile.DoorLocked;
+    }
+    /** Bloque la vue et la lumière : murs et portes non ouvertes. */
+    blocksSight(x, y) {
+      const t = this.get(x, y);
+      return t === Tile.Wall || t === Tile.DoorClosed || t === Tile.DoorLocked;
+    }
+    isDoor(x, y) {
+      const t = this.get(x, y);
+      return t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked;
     }
   };
 
@@ -220,10 +414,10 @@
   }
   function distanceField(map, from, allowed) {
     const dist = new Int32Array(map.width * map.height).fill(-1);
-    const queue = [map.index(from.x, from.y)];
-    dist[queue[0]] = 0;
-    for (let head = 0; head < queue.length; head++) {
-      const cur = queue[head];
+    const queue2 = [map.index(from.x, from.y)];
+    dist[queue2[0]] = 0;
+    for (let head = 0; head < queue2.length; head++) {
+      const cur = queue2[head];
       const cx = cur % map.width;
       const cy = (cur - cx) / map.width;
       for (const d of DIRS) {
@@ -232,7 +426,7 @@
         const next = map.index(cx + d.x, cy + d.y);
         if (dist[next] !== -1) continue;
         dist[next] = dist[cur] + 1;
-        queue.push(next);
+        queue2.push(next);
       }
     }
     return dist;
@@ -358,7 +552,41 @@
       }
     }
     map.set(stairs.x, stairs.y, Tile.StairsDown);
-    return { map, rooms, start, stairs };
+    const torches = [];
+    rooms.forEach((room, index) => {
+      const ring = ringCells(room);
+      const entrances = ring.filter((c) => map.get(c.x, c.y) !== Tile.Wall);
+      const doorways = entrances.filter(
+        (c) => map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall
+      );
+      const hasStairs = stairs.x >= room.x && stairs.x < room.x + room.w && stairs.y >= room.y && stairs.y < room.y + room.h;
+      const deadEnd = index > 0 && !hasStairs && entrances.length === 1 && doorways.length === 1;
+      if (deadEnd && map.get(doorways[0].x, doorways[0].y) === Tile.Floor && rng.chance(cfg.lockChance)) {
+        map.set(doorways[0].x, doorways[0].y, Tile.DoorLocked);
+      } else {
+        for (const c of doorways) {
+          if (map.get(c.x, c.y) === Tile.Floor && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
+        }
+      }
+      if (index === 0 || rng.chance(cfg.torchChance)) {
+        const walls = ring.filter((c) => map.get(c.x, c.y) === Tile.Wall);
+        if (walls.length > 0) {
+          const w = walls[rng.int(0, walls.length - 1)];
+          torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius });
+        }
+      }
+    });
+    return { map, rooms, start, stairs, torches };
+  }
+  function ringCells(r) {
+    const cells = [];
+    for (let x = r.x; x < r.x + r.w; x++) {
+      cells.push({ x, y: r.y - 1, tx: 1, ty: 0 }, { x, y: r.y + r.h, tx: 1, ty: 0 });
+    }
+    for (let y = r.y; y < r.y + r.h; y++) {
+      cells.push({ x: r.x - 1, y, tx: 0, ty: 1 }, { x: r.x + r.w, y, tx: 0, ty: 1 });
+    }
+    return cells;
   }
 
   // src/core/dice.ts
@@ -403,11 +631,17 @@
       this.monsters = [];
       /** Cases restant à parcourir vers la destination choisie. */
       this.path = [];
+      /** Torches de l'étage et éclairage qu'elles produisent (0 à 1 par case). */
+      this.torches = [];
+      /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
+      this.pendingDoor = null;
       /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
       this.events = [];
       this.nextId = 1;
       this.targetId = null;
       this.waiting = false;
+      this.doorTarget = null;
+      this.doorAction = null;
       this.seenMonsters = /* @__PURE__ */ new Set();
       const maxHp = heroClass.hp + race.hpBonus;
       this.hero = {
@@ -424,7 +658,7 @@
         armorClass: heroClass.armorClass,
         attackBonus: heroClass.attackBonus,
         damage: heroClass.damage,
-        vision: race.vision,
+        vision: race.darkVision,
         alerted: true
       };
       this.enterFloor(1);
@@ -441,7 +675,11 @@
       this.path = [];
       this.targetId = null;
       this.waiting = false;
+      this.clearDoorOrders();
       this.explored = new Uint8Array(this.map.width * this.map.height);
+      this.sensed = new Uint8Array(this.map.width * this.map.height);
+      this.torches = floor.torches;
+      this.light = computeLight(this.map, this.torches);
       this.spawnMonsters(floor.rooms);
       this.seenMonsters.clear();
       this.updateVision();
@@ -496,6 +734,17 @@
     isExplored(x, y) {
       return this.map.inBounds(x, y) && this.explored[this.map.index(x, y)] === 1;
     }
+    /** Case connue du joueur : déjà vue, ou devinée. */
+    isKnown(x, y) {
+      return this.map.inBounds(x, y) && (this.explored[this.map.index(x, y)] === 1 || this.sensed[this.map.index(x, y)] === 1);
+    }
+    isSensed(x, y) {
+      return this.map.inBounds(x, y) && this.sensed[this.map.index(x, y)] === 1;
+    }
+    /** Le héros est-il éclairé par une torche ? */
+    heroInLight() {
+      return this.light[this.map.index(this.hero.x, this.hero.y)] > 0.15;
+    }
     visibleMonsters() {
       return this.monsters.filter((m) => this.isVisible(m.x, m.y));
     }
@@ -510,19 +759,62 @@
         this.wait();
         return true;
       }
+      if (this.map.get(x, y) === Tile.DoorLocked && (ignoreFog || this.isExplored(x, y))) {
+        return this.approachLockedDoor(x, y, ignoreFog);
+      }
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
-      const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isExplored(cx, cy);
+      const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isKnown(cx, cy);
       const path = findPath(this.map, this.hero, { x, y }, known);
       if (!path) return false;
+      this.clearDoorOrders();
       this.targetId = monster ? monster.id : null;
       this.path = path;
       this.waiting = false;
       return true;
     }
+    /** Se rendre devant une porte verrouillée (ou s'y arrêter si on y est déjà) pour choisir quoi en faire. */
+    approachLockedDoor(x, y, ignoreFog) {
+      const known = ignoreFog ? void 0 : (cx, cy) => this.isKnown(cx, cy);
+      let best = null;
+      for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx === this.hero.x && ny === this.hero.y) {
+          best = [];
+          break;
+        }
+        const path = findPath(this.map, this.hero, { x: nx, y: ny }, known);
+        if (path && (!best || path.length < best.length)) best = path;
+      }
+      if (!best) return false;
+      this.clearDoorOrders();
+      this.targetId = null;
+      this.waiting = false;
+      this.path = best;
+      if (best.length === 0) this.pendingDoor = { x, y };
+      else this.doorTarget = { x, y };
+      return true;
+    }
+    /** Le joueur choisit de crocheter ou d'enfoncer la porte devant lui : ce sera l'action du prochain tour. */
+    actOnDoor(action) {
+      if (this.over || !this.pendingDoor) return false;
+      this.doorAction = action;
+      return true;
+    }
+    clearDoorOrders() {
+      this.pendingDoor = null;
+      this.doorTarget = null;
+      this.doorAction = null;
+    }
     /** Déplacement ou attaque d'une case (clavier). */
     moveBy(dx, dy) {
-      if (this.over || !canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
+      if (this.over) return false;
+      if ((dx === 0 || dy === 0) && this.map.get(this.hero.x + dx, this.hero.y + dy) === Tile.DoorLocked) {
+        return this.approachLockedDoor(this.hero.x + dx, this.hero.y + dy, false);
+      }
+      if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
+      this.clearDoorOrders();
       this.targetId = null;
       this.path = [{ x: this.hero.x + dx, y: this.hero.y + dy }];
       return true;
@@ -530,6 +822,7 @@
     /** Passer un tour sur place. */
     wait() {
       if (this.over) return;
+      this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
       this.waiting = true;
@@ -542,7 +835,10 @@
         a.fromX = a.x;
         a.fromY = a.y;
       }
-      if (this.waiting) {
+      if (this.doorAction && this.pendingDoor) {
+        this.resolveDoor(this.doorAction, this.pendingDoor);
+        this.doorAction = null;
+      } else if (this.waiting) {
         this.waiting = false;
       } else {
         if (this.targetId !== null) {
@@ -561,12 +857,47 @@
           this.path.shift();
           this.hero.x = next.x;
           this.hero.y = next.y;
+          this.openDoorAt(next.x, next.y);
+          if (this.path.length === 0 && this.doorTarget) {
+            this.pendingDoor = this.doorTarget;
+            this.doorTarget = null;
+          }
         }
       }
       this.turn++;
       this.updateVision();
       this.monstersAct();
       return true;
+    }
+    /** Entrer dans une porte fermée l'ouvre ; la lumière et la vue passent alors au travers. */
+    openDoorAt(x, y) {
+      if (this.map.get(x, y) !== Tile.DoorClosed) return;
+      this.map.set(x, y, Tile.DoorOpen);
+      this.light = computeLight(this.map, this.torches);
+      this.events.push({ type: "opened", x, y });
+    }
+    resolveDoor(action, door) {
+      const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
+      const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
+      const d20 = this.rng.int(1, 20);
+      const total = d20 + bonus;
+      const success = d20 === 20 || d20 !== 1 && total >= dc;
+      if (success) {
+        this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
+        this.light = computeLight(this.map, this.torches);
+        this.pendingDoor = null;
+      }
+      let alerted = 0;
+      if (action === "break") {
+        for (const m of this.monsters) {
+          const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
+          if (!m.alerted && d <= RULES.noiseRadius) {
+            m.alerted = true;
+            alerted++;
+          }
+        }
+      }
+      this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
     }
     heroAttacks(monster) {
       const result = rollAttack(this.rng, this.hero, monster, monster.alerted ? "normal" : "advantage");
@@ -586,7 +917,8 @@
         const distance = Math.max(Math.abs(dx), Math.abs(dy));
         if (!m.alerted) {
           const def = MONSTERS[m.defId];
-          if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(def.noticeChance)) {
+          const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark);
+          if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(chance)) {
             m.alerted = true;
             this.events.push({ type: "noticed", actor: m });
           }
@@ -607,20 +939,52 @@
         if (step && !this.actorAt(step.x, step.y)) {
           m.x = step.x;
           m.y = step.y;
+          if (this.map.get(m.x, m.y) === Tile.DoorClosed) {
+            this.openDoorAt(m.x, m.y);
+            this.updateVision();
+          }
         }
       }
     }
     updateVision() {
-      this.visible = computeFov(this.map, this.hero, this.hero.vision);
+      this.visible = computeFov(this.map, this.hero, this.race.darkVision, this.race.sight, this.light);
       for (let i = 0; i < this.visible.length; i++) {
         if (this.visible[i]) this.explored[i] = 1;
       }
+      this.senseBeyond();
       for (const m of this.visibleMonsters()) {
         if (!this.seenMonsters.has(m.id)) {
           this.seenMonsters.add(m.id);
           this.path = [];
           this.targetId = null;
+          this.doorTarget = null;
         }
+      }
+    }
+    /** Devine les passages proches de ce qu'on voit : on « sent » un couloir sans le voir. */
+    senseBeyond() {
+      let frontier = [];
+      for (let i = 0; i < this.visible.length; i++) {
+        const x = i % this.map.width;
+        if (this.visible[i] && this.map.isWalkable(x, (i - x) / this.map.width)) frontier.push(i);
+      }
+      const reached = new Set(frontier);
+      for (let depth = 0; depth < RULES.senseDepth; depth++) {
+        const next = [];
+        for (const i of frontier) {
+          const x = i % this.map.width;
+          const y = (i - x) / this.map.width;
+          if (this.map.get(x, y) === Tile.DoorClosed) continue;
+          for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+            if (!this.map.isWalkable(x + dx, y + dy)) continue;
+            const n = this.map.index(x + dx, y + dy);
+            if (reached.has(n)) continue;
+            reached.add(n);
+            this.sensed[n] = 1;
+            next.push(n);
+          }
+        }
+        frontier = next;
       }
     }
     /**
@@ -710,13 +1074,16 @@
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
   var MAX_COLUMNS = 28;
-  var FLOAT_MS = 800;
+  var FLOAT_MS = 900;
   var COLORS = {
     background: "#0c0b12",
     wall: "#2a2638",
     floor: "#4b4560",
-    fog: "rgba(12,11,18,0.6)",
+    sensed: "rgba(75,69,96,0.3)",
     stairs: "#e0b040",
+    door: "#8a5a2b",
+    doorEdge: "#5a3817",
+    lock: "#e0b040",
     hero: "#5fd38d",
     heroEdge: "#1d5c3a",
     path: "rgba(255,255,255,0.35)",
@@ -732,6 +1099,7 @@
       this.columns = COLUMNS;
       this.camX = 0;
       this.camY = 0;
+      this.time = 0;
       this.floats = [];
       this.ctx = canvas2.getContext("2d");
       this.resize();
@@ -777,9 +1145,11 @@
     /**
      * `progress` (0 à 1) est l'avancement de l'animation du tour en cours : chaque acteur glisse
      * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
+     * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
      */
-    draw(game2, progress, dt) {
+    draw(game2, progress, dt, ghosts2 = []) {
       const { ctx, tile } = this;
+      this.time += dt;
       const shown = (a) => ({
         x: a.fromX + (a.x - a.fromX) * progress,
         y: a.fromY + (a.y - a.fromY) * progress
@@ -790,6 +1160,7 @@
       this.camY += (hero.y - this.camY) * follow;
       const ox = this.originX();
       const oy = this.originY();
+      const flicker = 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
       ctx.fillStyle = COLORS.background;
       ctx.fillRect(0, 0, this.width, this.height);
       const x0 = Math.floor(-ox / tile);
@@ -798,24 +1169,53 @@
       const y1 = Math.ceil((this.height - oy) / tile);
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-          if (!game2.isExplored(x, y)) continue;
-          const t = game2.map.get(x, y);
+          if (!game2.map.inBounds(x, y)) continue;
           const sx = ox + x * tile;
           const sy = oy + y * tile;
+          if (!game2.isExplored(x, y)) {
+            if (game2.isSensed(x, y)) {
+              ctx.fillStyle = COLORS.sensed;
+              ctx.fillRect(sx + tile * 0.12, sy + tile * 0.12, tile * 0.76, tile * 0.76);
+            }
+            continue;
+          }
+          const t = game2.map.get(x, y);
           ctx.fillStyle = t === Tile.Wall ? COLORS.wall : COLORS.floor;
           ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
-          if (t === Tile.StairsDown) {
-            ctx.fillStyle = COLORS.stairs;
-            for (let i = 0; i < 3; i++) {
-              const w = tile * (0.3 + i * 0.2);
-              ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), w, tile * 0.14);
+          this.drawFeature(t, sx, sy);
+          if (game2.isVisible(x, y)) {
+            const lit = game2.light[game2.map.index(x, y)];
+            const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game2.race.darkVision + 1.5));
+            const brightness = Math.min(1, Math.max(lit * flicker, glow));
+            ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55).toFixed(3)})`;
+            ctx.fillRect(sx, sy, tile, tile);
+            if (lit > 0) {
+              ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
+              ctx.fillRect(sx, sy, tile, tile);
             }
-          }
-          if (!game2.isVisible(x, y)) {
-            ctx.fillStyle = COLORS.fog;
+          } else {
+            ctx.fillStyle = "rgba(12,11,18,0.72)";
             ctx.fillRect(sx, sy, tile, tile);
           }
         }
+      }
+      for (const torch of game2.torches) {
+        if (!game2.isExplored(torch.x, torch.y)) continue;
+        const cx = ox + (torch.x + 0.5) * tile;
+        const cy = oy + (torch.y + 0.5) * tile;
+        ctx.fillStyle = "#ff8a2a";
+        ctx.beginPath();
+        ctx.arc(cx, cy, tile * 0.2 * flicker, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffe08a";
+        ctx.beginPath();
+        ctx.arc(cx, cy + tile * 0.03, tile * 0.1 * flicker, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (game2.pendingDoor) {
+        ctx.strokeStyle = COLORS.lock;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(ox + game2.pendingDoor.x * tile + 1, oy + game2.pendingDoor.y * tile + 1, tile - 2, tile - 2);
       }
       ctx.fillStyle = COLORS.path;
       game2.path.forEach((p, i) => {
@@ -826,7 +1226,7 @@
       });
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      for (const m of game2.visibleMonsters()) {
+      for (const m of [...game2.visibleMonsters(), ...ghosts2]) {
         const p = shown(m);
         const cx = ox + (p.x + 0.5) * tile;
         const cy = oy + (p.y + 0.5) * tile;
@@ -848,7 +1248,7 @@
           ctx.fillStyle = COLORS.hpBack;
           ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7, tile * 0.08);
           ctx.fillStyle = COLORS.hpFill;
-          ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * (m.hp / m.maxHp), tile * 0.08);
+          ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * Math.max(0, m.hp / m.maxHp), tile * 0.08);
         }
       }
       ctx.fillStyle = COLORS.hero;
@@ -873,6 +1273,31 @@
       }
       ctx.globalAlpha = 1;
     }
+    /** Escalier et portes, dessinés par-dessus le sol. */
+    drawFeature(t, sx, sy) {
+      const { ctx, tile } = this;
+      if (t === Tile.StairsDown) {
+        ctx.fillStyle = COLORS.stairs;
+        for (let i = 0; i < 3; i++) {
+          ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), tile * (0.3 + i * 0.2), tile * 0.14);
+        }
+      } else if (t === Tile.DoorClosed || t === Tile.DoorLocked) {
+        ctx.fillStyle = COLORS.door;
+        ctx.fillRect(sx + tile * 0.1, sy + tile * 0.1, tile * 0.8, tile * 0.8);
+        ctx.fillStyle = COLORS.doorEdge;
+        ctx.fillRect(sx + tile * 0.47, sy + tile * 0.1, tile * 0.06, tile * 0.8);
+        if (t === Tile.DoorLocked) {
+          ctx.fillStyle = COLORS.lock;
+          ctx.fillRect(sx + tile * 0.36, sy + tile * 0.38, tile * 0.28, tile * 0.24);
+          ctx.fillStyle = COLORS.doorEdge;
+          ctx.fillRect(sx + tile * 0.47, sy + tile * 0.45, tile * 0.06, tile * 0.12);
+        }
+      } else if (t === Tile.DoorOpen) {
+        ctx.fillStyle = COLORS.door;
+        ctx.fillRect(sx + 0.5, sy + 0.5, tile * 0.14, tile - 1);
+        ctx.fillRect(sx + tile * 0.86, sy + 0.5, tile * 0.14 - 0.5, tile - 1);
+      }
+    }
   };
 
   // src/main.ts
@@ -883,67 +1308,65 @@
   }
   var KEYBOARD_STEP_MS = 140;
   var COMBAT_STEP_MS = 170;
+  var ROLL_MS = 420;
+  var HOLD_HERO_MS = 240;
+  var HOLD_FOE_MS = 520;
   var LOG_LINES = 3;
+  var OPTIONS_KEY = "leutenheim.options";
   var $ = (id) => document.getElementById(id);
   var canvas = $("game");
   var hudText = $("hud-text");
   var hpFill = $("hp-fill");
   var die = $("die");
+  var dieWho = $("die-who");
   var log = $("log");
   var over = $("over");
   var overText = $("over-text");
   var seedLabel = $("seed");
+  var doorActions = $("door-actions");
+  var menu = $("menu");
+  var options = { sound: true };
+  try {
+    Object.assign(options, JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}"));
+  } catch {
+  }
+  function saveOptions() {
+    try {
+      localStorage.setItem(OPTIONS_KEY, JSON.stringify(options));
+    } catch {
+    }
+  }
+  var sfx = new Sfx();
+  sfx.enabled = options.sound;
   var renderer = new Renderer(canvas);
   var game;
   var logLines = [];
+  var menuOpen = true;
+  var started = false;
+  var shownHp = 0;
+  var queue = [];
+  var cue = null;
+  var ghosts = [];
   var stepMs = 125;
   var stepping = false;
   var stepTime = 0;
   function newRun() {
     game = new Game(Math.floor(Math.random() * 4294967295));
     stepping = false;
+    queue = [];
+    cue = null;
+    ghosts = [];
+    shownHp = game.hero.hp;
     logLines = [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
+    renderLog();
     die.textContent = "d20";
     die.className = "die";
+    dieWho.textContent = "";
     over.hidden = true;
     seedLabel.textContent = `Graine ${game.runSeed}`;
     renderer.snapTo(game);
   }
-  function describe(e) {
-    const r = e.result;
-    const byHero = e.attacker.kind === "hero";
-    const who = byHero ? `Vous attaquez ${e.target.name}` : `${e.attacker.name} vous attaque`;
-    const outcome = r.critical ? `coup critique, ${r.damage} d\xE9g\xE2ts` : r.hit ? `touch\xE9, ${r.damage} d\xE9g\xE2ts` : r.d20 === 1 ? "\xE9chec critique" : "rat\xE9";
-    const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : "";
-    return `${who} : ${r.d20} + ${r.bonus} = ${r.total} contre CA ${r.targetAc}${mode} \u2014 ${outcome}`;
-  }
-  function showEvents() {
-    for (const e of game.events) {
-      if (e.type === "attack") {
-        const r = e.result;
-        logLines.push(describe(e));
-        die.textContent = String(r.d20);
-        die.className = `die ${r.critical ? "crit" : r.hit ? "hit" : "miss"} ${e.attacker.kind === "hero" ? "" : "foe"}`;
-        renderer.addFloatingText(
-          e.target.x,
-          e.target.y,
-          r.hit ? `-${r.damage}` : "Rat\xE9",
-          r.critical ? "#ffd75e" : r.hit ? e.target.kind === "hero" ? "#ff6b7a" : "#ffffff" : "#a8a2c0"
-        );
-      } else if (e.type === "death") {
-        if (e.actor.kind === "hero") {
-          overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
-          over.hidden = false;
-        } else {
-          logLines.push(`${e.actor.name} est vaincu.`);
-        }
-      } else if (e.type === "noticed") {
-        renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
-      } else if (e.type === "descend") {
-        logLines.push(`\xC9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}`);
-      }
-    }
-    game.events.length = 0;
+  function renderLog() {
     logLines = logLines.slice(-LOG_LINES);
     log.replaceChildren(
       ...logLines.map((line) => {
@@ -953,50 +1376,205 @@
       })
     );
   }
+  var isRoll = (e) => e.type === "attack" || e.type === "door";
+  var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
+  function describeAttack(e) {
+    const r = e.result;
+    const who = e.attacker.kind === "hero" ? `Vous attaquez ${e.target.name}` : `${e.attacker.name} vous attaque`;
+    const outcome = r.critical ? `coup critique, ${r.damage} d\xE9g\xE2ts` : r.hit ? `touch\xE9, ${r.damage} d\xE9g\xE2ts` : r.d20 === 1 ? "\xE9chec critique" : "rat\xE9";
+    const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : "";
+    return `${who} : ${r.d20} + ${r.bonus} = ${r.total} contre CA ${r.targetAc}${mode} \u2014 ${outcome}`;
+  }
+  function describeDoor(e) {
+    const what = e.action === "pick" ? "Vous crochetez la serrure" : "Vous enfoncez la porte";
+    const outcome = e.action === "pick" ? e.success ? "elle s'ouvre" : "rat\xE9" : e.success ? "elle c\xE8de" : "elle r\xE9siste";
+    const noise = e.action === "break" ? e.alerted > 0 ? ` Le vacarme alerte ${e.alerted} monstre${e.alerted > 1 ? "s" : ""}.` : " Le vacarme r\xE9sonne, sans r\xE9ponse." : "";
+    return `${what} : ${e.d20} + ${e.bonus} = ${e.total} contre ${e.dc} \u2014 ${outcome}.${noise}`;
+  }
+  function startRoll(e) {
+    die.className = `die rolling${byFoe(e) ? " foe" : ""}`;
+    dieWho.textContent = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
+    sfx.play("dice");
+  }
+  function landDie(value, outcome, foe) {
+    die.textContent = String(value);
+    die.className = `die land ${outcome}${foe ? " foe" : ""}`;
+  }
+  function reveal(e) {
+    if (e.type === "attack") {
+      const r = e.result;
+      const foe = e.attacker.kind === "monster";
+      logLines.push(describeAttack(e));
+      landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
+      renderer.addFloatingText(
+        e.target.x,
+        e.target.y,
+        r.hit ? `-${r.damage}` : "Rat\xE9",
+        r.critical ? "#ffd75e" : r.hit ? foe ? "#ff6b7a" : "#ffffff" : "#a8a2c0"
+      );
+      if (foe) shownHp = Math.max(0, shownHp - r.damage);
+      sfx.play(r.critical ? "crit" : r.hit ? foe ? "hurt" : "hit" : "miss");
+    } else if (e.type === "door") {
+      logLines.push(describeDoor(e));
+      landDie(e.d20, e.success ? "hit" : "miss", false);
+      if (e.action === "break") {
+        renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
+        sfx.play(e.success ? "break" : "thud");
+      } else {
+        sfx.play(e.success ? "unlock" : "click");
+      }
+    } else if (e.type === "death") {
+      if (e.actor.kind === "hero") {
+        overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
+        over.hidden = false;
+        sfx.play("death");
+      } else {
+        ghosts = ghosts.filter((g) => g !== e.actor);
+        logLines.push(`${e.actor.name} est vaincu.`);
+        sfx.play("kill");
+      }
+    } else if (e.type === "noticed") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
+      sfx.play("notice");
+    } else if (e.type === "descend") {
+      logLines.push(`\xC9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}`);
+      shownHp = game.hero.hp;
+      sfx.play("descend");
+    } else if (e.type === "opened") {
+      sfx.play("door");
+    }
+    renderLog();
+  }
+  function advanceCues(dt) {
+    for (let guard = 0; guard < 16; guard++) {
+      if (!cue) {
+        const event = queue.shift();
+        if (!event) return;
+        cue = { event, time: 0, revealed: false, lastFace: 0 };
+        if (isRoll(event)) startRoll(event);
+      } else {
+        cue.time += dt;
+      }
+      const roll = isRoll(cue.event) ? ROLL_MS : 0;
+      if (!cue.revealed && cue.time < roll) {
+        if (cue.time - cue.lastFace >= 55) {
+          cue.lastFace = cue.time;
+          die.textContent = String(1 + Math.floor(Math.random() * 20));
+        }
+        return;
+      }
+      if (!cue.revealed) {
+        reveal(cue.event);
+        cue.revealed = true;
+      }
+      const hold = isRoll(cue.event) ? byFoe(cue.event) ? HOLD_FOE_MS : HOLD_HERO_MS : 0;
+      if (cue.time < roll + hold) return;
+      cue = null;
+    }
+  }
+  function collectEvents() {
+    for (const e of game.events) {
+      if (e.type === "death" && e.actor.kind === "monster") ghosts.push(e.actor);
+      queue.push(e);
+    }
+    game.events.length = 0;
+  }
   bindInput(canvas, {
     onTap(px, py) {
+      if (menuOpen) return;
       const t = renderer.screenToTile(px, py);
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
     },
     onMove(dx, dy) {
+      if (menuOpen) return;
       if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
     },
     onZoom(factor) {
       renderer.zoomBy(factor);
     }
   });
-  $("new-run").addEventListener("click", newRun);
-  $("over-new-run").addEventListener("click", newRun);
-  $("wait").addEventListener("click", () => {
+  window.addEventListener("pointerdown", () => sfx.unlock(), true);
+  window.addEventListener("resize", () => renderer.resize());
+  function button(id, action) {
+    $(id).addEventListener("click", () => {
+      sfx.unlock();
+      sfx.play("click");
+      action();
+    });
+  }
+  button("wait", () => {
     game.wait();
     stepMs = COMBAT_STEP_MS;
   });
-  window.addEventListener("resize", () => renderer.resize());
+  button("over-new-run", newRun);
+  var doorButton = (id, action) => button(id, () => game.actOnDoor(action));
+  doorButton("door-pick", "pick");
+  doorButton("door-break", "break");
+  function renderMenu() {
+    menu.hidden = !menuOpen;
+    $("menu-play").textContent = started ? "Reprendre" : "Jouer";
+    $("menu-new").hidden = !started;
+    $("menu-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
+  }
+  button("open-menu", () => {
+    menuOpen = true;
+    renderMenu();
+  });
+  button("menu-play", () => {
+    menuOpen = false;
+    started = true;
+    renderMenu();
+  });
+  button("menu-new", () => {
+    newRun();
+    menuOpen = false;
+    renderMenu();
+  });
+  button("menu-sound", () => {
+    options.sound = !options.sound;
+    sfx.enabled = options.sound;
+    saveOptions();
+    sfx.play("click");
+    renderMenu();
+  });
   var last = performance.now();
   function frame(now) {
     const dt = Math.min(now - last, 100);
     last = now;
+    advanceCues(dt);
     if (stepping) {
       stepTime += dt;
       if (stepTime >= stepMs) {
         stepTime -= stepMs;
         stepping = false;
-        if (game.descendIfOnStairs()) renderer.snapTo(game);
+        if (game.descendIfOnStairs()) {
+          renderer.snapTo(game);
+          collectEvents();
+        }
       }
     }
-    if (!stepping) {
+    if (!stepping && !cue && queue.length === 0 && !menuOpen) {
+      shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
-      if (game.tick()) stepping = true;
-      else stepTime = 0;
+      const before = { x: game.hero.x, y: game.hero.y };
+      if (game.tick()) {
+        stepping = true;
+        if (game.hero.x !== before.x || game.hero.y !== before.y) sfx.play("step");
+        collectEvents();
+      } else {
+        stepTime = 0;
+      }
     }
-    if (game.events.length > 0) showEvents();
-    renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt);
-    hudText.textContent = `\xC9tage ${game.depth} \xB7 PV ${game.hero.hp}/${game.hero.maxHp} \xB7 CA ${game.hero.armorClass} \xB7 Tour ${game.turn}`;
-    hpFill.style.width = `${100 * game.hero.hp / game.hero.maxHp}%`;
+    renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts);
+    hudText.textContent = `\xC9tage ${game.depth} \xB7 PV ${shownHp}/${game.hero.maxHp} \xB7 CA ${game.hero.armorClass} \xB7 Tour ${game.turn}`;
+    hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
+    doorActions.hidden = !game.pendingDoor || game.over || cue !== null;
     requestAnimationFrame(frame);
   }
+  $("door-pick").textContent = `Crocheter (d20 + ${new Game(1).heroClass.lockpickBonus} contre ${RULES.lockpickDc})`;
+  $("door-break").textContent = `Enfoncer (d20 + ${new Game(1).heroClass.breakBonus} contre ${RULES.breakDc}) \u2014 bruyant`;
   newRun();
-  showEvents();
+  renderMenu();
   requestAnimationFrame(frame);
   window.leutenheim = { game: () => game };
 })();

@@ -2,8 +2,9 @@ import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { MONSTERS, spawnsForDepth } from "../data/monsters";
 import { RACES, RaceDef } from "../data/races";
+import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
-import { computeFov } from "../world/fov";
+import { computeFov, computeLight, LightSource } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
@@ -15,7 +16,24 @@ export type GameEvent =
   | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult }
   | { type: "death"; actor: Actor }
   | { type: "noticed"; actor: Actor }
-  | { type: "descend"; healed: number };
+  | { type: "descend"; healed: number }
+  | { type: "opened"; x: number; y: number }
+  | {
+      type: "door";
+      action: DoorAction;
+      x: number;
+      y: number;
+      d20: number;
+      bonus: number;
+      total: number;
+      dc: number;
+      success: boolean;
+      /** Nombre de monstres alertés par le bruit. */
+      alerted: number;
+    };
+
+/** Crocheter (silencieux) ou enfoncer (bruyant) une porte verrouillée. */
+export type DoorAction = "pick" | "break";
 
 /** État complet d'une partie. Ne connaît ni l'écran ni le tactile. */
 export class Game {
@@ -30,6 +48,13 @@ export class Game {
   /** Cases actuellement en vue (1) et cases déjà vues au moins une fois (1). */
   visible!: Uint8Array;
   explored!: Uint8Array;
+  /** Passages devinés au-delà de ce qu'on a vu (1) : affichés en très estompé. */
+  sensed!: Uint8Array;
+  /** Torches de l'étage et éclairage qu'elles produisent (0 à 1 par case). */
+  torches: LightSource[] = [];
+  light!: Float32Array;
+  /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
+  pendingDoor: Point | null = null;
   /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
   events: GameEvent[] = [];
 
@@ -37,6 +62,8 @@ export class Game {
   private nextId = 1;
   private targetId: number | null = null;
   private waiting = false;
+  private doorTarget: Point | null = null;
+  private doorAction: DoorAction | null = null;
   private seenMonsters = new Set<number>();
 
   constructor(
@@ -60,7 +87,7 @@ export class Game {
       armorClass: heroClass.armorClass,
       attackBonus: heroClass.attackBonus,
       damage: heroClass.damage,
-      vision: race.vision,
+      vision: race.darkVision,
       alerted: true,
     };
     this.enterFloor(1);
@@ -79,7 +106,11 @@ export class Game {
     this.path = [];
     this.targetId = null;
     this.waiting = false;
+    this.clearDoorOrders();
     this.explored = new Uint8Array(this.map.width * this.map.height);
+    this.sensed = new Uint8Array(this.map.width * this.map.height);
+    this.torches = floor.torches;
+    this.light = computeLight(this.map, this.torches);
     this.spawnMonsters(floor.rooms);
     this.seenMonsters.clear();
     this.updateVision();
@@ -142,6 +173,20 @@ export class Game {
     return this.map.inBounds(x, y) && this.explored[this.map.index(x, y)] === 1;
   }
 
+  /** Case connue du joueur : déjà vue, ou devinée. */
+  isKnown(x: number, y: number): boolean {
+    return this.map.inBounds(x, y) && (this.explored[this.map.index(x, y)] === 1 || this.sensed[this.map.index(x, y)] === 1);
+  }
+
+  isSensed(x: number, y: number): boolean {
+    return this.map.inBounds(x, y) && this.sensed[this.map.index(x, y)] === 1;
+  }
+
+  /** Le héros est-il éclairé par une torche ? */
+  heroInLight(): boolean {
+    return this.light[this.map.index(this.hero.x, this.hero.y)] > 0.15;
+  }
+
   visibleMonsters(): Actor[] {
     return this.monsters.filter((m) => this.isVisible(m.x, m.y));
   }
@@ -158,21 +203,67 @@ export class Game {
       this.wait();
       return true;
     }
+    if (this.map.get(x, y) === Tile.DoorLocked && (ignoreFog || this.isExplored(x, y))) {
+      return this.approachLockedDoor(x, y, ignoreFog);
+    }
     const seen = this.monsterAt(x, y);
     const monster = seen && this.isVisible(x, y) ? seen : undefined;
     // Vers un monstre en vue, on trouve toujours un chemin ; sinon on ne passe que par les cases déjà vues.
-    const known = ignoreFog || monster ? undefined : (cx: number, cy: number) => this.isExplored(cx, cy);
+    const known = ignoreFog || monster ? undefined : (cx: number, cy: number) => this.isKnown(cx, cy);
     const path = findPath(this.map, this.hero, { x, y }, known);
     if (!path) return false;
+    this.clearDoorOrders();
     this.targetId = monster ? monster.id : null;
     this.path = path;
     this.waiting = false;
     return true;
   }
 
+  /** Se rendre devant une porte verrouillée (ou s'y arrêter si on y est déjà) pour choisir quoi en faire. */
+  private approachLockedDoor(x: number, y: number, ignoreFog: boolean): boolean {
+    const known = ignoreFog ? undefined : (cx: number, cy: number) => this.isKnown(cx, cy);
+    let best: Point[] | null = null;
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx === this.hero.x && ny === this.hero.y) {
+        best = [];
+        break;
+      }
+      const path = findPath(this.map, this.hero, { x: nx, y: ny }, known);
+      if (path && (!best || path.length < best.length)) best = path;
+    }
+    if (!best) return false;
+    this.clearDoorOrders();
+    this.targetId = null;
+    this.waiting = false;
+    this.path = best;
+    if (best.length === 0) this.pendingDoor = { x, y };
+    else this.doorTarget = { x, y };
+    return true;
+  }
+
+  /** Le joueur choisit de crocheter ou d'enfoncer la porte devant lui : ce sera l'action du prochain tour. */
+  actOnDoor(action: DoorAction): boolean {
+    if (this.over || !this.pendingDoor) return false;
+    this.doorAction = action;
+    return true;
+  }
+
+  private clearDoorOrders(): void {
+    this.pendingDoor = null;
+    this.doorTarget = null;
+    this.doorAction = null;
+  }
+
   /** Déplacement ou attaque d'une case (clavier). */
   moveBy(dx: number, dy: number): boolean {
-    if (this.over || !canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
+    if (this.over) return false;
+    if ((dx === 0 || dy === 0) && this.map.get(this.hero.x + dx, this.hero.y + dy) === Tile.DoorLocked) {
+      return this.approachLockedDoor(this.hero.x + dx, this.hero.y + dy, false);
+    }
+    if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
+    this.clearDoorOrders();
     this.targetId = null;
     this.path = [{ x: this.hero.x + dx, y: this.hero.y + dy }];
     return true;
@@ -181,6 +272,7 @@ export class Game {
   /** Passer un tour sur place. */
   wait(): void {
     if (this.over) return;
+    this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
     this.waiting = true;
@@ -196,7 +288,10 @@ export class Game {
       a.fromY = a.y;
     }
 
-    if (this.waiting) {
+    if (this.doorAction && this.pendingDoor) {
+      this.resolveDoor(this.doorAction, this.pendingDoor);
+      this.doorAction = null;
+    } else if (this.waiting) {
       this.waiting = false;
     } else {
       if (this.targetId !== null) {
@@ -216,6 +311,12 @@ export class Game {
         this.path.shift();
         this.hero.x = next.x;
         this.hero.y = next.y;
+        this.openDoorAt(next.x, next.y);
+        if (this.path.length === 0 && this.doorTarget) {
+          // Arrivé devant la porte verrouillée : au joueur de décider.
+          this.pendingDoor = this.doorTarget;
+          this.doorTarget = null;
+        }
       }
     }
 
@@ -223,6 +324,40 @@ export class Game {
     this.updateVision();
     this.monstersAct();
     return true;
+  }
+
+  /** Entrer dans une porte fermée l'ouvre ; la lumière et la vue passent alors au travers. */
+  private openDoorAt(x: number, y: number): void {
+    if (this.map.get(x, y) !== Tile.DoorClosed) return;
+    this.map.set(x, y, Tile.DoorOpen);
+    this.light = computeLight(this.map, this.torches);
+    this.events.push({ type: "opened", x, y });
+  }
+
+  private resolveDoor(action: DoorAction, door: Point): void {
+    const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
+    const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= dc);
+    if (success) {
+      // Crochetée, la porte s'ouvre ; enfoncée, elle est détruite.
+      this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
+      this.light = computeLight(this.map, this.torches);
+      this.pendingDoor = null;
+    }
+    let alerted = 0;
+    if (action === "break") {
+      // Le vacarme alerte les monstres proches, que la porte cède ou non.
+      for (const m of this.monsters) {
+        const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
+        if (!m.alerted && d <= RULES.noiseRadius) {
+          m.alerted = true;
+          alerted++;
+        }
+      }
+    }
+    this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
   }
 
   private heroAttacks(monster: Actor): void {
@@ -246,7 +381,8 @@ export class Game {
 
       if (!m.alerted) {
         const def = MONSTERS[m.defId as keyof typeof MONSTERS];
-        if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(def.noticeChance)) {
+        const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark);
+        if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(chance)) {
           m.alerted = true;
           this.events.push({ type: "noticed", actor: m });
         }
@@ -269,22 +405,56 @@ export class Game {
       if (step && !this.actorAt(step.x, step.y)) {
         m.x = step.x;
         m.y = step.y;
+        if (this.map.get(m.x, m.y) === Tile.DoorClosed) {
+          this.openDoorAt(m.x, m.y);
+          this.updateVision();
+        }
       }
     }
   }
 
   private updateVision(): void {
-    this.visible = computeFov(this.map, this.hero, this.hero.vision);
+    this.visible = computeFov(this.map, this.hero, this.race.darkVision, this.race.sight, this.light);
     for (let i = 0; i < this.visible.length; i++) {
       if (this.visible[i]) this.explored[i] = 1;
     }
+    this.senseBeyond();
     // Un monstre qui entre dans le champ de vision interrompt le déplacement en cours.
     for (const m of this.visibleMonsters()) {
       if (!this.seenMonsters.has(m.id)) {
         this.seenMonsters.add(m.id);
         this.path = [];
         this.targetId = null;
+        this.doorTarget = null;
       }
+    }
+  }
+
+  /** Devine les passages proches de ce qu'on voit : on « sent » un couloir sans le voir. */
+  private senseBeyond(): void {
+    let frontier: number[] = [];
+    for (let i = 0; i < this.visible.length; i++) {
+      const x = i % this.map.width;
+      if (this.visible[i] && this.map.isWalkable(x, (i - x) / this.map.width)) frontier.push(i);
+    }
+    const reached = new Set(frontier);
+    for (let depth = 0; depth < RULES.senseDepth; depth++) {
+      const next: number[] = [];
+      for (const i of frontier) {
+        const x = i % this.map.width;
+        const y = (i - x) / this.map.width;
+        // On ne devine rien derrière une porte fermée.
+        if (this.map.get(x, y) === Tile.DoorClosed) continue;
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          if (!this.map.isWalkable(x + dx, y + dy)) continue;
+          const n = this.map.index(x + dx, y + dy);
+          if (reached.has(n)) continue;
+          reached.add(n);
+          this.sensed[n] = 1;
+          next.push(n);
+        }
+      }
+      frontier = next;
     }
   }
 

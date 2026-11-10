@@ -8,6 +8,9 @@ export interface ClassDef {
   armorClass: number;
   attackBonus: number;
   damage: Dice;
+  /** Bonus au d20 pour crocheter une serrure et pour enfoncer une porte. */
+  lockpickBonus: number;
+  breakBonus: number;
 }
 
 export const CLASSES = {
@@ -18,5 +21,7 @@ export const CLASSES = {
     armorClass: 15,
     attackBonus: 4,
     damage: { count: 1, sides: 6, bonus: 2 },
+    lockpickBonus: 0,
+    breakBonus: 4,
   },
 } satisfies Record<string, ClassDef>;

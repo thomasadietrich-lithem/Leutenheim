@@ -7,6 +7,9 @@ export const Tile = {
   Wall: 0,
   Floor: 1,
   StairsDown: 2,
+  DoorClosed: 3,
+  DoorOpen: 4,
+  DoorLocked: 5,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -37,7 +40,20 @@ export class GameMap {
     this.tiles[this.index(x, y)] = tile;
   }
 
+  /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
   isWalkable(x: number, y: number): boolean {
-    return this.get(x, y) !== Tile.Wall;
+    const t = this.get(x, y);
+    return t !== Tile.Wall && t !== Tile.DoorLocked;
+  }
+
+  /** Bloque la vue et la lumière : murs et portes non ouvertes. */
+  blocksSight(x: number, y: number): boolean {
+    const t = this.get(x, y);
+    return t === Tile.Wall || t === Tile.DoorClosed || t === Tile.DoorLocked;
+  }
+
+  isDoor(x: number, y: number): boolean {
+    const t = this.get(x, y);
+    return t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked;
   }
 }

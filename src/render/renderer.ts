@@ -9,14 +9,17 @@ const MIN_COLUMNS = 6;
 const MAX_COLUMNS = 28;
 
 /** Durée de vie d'un texte flottant (dégâts, « Raté »), en ms. */
-const FLOAT_MS = 800;
+const FLOAT_MS = 900;
 
 const COLORS = {
   background: "#0c0b12",
   wall: "#2a2638",
   floor: "#4b4560",
-  fog: "rgba(12,11,18,0.6)",
+  sensed: "rgba(75,69,96,0.3)",
   stairs: "#e0b040",
+  door: "#8a5a2b",
+  doorEdge: "#5a3817",
+  lock: "#e0b040",
   hero: "#5fd38d",
   heroEdge: "#1d5c3a",
   path: "rgba(255,255,255,0.35)",
@@ -41,6 +44,7 @@ export class Renderer {
   private columns = COLUMNS;
   private camX = 0;
   private camY = 0;
+  private time = 0;
   private floats: FloatingText[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -96,9 +100,11 @@ export class Renderer {
   /**
    * `progress` (0 à 1) est l'avancement de l'animation du tour en cours : chaque acteur glisse
    * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
+   * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
    */
-  draw(game: Game, progress: number, dt: number): void {
+  draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = []): void {
     const { ctx, tile } = this;
+    this.time += dt;
     const shown = (a: Actor): Point => ({
       x: a.fromX + (a.x - a.fromX) * progress,
       y: a.fromY + (a.y - a.fromY) * progress,
@@ -109,35 +115,72 @@ export class Renderer {
     this.camY += (hero.y - this.camY) * follow;
     const ox = this.originX();
     const oy = this.originY();
+    // Vacillement des torches : deux ondes lentes superposées.
+    const flicker = 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
 
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, this.width, this.height);
 
-    // Carte : rien pour les cases jamais vues, assombri pour les cases vues mais hors de vue.
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
     const x1 = Math.ceil((this.width - ox) / tile);
     const y1 = Math.ceil((this.height - oy) / tile);
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        if (!game.isExplored(x, y)) continue;
-        const t = game.map.get(x, y);
+        if (!game.map.inBounds(x, y)) continue;
         const sx = ox + x * tile;
         const sy = oy + y * tile;
+        if (!game.isExplored(x, y)) {
+          // Passage deviné mais jamais vu : une trace très estompée.
+          if (game.isSensed(x, y)) {
+            ctx.fillStyle = COLORS.sensed;
+            ctx.fillRect(sx + tile * 0.12, sy + tile * 0.12, tile * 0.76, tile * 0.76);
+          }
+          continue;
+        }
+        const t = game.map.get(x, y);
         ctx.fillStyle = t === Tile.Wall ? COLORS.wall : COLORS.floor;
         ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
-        if (t === Tile.StairsDown) {
-          ctx.fillStyle = COLORS.stairs;
-          for (let i = 0; i < 3; i++) {
-            const w = tile * (0.3 + i * 0.2);
-            ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), w, tile * 0.14);
+        this.drawFeature(t, sx, sy);
+
+        if (game.isVisible(x, y)) {
+          // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
+          const lit = game.light[game.map.index(x, y)];
+          const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
+          const brightness = Math.min(1, Math.max(lit * flicker, glow));
+          ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55).toFixed(3)})`;
+          ctx.fillRect(sx, sy, tile, tile);
+          if (lit > 0) {
+            ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
+            ctx.fillRect(sx, sy, tile, tile);
           }
-        }
-        if (!game.isVisible(x, y)) {
-          ctx.fillStyle = COLORS.fog;
+        } else {
+          ctx.fillStyle = "rgba(12,11,18,0.72)";
           ctx.fillRect(sx, sy, tile, tile);
         }
       }
+    }
+
+    // Torches murales : une flamme qui vacille.
+    for (const torch of game.torches) {
+      if (!game.isExplored(torch.x, torch.y)) continue;
+      const cx = ox + (torch.x + 0.5) * tile;
+      const cy = oy + (torch.y + 0.5) * tile;
+      ctx.fillStyle = "#ff8a2a";
+      ctx.beginPath();
+      ctx.arc(cx, cy, tile * 0.2 * flicker, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffe08a";
+      ctx.beginPath();
+      ctx.arc(cx, cy + tile * 0.03, tile * 0.1 * flicker, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Porte verrouillée en attente de décision : un cadre doré.
+    if (game.pendingDoor) {
+      ctx.strokeStyle = COLORS.lock;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ox + game.pendingDoor.x * tile + 1, oy + game.pendingDoor.y * tile + 1, tile - 2, tile - 2);
     }
 
     // Chemin prévu : des points, et un rond sur la destination.
@@ -152,7 +195,7 @@ export class Renderer {
     // Monstres en vue : un losange de la couleur de leur fiche.
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (const m of game.visibleMonsters()) {
+    for (const m of [...game.visibleMonsters(), ...ghosts]) {
       const p = shown(m);
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
@@ -175,7 +218,7 @@ export class Renderer {
         ctx.fillStyle = COLORS.hpBack;
         ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7, tile * 0.08);
         ctx.fillStyle = COLORS.hpFill;
-        ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * (m.hp / m.maxHp), tile * 0.08);
+        ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * Math.max(0, m.hp / m.maxHp), tile * 0.08);
       }
     }
 
@@ -203,5 +246,33 @@ export class Renderer {
       ctx.fillText(f.text, fx, fy);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** Escalier et portes, dessinés par-dessus le sol. */
+  private drawFeature(t: Tile, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    if (t === Tile.StairsDown) {
+      ctx.fillStyle = COLORS.stairs;
+      for (let i = 0; i < 3; i++) {
+        ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), tile * (0.3 + i * 0.2), tile * 0.14);
+      }
+    } else if (t === Tile.DoorClosed || t === Tile.DoorLocked) {
+      ctx.fillStyle = COLORS.door;
+      ctx.fillRect(sx + tile * 0.1, sy + tile * 0.1, tile * 0.8, tile * 0.8);
+      ctx.fillStyle = COLORS.doorEdge;
+      ctx.fillRect(sx + tile * 0.47, sy + tile * 0.1, tile * 0.06, tile * 0.8);
+      if (t === Tile.DoorLocked) {
+        // Serrure dorée.
+        ctx.fillStyle = COLORS.lock;
+        ctx.fillRect(sx + tile * 0.36, sy + tile * 0.38, tile * 0.28, tile * 0.24);
+        ctx.fillStyle = COLORS.doorEdge;
+        ctx.fillRect(sx + tile * 0.47, sy + tile * 0.45, tile * 0.06, tile * 0.12);
+      }
+    } else if (t === Tile.DoorOpen) {
+      // Porte ouverte : seuls les montants restent.
+      ctx.fillStyle = COLORS.door;
+      ctx.fillRect(sx + 0.5, sy + 0.5, tile * 0.14, tile - 1);
+      ctx.fillRect(sx + tile * 0.86, sy + 0.5, tile * 0.14 - 0.5, tile - 1);
+    }
   }
 }

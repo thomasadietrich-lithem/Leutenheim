@@ -11,6 +11,13 @@ export interface FloorConfig {
   extraLinks: number;
   /** Probabilité qu'un couloir fasse deux cases de large. */
   wideCorridorChance: number;
+  /** Probabilité qu'une entrée de salle étroite reçoive une porte. */
+  doorChance: number;
+  /** Probabilité qu'une salle en cul-de-sac soit fermée à clé. */
+  lockChance: number;
+  /** Probabilité qu'une salle ait une torche murale (la salle de départ en a toujours une). */
+  torchChance: number;
+  torchRadius: number;
 }
 
 export const DEFAULT_FLOOR: FloorConfig = {
@@ -22,4 +29,8 @@ export const DEFAULT_FLOOR: FloorConfig = {
   roomMaxSize: 8,
   extraLinks: 2,
   wideCorridorChance: 0.3,
+  doorChance: 0.6,
+  lockChance: 0.5,
+  torchChance: 0.5,
+  torchRadius: 6,
 };

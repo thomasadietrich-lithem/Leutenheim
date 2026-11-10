@@ -3,28 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Leutenheim — démo J2</title>
+<title>Leutenheim — démo</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #0c0b12; color: #d8d4e6;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 6px; }
-  .col { width: min(100%, calc((100vh - 200px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; }
+  .col { position: relative; width: min(100%, calc((100vh - 215px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
   #hud-text { font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
   .hp { height: 6px; background: #3a1520; border-radius: 3px; overflow: hidden; }
   #hp-fill { height: 100%; width: 100%; background: #e05060; transition: width 0.2s; }
   .frame { position: relative; aspect-ratio: 9 / 13; border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
-  #over { position: absolute; inset: 0; background: rgba(12,11,18,0.82); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; font-size: 16px; }
-  #over[hidden] { display: none; }
-  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 62px; }
-  .die { flex: 0 0 54px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
-    border: 2px solid #5a5475; border-radius: 10px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
+  .overlay { position: absolute; inset: 0; background: rgba(12,11,18,0.86); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 20px; font-size: 16px; }
+  .overlay[hidden], #door-actions[hidden], button[hidden] { display: none; }
+  #menu { background: rgba(12,11,18,0.94); border-radius: 10px; z-index: 2; }
+  #menu h1 { margin: 0; font-size: 34px; letter-spacing: 0.06em; color: #e0b040; font-weight: 700; }
+  #menu p { margin: 0 0 14px; font-size: 13px; color: #9a94b0; }
+  #menu button { width: 200px; padding: 12px; font-size: 15px; }
+  #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+  #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
+  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
+  .dice { flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .die { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
+    border: 2px solid #5a5475; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
   .die.hit { border-color: #5fd38d; color: #5fd38d; }
   .die.miss { border-color: #77718f; color: #c9c4dc; }
-  .die.crit { border-color: #ffd75e; color: #ffd75e; }
-  .die.foe { background: #2a1620; }
+  .die.crit { border-color: #ffd75e; color: #ffd75e; box-shadow: 0 0 14px rgba(255,215,94,0.6); }
+  .die.foe { background: #3a1722; }
+  .die.rolling { border-color: #ffffff; color: #ffffff; animation: roll 0.16s linear infinite; }
+  .die.land { animation: land 0.24s ease-out; }
+  @keyframes roll {
+    0% { transform: rotate(-14deg) scale(1.08); } 25% { transform: rotate(11deg) translateY(-4px) scale(1.12); }
+    50% { transform: rotate(-9deg) scale(1.06); } 75% { transform: rotate(13deg) translateY(3px) scale(1.1); }
+    100% { transform: rotate(-14deg) scale(1.08); }
+  }
+  @keyframes land { 0% { transform: scale(1.55) rotate(8deg); } 55% { transform: scale(0.9); } 100% { transform: scale(1); } }
+  #die-who { font-size: 10px; color: #9a94b0; height: 12px; }
   #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
   #log div:last-child { color: #e6e2f4; }
   .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
@@ -40,19 +56,30 @@
   <div class="hp"><div id="hp-fill"></div></div>
   <div class="frame">
     <canvas id="game"></canvas>
-    <div id="over" hidden>
+    <div id="door-actions" hidden>
+      <button id="door-pick" type="button"></button>
+      <button id="door-break" type="button"></button>
+    </div>
+    <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
       <button id="over-new-run" type="button">Nouvelle partie</button>
     </div>
   </div>
   <div class="panel">
-    <div id="die" class="die">d20</div>
+    <div class="dice"><div id="die" class="die">d20</div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   <div class="bar">
     <button id="wait" type="button">Attendre</button>
-    <button id="new-run" type="button">Nouvelle partie</button>
+    <button id="open-menu" type="button">Menu</button>
     <span id="seed"></span>
+  </div>
+  <div id="menu" class="overlay">
+    <h1>LEUTENHEIM</h1>
+    <p>Démo de travail</p>
+    <button id="menu-play" type="button">Jouer</button>
+    <button id="menu-new" type="button" hidden>Nouvelle partie</button>
+    <button id="menu-sound" type="button">Sons : activés</button>
   </div>
 </div>
 <script>

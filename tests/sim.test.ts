@@ -6,30 +6,114 @@ import { Rng } from "../src/core/rng";
 import { DEFAULT_FLOOR } from "../src/data/floors";
 import { generateFloor } from "../src/world/generator";
 import { Tile } from "../src/world/map";
-import { computeFov, hasLineOfSight } from "../src/world/fov";
+import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
 import { distanceField, findPath } from "../src/world/pathfinding";
 
 const FLOORS = 1000;
 
-test(`${FLOORS} étages : tout est accessible, l'escalier existe, les bords sont des murs`, () => {
+test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière une porte verrouillée`, () => {
+  const stats = { doors: 0, locked: 0, torches: 0 };
   for (let seed = 1; seed <= FLOORS; seed++) {
-    const { map, rooms, start, stairs } = generateFloor(seed, DEFAULT_FLOOR);
+    const { map, rooms, start, stairs, torches } = generateFloor(seed, DEFAULT_FLOOR);
     assert.ok(rooms.length >= DEFAULT_FLOOR.minRooms, `graine ${seed} : pas assez de salles`);
     assert.ok(stairs.x !== start.x || stairs.y !== start.y, `graine ${seed} : escalier sur le départ`);
     assert.equal(map.get(stairs.x, stairs.y), Tile.StairsDown);
-    const dist = distanceField(map, start);
+    assert.ok(torches.length >= 1, `graine ${seed} : pas de torche dans la salle de départ`);
+    stats.torches += torches.length;
+    for (const t of torches) assert.equal(map.get(t.x, t.y), Tile.Wall, `graine ${seed} : torche hors d'un mur`);
+
+    // Sans ouvrir aucune porte verrouillée, on atteint l'escalier.
+    assert.notEqual(distanceField(map, start)[map.index(stairs.x, stairs.y)], -1, `graine ${seed} : escalier enfermé`);
+
+    // Une fois les portes verrouillées ouvertes, tout l'étage est accessible.
+    const open = generateFloor(seed, DEFAULT_FLOOR).map;
     let stairsCount = 0;
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        const border = x === 0 || y === 0 || x === map.width - 1 || y === map.height - 1;
-        if (border) assert.equal(map.get(x, y), Tile.Wall, `graine ${seed} : bord ouvert en ${x},${y}`);
-        if (map.isWalkable(x, y)) {
-          assert.notEqual(dist[map.index(x, y)], -1, `graine ${seed} : case ${x},${y} inaccessible`);
+    for (let i = 0; i < open.tiles.length; i++) {
+      if (open.tiles[i] === Tile.DoorClosed) stats.doors++;
+      if (open.tiles[i] === Tile.DoorLocked) {
+        stats.locked++;
+        open.tiles[i] = Tile.DoorClosed;
+      }
+    }
+    const dist = distanceField(open, start);
+    for (let y = 0; y < open.height; y++) {
+      for (let x = 0; x < open.width; x++) {
+        const border = x === 0 || y === 0 || x === open.width - 1 || y === open.height - 1;
+        if (border) assert.equal(open.get(x, y), Tile.Wall, `graine ${seed} : bord ouvert en ${x},${y}`);
+        if (open.isWalkable(x, y)) {
+          assert.notEqual(dist[open.index(x, y)], -1, `graine ${seed} : case ${x},${y} inaccessible`);
         }
-        if (map.get(x, y) === Tile.StairsDown) stairsCount++;
+        if (open.get(x, y) === Tile.StairsDown) stairsCount++;
       }
     }
     assert.equal(stairsCount, 1, `graine ${seed} : ${stairsCount} escaliers`);
+  }
+  console.log(
+    `Par étage en moyenne : ${(stats.doors / FLOORS).toFixed(1)} portes, ${(stats.locked / FLOORS).toFixed(2)} porte verrouillée, ${(stats.torches / FLOORS).toFixed(1)} torches`,
+  );
+  assert.ok(stats.doors > FLOORS && stats.locked > FLOORS / 10);
+});
+
+test("lumière : une case éclairée voit une torche ; la lumière ne fait qu'agrandir le champ de vision", () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const { map, start, torches } = generateFloor(seed, DEFAULT_FLOOR);
+    const light = computeLight(map, torches);
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        if (light[map.index(x, y)] > 0) assert.ok(torches.some((t) => hasLineOfSight(map, t, { x, y })));
+      }
+    }
+    assert.ok(light[map.index(start.x, start.y)] >= 0); // la salle de départ a une torche
+    const dark = computeFov(map, start, 4);
+    const lit = computeFov(map, start, 4, 11, light);
+    let more = 0;
+    for (let i = 0; i < dark.length; i++) {
+      if (dark[i]) assert.equal(lit[i], 1);
+      if (lit[i] && !dark[i]) more++;
+    }
+    assert.ok(more >= 0);
+  }
+});
+
+/** Cherche une partie dont le premier étage a une porte verrouillée, y mène le héros et applique `action`. */
+function openLockedDoor(action: "pick" | "break"): { game: Game; door: { x: number; y: number }; alertedByNoise: number } {
+  for (let seed = 1; seed < 400; seed++) {
+    const game = new Game(seed);
+    let door: { x: number; y: number } | null = null;
+    for (let y = 0; y < game.map.height && !door; y++) {
+      for (let x = 0; x < game.map.width; x++) {
+        if (game.map.get(x, y) === Tile.DoorLocked) {
+          door = { x, y };
+          break;
+        }
+      }
+    }
+    if (!door) continue;
+    let alertedByNoise = 0;
+    for (let turn = 0; turn < 400 && !game.over && game.map.get(door.x, door.y) === Tile.DoorLocked; turn++) {
+      if (game.pendingDoor) assert.ok(game.actOnDoor(action));
+      else if (game.path.length === 0) assert.ok(game.setDestination(door.x, door.y, true));
+      game.tick();
+      for (const e of game.events) if (e.type === "door") alertedByNoise += e.alerted;
+      game.events.length = 0;
+    }
+    if (!game.over && game.map.get(door.x, door.y) !== Tile.DoorLocked) return { game, door, alertedByNoise };
+  }
+  throw new Error("aucune porte verrouillée ouverte en 400 graines");
+}
+
+test("porte verrouillée : crochetée elle s'ouvre, enfoncée elle est détruite et le bruit alerte", () => {
+  const picked = openLockedDoor("pick");
+  assert.equal(picked.game.map.get(picked.door.x, picked.door.y), Tile.DoorOpen);
+  assert.equal(picked.alertedByNoise, 0);
+  assert.equal(picked.game.pendingDoor, null);
+
+  const broken = openLockedDoor("break");
+  assert.equal(broken.game.map.get(broken.door.x, broken.door.y), Tile.Floor);
+  // Après le vacarme, plus aucun monstre proche de la porte n'est endormi.
+  for (const m of broken.game.monsters) {
+    const d = Math.max(Math.abs(m.x - broken.door.x), Math.abs(m.y - broken.door.y));
+    if (d <= 8) assert.ok(m.alerted, "un monstre proche n'a pas été alerté");
   }
 });
 
@@ -51,7 +135,8 @@ test("les chemins avancent case par case sans traverser de mur", () => {
     const { map, start } = generateFloor(seed, DEFAULT_FLOOR);
     const target = { x: rng.int(0, map.width - 1), y: rng.int(0, map.height - 1) };
     const path = findPath(map, start, target);
-    if (!map.isWalkable(target.x, target.y)) {
+    // Pas de chemin vers un mur, ni vers l'intérieur d'une salle verrouillée.
+    if (distanceField(map, start)[map.index(target.x, target.y)] === -1) {
       assert.equal(path, null);
       continue;
     }

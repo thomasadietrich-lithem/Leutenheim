@@ -740,8 +740,7 @@ function frame(now: number): void {
   const aimKey = `${bow?.id}|${game.arrows()}`;
   if (aimKey !== aimShown) {
     aimShown = aimKey;
-    const ranged = game.equipment.ranged;
-    aim.replaceChildren(...(ranged ? [itemIcon(ranged.defId)] : []), document.createTextNode(`×${game.arrows()}`));
+    aim.replaceChildren(uiIcon("arrow"), document.createTextNode(`×${game.arrows()}`));
   }
   aim.classList.toggle("active", aimMode);
   requestAnimationFrame(frame);

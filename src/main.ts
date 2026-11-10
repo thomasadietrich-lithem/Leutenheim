@@ -485,7 +485,7 @@ function renderBag(): void {
         box.append(itemIcon(worn.defId));
       } else {
         // Emplacement vide : la silhouette estompée de ce qui s'y porte, à la place d'un nom.
-        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), ring: uiIcon("ring"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
         ghost.classList.add("ghost");
         box.append(ghost);
       }
@@ -574,16 +574,42 @@ button("bag-close", () => {
 
 // ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
-type Screen = "main" | "new" | "settings";
+/** Encyclopédie : toutes les fiches d'objets du jeu, rangées par genre, y compris celles qu'on ne trouve pas encore. */
+function renderCodex(): void {
+  const groups: [string, ItemDef["kind"][]][] = [
+    ["Armes de corps à corps", ["melee"]],
+    ["Armes à distance et munitions", ["ranged", "ammo"]],
+    ["Armures", ["armor"]],
+    ["Heaumes", ["hat"]],
+    ["Amulettes", ["amulet"]],
+    ["Artefacts", ["artifact"]],
+    ["Divers", ["key", "gold"]],
+  ];
+  const nodes: HTMLElement[] = [];
+  for (const [title, kinds] of groups) {
+    nodes.push(el("h3", "", title));
+    const defs = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
+    if (defs.length === 0) nodes.push(el("div", "codex-empty", "Rien encore."));
+    for (const def of defs) {
+      // Qui commence la partie avec cet objet ?
+      const owners = Object.values(CLASSES).filter((c) => c.startingItems.some((s) => s.item === def.id)).map((c) => c.name);
+      nodes.push(itemCard(def, 1, owners.length ? ` — départ : ${owners.join(", ")}` : ""));
+    }
+  }
+  $("codex-list").replaceChildren(...nodes);
+}
+
+type Screen = "main" | "new" | "settings" | "codex";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   $("menu-resume").hidden = !started || game.over;
   $("settings-sound").textContent = `Sons : ${options.sound ? "activés" : "désactivés"}`;
   if (screen === "new") renderCards();
+  if (screen === "codex") renderCodex();
 }
 
 interface Card {
@@ -695,6 +721,8 @@ button("open-menu", () => showScreen("main"));
 button("menu-resume", () => showScreen(null));
 button("menu-new", () => showScreen("new"));
 button("menu-settings", () => showScreen("settings"));
+button("menu-codex", () => showScreen("codex"));
+button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));
 button("settings-back", () => showScreen("main"));
 button("detail-close", () => {

@@ -122,13 +122,13 @@
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
-  /* Ce que le héros porte : amulette, heaume et anneau en haut, arme, armure, arc en bas. */
+  /* Ce que le héros porte : amulette, heaume et artefact en haut, arme, armure, arc en bas. */
   #bag { gap: 6px; justify-content: flex-start; padding-top: 10px; }
   #bag h3 { margin: 2px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
-  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat ring" "melee armor ranged"; gap: 4px 10px; }
+  #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat artifact" "melee armor ranged"; gap: 4px 10px; }
   .slot { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
   .slot-amulet { grid-area: amulet; } .slot-hat { grid-area: hat; } .slot-armor { grid-area: armor; }
-  .slot-ring { grid-area: ring; } .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
+  .slot-artifact { grid-area: artifact; } .slot-melee { grid-area: melee; } .slot-ranged { grid-area: ranged; }
   .slot-box { width: 64px; height: 64px; padding: 4px; background: #0c0906; border: 3px solid var(--panel-hi);
     box-shadow: inset 2px 2px 0 #000; display: flex; align-items: center; justify-content: center; }
   .slot-box svg { height: 100%; width: auto; max-width: 100%; }
@@ -136,6 +136,11 @@
   .slot.selected .slot-box { border-color: var(--gold); background: #3a2c14; }
   .slot-box svg.ghost { opacity: 0.2; filter: grayscale(1) brightness(1.7); }
   /* Fiche d'objet : la même dans l'équipement et quand on trouve quelque chose. */
+  /* Encyclopédie : toutes les fiches d'objets, rangées par genre, dans une liste qui défile. */
+  #screen-codex { height: 100%; min-height: 0; }
+  #codex-list { flex: 1; min-height: 0; overflow-y: auto; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-right: 2px; }
+  #codex-list h3 { align-self: stretch; border-bottom: 2px solid var(--panel-hi); }
+  .codex-empty { font-size: 16px; color: var(--dim); align-self: flex-start; }
   .item-card { display: flex; gap: 8px; text-align: left; width: min(100%, 318px); background: var(--panel); padding: 6px;
     border: 3px solid var(--panel-hi); box-shadow: inset 0 0 0 2px var(--panel-lo); }
   .item-card-icon { flex: 0 0 64px; height: 84px; background: #0c0906; box-shadow: inset 2px 2px 0 #000; padding: 4px; display: flex; align-items: center; justify-content: center; }
@@ -204,8 +209,14 @@
       <p>Démo de travail</p>
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
+      <button id="menu-codex" type="button">Encyclopédie</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
+    </section>
+    <section id="screen-codex" hidden>
+      <h2>Encyclopédie</h2>
+      <div id="codex-list"></div>
+      <button id="codex-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-new" hidden>
       <h2>Nouvelle partie</h2>
@@ -484,7 +495,7 @@
   var SLOTS = [
     { slot: "amulet", label: "Amulette" },
     { slot: "hat", label: "Heaume" },
-    { slot: "ring", label: "Anneau" },
+    { slot: "artifact", label: "Artefact" },
     { slot: "armor", label: "Armure" },
     { slot: "melee", label: "Corps \xE0 corps" },
     { slot: "ranged", label: "Distance" }
@@ -493,9 +504,9 @@
   var ITEMS = {
     epee: {
       id: "epee",
-      name: "\xC9p\xE9e",
+      name: "\xC9p\xE9e courte",
       kind: "melee",
-      description: "Une lame droite, sans fioriture. Fiable.",
+      description: "Une lame courte et droite, sans garde ni fioriture. Fiable.",
       w: 1,
       h: 2,
       maxStack: 1,
@@ -544,7 +555,7 @@
       id: "tunique",
       name: "Tunique",
       kind: "armor",
-      description: "Une tunique \xE9paisse, ceinte d'une corde.",
+      description: "Une tunique blanche, serr\xE9e par une ceinture de cuir.",
       w: 2,
       h: 2,
       maxStack: 1,
@@ -578,7 +589,7 @@
     ranged: "Arme \xE0 distance",
     armor: "Armure",
     hat: "Heaume",
-    ring: "Anneau",
+    artifact: "Artefact",
     amulet: "Amulette",
     ammo: "Munition",
     key: "Objet utile",
@@ -1285,7 +1296,7 @@
       this.pendingDoor = null;
       /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
       this.inventory = new Inventory();
-      this.equipment = { amulet: null, hat: null, ring: null, armor: null, melee: null, ranged: null };
+      this.equipment = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null };
       /** Objets au sol sur l'étage courant (flèches à ramasser). */
       this.ground = [];
       /** Bourse, expérience et niveau du héros. */
@@ -2803,11 +2814,11 @@
       ".....KWWSDK.....",
       ".....KWWSDK.....",
       ".....KWWSDK.....",
-      "..K..KWWSDK..K..",
-      ".KSKKKWSSDKKKSK.",
-      ".KSSSSSSSSSSSSK.",
-      ".KDDDDDDDDDDDDK.",
-      "..KKKKKBbKKKKK..",
+      ".....KWWSDK.....",
+      ".....KWSSDK.....",
+      ".....KWWSDK.....",
+      ".....KDDDDK.....",
+      "......KBbK......",
       "......KbBK......",
       "......KBbK......",
       "......KbBK......",
@@ -3106,22 +3117,22 @@
       "...KKKKKKKKKK...",
       "................"
     ],
-    ring: [
+    artifact: [
       "................",
       "................",
-      "......KKKK......",
-      ".....KRRRRK.....",
-      ".....KRrrRK.....",
-      "....KKGGGGKK....",
-      "...KGGKKKKGGK...",
-      "..KGGK....KGgK..",
-      "..KGK......KgK..",
-      "..KGK......KgK..",
-      "..KGK......KgK..",
-      "..KGGK....KggK..",
-      "...KGGKKKKggK...",
-      "....KKGgggKK....",
-      "......KKKK......",
+      "....KKKKKKKK....",
+      "...KcWWccccDK...",
+      "..KcWcccccccDK..",
+      ".KKKKKKKKKKKKKK.",
+      ".KcccKccccKDDDK.",
+      "..KccKccccKDDK..",
+      "...KccKccKDDK...",
+      "....KcKccKDK....",
+      ".....KcccDK.....",
+      "......KcDK......",
+      ".......KK.......",
+      "................",
+      "................",
       "................"
     ],
     arrow: [
@@ -3603,7 +3614,7 @@
         if (worn) {
           box.append(itemIcon(worn.defId));
         } else {
-          const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), ring: uiIcon("ring"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+          const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
           ghost.classList.add("ghost");
           box.append(ghost);
         }
@@ -3685,14 +3696,37 @@
     bagOpen = false;
     $("bag").hidden = true;
   });
+  function renderCodex() {
+    const groups = [
+      ["Armes de corps \xE0 corps", ["melee"]],
+      ["Armes \xE0 distance et munitions", ["ranged", "ammo"]],
+      ["Armures", ["armor"]],
+      ["Heaumes", ["hat"]],
+      ["Amulettes", ["amulet"]],
+      ["Artefacts", ["artifact"]],
+      ["Divers", ["key", "gold"]]
+    ];
+    const nodes = [];
+    for (const [title, kinds] of groups) {
+      nodes.push(el("h3", "", title));
+      const defs = Object.values(ITEMS).filter((d) => kinds.includes(d.kind));
+      if (defs.length === 0) nodes.push(el("div", "codex-empty", "Rien encore."));
+      for (const def of defs) {
+        const owners = Object.values(CLASSES).filter((c) => c.startingItems.some((s) => s.item === def.id)).map((c) => c.name);
+        nodes.push(itemCard(def, 1, owners.length ? ` \u2014 d\xE9part : ${owners.join(", ")}` : ""));
+      }
+    }
+    $("codex-list").replaceChildren(...nodes);
+  }
   function showScreen(screen) {
     menuOpen = screen !== null;
     menu.hidden = !menuOpen;
-    for (const name of ["main", "new", "settings"]) $(`screen-${name}`).hidden = screen !== name;
+    for (const name of ["main", "new", "settings", "codex"]) $(`screen-${name}`).hidden = screen !== name;
     $("detail").hidden = true;
     $("menu-resume").hidden = !started || game.over;
     $("settings-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
     if (screen === "new") renderCards();
+    if (screen === "codex") renderCodex();
   }
   var signedBonus = (n) => n >= 0 ? `+${n}` : `${n}`;
   function raceCard(r) {
@@ -3784,6 +3818,8 @@
   button("menu-resume", () => showScreen(null));
   button("menu-new", () => showScreen("new"));
   button("menu-settings", () => showScreen("settings"));
+  button("menu-codex", () => showScreen("codex"));
+  button("codex-back", () => showScreen("main"));
   button("new-back", () => showScreen("main"));
   button("settings-back", () => showScreen("main"));
   button("detail-close", () => {

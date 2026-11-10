@@ -1,11 +1,11 @@
 import { Dice } from "../core/dice";
 
 /** Ce que le héros peut porter sur lui, à part du sac. */
-export type Slot = "amulet" | "hat" | "ring" | "armor" | "melee" | "ranged";
+export type Slot = "amulet" | "hat" | "artifact" | "armor" | "melee" | "ranged";
 export const SLOTS: { slot: Slot; label: string }[] = [
   { slot: "amulet", label: "Amulette" },
   { slot: "hat", label: "Heaume" },
-  { slot: "ring", label: "Anneau" },
+  { slot: "artifact", label: "Artefact" },
   { slot: "armor", label: "Armure" },
   { slot: "melee", label: "Corps à corps" },
   { slot: "ranged", label: "Distance" },
@@ -40,9 +40,9 @@ export interface ItemDef {
 export const ITEMS = {
   epee: {
     id: "epee",
-    name: "Épée",
+    name: "Épée courte",
     kind: "melee",
-    description: "Une lame droite, sans fioriture. Fiable.",
+    description: "Une lame courte et droite, sans garde ni fioriture. Fiable.",
     w: 1,
     h: 2,
     maxStack: 1,
@@ -91,7 +91,7 @@ export const ITEMS = {
     id: "tunique",
     name: "Tunique",
     kind: "armor",
-    description: "Une tunique épaisse, ceinte d'une corde.",
+    description: "Une tunique blanche, serrée par une ceinture de cuir.",
     w: 2,
     h: 2,
     maxStack: 1,
@@ -131,7 +131,7 @@ export const KIND_LABELS: Record<ItemDef["kind"], string> = {
   ranged: "Arme à distance",
   armor: "Armure",
   hat: "Heaume",
-  ring: "Anneau",
+  artifact: "Artefact",
   amulet: "Amulette",
   ammo: "Munition",
   key: "Objet utile",

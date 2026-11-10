@@ -176,7 +176,7 @@ export class Renderer {
    * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
    * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
    */
-  draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = []): void {
+  draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null): void {
     const { ctx, tile } = this;
     this.time += dt;
     this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
@@ -362,7 +362,7 @@ export class Renderer {
       if (!m.alerted) {
         // « z » : il dort. « ? » : il se promène sans avoir remarqué le héros.
         ctx.fillStyle = "#ffffff";
-        ctx.font = `bold ${Math.round(tile * 0.36)}px system-ui, sans-serif`;
+        ctx.font = `${Math.round(tile * 0.55)}px "VT323", "Courier New", monospace`;
         ctx.fillText(m.asleep ? "z" : "?", cx + tile * 0.3, cy - tile * 0.3);
       }
       if (m.hp < m.maxHp) {
@@ -370,6 +370,27 @@ export class Renderer {
         ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7, tile * 0.08);
         ctx.fillStyle = COLORS.hpFill;
         ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * Math.max(0, m.hp / m.maxHp), tile * 0.08);
+      }
+    }
+
+    // Mode arc : un viseur encadre chaque monstre à portée de tir.
+    if (aimRange !== null) {
+      ctx.strokeStyle = "#ffd75e";
+      ctx.lineWidth = Math.max(2, tile * 0.07);
+      for (const m of game.visibleMonsters()) {
+        if (Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)) > aimRange) continue;
+        const p = shown(m);
+        const x0 = ox + p.x * tile + 1;
+        const y0 = oy + p.y * tile + 1;
+        const s = tile - 2;
+        const c = tile * 0.28;
+        ctx.beginPath();
+        for (const [cx, cy, dx, dy] of [[x0, y0, 1, 1], [x0 + s, y0, -1, 1], [x0, y0 + s, 1, -1], [x0 + s, y0 + s, -1, -1]]) {
+          ctx.moveTo(cx + dx * c, cy);
+          ctx.lineTo(cx, cy);
+          ctx.lineTo(cx, cy + dy * c);
+        }
+        ctx.stroke();
       }
     }
 
@@ -425,7 +446,7 @@ export class Renderer {
     ctx.lineCap = "butt";
 
     // Textes flottants.
-    ctx.font = `bold ${Math.round(Math.max(13, tile * 0.42))}px system-ui, sans-serif`;
+    ctx.font = `${Math.round(Math.max(18, tile * 0.6))}px "VT323", "Courier New", monospace`;
     this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
     for (const f of this.floats) {
       const t = f.age / FLOAT_MS;

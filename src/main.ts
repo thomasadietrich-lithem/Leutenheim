@@ -71,6 +71,7 @@ let selectedUid: number | null = null;
 /** Vrai : toucher un monstre tire à l'arc au lieu d'aller le frapper. */
 let aimMode = false;
 let doorWasPending = false;
+let aimShown = "";
 let started = false;
 /** Race et classe choisies dans l'écran de nouvelle partie. */
 let chosenRace: RaceDef = RACES.humain;
@@ -367,6 +368,15 @@ doorButton("door-key", "key");
 button("recenter", () => renderer.recenter());
 button("aim", () => {
   aimMode = !aimMode;
+  // Mode d'emploi, rappelé à chaque passage à l'arc.
+  logLines.push(
+    aimMode
+      ? game.arrows() > 0
+        ? "Arc en main : touchez un monstre encadré pour lui tirer dessus."
+        : "Arc en main, mais plus de flèches."
+      : "Épée en main : touchez un monstre pour aller le frapper.",
+  );
+  renderLog();
 });
 
 // ---------- Sac : grille de cases à la Diablo ----------
@@ -377,7 +387,7 @@ function itemStats(def: ItemDef): string[] {
     lines.push(`Attaque : d20 ${signedBonus(def.attackBonus)} · Dégâts : ${diceLabel(def.damage)}`);
   }
   if (def.range) lines.push(`Portée : ${def.range} cases · Munition : ${ITEMS[def.ammo as ItemId].name.toLowerCase()}`);
-  if (def.kind === "ammo") lines.push("Munition pour l'arc. Se ramasse parfois après le tir.");
+  if (def.kind === "ammo") lines.push("Munition pour l'arc.");
   if (def.kind === "key") lines.push("Ouvre une porte verrouillée, sans bruit.");
   return lines;
 }
@@ -624,7 +634,8 @@ function frame(now: number): void {
   }
 
   if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
-  renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts);
+  const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
+  renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange);
   hudText.textContent = `Étage ${game.depth} · PV ${shownHp}/${game.hero.maxHp} · CA ${game.hero.armorClass} · Tour ${game.turn}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
   doorActions.hidden = !game.pendingDoor || game.over || cue !== null;
@@ -640,7 +651,15 @@ function frame(now: number): void {
   const aim = $("aim");
   aim.hidden = !bow;
   if (!bow) aimMode = false;
-  aim.textContent = aimMode ? `Arc (${game.arrows()})` : "Épée";
+  // Le bouton montre l'arme qui servira au prochain toucher, avec son icône.
+  const aimKey = aimMode ? `arc ×${game.arrows()}` : "épée";
+  if (aimKey !== aimShown) {
+    aimShown = aimKey;
+    const melee = game.inventory.get(game.equipped.melee ?? -1);
+    const ranged = game.inventory.get(game.equipped.ranged ?? -1);
+    const shown = aimMode ? ranged : melee;
+    aim.replaceChildren(...(shown ? [itemIcon(shown.defId)] : []), document.createTextNode(aimMode ? `Arc ×${game.arrows()}` : melee ? ITEMS[melee.defId].name : "Poings"));
+  }
   aim.classList.toggle("active", aimMode);
   requestAnimationFrame(frame);
 }

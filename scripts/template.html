@@ -4,95 +4,110 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Leutenheim — démo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
 <style>
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  canvas, button, .card { outline: none; }
-  html, body { margin: 0; height: 100%; background: #0c0b12; color: #d8d4e6;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; }
-  .col { position: relative; width: min(100%, calc((100vh - 215px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
-  #hud-text { font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
-  .hp { height: 6px; background: #3a1520; border-radius: 3px; overflow: hidden; }
-  #hp-fill { height: 100%; width: 100%; background: #e05060; transition: width 0.2s; }
-  .frame { position: relative; aspect-ratio: 9 / 13; border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
-  canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
-  .overlay { position: absolute; inset: 0; background: rgba(12,11,18,0.86); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 20px; font-size: 16px; }
-  .overlay[hidden], #door-actions[hidden], button[hidden] { display: none; }
-  #menu { background: rgba(12,11,18,0.95); border-radius: 10px; z-index: 2; padding: 14px; }
-  #menu section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-  #menu section[hidden], #detail[hidden] { display: none; }
-  #menu h1 { margin: 0; font-size: 34px; letter-spacing: 0.06em; color: #e0b040; font-weight: 700; }
-  #menu h2 { margin: 0 0 4px; font-size: 20px; color: #e0b040; font-weight: 700; }
-  #menu h3 { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a94b0; font-weight: 600; align-self: flex-start; }
-  #menu p { margin: 0 0 14px; font-size: 13px; color: #9a94b0; }
-  #menu section > button, #detail > button { width: 200px; padding: 12px; font-size: 15px; }
-  #menu button.ghost { background: transparent; border: 1px solid #3a3550; }
-  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
-  .card { position: relative; background: #1c1a28; border: 2px solid #3a3550; border-radius: 10px; padding: 26px 6px 10px;
-    min-height: 104px; cursor: pointer; text-align: center; }
-  .card.selected { border-color: #e0b040; background: #2a2436; }
-  .card.locked { opacity: 0.45; cursor: default; }
-  .card-name { font-size: 14px; font-weight: 700; color: #f0ecff; margin-bottom: 4px; }
-  .card-info { font-size: 11px; color: #b4aecb; line-height: 1.45; font-variant-numeric: tabular-nums; }
-  .card-soon { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #e0b040; margin-top: 4px; }
-  .card .more { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; padding: 0; border-radius: 50%;
-    font-size: 17px; line-height: 1; background: #3a3550; }
-  #detail { background: rgba(12,11,18,0.97); border-radius: 10px; z-index: 3; }
-  #detail-body { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.4; text-align: left; max-width: 300px; }
-  #detail-body div:first-child { color: #9a94b0; font-style: italic; margin-bottom: 4px; }
-  #seed { font-size: 11px; color: #5f5a78; margin-top: 8px; }
-  .bar button.active { background: #7a5a1c; outline: 1px solid #e0b040; }
-  /* Sac : esthétique rétro, cases en creux, objets en gros pixels. */
-  #bag { background: rgba(8,7,12,0.96); border-radius: 10px; z-index: 2; padding: 14px; font-family: "Courier New", ui-monospace, monospace; }
-  #bag h2 { margin: 0; font-size: 20px; color: #e0b040; letter-spacing: 0.2em; text-transform: uppercase; }
-  #bag-grid { --cols: 6; --rows: 4; position: relative; width: min(100%, 318px); aspect-ratio: var(--cols) / var(--rows);
-    background-color: #14121c; border: 3px solid #5a4a2a; box-shadow: inset 0 0 0 2px #0a0910; cursor: pointer;
-    background-image: linear-gradient(to right, #2c2838 2px, transparent 2px), linear-gradient(to bottom, #2c2838 2px, transparent 2px);
-    background-size: calc(100% / var(--cols)) calc(100% / var(--rows)); }
-  .bag-item { position: absolute; padding: 5px; background: #24202e; box-shadow: inset 0 0 0 2px #3d3750; display: flex; align-items: center; justify-content: center; }
-  .bag-item svg { width: 100%; height: 100%; image-rendering: pixelated; }
-  .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
-  .bag-item.selected { background: #3a3046; box-shadow: inset 0 0 0 2px #e0b040; }
-  .bag-count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; font-weight: 700; color: #fff; text-shadow: 1px 1px 0 #000; }
-  #bag-info { min-height: 62px; width: min(100%, 318px); font-size: 12px; line-height: 1.45; color: #b4aecb; text-align: left; }
-  .bag-name { color: #f0ecff; font-weight: 700; font-size: 14px; }
-  .bag-buttons { display: flex; gap: 8px; }
-  #bag button { font-family: inherit; padding: 10px 16px; }
-  #recenter { position: absolute; top: 8px; right: 8px; padding: 6px 10px; font-size: 12px; background: rgba(58,53,80,0.9); border: 1px solid #77718f; }
-  #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
-  #door-actions button { background: #5a3817; border: 1px solid #e0b040; }
-  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
-  .dice { flex: 0 0 auto; min-width: 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .dice-row { display: flex; gap: 4px; }
-  .die[hidden] { display: none; }
-  .die.dropped { opacity: 0.4; transform: scale(0.8); border-color: #3a3550; color: #9a94b0; }
-  #die-who.advantage { color: #ffd75e; font-weight: 700; }
-  #die-who.disadvantage { color: #ff6b7a; font-weight: 700; }
-  .die { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
-    border: 2px solid #3a3550; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums;
-    transition: border-color 0.25s, box-shadow 0.25s; }
-  .die.hit { border-color: #5fd38d; color: #5fd38d; }
-  .die.miss { border-color: #77718f; color: #c9c4dc; }
-  .die.crit { border-color: #ffd75e; color: #ffd75e; box-shadow: 0 0 14px rgba(255,215,94,0.6); }
-  .die.foe { background: #3a1722; }
-  .die.rolling { border-color: #ffffff; color: #ffffff; animation: roll 0.16s linear infinite; }
-  .die.land { animation: land 0.24s ease-out; }
-  @keyframes roll {
-    0% { transform: rotate(-14deg) scale(1.08); } 25% { transform: rotate(11deg) translateY(-4px) scale(1.12); }
-    50% { transform: rotate(-9deg) scale(1.06); } 75% { transform: rotate(13deg) translateY(3px) scale(1.1); }
-    100% { transform: rotate(-14deg) scale(1.08); }
+  /* Interface rétro : police à gros pixels, angles droits, cadres biseautés, pas d'arrondis ni de transparences douces. */
+  :root {
+    --ink: #e8dcc0; --dim: #9c8f74; --gold: #e0b040; --panel: #1b1612; --panel-hi: #5a4a2a; --panel-lo: #0c0906;
+    --btn: #3b2f20; --btn-hi: #7a6238; --btn-lo: #17110a;
   }
-  @keyframes land { 0% { transform: scale(1.55) rotate(8deg); } 55% { transform: scale(0.9); } 100% { transform: scale(1); } }
-  #die-who { font-size: 10px; color: #9a94b0; height: 12px; white-space: nowrap; }
-  #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
-  #log div:last-child { color: #e6e2f4; }
-  .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
-  .bar span { margin-left: auto; }
-  button { background: #3a3550; color: #f0ecff; border: 0; border-radius: 8px; padding: 8px 14px;
-    font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
-  button:hover { background: #4b4560; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #070605; color: var(--ink);
+    font-family: "VT323", "Courier New", ui-monospace, monospace; font-size: 18px; line-height: 1.1; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  canvas, button, .card { outline: none; }
+  .col { position: relative; width: min(100%, calc((100vh - 225px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  [hidden] { display: none !important; }
+
+  /* Cadre biseauté commun aux panneaux. */
+  .frame, .panel, .hp, #menu, #bag, #detail, #over {
+    border: 3px solid var(--panel-hi); box-shadow: inset 0 0 0 2px var(--panel-lo), 0 0 0 2px var(--panel-lo); }
+
+  #hud-text { font-size: 19px; text-align: center; letter-spacing: 0.04em; color: var(--gold); text-transform: uppercase; }
+  .hp { height: 12px; background: #2a0c10; padding: 0; }
+  #hp-fill { height: 100%; width: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
+  .frame { position: relative; aspect-ratio: 9 / 13; overflow: hidden; background: #070605; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; image-rendering: pixelated; }
+
+  /* Boutons : pavés biseautés, texte en capitales. */
+  button { font: inherit; font-size: 19px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink); cursor: pointer; white-space: nowrap;
+    background: var(--btn); border: 0; border-radius: 0; padding: 7px 10px;
+    box-shadow: inset 2px 2px 0 var(--btn-hi), inset -2px -2px 0 var(--btn-lo), 0 0 0 2px var(--panel-lo); }
+  button:active { box-shadow: inset -2px -2px 0 var(--btn-hi), inset 2px 2px 0 var(--btn-lo), 0 0 0 2px var(--panel-lo); transform: translateY(1px); }
+  button.active { background: #6b4a12; color: #fff3c8; }
+  button.ghost { background: #241c14; color: var(--dim); }
+
+  .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 16px; }
+  #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
+  #recenter { position: absolute; top: 8px; right: 8px; font-size: 16px; padding: 5px 8px; }
+  #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
+  #door-actions button { background: #4a2f12; }
+
+  /* Dés et journal. */
+  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 84px; background: var(--panel); padding: 6px; }
+  .dice { flex: 0 0 auto; min-width: 56px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .dice-row { display: flex; gap: 4px; }
+  .die { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; font-size: 34px;
+    background: #0c0906; color: var(--dim); border: 3px solid #4a3e2a; box-shadow: inset 2px 2px 0 #000; }
+  .die.hit { border-color: #5fd38d; color: #5fd38d; }
+  .die.miss { border-color: #8a8070; color: #d8ccb0; }
+  .die.crit { border-color: var(--gold); color: #fff3c8; background: #4a3408; }
+  .die.foe { background: #2a0c10; }
+  .die.rolling { border-color: #fff; color: #fff; animation: roll 0.16s steps(4) infinite; }
+  .die.land { animation: land 0.2s steps(3); }
+  .die.dropped { opacity: 0.4; transform: scale(0.8); border-color: #4a3e2a; color: var(--dim); }
+  @keyframes roll { 0% { transform: rotate(-14deg); } 25% { transform: rotate(10deg) translateY(-4px); }
+    50% { transform: rotate(-8deg); } 75% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg); } }
+  @keyframes land { 0% { transform: scale(1.5); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
+  #die-who { font-size: 15px; color: var(--dim); height: 15px; white-space: nowrap; text-transform: uppercase; }
+  #die-who.advantage { color: var(--gold); }
+  #die-who.disadvantage { color: #ff6b7a; }
+  #log { flex: 1; font-size: 16px; line-height: 1.05; color: var(--dim); display: flex; flex-direction: column; justify-content: flex-end; }
+  #log div:last-child { color: var(--ink); }
+
+  .bar { display: flex; align-items: stretch; gap: 6px; }
+  .bar button { flex: 1; padding: 8px 4px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .bar button svg { width: 12px; height: 24px; flex: none; }
+
+  /* Menus. */
+  #menu { z-index: 2; }
+  #menu section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+  #menu h1 { margin: 0; font-size: 56px; font-weight: 400; letter-spacing: 0.08em; color: var(--gold); text-shadow: 3px 3px 0 #5a3a08; }
+  #menu h2, #bag h2 { margin: 0 0 4px; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
+  #menu h3 { margin: 6px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); align-self: flex-start; }
+  #menu p { margin: 0 0 14px; font-size: 18px; color: var(--dim); }
+  #menu section > button, #detail > button { width: 220px; padding: 10px; font-size: 22px; }
+  #seed { font-size: 15px; color: #6a5f4a; margin-top: 8px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  .card { position: relative; background: var(--panel); padding: 26px 4px 8px; min-height: 108px; cursor: pointer; text-align: center;
+    border: 3px solid #4a3e2a; box-shadow: inset 0 0 0 2px var(--panel-lo); }
+  .card.selected { border-color: var(--gold); background: #2a2010; }
+  .card.locked { filter: grayscale(1) brightness(0.6); cursor: default; }
+  .card-name { font-size: 22px; color: #fff3c8; margin-bottom: 2px; text-transform: uppercase; }
+  .card-info { font-size: 16px; color: var(--dim); }
+  .card-soon { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); margin-top: 2px; }
+  .card .more { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; padding: 0; font-size: 22px; line-height: 1; }
+  #detail { z-index: 3; }
+  #detail-body { display: flex; flex-direction: column; gap: 4px; font-size: 18px; text-align: left; max-width: 310px; }
+  #detail-body div:first-child { color: var(--dim); margin-bottom: 4px; }
+
+  /* Sac : cases en creux, objets en gros pixels. */
+  #bag { z-index: 2; }
+  #bag-grid { --cols: 6; --rows: 4; position: relative; width: min(100%, 318px); aspect-ratio: var(--cols) / var(--rows);
+    background-color: #0c0906; border: 3px solid var(--panel-hi); box-shadow: inset 0 0 0 2px var(--panel-lo); cursor: pointer;
+    background-image: linear-gradient(to right, #2e261a 2px, transparent 2px), linear-gradient(to bottom, #2e261a 2px, transparent 2px);
+    background-size: calc(100% / var(--cols)) calc(100% / var(--rows)); }
+  .bag-item { position: absolute; padding: 5px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906;
+    display: flex; align-items: center; justify-content: center; }
+  .bag-item svg { width: 100%; height: 100%; }
+  .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
+  .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
+  .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
+  #bag-info { min-height: 70px; width: min(100%, 318px); font-size: 17px; color: var(--dim); text-align: left; }
+  .bag-name { color: #fff3c8; font-size: 21px; text-transform: uppercase; }
+  .bag-buttons { display: flex; gap: 8px; }
 </style>
 </head>
 <body>
@@ -118,7 +133,7 @@
   </div>
   <div class="bar">
     <button id="wait" type="button">Attendre</button>
-    <button id="aim" type="button">Épée</button>
+    <button id="aim" type="button"></button>
     <button id="open-bag" type="button">Sac</button>
     <button id="open-menu" type="button">Menu</button>
   </div>

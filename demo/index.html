@@ -2275,7 +2275,7 @@
      * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
      * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
      */
-    draw(game2, progress, dt, ghosts2 = [], aimRange = null) {
+    draw(game2, progress, dt, ghosts2 = [], aimRange = null, aimTarget2 = null) {
       const { ctx, tile } = this;
       this.time += dt;
       this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
@@ -2465,11 +2465,12 @@
         }
       }
       if (aimRange !== null) {
-        ctx.strokeStyle = "#ffd75e";
-        ctx.lineWidth = Math.max(2, tile * 0.07);
         for (const m of game2.visibleMonsters()) {
           if (Math.max(Math.abs(m.x - game2.hero.x), Math.abs(m.y - game2.hero.y)) > aimRange) continue;
           const p = shown(m);
+          const locked = m === aimTarget2;
+          ctx.strokeStyle = locked ? "#ff5a4a" : "#ffd75e";
+          ctx.lineWidth = Math.max(2, tile * (locked ? 0.12 + 0.03 * Math.sin(this.time / 120) : 0.06));
           const x02 = ox + p.x * tile + 1;
           const y02 = oy + p.y * tile + 1;
           const s = tile - 2;
@@ -2915,22 +2916,22 @@
       "....KK.........."
     ],
     fleche: [
-      ".........KKKKKK.",
-      "........KWWWWWWK",
-      ".........KSSSSDK",
-      "..........KSSSDK",
-      "...........KSSDK",
-      "..........KBKSDK",
-      ".........KBK.KDK",
-      "........KBK...K.",
-      ".......KBK......",
-      "......KBK.......",
-      "..K..KBK........",
-      ".KRKKBK.........",
-      "KRRRBK..........",
-      ".KRBRRK.........",
-      "..KKRRRK........",
-      "....KRK........."
+      ".......KK.......",
+      "......KWSK......",
+      ".....KWWSSK.....",
+      "....KWWWSSSK....",
+      "...KWWWWSSSSK...",
+      "...KKKKBbKKKK...",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "....KKKBbKKK....",
+      "...KRRKBbKrrK...",
+      "...KRRRBbrrrK...",
+      "...KKRRBbrrKK...",
+      ".....KRBbrK.....",
+      "......KKKK......"
     ],
     clef: [
       "................",
@@ -3136,22 +3137,22 @@
       "................"
     ],
     arrow: [
-      ".........KKKKKK.",
-      "........KWWWWWWK",
-      ".........KSSSSDK",
-      "..........KSSSDK",
-      "...........KSSDK",
-      "..........KBKSDK",
-      ".........KBK.KDK",
-      "........KBK...K.",
-      ".......KBK......",
-      "......KBK.......",
-      "..K..KBK........",
-      ".KRKKBK.........",
-      "KRRRBK..........",
-      ".KRBRRK.........",
-      "..KKRRRK........",
-      "....KRK........."
+      ".......KK.......",
+      "......KWSK......",
+      ".....KWWSSK.....",
+      "....KWWWSSSK....",
+      "...KWWWWSSSSK...",
+      "...KKKKBbKKKK...",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "......KBbK......",
+      "....KKKBbKKK....",
+      "...KRRKBbKrrK...",
+      "...KRRRBbrrrK...",
+      "...KKRRBbrrKK...",
+      ".....KRBbrK.....",
+      "......KKKK......"
     ],
     wait: [
       "..KKKKKKKKKKKK..",
@@ -3508,20 +3509,8 @@
       if (menuOpen || bagOpen || foundOpen) return;
       const t = renderer.screenToTile(px, py);
       if (aimMode) {
-        const refusal = game.shoot(t.x, t.y);
-        if (refusal) {
-          const why = {
-            "no-bow": "Aucun arc en main.",
-            "no-ammo": "Plus de fl\xE8ches.",
-            "no-target": "Vous ne voyez pas cet endroit.",
-            "out-of-range": `Hors de port\xE9e (${game.weapon("ranged")?.range ?? 0} cases).`
-          }[refusal];
-          logLines.push(why);
-          renderLog();
-        } else {
-          stepMs = COMBAT_STEP_MS;
-          aimMode = false;
-        }
+        if (t.x === game.hero.x && t.y === game.hero.y) aimMode = false;
+        else fireAt(t.x, t.y);
         return;
       }
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
@@ -3556,14 +3545,47 @@
   doorButton("door-break", "break");
   doorButton("door-key", "key");
   button("recenter", () => renderer.recenter());
+  function fireAt(x, y) {
+    const refusal = game.shoot(x, y);
+    if (refusal) {
+      const why = {
+        "no-bow": "Aucun arc en main.",
+        "no-ammo": "Plus de fl\xE8ches.",
+        "no-target": "Vous ne voyez pas cet endroit.",
+        "out-of-range": `Hors de port\xE9e (${game.weapon("ranged")?.range ?? 0} cases).`
+      }[refusal];
+      logLines.push(why);
+      renderLog();
+    } else {
+      stepMs = COMBAT_STEP_MS;
+      aimMode = false;
+    }
+  }
+  function aimTarget() {
+    const range = game.weapon("ranged")?.range ?? 0;
+    let best = null;
+    let bestDist = Infinity;
+    for (const m of game.visibleMonsters()) {
+      const d = Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
+      if (d <= range && d < bestDist) {
+        best = m;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
   button("aim", () => {
-    if (!aimMode && game.isThreatened()) {
+    if (aimMode) {
+      const target = aimTarget();
+      if (target) fireAt(target.x, target.y);
+      else aimMode = false;
+    } else if (game.isThreatened()) {
       logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
-    } else if (!aimMode && game.arrows() < 1) {
+    } else if (game.arrows() < 1) {
       logLines.push("Plus de fl\xE8ches.");
     } else {
-      aimMode = !aimMode;
-      if (aimMode) logLines.push("Arc band\xE9 : touchez une cible \xE0 port\xE9e pour tirer.");
+      aimMode = true;
+      logLines.push(aimTarget() ? "Cible vis\xE9e : touchez encore la fl\xE8che pour tirer, ou une autre case." : "Personne \xE0 port\xE9e : touchez une case pour tirer.");
     }
     renderLog();
   });
@@ -3869,7 +3891,7 @@
     }
     if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
     const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;
-    renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange);
+    renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
     hudText.textContent = `\xC9tage ${game.depth} \xB7 Niv ${game.level} \xB7 CA ${game.hero.armorClass} \xB7 Or ${game.gold}`;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
     $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;

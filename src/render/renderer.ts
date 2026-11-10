@@ -214,7 +214,7 @@ export class Renderer {
    * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
    * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
    */
-  draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null): void {
+  draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null, aimTarget: Actor | null = null): void {
     const { ctx, tile } = this;
     this.time += dt;
     this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
@@ -433,11 +433,13 @@ export class Renderer {
 
     // Mode arc : un viseur encadre chaque monstre à portée de tir.
     if (aimRange !== null) {
-      ctx.strokeStyle = "#ffd75e";
-      ctx.lineWidth = Math.max(2, tile * 0.07);
       for (const m of game.visibleMonsters()) {
         if (Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)) > aimRange) continue;
         const p = shown(m);
+        // La cible visée d'office (celle que le second appui sur la flèche touchera) : viseur épais, rouge, qui palpite.
+        const locked = m === aimTarget;
+        ctx.strokeStyle = locked ? "#ff5a4a" : "#ffd75e";
+        ctx.lineWidth = Math.max(2, tile * (locked ? 0.12 + 0.03 * Math.sin(this.time / 120) : 0.06));
         const x0 = ox + p.x * tile + 1;
         const y0 = oy + p.y * tile + 1;
         const s = tile - 2;

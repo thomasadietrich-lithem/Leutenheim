@@ -362,21 +362,9 @@ bindInput(canvas, {
     if (menuOpen || bagOpen || foundOpen) return;
     const t = renderer.screenToTile(px, py);
     if (aimMode) {
-      // Mode arc : chaque toucher tire vers la case désignée, quelle qu'elle soit.
-      const refusal = game.shoot(t.x, t.y);
-      if (refusal) {
-        const why = {
-          "no-bow": "Aucun arc en main.",
-          "no-ammo": "Plus de flèches.",
-          "no-target": "Vous ne voyez pas cet endroit.",
-          "out-of-range": `Hors de portée (${game.weapon("ranged")?.range ?? 0} cases).`,
-        }[refusal];
-        logLines.push(why);
-        renderLog();
-      } else {
-        stepMs = COMBAT_STEP_MS;
-        aimMode = false; // une flèche par visée : on revient à l'arme de corps à corps
-      }
+      // Mode arc : toucher sa propre case renonce au tir ; tout autre toucher tire vers la case désignée.
+      if (t.x === game.hero.x && t.y === game.hero.y) aimMode = false;
+      else fireAt(t.x, t.y);
       return;
     }
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
@@ -413,14 +401,52 @@ doorButton("door-pick", "pick");
 doorButton("door-break", "break");
 doorButton("door-key", "key");
 button("recenter", () => renderer.recenter());
+/** Tire une flèche vers une case ; explique le refus s'il y en a un. Une flèche par visée. */
+function fireAt(x: number, y: number): void {
+  const refusal = game.shoot(x, y);
+  if (refusal) {
+    const why = {
+      "no-bow": "Aucun arc en main.",
+      "no-ammo": "Plus de flèches.",
+      "no-target": "Vous ne voyez pas cet endroit.",
+      "out-of-range": `Hors de portée (${game.weapon("ranged")?.range ?? 0} cases).`,
+    }[refusal];
+    logLines.push(why);
+    renderLog();
+  } else {
+    stepMs = COMBAT_STEP_MS;
+    aimMode = false; // on revient à l'arme de corps à corps
+  }
+}
+
+/** La cible visée d'office quand l'arc est bandé : le monstre en vue le plus proche, s'il est à portée. */
+function aimTarget(): Actor | null {
+  const range = game.weapon("ranged")?.range ?? 0;
+  let best: Actor | null = null;
+  let bestDist = Infinity;
+  for (const m of game.visibleMonsters()) {
+    const d = Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
+    if (d <= range && d < bestDist) {
+      best = m;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+// Bouton de tir : un premier appui vise le monstre le plus proche, un second tire sur lui.
 button("aim", () => {
-  if (!aimMode && game.isThreatened()) {
+  if (aimMode) {
+    const target = aimTarget();
+    if (target) fireAt(target.x, target.y);
+    else aimMode = false; // personne à viser : le second appui range l'arc
+  } else if (game.isThreatened()) {
     logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
-  } else if (!aimMode && game.arrows() < 1) {
+  } else if (game.arrows() < 1) {
     logLines.push("Plus de flèches.");
   } else {
-    aimMode = !aimMode;
-    if (aimMode) logLines.push("Arc bandé : touchez une cible à portée pour tirer.");
+    aimMode = true;
+    logLines.push(aimTarget() ? "Cible visée : touchez encore la flèche pour tirer, ou une autre case." : "Personne à portée : touchez une case pour tirer.");
   }
   renderLog();
 });
@@ -780,7 +806,7 @@ function frame(now: number): void {
 
   if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
-  renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange);
+  renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   hudText.textContent = `Étage ${game.depth} · Niv ${game.level} · CA ${game.hero.armorClass} · Or ${game.gold}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
   $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;

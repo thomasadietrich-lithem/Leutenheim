@@ -117,6 +117,8 @@ export class Game {
   private rooms: Room[] = [];
   /** Étages déjà visités, gardés en l'état. */
   private floors = new Map<number, FloorState>();
+  /** Portes sur lesquelles une tentative a déjà échoué : on ne peut pas réessayer la même méthode. */
+  private failedDoorAttempts = new Set<string>();
   private current!: FloorState;
   /** Le héros vient de marcher sur un escalier : il le prendra à la fin de son pas. */
   pendingStairs: "down" | "up" | null = null;
@@ -440,10 +442,27 @@ export class Game {
 
   /** Le joueur choisit de crocheter ou d'enfoncer la porte devant lui : ce sera l'action du prochain tour. */
   actOnDoor(action: DoorAction): boolean {
-    if (this.over || !this.pendingDoor) return false;
-    if (action === "key" && this.inventory.count("clef") < 1) return false;
+    if (this.over || !this.doorOptions().includes(action)) return false;
     this.doorAction = action;
     return true;
+  }
+
+  private doorAttemptKey(door: Point, action: DoorAction): string {
+    return `${this.depth}:${door.x},${door.y}:${action}`;
+  }
+
+  /**
+   * Ce que le héros peut encore tenter sur la porte verrouillée devant lui. Crocheter et enfoncer n'ont droit
+   * qu'à un essai chacun par porte ; la clef marche toujours, si on en a une.
+   */
+  doorOptions(): DoorAction[] {
+    const door = this.pendingDoor;
+    if (!door) return [];
+    const options: DoorAction[] = [];
+    if (this.inventory.count("clef") > 0) options.push("key");
+    if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "pick"))) options.push("pick");
+    if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "break"))) options.push("break");
+    return options;
   }
 
   private clearDoorOrders(): void {
@@ -640,6 +659,8 @@ export class Game {
       this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
       this.light = computeLight(this.map, this.torches);
       this.pendingDoor = null;
+    } else {
+      this.failedDoorAttempts.add(this.doorAttemptKey(door, action)); // raté : cette méthode ne marchera plus ici
     }
     let alerted = 0;
     if (action === "break") {

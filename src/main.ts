@@ -164,7 +164,8 @@ function describeDoor(e: Extract<GameEvent, { type: "door" }>): string {
   const outcome =
     e.action === "pick" ? (e.success ? "elle s'ouvre" : "raté") : e.success ? "elle cède" : "elle résiste";
   const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-  return `${what} : ${e.d20} ${bonus} = ${e.total} — ${outcome}.`;
+  const dead = !e.success && game.doorOptions().length === 0 ? " Il vous faudrait une clef." : "";
+  return `${what} : ${e.d20} ${bonus} = ${e.total} — ${outcome}.${dead}`;
 }
 
 /** Le dé commence à rouler. Avec avantage ou désavantage, un second dé roule à côté, et ça s'entend. */
@@ -687,8 +688,12 @@ function frame(now: number): void {
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange);
   hudText.textContent = `Étage ${game.depth} · PV ${shownHp}/${game.hero.maxHp} · CA ${game.hero.armorClass} · Tour ${game.turn}`;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
-  doorActions.hidden = !game.pendingDoor || game.over || cue !== null;
-  $("door-key").hidden = game.inventory.count("clef") < 1;
+  // Seules les méthodes encore possibles sur cette porte sont proposées.
+  const doorOptions = game.doorOptions();
+  doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null;
+  $("door-key").hidden = !doorOptions.includes("key");
+  $("door-pick").hidden = !doorOptions.includes("pick");
+  $("door-break").hidden = !doorOptions.includes("break");
   // En arrivant devant une porte verrouillée, le héros bute dessus.
   if (game.pendingDoor && !doorWasPending) {
     renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);

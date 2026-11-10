@@ -139,8 +139,11 @@ function openLockedDoor(action: "pick" | "break"): { game: Game; door: { x: numb
     if (!door) continue;
     let alertedByNoise = 0;
     for (let turn = 0; turn < 400 && !game.over && game.map.get(door.x, door.y) === Tile.DoorLocked; turn++) {
-      if (game.pendingDoor) assert.ok(game.actOnDoor(action));
-      else if (game.path.length === 0) assert.ok(game.setDestination(door.x, door.y, true));
+      if (game.pendingDoor) {
+        if (!game.actOnDoor(action)) break; // un échec retire cette méthode : on essaie une autre partie
+      } else if (game.path.length === 0) {
+        assert.ok(game.setDestination(door.x, door.y, true));
+      }
       game.tick();
       for (const e of game.events) if (e.type === "door") alertedByNoise += e.alerted;
       game.events.length = 0;
@@ -727,4 +730,43 @@ test("escaliers : on peut remonter, et chaque étage est retrouvé tel qu'on l'a
   assert.ok(game.takeStairs());
   assert.equal(game.map, floor2);
   assert.equal(game.monsters.length, 0);
+});
+
+test("porte : après un échec, la même méthode n'est plus proposée", () => {
+  for (const action of ["pick", "break"] as const) {
+    let found = false;
+    for (let seed = 1; seed < 300 && !found; seed++) {
+      const game = new Game(seed);
+      game.monsters.splice(0);
+      let door: { x: number; y: number } | null = null;
+      for (let y = 0; y < game.map.height && !door; y++) {
+        for (let x = 0; x < game.map.width; x++) {
+          if (game.map.get(x, y) === Tile.DoorLocked) {
+            door = { x, y };
+            break;
+          }
+        }
+      }
+      if (!door) continue;
+      for (let turn = 0; turn < 300 && !game.pendingDoor; turn++) {
+        if (game.path.length === 0) assert.ok(game.setDestination(door.x, door.y, true));
+        game.tick();
+      }
+      assert.deepEqual(game.doorOptions(), ["pick", "break"]);
+      assert.ok(game.actOnDoor(action));
+      game.tick();
+      const attempt = game.events.find((e) => e.type === "door");
+      assert.ok(attempt && attempt.type === "door");
+      if (attempt.success) continue; // on cherche un échec
+      found = true;
+      const other = action === "pick" ? "break" : "pick";
+      assert.deepEqual(game.doorOptions(), [other]);
+      assert.equal(game.actOnDoor(action), false, "on ne peut pas retenter la même méthode");
+      assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
+      // Une clef rouvre une possibilité.
+      game.inventory.add("clef", 1);
+      assert.deepEqual(game.doorOptions(), ["key", other]);
+    }
+    assert.ok(found, `aucun échec trouvé pour ${action}`);
+  }
 });

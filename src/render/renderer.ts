@@ -556,16 +556,51 @@ export class Renderer {
    */
   private drawDoor(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
-    // Si les murs sont au-dessus et en dessous, la porte est dans un mur vertical : on tourne le dessin d'un quart.
+    // Si les murs sont au-dessus et en dessous, la porte est dans un mur latéral.
     const sideways = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
     ctx.save();
     ctx.translate(sx + tile / 2, sy + tile / 2);
-    if (sideways) ctx.rotate(Math.PI / 2);
     const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
     const px = (gx: number, gy: number, w: number, h: number, color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
     };
+    if (sideways) {
+      // Porte d'un mur latéral : on la voit par la tranche, comme un battant dressé en travers du passage.
+      px(0, 0, 16, 16, "#2a2533");
+      px(0, 0, 16, 2, "#8b90b0");
+      px(0, 14, 16, 2, "#8b90b0");
+      if (t === Tile.DoorOpen) {
+        // Battant rabattu contre le montant du haut.
+        px(6, 2, 8, 3, "#8a5a2b");
+        px(6, 2, 8, 1, "#b9824a");
+        px(8, 2, 1, 3, "#4a4e5e");
+        px(12, 2, 1, 3, "#4a4e5e");
+      } else {
+        px(6, 2, 4, 12, "#8a5a2b");
+        px(6, 2, 1, 12, "#b9824a");
+        px(9, 2, 1, 12, "#5a3817");
+        // Ferrures qui débordent de chaque côté, et poignées.
+        for (const gy of [4, 11]) {
+          px(5, gy, 6, 1, "#4a4e5e");
+          px(5, gy, 1, 1, "#c3cbe0");
+          px(10, gy, 1, 1, "#c3cbe0");
+        }
+        if (t === Tile.DoorLocked) {
+          px(10, 6, 3, 4, "#f0c050");
+          px(10, 9, 3, 1, "#a87c1c");
+          px(11, 7, 1, 2, "#1c1410");
+          px(3, 6, 3, 4, "#f0c050");
+          px(3, 9, 3, 1, "#a87c1c");
+          px(4, 7, 1, 2, "#1c1410");
+        } else {
+          px(10, 7, 1, 2, "#c3cbe0");
+          px(5, 7, 1, 2, "#c3cbe0");
+        }
+      }
+      ctx.restore();
+      return;
+    }
     // Encadrement de pierre et seuil sombre.
     px(0, 0, 16, 16, "#2a2533");
     px(0, 0, 2, 16, "#8b90b0");

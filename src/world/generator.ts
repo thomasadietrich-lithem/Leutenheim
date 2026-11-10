@@ -140,11 +140,14 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
     );
     const hasStairs = stairs.x >= room.x && stairs.x < room.x + room.w && stairs.y >= room.y && stairs.y < room.y + room.h;
     const deadEnd = index > 0 && !hasStairs && entrances.length === 1 && doorways.length === 1;
-    if (deadEnd && map.get(doorways[0].x, doorways[0].y) === Tile.Floor && rng.chance(cfg.lockChance)) {
+    // Une porte n'est posée que s'il n'y en a pas déjà une toute proche : jamais deux portes à la suite.
+    const canHaveDoor = (c: { x: number; y: number }) =>
+      map.get(c.x, c.y) === Tile.Floor && !doorNearby(map, c.x, c.y, cfg.doorSpacing);
+    if (deadEnd && canHaveDoor(doorways[0]) && rng.chance(cfg.lockChance)) {
       map.set(doorways[0].x, doorways[0].y, Tile.DoorLocked);
     } else {
       for (const c of doorways) {
-        if (map.get(c.x, c.y) === Tile.Floor && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
+        if (canHaveDoor(c) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
       }
     }
     // Torche murale : sur un mur du pourtour de la salle.
@@ -158,6 +161,16 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
   });
 
   return { map, rooms, start, stairs, torches };
+}
+
+/** Vrai s'il existe déjà une porte à moins de `spacing` cases (distance en pas droits). */
+function doorNearby(map: GameMap, x: number, y: number, spacing: number): boolean {
+  for (let dy = -spacing + 1; dy < spacing; dy++) {
+    for (let dx = -spacing + 1; dx < spacing; dx++) {
+      if (Math.abs(dx) + Math.abs(dy) < spacing && map.isDoor(x + dx, y + dy)) return true;
+    }
+  }
+  return false;
 }
 
 /** Cases du pourtour d'une salle (hors coins), avec la direction qui longe le mur (tx, ty). */

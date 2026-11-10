@@ -22,6 +22,19 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
     stats.torches += torches.length;
     for (const t of torches) assert.equal(map.get(t.x, t.y), Tile.Wall, `graine ${seed} : torche hors d'un mur`);
 
+    // Jamais deux portes à la suite : au moins `doorSpacing` cases entre deux portes.
+    const doors: { x: number; y: number }[] = [];
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) if (map.isDoor(x, y)) doors.push({ x, y });
+    }
+    for (const a of doors) {
+      for (const b of doors) {
+        if (a === b) continue;
+        const d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+        assert.ok(d >= DEFAULT_FLOOR.doorSpacing, `graine ${seed} : portes trop proches (${a.x},${a.y}) et (${b.x},${b.y})`);
+      }
+    }
+
     // Sans ouvrir aucune porte verrouillée, on atteint l'escalier.
     assert.notEqual(distanceField(map, start)[map.index(stairs.x, stairs.y)], -1, `graine ${seed} : escalier enfermé`);
 

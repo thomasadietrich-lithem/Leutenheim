@@ -319,6 +319,7 @@
     extraLinks: 2,
     wideCorridorChance: 0.3,
     doorChance: 0.6,
+    doorSpacing: 5,
     lockChance: 0.5,
     torchChance: 0.5,
     torchRadius: 6
@@ -708,11 +709,12 @@
       );
       const hasStairs = stairs.x >= room.x && stairs.x < room.x + room.w && stairs.y >= room.y && stairs.y < room.y + room.h;
       const deadEnd = index > 0 && !hasStairs && entrances.length === 1 && doorways.length === 1;
-      if (deadEnd && map.get(doorways[0].x, doorways[0].y) === Tile.Floor && rng.chance(cfg.lockChance)) {
+      const canHaveDoor = (c) => map.get(c.x, c.y) === Tile.Floor && !doorNearby(map, c.x, c.y, cfg.doorSpacing);
+      if (deadEnd && canHaveDoor(doorways[0]) && rng.chance(cfg.lockChance)) {
         map.set(doorways[0].x, doorways[0].y, Tile.DoorLocked);
       } else {
         for (const c of doorways) {
-          if (map.get(c.x, c.y) === Tile.Floor && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
+          if (canHaveDoor(c) && rng.chance(cfg.doorChance)) map.set(c.x, c.y, Tile.DoorClosed);
         }
       }
       if (index === 0 || rng.chance(cfg.torchChance)) {
@@ -724,6 +726,14 @@
       }
     });
     return { map, rooms, start, stairs, torches };
+  }
+  function doorNearby(map, x, y, spacing) {
+    for (let dy = -spacing + 1; dy < spacing; dy++) {
+      for (let dx = -spacing + 1; dx < spacing; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) < spacing && map.isDoor(x + dx, y + dy)) return true;
+      }
+    }
+    return false;
   }
   function ringCells(r) {
     const cells = [];

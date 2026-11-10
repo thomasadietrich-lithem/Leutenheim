@@ -22,7 +22,7 @@ export function canStep(map: GameMap, x: number, y: number, dx: number, dy: numb
 }
 
 /** Distance en nombre de pas depuis `from` vers chaque case (-1 = inaccessible). */
-export function distanceField(map: GameMap, from: Point): Int32Array {
+export function distanceField(map: GameMap, from: Point, allowed?: (x: number, y: number) => boolean): Int32Array {
   const dist = new Int32Array(map.width * map.height).fill(-1);
   const queue: number[] = [map.index(from.x, from.y)];
   dist[queue[0]] = 0;
@@ -32,6 +32,7 @@ export function distanceField(map: GameMap, from: Point): Int32Array {
     const cy = (cur - cx) / map.width;
     for (const d of DIRS) {
       if (!canStep(map, cx, cy, d.x, d.y)) continue;
+      if (allowed && !allowed(cx + d.x, cy + d.y)) continue;
       const next = map.index(cx + d.x, cy + d.y);
       if (dist[next] !== -1) continue;
       dist[next] = dist[cur] + 1;
@@ -41,11 +42,20 @@ export function distanceField(map: GameMap, from: Point): Int32Array {
   return dist;
 }
 
-/** Plus court chemin de `from` à `to` (sans la case de départ), ou null s'il n'existe pas. */
-export function findPath(map: GameMap, from: Point, to: Point): Point[] | null {
+/**
+ * Plus court chemin de `from` à `to` (sans la case de départ), ou null s'il n'existe pas.
+ * `allowed` restreint les cases utilisables (ex. seulement les cases déjà explorées).
+ */
+export function findPath(
+  map: GameMap,
+  from: Point,
+  to: Point,
+  allowed?: (x: number, y: number) => boolean,
+): Point[] | null {
   if (!map.isWalkable(to.x, to.y)) return null;
+  if (allowed && !allowed(to.x, to.y)) return null;
   // On calcule les distances depuis l'arrivée, puis on descend la pente depuis le départ.
-  const dist = distanceField(map, to);
+  const dist = distanceField(map, to, allowed);
   if (dist[map.index(from.x, from.y)] === -1) return null;
   const path: Point[] = [];
   let x = from.x;

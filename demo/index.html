@@ -3,32 +3,73 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Leutenheim — démo J1</title>
+<title>Leutenheim — démo J2</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #0c0b12; color: #d8d4e6;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 8px; }
-  #hud { font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-  .frame { height: min(calc(100vh - 110px), 640px); aspect-ratio: 9 / 14; max-width: 100%;
-    border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 6px; }
+  .col { width: min(100%, calc((100vh - 200px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  #hud-text { font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+  .hp { height: 6px; background: #3a1520; border-radius: 3px; overflow: hidden; }
+  #hp-fill { height: 100%; width: 100%; background: #e05060; transition: width 0.2s; }
+  .frame { position: relative; aspect-ratio: 9 / 13; border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
-  .bar { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #9a94b0; }
+  #over { position: absolute; inset: 0; background: rgba(12,11,18,0.82); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; font-size: 16px; }
+  #over[hidden] { display: none; }
+  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 62px; }
+  .die { flex: 0 0 54px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
+    border: 2px solid #5a5475; border-radius: 10px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
+  .die.hit { border-color: #5fd38d; color: #5fd38d; }
+  .die.miss { border-color: #77718f; color: #c9c4dc; }
+  .die.crit { border-color: #ffd75e; color: #ffd75e; }
+  .die.foe { background: #2a1620; }
+  #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
+  #log div:last-child { color: #e6e2f4; }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
+  .bar span { margin-left: auto; }
   button { background: #3a3550; color: #f0ecff; border: 0; border-radius: 8px; padding: 8px 14px;
     font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
   button:hover { background: #4b4560; }
 </style>
 </head>
 <body>
-  <div id="hud"></div>
-  <div class="frame"><canvas id="game"></canvas></div>
-  <div class="bar">
-    <button id="new-run" type="button">Nouvelle partie</button>
-    <span>Touchez une case pour vous y rendre. Molette ou deux doigts pour zoomer.</span>
+<div class="col">
+  <div id="hud-text"></div>
+  <div class="hp"><div id="hp-fill"></div></div>
+  <div class="frame">
+    <canvas id="game"></canvas>
+    <div id="over" hidden>
+      <div id="over-text"></div>
+      <button id="over-new-run" type="button">Nouvelle partie</button>
+    </div>
   </div>
+  <div class="panel">
+    <div id="die" class="die">d20</div>
+    <div id="log"></div>
+  </div>
+  <div class="bar">
+    <button id="wait" type="button">Attendre</button>
+    <button id="new-run" type="button">Nouvelle partie</button>
+    <span id="seed"></span>
+  </div>
+</div>
 <script>
 "use strict";
 (() => {
+  // src/data/classes.ts
+  var CLASSES = {
+    guerrier: {
+      id: "guerrier",
+      name: "Guerrier",
+      hp: 12,
+      armorClass: 15,
+      attackBonus: 4,
+      damage: { count: 1, sides: 8, bonus: 2 }
+    }
+  };
+
   // src/data/floors.ts
   var DEFAULT_FLOOR = {
     width: 32,
@@ -40,6 +81,70 @@
     extraLinks: 2,
     wideCorridorChance: 0.3
   };
+
+  // src/data/monsters.ts
+  var MONSTERS = {
+    schrat: {
+      id: "schrat",
+      name: "Schrat",
+      family: "schrats",
+      hp: 5,
+      armorClass: 12,
+      attackBonus: 2,
+      damage: { count: 1, sides: 4, bonus: 0 },
+      vision: 6,
+      noticeChance: 0.4,
+      color: "#d9763a"
+    }
+  };
+  function spawnsForDepth(depth) {
+    return {
+      roomChance: Math.min(0.3 + depth * 0.05, 0.7),
+      entries: [{ monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) }]
+    };
+  }
+
+  // src/data/races.ts
+  var RACES = {
+    humain: { id: "humain", name: "Humain", hpBonus: 2, vision: 7 }
+  };
+
+  // src/world/fov.ts
+  function hasLineOfSight(map, from, to) {
+    let x = from.x;
+    let y = from.y;
+    const dx = Math.abs(to.x - x);
+    const dy = Math.abs(to.y - y);
+    const sx = x < to.x ? 1 : -1;
+    const sy = y < to.y ? 1 : -1;
+    let err = dx - dy;
+    while (x !== to.x || y !== to.y) {
+      if ((x !== from.x || y !== from.y) && !map.isWalkable(x, y)) return false;
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+    return true;
+  }
+  function computeFov(map, origin, radius) {
+    const visible = new Uint8Array(map.width * map.height);
+    const limit = radius * radius + radius;
+    for (let y = origin.y - radius; y <= origin.y + radius; y++) {
+      for (let x = origin.x - radius; x <= origin.x + radius; x++) {
+        if (!map.inBounds(x, y)) continue;
+        const d2 = (x - origin.x) ** 2 + (y - origin.y) ** 2;
+        if (d2 > limit) continue;
+        if (hasLineOfSight(map, origin, { x, y })) visible[map.index(x, y)] = 1;
+      }
+    }
+    return visible;
+  }
 
   // src/core/rng.ts
   var Rng = class {
@@ -113,7 +218,7 @@
     }
     return true;
   }
-  function distanceField(map, from) {
+  function distanceField(map, from, allowed) {
     const dist = new Int32Array(map.width * map.height).fill(-1);
     const queue = [map.index(from.x, from.y)];
     dist[queue[0]] = 0;
@@ -123,6 +228,7 @@
       const cy = (cur - cx) / map.width;
       for (const d of DIRS) {
         if (!canStep(map, cx, cy, d.x, d.y)) continue;
+        if (allowed && !allowed(cx + d.x, cy + d.y)) continue;
         const next = map.index(cx + d.x, cy + d.y);
         if (dist[next] !== -1) continue;
         dist[next] = dist[cur] + 1;
@@ -131,9 +237,10 @@
     }
     return dist;
   }
-  function findPath(map, from, to) {
+  function findPath(map, from, to, allowed) {
     if (!map.isWalkable(to.x, to.y)) return null;
-    const dist = distanceField(map, to);
+    if (allowed && !allowed(to.x, to.y)) return null;
+    const dist = distanceField(map, to, allowed);
     if (dist[map.index(from.x, from.y)] === -1) return null;
     const path = [];
     let x = from.x;
@@ -254,50 +361,278 @@
     return { map, rooms, start, stairs };
   }
 
+  // src/core/dice.ts
+  function rollDice(rng, dice, critical = false) {
+    let total = dice.bonus;
+    const count = critical ? dice.count * 2 : dice.count;
+    for (let i = 0; i < count; i++) total += rng.int(1, dice.sides);
+    return Math.max(1, total);
+  }
+
+  // src/core/combat.ts
+  function rollAttack(rng, attacker, defender, mode = "normal") {
+    const rolls = [rng.int(1, 20)];
+    if (mode !== "normal") rolls.push(rng.int(1, 20));
+    const d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
+    const total = d20 + attacker.attackBonus;
+    const critical = d20 === 20;
+    const hit = critical || d20 !== 1 && total >= defender.armorClass;
+    return {
+      mode,
+      rolls,
+      d20,
+      bonus: attacker.attackBonus,
+      total,
+      targetAc: defender.armorClass,
+      hit,
+      critical,
+      damage: hit ? rollDice(rng, attacker.damage, critical) : 0
+    };
+  }
+
   // src/core/game.ts
   var Game = class {
-    constructor(runSeed, floorConfig = DEFAULT_FLOOR) {
+    constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR) {
       this.runSeed = runSeed;
+      this.race = race;
+      this.heroClass = heroClass;
       this.floorConfig = floorConfig;
       this.depth = 0;
       this.turn = 0;
-      this.hero = { x: 0, y: 0 };
+      this.over = false;
+      this.monsters = [];
       /** Cases restant à parcourir vers la destination choisie. */
       this.path = [];
+      /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
+      this.events = [];
+      this.nextId = 1;
+      this.targetId = null;
+      this.waiting = false;
+      this.seenMonsters = /* @__PURE__ */ new Set();
+      const maxHp = heroClass.hp + race.hpBonus;
+      this.hero = {
+        id: 0,
+        kind: "hero",
+        defId: "hero",
+        name: `${race.name} ${heroClass.name}`,
+        x: 0,
+        y: 0,
+        fromX: 0,
+        fromY: 0,
+        hp: maxHp,
+        maxHp,
+        armorClass: heroClass.armorClass,
+        attackBonus: heroClass.attackBonus,
+        damage: heroClass.damage,
+        vision: race.vision,
+        alerted: true
+      };
       this.enterFloor(1);
     }
+    // ---------- Mise en place d'un étage ----------
     enterFloor(depth) {
-      const floor = generateFloor(floorSeed(this.runSeed, depth), this.floorConfig);
+      const seed = floorSeed(this.runSeed, depth);
+      const floor = generateFloor(seed, this.floorConfig);
+      this.rng = new Rng(seed ^ 1540483477);
       this.depth = depth;
       this.map = floor.map;
-      this.hero = { ...floor.start };
+      this.hero.x = this.hero.fromX = floor.start.x;
+      this.hero.y = this.hero.fromY = floor.start.y;
       this.path = [];
+      this.targetId = null;
+      this.waiting = false;
+      this.explored = new Uint8Array(this.map.width * this.map.height);
+      this.spawnMonsters(floor.rooms);
+      this.seenMonsters.clear();
+      this.updateVision();
     }
-    /** Le joueur désigne une case : on calcule le chemin. Renvoie faux si elle est inaccessible. */
-    setDestination(x, y) {
-      const path = findPath(this.map, this.hero, { x, y });
+    spawnMonsters(rooms) {
+      this.monsters = [];
+      const spawns = spawnsForDepth(this.depth);
+      const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
+      for (const room of rooms.slice(1)) {
+        if (!this.rng.chance(spawns.roomChance)) continue;
+        let pick = this.rng.next() * totalWeight;
+        const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
+        const def = MONSTERS[entry.monster];
+        const count = this.rng.int(entry.packMin, entry.packMax);
+        for (let i = 0; i < count; i++) {
+          for (let attempt = 0; attempt < 20; attempt++) {
+            const x = this.rng.int(room.x, room.x + room.w - 1);
+            const y = this.rng.int(room.y, room.y + room.h - 1);
+            if (this.map.get(x, y) !== Tile.Floor || this.actorAt(x, y)) continue;
+            this.monsters.push({
+              id: this.nextId++,
+              kind: "monster",
+              defId: def.id,
+              name: def.name,
+              x,
+              y,
+              fromX: x,
+              fromY: y,
+              hp: def.hp,
+              maxHp: def.hp,
+              armorClass: def.armorClass,
+              attackBonus: def.attackBonus,
+              damage: def.damage,
+              vision: def.vision,
+              alerted: false
+            });
+            break;
+          }
+        }
+      }
+    }
+    // ---------- Consultation ----------
+    monsterAt(x, y) {
+      return this.monsters.find((m) => m.x === x && m.y === y);
+    }
+    actorAt(x, y) {
+      return this.hero.x === x && this.hero.y === y ? this.hero : this.monsterAt(x, y);
+    }
+    isVisible(x, y) {
+      return this.map.inBounds(x, y) && this.visible[this.map.index(x, y)] === 1;
+    }
+    isExplored(x, y) {
+      return this.map.inBounds(x, y) && this.explored[this.map.index(x, y)] === 1;
+    }
+    visibleMonsters() {
+      return this.monsters.filter((m) => this.isVisible(m.x, m.y));
+    }
+    // ---------- Ordres du joueur ----------
+    /**
+     * Le joueur désigne une case. Sur un monstre en vue : on va l'attaquer. Sur sa propre case : on attend un tour.
+     * Sinon on s'y rend. `ignoreFog` (réservé aux tests) autorise les cases jamais vues.
+     */
+    setDestination(x, y, ignoreFog = false) {
+      if (this.over) return false;
+      if (x === this.hero.x && y === this.hero.y) {
+        this.wait();
+        return true;
+      }
+      const seen = this.monsterAt(x, y);
+      const monster = seen && this.isVisible(x, y) ? seen : void 0;
+      const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isExplored(cx, cy);
+      const path = findPath(this.map, this.hero, { x, y }, known);
       if (!path) return false;
+      this.targetId = monster ? monster.id : null;
       this.path = path;
+      this.waiting = false;
       return true;
     }
-    /** Déplacement d'une case (clavier). */
+    /** Déplacement ou attaque d'une case (clavier). */
     moveBy(dx, dy) {
-      if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
+      if (this.over || !canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
+      this.targetId = null;
       this.path = [{ x: this.hero.x + dx, y: this.hero.y + dy }];
       return true;
     }
-    /** Joue un tour si une action est en attente. Renvoie vrai si un tour a été joué. */
+    /** Passer un tour sur place. */
+    wait() {
+      if (this.over) return;
+      this.path = [];
+      this.targetId = null;
+      this.waiting = true;
+    }
+    // ---------- Déroulement d'un tour ----------
+    /** Joue un tour (action du héros, puis des monstres) si une action est en attente. */
     tick() {
-      const next = this.path.shift();
-      if (!next) return false;
-      this.hero = next;
+      if (this.over) return false;
+      for (const a of [this.hero, ...this.monsters]) {
+        a.fromX = a.x;
+        a.fromY = a.y;
+      }
+      if (this.waiting) {
+        this.waiting = false;
+      } else {
+        if (this.targetId !== null) {
+          const target = this.monsters.find((m) => m.id === this.targetId);
+          this.path = target ? findPath(this.map, this.hero, target) ?? [] : [];
+          if (!target) this.targetId = null;
+        }
+        const next = this.path[0];
+        if (!next) return false;
+        const blocker = this.monsterAt(next.x, next.y);
+        if (blocker) {
+          this.heroAttacks(blocker);
+          this.path = [];
+          this.targetId = null;
+        } else {
+          this.path.shift();
+          this.hero.x = next.x;
+          this.hero.y = next.y;
+        }
+      }
       this.turn++;
+      this.updateVision();
+      this.monstersAct();
       return true;
     }
-    /** Si le héros est sur l'escalier, passe à l'étage suivant. */
+    heroAttacks(monster) {
+      const result = rollAttack(this.rng, this.hero, monster, monster.alerted ? "normal" : "advantage");
+      monster.alerted = true;
+      monster.hp -= result.damage;
+      this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
+      if (monster.hp <= 0) {
+        this.monsters = this.monsters.filter((m) => m !== monster);
+        this.events.push({ type: "death", actor: monster });
+      }
+    }
+    monstersAct() {
+      for (const m of [...this.monsters]) {
+        if (this.over) return;
+        const dx = this.hero.x - m.x;
+        const dy = this.hero.y - m.y;
+        const distance = Math.max(Math.abs(dx), Math.abs(dy));
+        if (!m.alerted) {
+          const def = MONSTERS[m.defId];
+          if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(def.noticeChance)) {
+            m.alerted = true;
+            this.events.push({ type: "noticed", actor: m });
+          }
+          continue;
+        }
+        if (distance === 1 && canStep(this.map, m.x, m.y, dx, dy)) {
+          const result = rollAttack(this.rng, m, this.hero);
+          this.hero.hp = Math.max(0, this.hero.hp - result.damage);
+          this.events.push({ type: "attack", attacker: m, target: this.hero, result });
+          if (this.hero.hp === 0) {
+            this.over = true;
+            this.path = [];
+            this.events.push({ type: "death", actor: this.hero });
+          }
+          continue;
+        }
+        const step = findPath(this.map, m, this.hero)?.[0];
+        if (step && !this.actorAt(step.x, step.y)) {
+          m.x = step.x;
+          m.y = step.y;
+        }
+      }
+    }
+    updateVision() {
+      this.visible = computeFov(this.map, this.hero, this.hero.vision);
+      for (let i = 0; i < this.visible.length; i++) {
+        if (this.visible[i]) this.explored[i] = 1;
+      }
+      for (const m of this.visibleMonsters()) {
+        if (!this.seenMonsters.has(m.id)) {
+          this.seenMonsters.add(m.id);
+          this.path = [];
+          this.targetId = null;
+        }
+      }
+    }
+    /**
+     * Si le héros est sur l'escalier, passe à l'étage suivant.
+     * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : descendre rend la moitié des PV manquants.
+     */
     descendIfOnStairs() {
-      if (this.map.get(this.hero.x, this.hero.y) !== Tile.StairsDown) return false;
+      if (this.over || this.map.get(this.hero.x, this.hero.y) !== Tile.StairsDown) return false;
+      const healed = Math.ceil((this.hero.maxHp - this.hero.hp) / 2);
+      this.hero.hp += healed;
       this.enterFloor(this.depth + 1);
+      this.events.push({ type: "descend", healed });
       return true;
     }
   };
@@ -375,14 +710,18 @@
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
   var MAX_COLUMNS = 28;
+  var FLOAT_MS = 800;
   var COLORS = {
-    background: "#14121c",
+    background: "#0c0b12",
     wall: "#2a2638",
     floor: "#4b4560",
+    fog: "rgba(12,11,18,0.6)",
     stairs: "#e0b040",
     hero: "#5fd38d",
     heroEdge: "#1d5c3a",
-    path: "rgba(255,255,255,0.35)"
+    path: "rgba(255,255,255,0.35)",
+    hpBack: "#3a1520",
+    hpFill: "#e05060"
   };
   var Renderer = class {
     constructor(canvas2) {
@@ -391,9 +730,9 @@
       this.height = 0;
       this.tile = 32;
       this.columns = COLUMNS;
-      // Positions affichées, qui glissent vers les positions réelles pour un mouvement fluide.
       this.camX = 0;
       this.camY = 0;
+      this.floats = [];
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -416,6 +755,11 @@
     snapTo(game2) {
       this.camX = game2.hero.x;
       this.camY = game2.hero.y;
+      this.floats = [];
+    }
+    /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
+    addFloatingText(x, y, text, color) {
+      this.floats.push({ x, y, text, color, age: 0 });
     }
     originX() {
       return this.width / 2 - (this.camX + 0.5) * this.tile;
@@ -430,9 +774,17 @@
         y: Math.floor((py - this.originY()) / this.tile)
       };
     }
-    /** `hero` est la position affichée du héros (entre deux cases pendant un pas), `dt` le temps écoulé en ms. */
-    draw(game2, hero, dt) {
+    /**
+     * `progress` (0 à 1) est l'avancement de l'animation du tour en cours : chaque acteur glisse
+     * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
+     */
+    draw(game2, progress, dt) {
       const { ctx, tile } = this;
+      const shown = (a) => ({
+        x: a.fromX + (a.x - a.fromX) * progress,
+        y: a.fromY + (a.y - a.fromY) * progress
+      });
+      const hero = shown(game2.hero);
       const follow = 1 - Math.exp(-dt / 140);
       this.camX += (hero.x - this.camX) * follow;
       this.camY += (hero.y - this.camY) * follow;
@@ -446,7 +798,7 @@
       const y1 = Math.ceil((this.height - oy) / tile);
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-          if (!game2.map.inBounds(x, y)) continue;
+          if (!game2.isExplored(x, y)) continue;
           const t = game2.map.get(x, y);
           const sx = ox + x * tile;
           const sy = oy + y * tile;
@@ -459,6 +811,10 @@
               ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), w, tile * 0.14);
             }
           }
+          if (!game2.isVisible(x, y)) {
+            ctx.fillStyle = COLORS.fog;
+            ctx.fillRect(sx, sy, tile, tile);
+          }
         }
       }
       ctx.fillStyle = COLORS.path;
@@ -468,6 +824,33 @@
         ctx.arc(ox + (p.x + 0.5) * tile, oy + (p.y + 0.5) * tile, tile * (last2 ? 0.22 : 0.08), 0, Math.PI * 2);
         ctx.fill();
       });
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (const m of game2.visibleMonsters()) {
+        const p = shown(m);
+        const cx = ox + (p.x + 0.5) * tile;
+        const cy = oy + (p.y + 0.5) * tile;
+        const r = tile * 0.36;
+        ctx.fillStyle = MONSTERS[m.defId]?.color ?? "#c04040";
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - r);
+        ctx.lineTo(cx + r, cy);
+        ctx.lineTo(cx, cy + r);
+        ctx.lineTo(cx - r, cy);
+        ctx.closePath();
+        ctx.fill();
+        if (!m.alerted) {
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `bold ${Math.round(tile * 0.36)}px system-ui, sans-serif`;
+          ctx.fillText("z", cx + tile * 0.3, cy - tile * 0.3);
+        }
+        if (m.hp < m.maxHp) {
+          ctx.fillStyle = COLORS.hpBack;
+          ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7, tile * 0.08);
+          ctx.fillStyle = COLORS.hpFill;
+          ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * (m.hp / m.maxHp), tile * 0.08);
+        }
+      }
       ctx.fillStyle = COLORS.hero;
       ctx.strokeStyle = COLORS.heroEdge;
       ctx.lineWidth = Math.max(2, tile * 0.08);
@@ -475,6 +858,20 @@
       ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      ctx.font = `bold ${Math.round(Math.max(13, tile * 0.42))}px system-ui, sans-serif`;
+      this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
+      for (const f of this.floats) {
+        const t = f.age / FLOAT_MS;
+        ctx.globalAlpha = 1 - t * t;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        const fx = ox + (f.x + 0.5) * tile;
+        const fy = oy + (f.y + 0.1 - t * 0.8) * tile;
+        ctx.strokeText(f.text, fx, fy);
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, fx, fy);
+      }
+      ctx.globalAlpha = 1;
     }
   };
 
@@ -485,18 +882,76 @@
     return 80;
   }
   var KEYBOARD_STEP_MS = 140;
-  var canvas = document.getElementById("game");
-  var hud = document.getElementById("hud");
-  var newRunButton = document.getElementById("new-run");
+  var COMBAT_STEP_MS = 170;
+  var LOG_LINES = 3;
+  var $ = (id) => document.getElementById(id);
+  var canvas = $("game");
+  var hudText = $("hud-text");
+  var hpFill = $("hp-fill");
+  var die = $("die");
+  var log = $("log");
+  var over = $("over");
+  var overText = $("over-text");
+  var seedLabel = $("seed");
   var renderer = new Renderer(canvas);
   var game;
+  var logLines = [];
   var stepMs = 125;
-  var stepFrom = null;
+  var stepping = false;
   var stepTime = 0;
   function newRun() {
     game = new Game(Math.floor(Math.random() * 4294967295));
-    stepFrom = null;
+    stepping = false;
+    logLines = [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
+    die.textContent = "d20";
+    die.className = "die";
+    over.hidden = true;
+    seedLabel.textContent = `Graine ${game.runSeed}`;
     renderer.snapTo(game);
+  }
+  function describe(e) {
+    const r = e.result;
+    const byHero = e.attacker.kind === "hero";
+    const who = byHero ? `Vous attaquez ${e.target.name}` : `${e.attacker.name} vous attaque`;
+    const outcome = r.critical ? `coup critique, ${r.damage} d\xE9g\xE2ts` : r.hit ? `touch\xE9, ${r.damage} d\xE9g\xE2ts` : r.d20 === 1 ? "\xE9chec critique" : "rat\xE9";
+    const mode = r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : "";
+    return `${who} : ${r.d20} + ${r.bonus} = ${r.total} contre CA ${r.targetAc}${mode} \u2014 ${outcome}`;
+  }
+  function showEvents() {
+    for (const e of game.events) {
+      if (e.type === "attack") {
+        const r = e.result;
+        logLines.push(describe(e));
+        die.textContent = String(r.d20);
+        die.className = `die ${r.critical ? "crit" : r.hit ? "hit" : "miss"} ${e.attacker.kind === "hero" ? "" : "foe"}`;
+        renderer.addFloatingText(
+          e.target.x,
+          e.target.y,
+          r.hit ? `-${r.damage}` : "Rat\xE9",
+          r.critical ? "#ffd75e" : r.hit ? e.target.kind === "hero" ? "#ff6b7a" : "#ffffff" : "#a8a2c0"
+        );
+      } else if (e.type === "death") {
+        if (e.actor.kind === "hero") {
+          overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
+          over.hidden = false;
+        } else {
+          logLines.push(`${e.actor.name} est vaincu.`);
+        }
+      } else if (e.type === "noticed") {
+        renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
+      } else if (e.type === "descend") {
+        logLines.push(`\xC9tage ${game.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}`);
+      }
+    }
+    game.events.length = 0;
+    logLines = logLines.slice(-LOG_LINES);
+    log.replaceChildren(
+      ...logLines.map((line) => {
+        const p = document.createElement("div");
+        p.textContent = line;
+        return p;
+      })
+    );
   }
   bindInput(canvas, {
     onTap(px, py) {
@@ -510,33 +965,40 @@
       renderer.zoomBy(factor);
     }
   });
-  newRunButton.addEventListener("click", newRun);
+  $("new-run").addEventListener("click", newRun);
+  $("over-new-run").addEventListener("click", newRun);
+  $("wait").addEventListener("click", () => {
+    game.wait();
+    stepMs = COMBAT_STEP_MS;
+  });
   window.addEventListener("resize", () => renderer.resize());
   var last = performance.now();
   function frame(now) {
     const dt = Math.min(now - last, 100);
     last = now;
-    if (stepFrom) {
+    if (stepping) {
       stepTime += dt;
       if (stepTime >= stepMs) {
         stepTime -= stepMs;
-        stepFrom = null;
+        stepping = false;
         if (game.descendIfOnStairs()) renderer.snapTo(game);
       }
     }
-    if (!stepFrom) {
-      const before = { ...game.hero };
-      if (game.tick()) stepFrom = before;
+    if (!stepping) {
+      if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
+      if (game.tick()) stepping = true;
       else stepTime = 0;
     }
-    const k = stepFrom ? Math.min(stepTime / stepMs, 1) : 1;
-    const shown = stepFrom ? { x: stepFrom.x + (game.hero.x - stepFrom.x) * k, y: stepFrom.y + (game.hero.y - stepFrom.y) * k } : game.hero;
-    renderer.draw(game, shown, dt);
-    hud.textContent = `\xC9tage ${game.depth} \xB7 Tour ${game.turn} \xB7 Graine ${game.runSeed}`;
+    if (game.events.length > 0) showEvents();
+    renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt);
+    hudText.textContent = `\xC9tage ${game.depth} \xB7 PV ${game.hero.hp}/${game.hero.maxHp} \xB7 CA ${game.hero.armorClass} \xB7 Tour ${game.turn}`;
+    hpFill.style.width = `${100 * game.hero.hp / game.hero.maxHp}%`;
     requestAnimationFrame(frame);
   }
   newRun();
+  showEvents();
   requestAnimationFrame(frame);
+  window.leutenheim = { game: () => game };
 })();
 
 </script>

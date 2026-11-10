@@ -1,4 +1,6 @@
 import { Game } from "../core/game";
+import { MONSTERS } from "../data/monsters";
+import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
@@ -6,15 +8,29 @@ const COLUMNS = 11;
 const MIN_COLUMNS = 6;
 const MAX_COLUMNS = 28;
 
+/** Durée de vie d'un texte flottant (dégâts, « Raté »), en ms. */
+const FLOAT_MS = 800;
+
 const COLORS = {
-  background: "#14121c",
+  background: "#0c0b12",
   wall: "#2a2638",
   floor: "#4b4560",
+  fog: "rgba(12,11,18,0.6)",
   stairs: "#e0b040",
   hero: "#5fd38d",
   heroEdge: "#1d5c3a",
   path: "rgba(255,255,255,0.35)",
+  hpBack: "#3a1520",
+  hpFill: "#e05060",
 };
+
+interface FloatingText {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  age: number;
+}
 
 /** Dessine l'état du jeu sur le Canvas. Design volontairement minimal : des formes colorées. */
 export class Renderer {
@@ -23,9 +39,9 @@ export class Renderer {
   private height = 0;
   private tile = 32;
   private columns = COLUMNS;
-  // Positions affichées, qui glissent vers les positions réelles pour un mouvement fluide.
   private camX = 0;
   private camY = 0;
+  private floats: FloatingText[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -53,6 +69,12 @@ export class Renderer {
   snapTo(game: Game): void {
     this.camX = game.hero.x;
     this.camY = game.hero.y;
+    this.floats = [];
+  }
+
+  /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
+  addFloatingText(x: number, y: number, text: string, color: string): void {
+    this.floats.push({ x, y, text, color, age: 0 });
   }
 
   private originX(): number {
@@ -71,9 +93,17 @@ export class Renderer {
     };
   }
 
-  /** `hero` est la position affichée du héros (entre deux cases pendant un pas), `dt` le temps écoulé en ms. */
-  draw(game: Game, hero: Point, dt: number): void {
+  /**
+   * `progress` (0 à 1) est l'avancement de l'animation du tour en cours : chaque acteur glisse
+   * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
+   */
+  draw(game: Game, progress: number, dt: number): void {
     const { ctx, tile } = this;
+    const shown = (a: Actor): Point => ({
+      x: a.fromX + (a.x - a.fromX) * progress,
+      y: a.fromY + (a.y - a.fromY) * progress,
+    });
+    const hero = shown(game.hero);
     const follow = 1 - Math.exp(-dt / 140);
     this.camX += (hero.x - this.camX) * follow;
     this.camY += (hero.y - this.camY) * follow;
@@ -83,30 +113,34 @@ export class Renderer {
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, this.width, this.height);
 
+    // Carte : rien pour les cases jamais vues, assombri pour les cases vues mais hors de vue.
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
     const x1 = Math.ceil((this.width - ox) / tile);
     const y1 = Math.ceil((this.height - oy) / tile);
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        if (!game.map.inBounds(x, y)) continue;
+        if (!game.isExplored(x, y)) continue;
         const t = game.map.get(x, y);
         const sx = ox + x * tile;
         const sy = oy + y * tile;
         ctx.fillStyle = t === Tile.Wall ? COLORS.wall : COLORS.floor;
         ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
         if (t === Tile.StairsDown) {
-          // Escalier : trois marches dorées.
           ctx.fillStyle = COLORS.stairs;
           for (let i = 0; i < 3; i++) {
             const w = tile * (0.3 + i * 0.2);
             ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), w, tile * 0.14);
           }
         }
+        if (!game.isVisible(x, y)) {
+          ctx.fillStyle = COLORS.fog;
+          ctx.fillRect(sx, sy, tile, tile);
+        }
       }
     }
 
-    // Chemin prévu : des points, et un anneau sur la destination.
+    // Chemin prévu : des points, et un rond sur la destination.
     ctx.fillStyle = COLORS.path;
     game.path.forEach((p, i) => {
       const last = i === game.path.length - 1;
@@ -114,6 +148,36 @@ export class Renderer {
       ctx.arc(ox + (p.x + 0.5) * tile, oy + (p.y + 0.5) * tile, tile * (last ? 0.22 : 0.08), 0, Math.PI * 2);
       ctx.fill();
     });
+
+    // Monstres en vue : un losange de la couleur de leur fiche.
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const m of game.visibleMonsters()) {
+      const p = shown(m);
+      const cx = ox + (p.x + 0.5) * tile;
+      const cy = oy + (p.y + 0.5) * tile;
+      const r = tile * 0.36;
+      ctx.fillStyle = MONSTERS[m.defId as keyof typeof MONSTERS]?.color ?? "#c04040";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      ctx.fill();
+      if (!m.alerted) {
+        // « z » : le monstre n'a pas remarqué le héros.
+        ctx.fillStyle = "#ffffff";
+        ctx.font = `bold ${Math.round(tile * 0.36)}px system-ui, sans-serif`;
+        ctx.fillText("z", cx + tile * 0.3, cy - tile * 0.3);
+      }
+      if (m.hp < m.maxHp) {
+        ctx.fillStyle = COLORS.hpBack;
+        ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7, tile * 0.08);
+        ctx.fillStyle = COLORS.hpFill;
+        ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7 * (m.hp / m.maxHp), tile * 0.08);
+      }
+    }
 
     // Héros : un disque vert.
     ctx.fillStyle = COLORS.hero;
@@ -123,5 +187,21 @@ export class Renderer {
     ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    // Textes flottants.
+    ctx.font = `bold ${Math.round(Math.max(13, tile * 0.42))}px system-ui, sans-serif`;
+    this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
+    for (const f of this.floats) {
+      const t = f.age / FLOAT_MS;
+      ctx.globalAlpha = 1 - t * t;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(0,0,0,0.7)";
+      const fx = ox + (f.x + 0.5) * tile;
+      const fy = oy + (f.y + 0.1 - t * 0.8) * tile;
+      ctx.strokeText(f.text, fx, fy);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, fx, fy);
+    }
+    ctx.globalAlpha = 1;
   }
 }

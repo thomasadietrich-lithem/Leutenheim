@@ -3,29 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Leutenheim — démo J1</title>
+<title>Leutenheim — démo J2</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #0c0b12; color: #d8d4e6;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 8px; }
-  #hud { font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-  .frame { height: min(calc(100vh - 110px), 640px); aspect-ratio: 9 / 14; max-width: 100%;
-    border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 6px; }
+  .col { width: min(100%, calc((100vh - 200px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  #hud-text { font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+  .hp { height: 6px; background: #3a1520; border-radius: 3px; overflow: hidden; }
+  #hp-fill { height: 100%; width: 100%; background: #e05060; transition: width 0.2s; }
+  .frame { position: relative; aspect-ratio: 9 / 13; border: 2px solid #3a3550; border-radius: 10px; overflow: hidden; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
-  .bar { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #9a94b0; }
+  #over { position: absolute; inset: 0; background: rgba(12,11,18,0.82); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; font-size: 16px; }
+  #over[hidden] { display: none; }
+  .panel { display: flex; gap: 8px; align-items: stretch; min-height: 62px; }
+  .die { flex: 0 0 54px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
+    border: 2px solid #5a5475; border-radius: 10px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
+  .die.hit { border-color: #5fd38d; color: #5fd38d; }
+  .die.miss { border-color: #77718f; color: #c9c4dc; }
+  .die.crit { border-color: #ffd75e; color: #ffd75e; }
+  .die.foe { background: #2a1620; }
+  #log { flex: 1; font-size: 11.5px; line-height: 1.35; color: #9a94b0; display: flex; flex-direction: column; justify-content: flex-end; }
+  #log div:last-child { color: #e6e2f4; }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #77718f; }
+  .bar span { margin-left: auto; }
   button { background: #3a3550; color: #f0ecff; border: 0; border-radius: 8px; padding: 8px 14px;
     font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
   button:hover { background: #4b4560; }
 </style>
 </head>
 <body>
-  <div id="hud"></div>
-  <div class="frame"><canvas id="game"></canvas></div>
-  <div class="bar">
-    <button id="new-run" type="button">Nouvelle partie</button>
-    <span>Touchez une case pour vous y rendre. Molette ou deux doigts pour zoomer.</span>
+<div class="col">
+  <div id="hud-text"></div>
+  <div class="hp"><div id="hp-fill"></div></div>
+  <div class="frame">
+    <canvas id="game"></canvas>
+    <div id="over" hidden>
+      <div id="over-text"></div>
+      <button id="over-new-run" type="button">Nouvelle partie</button>
+    </div>
   </div>
+  <div class="panel">
+    <div id="die" class="die">d20</div>
+    <div id="log"></div>
+  </div>
+  <div class="bar">
+    <button id="wait" type="button">Attendre</button>
+    <button id="new-run" type="button">Nouvelle partie</button>
+    <span id="seed"></span>
+  </div>
+</div>
 <script>
 /*__BUNDLE__*/
 </script>

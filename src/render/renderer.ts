@@ -16,7 +16,7 @@ const COLORS = {
   background: "#0c0b12",
   mortar: "#3c3f55",
   floor: "#4b4560",
-  sensed: "rgba(104,97,92,0.3)",
+  sensed: "rgba(75,69,96,0.3)",
   stairs: "#e0b040",
   door: "#8a5a2b",
   doorEdge: "#5a3817",
@@ -178,8 +178,10 @@ export class Renderer {
       ctx.fill();
     };
     if (part !== "front") {
-      // Empennage : une petite feuille bleue autour de la queue, la hampe passe par-dessus.
-      shape("#4a8fd0", [[-L * 0.2, 0], [-L * 0.36, -w * 2.3], [-L * 0.52, 0], [-L * 0.36, w * 2.3]]);
+      // Empennage : deux pennes bleues couchées vers l'arrière, qui laissent une encoche en V au talon.
+      for (const side of [-1, 1]) {
+        shape(side < 0 ? "#6aa8e0" : "#3a6fb0", [[-L * 0.2, (side * w) / 2], [-L * 0.34, side * w * 2.4], [-L * 0.56, side * w * 2.4], [-L * 0.44, (side * w) / 2]]);
+      }
     }
     // Hampe fine (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
     const [x0, x1] = part === "whole" ? [-L * 0.46, L * 0.26] : part === "front" ? [-L * 0.05, L * 0.26] : [-L * 0.46, -L * 0.08];
@@ -538,53 +540,29 @@ export class Renderer {
    */
   private drawFloor(x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
-    const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
-    const px = (gx: number, gy: number, w: number, h: number, color: string) => {
-      ctx.fillStyle = color;
-      ctx.fillRect(sx + gx * u, sy + gy * u, w * u + 0.5, h * u + 0.5);
-    };
-    // Joint sombre, puis la dalle de pierre grise, d'une teinte un peu différente à chaque case.
-    px(0, 0, 16, 16, "#37312e");
-    const light = 0.9 + 0.2 * noise(x, y, 20);
-    const tint = (r: number, g: number, b: number) => `rgb(${Math.round(r * light)},${Math.round(g * light)},${Math.round(b * light)})`;
-    px(0.5, 0.5, 15, 15, tint(104, 97, 92));
-    // Arêtes : un filet clair en haut et à gauche, sombre en bas et à droite.
-    px(0.5, 0.5, 15, 1, tint(124, 117, 110));
-    px(0.5, 0.5, 1, 15, tint(118, 111, 105));
-    px(0.5, 14.5, 15, 1, tint(80, 74, 70));
-    px(14.5, 0.5, 1, 15, tint(86, 80, 76));
-    // Coins ébréchés, au hasard.
-    for (const [i, cx, cy] of [[0, 0.5, 0.5], [1, 14.5, 0.5], [2, 0.5, 14.5], [3, 14.5, 14.5]]) {
-      if (noise(x, y, 50 + i) < 0.4) px(cx, cy, 1, 1, "#37312e");
-    }
-    // Stries en biais sur la pierre : quelques éraflures claires (gris-bleu), une plus chaude, une sombre.
-    const streaks = 3 + Math.floor(noise(x, y, 21) * 3);
-    for (let i = 0; i < streaks; i++) {
-      const ax = 2 + Math.floor(noise(x, y, 60 + i) * 9);
-      const ay = 5 + Math.floor(noise(x, y, 70 + i) * 8);
-      const len = 2 + Math.floor(noise(x, y, 80 + i) * 4);
-      const color = i === 0 ? tint(150, 140, 104) : i === 1 ? tint(78, 72, 68) : tint(128, 136, 142);
-      for (let k = 0; k < len; k++) {
-        if (ay - k >= 2 && ax + k <= 13) px(ax + k, ay - k, 1, 1, color);
+    const light = 0.92 + 0.16 * noise(x, y, 20);
+    ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
+    ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
+    const kind = noise(x, y, 21);
+    ctx.fillStyle = "rgba(20,18,30,0.45)";
+    ctx.strokeStyle = "rgba(20,18,30,0.45)";
+    ctx.lineWidth = Math.max(1, tile * 0.03);
+    if (kind < 0.09) {
+      // Fissure : une ligne brisée, rare.
+      const ax = 0.15 + 0.3 * noise(x, y, 24);
+      const ay = 0.15 + 0.7 * noise(x, y, 25);
+      ctx.beginPath();
+      ctx.moveTo(sx + ax * tile, sy + ay * tile);
+      ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
+      ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
+      ctx.stroke();
+    } else if (kind < 0.2) {
+      // Gravillons.
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
+        ctx.fill();
       }
-    }
-    const kind = noise(x, y, 22);
-    if (kind < 0.05) {
-      // Dalle fêlée, rare : une fissure en biais d'un bord à l'autre.
-      let cy = 3 + Math.floor(noise(x, y, 24) * 4);
-      for (let cx = 1; cx <= 14; cx++) {
-        px(cx, cy, 1, 1, "#2e2926");
-        if (noise(x + cx, y, 25) < 0.55) cy = Math.min(13, cy + 1);
-        if (cy > 12 && cx > 9) break;
-      }
-    } else if (kind < 0.065) {
-      // Dalle brisée, très rare : un trou sombre et un éclat de pierre de travers.
-      px(4, 6, 8, 6, "#2e2926");
-      px(3, 8, 2, 3, "#2e2926");
-      px(6, 5, 4, 1, "#2e2926");
-      px(7, 8, 5, 3, tint(118, 111, 105));
-      px(8, 7, 3, 1, tint(118, 111, 105));
-      px(5, 10, 2, 1, tint(96, 90, 85));
     }
   }
 

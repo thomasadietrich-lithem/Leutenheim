@@ -522,7 +522,7 @@ button("here-info", () => {
   $("found").hidden = false;
   foundOpen = true;
 });
-$("here-take").replaceChildren(uiIcon("bag"));
+$("here-take").replaceChildren(uiIcon("take"));
 $("here-take").setAttribute("aria-label", "Ramasser");
 $("here-info").setAttribute("aria-label", "Fiche de l'objet");
 

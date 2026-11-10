@@ -483,7 +483,8 @@ export class Game {
   setDestination(x: number, y: number, ignoreFog = false): boolean {
     if (this.over) return false;
     if (x === this.hero.x && y === this.hero.y) {
-      this.wait();
+      // Retoucher sa propre case : ramasser ce qui s'y trouve, sinon passer un tour.
+      if (!this.pickUp()) this.wait();
       return true;
     }
     if (this.map.get(x, y) === Tile.DoorLocked && (ignoreFog || this.isExplored(x, y))) {

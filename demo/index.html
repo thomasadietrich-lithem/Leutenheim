@@ -1691,7 +1691,7 @@
     setDestination(x, y, ignoreFog = false) {
       if (this.over) return false;
       if (x === this.hero.x && y === this.hero.y) {
-        this.wait();
+        if (!this.pickUp()) this.wait();
         return true;
       }
       if (this.map.get(x, y) === Tile.DoorLocked && (ignoreFog || this.isExplored(x, y))) {
@@ -3568,6 +3568,25 @@
       "................",
       "................"
     ],
+    /** Ramasser : une flèche dorée qui descend dans le sac ouvert. */
+    take: [
+      ".....KKKKKK.....",
+      ".....KGGGGK.....",
+      "...KKKGGGGKKK...",
+      "...KGGGGGGGGK...",
+      "....KGGGGGGK....",
+      ".....KGGGGK.....",
+      "..KKKKKGGKKKKK..",
+      "..KTTK.KK.KTTK..",
+      "..KTTKKKKKKTTK..",
+      "..KTTTTTTTTTTK..",
+      "..KTbbbbbbbbTK..",
+      "..KTTTTttTTTTK..",
+      "..KTTTTTTTTTTK..",
+      "..KTTTTTTTTTTK..",
+      "...KKKKKKKKKK...",
+      "................"
+    ],
     bag: [
       ".....KKKKKK.....",
       "....KB....BK....",
@@ -4046,7 +4065,7 @@
     $("found").hidden = false;
     foundOpen = true;
   });
-  $("here-take").replaceChildren(uiIcon("bag"));
+  $("here-take").replaceChildren(uiIcon("take"));
   $("here-take").setAttribute("aria-label", "Ramasser");
   $("here-info").setAttribute("aria-label", "Fiche de l'objet");
   for (const [id, icon, label] of [

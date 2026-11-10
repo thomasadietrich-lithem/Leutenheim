@@ -1116,3 +1116,19 @@ test("après 3 attaques ratées d'affilée, les suivantes sont aidées jusqu'au 
   assert.equal(game.heroMisses, 0);
   assert.equal(game.streakBonus(), 0);
 });
+
+test("retoucher sa propre case ramasse l'objet qui s'y trouve, sinon passe un tour", () => {
+  const game = new Game(3);
+  game.monsters = [];
+  game.ground = [{ x: game.hero.x, y: game.hero.y, item: "fleche", count: 2 }];
+  assert.ok(game.setDestination(game.hero.x, game.hero.y));
+  game.tick();
+  assert.equal(game.arrows(), 12);
+  assert.equal(game.ground.length, 0);
+  // Plus rien au sol : le même geste passe simplement un tour.
+  const turn = game.turn;
+  assert.ok(game.setDestination(game.hero.x, game.hero.y));
+  assert.ok(game.tick());
+  assert.equal(game.turn, turn + 1);
+  assert.equal(game.arrows(), 12);
+});

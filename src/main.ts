@@ -169,6 +169,7 @@ function reveal(e: GameEvent): void {
     const r = e.result;
     const foe = e.attacker.kind === "monster";
     logLines.push(describeAttack(e));
+    renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
     renderer.addFloatingText(
       e.target.x,

@@ -58,7 +58,30 @@ export function computeFov(
       if (hasLineOfSight(map, origin, { x, y })) visible[i] = 1;
     }
   }
+  spreadToWalls(map, visible);
   return visible;
+}
+
+/**
+ * Complète une carte (vision ou lumière) : un mur ou une porte qui touche une case dégagée déjà atteinte
+ * l'est aussi. Sans cela, les coins des salles restent invisibles à cause de l'angle.
+ */
+function spreadToWalls(map: GameMap, values: Uint8Array | Float32Array): void {
+  const found: [number, number][] = [];
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const v = values[map.index(x, y)];
+      if (v <= 0 || map.blocksSight(x, y)) continue;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!map.inBounds(x + dx, y + dy) || !map.blocksSight(x + dx, y + dy)) continue;
+          const n = map.index(x + dx, y + dy);
+          if (values[n] < v) found.push([n, v]);
+        }
+      }
+    }
+  }
+  for (const [n, v] of found) values[n] = Math.max(values[n], v);
 }
 
 /** Carte d'éclairage : pour chaque case, 0 (noir) à 1 (au pied d'une torche). */
@@ -75,5 +98,6 @@ export function computeLight(map: GameMap, sources: readonly LightSource[]): Flo
       }
     }
   }
+  spreadToWalls(map, light);
   return light;
 }

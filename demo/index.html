@@ -436,7 +436,25 @@
         if (hasLineOfSight(map, origin, { x, y })) visible[i] = 1;
       }
     }
+    spreadToWalls(map, visible);
     return visible;
+  }
+  function spreadToWalls(map, values) {
+    const found = [];
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const v = values[map.index(x, y)];
+        if (v <= 0 || map.blocksSight(x, y)) continue;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!map.inBounds(x + dx, y + dy) || !map.blocksSight(x + dx, y + dy)) continue;
+            const n = map.index(x + dx, y + dy);
+            if (values[n] < v) found.push([n, v]);
+          }
+        }
+      }
+    }
+    for (const [n, v] of found) values[n] = Math.max(values[n], v);
   }
   function computeLight(map, sources) {
     const light = new Float32Array(map.width * map.height);
@@ -451,6 +469,7 @@
         }
       }
     }
+    spreadToWalls(map, light);
     return light;
   }
 
@@ -1215,6 +1234,7 @@
     h = Math.imul(h ^ h >>> 13, 1274126177);
     return ((h ^ h >>> 16) >>> 0) / 4294967296;
   }
+  var SLASH_MS = 220;
   var Renderer = class {
     constructor(canvas2) {
       this.canvas = canvas2;
@@ -1226,6 +1246,7 @@
       this.camY = 0;
       this.time = 0;
       this.floats = [];
+      this.slashes = [];
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -1249,10 +1270,15 @@
       this.camX = game2.hero.x;
       this.camY = game2.hero.y;
       this.floats = [];
+      this.slashes = [];
     }
     /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
     addFloatingText(x, y, text, color) {
       this.floats.push({ x, y, text, color, age: 0 });
+    }
+    /** Anime une attaque : l'attaquant s'élance vers sa cible et une lame balaie la case visée. */
+    addSlash(attackerId, fromX, fromY, x, y, color) {
+      this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0 });
     }
     originX() {
       return this.width / 2 - (this.camX + 0.5) * this.tile;
@@ -1275,10 +1301,17 @@
     draw(game2, progress, dt, ghosts2 = []) {
       const { ctx, tile } = this;
       this.time += dt;
-      const shown = (a) => ({
-        x: a.fromX + (a.x - a.fromX) * progress,
-        y: a.fromY + (a.y - a.fromY) * progress
-      });
+      this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
+      const shown = (a) => {
+        const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
+        const s = this.slashes.find((sl) => sl.attackerId === a.id);
+        if (s) {
+          const push = 0.32 * Math.sin(Math.PI * s.age / SLASH_MS);
+          p.x += Math.sign(s.x - s.fromX) * push;
+          p.y += Math.sign(s.y - s.fromY) * push;
+        }
+        return p;
+      };
       const hero = shown(game2.hero);
       const follow = 1 - Math.exp(-dt / 140);
       this.camX += (hero.x - this.camX) * follow;
@@ -1332,15 +1365,26 @@
       }
       for (const torch of game2.torches) {
         if (!game2.isExplored(torch.x, torch.y)) continue;
-        const cx = ox + (torch.x + 0.5) * tile;
-        const cy = oy + (torch.y + 0.5) * tile;
+        let fx = 0;
+        let fy = 0;
+        for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+          if (game2.map.isWalkable(torch.x + dx, torch.y + dy)) {
+            fx = dx;
+            fy = dy;
+            break;
+          }
+        }
+        const cx = ox + (torch.x + 0.5 + fx * 0.36) * tile;
+        const cy = oy + (torch.y + 0.5 + fy * 0.36) * tile;
+        ctx.fillStyle = "#3a2a1a";
+        ctx.fillRect(cx - tile * 0.05 - fx * tile * 0.1, cy - tile * 0.05 - fy * tile * 0.1 + tile * 0.08, tile * 0.1, tile * 0.16);
         ctx.fillStyle = "#ff8a2a";
         ctx.beginPath();
-        ctx.arc(cx, cy, tile * 0.2 * flicker, 0, Math.PI * 2);
+        ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = "#ffe08a";
         ctx.beginPath();
-        ctx.arc(cx, cy + tile * 0.03, tile * 0.1 * flicker, 0, Math.PI * 2);
+        ctx.arc(cx, cy + tile * 0.02, tile * 0.08 * flicker, 0, Math.PI * 2);
         ctx.fill();
       }
       if (game2.pendingDoor) {
@@ -1389,6 +1433,22 @@
       ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      for (const s of this.slashes) {
+        const t = s.age / SLASH_MS;
+        const cx = ox + (s.x + 0.5) * tile;
+        const cy = oy + (s.y + 0.5) * tile;
+        const facing = Math.atan2(s.y - s.fromY, s.x - s.fromX);
+        const sweep = Math.min(1, t * 1.6);
+        ctx.strokeStyle = s.color;
+        ctx.globalAlpha = 1 - t * t;
+        ctx.lineCap = "round";
+        ctx.lineWidth = Math.max(2, tile * 0.11 * (1 - t * 0.6));
+        ctx.beginPath();
+        ctx.arc(cx - Math.cos(facing) * tile * 0.25, cy - Math.sin(facing) * tile * 0.25, tile * 0.42, facing - 1.1, facing - 1.1 + 2.2 * sweep);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.lineCap = "butt";
       ctx.font = `bold ${Math.round(Math.max(13, tile * 0.42))}px system-ui, sans-serif`;
       this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
       for (const f of this.floats) {
@@ -1418,9 +1478,7 @@
       ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
       for (let r = 0; r < rows; r++) {
         const row = y * rows + r;
-        const cuts = [0, 0.18 + 0.3 * noise(x, row, 1)];
-        if (noise(x, row, 2) > 0.35) cuts.push(cuts[1] + 0.28 + 0.2 * noise(x, row, 3));
-        cuts.push(1);
+        const cuts = [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
         for (let i = 0; i + 1 < cuts.length; i++) {
           const first = i === 0;
           const last2 = i + 2 === cuts.length;
@@ -1583,6 +1641,7 @@
       const r = e.result;
       const foe = e.attacker.kind === "monster";
       logLines.push(describeAttack(e));
+      renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
       landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe);
       renderer.addFloatingText(
         e.target.x,

@@ -34,6 +34,20 @@ function noise(a: number, b: number, c: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Durée d'un coup (élan de l'attaquant + trace de la lame), en ms. */
+const SLASH_MS = 220;
+
+/** Un coup porté de (fromX, fromY) vers (x, y). */
+interface Slash {
+  attackerId: number;
+  fromX: number;
+  fromY: number;
+  x: number;
+  y: number;
+  color: string;
+  age: number;
+}
+
 interface FloatingText {
   x: number;
   y: number;
@@ -53,6 +67,7 @@ export class Renderer {
   private camY = 0;
   private time = 0;
   private floats: FloatingText[] = [];
+  private slashes: Slash[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -81,11 +96,17 @@ export class Renderer {
     this.camX = game.hero.x;
     this.camY = game.hero.y;
     this.floats = [];
+    this.slashes = [];
   }
 
   /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
   addFloatingText(x: number, y: number, text: string, color: string): void {
     this.floats.push({ x, y, text, color, age: 0 });
+  }
+
+  /** Anime une attaque : l'attaquant s'élance vers sa cible et une lame balaie la case visée. */
+  addSlash(attackerId: number, fromX: number, fromY: number, x: number, y: number, color: string): void {
+    this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0 });
   }
 
   private originX(): number {
@@ -112,10 +133,18 @@ export class Renderer {
   draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = []): void {
     const { ctx, tile } = this;
     this.time += dt;
-    const shown = (a: Actor): Point => ({
-      x: a.fromX + (a.x - a.fromX) * progress,
-      y: a.fromY + (a.y - a.fromY) * progress,
-    });
+    this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
+    const shown = (a: Actor): Point => {
+      const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
+      // Élan : l'attaquant avance d'un tiers de case vers sa cible, puis revient.
+      const s = this.slashes.find((sl) => sl.attackerId === a.id);
+      if (s) {
+        const push = 0.32 * Math.sin((Math.PI * s.age) / SLASH_MS);
+        p.x += Math.sign(s.x - s.fromX) * push;
+        p.y += Math.sign(s.y - s.fromY) * push;
+      }
+      return p;
+    };
     const hero = shown(game.hero);
     const follow = 1 - Math.exp(-dt / 140);
     this.camX += (hero.x - this.camX) * follow;
@@ -178,15 +207,28 @@ export class Renderer {
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
       if (!game.isExplored(torch.x, torch.y)) continue;
-      const cx = ox + (torch.x + 0.5) * tile;
-      const cy = oy + (torch.y + 0.5) * tile;
+      // Accrochée à la face du mur qui donne sur la salle, pas au milieu de la case.
+      let fx = 0;
+      let fy = 0;
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        if (game.map.isWalkable(torch.x + dx, torch.y + dy)) {
+          fx = dx;
+          fy = dy;
+          break;
+        }
+      }
+      const cx = ox + (torch.x + 0.5 + fx * 0.36) * tile;
+      const cy = oy + (torch.y + 0.5 + fy * 0.36) * tile;
+      // Support de la torche.
+      ctx.fillStyle = "#3a2a1a";
+      ctx.fillRect(cx - tile * 0.05 - fx * tile * 0.1, cy - tile * 0.05 - fy * tile * 0.1 + tile * 0.08, tile * 0.1, tile * 0.16);
       ctx.fillStyle = "#ff8a2a";
       ctx.beginPath();
-      ctx.arc(cx, cy, tile * 0.2 * flicker, 0, Math.PI * 2);
+      ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#ffe08a";
       ctx.beginPath();
-      ctx.arc(cx, cy + tile * 0.03, tile * 0.1 * flicker, 0, Math.PI * 2);
+      ctx.arc(cx, cy + tile * 0.02, tile * 0.08 * flicker, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -245,6 +287,24 @@ export class Renderer {
     ctx.fill();
     ctx.stroke();
 
+    // Coups d'épée ou de griffe : un arc qui balaie la case visée, perpendiculaire à la direction du coup.
+    for (const s of this.slashes) {
+      const t = s.age / SLASH_MS;
+      const cx = ox + (s.x + 0.5) * tile;
+      const cy = oy + (s.y + 0.5) * tile;
+      const facing = Math.atan2(s.y - s.fromY, s.x - s.fromX);
+      const sweep = Math.min(1, t * 1.6); // la lame parcourt l'arc pendant les deux premiers tiers
+      ctx.strokeStyle = s.color;
+      ctx.globalAlpha = 1 - t * t;
+      ctx.lineCap = "round";
+      ctx.lineWidth = Math.max(2, tile * 0.11 * (1 - t * 0.6));
+      ctx.beginPath();
+      ctx.arc(cx - Math.cos(facing) * tile * 0.25, cy - Math.sin(facing) * tile * 0.25, tile * 0.42, facing - 1.1, facing - 1.1 + 2.2 * sweep);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = "butt";
+
     // Textes flottants.
     ctx.font = `bold ${Math.round(Math.max(13, tile * 0.42))}px system-ui, sans-serif`;
     this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
@@ -276,10 +336,8 @@ export class Renderer {
     ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
     for (let r = 0; r < rows; r++) {
       const row = y * rows + r;
-      // Un ou deux joints verticaux par rangée, à des positions irrégulières.
-      const cuts = [0, 0.18 + 0.3 * noise(x, row, 1)];
-      if (noise(x, row, 2) > 0.35) cuts.push(cuts[1] + 0.28 + 0.2 * noise(x, row, 3));
-      cuts.push(1);
+      // Deux joints par rangée : aucune brique ne dépasse environ deux tiers de case, même à cheval sur deux cases.
+      const cuts = [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
       for (let i = 0; i + 1 < cuts.length; i++) {
         const first = i === 0;
         const last = i + 2 === cuts.length;

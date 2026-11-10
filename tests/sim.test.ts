@@ -60,7 +60,9 @@ test("lumière : une case éclairée voit une torche ; la lumière ne fait qu'ag
     const light = computeLight(map, torches);
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
-        if (light[map.index(x, y)] > 0) assert.ok(torches.some((t) => hasLineOfSight(map, t, { x, y })));
+        if (light[map.index(x, y)] > 0 && !map.blocksSight(x, y)) {
+          assert.ok(torches.some((t) => hasLineOfSight(map, t, { x, y })));
+        }
       }
     }
     assert.ok(light[map.index(start.x, start.y)] >= 0); // la salle de départ a une torche
@@ -176,8 +178,12 @@ test("champ de vision : le héros se voit, rien n'est vu au-delà du rayon ni à
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         if (!fov[map.index(x, y)]) continue;
-        assert.ok(Math.hypot(x - start.x, y - start.y) <= 8);
-        assert.ok(hasLineOfSight(map, start, { x, y }));
+        assert.ok(Math.hypot(x - start.x, y - start.y) <= 9.5);
+        // Un mur est vu s'il touche une case dégagée visible (coins de salle) ; le reste exige une ligne de vue.
+        const touchesSeenFloor = [-1, 0, 1].some((dy) =>
+          [-1, 0, 1].some((dx) => !map.blocksSight(x + dx, y + dy) && fov[map.index(x + dx, y + dy)] === 1),
+        );
+        assert.ok(hasLineOfSight(map, start, { x, y }) || (map.blocksSight(x, y) && touchesSeenFloor));
       }
     }
   }

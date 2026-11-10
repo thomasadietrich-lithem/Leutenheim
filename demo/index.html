@@ -27,7 +27,8 @@
   .panel { display: flex; gap: 8px; align-items: stretch; min-height: 76px; }
   .dice { flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .die { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
-    border: 2px solid #5a5475; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums; }
+    border: 2px solid #3a3550; border-radius: 12px; background: #1c1a28; color: #9a94b0; font-variant-numeric: tabular-nums;
+    transition: border-color 0.25s, box-shadow 0.25s; }
   .die.hit { border-color: #5fd38d; color: #5fd38d; }
   .die.miss { border-color: #77718f; color: #c9c4dc; }
   .die.crit { border-color: #ffd75e; color: #ffd75e; box-shadow: 0 0 14px rgba(255,215,94,0.6); }
@@ -66,7 +67,7 @@
     </div>
   </div>
   <div class="panel">
-    <div class="dice"><div id="die" class="die">d20</div><div id="die-who"></div></div>
+    <div class="dice"><div id="die" class="die"></div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   <div class="bar">
@@ -1311,6 +1312,7 @@
   var ROLL_MS = 420;
   var HOLD_HERO_MS = 240;
   var HOLD_FOE_MS = 520;
+  var DIE_CLEAR_MS = 900;
   var LOG_LINES = 3;
   var OPTIONS_KEY = "leutenheim.options";
   var $ = (id) => document.getElementById(id);
@@ -1347,6 +1349,7 @@
   var queue = [];
   var cue = null;
   var ghosts = [];
+  var dieIdle = 0;
   var stepMs = 125;
   var stepping = false;
   var stepTime = 0;
@@ -1359,12 +1362,15 @@
     shownHp = game.hero.hp;
     logLines = [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
     renderLog();
-    die.textContent = "d20";
-    die.className = "die";
-    dieWho.textContent = "";
+    clearDie();
     over.hidden = true;
     seedLabel.textContent = `Graine ${game.runSeed}`;
     renderer.snapTo(game);
+  }
+  function clearDie() {
+    die.textContent = "";
+    die.className = "die";
+    dieWho.textContent = "";
   }
   function renderLog() {
     logLines = logLines.slice(-LOG_LINES);
@@ -1542,6 +1548,8 @@
     const dt = Math.min(now - last, 100);
     last = now;
     advanceCues(dt);
+    dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
+    if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
     if (stepping) {
       stepTime += dt;
       if (stepTime >= stepMs) {

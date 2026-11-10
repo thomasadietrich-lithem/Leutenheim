@@ -18,6 +18,8 @@ const COMBAT_STEP_MS = 170;
 const ROLL_MS = 420;
 const HOLD_HERO_MS = 240;
 const HOLD_FOE_MS = 520; // un peu plus long pour les attaques ennemies, pour avoir le temps de les lire
+/** Le dé se vide ce délai après le dernier résultat affiché. */
+const DIE_CLEAR_MS = 900;
 const LOG_LINES = 3;
 const OPTIONS_KEY = "leutenheim.options";
 
@@ -68,6 +70,7 @@ let cue: { event: GameEvent; time: number; revealed: boolean; lastFace: number }
 /** Monstres vaincus dont la mort n'a pas encore été montrée : on continue de les dessiner. */
 let ghosts: Actor[] = [];
 
+let dieIdle = 0;
 let stepMs = 125;
 let stepping = false;
 let stepTime = 0;
@@ -82,12 +85,17 @@ function newRun(): void {
   shownHp = game.hero.hp;
   logLines = [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
   renderLog();
-  die.textContent = "d20";
-  die.className = "die";
-  dieWho.textContent = "";
+  clearDie();
   over.hidden = true;
   seedLabel.textContent = `Graine ${game.runSeed}`;
   renderer.snapTo(game);
+}
+
+/** Le dé redevient vide : il ne montre un nombre que pendant et juste après un jet. */
+function clearDie(): void {
+  die.textContent = "";
+  die.className = "die";
+  dieWho.textContent = "";
 }
 
 function renderLog(): void {
@@ -305,6 +313,8 @@ function frame(now: number): void {
   last = now;
 
   advanceCues(dt);
+  dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
+  if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
 
   if (stepping) {
     stepTime += dt;

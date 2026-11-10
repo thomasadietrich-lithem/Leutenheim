@@ -26,18 +26,28 @@ function tooClose(a: Room, b: Room): boolean {
   return a.x - 1 < b.x + b.w && a.x + a.w + 1 > b.x && a.y - 1 < b.y + b.h && a.y + a.h + 1 > b.y;
 }
 
-function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point): void {
+function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point, wideChance: number): void {
   const horizontalFirst = rng.chance(0.5);
+  const wide = rng.chance(wideChance);
+  // Creuse une case, ou un carré de 2×2 pour un couloir double (sans jamais percer le bord).
+  const dig = (cx: number, cy: number) => {
+    const size = wide ? 2 : 1;
+    for (let oy = 0; oy < size; oy++) {
+      for (let ox = 0; ox < size; ox++) {
+        if (cx + ox <= map.width - 2 && cy + oy <= map.height - 2) map.set(cx + ox, cy + oy, Tile.Floor);
+      }
+    }
+  };
   let { x, y } = a;
   const walkX = () => {
     while (x !== b.x) {
-      map.set(x, y, Tile.Floor);
+      dig(x, y);
       x += Math.sign(b.x - x);
     }
   };
   const walkY = () => {
     while (y !== b.y) {
-      map.set(x, y, Tile.Floor);
+      dig(x, y);
       y += Math.sign(b.y - y);
     }
   };
@@ -48,7 +58,7 @@ function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point): void {
     walkY();
     walkX();
   }
-  map.set(x, y, Tile.Floor);
+  dig(x, y);
 }
 
 /** Génère un étage : des salles, reliées par des couloirs, un départ et un escalier. */
@@ -90,7 +100,7 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
       });
     });
     const room = pending.splice(best.p, 1)[0];
-    carveCorridor(map, rng, center(room), center(linked[best.l]));
+    carveCorridor(map, rng, center(room), center(linked[best.l]), cfg.wideCorridorChance);
     linked.push(room);
   }
 
@@ -98,7 +108,7 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
   for (let i = 0; i < cfg.extraLinks && rooms.length > 2; i++) {
     const a = rooms[rng.int(0, rooms.length - 1)];
     const b = rooms[rng.int(0, rooms.length - 1)];
-    if (a !== b) carveCorridor(map, rng, center(a), center(b));
+    if (a !== b) carveCorridor(map, rng, center(a), center(b), cfg.wideCorridorChance);
   }
 
   // 4. Départ dans la première salle, escalier dans la salle la plus éloignée.

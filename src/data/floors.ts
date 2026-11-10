@@ -9,6 +9,8 @@ export interface FloorConfig {
   roomMaxSize: number;
   /** Couloirs supplémentaires, pour créer des boucles. */
   extraLinks: number;
+  /** Probabilité qu'un couloir fasse deux cases de large. */
+  wideCorridorChance: number;
 }
 
 export const DEFAULT_FLOOR: FloorConfig = {
@@ -19,4 +21,5 @@ export const DEFAULT_FLOOR: FloorConfig = {
   roomMinSize: 4,
   roomMaxSize: 8,
   extraLinks: 2,
+  wideCorridorChance: 0.3,
 };

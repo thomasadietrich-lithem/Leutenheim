@@ -37,7 +37,8 @@
     minRooms: 4,
     roomMinSize: 4,
     roomMaxSize: 8,
-    extraLinks: 2
+    extraLinks: 2,
+    wideCorridorChance: 0.3
   };
 
   // src/core/rng.ts
@@ -162,18 +163,27 @@
   function tooClose(a, b) {
     return a.x - 1 < b.x + b.w && a.x + a.w + 1 > b.x && a.y - 1 < b.y + b.h && a.y + a.h + 1 > b.y;
   }
-  function carveCorridor(map, rng, a, b) {
+  function carveCorridor(map, rng, a, b, wideChance) {
     const horizontalFirst = rng.chance(0.5);
+    const wide = rng.chance(wideChance);
+    const dig = (cx, cy) => {
+      const size = wide ? 2 : 1;
+      for (let oy = 0; oy < size; oy++) {
+        for (let ox = 0; ox < size; ox++) {
+          if (cx + ox <= map.width - 2 && cy + oy <= map.height - 2) map.set(cx + ox, cy + oy, Tile.Floor);
+        }
+      }
+    };
     let { x, y } = a;
     const walkX = () => {
       while (x !== b.x) {
-        map.set(x, y, Tile.Floor);
+        dig(x, y);
         x += Math.sign(b.x - x);
       }
     };
     const walkY = () => {
       while (y !== b.y) {
-        map.set(x, y, Tile.Floor);
+        dig(x, y);
         y += Math.sign(b.y - y);
       }
     };
@@ -184,7 +194,7 @@
       walkY();
       walkX();
     }
-    map.set(x, y, Tile.Floor);
+    dig(x, y);
   }
   function generateFloor(seed, cfg) {
     const rng = new Rng(seed);
@@ -208,10 +218,10 @@
       }
     }
     const linked = [rooms[0]];
-    const pending2 = rooms.slice(1);
-    while (pending2.length > 0) {
+    const pending = rooms.slice(1);
+    while (pending.length > 0) {
       let best = { p: 0, l: 0, d: Infinity };
-      pending2.forEach((pr, p) => {
+      pending.forEach((pr, p) => {
         linked.forEach((lr, l) => {
           const a = center(pr);
           const b = center(lr);
@@ -219,14 +229,14 @@
           if (d < best.d) best = { p, l, d };
         });
       });
-      const room = pending2.splice(best.p, 1)[0];
-      carveCorridor(map, rng, center(room), center(linked[best.l]));
+      const room = pending.splice(best.p, 1)[0];
+      carveCorridor(map, rng, center(room), center(linked[best.l]), cfg.wideCorridorChance);
       linked.push(room);
     }
     for (let i = 0; i < cfg.extraLinks && rooms.length > 2; i++) {
       const a = rooms[rng.int(0, rooms.length - 1)];
       const b = rooms[rng.int(0, rooms.length - 1)];
-      if (a !== b) carveCorridor(map, rng, center(a), center(b));
+      if (a !== b) carveCorridor(map, rng, center(a), center(b), cfg.wideCorridorChance);
     }
     const start = center(rooms[0]);
     const dist = distanceField(map, start);
@@ -282,9 +292,12 @@
       if (!next) return false;
       this.hero = next;
       this.turn++;
-      if (this.map.get(next.x, next.y) === Tile.StairsDown) {
-        this.enterFloor(this.depth + 1);
-      }
+      return true;
+    }
+    /** Si le héros est sur l'escalier, passe à l'étage suivant. */
+    descendIfOnStairs() {
+      if (this.map.get(this.hero.x, this.hero.y) !== Tile.StairsDown) return false;
+      this.enterFloor(this.depth + 1);
       return true;
     }
   };
@@ -330,8 +343,6 @@
       // Positions affichées, qui glissent vers les positions réelles pour un mouvement fluide.
       this.camX = 0;
       this.camY = 0;
-      this.heroX = 0;
-      this.heroY = 0;
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -347,8 +358,8 @@
     }
     /** Recentre immédiatement la vue (nouvel étage). */
     snapTo(game2) {
-      this.camX = this.heroX = game2.hero.x;
-      this.camY = this.heroY = game2.hero.y;
+      this.camX = game2.hero.x;
+      this.camY = game2.hero.y;
     }
     originX() {
       return this.width / 2 - (this.camX + 0.5) * this.tile;
@@ -363,12 +374,12 @@
         y: Math.floor((py - this.originY()) / this.tile)
       };
     }
-    draw(game2) {
+    /** `hero` est la position affichée du héros (entre deux cases pendant un pas), `dt` le temps écoulé en ms. */
+    draw(game2, hero, dt) {
       const { ctx, tile } = this;
-      this.heroX += (game2.hero.x - this.heroX) * 0.35;
-      this.heroY += (game2.hero.y - this.heroY) * 0.35;
-      this.camX += (game2.hero.x - this.camX) * 0.15;
-      this.camY += (game2.hero.y - this.camY) * 0.15;
+      const follow = 1 - Math.exp(-dt / 140);
+      this.camX += (hero.x - this.camX) * follow;
+      this.camY += (hero.y - this.camY) * follow;
       const ox = this.originX();
       const oy = this.originY();
       ctx.fillStyle = COLORS.background;
@@ -405,7 +416,7 @@
       ctx.strokeStyle = COLORS.heroEdge;
       ctx.lineWidth = Math.max(2, tile * 0.08);
       ctx.beginPath();
-      ctx.arc(ox + (this.heroX + 0.5) * tile, oy + (this.heroY + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
+      ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
@@ -413,47 +424,56 @@
 
   // src/main.ts
   function stepDuration(pathLength) {
-    if (pathLength <= 3) return 220;
-    if (pathLength <= 7) return 150;
-    return 90;
+    if (pathLength <= 3) return 180;
+    if (pathLength <= 7) return 125;
+    return 80;
   }
-  var turnMs = 150;
+  var KEYBOARD_STEP_MS = 140;
   var canvas = document.getElementById("game");
   var hud = document.getElementById("hud");
   var newRunButton = document.getElementById("new-run");
   var renderer = new Renderer(canvas);
   var game;
+  var stepMs = 125;
+  var stepFrom = null;
+  var stepTime = 0;
   function newRun() {
     game = new Game(Math.floor(Math.random() * 4294967295));
+    stepFrom = null;
     renderer.snapTo(game);
   }
   bindInput(
     canvas,
     (px, py) => {
       const t = renderer.screenToTile(px, py);
-      if (game.setDestination(t.x, t.y)) {
-        turnMs = stepDuration(game.path.length);
-        pending = turnMs;
-      }
+      if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
     },
     (dx, dy) => {
-      if (game.path.length === 0 && game.moveBy(dx, dy)) turnMs = 170;
+      if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
     }
   );
   newRunButton.addEventListener("click", newRun);
   window.addEventListener("resize", () => renderer.resize());
   var last = performance.now();
-  var pending = 0;
   function frame(now) {
-    pending += Math.min(now - last, 250);
+    const dt = Math.min(now - last, 100);
     last = now;
-    while (pending >= turnMs) {
-      pending -= turnMs;
-      const depth = game.depth;
-      game.tick();
-      if (game.depth !== depth) renderer.snapTo(game);
+    if (stepFrom) {
+      stepTime += dt;
+      if (stepTime >= stepMs) {
+        stepTime -= stepMs;
+        stepFrom = null;
+        if (game.descendIfOnStairs()) renderer.snapTo(game);
+      }
     }
-    renderer.draw(game);
+    if (!stepFrom) {
+      const before = { ...game.hero };
+      if (game.tick()) stepFrom = before;
+      else stepTime = 0;
+    }
+    const k = stepFrom ? Math.min(stepTime / stepMs, 1) : 1;
+    const shown = stepFrom ? { x: stepFrom.x + (game.hero.x - stepFrom.x) * k, y: stepFrom.y + (game.hero.y - stepFrom.y) * k } : game.hero;
+    renderer.draw(game, shown, dt);
     hud.textContent = `\xC9tage ${game.depth} \xB7 Tour ${game.turn} \xB7 Graine ${game.runSeed}`;
     requestAnimationFrame(frame);
   }

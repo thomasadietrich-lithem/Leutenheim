@@ -76,10 +76,8 @@ test("une partie simulée descend 20 étages en visant l'escalier", () => {
     }
     assert.ok(game.setDestination(stairs.x, stairs.y));
     let guard = 0;
-    while (game.depth === depth) {
-      assert.ok(game.tick(), "le héros est bloqué");
-      assert.ok(++guard < 500);
-    }
+    while (game.tick()) assert.ok(++guard < 500);
+    assert.ok(game.descendIfOnStairs(), "le héros n'a pas atteint l'escalier");
   }
   assert.ok(game.turn > 0);
 });

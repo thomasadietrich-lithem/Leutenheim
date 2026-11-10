@@ -23,8 +23,6 @@ export class Renderer {
   // Positions affichées, qui glissent vers les positions réelles pour un mouvement fluide.
   private camX = 0;
   private camY = 0;
-  private heroX = 0;
-  private heroY = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -44,8 +42,8 @@ export class Renderer {
 
   /** Recentre immédiatement la vue (nouvel étage). */
   snapTo(game: Game): void {
-    this.camX = this.heroX = game.hero.x;
-    this.camY = this.heroY = game.hero.y;
+    this.camX = game.hero.x;
+    this.camY = game.hero.y;
   }
 
   private originX(): number {
@@ -64,12 +62,12 @@ export class Renderer {
     };
   }
 
-  draw(game: Game): void {
+  /** `hero` est la position affichée du héros (entre deux cases pendant un pas), `dt` le temps écoulé en ms. */
+  draw(game: Game, hero: Point, dt: number): void {
     const { ctx, tile } = this;
-    this.heroX += (game.hero.x - this.heroX) * 0.35;
-    this.heroY += (game.hero.y - this.heroY) * 0.35;
-    this.camX += (game.hero.x - this.camX) * 0.15;
-    this.camY += (game.hero.y - this.camY) * 0.15;
+    const follow = 1 - Math.exp(-dt / 140);
+    this.camX += (hero.x - this.camX) * follow;
+    this.camY += (hero.y - this.camY) * follow;
     const ox = this.originX();
     const oy = this.originY();
 
@@ -113,7 +111,7 @@ export class Renderer {
     ctx.strokeStyle = COLORS.heroEdge;
     ctx.lineWidth = Math.max(2, tile * 0.08);
     ctx.beginPath();
-    ctx.arc(ox + (this.heroX + 0.5) * tile, oy + (this.heroY + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
+    ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.34, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }

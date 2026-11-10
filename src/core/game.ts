@@ -49,9 +49,13 @@ export class Game {
     if (!next) return false;
     this.hero = next;
     this.turn++;
-    if (this.map.get(next.x, next.y) === Tile.StairsDown) {
-      this.enterFloor(this.depth + 1);
-    }
+    return true;
+  }
+
+  /** Si le héros est sur l'escalier, passe à l'étage suivant. */
+  descendIfOnStairs(): boolean {
+    if (this.map.get(this.hero.x, this.hero.y) !== Tile.StairsDown) return false;
+    this.enterFloor(this.depth + 1);
     return true;
   }
 }

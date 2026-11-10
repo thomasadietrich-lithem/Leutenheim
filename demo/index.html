@@ -1846,6 +1846,9 @@
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
           const throughDoor = this.map.isDoor(next.x, next.y) || this.map.isDoor(left.x, left.y);
+          if (throughDoor) {
+            for (const m of threats) if (!this.inReach(m, this.hero)) m.wary = true;
+          }
           if (!throughDoor && this.opportunityAttacks(threats)) {
             this.path = [];
             this.doorTarget = null;
@@ -1883,7 +1886,9 @@
     }
     /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
     heroHasAdvantageOn(monster) {
-      return !monster.alerted || this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
+      if (!monster.alerted) return true;
+      if (monster.wary) return false;
+      return this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
     }
     /** Un ennemi alerté est-il au contact du héros ? */
     isThreatened() {
@@ -2034,7 +2039,7 @@
       }
       if (victim) {
         const blind = !this.isVisible(victim.x, victim.y);
-        const favoured = !blind && (!victim.alerted || this.map.isDoor(victim.x, victim.y));
+        const favoured = !blind && (!victim.alerted || !victim.wary && this.map.isDoor(victim.x, victim.y));
         const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
         const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
         const open = (dx, dy) => this.map.isWalkable(victim.x + dx, victim.y + dy);
@@ -2121,6 +2126,7 @@
         if (this.inReach(m, this.hero)) {
           const ambush = this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero);
           const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
+          m.wary = false;
           this.hero.hp = Math.max(0, this.hero.hp - result.damage);
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
           if (this.hero.hp === 0) {

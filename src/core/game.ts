@@ -659,6 +659,10 @@ export class Game {
         this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
         // Passer une porte pour se mettre à l'abri (y entrer ou en ressortir) ne laisse pas le temps de frapper.
         const throughDoor = this.map.isDoor(next.x, next.y) || this.map.isDoor(left.x, left.y);
+        if (throughDoor) {
+          // Ceux à qui le héros échappe ainsi sont sur leurs gardes : pas d'embuscade contre eux ensuite.
+          for (const m of threats) if (!this.inReach(m, this.hero)) m.wary = true;
+        }
         if (!throughDoor && this.opportunityAttacks(threats)) {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
@@ -702,7 +706,10 @@ export class Game {
 
   /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
   heroHasAdvantageOn(monster: Actor): boolean {
-    return !monster.alerted || this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
+    if (!monster.alerted) return true;
+    // Un avantage à la fois : le monstre semé en passant une porte s'attend à l'embuscade.
+    if (monster.wary) return false;
+    return this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
   }
 
   /** Un ennemi alerté est-il au contact du héros ? */
@@ -878,7 +885,7 @@ export class Game {
       // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.
       // Une cible qu'on ne voit pas (tir à l'aveugle) : jamais d'avantage, et désavantage.
       const blind = !this.isVisible(victim.x, victim.y);
-      const favoured = !blind && (!victim.alerted || this.map.isDoor(victim.x, victim.y));
+      const favoured = !blind && (!victim.alerted || (!victim.wary && this.map.isDoor(victim.x, victim.y)));
       const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
@@ -981,6 +988,8 @@ export class Game {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.
         const ambush = this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero);
         const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
+        // Le monstre a rattrapé le héros : le combat reprend normalement.
+        m.wary = false;
         this.hero.hp = Math.max(0, this.hero.hp - result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
         if (this.hero.hp === 0) {

@@ -1074,6 +1074,15 @@ test("passer une porte au contact d'un monstre ne déclenche pas d'attaque d'opp
     game.tick();
     assert.deepEqual([game.hero.x, game.hero.y], [x + dx, y + dy]);
     assert.equal(game.events.filter((e) => e.type === "attack" && e.opportunity).length, 0, `graine ${seed}`);
+    // Un avantage à la fois : le monstre semé ainsi ne se laisse pas surprendre dans la porte…
+    assert.equal(monster.wary, true, `graine ${seed} : le monstre devrait être sur ses gardes`);
+    Object.assign(monster, { x, y });
+    assert.equal(game.heroHasAdvantageOn(monster), false, `graine ${seed}`);
+    // …jusqu'à ce qu'il ait rattrapé et attaqué le héros.
+    game.wait();
+    game.tick();
+    assert.equal(monster.wary, false, `graine ${seed}`);
+    assert.equal(game.heroHasAdvantageOn(monster), true, `graine ${seed}`);
     checked++;
   }
   assert.ok(checked >= 3, `seulement ${checked} portes testées`);

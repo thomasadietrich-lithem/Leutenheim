@@ -6,6 +6,9 @@ export interface LightSource extends Point {
   /** Direction de la salle que la torche éclaire (elle est fixée dans un mur et n'éclaire pas l'autre côté). */
   faceX: number;
   faceY: number;
+  /** Une cheminée plutôt qu'une torche. Éteinte (`lit: false`), elle n'éclaire pas. */
+  hearth?: boolean;
+  lit?: boolean;
 }
 
 /** Vrai si rien ne bloque la vue entre deux cases (les cases de départ et d'arrivée ne comptent pas). */
@@ -116,6 +119,7 @@ function spreadToWalls(map: GameMap, values: Uint8Array | Float32Array): void {
 export function computeLight(map: GameMap, sources: readonly LightSource[]): Float32Array {
   const light = new Float32Array(map.width * map.height);
   for (const torch of sources) {
+    if (torch.lit === false) continue; // cheminée éteinte
     // La lumière part de la case devant la torche, côté salle : elle ne traverse pas le mur qui la porte.
     const s = { x: torch.x + torch.faceX, y: torch.y + torch.faceY, radius: torch.radius };
     light[map.index(torch.x, torch.y)] = 1;

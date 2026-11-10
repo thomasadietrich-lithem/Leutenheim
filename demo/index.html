@@ -26,6 +26,16 @@
 
   #hud-text { font-size: 19px; text-align: center; letter-spacing: 0.04em; color: var(--gold); text-transform: uppercase; }
   .hp { position: relative; height: 18px; background: #2a0c10; padding: 0; }
+  /* Petites animations : la barre de vie tressaute et blanchit quand on est blessé, la jauge d'expérience
+     s'illumine quand on en gagne, et les deux jauges glissent vers leur nouvelle valeur par crans. */
+  #hp-fill, #xp-fill { transition: width 0.3s steps(6); }
+  .hp.hit { animation: hpHit 0.36s steps(6); }
+  @keyframes hpHit { 0% { transform: translateX(0); filter: brightness(2.4); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); filter: brightness(1.6); }
+    60% { transform: translateX(-3px); } 80% { transform: translateX(2px); filter: brightness(1.2); } 100% { transform: none; filter: none; } }
+  .hp.xp.gain { animation: xpGain 0.5s steps(6); }
+  @keyframes xpGain { 0% { filter: brightness(2.6); transform: scaleY(1.7); } 60% { filter: brightness(1.6); transform: scaleY(1.2); } 100% { filter: none; transform: none; } }
+  .frame.hurt::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 6px rgba(208, 58, 68, 0.85); animation: hurt 0.32s steps(4) forwards; }
+  @keyframes hurt { to { opacity: 0; } }
   .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
   .hp.xp { height: 14px; background: #0c1626; }
   .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }
@@ -499,7 +509,10 @@
     specialRoomMaxSize: 5,
     pillarChance: 0.45,
     torchChance: 0.5,
-    torchRadius: 6
+    torchRadius: 6,
+    hearthChance: 0.3,
+    hearthLitChance: 0.5,
+    hearthRadius: 5
   };
 
   // src/data/items.ts
@@ -619,7 +632,8 @@
       attackBonus: 2,
       damage: { count: 1, sides: 4, bonus: 0 },
       vision: 6,
-      xp: 10,
+      xpMin: 3,
+      xpMax: 5,
       goldChance: 0.35,
       goldMax: 4,
       noticeChance: 0.4,
@@ -905,6 +919,7 @@
   function computeLight(map, sources) {
     const light = new Float32Array(map.width * map.height);
     for (const torch of sources) {
+      if (torch.lit === false) continue;
       const s = { x: torch.x + torch.faceX, y: torch.y + torch.faceY, radius: torch.radius };
       light[map.index(torch.x, torch.y)] = 1;
       for (let y = s.y - s.radius; y <= s.y + s.radius; y++) {
@@ -1248,6 +1263,15 @@
         if (walls.length > 0) {
           const w = walls[rng.int(0, walls.length - 1)];
           torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius, faceX: w.nx, faceY: w.ny });
+        }
+      }
+      if (rng.chance(cfg.hearthChance)) {
+        const spots = ring.filter(
+          (c) => map.get(c.x, c.y) === Tile.Wall && map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall && map.get(c.x + c.nx, c.y + c.ny) === Tile.Floor && !torches.some((t) => Math.abs(t.x - c.x) + Math.abs(t.y - c.y) < 2)
+        );
+        if (spots.length > 0) {
+          const w = spots[rng.int(0, spots.length - 1)];
+          torches.push({ x: w.x, y: w.y, radius: cfg.hearthRadius, faceX: w.nx, faceY: w.ny, hearth: true, lit: rng.chance(cfg.hearthLitChance) });
         }
       }
     });
@@ -1875,7 +1899,7 @@
       this.events.push({ type: "death", actor: monster });
       const def = MONSTERS[monster.defId];
       if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
-      if (def) this.gainXp(def.xp);
+      if (def) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
     }
     /**
      * Tir à l'arc vers une case. La flèche file en ligne droite : elle s'arrête sur le premier monstre rencontré
@@ -2342,6 +2366,14 @@
           }
           const t = game2.map.get(x, y);
           const wall = t === Tile.Wall;
+          const rx = Math.round(sx);
+          const ry = Math.round(sy);
+          const rw = Math.round(sx + tile) - rx;
+          const rh = Math.round(sy + tile) - ry;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(rx, ry, rw, rh);
+          ctx.clip();
           if (t === Tile.Pillar) {
             this.drawFloor(x, y, sx, sy);
             ctx.fillStyle = "rgba(12,11,18,0.45)";
@@ -2362,25 +2394,30 @@
             this.drawFloor(x, y, sx, sy);
           }
           this.drawFeature(game2, t, x, y, sx, sy);
+          ctx.restore();
           const shade = wall || t === Tile.Pillar ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
             const lit = game2.light[game2.map.index(x, y)];
             const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game2.race.darkVision + 1.5));
             const brightness = Math.min(1, Math.max(lit * flicker, glow));
             ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
-            ctx.fillRect(sx, sy, tile, tile);
+            ctx.fillRect(rx, ry, rw, rh);
             if (lit > 0) {
               ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
-              ctx.fillRect(sx, sy, tile, tile);
+              ctx.fillRect(rx, ry, rw, rh);
             }
           } else {
             ctx.fillStyle = `rgba(8,7,14,${(wall || t === Tile.Pillar ? 0.72 : 0.82).toFixed(3)})`;
-            ctx.fillRect(sx, sy, tile, tile);
+            ctx.fillRect(rx, ry, rw, rh);
           }
         }
       }
       for (const torch of game2.torches) {
         if (!game2.isExplored(torch.x, torch.y)) continue;
+        if (torch.hearth) {
+          this.drawHearth(game2, torch, ox + torch.x * tile, oy + torch.y * tile, flicker);
+          continue;
+        }
         const fx = torch.faceX;
         const fy = torch.faceY;
         const baseX = ox + (torch.x + 0.5 + fx * 0.47) * tile;
@@ -2613,11 +2650,23 @@
      */
     drawWall(game2, mx, my, screenX, screenY) {
       const { ctx, tile } = this;
-      const isOpen = (cx, cy) => game2.map.inBounds(cx, cy) && game2.map.get(cx, cy) !== Tile.Wall;
+      const isOpen = (cx, cy) => game2.map.inBounds(cx, cy) && game2.map.get(cx, cy) !== Tile.Wall && !game2.map.isDoor(cx, cy);
       const open = (dx, dy) => isOpen(mx + dx, my + dy);
       const isVertical = (cx, cy) => (isOpen(cx - 1, cy) || isOpen(cx + 1, cy)) && !isOpen(cx, cy - 1) && !isOpen(cx, cy + 1);
+      const isCorner = (cx, cy) => {
+        const h = isOpen(cx - 1, cy) || isOpen(cx + 1, cy);
+        const v = isOpen(cx, cy - 1) || isOpen(cx, cy + 1);
+        const diagonal = isOpen(cx - 1, cy - 1) || isOpen(cx + 1, cy - 1) || isOpen(cx - 1, cy + 1) || isOpen(cx + 1, cy + 1);
+        return h && v || !h && !v && diagonal;
+      };
+      ctx.save();
+      if (isCorner(mx, my)) {
+        this.drawCornerStone(mx, my, screenX, screenY, open);
+        ctx.restore();
+        return;
+      }
       const vertical = isVertical(mx, my);
-      const sameRun = (cx, cy) => game2.map.inBounds(cx, cy) && game2.map.get(cx, cy) === Tile.Wall && isVertical(cx, cy) === vertical;
+      const sameRun = (cx, cy) => game2.map.inBounds(cx, cy) && game2.map.get(cx, cy) === Tile.Wall && !isCorner(cx, cy) && isVertical(cx, cy) === vertical;
       const joinBefore = vertical ? sameRun(mx, my - 1) : sameRun(mx - 1, my);
       const joinAfter = vertical ? sameRun(mx, my + 1) : sameRun(mx + 1, my);
       const x = vertical ? my : mx;
@@ -2626,15 +2675,13 @@
       const sy = vertical ? -tile / 2 : screenY;
       const openAbove = vertical ? open(1, 0) : open(0, -1);
       const openBelow = vertical ? open(-1, 0) : open(0, 1);
-      ctx.save();
       if (vertical) {
         ctx.translate(screenX + tile / 2, screenY + tile / 2);
         ctx.rotate(Math.PI / 2);
       }
       const gap = Math.max(1, tile * 0.05);
       ctx.fillStyle = COLORS.mortar;
-      if (vertical) ctx.fillRect(sx, sy - 0.5, tile + 0.5, tile + 1);
-      else ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+      ctx.fillRect(sx - 1, sy - 1, tile + 2, tile + 2);
       const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
       ctx.lineJoin = "round";
       for (let r = 0; r < 3; r++) {
@@ -2677,6 +2724,80 @@
         ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
       }
       ctx.restore();
+    }
+    /**
+     * Cheminée encastrée dans un mur : un manteau de pierre claire, un foyer sombre ouvert vers la salle, des bûches,
+     * et des flammes si elle est allumée. Le dessin est tourné pour que le foyer regarde la salle.
+     */
+    drawHearth(game2, hearth, sx, sy, flicker) {
+      const { ctx, tile } = this;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(Math.round(sx), Math.round(sy), Math.round(sx + tile) - Math.round(sx), Math.round(sy + tile) - Math.round(sy));
+      ctx.clip();
+      ctx.translate(sx + tile / 2, sy + tile / 2);
+      ctx.rotate(Math.atan2(hearth.faceY, hearth.faceX) - Math.PI / 2);
+      const u = tile / 16;
+      const px = (gx, gy, w, h, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
+      };
+      px(0, 0, 16, 16, "#5d6180");
+      px(0, 0, 16, 4, "#a4abc8");
+      px(0, 3, 16, 1, "#7f88a6");
+      px(0, 4, 3, 12, "#8b90b0");
+      px(13, 4, 3, 12, "#8b90b0");
+      px(3, 4, 10, 12, "#120d08");
+      px(3, 4, 10, 1, "#2a2118");
+      const lit = hearth.lit !== false;
+      px(4, 13, 8, 2, lit ? "#7a5230" : "#4a3a2c");
+      px(5, 12, 6, 1, lit ? "#9a6a34" : "#5a4a3a");
+      if (lit) {
+        const tall = flicker > 0.92 ? 1 : 0;
+        px(5, 9 - tall, 6, 4 + tall, "#ff8a2a");
+        px(6, 7 - tall, 3, 3, "#ff8a2a");
+        px(6, 10 - tall, 4, 3, "#ffb040");
+        px(7, 11, 2, 2, "#ffe08a");
+        px(4, 14, 1, 1, "#ff5a2a");
+        px(11, 14, 1, 1, "#ff5a2a");
+      } else {
+        px(4, 15, 8, 1, "#6e7594");
+        px(6, 14, 3, 1, "#4a4e5e");
+      }
+      ctx.restore();
+      if (!game2.isVisible(hearth.x, hearth.y)) {
+        ctx.fillStyle = "rgba(8,7,14,0.72)";
+        ctx.fillRect(Math.round(sx), Math.round(sy), Math.round(sx + tile) - Math.round(sx), Math.round(sy + tile) - Math.round(sy));
+      }
+    }
+    /**
+     * Pierre d'angle : un seul gros bloc taillé, avec un panneau en creux, qui ferme proprement la rencontre d'un
+     * pan horizontal et d'un pan vertical. Rebord clair ou ombre sur chaque côté qui donne sur le vide.
+     */
+    drawCornerStone(x, y, sx, sy, open) {
+      const { ctx, tile } = this;
+      const gap = Math.max(1, tile * 0.05);
+      ctx.fillStyle = COLORS.mortar;
+      ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+      const light = 0.92 + 0.16 * noise(x, y, 90);
+      const tone = (k) => `rgb(${Math.round(103 * light * k)},${Math.round(107 * light * k)},${Math.round(136 * light * k)})`;
+      ctx.fillStyle = tone(1.08);
+      ctx.fillRect(sx + gap / 2, sy + gap / 2, tile - gap, tile - gap);
+      const inset = tile * 0.2;
+      const side = tile - inset * 2;
+      const line = Math.max(1, tile * 0.05);
+      ctx.fillStyle = tone(0.78);
+      ctx.fillRect(sx + inset, sy + inset, side, side);
+      ctx.fillStyle = tone(1.22);
+      ctx.fillRect(sx + inset + line, sy + inset + line, side - line, side - line);
+      ctx.fillStyle = tone(0.96);
+      ctx.fillRect(sx + inset + line, sy + inset + line, side - line * 2, side - line * 2);
+      ctx.fillStyle = "rgba(190,196,230,0.35)";
+      if (open(0, -1)) ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
+      if (open(1, 0)) ctx.fillRect(sx + tile * 0.9, sy, tile * 0.1 + 0.5, tile + 0.5);
+      ctx.fillStyle = "rgba(12,11,18,0.4)";
+      if (open(0, 1)) ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
+      if (open(-1, 0)) ctx.fillRect(sx, sy, tile * 0.12, tile + 0.5);
     }
     /**
      * Porte : battant de planches cerclé de fer entre deux montants de pierre, avec anneau de poignée ou cadenas
@@ -3287,6 +3408,14 @@
   var canvas = $("game");
   var hudText = $("hud-text");
   var hpFill = $("hp-fill");
+  var hpBar = document.querySelector(".hp:not(.xp)");
+  var xpBar = document.querySelector(".hp.xp");
+  var mapFrame = document.querySelector(".frame");
+  function pulse(node, name) {
+    node.classList.remove(name);
+    void node.offsetWidth;
+    node.classList.add(name);
+  }
   var die = $("die");
   var die2 = $("die2");
   var dieWho = $("die-who");
@@ -3459,6 +3588,10 @@
         r.critical ? "#ffd75e" : r.hit ? foe ? "#ff6b7a" : "#ffffff" : "#a8a2c0"
       );
       if (foe) shownHp = Math.max(0, shownHp - r.damage);
+      if (foe && r.hit) {
+        pulse(hpBar, "hit");
+        pulse(mapFrame, "hurt");
+      }
       sfx.play(r.critical ? "crit" : r.hit ? foe ? "hurt" : "hit" : "miss");
     } else if (e.type === "door") {
       logLines.push(describeDoor(e));
@@ -3492,6 +3625,7 @@
       }
     } else if (e.type === "xp") {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
+      pulse(xpBar, "gain");
     } else if (e.type === "levelup") {
       logLines.push(`Niveau ${e.level} ! Vous gagnez ${RULES.hpPerLevel} points de vie.`);
       shownHp = game.hero.hp;
@@ -3784,6 +3918,7 @@
     { id: "fontaine", name: "Fontaine", kind: "Salle sp\xE9ciale", color: "#4aa8d8", description: "Son eau rend tous les points de vie. Elle ne sert qu'une fois." },
     { id: "coffre", name: "Coffre", kind: "Salle sp\xE9ciale", color: "#b9824a", description: "Il renferme de l'or, davantage dans les profondeurs." },
     { id: "torche", name: "Torche murale", kind: "D\xE9cor", color: "#ff9a3c", description: "Elle \xE9claire sa salle : on y voit plus loin, mais on y est remarqu\xE9 plus vite." },
+    { id: "cheminee", name: "Chemin\xE9e", kind: "D\xE9cor", color: "#ff7a2a", description: "Encastr\xE9e dans un mur. Allum\xE9e, elle \xE9claire la salle comme une torche ; \xE9teinte, il n'en reste que des cendres." },
     { id: "colonne", name: "Colonne", kind: "D\xE9cor", color: "#9296b6", description: "Elle bloque le passage et la vue : on peut se cacher derri\xE8re." },
     { id: "escalier", name: "Escalier", kind: "Passage", color: "#e0b040", description: "Il m\xE8ne \xE0 l'\xE9tage du dessous, ou ram\xE8ne \xE0 celui du dessus." }
   ];
@@ -3880,7 +4015,8 @@
         if (id && game.isVisible(x, y)) found.push(id);
       }
     }
-    if (game.torches.some((t) => game.isVisible(t.x, t.y))) found.push("l:torche");
+    if (game.torches.some((t) => !t.hearth && game.isVisible(t.x, t.y))) found.push("l:torche");
+    if (game.torches.some((t) => t.hearth && game.isVisible(t.x, t.y))) found.push("l:cheminee");
     discover(found);
   }
   function showScreen(screen) {

@@ -26,6 +26,16 @@
 
   #hud-text { font-size: 19px; text-align: center; letter-spacing: 0.04em; color: var(--gold); text-transform: uppercase; }
   .hp { position: relative; height: 18px; background: #2a0c10; padding: 0; }
+  /* Petites animations : la barre de vie tressaute et blanchit quand on est blessé, la jauge d'expérience
+     s'illumine quand on en gagne, et les deux jauges glissent vers leur nouvelle valeur par crans. */
+  #hp-fill, #xp-fill { transition: width 0.3s steps(6); }
+  .hp.hit { animation: hpHit 0.36s steps(6); }
+  @keyframes hpHit { 0% { transform: translateX(0); filter: brightness(2.4); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); filter: brightness(1.6); }
+    60% { transform: translateX(-3px); } 80% { transform: translateX(2px); filter: brightness(1.2); } 100% { transform: none; filter: none; } }
+  .hp.xp.gain { animation: xpGain 0.5s steps(6); }
+  @keyframes xpGain { 0% { filter: brightness(2.6); transform: scaleY(1.7); } 60% { filter: brightness(1.6); transform: scaleY(1.2); } 100% { filter: none; transform: none; } }
+  .frame.hurt::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 6px rgba(208, 58, 68, 0.85); animation: hurt 0.32s steps(4) forwards; }
+  @keyframes hurt { to { opacity: 0; } }
   .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
   .hp.xp { height: 14px; background: #0c1626; }
   .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }

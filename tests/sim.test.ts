@@ -821,6 +821,7 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   // Trois victoires à 10 points : passage au niveau 2 (30 points), avec 3 PV de plus.
   const maxHp = game.hero.maxHp;
   let kills = 0;
+  game.xp = 21; // à 9 points du niveau 2 : trois victoires (3 à 5 points chacune) suffisent toujours
   for (let turn = 0; turn < 400 && kills < 3; turn++) {
     const target = game.monsters[0];
     Object.assign(target, { x: game.hero.x + (game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1), y: game.hero.y, hp: 1, alerted: false, asleep: true });
@@ -832,7 +833,10 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
     }
   }
   assert.equal(kills, 3);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, 0, 60, maxHp + 3]);
+  const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
+  assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
+  const total = gains.reduce((a, b) => a + b, 0);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, 21 + total - 30, 60, maxHp + 3]);
   assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
 

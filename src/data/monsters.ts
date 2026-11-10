@@ -11,8 +11,9 @@ export interface MonsterDef {
   attackBonus: number;
   damage: Dice;
   vision: number;
-  /** Expérience gagnée en le vainquant. */
-  xp: number;
+  /** Expérience gagnée en le vainquant : un nombre tiré entre ces deux bornes. */
+  xpMin: number;
+  xpMax: number;
   /** Chance qu'il laisse tomber de l'or, et combien au plus. */
   goldChance: number;
   goldMax: number;
@@ -32,7 +33,8 @@ export const MONSTERS = {
     attackBonus: 2,
     damage: { count: 1, sides: 4, bonus: 0 },
     vision: 6,
-    xp: 10,
+    xpMin: 3,
+    xpMax: 5,
     goldChance: 0.35,
     goldMax: 4,
     noticeChance: 0.4,

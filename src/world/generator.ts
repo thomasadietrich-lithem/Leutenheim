@@ -250,6 +250,21 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
         torches.push({ x: w.x, y: w.y, radius: cfg.torchRadius, faceX: w.nx, faceY: w.ny });
       }
     }
+    // Cheminée : encastrée dans un mur plein du pourtour (mur de chaque côté, sol devant), allumée ou éteinte.
+    if (rng.chance(cfg.hearthChance)) {
+      const spots = ring.filter(
+        (c) =>
+          map.get(c.x, c.y) === Tile.Wall &&
+          map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall &&
+          map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall &&
+          map.get(c.x + c.nx, c.y + c.ny) === Tile.Floor &&
+          !torches.some((t) => Math.abs(t.x - c.x) + Math.abs(t.y - c.y) < 2),
+      );
+      if (spots.length > 0) {
+        const w = spots[rng.int(0, spots.length - 1)];
+        torches.push({ x: w.x, y: w.y, radius: cfg.hearthRadius, faceX: w.nx, faceY: w.ny, hearth: true, lit: rng.chance(cfg.hearthLitChance) });
+      }
+    }
   });
 
   return { map, rooms, start, stairs, torches, specials };

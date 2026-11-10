@@ -26,6 +26,10 @@ export interface FloorConfig {
   /** Probabilité qu'une salle ait une torche murale (la salle de départ en a toujours une). */
   torchChance: number;
   torchRadius: number;
+  /** Probabilité qu'une salle ait une cheminée dans un de ses murs, chance qu'elle soit allumée, et portée de sa lueur. */
+  hearthChance: number;
+  hearthLitChance: number;
+  hearthRadius: number;
 }
 
 export const DEFAULT_FLOOR: FloorConfig = {
@@ -51,4 +55,7 @@ export const DEFAULT_FLOOR: FloorConfig = {
   pillarChance: 0.45,
   torchChance: 0.5,
   torchRadius: 6,
+  hearthChance: 0.3,
+  hearthLitChance: 0.5,
+  hearthRadius: 5,
 };

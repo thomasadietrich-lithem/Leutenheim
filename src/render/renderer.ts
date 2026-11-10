@@ -1,3 +1,4 @@
+import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
 import { RULES } from "../data/rules";
@@ -260,6 +261,17 @@ export class Renderer {
         }
         const t = game.map.get(x, y);
         const wall = t === Tile.Wall;
+        // Les voiles d'ombre et de lumière sont calés sur les pixels entiers : deux cases voisines ne laissent
+        // ni jour ni recouvrement, donc aucune ligne claire ou sombre à leur jonction.
+        const rx = Math.round(sx);
+        const ry = Math.round(sy);
+        const rw = Math.round(sx + tile) - rx;
+        const rh = Math.round(sy + tile) - ry;
+        // Chaque case est dessinée découpée sur ces mêmes pixels entiers : rien ne déborde sur une voisine déjà ombrée.
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(rx, ry, rw, rh);
+        ctx.clip();
         if (t === Tile.Pillar) {
           // Colonne : une dalle de sol, et un fût de pierre rond vu du dessus.
           this.drawFloor(x, y, sx, sy);
@@ -282,6 +294,7 @@ export class Renderer {
           this.drawFloor(x, y, sx, sy);
         }
         this.drawFeature(game, t, x, y, sx, sy);
+        ctx.restore();
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
         const shade = wall || t === Tile.Pillar ? 0.6 : 1;
 
@@ -291,16 +304,16 @@ export class Renderer {
           const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
           ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
-          ctx.fillRect(sx, sy, tile, tile);
+          ctx.fillRect(rx, ry, rw, rh);
           if (lit > 0) {
             ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
-            ctx.fillRect(sx, sy, tile, tile);
+            ctx.fillRect(rx, ry, rw, rh);
           }
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
           ctx.fillStyle = `rgba(8,7,14,${(wall || t === Tile.Pillar ? 0.72 : 0.82).toFixed(3)})`;
-          ctx.fillRect(sx, sy, tile, tile);
+          ctx.fillRect(rx, ry, rw, rh);
         }
       }
     }
@@ -308,6 +321,10 @@ export class Renderer {
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
       if (!game.isExplored(torch.x, torch.y)) continue;
+      if (torch.hearth) {
+        this.drawHearth(game, torch, ox + torch.x * tile, oy + torch.y * tile, flicker);
+        continue;
+      }
       const fx = torch.faceX;
       const fy = torch.faceY;
       // La tige part de la limite du mur (côté salle) et la flamme brûle vers l'intérieur du mur.
@@ -573,15 +590,32 @@ export class Renderer {
    */
   private drawWall(game: Game, mx: number, my: number, screenX: number, screenY: number): void {
     const { ctx, tile } = this;
-    const isOpen = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) !== Tile.Wall;
+    // « Ouvert » = ni mur ni porte : une porte fait partie du mur, elle ne crée ni coin ni changement de sens.
+    const isOpen = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) !== Tile.Wall && !game.map.isDoor(cx, cy);
     const open = (dx: number, dy: number) => isOpen(mx + dx, my + dy);
     // Orientation du mur : s'il borde un passage par la gauche ou la droite (et pas par le haut ni le bas),
     // c'est un pan vertical. On le dessine alors pivoté d'un quart de tour : mêmes pierres, assises verticales.
     const isVertical = (cx: number, cy: number) => (isOpen(cx - 1, cy) || isOpen(cx + 1, cy)) && !isOpen(cx, cy - 1) && !isOpen(cx, cy + 1);
+    // Un coin : la case où deux pans se rencontrent. Soit elle donne sur du vide par deux côtés perpendiculaires
+    // (angle saillant, bout de mur), soit elle ne touche le vide que par une diagonale (angle rentrant d'une salle).
+    const isCorner = (cx: number, cy: number) => {
+      const h = isOpen(cx - 1, cy) || isOpen(cx + 1, cy);
+      const v = isOpen(cx, cy - 1) || isOpen(cx, cy + 1);
+      const diagonal = isOpen(cx - 1, cy - 1) || isOpen(cx + 1, cy - 1) || isOpen(cx - 1, cy + 1) || isOpen(cx + 1, cy + 1);
+      return (h && v) || (!h && !v && diagonal);
+    };
+    // (La case est déjà découpée sur ses pixels par l'appelant : rien ne déborde sur les voisines.)
+    ctx.save();
+    if (isCorner(mx, my)) {
+      this.drawCornerStone(mx, my, screenX, screenY, open);
+      ctx.restore();
+      return;
+    }
     const vertical = isVertical(mx, my);
     // Les pierres du bord ne se prolongent dans la case voisine que si c'est un mur de même orientation ;
-    // sinon le pan se termine proprement par un joint (là où un pan vertical rencontre un pan horizontal, ou une porte).
-    const sameRun = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) === Tile.Wall && isVertical(cx, cy) === vertical;
+    // sinon le pan se termine proprement par un joint (contre un coin, un pan de l'autre sens ou une porte).
+    const sameRun = (cx: number, cy: number) =>
+      game.map.inBounds(cx, cy) && game.map.get(cx, cy) === Tile.Wall && !isCorner(cx, cy) && isVertical(cx, cy) === vertical;
     const joinBefore = vertical ? sameRun(mx, my - 1) : sameRun(mx - 1, my);
     const joinAfter = vertical ? sameRun(mx, my + 1) : sameRun(mx + 1, my);
     // Repère du dessin : pour un pan vertical, « à droite » veut dire « vers le bas de l'écran ».
@@ -591,17 +625,15 @@ export class Renderer {
     const sy = vertical ? -tile / 2 : screenY;
     const openAbove = vertical ? open(1, 0) : open(0, -1);
     const openBelow = vertical ? open(-1, 0) : open(0, 1);
-    ctx.save();
     if (vertical) {
       ctx.translate(screenX + tile / 2, screenY + tile / 2);
       ctx.rotate(Math.PI / 2);
     }
     const gap = Math.max(1, tile * 0.05);
     ctx.fillStyle = COLORS.mortar;
-    // Chaque case déborde d'un demi-pixel vers la droite et le bas de l'écran pour ne laisser aucun jour entre
-    // deux cases. Une case pivotée déborde donc aussi par son « haut » (qui est la droite de l'écran).
-    if (vertical) ctx.fillRect(sx, sy - 0.5, tile + 0.5, tile + 1);
-    else ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+    // Le fond de mortier dépasse largement : la découpe ci-dessus le ramène à la case (plus un demi-pixel à droite
+    // et en bas, pour ne laisser aucun jour avec les cases suivantes).
+    ctx.fillRect(sx - 1, sy - 1, tile + 2, tile + 2);
     // Trois assises de hauteurs inégales (les mêmes sur toute la ligne de la carte, pour que les murs se raccordent).
     const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
     ctx.lineJoin = "round";
@@ -648,6 +680,90 @@ export class Renderer {
       ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
     }
     ctx.restore();
+  }
+
+  /**
+   * Cheminée encastrée dans un mur : un manteau de pierre claire, un foyer sombre ouvert vers la salle, des bûches,
+   * et des flammes si elle est allumée. Le dessin est tourné pour que le foyer regarde la salle.
+   */
+  private drawHearth(game: Game, hearth: LightSource, sx: number, sy: number, flicker: number): void {
+    const { ctx, tile } = this;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(Math.round(sx), Math.round(sy), Math.round(sx + tile) - Math.round(sx), Math.round(sy + tile) - Math.round(sy));
+    ctx.clip();
+    ctx.translate(sx + tile / 2, sy + tile / 2);
+    // Dessiné foyer vers le bas, puis tourné vers la salle.
+    ctx.rotate(Math.atan2(hearth.faceY, hearth.faceX) - Math.PI / 2);
+    const u = tile / 16;
+    const px = (gx: number, gy: number, w: number, h: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);
+    };
+    // Manteau : deux jambages et un linteau plus clair, autour du foyer noir.
+    px(0, 0, 16, 16, "#5d6180");
+    px(0, 0, 16, 4, "#a4abc8");
+    px(0, 3, 16, 1, "#7f88a6");
+    px(0, 4, 3, 12, "#8b90b0");
+    px(13, 4, 3, 12, "#8b90b0");
+    px(3, 4, 10, 12, "#120d08");
+    px(3, 4, 10, 1, "#2a2118");
+    // Bûches.
+    const lit = hearth.lit !== false;
+    px(4, 13, 8, 2, lit ? "#7a5230" : "#4a3a2c");
+    px(5, 12, 6, 1, lit ? "#9a6a34" : "#5a4a3a");
+    if (lit) {
+      // Flammes qui dansent avec le vacillement des torches, et braises.
+      const tall = flicker > 0.92 ? 1 : 0;
+      px(5, 9 - tall, 6, 4 + tall, "#ff8a2a");
+      px(6, 7 - tall, 3, 3, "#ff8a2a");
+      px(6, 10 - tall, 4, 3, "#ffb040");
+      px(7, 11, 2, 2, "#ffe08a");
+      px(4, 14, 1, 1, "#ff5a2a");
+      px(11, 14, 1, 1, "#ff5a2a");
+    } else {
+      // Cendres froides.
+      px(4, 15, 8, 1, "#6e7594");
+      px(6, 14, 3, 1, "#4a4e5e");
+    }
+    ctx.restore();
+    // Hors de vue, elle prend le même voile que le mur qui la porte.
+    if (!game.isVisible(hearth.x, hearth.y)) {
+      ctx.fillStyle = "rgba(8,7,14,0.72)";
+      ctx.fillRect(Math.round(sx), Math.round(sy), Math.round(sx + tile) - Math.round(sx), Math.round(sy + tile) - Math.round(sy));
+    }
+  }
+
+  /**
+   * Pierre d'angle : un seul gros bloc taillé, avec un panneau en creux, qui ferme proprement la rencontre d'un
+   * pan horizontal et d'un pan vertical. Rebord clair ou ombre sur chaque côté qui donne sur le vide.
+   */
+  private drawCornerStone(x: number, y: number, sx: number, sy: number, open: (dx: number, dy: number) => boolean): void {
+    const { ctx, tile } = this;
+    const gap = Math.max(1, tile * 0.05);
+    ctx.fillStyle = COLORS.mortar;
+    ctx.fillRect(sx, sy, tile + 0.5, tile + 0.5);
+    const light = 0.92 + 0.16 * noise(x, y, 90);
+    const tone = (k: number) => `rgb(${Math.round(103 * light * k)},${Math.round(107 * light * k)},${Math.round(136 * light * k)})`;
+    // Le bloc, puis son panneau en creux (arête sombre en haut et à gauche, claire en bas et à droite).
+    ctx.fillStyle = tone(1.08);
+    ctx.fillRect(sx + gap / 2, sy + gap / 2, tile - gap, tile - gap);
+    const inset = tile * 0.2;
+    const side = tile - inset * 2;
+    const line = Math.max(1, tile * 0.05);
+    ctx.fillStyle = tone(0.78);
+    ctx.fillRect(sx + inset, sy + inset, side, side);
+    ctx.fillStyle = tone(1.22);
+    ctx.fillRect(sx + inset + line, sy + inset + line, side - line, side - line);
+    ctx.fillStyle = tone(0.96);
+    ctx.fillRect(sx + inset + line, sy + inset + line, side - line * 2, side - line * 2);
+    // Côtés donnant sur le vide : même convention que les pans de mur (clair en haut et à droite, ombre en bas et à gauche).
+    ctx.fillStyle = "rgba(190,196,230,0.35)";
+    if (open(0, -1)) ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
+    if (open(1, 0)) ctx.fillRect(sx + tile * 0.9, sy, tile * 0.1 + 0.5, tile + 0.5);
+    ctx.fillStyle = "rgba(12,11,18,0.4)";
+    if (open(0, 1)) ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
+    if (open(-1, 0)) ctx.fillRect(sx, sy, tile * 0.12, tile + 0.5);
   }
 
   /**

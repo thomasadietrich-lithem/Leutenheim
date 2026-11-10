@@ -34,6 +34,16 @@ const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const canvas = $("game") as HTMLCanvasElement;
 const hudText = $("hud-text");
 const hpFill = $("hp-fill");
+const hpBar = document.querySelector(".hp:not(.xp)") as HTMLElement;
+const xpBar = document.querySelector(".hp.xp") as HTMLElement;
+const mapFrame = document.querySelector(".frame") as HTMLElement;
+
+/** Rejoue une petite animation CSS sur un élément (on retire la classe, puis on la remet). */
+function pulse(node: HTMLElement, name: string): void {
+  node.classList.remove(name);
+  void node.offsetWidth; // force le navigateur à repartir de zéro
+  node.classList.add(name);
+}
 const die = $("die");
 const die2 = $("die2");
 const dieWho = $("die-who");
@@ -269,6 +279,10 @@ function reveal(e: GameEvent): void {
       r.critical ? "#ffd75e" : r.hit ? (foe ? "#ff6b7a" : "#ffffff") : "#a8a2c0",
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
+    if (foe && r.hit) {
+      pulse(hpBar, "hit");
+      pulse(mapFrame, "hurt");
+    }
     sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : "hit") : "miss");
   } else if (e.type === "door") {
     logLines.push(describeDoor(e));
@@ -304,6 +318,7 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "xp") {
     renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
+    pulse(xpBar, "gain");
   } else if (e.type === "levelup") {
     logLines.push(`Niveau ${e.level} ! Vous gagnez ${RULES.hpPerLevel} points de vie.`);
     shownHp = game.hero.hp;
@@ -639,6 +654,7 @@ const PLACES: { id: string; name: string; kind: string; color: string; descripti
   { id: "fontaine", name: "Fontaine", kind: "Salle spéciale", color: "#4aa8d8", description: "Son eau rend tous les points de vie. Elle ne sert qu'une fois." },
   { id: "coffre", name: "Coffre", kind: "Salle spéciale", color: "#b9824a", description: "Il renferme de l'or, davantage dans les profondeurs." },
   { id: "torche", name: "Torche murale", kind: "Décor", color: "#ff9a3c", description: "Elle éclaire sa salle : on y voit plus loin, mais on y est remarqué plus vite." },
+  { id: "cheminee", name: "Cheminée", kind: "Décor", color: "#ff7a2a", description: "Encastrée dans un mur. Allumée, elle éclaire la salle comme une torche ; éteinte, il n'en reste que des cendres." },
   { id: "colonne", name: "Colonne", kind: "Décor", color: "#9296b6", description: "Elle bloque le passage et la vue : on peut se cacher derrière." },
   { id: "escalier", name: "Escalier", kind: "Passage", color: "#e0b040", description: "Il mène à l'étage du dessous, ou ramène à celui du dessus." },
 ];
@@ -745,7 +761,8 @@ function discoverSurroundings(): void {
       if (id && game.isVisible(x, y)) found.push(id);
     }
   }
-  if (game.torches.some((t) => game.isVisible(t.x, t.y))) found.push("l:torche");
+  if (game.torches.some((t) => !t.hearth && game.isVisible(t.x, t.y))) found.push("l:torche");
+  if (game.torches.some((t) => t.hearth && game.isVisible(t.x, t.y))) found.push("l:cheminee");
   discover(found);
 }
 

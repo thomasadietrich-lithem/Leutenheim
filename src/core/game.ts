@@ -756,7 +756,7 @@ export class Game {
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
-    if (def) this.gainXp(def.xp);
+    if (def) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
   }
 
   /**

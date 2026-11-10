@@ -94,7 +94,7 @@ export const ITEMS = {
     w: 2,
     h: 2,
     maxStack: 1,
-    armorClass: 15,
+    armorClass: 12,
   },
   cotte_mailles: {
     id: "cotte_mailles",

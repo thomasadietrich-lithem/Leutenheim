@@ -483,7 +483,7 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
     ["tunique", "epee", "arc_court", null, null],
   );
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
-  assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 15]);
+  assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 12]);
   assert.equal(game.arrows(), 5);
   // On retire l'épée : elle va dans le sac, on se bat à mains nues.
   assert.ok(game.unequip("melee"));
@@ -496,7 +496,7 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
   // On rééquipe : les objets quittent le sac.
   assert.ok(game.equip(sword.uid));
   assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "tunique")!.uid));
-  assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4, 15]);
+  assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4, 12]);
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
   // Les flèches ne se portent pas.
   assert.equal(game.equip(game.inventory.items[0].uid), false);

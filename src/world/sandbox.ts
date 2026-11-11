@@ -36,7 +36,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 11;
+export const SANDBOX_LAYOUT = 12;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
@@ -71,6 +71,9 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   map.set(10, 15, Tile.Chest);
   const stairs = { x: 24, y: 18 };
   map.set(stairs.x, stairs.y, Tile.StairsDown);
+  // Un second escalier, dans le coin de la salle de départ (Thomas : « l'étage du boss sous l'étage 1 ») : comme celui
+  // de la salle de combat, il descend à l'étage 2 de la salle d'essai, la nichée de la Tisseuse.
+  map.set(11, 9, Tile.StairsDown);
 
   const torches: LightSource[] = [
     { x: 7, y: 2, radius: 6, faceX: 0, faceY: 1 },

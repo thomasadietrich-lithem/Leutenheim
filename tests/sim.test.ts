@@ -1986,29 +1986,6 @@ test("voie rouge : double frappe = deux coups en un tour, trois fois par étage"
   assert.equal(game.skillRefusal(), "used");
 });
 
-test("voie verte : pousser repousse jusqu'à 3 cases et ralentit", () => {
-  let shoved = false;
-  for (let seed = 1; seed <= 200 && !shoved; seed++) {
-    const t = threatenedHero(seed);
-    if (!t) continue;
-    const { game, m } = t;
-    game.voie = "green";
-    game.hero.hp = game.hero.maxHp = 999;
-    m.hp = m.maxHp = 999;
-    game.tick();
-    if (game.over || !game.pushTargets().includes(m)) continue;
-    game.events.length = 0;
-    assert.ok(game.push(m.id));
-    game.tick();
-    const e = game.events.find((ev) => ev.type === "push");
-    if (!e || e.type !== "push" || !e.success) continue;
-    assert.ok(game.events.some((ev) => ev.type === "slowed"));
-    const d = Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
-    if (d === 4) shoved = true;
-  }
-  assert.ok(shoved, "jamais vu un ennemi repoussé de 3 cases");
-});
-
 test("sac : on commence avec le sac en toile (6×4) ; le sac de cuir (Lv3) agrandit à 7×5", () => {
   const game = new Game(7);
   assert.equal(game.equipment.bag?.defId, "sac_toile");
@@ -2067,7 +2044,7 @@ test("potions : poison sur l'arme (15 coups), vitesse (deux coups par attaque), 
 test("sauvegarde v2 : points, voie, compétences, sac et feu sont repris", () => {
   const game = new Game(7);
   game.levelUpNow();
-  game.choosePath("green");
+  game.choosePath("red");
   game.allocate("agilite");
   game.level = 3;
   game.inventory.add("sac_cuir", 1);
@@ -2075,7 +2052,7 @@ test("sauvegarde v2 : points, voie, compétences, sac et feu sont repris", () =>
   game.fires.push({ x: game.hero.x, y: game.hero.y, turns: 3 });
   const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
   assert.ok(copy);
-  assert.equal(copy.voie, "green");
+  assert.equal(copy.voie, "red");
   assert.equal(copy.alloc.agilite, 1);
   assert.deepEqual([copy.inventory.cols, copy.inventory.rows], [7, 5]);
   assert.equal(copy.fires.length, 1);
@@ -2867,4 +2844,25 @@ test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèc
   g2.tick();
   assert.equal(g2.monsters.filter((m) => m.defId === "araignee").length, sacs, "une araignée par sac");
   assert.ok(q2.boss!.hatched);
+});
+
+test("arme à deux mains : ni arc ni javeline ; salle d'essai : l'escalier de la salle de départ mène à la Tisseuse", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  game.inventory.add("epee_longue", 1);
+  const sword = game.inventory.items.find((i) => i.defId === "epee_longue")!;
+  assert.ok(game.equip(sword.uid));
+  assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "two-hands");
+  game.inventory.add("javeline", 3);
+  assert.ok(game.chooseAmmo("javeline"));
+  assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "two-hands");
+  // Escalier du coin de la salle de départ.
+  game.setPeaceful(false);
+  assert.equal(game.map.get(11, 9), Tile.StairsDown);
+  game.hero.x = 11;
+  game.hero.y = 9;
+  (game as unknown as { pendingStairs: string }).pendingStairs = "down";
+  game.takeStairs();
+  assert.equal(game.depth, 2);
+  assert.ok(game.bossActor(), "la Tisseuse attend à l'étage 2");
 });

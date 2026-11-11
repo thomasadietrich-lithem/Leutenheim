@@ -181,16 +181,8 @@ export const RULES = {
   secondWindHeal: 10,
   /** Double frappe (voie rouge) : utilisations par étage. */
   doubleStrikesPerFloor: 3,
-  /** Bousculade (voie verte) : distance de poussée et tours de ralentissement. */
-  shoveDistance: 3,
-  slowTurns: 3,
-  /** Impact (voie verte) : dégâts contre un mur ; Charge : dégâts en plus ; Rage : dégâts en plus. */
-  impactDamage: { count: 2, sides: 6, bonus: 0 },
-  chargeDamage: { count: 1, sides: 6, bonus: 0 },
+  /** Rage (voie rouge) : dégâts en plus. */
   rageBonus: 2,
-  /** Pas de côté (voie verte) : bonus pour se dégager et longueur du saut. */
-  sidestepBonus: 3,
-  sidestepDistance: 3,
   /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */
   weaponPoisonHits: 15,
   hasteTurns: 4,

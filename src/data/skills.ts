@@ -3,7 +3,8 @@
  * Une voie se choisit au niveau 2, une fois pour toutes ; puis une compétence secondaire de cette voie aux niveaux 4, 6 et 8.
  */
 
-export type PathId = "blue" | "red" | "green";
+/** La voie verte « Bousculade » a été retirée (Thomas, 2026-11-11 : « retire la voie bousculade »). */
+export type PathId = "blue" | "red";
 
 export type SkillId =
   | "peau_dure"
@@ -11,10 +12,7 @@ export type SkillId =
   | "dernier_rempart"
   | "coup_puissant"
   | "enchainement"
-  | "rage"
-  | "pas_de_cote"
-  | "impact"
-  | "charge";
+  | "rage";
 
 export interface PathDef {
   id: PathId;
@@ -47,17 +45,6 @@ export const PATHS: Record<PathId, PathDef> = {
       { id: "coup_puissant", name: "Coup puissant", description: "Coup critique sur 19 ou 20 au corps à corps." },
       { id: "enchainement", name: "Enchaînement", description: "Tuer un ennemi au corps à corps rend une double frappe (3 au plus)." },
       { id: "rage", name: "Rage", description: "+2 dégâts au corps à corps sous la moitié de vos PV." },
-    ],
-  },
-  green: {
-    id: "green",
-    name: "Bousculade",
-    color: "#5cc860",
-    description: "Pousser repousse jusqu'à 3 cases et ralentit l'ennemi 3 tours.",
-    secondaries: [
-      { id: "pas_de_cote", name: "Pas de côté", description: "Se dégager à +3, d'un saut de 3 cases." },
-      { id: "impact", name: "Impact", description: "Un ennemi poussé contre un mur encaisse 2d6 au lieu de 1d6." },
-      { id: "charge", name: "Charge", description: "Après deux pas en ligne droite, le premier coup fait 1d6 de plus." },
     ],
   },
 };

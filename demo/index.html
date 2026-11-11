@@ -1165,17 +1165,6 @@
         { id: "enchainement", name: "Encha\xEEnement", description: "Tuer un ennemi au corps \xE0 corps rend une double frappe (3 au plus)." },
         { id: "rage", name: "Rage", description: "+2 d\xE9g\xE2ts au corps \xE0 corps sous la moiti\xE9 de vos PV." }
       ]
-    },
-    green: {
-      id: "green",
-      name: "Bousculade",
-      color: "#5cc860",
-      description: "Pousser repousse jusqu'\xE0 3 cases et ralentit l'ennemi 3 tours.",
-      secondaries: [
-        { id: "pas_de_cote", name: "Pas de c\xF4t\xE9", description: "Se d\xE9gager \xE0 +3, d'un saut de 3 cases." },
-        { id: "impact", name: "Impact", description: "Un ennemi pouss\xE9 contre un mur encaisse 2d6 au lieu de 1d6." },
-        { id: "charge", name: "Charge", description: "Apr\xE8s deux pas en ligne droite, le premier coup fait 1d6 de plus." }
-      ]
     }
   };
   var PATH_LEVEL = 2;
@@ -1487,16 +1476,8 @@
     secondWindHeal: 10,
     /** Double frappe (voie rouge) : utilisations par étage. */
     doubleStrikesPerFloor: 3,
-    /** Bousculade (voie verte) : distance de poussée et tours de ralentissement. */
-    shoveDistance: 3,
-    slowTurns: 3,
-    /** Impact (voie verte) : dégâts contre un mur ; Charge : dégâts en plus ; Rage : dégâts en plus. */
-    impactDamage: { count: 2, sides: 6, bonus: 0 },
-    chargeDamage: { count: 1, sides: 6, bonus: 0 },
+    /** Rage (voie rouge) : dégâts en plus. */
     rageBonus: 2,
-    /** Pas de côté (voie verte) : bonus pour se dégager et longueur du saut. */
-    sidestepBonus: 3,
-    sidestepDistance: 3,
     /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */
     weaponPoisonHits: 15,
     hasteTurns: 4,
@@ -2860,7 +2841,7 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 11;
+  var SANDBOX_LAYOUT = 12;
   var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
     const map = new GameMap(52, 32);
@@ -2887,6 +2868,7 @@
     map.set(10, 15, Tile.Chest);
     const stairs = { x: 24, y: 18 };
     map.set(stairs.x, stairs.y, Tile.StairsDown);
+    map.set(11, 9, Tile.StairsDown);
     const torches = [
       { x: 7, y: 2, radius: 6, faceX: 0, faceY: 1 },
       { x: 21, y: 2, radius: 5, faceX: 0, faceY: 1, hearth: true, lit: true },
@@ -3699,8 +3681,6 @@
       this.peaceful = false;
       this.throwOrder = null;
       this.skillOrder = null;
-      /** Charge : pas faits en ligne droite juste avant d'attaquer. */
-      this.straight = { dx: 0, dy: 0, steps: 0, turn: -1 };
       this.useOrder = null;
       this.lastGroundTorches = -1;
       this.torchWasLit = false;
@@ -4646,8 +4626,8 @@
       game2.level = saved.level;
       game2.points = saved.points;
       game2.alloc = { intelligence: 0, charisme: 0, ...saved.alloc };
-      game2.voie = saved.voie;
-      game2.skills = saved.skills;
+      game2.voie = saved.voie && saved.voie in PATHS ? saved.voie : null;
+      game2.skills = saved.skills.filter((id) => Object.values(PATHS).some((p) => p.secondaries.some((sk) => sk.id === id)));
       game2.floorPerks = saved.floorPerks;
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
@@ -4904,7 +4884,7 @@
       return this.heroClass.pushBonus + this.alloc.force;
     }
     disengageBonus() {
-      return this.heroClass.disengageBonus + this.alloc.agilite + (this.skills.includes("pas_de_cote") ? RULES.sidestepBonus : 0);
+      return this.heroClass.disengageBonus + this.alloc.agilite;
     }
     rangedBonus() {
       return this.alloc.agilite;
@@ -5219,6 +5199,7 @@
     shoot(x, y) {
       const profile = this.shotProfile();
       if (this.over || !profile && !this.weapon("ranged")) return "no-bow";
+      if (this.twoHanded()) return "two-hands";
       if (!profile || this.arrows() < 1) return "no-ammo";
       if (!this.map.inBounds(x, y) || x === this.hero.x && y === this.hero.y) return "no-target";
       const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
@@ -5475,7 +5456,7 @@
           if (dx === 0 && dy === 0) continue;
           let at = { x: this.hero.x, y: this.hero.y };
           let ok = true;
-          const distance = this.skills.includes("pas_de_cote") ? RULES.sidestepDistance : RULES.jumpDistance;
+          const distance = RULES.jumpDistance;
           for (let i = 0; i < distance && ok; i++) {
             const next = { x: at.x + dx, y: at.y + dy };
             if (!free(next.x, next.y) || !this.inReach(at, next)) ok = false;
@@ -5608,10 +5589,6 @@
           const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
           const left = { x: this.hero.x, y: this.hero.y };
           this.path.shift();
-          const sdx = next.x - left.x;
-          const sdy = next.y - left.y;
-          const same = this.straight.turn === this.turn - 1 && this.straight.dx === sdx && this.straight.dy === sdy;
-          this.straight = { dx: sdx, dy: sdy, steps: same ? this.straight.steps + 1 : 1, turn: this.turn };
           this.hero.x = next.x;
           this.hero.y = next.y;
           this.openDoorAt(next.x, next.y);
@@ -5711,7 +5688,7 @@
       if (success) {
         const dx = Math.sign(m.x - this.hero.x);
         const dy = Math.sign(m.y - this.hero.y);
-        const distance = this.voie === "green" ? RULES.shoveDistance : 1;
+        const distance = 1;
         for (let k = 0; k < distance; k++) {
           const to = { x: m.x + dx, y: m.y + dy };
           const t = this.map.get(to.x, to.y);
@@ -5723,17 +5700,13 @@
             if (this.isTrap(m.x, m.y)) break;
           } else {
             if (solid) {
-              slam = rollDice(this.rng, this.skills.includes("impact") ? RULES.impactDamage : RULES.pushSlamDamage);
+              slam = rollDice(this.rng, RULES.pushSlamDamage);
               m.hp -= slam;
             }
             break;
           }
         }
         m.stunned = 1;
-        if (this.voie === "green") {
-          m.slowed = RULES.slowTurns;
-          this.events.push({ type: "slowed", actor: m });
-        }
       }
       this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam });
       if (m.hp <= 0) {
@@ -6098,11 +6071,6 @@
       const advantaged = this.heroHasAdvantageOn(monster);
       const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom);
       this.hero.lastAdvantageOn = advantaged ? monster.id : void 0;
-      if (result.hit && !extra && this.skills.includes("charge") && this.straight.turn === this.turn - 1 && this.straight.steps >= 2) {
-        const bonus = rollDice(this.rng, RULES.chargeDamage);
-        result.damage += bonus;
-      }
-      this.straight.steps = 0;
       this.noteHeroAttack(result.hit);
       if (!extra) {
         const speed = this.weapon("melee")?.speed;
@@ -8041,14 +8009,14 @@
       ".KLK....KnbK....",
       ".KLK....KnbK....",
       ".KLK....KnbK....",
-      ".KLK....KnbK....",
-      ".KLK....KttK....",
-      ".KLK....KttK....",
-      ".KLK....KttK....",
-      ".KLK....KttK....",
-      ".KLK....KttK....",
-      ".KLK....KttK....",
-      ".KLK....KnbK....",
+      ".KLK...KGGGGK...",
+      ".KLK...Kr22rK...",
+      ".KLK...K2rr2K...",
+      ".KLK...Kr22rK...",
+      ".KLK...K2rr2K...",
+      ".KLK...Kr22rK...",
+      ".KLK...K2rr2K...",
+      ".KLK...KGGGGK...",
       ".KLK....KnbK....",
       ".KLK....KnbK....",
       ".KLK...KnbK.....",
@@ -14870,7 +14838,7 @@
     shownHp = game.hero.hp;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
-      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, L'ESCALIER QUI M\xC8NE AU BOSS (la Tisseuse, un plan diff\xE9rent \xE0 chaque partie), puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
+      "Ici : les nouveaux objets (vous \xEAtes niveau 4) et, dans le coin en bas \xE0 droite, L'ESCALIER DU BOSS : il descend \xE0 l'\xE9tage 2, la nich\xE9e de la Tisseuse (un plan diff\xE9rent \xE0 chaque partie). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, un autre escalier vers le boss, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
@@ -15379,6 +15347,7 @@
     if (refusal) {
       const why = {
         "no-bow": "Aucun arc en main.",
+        "two-hands": "Votre arme se tient \xE0 deux mains : pas de main libre pour tirer ou lancer.",
         "no-ammo": "Plus de munitions.",
         "no-target": "Impossible de tirer l\xE0.",
         "out-of-range": `Hors de port\xE9e (${game.shotProfile()?.range ?? 0} cases).`
@@ -15408,6 +15377,8 @@
       const target = aimTarget();
       if (target) fireAt(target.x, target.y);
       else aimMode = false;
+    } else if (game.twoHanded()) {
+      logLines.push(`Votre ${game.weapon("melee").name.toLowerCase()} se tient \xE0 deux mains : pas de main libre pour tirer ou lancer.`);
     } else if (game.isThreatened()) {
       logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
     } else if (game.arrows() < 1) {
@@ -15478,7 +15449,7 @@
     if (def.range) rows.push(["Port\xE9e", `${def.range} cases`]);
     if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
     if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
-    if (def.twoHanded) rows.push(["Prise", "Deux mains"]);
+    if (def.twoHanded) rows.push(["Prise", "Deux mains (ni arc, ni javeline, ni torche)"]);
     if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
     if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
     if (def.lightTurns) rows.push(["Lumi\xE8re", `${def.lightTurns} tours`]);

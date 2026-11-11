@@ -87,8 +87,6 @@ export class Game {
   peaceful = false;
   private throwOrder: { uid: number; x: number; y: number } | null = null;
   private skillOrder: number | null = null;
-  /** Charge : pas faits en ligne droite juste avant d'attaquer. */
-  private straight = { dx: 0, dy: 0, steps: 0, turn: -1 };
   private useOrder: number | null = null;
   private lastGroundTorches = -1;
   private torchWasLit = false;
@@ -1138,8 +1136,9 @@ export class Game {
     game.level = saved.level;
     game.points = saved.points;
     game.alloc = { intelligence: 0, charisme: 0, ...saved.alloc };
-    game.voie = saved.voie as PathId | null;
-    game.skills = saved.skills as SkillId[];
+    // La voie verte a été retirée : une ancienne partie qui l'avait prise peut choisir à nouveau.
+    game.voie = saved.voie && saved.voie in PATHS ? (saved.voie as PathId) : null;
+    game.skills = (saved.skills as SkillId[]).filter((id) => Object.values(PATHS).some((p) => p.secondaries.some((sk) => sk.id === id)));
     game.floorPerks = saved.floorPerks;
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
@@ -1438,7 +1437,7 @@ export class Game {
     return this.heroClass.pushBonus + this.alloc.force;
   }
   disengageBonus(): number {
-    return this.heroClass.disengageBonus + this.alloc.agilite + (this.skills.includes("pas_de_cote") ? RULES.sidestepBonus : 0);
+    return this.heroClass.disengageBonus + this.alloc.agilite;
   }
   rangedBonus(): number {
     return this.alloc.agilite;
@@ -1797,6 +1796,8 @@ export class Game {
   shoot(x: number, y: number): ShootRefusal | null {
     const profile = this.shotProfile();
     if (this.over || (!profile && !this.weapon("ranged"))) return "no-bow";
+    // Arme à deux mains (Thomas, 2026-11-11) : elle empêche toute autre arme, ni arc ni javeline.
+    if (this.twoHanded()) return "two-hands";
     if (!profile || this.arrows() < 1) return "no-ammo";
     // On peut tirer vers une case qu'on ne voit pas (à l'aveugle), mais pas sur soi ni hors de la carte.
     if (!this.map.inBounds(x, y) || (x === this.hero.x && y === this.hero.y)) return "no-target";
@@ -2085,7 +2086,7 @@ export class Game {
         if (dx === 0 && dy === 0) continue;
         let at: Point = { x: this.hero.x, y: this.hero.y };
         let ok = true;
-        const distance = this.skills.includes("pas_de_cote") ? RULES.sidestepDistance : RULES.jumpDistance;
+        const distance = RULES.jumpDistance;
         for (let i = 0; i < distance && ok; i++) {
           const next = { x: at.x + dx, y: at.y + dy };
           // En diagonale, on ne passe pas entre deux murs qui se touchent par le coin.
@@ -2232,11 +2233,6 @@ export class Game {
         const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
         const left = { x: this.hero.x, y: this.hero.y };
         this.path.shift();
-        // Charge (voie verte) : on compte les pas faits d'affilée dans la même direction.
-        const sdx = next.x - left.x;
-        const sdy = next.y - left.y;
-        const same = this.straight.turn === this.turn - 1 && this.straight.dx === sdx && this.straight.dy === sdy;
-        this.straight = { dx: sdx, dy: sdy, steps: same ? this.straight.steps + 1 : 1, turn: this.turn };
         this.hero.x = next.x;
         this.hero.y = next.y;
         this.openDoorAt(next.x, next.y);
@@ -2348,8 +2344,7 @@ export class Game {
     if (success) {
       const dx = Math.sign(m.x - this.hero.x);
       const dy = Math.sign(m.y - this.hero.y);
-      // Bousculade (voie verte) : jusqu'à 3 cases, et l'ennemi est ralenti.
-      const distance = this.voie === "green" ? RULES.shoveDistance : 1;
+      const distance = 1;
       for (let k = 0; k < distance; k++) {
         const to = { x: m.x + dx, y: m.y + dy };
         const t = this.map.get(to.x, to.y);
@@ -2361,17 +2356,13 @@ export class Game {
           if (this.isTrap(m.x, m.y)) break;
         } else {
           if (solid) {
-            slam = rollDice(this.rng, this.skills.includes("impact") ? RULES.impactDamage : RULES.pushSlamDamage);
+            slam = rollDice(this.rng, RULES.pushSlamDamage);
             m.hp -= slam;
           }
           break;
         }
       }
       m.stunned = 1;
-      if (this.voie === "green") {
-        m.slowed = RULES.slowTurns;
-        this.events.push({ type: "slowed", actor: m });
-      }
     }
     this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam });
     if (m.hp <= 0) {
@@ -2787,12 +2778,6 @@ export class Game {
     const advantaged = this.heroHasAdvantageOn(monster);
     const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom);
     this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
-    // Charge (voie verte) : après deux pas en ligne droite, le premier coup fait 1d6 de plus.
-    if (result.hit && !extra && this.skills.includes("charge") && this.straight.turn === this.turn - 1 && this.straight.steps >= 2) {
-      const bonus = rollDice(this.rng, RULES.chargeDamage);
-      result.damage += bonus;
-    }
-    this.straight.steps = 0;
     this.noteHeroAttack(result.hit);
     if (!extra) {
       // Vitesse de l'arme : une attaque lente laisse plus de temps aux monstres, une rapide moins.

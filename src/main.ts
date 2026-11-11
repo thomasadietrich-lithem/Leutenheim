@@ -222,7 +222,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds à pousser, piège à gaz, L'ESCALIER QUI MÈNE AU BOSS (la Tisseuse, un plan différent à chaque partie), puis la SALLE DE PRIÈRE et l'ALCHIMISTE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
+        "Ici : les nouveaux objets (vous êtes niveau 4) et, dans le coin en bas à droite, L'ESCALIER DU BOSS : il descend à l'étage 2, la nichée de la Tisseuse (un plan différent à chaque partie). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds à pousser, piège à gaz, un autre escalier vers le boss, puis la SALLE DE PRIÈRE et l'ALCHIMISTE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -801,6 +801,7 @@ function fireAt(x: number, y: number): void {
   if (refusal) {
     const why = {
       "no-bow": "Aucun arc en main.",
+      "two-hands": "Votre arme se tient à deux mains : pas de main libre pour tirer ou lancer.",
       "no-ammo": "Plus de munitions.",
       "no-target": "Impossible de tirer là.",
       "out-of-range": `Hors de portée (${game.shotProfile()?.range ?? 0} cases).`,
@@ -834,6 +835,8 @@ button("aim", () => {
     const target = aimTarget();
     if (target) fireAt(target.x, target.y);
     else aimMode = false; // personne à viser : le second appui range l'arc
+  } else if (game.twoHanded()) {
+    logLines.push(`Votre ${game.weapon("melee")!.name.toLowerCase()} se tient à deux mains : pas de main libre pour tirer ou lancer.`);
   } else if (game.isThreatened()) {
     logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
   } else if (game.arrows() < 1) {
@@ -918,7 +921,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.range) rows.push(["Portée", `${def.range} cases`]);
   if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
-  if (def.twoHanded) rows.push(["Prise", "Deux mains"]);
+  if (def.twoHanded) rows.push(["Prise", "Deux mains (ni arc, ni javeline, ni torche)"]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);

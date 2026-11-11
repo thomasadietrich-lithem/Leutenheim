@@ -17,6 +17,10 @@ export interface ClassDef {
   lockpickBonus: number;
   /** Bonus au d20 pour se cacher. */
   stealthBonus: number;
+  /** Bonus au d20 pour se dégager d'un bond. */
+  disengageBonus: number;
+  /** Bonus au d20 pour fouiller une salle. */
+  searchBonus: number;
   breakBonus: number;
 }
 
@@ -35,7 +39,9 @@ export const CLASSES = {
       { item: "fleche", count: 10 },
     ],
     lockpickBonus: 0,
-    stealthBonus: 0,
+    stealthBonus: -5,
+    disengageBonus: 2,
+    searchBonus: 0,
     breakBonus: 4,
   },
   assassin: {
@@ -53,6 +59,8 @@ export const CLASSES = {
     ],
     lockpickBonus: 5,
     stealthBonus: 4,
+    disengageBonus: 4,
+    searchBonus: 3,
     breakBonus: 0,
   },
   magicien: {
@@ -68,6 +76,8 @@ export const CLASSES = {
     ],
     lockpickBonus: 1,
     stealthBonus: 0,
+    disengageBonus: 0,
+    searchBonus: 2,
     breakBonus: -1,
   },
 } satisfies Record<string, ClassDef>;

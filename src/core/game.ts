@@ -40,8 +40,11 @@ export type GameEvent =
   | { type: "hide"; d20: number; bonus: number; total: number; success: boolean }
   /** Le héros sort de sa cachette (il attaque, quitte l'abri d'un obstacle, fait du bruit). */
   | { type: "revealed" }
-  /** Se dégager : le héros saute d'une case à une autre sans attaque d'opportunité. */
-  | { type: "jump"; fromX: number; fromY: number; x: number; y: number }
+  /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
+  | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
+  /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */
+  | { type: "search"; phase: "start" | "interrupted" }
+  | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; room: Room }
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
   | { type: "chest"; gold: number }
@@ -83,6 +86,19 @@ interface FloorState {
   nextRespawn: number;
   /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
   rested: boolean;
+  /** Caches de l'étage (butin enfoui dans une salle) et salles déjà fouillées (une fouille par salle). */
+  secrets: Secret[];
+  searched: Set<number>;
+}
+
+/** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */
+export interface Secret {
+  x: number;
+  y: number;
+  room: number;
+  item: ItemId;
+  count: number;
+  found: boolean;
 }
 
 /** Débris sans usage (flèche brisée) : il reste au sol jusqu'au tour `until`, puis disparaît. */
@@ -152,6 +168,8 @@ export class Game {
   /** Ordres de la roue d'actions en attente : se cacher, ou sauter vers une case. */
   private hideOrder = false;
   private jumpTarget: Point | null = null;
+  /** Tours de fouille restant à passer sur place (0 : pas de fouille en cours). */
+  private searching = 0;
   /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
   private resting = 0;
   /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
@@ -160,7 +178,7 @@ export class Game {
   private doorTarget: Point | null = null;
   private doorAction: DoorAction | null = null;
   private seenMonsters = new Set<number>();
-  private rooms: Room[] = [];
+  rooms: Room[] = [];
   /** Étages déjà visités, gardés en l'état. */
   private floors = new Map<number, FloorState>();
   /** Portes sur lesquelles une tentative a déjà échoué : on ne peut pas réessayer la même méthode. */
@@ -241,6 +259,8 @@ export class Game {
         population: 0,
         nextRespawn: 0,
         rested: false,
+        secrets: [],
+        searched: new Set<number>(),
       };
       this.floors.set(depth, state);
     }
@@ -266,6 +286,7 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.hidden = false;
@@ -280,6 +301,7 @@ export class Game {
       state.population = Math.max(1, this.monsters.length);
       state.nextRespawn = this.turn + RULES.respawnTurns;
       this.placeKey(state.rooms);
+      this.placeSecrets(state, floorSeed(this.runSeed, depth));
     }
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -358,6 +380,50 @@ export class Game {
   }
 
   /** Avec un peu de chance, une clef traîne dans une salle de l'étage. */
+  /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
+  roomElements(room: Room): number {
+    let pillars = false;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) if (this.map.get(x, y) === Tile.Pillar) pillars = true;
+    }
+    const hearth = this.torches.some(
+      (t) => t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h,
+    );
+    return (pillars ? 1 : 0) + (hearth ? 1 : 0);
+  }
+
+  /** Enfouit des caches dans les salles garnies : une salle vide n'en a jamais. Hasard à part, pour ne rien changer au reste. */
+  private placeSecrets(state: FloorState, seed: number): void {
+    const rng = new Rng(seed ^ 0x2c1b3c6d);
+    state.rooms.forEach((room, index) => {
+      if (index === 0) return; // salle de départ
+      const chance = Math.min(RULES.secretChanceMax, RULES.secretChancePerElement * this.roomElements(room));
+      if (chance <= 0 || !rng.chance(chance)) return;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const x = rng.int(room.x, room.x + room.w - 1);
+        const y = rng.int(room.y, room.y + room.h - 1);
+        if (this.map.get(x, y) !== Tile.Floor) continue;
+        const gold = rng.chance(RULES.secretGoldChance);
+        state.secrets.push({
+          x,
+          y,
+          room: index,
+          item: gold ? "or" : "fleche",
+          count: gold
+            ? rng.int(RULES.secretGoldMin, RULES.secretGoldMax) + RULES.secretGoldPerDepth * (this.depth - 1)
+            : rng.int(RULES.secretArrowsMin, RULES.secretArrowsMax),
+          found: false,
+        });
+        return;
+      }
+    });
+  }
+
+  /** La salle où se tient le héros (son numéro), ou -1 dans un couloir. */
+  roomIndexAt(p: Point): number {
+    return this.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+  }
+
   private placeKey(rooms: Room[]): void {
     if (!this.rng.chance(RULES.keyChance)) return;
     for (let attempt = 0; attempt < 30; attempt++) {
@@ -497,6 +563,7 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.shotTarget = { x, y };
@@ -529,6 +596,7 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.shotTarget = null;
@@ -555,6 +623,7 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.path = best;
@@ -605,6 +674,7 @@ export class Game {
     // Tout nouvel ordre interrompt aussi un ramassage en cours.
     this.picking = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pendingDoor = null;
@@ -641,6 +711,7 @@ export class Game {
     this.shotTarget = null;
     this.waiting = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.picking = true;
@@ -661,17 +732,45 @@ export class Game {
     return this.resting > 0 ? Math.max(0.06, 1 - this.resting / RULES.restTurns) : 0;
   }
 
-  /** Un obstacle (mur, colonne, porte) touche-t-il cette case ? Il faut s'y adosser pour se cacher. */
+  /**
+   * Y a-t-il de quoi se cacher ici ? Une colonne sur une des 8 cases voisines, ou un mur qui fait un angle :
+   * un coin rentrant (mur d'un côté ET mur d'un côté perpendiculaire), ou l'arête d'un mur (le bout d'un pan,
+   * en diagonale, derrière lequel on peut se glisser, comme pour l'embuscade au coin). Un mur droit ne suffit pas.
+   */
   hasCover(p: Point): boolean {
+    const wall = (x: number, y: number) => this.map.get(x, y) === Tile.Wall;
     for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        const x = p.x + dx;
-        const y = p.y + dy;
-        if (!this.map.isWalkable(x, y) || this.map.isDoor(x, y)) return true;
-      }
+      for (let dx = -1; dx <= 1; dx++) if (this.map.get(p.x + dx, p.y + dy) === Tile.Pillar) return true;
+    }
+    if ((wall(p.x, p.y - 1) || wall(p.x, p.y + 1)) && (wall(p.x - 1, p.y) || wall(p.x + 1, p.y))) return true;
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      if (wall(p.x + dx, p.y + dy) && !wall(p.x + dx, p.y) && !wall(p.x, p.y + dy)) return true;
     }
     return false;
+  }
+
+  /** Pourquoi le héros ne peut pas fouiller maintenant (`null` : il le peut). */
+  searchRefusal(): "corridor" | "searched" | "danger" | null {
+    const room = this.roomIndexAt(this.hero);
+    if (room < 0) return "corridor";
+    if (this.current.searched.has(room)) return "searched";
+    if (this.visibleMonsters().length > 0) return "danger";
+    return null;
+  }
+
+  /** Avancement de la fouille en cours, de 0 à 1 (0 : pas de fouille). */
+  searchProgress(): number {
+    return this.searching > 0 ? Math.max(0.06, 1 - this.searching / RULES.searchTurns) : 0;
+  }
+
+  /** Ordre : fouiller toute la salle (plusieurs tours sur place, puis un jet). Un monstre en vue l'interrompt. */
+  search(): boolean {
+    if (this.over || this.searchRefusal() !== null) return false;
+    this.wait();
+    this.waiting = false;
+    this.searching = RULES.searchTurns;
+    this.events.push({ type: "search", phase: "start" });
+    return true;
   }
 
   /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
@@ -752,6 +851,7 @@ export class Game {
     if (this.over) return;
     this.picking = false;
     this.resting = 0;
+    this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.clearDoorOrders();
@@ -772,6 +872,7 @@ export class Game {
     }
 
     const wasResting = this.resting > 0;
+    const wasSearching = this.searching > 0;
     const shotTarget = this.shotTarget;
     this.shotTarget = null;
     if (shotTarget) {
@@ -788,6 +889,8 @@ export class Game {
     } else if (this.jumpTarget) {
       this.resolveJump(this.jumpTarget);
       this.jumpTarget = null;
+    } else if (this.searching > 0) {
+      this.searching--;
     } else if (this.resting > 0) {
       this.resting--;
     } else if (this.waiting) {
@@ -850,6 +953,7 @@ export class Game {
     const resting = wasResting;
     this.monstersAct();
     if (resting) this.afterRestTurn();
+    if (wasSearching) this.afterSearchTurn();
     return true;
   }
 
@@ -871,16 +975,53 @@ export class Game {
     this.events.push({ type: "hide", d20, bonus, total, success });
   }
 
-  /** Saut pour se dégager : ceux qu'il quitte n'ont pas d'attaque d'opportunité, mais restent sur leurs gardes. */
+  /** Fin d'un tour de fouille : un monstre en vue l'interrompt (la salle n'est pas perdue) ; au dernier tour, le jet. */
+  private afterSearchTurn(): void {
+    if (this.over) return;
+    if (this.visibleMonsters().length > 0) {
+      this.searching = 0;
+      this.events.push({ type: "search", phase: "interrupted" });
+      return;
+    }
+    if (this.searching > 0) return;
+    const index = this.roomIndexAt(this.hero);
+    if (index < 0) return;
+    this.current.searched.add(index);
+    const bonus = this.heroClass.searchBonus;
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.searchDc);
+    const found: Point[] = [];
+    if (success) {
+      for (const s of this.current.secrets) {
+        if (s.room !== index || s.found) continue;
+        s.found = true;
+        this.dropItem(s.x, s.y, s.item, s.count);
+        found.push({ x: s.x, y: s.y });
+      }
+    }
+    this.events.push({ type: "searched", d20, bonus, total, success, found, room: this.rooms[index] });
+  }
+
+  /** Saut pour se dégager : il faut réussir un jet. Réussi, pas d'attaque d'opportunité, mais ceux qu'on quitte restent sur leurs gardes. */
   private resolveJump(to: Point): void {
     const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
     const from = { x: this.hero.x, y: this.hero.y };
+    const bonus = this.heroClass.disengageBonus;
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.disengageDc);
+    if (!success) {
+      // Raté : le héros reste au contact, et le tour est perdu.
+      this.events.push({ type: "jump", fromX: from.x, fromY: from.y, x: from.x, y: from.y, d20, bonus, total, success });
+      return;
+    }
     this.hero.x = to.x;
     this.hero.y = to.y;
     this.collectGold();
     // Un avantage à la fois : après s'être dégagé, pas d'embuscade contre ceux qu'on vient de fuir.
     for (const m of threats) m.wary = true;
-    this.events.push({ type: "jump", fromX: from.x, fromY: from.y, x: to.x, y: to.y });
+    this.events.push({ type: "jump", fromX: from.x, fromY: from.y, x: to.x, y: to.y, d20, bonus, total, success });
   }
 
   /** Fin d'un tour de repos : un monstre en vue l'interrompt (le repos de l'étage n'est pas perdu) ; au dernier tour, il soigne. */

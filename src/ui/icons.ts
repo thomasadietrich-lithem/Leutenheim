@@ -1,7 +1,7 @@
 import { ItemId } from "../data/items";
 
 /** Palette commune aux icônes : une lettre par couleur, « . » pour le vide. */
-const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4" };
+export const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4" };
 
 /**
  * Icônes en pixels des objets : chaque ligne de texte est une rangée de pixels. Les objets d'une case font
@@ -631,6 +631,11 @@ const UI_ICONS = {
     "......KLLK......",
   ],
 } satisfies Record<string, string[]>;
+
+/** Les lignes de pixels d'un pictogramme, pour le dessiner aussi sur la carte. */
+export function uiIconRows(name: keyof typeof UI_ICONS): readonly string[] {
+  return UI_ICONS[name];
+}
 
 export function uiIcon(name: keyof typeof UI_ICONS): SVGSVGElement {
   return buildIcon(UI_ICONS[name]);

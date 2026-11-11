@@ -172,8 +172,8 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" }> =>
-  e.type === "attack" || e.type === "hide" || (e.type === "door" && e.action !== "key");
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" }> =>
+  e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || (e.type === "door" && e.action !== "key");
 const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind === "monster";
 
 function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
@@ -315,14 +315,7 @@ function reveal(e: GameEvent): void {
     logLines.push(found.kind === "gold" ? `Bourse : or ×${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
     sfx.play("pickup");
     if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or ×${e.count}`, "#f0c850");
-    if (found.kind !== "gold" && found.kind !== "ammo" && !seenItems.has(e.item)) {
-      // Première trouvaille de ce genre d'objet : on montre sa fiche.
-      seenItems.add(e.item);
-      (document.querySelector("#found h2") as HTMLElement).textContent = "Trouvé";
-      $("found-card").replaceChildren(itemCard(found, e.count));
-      $("found").hidden = false;
-      foundOpen = true;
-    }
+    // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
   } else if (e.type === "xp") {
     renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
     pulse(xpBar, "gain");
@@ -363,9 +356,25 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "revealed") {
     logLines.push("Vous sortez de l'ombre.");
   } else if (e.type === "jump") {
-    logLines.push("Vous vous dégagez d'un bond.");
-    renderer.addFloatingText(e.x, e.y, "Dégagé !", "#ffd75e");
-    sfx.play("step");
+    landDie(e.d20, e.success ? "hit" : "miss", false);
+    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
+    logLines.push(`Vous tentez de vous dégager : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`);
+    renderer.addFloatingText(e.x, e.y, e.success ? "Dégagé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
+    sfx.play(e.success ? "step" : "miss");
+  } else if (e.type === "search") {
+    if (e.phase === "start") logLines.push("Vous fouillez la salle…");
+    else {
+      logLines.push("Fouille interrompue : un ennemi approche !");
+      renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
+    }
+  } else if (e.type === "searched") {
+    landDie(e.d20, e.success ? "hit" : "miss", false);
+    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
+    const outcome = !e.success ? "vous ne trouvez rien." : e.found.length > 0 ? "vous découvrez une cache !" : "rien n'est caché ici.";
+    logLines.push(`Vous fouillez la salle : ${e.d20} ${bonus} = ${e.total} — ${outcome}`);
+    renderer.scanRoom(e.room, game.hero, e.found);
+    for (const f of e.found) renderer.addFloatingText(f.x, f.y, "Trouvé !", "#fff3a0");
+    if (e.found.length > 0) sfx.play("advantage");
   } else if (e.type === "rest") {
     if (e.phase === "start") logLines.push("Vous vous installez pour vous reposer…");
     else if (e.phase === "interrupted") {
@@ -502,11 +511,16 @@ const WHEEL = [
 const HIDE_REFUSALS = {
   hidden: "Vous êtes déjà caché.",
   threatened: "Impossible de se cacher : un ennemi est à votre contact.",
-  "no-cover": "Il faut un mur, une colonne ou une porte à côté de vous pour vous cacher.",
+  "no-cover": "Rien pour vous cacher ici : il faut une colonne à côté de vous, ou un angle de mur.",
 };
 const DISENGAGE_REFUSALS = {
   safe: "Aucun ennemi au contact : rien à quoi se dérober.",
   "no-room": "Pas la place de sauter : tout est bouché autour de vous.",
+};
+const SEARCH_REFUSALS = {
+  corridor: "Il n'y a rien à fouiller ici : placez-vous dans une salle.",
+  searched: "Vous avez déjà fouillé cette salle.",
+  danger: "Impossible de fouiller : un ennemi est en vue.",
 };
 const REST_REFUSALS = {
   full: "Vous êtes en pleine forme : inutile de vous reposer.",
@@ -536,11 +550,12 @@ function openWheel(): void {
     const b = $(id);
     b.style.left = `${cx + radius * Math.cos(angle)}px`;
     b.style.top = `${cy + radius * Math.sin(angle)}px`;
-    // Une action impossible reste visible, grisée ; fouiller et utiliser un objet n'existent pas encore.
+    // Une action impossible reste visible, grisée ; utiliser un objet n'existe pas encore.
     const possible =
       id === "wheel-rest" ? game.restRefusal() === null
       : id === "wheel-hide" ? game.hideRefusal() === null
       : id === "wheel-disengage" ? game.disengageRefusal() === null
+      : id === "wheel-search" ? game.searchRefusal() === null
       : false;
     b.classList.toggle("off", !possible);
   });
@@ -560,6 +575,10 @@ for (const [id, icon, label] of WHEEL) {
       const refusal = game.restRefusal();
       if (refusal) logLines.push(REST_REFUSALS[refusal]);
       else if (game.rest()) stepMs = COMBAT_STEP_MS;
+    } else if (id === "wheel-search") {
+      const refusal = game.searchRefusal();
+      if (refusal) logLines.push(SEARCH_REFUSALS[refusal]);
+      else if (game.search()) stepMs = COMBAT_STEP_MS;
     } else if (id === "wheel-hide") {
       const refusal = game.hideRefusal();
       if (refusal) logLines.push(HIDE_REFUSALS[refusal]);

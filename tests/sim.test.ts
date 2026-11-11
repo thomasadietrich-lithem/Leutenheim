@@ -1233,7 +1233,7 @@ test("repos : 8 tours sur place, rend la moitié des PV manquants, une fois par 
   assert.ok(game.rest());
   const at = { x: game.hero.x, y: game.hero.y };
   let turns = 0;
-  while (game.restProgress() > 0 && turns < 20) {
+  while (game.restProgress() > 0 && turns < 60) {
     assert.ok(game.tick());
     turns++;
     if (game.events.some((e) => e.type === "rest" && e.phase === "interrupted")) break;
@@ -1305,7 +1305,11 @@ test("se cacher : refusé au contact d'un ennemi ; réussi, les monstres perdent
   let done = false;
   for (let seed = 1; seed <= 80 && !done; seed++) {
     const game = new Game(seed);
-    if (!game.hasCover(game.hero) || game.hideRefusal() !== null) continue;
+    const spot = coverSpot(game);
+    if (!spot) continue;
+    game.hero.x = game.hero.fromX = spot.x;
+    game.hero.y = game.hero.fromY = spot.y;
+    if (game.hideRefusal() !== null) continue;
     for (const m of game.monsters) m.alerted = true;
     assert.ok(game.hide());
     game.tick();
@@ -1342,8 +1346,16 @@ test("se dégager : saut de deux cases, sans attaque d'opportunité, et le monst
     }
     assert.equal(game.disengage(game.hero.x, game.hero.y), false, "on ne saute pas sur place");
     const to = cells[0];
+    const before = { x: game.hero.x, y: game.hero.y };
     assert.ok(game.disengage(to.x, to.y));
     game.tick();
+    const jump = game.events.find((e) => e.type === "jump");
+    assert.ok(jump && jump.type === "jump");
+    if (!jump.success) {
+      // Raté : le héros reste au contact.
+      assert.deepEqual({ x: game.hero.x, y: game.hero.y }, before);
+      continue;
+    }
     assert.deepEqual({ x: game.hero.x, y: game.hero.y }, to);
     assert.ok(!game.events.some((e) => e.type === "attack" && e.opportunity), "attaque d'opportunité pendant le saut");
     assert.ok(m.wary, "le monstre quitté devrait être sur ses gardes");
@@ -1353,4 +1365,69 @@ test("se dégager : saut de deux cases, sans attaque d'opportunité, et le monst
   assert.ok(done, "aucune situation de test trouvée");
   // Sans ennemi au contact, rien à quoi se dérober.
   assert.equal(new Game(1).disengageRefusal(), "safe");
+});
+
+/** Une case abritée (colonne voisine ou angle de mur) dans une salle, ou null. */
+function coverSpot(game: Game) {
+  for (let y = 0; y < game.map.height; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      if (game.map.get(x, y) !== Tile.Floor || game.monsterAt(x, y)) continue;
+      const p = { x, y };
+      if (game.hasCover(p) && !game.monsters.some((m) => Math.max(Math.abs(m.x - x), Math.abs(m.y - y)) <= 1)) return p;
+    }
+  }
+  return null;
+}
+
+test("se cacher : un mur droit ne suffit pas ; une colonne voisine ou un coin rentrant, si", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    for (const room of game.rooms) {
+      if (room.w < 5 || room.h < 5) continue;
+      // Milieu du mur du haut, à l'intérieur : mur droit au-dessus, rien d'autre autour.
+      const mid = { x: room.x + Math.floor(room.w / 2), y: room.y };
+      const around = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => game.map.get(mid.x + dx, mid.y + dy)));
+      if (around.includes(Tile.Pillar) || game.map.get(mid.x, mid.y) !== Tile.Floor) continue;
+      if (game.map.get(mid.x, mid.y - 1) !== Tile.Wall || game.map.get(mid.x - 1, mid.y - 1) !== Tile.Wall || game.map.get(mid.x + 1, mid.y - 1) !== Tile.Wall) continue;
+      assert.equal(game.hasCover(mid), false, `graine ${seed} : un mur droit abrite`);
+      // Coin intérieur de la salle : deux murs perpendiculaires.
+      const corner = { x: room.x, y: room.y };
+      if (game.map.get(corner.x, corner.y) === Tile.Floor && game.map.get(corner.x - 1, corner.y) === Tile.Wall && game.map.get(corner.x, corner.y - 1) === Tile.Wall) {
+        assert.ok(game.hasCover(corner), `graine ${seed} : un coin n'abrite pas`);
+      }
+      checked++;
+    }
+  }
+  assert.ok(checked > 10);
+});
+
+test("fouiller : jamais de cache dans une salle vide ; une fouille réussie la révèle ; une seule fouille par salle", () => {
+  let found = 0;
+  for (let seed = 1; seed <= 120; seed++) {
+    const game = new Game(seed);
+    const secrets = (game as unknown as { current: { secrets: { room: number; x: number; y: number; item: string }[] } }).current.secrets;
+    for (const s of secrets) assert.ok(game.roomElements(game.rooms[s.room]) > 0, `graine ${seed} : cache dans une salle vide`);
+    const secret = secrets[0];
+    if (!secret || found > 0) continue;
+    const room = game.rooms[secret.room];
+    for (const m of game.monsters) { m.x = m.fromX = 0; m.y = m.fromY = 0; m.alerted = false; m.asleep = true; }
+    game.monsters.length = 0;
+    game.hero.x = game.hero.fromX = room.x + Math.floor(room.w / 2);
+    game.hero.y = game.hero.fromY = room.y + Math.floor(room.h / 2);
+    if (game.map.get(game.hero.x, game.hero.y) !== Tile.Floor) continue;
+    assert.equal(game.searchRefusal(), null);
+    assert.ok(game.search());
+    let turns = 0;
+    while (game.searchProgress() > 0 && turns < 20) { game.tick(); turns++; }
+    assert.equal(turns, RULES.searchTurns);
+    const roll = game.events.find((e) => e.type === "searched");
+    assert.ok(roll && roll.type === "searched");
+    assert.equal(game.searchRefusal(), "searched");
+    if (roll.success) {
+      assert.ok(game.ground.some((g) => g.x === secret.x && g.y === secret.y), "la cache n'est pas apparue");
+      found++;
+    }
+  }
+  assert.ok(found > 0, "aucune fouille réussie");
 });

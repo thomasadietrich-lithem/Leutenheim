@@ -5,6 +5,7 @@ import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
+import { PALETTE as ICON_PALETTE, uiIconRows } from "../ui/icons";
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
 const COLUMNS = 11;
@@ -180,7 +181,7 @@ export class Renderer {
   }
 
   /** Une image de sprite (rangées de lettres) peinte une fois pour toutes sur un petit canevas 16×16. */
-  private sprite(rows: readonly string[]): HTMLCanvasElement {
+  private sprite(rows: readonly string[], palette: Record<string, string> = GUERRIER_PALETTE): HTMLCanvasElement {
     let c = this.spriteCache.get(rows);
     if (!c) {
       c = document.createElement("canvas");
@@ -189,7 +190,7 @@ export class Renderer {
       const g = c.getContext("2d")!;
       rows.forEach((row, y) => {
         for (let x = 0; x < row.length; x++) {
-          const color = GUERRIER_PALETTE[row[x]];
+          const color = palette[row[x]];
           if (!color) continue;
           g.fillStyle = color;
           g.fillRect(x, y, 1, 1);
@@ -303,6 +304,17 @@ export class Renderer {
 
   private originY(): number {
     return this.height / 2 - (this.camY + 0.5) * this.tile;
+  }
+
+  /** Fouille : une vague dorée balaie les cases de la salle depuis le héros, puis les trouvailles scintillent. */
+  private scan: { cells: { x: number; y: number; d: number }[]; age: number; found: Point[] } | null = null;
+
+  scanRoom(room: { x: number; y: number; w: number; h: number }, from: Point, found: Point[]): void {
+    const cells: { x: number; y: number; d: number }[] = [];
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) cells.push({ x, y, d: Math.hypot(x - from.x, y - from.y) });
+    }
+    this.scan = { cells, age: 0, found };
   }
 
   /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
@@ -616,7 +628,44 @@ export class Renderer {
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
     // Repos en cours : petite jauge au-dessus du héros.
-    const rest = game.restProgress();
+    // Fouille en cours : la loupe oscille au-dessus de la tête du héros, comme s'il examinait le sol.
+    const searching = game.searchProgress();
+    if (searching > 0) {
+      const s = Math.round(tile * 0.55);
+      const wobble = Math.sin(this.time / 160) * tile * 0.18;
+      const lx = Math.round(ox + (hero.x + 0.5) * tile - s / 2 + wobble);
+      const ly = Math.round(oy + hero.y * tile - tile * 0.5 - s);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(uiIconRows("search"), ICON_PALETTE), lx, ly, s, s);
+      ctx.imageSmoothingEnabled = smooth;
+    }
+    // Balayage de la fouille : chaque case s'illumine quand la vague l'atteint, puis s'éteint.
+    if (this.scan) {
+      this.scan.age += dt;
+      const front = this.scan.age / 70; // cases parcourues par la vague
+      for (const c of this.scan.cells) {
+        const behind = front - c.d;
+        if (behind < 0 || behind > 2.5) continue;
+        ctx.fillStyle = `rgba(255,224,130,${(0.35 * (1 - behind / 2.5)).toFixed(2)})`;
+        ctx.fillRect(Math.round(ox + c.x * tile), Math.round(oy + c.y * tile), Math.round(tile), Math.round(tile));
+      }
+      const maxD = Math.max(...this.scan.cells.map((c) => c.d), 0);
+      const sparkle = this.scan.age - maxD * 70;
+      if (sparkle > 0) {
+        // Les trouvailles scintillent : une étoile dorée à quatre branches qui pulse.
+        for (const f of this.scan.found) {
+          const cx = ox + (f.x + 0.5) * tile;
+          const cy = oy + (f.y + 0.5) * tile;
+          const r = tile * (0.25 + 0.15 * Math.abs(Math.sin(sparkle / 120)));
+          ctx.fillStyle = "#fff3a0";
+          ctx.fillRect(Math.round(cx - r), Math.round(cy - tile * 0.05), Math.round(2 * r), Math.max(2, Math.round(tile * 0.1)));
+          ctx.fillRect(Math.round(cx - tile * 0.05), Math.round(cy - r), Math.max(2, Math.round(tile * 0.1)), Math.round(2 * r));
+        }
+      }
+      if (sparkle > 1600) this.scan = null;
+    }
+    const rest = Math.max(game.restProgress(), searching);
     if (rest > 0) {
       const gx = Math.round(ox + hero.x * tile + tile * 0.1);
       const gy = Math.round(oy + hero.y * tile - tile * 0.5);
@@ -626,7 +675,7 @@ export class Renderer {
       ctx.fillRect(gx - 1, gy - 1, gw + 2, gh + 2);
       ctx.fillStyle = "#3b2f20";
       ctx.fillRect(gx, gy, gw, gh);
-      ctx.fillStyle = "#f0c050";
+      ctx.fillStyle = searching > 0 ? "#9fd0f4" : "#f0c050";
       ctx.fillRect(gx, gy, Math.round(gw * rest), gh);
     }
     // Liseré rouge : le héros se tient dans une porte, les ennemis ont l'avantage sur lui.

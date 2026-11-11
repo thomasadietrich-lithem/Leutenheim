@@ -34,10 +34,25 @@ export const RULES = {
   arrowOvershoot: 4,
   /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
   hideDc: 9,
-  /** Se dégager (roue d'actions) : le héros saute à tant de cases, en ligne droite. */
+  /** Se dégager (roue d'actions) : le héros saute à tant de cases, en ligne droite… */
   jumpDistance: 2,
+  /** …s'il réussit d20 + bonus d'agilité contre cette difficulté ; raté, il reste sur place et le tour est perdu. */
+  disengageDc: 10,
+  /** Fouiller une salle : tours passés sur place, puis d20 + bonus de fouille contre cette difficulté. Une fouille par salle. */
+  searchTurns: 5,
+  searchDc: 8,
+  /** Chance qu'une salle cache un secret : 0 pour une salle vide, tant par genre d'élément présent (colonnes, cheminée…), plafonnée. */
+  secretChancePerElement: 0.2,
+  secretChanceMax: 0.6,
+  /** Une cache contient de l'or (de min à max, plus un bonus par étage) ou, sinon, quelques flèches. */
+  secretGoldChance: 0.6,
+  secretGoldMin: 6,
+  secretGoldMax: 16,
+  secretGoldPerDepth: 2,
+  secretArrowsMin: 2,
+  secretArrowsMax: 5,
   /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
-  restTurns: 8,
+  restTurns: 20,
   /** Part des points de vie manquants rendue par un repos mené à son terme. */
   restHealShare: 0.5,
   /** Nombre d'étages d'une section (région à thème). */

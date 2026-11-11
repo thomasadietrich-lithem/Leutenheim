@@ -1431,3 +1431,25 @@ test("fouiller : jamais de cache dans une salle vide ; une fouille réussie la r
   }
   assert.ok(found > 0, "aucune fouille réussie");
 });
+
+test("porte verrouillée : la croix referme le choix sans rien tenter ni faire passer de tour", () => {
+  for (let seed = 1; seed <= 80; seed++) {
+    const game = new Game(seed);
+    let door: { x: number; y: number } | null = null;
+    for (let y = 0; y < game.map.height && !door; y++) {
+      for (let x = 0; x < game.map.width && !door; x++) if (game.map.get(x, y) === Tile.DoorLocked) door = { x, y };
+    }
+    if (!door) continue;
+    game.pendingDoor = door;
+    assert.ok(game.doorOptions().length > 0);
+    const turn = game.turn;
+    game.cancelDoor();
+    assert.equal(game.pendingDoor, null);
+    assert.equal(game.doorOptions().length, 0);
+    assert.equal(game.tick(), false, "un tour est passé");
+    assert.equal(game.turn, turn);
+    assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
+    return;
+  }
+  assert.fail("aucune porte verrouillée trouvée");
+});

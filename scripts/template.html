@@ -70,6 +70,9 @@
   #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #door-actions button { background: #4a2f12; }
+  /* La croix : renoncer à la porte sans rien tenter, et garder la main (utile si un ennemi arrive). */
+  #door-actions #door-cancel { align-self: center; width: 48px; height: 44px; padding: 6px; background: var(--btn); display: flex; }
+  #door-cancel svg { width: 100%; height: 100%; }
 
   /* Dés et journal. */
   /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
@@ -227,6 +230,7 @@
       <button id="door-key" type="button" hidden>Utiliser la clef</button>
       <button id="door-pick" type="button">Crocheter</button>
       <button id="door-break" type="button">Enfoncer</button>
+      <button id="door-cancel" type="button"></button>
     </div>
     <div id="over" class="overlay" hidden>
       <div id="over-text"></div>

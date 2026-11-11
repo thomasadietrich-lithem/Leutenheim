@@ -659,6 +659,12 @@ export class Game {
    * Ce que le héros peut encore tenter sur la porte verrouillée devant lui. Crocheter et enfoncer n'ont droit
    * qu'à un essai chacun par porte ; la clef marche toujours, si on en a une.
    */
+  /** Renoncer à la porte verrouillée devant laquelle on se tient : rien n'est tenté, aucun tour ne passe. */
+  cancelDoor(): void {
+    this.clearDoorOrders();
+    this.pendingDoor = null;
+  }
+
   doorOptions(): DoorAction[] {
     const door = this.pendingDoor;
     if (!door) return [];

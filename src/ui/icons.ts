@@ -557,6 +557,25 @@ const UI_ICONS = {
     "................",
     "................",
   ],
+  /** Annuler : une croix rouge. */
+  cancel: [
+    "................",
+    "..KKK......KKK..",
+    ".KRRRK....KRRRK.",
+    ".KRRRRK..KRRRRK.",
+    "..KRRRRKKRRRRK..",
+    "...KRRRRRRRRK...",
+    "....KRRRRRRK....",
+    ".....KRRRRK.....",
+    ".....KRRRRK.....",
+    "....KRRRRRRK....",
+    "...KRRRRRRRRK...",
+    "..KRRRRKKRRRRK..",
+    ".KrRRRK..KRRRrK.",
+    ".KrrrK....KrrrK.",
+    "..KKK......KKK..",
+    "................",
+  ],
   /** Ramasser : une flèche dorée qui descend dans le sac ouvert. */
   take: [
     ".....KKKKKK.....",

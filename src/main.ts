@@ -604,6 +604,7 @@ const doorButton = (id: string, action: DoorAction) => button(id, () => game.act
 doorButton("door-pick", "pick");
 doorButton("door-break", "break");
 doorButton("door-key", "key");
+button("door-cancel", () => game.cancelDoor());
 button("recenter", () => renderer.recenter());
 /** Tire une flèche vers une case ; explique le refus s'il y en a un. Une flèche par visée. */
 function fireAt(x: number, y: number): void {
@@ -692,6 +693,7 @@ for (const [id, icon, label] of [
   ["open-bag", "bag", "Équipement et sac"],
   ["open-menu", "menu", "Menu"],
   ["recenter", "recenter", "Recentrer la vue"],
+  ["door-cancel", "cancel", "Ne rien faire"],
 ] as const) {
   $(id).replaceChildren(uiIcon(icon));
   $(id).setAttribute("aria-label", label);

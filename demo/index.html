@@ -70,6 +70,9 @@
   #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #door-actions button { background: #4a2f12; }
+  /* La croix : renoncer à la porte sans rien tenter, et garder la main (utile si un ennemi arrive). */
+  #door-actions #door-cancel { align-self: center; width: 48px; height: 44px; padding: 6px; background: var(--btn); display: flex; }
+  #door-cancel svg { width: 100%; height: 100%; }
 
   /* Dés et journal. */
   /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
@@ -227,6 +230,7 @@
       <button id="door-key" type="button" hidden>Utiliser la clef</button>
       <button id="door-pick" type="button">Crocheter</button>
       <button id="door-break" type="button">Enfoncer</button>
+      <button id="door-cancel" type="button"></button>
     </div>
     <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
@@ -1892,6 +1896,11 @@
      * Ce que le héros peut encore tenter sur la porte verrouillée devant lui. Crocheter et enfoncer n'ont droit
      * qu'à un essai chacun par porte ; la clef marche toujours, si on en a une.
      */
+    /** Renoncer à la porte verrouillée devant laquelle on se tient : rien n'est tenté, aucun tour ne passe. */
+    cancelDoor() {
+      this.clearDoorOrders();
+      this.pendingDoor = null;
+    }
     doorOptions() {
       const door = this.pendingDoor;
       if (!door) return [];
@@ -3954,6 +3963,25 @@
       "................",
       "................"
     ],
+    /** Annuler : une croix rouge. */
+    cancel: [
+      "................",
+      "..KKK......KKK..",
+      ".KRRRK....KRRRK.",
+      ".KRRRRK..KRRRRK.",
+      "..KRRRRKKRRRRK..",
+      "...KRRRRRRRRK...",
+      "....KRRRRRRK....",
+      ".....KRRRRK.....",
+      ".....KRRRRK.....",
+      "....KRRRRRRK....",
+      "...KRRRRRRRRK...",
+      "..KRRRRKKRRRRK..",
+      ".KrRRRK..KRRRrK.",
+      ".KrrrK....KrrrK.",
+      "..KKK......KKK..",
+      "................"
+    ],
     /** Ramasser : une flèche dorée qui descend dans le sac ouvert. */
     take: [
       ".....KKKKKK.....",
@@ -5504,6 +5532,7 @@
   doorButton("door-pick", "pick");
   doorButton("door-break", "break");
   doorButton("door-key", "key");
+  button("door-cancel", () => game.cancelDoor());
   button("recenter", () => renderer.recenter());
   function fireAt(x, y) {
     const refusal = game.shoot(x, y);
@@ -5581,7 +5610,8 @@
     ["actions", "actions", "Actions"],
     ["open-bag", "bag", "\xC9quipement et sac"],
     ["open-menu", "menu", "Menu"],
-    ["recenter", "recenter", "Recentrer la vue"]
+    ["recenter", "recenter", "Recentrer la vue"],
+    ["door-cancel", "cancel", "Ne rien faire"]
   ]) {
     $(id).replaceChildren(uiIcon(icon));
     $(id).setAttribute("aria-label", label);

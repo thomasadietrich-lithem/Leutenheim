@@ -11,126 +11,17 @@ import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SandboxFloor } from "../world/sandbox";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
-import { AttackResult, rollAttack } from "./combat";
+import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
+import { DoorAction, GameEvent, ShootRefusal } from "./events";
+import { Debris, FloorState, GroundItem, placeKey, placeSecrets, placeTraps, roomElements } from "./floor";
+
+// Les autres fichiers continuent d'importer ces types depuis la partie.
+export type { DoorAction, GameEvent, ShootRefusal } from "./events";
+export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
 
 /** Ce qui s'est passé pendant un tour, pour que l'affichage puisse le montrer. */
-export type GameEvent =
-  | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult; opportunity?: boolean; ranged?: boolean }
-  | {
-      type: "arrow";
-      fromX: number;
-      fromY: number;
-      /** Où la flèche finit sa course. */
-      x: number;
-      y: number;
-      /** Si elle a rebondi : la case où elle a heurté l'obstacle avant de retomber. */
-      via?: Point;
-      hit: boolean;
-      kept: boolean;
-    }
-  | { type: "pickup"; item: ItemId; count: number }
-  | { type: "death"; actor: Actor }
-  | { type: "noticed"; actor: Actor }
-  | { type: "stairs"; direction: "down" | "up"; healed: number }
-  /** Le sac est plein : l'objet reste au sol. */
-  | { type: "bagFull" }
-  | { type: "opened"; x: number; y: number }
-  | { type: "fountain"; healed: number }
-  /** Se cacher : le jet au d20, et s'il a réussi. */
-  | { type: "hide"; d20: number; bonus: number; total: number; success: boolean }
-  /** Le héros sort de sa cachette (il attaque, quitte l'abri d'un obstacle, fait du bruit). */
-  | { type: "revealed" }
-  /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
-  | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
-  /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */
-  | { type: "push"; target: Actor; d20: number; bonus: number; total: number; success: boolean; moved: boolean; slam: number }
-  /** Quelqu'un a marché sur un piège. */
-  | { type: "trap"; x: number; y: number; victim: Actor; damage: number }
-  /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */
-  | { type: "search"; phase: "start" | "interrupted" }
-  | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; room: Room }
-  /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
-  | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
-  | { type: "chest"; gold: number }
-  | { type: "xp"; amount: number }
-  | { type: "levelup"; level: number }
-  | {
-      type: "door";
-      action: DoorAction;
-      x: number;
-      y: number;
-      d20: number;
-      bonus: number;
-      total: number;
-      dc: number;
-      success: boolean;
-      /** Nombre de monstres alertés par le bruit. */
-      alerted: number;
-    };
-
-/** Pourquoi un tir est refusé. */
-export type ShootRefusal = "no-bow" | "no-ammo" | "no-target" | "out-of-range";
-
-/** Tout ce qu'il faut garder d'un étage pour le retrouver tel quel en y revenant. */
-interface FloorState {
-  map: GameMap;
-  start: Point;
-  stairs: Point;
-  rooms: Room[];
-  torches: LightSource[];
-  monsters: Actor[];
-  ground: GroundItem[];
-  debris: Debris[];
-  explored: Uint8Array;
-  sensed: Uint8Array;
-  rng: Rng;
-  seenMonsters: Set<number>;
-  /** Repeuplement : nombre de monstres à l'origine, et tour du prochain renfort possible. */
-  population: number;
-  nextRespawn: number;
-  /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
-  rested: boolean;
-  /** Caches de l'étage (butin enfoui dans une salle) et salles déjà fouillées (une fouille par salle). */
-  secrets: Secret[];
-  searched: Set<number>;
-  /** Pièges de l'étage (visibles pour l'instant) : ils restent armés. */
-  traps: Point[];
-}
-
-/** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */
-export interface Secret {
-  x: number;
-  y: number;
-  room: number;
-  item: ItemId;
-  count: number;
-  found: boolean;
-}
-
-/** Débris sans usage (flèche brisée) : il reste au sol jusqu'au tour `until`, puis disparaît. */
-export interface Debris {
-  x: number;
-  y: number;
-  angle: number;
-  until: number;
-}
-
-/** Un objet posé au sol. */
-export interface GroundItem {
-  x: number;
-  y: number;
-  item: ItemId;
-  count: number;
-  /** Orientation de l'objet posé au sol (radians), pour les flèches : dans quel sens elle est tombée ou plantée. */
-  angle?: number;
-}
-
-/** Crocheter (silencieux) ou enfoncer (bruyant) une porte verrouillée. */
-export type DoorAction = "pick" | "break" | "key";
-
-/** État complet d'une partie. Ne connaît ni l'écran ni le tactile. */
 export class Game {
   depth = 0;
   turn = 0;
@@ -320,9 +211,9 @@ export class Game {
       this.spawnMonsters(state.rooms);
       state.population = Math.max(1, this.monsters.length);
       state.nextRespawn = this.turn + RULES.respawnTurns;
-      this.placeKey(state.rooms);
-      this.placeSecrets(state, floorSeed(this.runSeed, depth));
-      this.placeTraps(state, floorSeed(this.runSeed, depth));
+      placeKey(state, this.rng, this.hero);
+      placeSecrets(state, depth, floorSeed(this.runSeed, depth));
+      placeTraps(state, floorSeed(this.runSeed, depth));
     }
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -400,63 +291,8 @@ export class Game {
     }
   }
 
-  /** Avec un peu de chance, une clef traîne dans une salle de l'étage. */
-  /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
-  roomElements(room: Room): number {
-    let pillars = false;
-    for (let y = room.y; y < room.y + room.h; y++) {
-      for (let x = room.x; x < room.x + room.w; x++) if (this.map.get(x, y) === Tile.Pillar) pillars = true;
-    }
-    const hearth = this.torches.some(
-      (t) => t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h,
-    );
-    return (pillars ? 1 : 0) + (hearth ? 1 : 0);
-  }
 
-  /** Enfouit des caches dans les salles garnies : une salle vide n'en a jamais. Hasard à part, pour ne rien changer au reste. */
-  private placeSecrets(state: FloorState, seed: number): void {
-    const rng = new Rng(seed ^ 0x2c1b3c6d);
-    state.rooms.forEach((room, index) => {
-      if (index === 0) return; // salle de départ
-      const chance = Math.min(RULES.secretChanceMax, RULES.secretChancePerElement * this.roomElements(room));
-      if (chance <= 0 || !rng.chance(chance)) return;
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const x = rng.int(room.x, room.x + room.w - 1);
-        const y = rng.int(room.y, room.y + room.h - 1);
-        if (this.map.get(x, y) !== Tile.Floor) continue;
-        const gold = rng.chance(RULES.secretGoldChance);
-        state.secrets.push({
-          x,
-          y,
-          room: index,
-          item: gold ? "or" : "fleche",
-          count: gold
-            ? rng.int(RULES.secretGoldMin, RULES.secretGoldMax) + RULES.secretGoldPerDepth * (this.depth - 1)
-            : rng.int(RULES.secretArrowsMin, RULES.secretArrowsMax),
-          found: false,
-        });
-        return;
-      }
-    });
-  }
 
-  /** Pose les pièges : au plus un par salle, jamais dans la salle de départ, toujours au milieu du sol. Hasard à part. */
-  private placeTraps(state: FloorState, seed: number): void {
-    const rng = new Rng(seed ^ 0x51ed2701);
-    state.rooms.forEach((room, index) => {
-      if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const x = rng.int(room.x, room.x + room.w - 1);
-        const y = rng.int(room.y, room.y + room.h - 1);
-        // Seulement au milieu du sol (8 voisines dégagées) : un piège ne bouche jamais un passage, et l'on peut toujours le contourner.
-        let open = true;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
-        if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
-        state.traps.push({ x, y });
-        return;
-      }
-    });
-  }
 
   /** Les pièges de l'étage. */
   traps(): readonly Point[] {
@@ -522,16 +358,10 @@ export class Game {
     for (const t of plan.traps) state.traps.push({ ...t });
   }
 
-  private placeKey(rooms: Room[]): void {
-    if (!this.rng.chance(RULES.keyChance)) return;
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const room = rooms[this.rng.int(0, rooms.length - 1)];
-      const x = this.rng.int(room.x, room.x + room.w - 1);
-      const y = this.rng.int(room.y, room.y + room.h - 1);
-      if (this.map.get(x, y) !== Tile.Floor || (x === this.hero.x && y === this.hero.y)) continue;
-      this.ground.push({ x, y, item: "clef", count: 1 });
-      return;
-    }
+
+  /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
+  roomElements(room: Room): number {
+    return roomElements(this.map, this.torches, room);
   }
 
   // ---------- Consultation ----------

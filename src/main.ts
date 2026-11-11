@@ -1,7 +1,6 @@
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
-import { RULES } from "./data/rules";
 import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
@@ -10,6 +9,7 @@ import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
 import { itemIcon, uiIcon } from "./ui/icons";
+import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
 function stepDuration(pathLength: number): number {
@@ -183,41 +183,6 @@ const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door"
   e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || (e.type === "door" && e.action !== "key");
 const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind === "monster";
 
-function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
-  const r = e.result;
-  const who =
-    e.attacker.kind === "hero"
-      ? `${e.ranged ? "Vous tirez sur" : "Vous attaquez"} ${e.target.name}`
-      : e.opportunity
-        ? `Attaque d'opportunité de ${e.attacker.name}`
-        : `${e.attacker.name} vous attaque`;
-  const outcome = r.critical
-    ? `coup critique, ${r.damage} dégâts`
-    : r.hit
-      ? `touché, ${r.damage} dégâts`
-      : r.d20 === 1
-        ? "échec critique"
-        : "raté";
-  const mode =
-    r.mode === "advantage"
-      ? ` (avantage : ${r.rolls.join(" et ")})`
-      : r.mode === "disadvantage"
-        ? ` (désavantage : ${r.rolls.join(" et ")})`
-        : "";
-  // La difficulté à atteindre n'est jamais affichée : seulement le jet et son résultat.
-  return `${who} : ${r.d20} + ${r.bonus} = ${r.total}${mode} — ${outcome}`;
-}
-
-function describeDoor(e: Extract<GameEvent, { type: "door" }>): string {
-  if (e.action === "key") return "Vous ouvrez la porte avec la clef.";
-  const what = e.action === "pick" ? "Vous crochetez la serrure" : "Vous enfoncez la porte";
-  const outcome =
-    e.action === "pick" ? (e.success ? "elle s'ouvre" : "raté") : e.success ? "elle cède" : "elle résiste";
-  const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-  const dead = !e.success && game.doorOptions().length === 0 ? " Il vous faudrait une clef." : "";
-  return `${what} : ${e.d20} ${bonus} = ${e.total} — ${outcome}.${dead}`;
-}
-
 /** Flèches déjà parties à l'écran (pour ne pas les faire voler deux fois). */
 const launched = new WeakSet<object>();
 
@@ -275,10 +240,11 @@ function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean, 
 
 /** Le résultat d'un événement est montré : texte, son, effets. */
 function reveal(e: GameEvent): void {
+  const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0 });
+  if (line) logLines.push(line);
   if (e.type === "attack") {
     const r = e.result;
     const foe = e.attacker.kind === "monster";
-    logLines.push(describeAttack(e));
     if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunité !", "#ffd75e");
     if (!e.ranged) renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
     const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
@@ -297,7 +263,6 @@ function reveal(e: GameEvent): void {
     }
     sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : "hit") : "miss");
   } else if (e.type === "door") {
-    logLines.push(describeDoor(e));
     if (e.action === "key") {
       sfx.play("key");
     } else {
@@ -314,12 +279,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "arrow") {
     if (!launched.has(e)) sfx.play("bow");
     launchArrow(e);
-    if (!e.kept) logLines.push("La flèche se brise.");
-    else if (!e.hit) logLines.push(e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.");
   } else if (e.type === "pickup") {
     discover([e.item]);
     const found: ItemDef = ITEMS[e.item];
-    logLines.push(found.kind === "gold" ? `Bourse : or ×${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`);
     sfx.play("pickup");
     if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or ×${e.count}`, "#f0c850");
     // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
@@ -327,7 +289,6 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
     pulse(xpBar, "gain");
   } else if (e.type === "levelup") {
-    logLines.push(`Niveau ${e.level} ! Vous gagnez ${RULES.hpPerLevel} points de vie.`);
     shownHp = game.hero.hp;
     sfx.play("heal");
   } else if (e.type === "death") {
@@ -338,54 +299,32 @@ function reveal(e: GameEvent): void {
       sfx.play("death");
     } else {
       ghosts = ghosts.filter((g) => g !== e.actor);
-      logLines.push(`${e.actor.name} est vaincu.`);
       sfx.play("kill");
     }
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
   } else if (e.type === "bagFull") {
-    logLines.push("Le sac est plein : l'objet reste au sol.");
   } else if (e.type === "stairs") {
-    logLines.push(
-      e.direction === "down"
-        ? `Vous descendez à l'étage ${game.depth}.${e.healed > 0 ? ` Vous récupérez ${e.healed} PV.` : ""}`
-        : `Vous remontez à l'étage ${game.depth}.`,
-    );
     shownHp = game.hero.hp;
     sfx.play("descend");
   } else if (e.type === "hide") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
-    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-    logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, les monstres perdent votre trace." : "raté, vous restez visible."}`);
     renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
     if (!e.success) sfx.play("miss");
   } else if (e.type === "revealed") {
-    logLines.push("Vous sortez de l'ombre.");
   } else if (e.type === "jump") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
-    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-    logLines.push(`Vous tentez de vous dégager : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`);
     renderer.addFloatingText(e.x, e.y, e.success ? "Dégagé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
     sfx.play(e.success ? "step" : "miss");
   } else if (e.type === "push") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
-    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-    const outcome = !e.success
-      ? `${e.target.name} ne bouge pas.`
-      : e.slam > 0
-        ? `${e.target.name} heurte le mur : ${e.slam} dégâts, il est sonné.`
-        : e.moved
-          ? `${e.target.name} recule, sonné.`
-          : `${e.target.name} est bloqué, mais sonné.`;
-    logLines.push(`Vous poussez ${e.target.name} : ${e.d20} ${bonus} = ${e.total} — ${outcome}`);
     renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.target.x, e.target.y, "", false);
     if (e.slam > 0) renderer.addFloatingText(e.target.x, e.target.y, `BAM ! −${e.slam}`, "#ffd75e");
     else renderer.addFloatingText(e.target.x, e.target.y, e.success ? "Poussé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
     sfx.play(!e.success ? "miss" : e.slam > 0 ? "thud" : "hit");
   } else if (e.type === "trap") {
     const hero = e.victim.kind === "hero";
-    logLines.push(hero ? `Vous marchez sur un piège : ${e.damage} dégâts.` : `${e.victim.name} tombe sur un piège : ${e.damage} dégâts.`);
     renderer.addFloatingText(e.x, e.y, `Piège ! −${e.damage}`, "#ff6b7a");
     sfx.play(hero ? "hurt" : "hit");
     if (hero) {
@@ -395,26 +334,16 @@ function reveal(e: GameEvent): void {
       shownHp = game.hero.hp;
     }
   } else if (e.type === "search") {
-    if (e.phase === "start") logLines.push("Vous fouillez la salle…");
-    else {
-      logLines.push("Fouille interrompue : un ennemi approche !");
-      renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
-    }
+    if (e.phase === "interrupted") renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
   } else if (e.type === "searched") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
-    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-    const outcome = !e.success ? "vous ne trouvez rien." : e.found.length > 0 ? "vous découvrez une cache !" : "rien n'est caché ici.";
-    logLines.push(`Vous fouillez la salle : ${e.d20} ${bonus} = ${e.total} — ${outcome}`);
     renderer.scanRoom(e.room, game.hero, e.found);
     for (const f of e.found) renderer.addFloatingText(f.x, f.y, "Trouvé !", "#fff3a0");
     if (e.found.length > 0) sfx.play("advantage");
   } else if (e.type === "rest") {
-    if (e.phase === "start") logLines.push("Vous vous installez pour vous reposer…");
-    else if (e.phase === "interrupted") {
-      logLines.push("Repos interrompu : un ennemi approche !");
+    if (e.phase === "interrupted") {
       renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
-    } else {
-      logLines.push(`Vous vous êtes reposé : +${e.healed} PV.`);
+    } else if (e.phase === "done") {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.healed} PV`, "#8fe08f");
       shownHp = game.hero.hp;
       sfx.play("heal");
@@ -422,11 +351,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "opened") {
     sfx.play("door");
   } else if (e.type === "fountain") {
-    logLines.push(e.healed > 0 ? `Vous buvez à la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez à la fontaine. Elle se tarit.");
     shownHp = game.hero.hp;
     sfx.play("heal");
   } else if (e.type === "chest") {
-    logLines.push(`Le coffre contient ${e.gold} pièces d'or.`);
     sfx.play("unlock");
   }
   renderLog();
@@ -553,25 +480,6 @@ const WHEEL = [
   ["wheel-rest", "rest", "Se reposer"],
   ["wheel-hide", "hide", "Se cacher"],
 ] as const;
-const HIDE_REFUSALS = {
-  hidden: "Vous êtes déjà caché.",
-  threatened: "Impossible de se cacher : un ennemi est à votre contact.",
-  "no-cover": "Rien pour vous cacher ici : il faut une colonne à côté de vous, ou un angle de mur.",
-};
-const DISENGAGE_REFUSALS = {
-  safe: "Aucun ennemi au contact : rien à quoi se dérober.",
-  "no-room": "Pas la place de sauter : tout est bouché autour de vous.",
-};
-const SEARCH_REFUSALS = {
-  corridor: "Il n'y a rien à fouiller ici : placez-vous dans une salle.",
-  searched: "Vous avez déjà fouillé cette salle.",
-  danger: "Impossible de fouiller : un ennemi est en vue.",
-};
-const REST_REFUSALS = {
-  full: "Vous êtes en pleine forme : inutile de vous reposer.",
-  used: "Vous vous êtes déjà reposé à cet étage.",
-  danger: "Impossible de se reposer : un ennemi est en vue.",
-};
 
 function closeWheel(): void {
   wheelOpen = false;
@@ -620,7 +528,7 @@ for (const [id, icon, label] of WHEEL) {
     closeWheel();
     if (id === "wheel-rest") {
       const refusal = game.restRefusal();
-      if (refusal) logLines.push(REST_REFUSALS[refusal]);
+      if (refusal) logLines.push(REFUSALS.rest[refusal]);
       else if (game.rest()) stepMs = COMBAT_STEP_MS;
     } else if (id === "wheel-push") {
       const targets = game.pushTargets();
@@ -634,15 +542,15 @@ for (const [id, icon, label] of WHEEL) {
       }
     } else if (id === "wheel-search") {
       const refusal = game.searchRefusal();
-      if (refusal) logLines.push(SEARCH_REFUSALS[refusal]);
+      if (refusal) logLines.push(REFUSALS.search[refusal]);
       else if (game.search()) stepMs = COMBAT_STEP_MS;
     } else if (id === "wheel-hide") {
       const refusal = game.hideRefusal();
-      if (refusal) logLines.push(HIDE_REFUSALS[refusal]);
+      if (refusal) logLines.push(REFUSALS.hide[refusal]);
       else if (game.hide()) stepMs = COMBAT_STEP_MS;
     } else if (id === "wheel-disengage") {
       const refusal = game.disengageRefusal();
-      if (refusal) logLines.push(DISENGAGE_REFUSALS[refusal]);
+      if (refusal) logLines.push(REFUSALS.disengage[refusal]);
       else {
         jumpMode = true;
         renderer.jumpCells = game.jumpCells();

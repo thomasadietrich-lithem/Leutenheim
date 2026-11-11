@@ -17,7 +17,9 @@
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   canvas, button, .card { outline: none; }
-  .col { position: relative; width: min(100%, calc((100vh - 250px) * 9 / 13), 420px); display: flex; flex-direction: column; gap: 6px; }
+  /* Format téléphone partout : largeur d'un téléphone (420 px au plus), toute la hauteur disponible (900 px au plus).
+     Sur PC, la colonne ne dépend plus de la hauteur de la fenêtre : les menus gardent toujours la même largeur. */
+  .col { position: relative; width: min(100%, 420px); height: min(calc(100vh - 12px), 900px); height: min(calc(100dvh - 12px), 900px); display: flex; flex-direction: column; gap: 6px; }
   [hidden] { display: none !important; }
 
   /* Cadre biseauté commun aux panneaux. */
@@ -46,7 +48,8 @@
   .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }
   #xp-fill { height: 100%; width: 0; background: repeating-linear-gradient(to right, #3a7bd0 0 6px, #24508e 6px 8px); }
   #hp-fill { height: 100%; width: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
-  .frame { position: relative; aspect-ratio: 9 / 13; overflow: hidden; background: #070605; }
+  /* La carte prend toute la hauteur qui reste entre les jauges et le panneau du dé. */
+  .frame { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; background: #070605; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; image-rendering: pixelated; }
 
   /* Boutons : pavés biseautés, texte en capitales. */
@@ -58,7 +61,8 @@
   button.ghost { background: #241c14; color: var(--dim); }
 
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 16px; }
+    align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
+    overflow-x: hidden; overflow-y: auto; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
@@ -137,19 +141,21 @@
   /* Menus. */
   #menu { z-index: 2; }
   #menu section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-  #menu h1 { margin: 0; font-size: 56px; font-weight: 400; letter-spacing: 0.08em; color: var(--gold); text-shadow: 3px 3px 0 #5a3a08; }
+  #menu h1 { margin: 0; font-size: min(56px, 11vw); font-weight: 400; letter-spacing: 0.08em; color: var(--gold); text-shadow: 3px 3px 0 #5a3a08; }
   #menu h2, #bag h2 { margin: 0 0 4px; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
   #menu h3 { margin: 6px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); align-self: flex-start; }
   #menu p { margin: 0 0 14px; font-size: 18px; color: var(--dim); }
-  #menu section > button, #detail > button { width: 220px; padding: 10px; font-size: 22px; }
+  #menu section > button, #detail > button { width: min(250px, 80%); padding: 10px; font-size: 22px; }
   #seed { font-size: 15px; color: #6a5f4a; margin-top: 8px; }
-  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  /* minmax(0, 1fr) : les trois cases se partagent la largeur, même si un mot est long (sinon elles débordent). */
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
   .card { position: relative; background: var(--panel); padding: 26px 4px 8px; min-height: 108px; cursor: pointer; text-align: center;
     border: 3px solid #4a3e2a; box-shadow: inset 0 0 0 2px var(--panel-lo); }
   .card.selected { border-color: var(--gold); background: #2a2010; }
   .card.locked { filter: grayscale(1) brightness(0.6); cursor: default; }
-  .card-name { font-size: 22px; color: #fff3c8; margin-bottom: 2px; text-transform: uppercase; }
-  .card-info { font-size: 16px; color: var(--dim); }
+  /* Le nom tient sur une ligne même sur un petit téléphone (« MAGICIEN », « GUERRIER »). */
+  .card-name { font-size: min(22px, 5vw); color: #fff3c8; margin-bottom: 2px; text-transform: uppercase; white-space: nowrap; }
+  .card-info { font-size: min(16px, 4vw); color: var(--dim); }
   .card-soon { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); margin-top: 2px; }
   .card .more { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; padding: 0; font-size: 22px; line-height: 1; }
   #detail { z-index: 3; }
@@ -4283,21 +4289,21 @@
       ".....KKKKKK.....",
       "................"
     ],
-    /** Se dégager : une flèche verte qui s'éloigne du crâne (l'ennemi). */
+    /** Se dégager : le crâne (l'ennemi) à droite, comme pour pousser ; la flèche verte part dans l'autre sens. */
     disengage: [
       "................",
       "................",
       "................",
       "................",
-      "..KKKKK.........",
-      ".KWWWWWK....K...",
-      "KWWWWWWWK...EK..",
-      "KWKKWKKSKKKKEEK.",
-      "KWKKWKKSKKEEEEEK",
-      "KWWWKWWSKKKKEeK.",
-      ".KWWWWSK....eK..",
-      "..KWKSK.....K...",
-      "..KKKKK.........",
+      "..........KKKKK.",
+      "...KK....KWWWWWK",
+      "..KEK....KWWWWSK",
+      ".KEEKKKKKKKKWKKK",
+      "KEEEEEEEKKKKWKKK",
+      ".KeeKKKKKKWWKWSK",
+      "..KeK.....KWWWK.",
+      "...KK.....KWKSK.",
+      "...........KKK..",
       "................",
       "................",
       "................"
@@ -4359,21 +4365,21 @@
       "................",
       "................"
     ],
-    /** Pousser : une flèche rouge qui frappe le crâne (l'ennemi). */
+    /** Pousser : le crâne (l'ennemi) à droite ; la flèche rouge le frappe. */
     push: [
       "................",
       "................",
       "................",
       "................",
-      ".........KKKKK..",
-      "...K....KWWWWWK.",
-      "...RK..KWWWWWWWK",
-      "KKKRRK.KWKKWKKSK",
-      "KRRRRRKKWKKWKKSK",
-      "KKKRrK.KWWWKWWSK",
-      "...rK...KWWWWSK.",
-      "...K.....KWKSK..",
-      ".........KKKKK..",
+      "..........KKKKK.",
+      "....KK...KWWWWWK",
+      "....KRK..KWWWWSK",
+      "KKKKKRRK.KKKWKKK",
+      "KRRRRRRRKKKKWKKK",
+      "KKKKKrrK.KWWKWSK",
+      "....KrK...KWWWK.",
+      "....KK....KWKSK.",
+      "...........KKK..",
       "................",
       "................",
       "................"

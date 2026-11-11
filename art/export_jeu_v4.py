@@ -14,6 +14,15 @@ import cuisine_v2 as cu
 import salles_v1 as sa
 import forge_alchimie_v1 as fa
 from boss_v2 import export_sprites as boss_sprites
+from bibliotheque_profil_v2 import side_a
+
+
+def side_a_padded():
+    """Bibliothèque de profil, option A validée par Thomas (2026-11-11) : collée au mur de gauche, sur 16 pixels de large."""
+    im = side_a().img()
+    out = Image.new("RGBA", (16, im.height))
+    out.alpha_composite(im, (0, 0))
+    return out
 from pix import hexrgb
 
 
@@ -119,7 +128,7 @@ if __name__ == "__main__":
            "grindstone": fa.grindstone().img(),
            **{f"cauldron{i}": fa.cauldron(i).img() for i in range(3)}, "glassShelf": fa.glass_shelf().img(),
            "stuffedBear": fa.stuffed_bear().img(), "herbs": fa.herbs().img(), "pottedPlant": fa.potted_plant().img(),
-           "bookcase": fa.bookcase_front().img(), "bookcaseL": fa.bookcase_side("right").img(), "bookcaseR": fa.bookcase_side("left").img(),
+           "bookcase": fa.bookcase_front().img(), "bookcaseL": side_a_padded(), "bookcaseR": side_a_padded().transpose(Image.FLIP_LEFT_RIGHT),
            "grimoire0": fa.grimoire_stand(0).img(), "grimoire1": fa.grimoire_stand(1).img(), "grimoire2": fa.grimoire_stand(0).img()})
     write("src/render/sprites/boss.ts", "BOSS",
           "Étage du boss de la section 1, la Tisseuse (planche art/boss_v2.png) : la Tisseuse, nappes de toile, grande toile (9 cases), cocons, sac d'œufs, amarre, escalier scellé, restes d'aventurier.",

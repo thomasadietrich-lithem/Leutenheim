@@ -18,6 +18,7 @@ from planche import planche
 import forge_alchimie_v1 as fa  # palette (oak, book_…) et bibliothèque de face
 
 BOOKS = ["book_r", "book_b", "book_g", "book_y"]
+C.update({"flame": (255, 200, 90, 255)})
 
 
 def side_a():
@@ -80,7 +81,6 @@ def mirror(sp):
 
 
 if __name__ == "__main__":
-    C.update({"flame": (255, 200, 90, 255)})
     rooms = []
     for label, make, h in (("A", side_a, 2), ("B", side_b, 2), ("C", side_c, 1)):
         IW, IH = 5, 5

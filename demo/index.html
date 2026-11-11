@@ -57,6 +57,11 @@
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
+  /* Roue d'actions : cinq boutons en couronne autour du héros, le reste de la carte assombri. */
+  #wheel { position: absolute; inset: 0; z-index: 3; background: rgba(8, 6, 12, 0.4); }
+  #wheel button { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px; padding: 6px; display: flex; }
+  #wheel button svg { width: 100%; height: 100%; }
+  #wheel button.off { filter: grayscale(1) brightness(0.6); }
   #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #door-actions button { background: #4a2f12; }
@@ -116,6 +121,9 @@
   .bar button { flex: 1; padding: 8px 4px; display: flex; align-items: center; justify-content: center; gap: 4px; }
   .bar button { min-height: 0; height: 100%; font-size: 24px; white-space: nowrap; overflow: hidden; }
   .bar button svg { height: 30px; width: auto; flex: none; }
+  /* Cinq boutons dans la barre : le compteur de flèches doit tenir en entier. */
+  .bar #aim { font-size: 18px; gap: 0; padding: 8px 0; }
+  .bar #aim svg { height: 20px; }
 
   /* Menus. */
   #menu { z-index: 2; }
@@ -201,6 +209,13 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <div id="wheel" hidden>
+      <button id="wheel-search" type="button"></button>
+      <button id="wheel-disengage" type="button"></button>
+      <button id="wheel-item" type="button"></button>
+      <button id="wheel-rest" type="button"></button>
+      <button id="wheel-hide" type="button"></button>
+    </div>
     <div id="door-actions" hidden>
       <button id="door-key" type="button" hidden>Utiliser la clef</button>
       <button id="door-pick" type="button">Crocheter</button>
@@ -226,6 +241,7 @@
   <div class="bar">
     <button id="wait" type="button"></button>
     <button id="aim" type="button"></button>
+    <button id="actions" type="button"></button>
     <button id="open-bag" type="button"></button>
     <button id="open-menu" type="button"></button>
   </div>
@@ -749,6 +765,10 @@
     missStreakBonus: 3,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
+    /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
+    restTurns: 8,
+    /** Part des points de vie manquants rendue par un repos mené à son terme. */
+    restHealShare: 0.5,
     /** Nombre d'étages d'une section (région à thème). */
     floorsPerSection: 5,
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
@@ -1396,6 +1416,8 @@
       /** Attaques du héros manquées d'affilée. */
       this.heroMisses = 0;
       this.picking = false;
+      /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
+      this.resting = 0;
       /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
       this.pickingItem = null;
       this.shotTarget = null;
@@ -1470,7 +1492,8 @@
           // hasard des combats et des monstres, propre à l'étage
           seenMonsters: /* @__PURE__ */ new Set(),
           population: 0,
-          nextRespawn: 0
+          nextRespawn: 0,
+          rested: false
         };
         this.floors.set(depth, state);
       }
@@ -1494,6 +1517,7 @@
       this.targetId = null;
       this.waiting = false;
       this.picking = false;
+      this.resting = 0;
       this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
@@ -1691,6 +1715,7 @@
       this.targetId = null;
       this.waiting = false;
       this.picking = false;
+      this.resting = 0;
       this.shotTarget = { x, y };
       return null;
     }
@@ -1717,6 +1742,7 @@
       this.path = path;
       this.waiting = false;
       this.picking = false;
+      this.resting = 0;
       this.shotTarget = null;
       return true;
     }
@@ -1739,6 +1765,7 @@
       this.targetId = null;
       this.waiting = false;
       this.picking = false;
+      this.resting = 0;
       this.path = best;
       if (best.length === 0) {
         this.pendingDoor = { x, y };
@@ -1778,6 +1805,7 @@
     }
     clearDoorOrders() {
       this.picking = false;
+      this.resting = 0;
       this.pendingDoor = null;
       this.doorTarget = null;
       this.doorAction = null;
@@ -1808,13 +1836,35 @@
       this.targetId = null;
       this.shotTarget = null;
       this.waiting = false;
+      this.resting = 0;
       this.picking = true;
       this.pickingItem = null;
+      return true;
+    }
+    /** Pourquoi le héros ne peut pas se reposer maintenant (`null` : il le peut). */
+    restRefusal() {
+      if (this.hero.hp >= this.hero.maxHp) return "full";
+      if (this.current.rested) return "used";
+      if (this.visibleMonsters().length > 0) return "danger";
+      return null;
+    }
+    /** Avancement du repos en cours, de 0 à 1 (0 : pas de repos). */
+    restProgress() {
+      return this.resting > 0 ? Math.max(0.06, 1 - this.resting / RULES.restTurns) : 0;
+    }
+    /** Ordre : se reposer sur place plusieurs tours. Tout autre ordre y renonce, un monstre en vue l'interrompt. */
+    rest() {
+      if (this.over || this.restRefusal() !== null) return false;
+      this.wait();
+      this.waiting = false;
+      this.resting = RULES.restTurns;
+      this.events.push({ type: "rest", phase: "start", healed: 0 });
       return true;
     }
     wait() {
       if (this.over) return;
       this.picking = false;
+      this.resting = 0;
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
@@ -1829,6 +1879,7 @@
         a.fromX = a.x;
         a.fromY = a.y;
       }
+      const wasResting = this.resting > 0;
       const shotTarget = this.shotTarget;
       this.shotTarget = null;
       if (shotTarget) {
@@ -1838,6 +1889,8 @@
         this.doorAction = null;
       } else if (this.picking) {
         this.picking = this.pickUpOne();
+      } else if (this.resting > 0) {
+        this.resting--;
       } else if (this.waiting) {
         this.waiting = false;
       } else {
@@ -1884,8 +1937,23 @@
       this.respawn();
       if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
       this.updateVision();
+      const resting = wasResting;
       this.monstersAct();
+      if (resting) this.afterRestTurn();
       return true;
+    }
+    /** Fin d'un tour de repos : un monstre en vue l'interrompt (le repos de l'étage n'est pas perdu) ; au dernier tour, il soigne. */
+    afterRestTurn() {
+      if (this.over) return;
+      if (this.visibleMonsters().length > 0) {
+        this.resting = 0;
+        this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
+      } else if (this.resting === 0) {
+        const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * RULES.restHealShare);
+        this.hero.hp += healed;
+        this.current.rested = true;
+        this.events.push({ type: "rest", phase: "done", healed });
+      }
     }
     /**
      * Vrai si `a` peut frapper `b` : case voisine. En diagonale, on peut frapper par-delà un coin de mur,
@@ -2270,16 +2338,14 @@
     }
     /**
      * Prend l'escalier sur lequel le héros vient de marcher (vers le bas ou vers le haut).
-     * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : découvrir un nouvel étage rend la moitié des PV
-     * manquants. Revenir sur un étage déjà visité ne soigne pas.
+     * Changer d'étage ne soigne plus : c'est le repos (un par étage) qui rend des PV.
      */
     takeStairs() {
       const direction = this.pendingStairs;
       if (this.over || !direction) return false;
       const target = this.depth + (direction === "down" ? 1 : -1);
       if (target < 1) return false;
-      const healed = target > this.deepest ? Math.ceil((this.hero.maxHp - this.hero.hp) / 2) : 0;
-      this.hero.hp += healed;
+      const healed = 0;
       this.enterFloor(target, direction);
       this.events.push({ type: "stairs", direction, healed });
       return true;
@@ -2294,6 +2360,7 @@
     ArrowRight: [1, 0]
   };
   var TAP_SLOP = 12;
+  var LONG_PRESS_MS = 400;
   function bindInput(canvas2, handlers) {
     const pointers = /* @__PURE__ */ new Map();
     let downAt = { x: 0, y: 0 };
@@ -2301,6 +2368,11 @@
     let isGesture = false;
     let pinchDistance = 0;
     let pinchCenter = { x: 0, y: 0 };
+    let pressTimer;
+    const cancelPress = () => {
+      if (pressTimer !== void 0) clearTimeout(pressTimer);
+      pressTimer = void 0;
+    };
     const distance = () => {
       const [a, b] = [...pointers.values()];
       return Math.hypot(a.x - b.x, a.y - b.y);
@@ -2319,7 +2391,15 @@
         isGesture = false;
         downAt = { x: e.clientX, y: e.clientY };
         lastAt = { x: e.clientX, y: e.clientY };
+        cancelPress();
+        pressTimer = setTimeout(() => {
+          pressTimer = void 0;
+          if (pointers.size !== 1 || isGesture) return;
+          const rect = canvas2.getBoundingClientRect();
+          if (handlers.onLongPress(downAt.x - rect.left, downAt.y - rect.top)) isGesture = true;
+        }, LONG_PRESS_MS);
       } else if (pointers.size === 2) {
+        cancelPress();
         isGesture = true;
         pinchDistance = distance();
         pinchCenter = center2();
@@ -2337,13 +2417,17 @@
         handlers.onPan(c.x - pinchCenter.x, c.y - pinchCenter.y);
         pinchCenter = c;
       } else if (pointers.size === 1) {
-        if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) isGesture = true;
+        if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) {
+          isGesture = true;
+          cancelPress();
+        }
         if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
         lastAt = { x: e.clientX, y: e.clientY };
       }
     });
     const release = (e, cancelled) => {
       if (!pointers.delete(e.pointerId)) return;
+      cancelPress();
       pinchDistance = 0;
       if (pointers.size === 1) {
         const [rest] = [...pointers.values()];
@@ -3271,6 +3355,10 @@
     originY() {
       return this.height / 2 - (this.camY + 0.5) * this.tile;
     }
+    /** Centre d'une case de la carte, en pixels dans le canvas. */
+    tileCenter(x, y) {
+      return { x: this.originX() + (x + 0.5) * this.tile, y: this.originY() + (y + 0.5) * this.tile };
+    }
     /** Convertit un point de l'écran (en pixels dans le canvas) en case de la carte. */
     screenToTile(px, py) {
       return {
@@ -3517,6 +3605,19 @@
         }
       }
       this.drawHero(game2, hero, ox, oy, progress);
+      const rest = game2.restProgress();
+      if (rest > 0) {
+        const gx = Math.round(ox + hero.x * tile + tile * 0.1);
+        const gy = Math.round(oy + hero.y * tile - tile * 0.5);
+        const gw = Math.round(tile * 0.8);
+        const gh = Math.max(4, Math.round(tile * 0.14));
+        ctx.fillStyle = "#120d08";
+        ctx.fillRect(gx - 1, gy - 1, gw + 2, gh + 2);
+        ctx.fillStyle = "#3b2f20";
+        ctx.fillRect(gx, gy, gw, gh);
+        ctx.fillStyle = "#f0c050";
+        ctx.fillRect(gx, gy, Math.round(gw * rest), gh);
+      }
       if (game2.heroExposed()) {
         ctx.strokeStyle = `rgba(255,90,100,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
         ctx.lineWidth = Math.max(2, tile * 0.07);
@@ -4377,6 +4478,120 @@
       "................",
       "................"
     ],
+    /** Fouiller : loupe à monture dorée. */
+    search: [
+      "....KKKKK.......",
+      "..KKGGGGGKK.....",
+      ".KGGKKKKKGgK....",
+      ".KGKVVVVUKgK....",
+      "KGKVWWVVUUKgK...",
+      "KGKVWVVVUUKgK...",
+      "KGKVVVVUUUKgK...",
+      "KGKVVVUUUuKgK...",
+      "KGKUUUUUuuKgK...",
+      ".KGKUUUuuKgK....",
+      ".KGgKKKKKggKK...",
+      "..KKgggggKKTTK..",
+      "....KKKKKKTTBK..",
+      "..........KBTBK.",
+      "...........KBbbK",
+      "............KKK."
+    ],
+    /** Se cacher : ninja simplifié. */
+    hide: [
+      "................",
+      "....KKKKKKKK....",
+      "...KHHHHHHHHK...",
+      "..KHCCHHHHHHHK..",
+      "..KHCHHHHHHHHK..",
+      "..KRRRRRRRRRRKK.",
+      "..KrrrrrrrrrrKRK",
+      "..KLLLLLLLLLLKRK",
+      "..KLWKLLLLWKLKrK",
+      "..KLLLLLLLLLLK.K",
+      "..KHHHHHHHHHHK..",
+      "..KHHHHHHHHHHK..",
+      "...KHHHHHHHHK...",
+      "....KHHHHHHK....",
+      ".....KKKKKK.....",
+      "................"
+    ],
+    /** Se dégager : flèche qui bondit par-dessus deux cases. */
+    disengage: [
+      "................",
+      "....KKKKKK......",
+      "..KKGGGGGGKK....",
+      ".KGGGGGGGGGGK...",
+      ".KGGGKKKKGGGGK..",
+      "KGGGK....KGGGK..",
+      "KGGGK....KGGGK..",
+      "KGGGK..KKKGGGKKK",
+      "KGGGK..KGGGGGGGK",
+      "KGGGK...KGGGGGK.",
+      "KgggK....KgggK..",
+      "KKKKK.....KgK...",
+      "...........K....",
+      "................",
+      "KLLLK.KLLLK.....",
+      "KKKKK.KKKKK....."
+    ],
+    /** Utiliser un objet : fiole. */
+    item: [
+      "................",
+      "......KKKK......",
+      "......KTTK......",
+      ".....KKKKKK.....",
+      ".....KWVVVK.....",
+      "......KVVK......",
+      "......KVVK......",
+      ".....KVVVVK.....",
+      "....KVWVVVVK....",
+      "...KVWVVVVVVK...",
+      "...KRRRRRRRRK...",
+      "..KRWRRRRRRRrK..",
+      "..KRWRRRRRRrrK..",
+      "..KRRRRRRRrrrK..",
+      "...KRRRRrrrrK...",
+      "....KKKKKKKK...."
+    ],
+    /** Repos : feu de camp. */
+    rest: [
+      ".......K........",
+      "......KRK.......",
+      "......KRRK......",
+      ".....KRRRK..K...",
+      ".....KRGRRKKRK..",
+      "....KRRGGRRKRK..",
+      "...KRRGGGGRRRK..",
+      "...KRGGWWGGRRK..",
+      "...KRGWWWWGRK...",
+      "....KRGWWGRK....",
+      "..KKKKKKKKKKKK..",
+      ".KTTTTTTTTTTTBK.",
+      ".KBBBBbBBBBBBbK.",
+      "..KKKKKKKKKKKK..",
+      ".KSK........KSK.",
+      ".KKK........KKK."
+    ],
+    /** Ouvrir la roue d'actions. */
+    actions: [
+      "......KKKK......",
+      "......KLLK......",
+      "......KLLK......",
+      ".KKKK.KKKK.KKKK.",
+      ".KLLK......KLLK.",
+      ".KLLK.KKKK.KLLK.",
+      ".KKKK.KGGK.KKKK.",
+      "......KGGK......",
+      "......KKKK......",
+      "................",
+      "...KKKK..KKKK...",
+      "...KLLK..KLLK...",
+      "...KLLK..KLLK...",
+      "...KKKK..KKKK...",
+      "................",
+      "................"
+    ],
     /** Ramasser : une flèche dorée qui descend dans le sac ouvert. */
     take: [
       ".....KKKKKK.....",
@@ -4513,6 +4728,7 @@
   var doorWasPending = false;
   var aimShown = "";
   var foundOpen = false;
+  var wheelOpen = false;
   var seenItems = /* @__PURE__ */ new Set();
   var CODEX_KEY = "leutenheim.codex";
   var codex = /* @__PURE__ */ new Set();
@@ -4722,6 +4938,17 @@
       );
       shownHp = game.hero.hp;
       sfx.play("descend");
+    } else if (e.type === "rest") {
+      if (e.phase === "start") logLines.push("Vous vous installez pour vous reposer\u2026");
+      else if (e.phase === "interrupted") {
+        logLines.push("Repos interrompu : un ennemi approche !");
+        renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
+      } else {
+        logLines.push(`Vous vous \xEAtes repos\xE9 : +${e.healed} PV.`);
+        renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.healed} PV`, "#8fe08f");
+        shownHp = game.hero.hp;
+        sfx.play("heal");
+      }
     } else if (e.type === "opened") {
       sfx.play("door");
     } else if (e.type === "fountain") {
@@ -4789,6 +5016,13 @@
     },
     onZoom(factor) {
       renderer.zoomBy(factor);
+    },
+    onLongPress(px, py) {
+      if (menuOpen || bagOpen || foundOpen || game.over) return false;
+      const t = renderer.screenToTile(px, py);
+      if (t.x !== game.hero.x || t.y !== game.hero.y) return false;
+      openWheel();
+      return true;
     }
   });
   window.addEventListener("pointerdown", () => sfx.unlock(), true);
@@ -4804,6 +5038,62 @@
     game.wait();
     stepMs = COMBAT_STEP_MS;
   });
+  var wheel = $("wheel");
+  var WHEEL = [
+    ["wheel-search", "search", "Fouiller"],
+    ["wheel-disengage", "disengage", "Se d\xE9gager"],
+    ["wheel-item", "item", "Utiliser un objet"],
+    ["wheel-rest", "rest", "Se reposer"],
+    ["wheel-hide", "hide", "Se cacher"]
+  ];
+  var REST_REFUSALS = {
+    full: "Vous \xEAtes en pleine forme : inutile de vous reposer.",
+    used: "Vous vous \xEAtes d\xE9j\xE0 repos\xE9 \xE0 cet \xE9tage.",
+    danger: "Impossible de se reposer : un ennemi est en vue."
+  };
+  function closeWheel() {
+    wheelOpen = false;
+    wheel.hidden = true;
+  }
+  function openWheel() {
+    if (game.over) return;
+    aimMode = false;
+    renderer.recenter();
+    const frameBox = wheel.parentElement.getBoundingClientRect();
+    const radius = 64;
+    const hero = renderer.tileCenter(game.hero.x, game.hero.y);
+    const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
+    const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
+    WHEEL.forEach(([id], i) => {
+      const angle = (-90 + i * 72) * Math.PI / 180;
+      const b = $(id);
+      b.style.left = `${cx + radius * Math.cos(angle)}px`;
+      b.style.top = `${cy + radius * Math.sin(angle)}px`;
+      b.classList.toggle("off", id !== "wheel-rest" || game.restRefusal() !== null);
+    });
+    wheelOpen = true;
+    wheel.hidden = false;
+  }
+  for (const [id, icon, label] of WHEEL) {
+    $(id).replaceChildren(uiIcon(icon));
+    $(id).setAttribute("aria-label", label);
+    $(id).addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      sfx.unlock();
+      sfx.play("click");
+      closeWheel();
+      if (id === "wheel-rest") {
+        const refusal = game.restRefusal();
+        if (refusal) logLines.push(REST_REFUSALS[refusal]);
+        else if (game.rest()) stepMs = COMBAT_STEP_MS;
+      } else {
+        logLines.push(`${label} : pas encore possible.`);
+      }
+      renderLog();
+    });
+  }
+  wheel.addEventListener("click", closeWheel);
+  button("actions", () => wheelOpen ? closeWheel() : openWheel());
   button("over-new-run", () => showScreen("new"));
   var doorButton = (id, action) => button(id, () => game.actOnDoor(action));
   doorButton("door-pick", "pick");
@@ -4883,6 +5173,7 @@
   $("here-info").setAttribute("aria-label", "Fiche de l'objet");
   for (const [id, icon, label] of [
     ["wait", "wait", "Attendre un tour"],
+    ["actions", "actions", "Actions"],
     ["open-bag", "bag", "\xC9quipement et sac"],
     ["open-menu", "menu", "Menu"],
     ["recenter", "recenter", "Recentrer la vue"]
@@ -5256,7 +5547,7 @@
         }
       }
     }
-    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen) {
+    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !wheelOpen) {
       shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
       const before = { x: game.hero.x, y: game.hero.y };

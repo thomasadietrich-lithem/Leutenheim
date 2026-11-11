@@ -36,6 +36,8 @@ export type GameEvent =
   | { type: "bagFull" }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
+  /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
+  | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
   | { type: "chest"; gold: number }
   | { type: "xp"; amount: number }
   | { type: "levelup"; level: number }
@@ -73,6 +75,8 @@ interface FloorState {
   /** Repeuplement : nombre de monstres à l'origine, et tour du prochain renfort possible. */
   population: number;
   nextRespawn: number;
+  /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
+  rested: boolean;
 }
 
 /** Débris sans usage (flèche brisée) : il reste au sol jusqu'au tour `until`, puis disparaît. */
@@ -137,6 +141,8 @@ export class Game {
   /** Attaques du héros manquées d'affilée. */
   heroMisses = 0;
   private picking = false;
+  /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
+  private resting = 0;
   /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
   private pickingItem: ItemId | null = null;
   private shotTarget: Point | null = null;
@@ -223,6 +229,7 @@ export class Game {
         seenMonsters: new Set<number>(),
         population: 0,
         nextRespawn: 0,
+        rested: false,
       };
       this.floors.set(depth, state);
     }
@@ -247,6 +254,7 @@ export class Game {
     this.targetId = null;
     this.waiting = false;
     this.picking = false;
+    this.resting = 0;
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
@@ -472,6 +480,7 @@ export class Game {
     this.targetId = null;
     this.waiting = false;
     this.picking = false;
+    this.resting = 0;
     this.shotTarget = { x, y };
     return null;
   }
@@ -501,6 +510,7 @@ export class Game {
     this.path = path;
     this.waiting = false;
     this.picking = false;
+    this.resting = 0;
     this.shotTarget = null;
     return true;
   }
@@ -524,6 +534,7 @@ export class Game {
     this.targetId = null;
     this.waiting = false;
     this.picking = false;
+    this.resting = 0;
     this.path = best;
     if (best.length === 0) {
       this.pendingDoor = { x, y };
@@ -571,6 +582,7 @@ export class Game {
   private clearDoorOrders(): void {
     // Tout nouvel ordre interrompt aussi un ramassage en cours.
     this.picking = false;
+    this.resting = 0;
     this.pendingDoor = null;
     this.doorTarget = null;
     this.doorAction = null;
@@ -604,14 +616,39 @@ export class Game {
     this.targetId = null;
     this.shotTarget = null;
     this.waiting = false;
+    this.resting = 0;
     this.picking = true;
     this.pickingItem = null;
+    return true;
+  }
+
+  /** Pourquoi le héros ne peut pas se reposer maintenant (`null` : il le peut). */
+  restRefusal(): "full" | "used" | "danger" | null {
+    if (this.hero.hp >= this.hero.maxHp) return "full";
+    if (this.current.rested) return "used";
+    if (this.visibleMonsters().length > 0) return "danger";
+    return null;
+  }
+
+  /** Avancement du repos en cours, de 0 à 1 (0 : pas de repos). */
+  restProgress(): number {
+    return this.resting > 0 ? Math.max(0.06, 1 - this.resting / RULES.restTurns) : 0;
+  }
+
+  /** Ordre : se reposer sur place plusieurs tours. Tout autre ordre y renonce, un monstre en vue l'interrompt. */
+  rest(): boolean {
+    if (this.over || this.restRefusal() !== null) return false;
+    this.wait();
+    this.waiting = false;
+    this.resting = RULES.restTurns;
+    this.events.push({ type: "rest", phase: "start", healed: 0 });
     return true;
   }
 
   wait(): void {
     if (this.over) return;
     this.picking = false;
+    this.resting = 0;
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
@@ -629,6 +666,7 @@ export class Game {
       a.fromY = a.y;
     }
 
+    const wasResting = this.resting > 0;
     const shotTarget = this.shotTarget;
     this.shotTarget = null;
     if (shotTarget) {
@@ -639,6 +677,8 @@ export class Game {
     } else if (this.picking) {
       // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.
       this.picking = this.pickUpOne();
+    } else if (this.resting > 0) {
+      this.resting--;
     } else if (this.waiting) {
       this.waiting = false;
     } else {
@@ -694,8 +734,24 @@ export class Game {
     this.respawn();
     if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
     this.updateVision();
+    const resting = wasResting;
     this.monstersAct();
+    if (resting) this.afterRestTurn();
     return true;
+  }
+
+  /** Fin d'un tour de repos : un monstre en vue l'interrompt (le repos de l'étage n'est pas perdu) ; au dernier tour, il soigne. */
+  private afterRestTurn(): void {
+    if (this.over) return;
+    if (this.visibleMonsters().length > 0) {
+      this.resting = 0;
+      this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
+    } else if (this.resting === 0) {
+      const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * RULES.restHealShare);
+      this.hero.hp += healed;
+      this.current.rested = true;
+      this.events.push({ type: "rest", phase: "done", healed });
+    }
   }
 
   /**
@@ -1140,16 +1196,14 @@ export class Game {
 
   /**
    * Prend l'escalier sur lequel le héros vient de marcher (vers le bas ou vers le haut).
-   * PROVISOIRE (jusqu'aux rations et au repos du jalon J4) : découvrir un nouvel étage rend la moitié des PV
-   * manquants. Revenir sur un étage déjà visité ne soigne pas.
+   * Changer d'étage ne soigne plus : c'est le repos (un par étage) qui rend des PV.
    */
   takeStairs(): boolean {
     const direction = this.pendingStairs;
     if (this.over || !direction) return false;
     const target = this.depth + (direction === "down" ? 1 : -1);
     if (target < 1) return false;
-    const healed = target > this.deepest ? Math.ceil((this.hero.maxHp - this.hero.hp) / 2) : 0;
-    this.hero.hp += healed;
+    const healed = 0;
     this.enterFloor(target, direction);
     this.events.push({ type: "stairs", direction, healed });
     return true;

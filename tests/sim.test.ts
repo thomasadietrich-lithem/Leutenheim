@@ -261,6 +261,10 @@ function playRun(seed: number, maxTurns: number): Game {
       const d = (m: { x: number; y: number }) => Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
       const target = foes.reduce((a, b) => (d(b) < d(a) ? b : a));
       assert.ok(game.setDestination(target.x, target.y));
+    } else if (game.restProgress() > 0) {
+      // Repos en cours : il le mène à son terme.
+    } else if (game.hero.hp * 2 <= game.hero.maxHp && game.rest()) {
+      // Mal en point et personne en vue : il se repose (une fois par étage).
     } else {
       let stairs = { x: -1, y: -1 };
       for (let y = 0; y < game.map.height; y++) {
@@ -1216,4 +1220,60 @@ test("une torche n'éclaire que de son côté du mur : aucune lumière sur une c
   }
   console.log(`Lumière des torches : ${lit} cases éclairées, ${leaks} de l'autre côté d'un mur`);
   assert.equal(leaks, 0);
+});
+
+test("repos : 8 tours sur place, rend la moitié des PV manquants, une fois par étage ; changer d'étage ne soigne plus", () => {
+  let seed = 1;
+  let game = new Game(seed);
+  while (game.visibleMonsters().length > 0) game = new Game(++seed);
+  assert.equal(game.restRefusal(), "full");
+  assert.equal(game.rest(), false);
+  game.hero.hp = 4;
+  assert.equal(game.restRefusal(), null);
+  assert.ok(game.rest());
+  const at = { x: game.hero.x, y: game.hero.y };
+  let turns = 0;
+  while (game.restProgress() > 0 && turns < 20) {
+    assert.ok(game.tick());
+    turns++;
+    if (game.events.some((e) => e.type === "rest" && e.phase === "interrupted")) break;
+  }
+  if (!game.events.some((e) => e.type === "rest" && e.phase === "interrupted")) {
+    assert.equal(turns, RULES.restTurns);
+    assert.deepEqual({ x: game.hero.x, y: game.hero.y }, at);
+    assert.equal(game.hero.hp, 4 + Math.ceil((game.hero.maxHp - 4) / 2));
+    assert.equal(game.restRefusal(), "used");
+    assert.equal(game.rest(), false);
+  }
+  // Un autre ordre renonce au repos sans le consommer.
+  const other = new Game(seed);
+  other.hero.hp = 4;
+  assert.ok(other.rest());
+  other.tick();
+  other.wait();
+  assert.equal(other.restProgress(), 0);
+  other.tick();
+  assert.equal(other.hero.hp, 4);
+  assert.equal(other.restRefusal(), null);
+});
+
+test("repos : un monstre en vue l'empêche et l'interrompt", () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed);
+    game.hero.hp = 3;
+    const m = game.monsters[0];
+    if (!m) continue;
+    // On amène un monstre à côté du héros : il est en vue.
+    const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: game.hero.x + dx, y: game.hero.y + dy })).find((p) => game.map.isWalkable(p.x, p.y) && !game.monsterAt(p.x, p.y));
+    if (!spot) continue;
+    assert.ok(game.rest(), `graine ${seed}`);
+    m.x = spot.x;
+    m.y = spot.y;
+    game.tick();
+    assert.ok(game.events.some((e) => e.type === "rest" && e.phase === "interrupted"), `graine ${seed}`);
+    assert.equal(game.restProgress(), 0);
+    assert.equal(game.restRefusal(), "danger");
+    return;
+  }
+  assert.fail("aucune graine utilisable");
 });

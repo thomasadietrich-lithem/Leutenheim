@@ -88,6 +88,7 @@ let doorWasPending = false;
 let aimShown = "";
 /** Une fiche d'objet est affichée par-dessus le jeu (objet trouvé pour la première fois). */
 let foundOpen = false;
+let wheelOpen = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
 let seenItems = new Set<ItemId>();
 
@@ -352,6 +353,17 @@ function reveal(e: GameEvent): void {
     );
     shownHp = game.hero.hp;
     sfx.play("descend");
+  } else if (e.type === "rest") {
+    if (e.phase === "start") logLines.push("Vous vous installez pour vous reposer…");
+    else if (e.phase === "interrupted") {
+      logLines.push("Repos interrompu : un ennemi approche !");
+      renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
+    } else {
+      logLines.push(`Vous vous êtes reposé : +${e.healed} PV.`);
+      renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.healed} PV`, "#8fe08f");
+      shownHp = game.hero.hp;
+      sfx.play("heal");
+    }
   } else if (e.type === "opened") {
     sfx.play("door");
   } else if (e.type === "fountain") {
@@ -428,6 +440,13 @@ bindInput(canvas, {
   onZoom(factor) {
     renderer.zoomBy(factor);
   },
+  onLongPress(px, py) {
+    if (menuOpen || bagOpen || foundOpen || game.over) return false;
+    const t = renderer.screenToTile(px, py);
+    if (t.x !== game.hero.x || t.y !== game.hero.y) return false;
+    openWheel();
+    return true;
+  },
 });
 window.addEventListener("pointerdown", () => sfx.unlock(), true);
 window.addEventListener("resize", () => renderer.resize());
@@ -444,6 +463,71 @@ button("wait", () => {
   game.wait();
   stepMs = COMBAT_STEP_MS;
 });
+
+// ---------- Roue d'actions ----------
+
+const wheel = $("wheel");
+/** Les cinq actions, dans l'ordre de la couronne (en partant du haut, dans le sens des aiguilles d'une montre). */
+const WHEEL = [
+  ["wheel-search", "search", "Fouiller"],
+  ["wheel-disengage", "disengage", "Se dégager"],
+  ["wheel-item", "item", "Utiliser un objet"],
+  ["wheel-rest", "rest", "Se reposer"],
+  ["wheel-hide", "hide", "Se cacher"],
+] as const;
+const REST_REFUSALS = {
+  full: "Vous êtes en pleine forme : inutile de vous reposer.",
+  used: "Vous vous êtes déjà reposé à cet étage.",
+  danger: "Impossible de se reposer : un ennemi est en vue.",
+};
+
+function closeWheel(): void {
+  wheelOpen = false;
+  wheel.hidden = true;
+}
+
+function openWheel(): void {
+  if (game.over) return;
+  aimMode = false;
+  renderer.recenter();
+  const frameBox = wheel.parentElement!.getBoundingClientRect();
+  const radius = 64;
+  // Autour du héros ; si la vue est décalée, la couronne reste entière dans le cadre.
+  const hero = renderer.tileCenter(game.hero.x, game.hero.y);
+  const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
+  const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
+  WHEEL.forEach(([id], i) => {
+    const angle = ((-90 + i * 72) * Math.PI) / 180;
+    const b = $(id);
+    b.style.left = `${cx + radius * Math.cos(angle)}px`;
+    b.style.top = `${cy + radius * Math.sin(angle)}px`;
+    // Seul le repos existe pour l'instant ; une action impossible reste visible, grisée.
+    b.classList.toggle("off", id !== "wheel-rest" || game.restRefusal() !== null);
+  });
+  wheelOpen = true;
+  wheel.hidden = false;
+}
+
+for (const [id, icon, label] of WHEEL) {
+  $(id).replaceChildren(uiIcon(icon));
+  $(id).setAttribute("aria-label", label);
+  $(id).addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    sfx.unlock();
+    sfx.play("click");
+    closeWheel();
+    if (id === "wheel-rest") {
+      const refusal = game.restRefusal();
+      if (refusal) logLines.push(REST_REFUSALS[refusal]);
+      else if (game.rest()) stepMs = COMBAT_STEP_MS;
+    } else {
+      logLines.push(`${label} : pas encore possible.`);
+    }
+    renderLog();
+  });
+}
+wheel.addEventListener("click", closeWheel);
+button("actions", () => (wheelOpen ? closeWheel() : openWheel()));
 button("over-new-run", () => showScreen("new"));
 const doorButton = (id: string, action: DoorAction) => button(id, () => game.actOnDoor(action));
 doorButton("door-pick", "pick");
@@ -533,6 +617,7 @@ $("here-info").setAttribute("aria-label", "Fiche de l'objet");
 // Boutons sans texte : un pictogramme, et un nom lisible par les aides à la lecture.
 for (const [id, icon, label] of [
   ["wait", "wait", "Attendre un tour"],
+  ["actions", "actions", "Actions"],
   ["open-bag", "bag", "Équipement et sac"],
   ["open-menu", "menu", "Menu"],
   ["recenter", "recenter", "Recentrer la vue"],
@@ -971,7 +1056,7 @@ function frame(now: number): void {
     }
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
-  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen) {
+  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !wheelOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };

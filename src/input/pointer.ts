@@ -7,6 +7,8 @@ const KEYS: Record<string, [number, number]> = {
 
 /** Au-delà de ce déplacement du doigt (en pixels), ce n'est plus un simple toucher. */
 const TAP_SLOP = 12;
+/** Un doigt resté posé sans bouger pendant ce temps (en ms) est un appui long. */
+const LONG_PRESS_MS = 400;
 
 export interface InputHandlers {
   /** Toucher/clic sur un point du canvas. */
@@ -17,6 +19,8 @@ export interface InputHandlers {
   onPan(dx: number, dy: number): void;
   /** Zoom : facteur > 1 pour agrandir, < 1 pour réduire (molette ou pincement à deux doigts). */
   onZoom(factor: number): void;
+  /** Appui long sur un point du canvas. Renvoie vrai s'il a servi à quelque chose (le toucher est alors ignoré). */
+  onLongPress(px: number, py: number): boolean;
 }
 
 export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): void {
@@ -27,6 +31,11 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
   let pinchDistance = 0;
 
   let pinchCenter = { x: 0, y: 0 };
+  let pressTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancelPress = (): void => {
+    if (pressTimer !== undefined) clearTimeout(pressTimer);
+    pressTimer = undefined;
+  };
 
   const distance = (): number => {
     const [a, b] = [...pointers.values()];
@@ -48,7 +57,15 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
       isGesture = false;
       downAt = { x: e.clientX, y: e.clientY };
       lastAt = { x: e.clientX, y: e.clientY };
+      cancelPress();
+      pressTimer = setTimeout(() => {
+        pressTimer = undefined;
+        if (pointers.size !== 1 || isGesture) return;
+        const rect = canvas.getBoundingClientRect();
+        if (handlers.onLongPress(downAt.x - rect.left, downAt.y - rect.top)) isGesture = true;
+      }, LONG_PRESS_MS);
     } else if (pointers.size === 2) {
+      cancelPress();
       isGesture = true;
       pinchDistance = distance();
       pinchCenter = center();
@@ -68,7 +85,10 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
       handlers.onPan(c.x - pinchCenter.x, c.y - pinchCenter.y);
       pinchCenter = c;
     } else if (pointers.size === 1) {
-      if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) isGesture = true;
+      if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) {
+        isGesture = true;
+        cancelPress();
+      }
       if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
       lastAt = { x: e.clientX, y: e.clientY };
     }
@@ -76,6 +96,7 @@ export function bindInput(canvas: HTMLCanvasElement, handlers: InputHandlers): v
 
   const release = (e: PointerEvent, cancelled: boolean) => {
     if (!pointers.delete(e.pointerId)) return;
+    cancelPress();
     pinchDistance = 0;
     if (pointers.size === 1) {
       // Il reste un doigt après un pincement : on repart de SA position, sinon la vue sauterait

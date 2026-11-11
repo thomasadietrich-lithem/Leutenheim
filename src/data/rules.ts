@@ -32,6 +32,10 @@ export const RULES = {
   missStreakBonus: 3,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
+  /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
+  restTurns: 8,
+  /** Part des points de vie manquants rendue par un repos mené à son terme. */
+  restHealShare: 0.5,
   /** Nombre d'étages d'une section (région à thème). */
   floorsPerSection: 5,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */

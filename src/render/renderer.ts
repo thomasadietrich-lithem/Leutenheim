@@ -300,6 +300,11 @@ export class Renderer {
     return this.height / 2 - (this.camY + 0.5) * this.tile;
   }
 
+  /** Centre d'une case de la carte, en pixels dans le canvas. */
+  tileCenter(x: number, y: number): Point {
+    return { x: this.originX() + (x + 0.5) * this.tile, y: this.originY() + (y + 0.5) * this.tile };
+  }
+
   /** Convertit un point de l'écran (en pixels dans le canvas) en case de la carte. */
   screenToTile(px: number, py: number): Point {
     return {
@@ -589,6 +594,20 @@ export class Renderer {
 
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
+    // Repos en cours : petite jauge au-dessus du héros.
+    const rest = game.restProgress();
+    if (rest > 0) {
+      const gx = Math.round(ox + hero.x * tile + tile * 0.1);
+      const gy = Math.round(oy + hero.y * tile - tile * 0.5);
+      const gw = Math.round(tile * 0.8);
+      const gh = Math.max(4, Math.round(tile * 0.14));
+      ctx.fillStyle = "#120d08";
+      ctx.fillRect(gx - 1, gy - 1, gw + 2, gh + 2);
+      ctx.fillStyle = "#3b2f20";
+      ctx.fillRect(gx, gy, gw, gh);
+      ctx.fillStyle = "#f0c050";
+      ctx.fillRect(gx, gy, Math.round(gw * rest), gh);
+    }
     // Liseré rouge : le héros se tient dans une porte, les ennemis ont l'avantage sur lui.
     if (game.heroExposed()) {
       ctx.strokeStyle = `rgba(255,90,100,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;

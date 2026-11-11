@@ -1,4 +1,4 @@
-import { Dice, rollDice } from "./dice";
+import { Dice } from "./dice";
 import { Rng } from "./rng";
 
 export type RollMode = "normal" | "advantage" | "disadvantage";
@@ -15,6 +15,8 @@ export interface AttackResult {
   hit: boolean;
   critical: boolean;
   damage: number;
+  /** Les dés de dégâts lancés (pour le journal) : la formule et chaque face ; `rolled` = leur total avant les bonus ajoutés après. */
+  damageRoll?: { dice: Dice; faces: number[]; rolled: number };
 }
 
 /**
@@ -35,7 +37,7 @@ export function rollAttack(
   const total = d20 + attacker.attackBonus;
   const critical = d20 >= critFrom;
   const hit = critical || (d20 !== 1 && total >= defender.armorClass);
-  return {
+  const result: AttackResult = {
     mode,
     rolls,
     d20,
@@ -44,6 +46,16 @@ export function rollAttack(
     targetAc: defender.armorClass,
     hit,
     critical,
-    damage: hit ? rollDice(rng, attacker.damage, critical) : 0,
+    damage: 0,
   };
+  if (hit) {
+    // Mêmes tirages que rollDice (même ordre), mais on garde chaque face pour le journal.
+    const count = critical ? attacker.damage.count * 2 : attacker.damage.count;
+    const faces: number[] = [];
+    for (let i = 0; i < count; i++) faces.push(rng.int(1, attacker.damage.sides));
+    const rolled = Math.max(1, faces.reduce((a, b) => a + b, 0) + attacker.damage.bonus);
+    result.damage = rolled;
+    result.damageRoll = { dice: attacker.damage, faces, rolled };
+  }
+  return result;
 }

@@ -5,6 +5,7 @@ import { Actor } from "../entities/actor";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
 import { Furniture, RoomTheme } from "../world/furnish";
+import { Motif } from "../world/grounds";
 import { THEMED_ROOMS } from "../data/themedRooms";
 import { GameMap, Point, Tile } from "../world/map";
 import { Rng } from "./rng";
@@ -45,6 +46,8 @@ export interface FloorState {
   /** Meubles des salles de fouille, et thème de ces salles. */
   furniture: Furniture[];
   themes: RoomTheme[];
+  /** Motifs gravés au sol (décor). */
+  motifs: Motif[];
 }
 
 /** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */

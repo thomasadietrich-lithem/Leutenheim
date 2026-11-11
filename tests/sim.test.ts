@@ -14,6 +14,7 @@ import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath } from "../src/world/pathfinding";
 import { furnishFloor, furnitureCells } from "../src/world/furnish";
 import { FURNITURE_KINDS } from "../src/data/themedRooms";
+import { MOTIF_SIZE } from "../src/data/motifs";
 
 const FLOORS = 1000;
 
@@ -2377,4 +2378,47 @@ test("coffre : ce qu'il contient ne tombe jamais sur un décor", () => {
   const e = game.events.find((ev) => ev.type === "chest");
   assert.ok(e && e.type === "chest");
   for (const d of e.drops) assert.equal(game.furnitureAt(d.x, d.y), null, `objet sur un décor en ${d.x},${d.y}`);
+});
+
+test("motifs au sol : 0 à 2 par étage, sur du sol nu d'une salle, jamais à l'arrivée ni sur l'escalier", () => {
+  let total = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed);
+    const motifs = game.motifs();
+    assert.ok(motifs.length <= 2);
+    total += motifs.length;
+    for (const m of motifs) {
+      const size = MOTIF_SIZE[m.kind];
+      for (let dy = 0; dy < size; dy++) {
+        for (let dx = 0; dx < size; dx++) {
+          assert.equal(game.map.get(m.x + dx, m.y + dy), Tile.Floor);
+          assert.ok(!(m.x + dx === game.hero.x && m.y + dy === game.hero.y));
+        }
+      }
+    }
+  }
+  assert.ok(total >= 30, `motifs : ${total}`);
+});
+
+test("avantage : jamais deux de suite sur la même cible (porte, coin de mur, cible surprise)", () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed);
+    const foe = game.monsters[0];
+    if (!foe) continue;
+    game.monsters.splice(1);
+    const h = game.hero;
+    const side = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor);
+    if (!side) continue;
+    // Une cible qui ne s'y attend pas : le premier coup a l'avantage, le suivant non.
+    Object.assign(foe, { x: side.x, y: side.y, hp: 99, maxHp: 99, alerted: false, asleep: true });
+    assert.equal(game.heroHasAdvantageOn(foe), true);
+    assert.ok(game.setDestination(foe.x, foe.y));
+    game.tick();
+    const first = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
+    assert.ok(first && first.type === "attack" && first.result.mode === "advantage");
+    foe.alerted = false; // même si elle « oubliait », pas deux avantages d'affilée
+    assert.equal(game.heroHasAdvantageOn(foe), false);
+    return;
+  }
+  assert.fail("aucune graine utilisable");
 });

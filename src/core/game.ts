@@ -12,7 +12,7 @@ import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { furnishFloor, Furniture, furnitureCells } from "../world/furnish";
 import { FURNITURE_KINDS } from "../data/themedRooms";
-import { placeGrounds } from "../world/grounds";
+import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
 import { rollAttack } from "./combat";
@@ -198,6 +198,7 @@ export class Game {
           : { furniture: [], themes: [] };
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
       if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
+      const motifs = sandboxFloor ? sandboxFloor.motifs : placeMotifs(floor, seed);
       state = {
         map: floor.map,
         start: floor.start,
@@ -222,6 +223,7 @@ export class Game {
         searched: new Set<number>(),
         furniture: furnished.furniture,
         themes: furnished.themes,
+        motifs,
       };
       this.floors.set(depth, state);
     }
@@ -512,6 +514,11 @@ export class Game {
     return this.current.furniture.find((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) ?? null;
   }
 
+  /** Les motifs gravés au sol de l'étage courant (pour le dessin). */
+  motifs(): readonly Motif[] {
+    return this.current.motifs;
+  }
+
   /** Les meubles de l'étage courant (pour le dessin). */
   furnitureList(): readonly Furniture[] {
     return this.current.furniture;
@@ -585,6 +592,7 @@ export class Game {
       searched: [...f.searched],
       furniture: f.furniture,
       themes: f.themes,
+      motifs: f.motifs,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -661,6 +669,7 @@ export class Game {
         searched: new Set(f.searched),
         furniture: f.furniture ?? [],
         themes: f.themes ?? [],
+        motifs: f.motifs ?? [],
       });
     }
     game.turn = saved.turn;
@@ -1923,6 +1932,8 @@ export class Game {
 
   /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
   heroHasAdvantageOn(monster: Actor): boolean {
+    // Jamais deux avantages de suite sur la même cible (Thomas) : après un coup avec avantage, elle se reprend.
+    if (this.hero.lastAdvantageOn === monster.id) return false;
     if (!monster.alerted) return true;
     // Un avantage à la fois : le monstre semé en passant une porte s'attend à l'embuscade.
     if (monster.wary) return false;
@@ -2130,7 +2141,9 @@ export class Game {
     if (this.skills.includes("rage") && this.hero.hp * 2 < this.hero.maxHp) damageBonus += RULES.rageBonus;
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
     const critFrom = this.skills.includes("coup_puissant") ? 19 : 20;
-    const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal", critFrom);
+    const advantaged = this.heroHasAdvantageOn(monster);
+    const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom);
+    this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
     // Charge (voie verte) : après deux pas en ligne droite, le premier coup fait 1d6 de plus.
     if (result.hit && !extra && this.skills.includes("charge") && this.straight.turn === this.turn - 1 && this.straight.steps >= 2) {
       const bonus = rollDice(this.rng, RULES.chargeDamage);
@@ -2219,7 +2232,8 @@ export class Game {
       // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.
       // Une cible qu'on ne voit pas (tir à l'aveugle) : jamais d'avantage, et désavantage.
       const blind = !this.isVisible(victim.x, victim.y);
-      const favoured = !blind && (!victim.alerted || (!victim.wary && this.map.isDoor(victim.x, victim.y)));
+      const favoured =
+        !blind && this.hero.lastAdvantageOn !== victim.id && (!victim.alerted || (!victim.wary && this.map.isDoor(victim.x, victim.y)));
       const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
@@ -2227,6 +2241,7 @@ export class Game {
       const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
       const attackBonus = (bow.attackBonus ?? 0) + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
       const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+      this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : undefined;
       this.noteHeroAttack(result.hit);
       victim.alerted = true;
       victim.asleep = false;
@@ -2345,8 +2360,10 @@ export class Game {
 
       if (this.inReach(m, this.hero)) {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.
-        const ambush = this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero);
+        // Jamais deux avantages de suite sur le héros (Thomas) : après un coup avec avantage, il se reprend.
+        const ambush = m.lastAdvantageOn !== this.hero.id && (this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero));
         const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
+        m.lastAdvantageOn = ambush ? this.hero.id : undefined;
         // Le monstre a rattrapé le héros : le combat reprend normalement.
         m.wary = false;
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });

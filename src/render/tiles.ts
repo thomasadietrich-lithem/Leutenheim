@@ -97,7 +97,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(groundImage(game.map, x, y), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    ctx.drawImage(groundImage(game.map, x, y, game.motifs()), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
   }
 

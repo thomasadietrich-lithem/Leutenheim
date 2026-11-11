@@ -1,6 +1,7 @@
 import { ItemId } from "../data/items";
 import { Rng } from "../core/rng";
 import { furnishDortoir, Furniture, RoomTheme } from "./furnish";
+import { Motif } from "./grounds";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
 import { SPECIAL_ROOMS } from "../data/specialRooms";
@@ -25,6 +26,7 @@ export interface SandboxFloor extends Floor {
   secrets: { x: number; y: number; room: number; item: ItemId; count: number }[];
   furniture: Furniture[];
   themes: RoomTheme[];
+  motifs: Motif[];
   ground: { x: number; y: number; item: ItemId; count: number }[];
   /** Niveau du héros en arrivant (pour essayer les objets qui demandent un niveau). */
   heroLevel: number;
@@ -33,7 +35,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 6;
+export const SANDBOX_LAYOUT = 7;
 
 export function buildSandbox(): SandboxFloor {
   const map = new GameMap(32, 32);
@@ -97,6 +99,15 @@ export function buildSandbox(): SandboxFloor {
     rooms,
     furniture,
     themes,
+    // Motifs gravés (validés le 2026-11-11) : runes dans la salle de départ, rose des vents et rosace dans la salle de
+    // combat, croix et spirale dans la salle de ronde.
+    motifs: [
+      { x: 4, y: 6, kind: "runes" },
+      { x: 22, y: 14, kind: "boussole" },
+      { x: 18, y: 15, kind: "rosace" },
+      { x: 9, y: 20, kind: "croix" },
+      { x: 10, y: 19, kind: "spirale" },
+    ],
     start: { x: 7, y: 6 },
     stairs,
     torches: floorPlan.torches,

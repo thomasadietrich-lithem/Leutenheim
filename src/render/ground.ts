@@ -1,4 +1,7 @@
 import { GameMap, Tile } from "../world/map";
+import { MOTIF_SIZE } from "../data/motifs";
+import { Motif } from "../world/grounds";
+import { MOTIFS } from "./motifs";
 
 /**
  * Dessin du sol, pixel par pixel (planche `art/sols_v1.png`, validée par Thomas le 2026-11-11) : sol B, des dalles
@@ -109,16 +112,50 @@ function around(map: GameMap, x: number, y: number, tile: Tile): [number, number
   return out;
 }
 
+const GROOVE: RGB = [30, 26, 38];
+const LIP: RGB = [104, 98, 126];
+const INLAY: RGB = [122, 96, 58];
+const INLAY_HI: RGB = [168, 136, 76];
+const MOTIF_STONE: RGB = [86, 80, 104];
+
+/**
+ * Un pixel d'un motif gravé (comme `stamp` dans art/motifs_sol_v1.py) : une seule grande dalle un peu plus claire sous
+ * le motif, son joint autour, le trait gravé ou le laiton ; la poussière du sol B recouvre une partie du motif.
+ */
+function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
+  const size = MOTIF_SIZE[m.kind] * T;
+  const lx = px - m.x * T;
+  const ly = py - m.y * T;
+  const dust = fbm(px, py, 36, 51, 2) + 0.2 * (valueNoise(px, py, 3, 52) - 0.5);
+  if (dust < 0.36) return base;
+  let c: RGB;
+  if (lx === 0 || ly === 0) c = GROOVE;
+  else if (lx === 1 || ly === 1) c = LIP;
+  else c = scale(MOTIF_STONE, 0.85 * (0.95 + 0.1 * valueNoise(px, py, 6, 79)));
+  const u = ((lx + 0.5) / size) * 2 - 1;
+  const v = ((ly + 0.5) / size) * 2 - 1;
+  const k = MOTIFS[m.kind](u, v);
+  if (k === 0 || hash2(px, py, 77) > 0.94) {
+    // Arête claire sous un trait gravé (le pixel du dessus est un creux).
+    const vu = ((ly - 0.5) / size) * 2 - 1;
+    if (ly > 0 && MOTIFS[m.kind](u, vu) === 1 && hash2(px, py - 1, 77) <= 0.94) return [Math.max(c[0], LIP[0] * 0.9), Math.max(c[1], LIP[1] * 0.9), Math.max(c[2], LIP[2] * 0.9)];
+    return c;
+  }
+  if (k === 1) return GROOVE;
+  return hash2(px, py, 78) > 0.75 ? INLAY_HI : INLAY;
+}
+
 const canvases = new Map<string, HTMLCanvasElement>();
 
 /**
  * L'image 16 × 16 du sol d'une case (sol B, plus le gravier et l'eau qui la touchent). Gardée en mémoire : le sol ne
  * change jamais. Sert à toute case où l'on marche (et sous les meubles, les colonnes, les escaliers).
  */
-export function groundImage(map: GameMap, x: number, y: number): HTMLCanvasElement {
+export function groundImage(map: GameMap, x: number, y: number, motifs: readonly Motif[] = []): HTMLCanvasElement {
   const gravel = around(map, x, y, Tile.Gravel);
   const water = around(map, x, y, Tile.Water);
-  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}`;
+  const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
+  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
@@ -137,6 +174,7 @@ export function groundImage(map: GameMap, x: number, y: number): HTMLCanvasEleme
       const px = ox + i;
       const py = oy + j;
       let c = floorB(px, py);
+      if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);
     }

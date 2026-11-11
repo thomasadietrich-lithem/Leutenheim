@@ -2,6 +2,7 @@ import { Rng } from "../core/rng";
 import { RULES } from "../data/rules";
 import { Floor } from "./generator";
 import { Point, Tile } from "./map";
+import { MOTIF_KINDS, MOTIF_SIZE, MotifKind } from "../data/motifs";
 
 /**
  * Sols spéciaux (2026-11-11) : quelques plaques de gravier et quelques flaques, d'une seule tenue (cases voisines),
@@ -34,4 +35,43 @@ export function placeGrounds(floor: Floor, seed: number): void {
   };
   for (let i = rng.int(RULES.gravelPatches[0], RULES.gravelPatches[1]); i > 0; i--) patch(Tile.Gravel, rng.int(RULES.gravelSize[0], RULES.gravelSize[1]));
   for (let i = rng.int(RULES.puddles[0], RULES.puddles[1]); i > 0; i--) patch(Tile.Water, rng.int(RULES.puddleSize[0], RULES.puddleSize[1]));
+}
+
+/** Un motif gravé au sol : sa case en haut à gauche, sa forme (1 ou 2 × 2 cases). */
+export interface Motif {
+  x: number;
+  y: number;
+  kind: MotifKind;
+}
+
+/**
+ * Motifs au sol (2026-11-11) : de 0 à 2 par étage (C), sur du sol nu d'une salle (toutes les cases du motif), jamais
+ * à l'arrivée ni sur l'escalier. Décor seulement. Hasard à part.
+ */
+export function placeMotifs(floor: Floor, seed: number): Motif[] {
+  const rng = new Rng(seed ^ 0x51a7e0b3);
+  const out: Motif[] = [];
+  const taken = new Set<string>();
+  const wanted = rng.int(RULES.motifsPerFloor[0], RULES.motifsPerFloor[1]);
+  for (let attempt = 0; attempt < 60 && out.length < wanted; attempt++) {
+    const room = floor.rooms[rng.int(0, floor.rooms.length - 1)];
+    const kind = MOTIF_KINDS[rng.int(0, MOTIF_KINDS.length - 1)];
+    const size = MOTIF_SIZE[kind];
+    if (room.w < size + 2 || room.h < size + 2) continue;
+    const x = rng.int(room.x + 1, room.x + room.w - 1 - size);
+    const y = rng.int(room.y + 1, room.y + room.h - 1 - size);
+    let ok = true;
+    for (let dy = 0; dy < size && ok; dy++) {
+      for (let dx = 0; dx < size && ok; dx++) {
+        const cx = x + dx;
+        const cy = y + dy;
+        if (floor.map.get(cx, cy) !== Tile.Floor || taken.has(`${cx},${cy}`)) ok = false;
+        if ((cx === floor.start.x && cy === floor.start.y) || (cx === floor.stairs.x && cy === floor.stairs.y)) ok = false;
+      }
+    }
+    if (!ok) continue;
+    for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) taken.add(`${x + dx},${y + dy}`);
+    out.push({ x, y, kind });
+  }
+  return out;
 }

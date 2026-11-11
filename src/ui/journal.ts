@@ -33,7 +33,17 @@ function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
       : e.opportunity
         ? `Attaque d'opportunité de ${e.attacker.name}`
         : `${e.attacker.name} vous attaque`;
-  const outcome = r.critical ? `coup critique, ${r.damage} dégâts` : r.hit ? `touché, ${r.damage} dégâts` : r.d20 === 1 ? "échec critique" : "raté";
+  // Le dé de dégâts (Thomas) : « 1d6+2 : 4+2 → 6 dégâts » ; au critique, les dés sont doublés ; un bonus ajouté après
+  // (charge, rage…) se voit entre parenthèses.
+  const dmg = (() => {
+    const d = r.damageRoll;
+    if (!d) return `${r.damage} dégâts`;
+    const label = `${r.critical ? d.dice.count * 2 : d.dice.count}d${d.dice.sides}${d.dice.bonus > 0 ? `+${d.dice.bonus}` : d.dice.bonus < 0 ? d.dice.bonus : ""}`;
+    const parts = d.faces.join("+") + (d.dice.bonus > 0 ? `+${d.dice.bonus}` : d.dice.bonus < 0 ? `${d.dice.bonus}` : "");
+    const extra = r.damage - d.rolled;
+    return `${label} : ${parts}${extra > 0 ? ` (+${extra})` : ""} → ${r.damage} dégâts`;
+  })();
+  const outcome = r.critical ? `coup critique, ${dmg}` : r.hit ? `touché, ${dmg}` : r.d20 === 1 ? "échec critique" : "raté";
   const mode =
     r.mode === "advantage" ? ` (avantage : ${r.rolls.join(" et ")})` : r.mode === "disadvantage" ? ` (désavantage : ${r.rolls.join(" et ")})` : "";
   return `${who} : ${r.d20} + ${r.bonus} = ${r.total}${mode} — ${outcome}`;

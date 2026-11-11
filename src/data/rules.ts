@@ -54,6 +54,8 @@ export const RULES = {
   /** Sols spéciaux (planche art/sols_v1.png validée le 2026-11-11) : plaques de gravier et flaques par étage. */
   groundsInDungeon: true,
   gravelPatches: [0, 2] as [number, number],
+  /** Motifs gravés au sol (rosace, rose des vents, runes, croix, spirale) : de tant à tant par étage (décor). */
+  motifsPerFloor: [0, 2] as [number, number],
   gravelSize: [3, 8] as [number, number],
   puddles: [0, 3] as [number, number],
   puddleSize: [1, 4] as [number, number],

@@ -23,7 +23,7 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
   common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }],
   uncommon: [
     { item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
-    { item: "amethyste" }, { item: "sac_cuir" }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
+    { item: "amethyste" }, { item: "sac_cuir", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
   ],
   rare: [
     { item: "gold" }, { item: "cimeterre" }, { item: "armure_cloutee" }, { item: "saphir" }, { item: "potion_jouvence" },
@@ -45,3 +45,14 @@ export function goldRange(depth: number, size: "small" | "medium" | "large"): [n
   const factor = 2 ** Math.max(0, section - (GOLD_PILES.length - 1));
   return [row[0] * factor, row[1] * factor];
 }
+
+/**
+ * Garanties de la première section (Thomas, 2026-11-11) : au moins une pomme à l'étage 1, au moins deux équipements,
+ * une pierre précieuse et une potion entre les étages 1 et 5. L'étage de chacune est tiré au début de la partie.
+ */
+export const SECTION_GUARANTEES: { what: "pomme" | "equipment" | "gem" | "potion"; count: number; floors: [number, number] }[] = [
+  { what: "pomme", count: 1, floors: [1, 1] },
+  { what: "equipment", count: 2, floors: [1, 5] },
+  { what: "gem", count: 1, floors: [1, 5] },
+  { what: "potion", count: 1, floors: [1, 5] },
+];

@@ -10,7 +10,7 @@ export interface ThemedRoomDef {
   id: string;
   name: string;
   /** Butin de la cache : objet, quantité de min à max, poids. `or` : la quantité grandit avec l'étage. */
-  loot: { item: ItemId; min: number; max: number; weight: number }[];
+  loot: { item: ItemId; min: number; max: number; weight: number; minDepth?: number }[];
 }
 
 export const THEMED_ROOMS: ThemedRoomDef[] = [
@@ -20,7 +20,7 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
     loot: [
       { item: "or", min: 8, max: 16, weight: 3 },
       { item: "pomme", min: 1, max: 2, weight: 2 },
-      { item: "sac_cuir", min: 1, max: 1, weight: 1 },
+      { item: "sac_cuir", min: 1, max: 1, weight: 1, minDepth: 5 }, // pas avant la fin de la section 1 (Thomas)
     ],
   },
 ];
@@ -41,4 +41,13 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   rugB: { blocks: false, w: 3, h: 2, burns: true },
   ashes1: { blocks: false, w: 1, h: 1, burns: false },
   ashes2: { blocks: false, w: 2, h: 1, burns: false },
+  // Trainards (planche art/trainards_v3.png, validée) : tonneau, caisse, deux caisses empilées. On se cache derrière.
+  barrel: { blocks: true, w: 1, h: 1, burns: true },
+  crate: { blocks: true, w: 1, h: 1, burns: true },
+  crateStack: { blocks: true, w: 1, h: 1, burns: true },
+  // Toiles d'araignée (dès l'étage 3), dans un coin de salle sans torche : TL = coin en haut à gauche, etc. Elles collent.
+  webTL: { blocks: false, w: 1, h: 1, burns: true },
+  webTR: { blocks: false, w: 1, h: 1, burns: true },
+  webBL: { blocks: false, w: 1, h: 1, burns: true },
+  webBR: { blocks: false, w: 1, h: 1, burns: true },
 };

@@ -10,6 +10,8 @@ import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, 
 import { goldRange } from "../data/loot";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { DORTOIR } from "./sprites/dortoir";
+import { TRAINARDS } from "./sprites/trainards";
+import { ARAIGNEE } from "./sprites/araignee";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { furnitureCells } from "../world/furnish";
 import { COLORS, TilePainter } from "./tiles";
@@ -373,15 +375,18 @@ export class Renderer {
     const mdy = m.y - m.fromY;
     const moving = progress < 1 && (mdx !== 0 || mdy !== 0);
     const slash = this.slashes.find((sl) => sl.attackerId === m.id);
-    const turn = (dx: number, dy: number) => {
-      if (dx === 0 && dy === 0) return;
-      this.monsterFacing.set(m.id, Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
-    };
-    if (slash) turn(slash.x - slash.fromX, slash.y - slash.fromY);
-    else if (moving) turn(mdx, mdy);
-    const facing = this.monsterFacing.get(m.id) ?? "down";
+    // Vers où il regarde : c'est la partie qui le décide (son éventail de vue compte pour vous remarquer).
+    const facing: Facing = m.facing ?? this.monsterFacing.get(m.id) ?? "down";
+    this.monsterFacing.set(m.id, facing);
     const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
     const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
+    if (m.defId === "araignee") {
+      // L'araignée (planche art/araignee_v1.png) : une seule vue de 3/4, retournée quand elle va à gauche.
+      const name = slash || hurt ? "bite" : moving ? (progress < 0.5 ? "walk0" : "walk1") : m.asleep ? "idle0" : `idle${Math.floor((Math.abs(this.time) + m.id * 170) / 380) % 2}`;
+      if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
+      this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", true, ARAIGNEE[name].palette);
+      return;
+    }
     let rows: readonly string[];
     if (m.asleep) rows = SCHRAT.sleep[0];
     else if (hurt) rows = SCHRAT.hurt[0];
@@ -390,19 +395,22 @@ export class Renderer {
     else rows = SCHRAT[`idle${dir}`][Math.floor((Math.abs(this.time) + m.id * 170) / 560) % 2];
     // Regard (Thomas : « très discret et très fin ») : un mince éventail clair qui part vers où il regarde,
     // ambré s'il ne vous a pas vu, rouge s'il vous traque. Pas de regard quand il dort.
-    if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted);
+    if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
     // Le profil « touché » regarde à droite : on le retourne s'il regarde à gauche, comme les autres profils.
     this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
   }
 
-  private drawGaze(cx: number, cy: number, facing: Facing, alerted: boolean): void {
+  private drawGaze(cx: number, cy: number, facing: Facing, alerted: boolean, vision: number): void {
     const { ctx, tile } = this;
     const angle = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
-    const half = 0.62; // demi-ouverture de l'éventail (≈ 35°)
-    const reach = tile * 2.4;
+    // Exactement l'éventail de la partie (Thomas : « l'angle de vue doit correspondre au ? et au ! ») : même ouverture,
+    // et il va jusqu'au bout de sa vue, en s'effaçant (très discret).
+    const half = RULES.gazeHalfAngle;
+    const reach = tile * (vision + 0.5);
     const rgb = alerted ? "255,110,90" : "255,226,170";
     const grad = ctx.createRadialGradient(cx, cy, tile * 0.3, cx, cy, reach);
     grad.addColorStop(0, `rgba(${rgb},0.16)`);
+    grad.addColorStop(0.45, `rgba(${rgb},0.07)`);
     grad.addColorStop(1, `rgba(${rgb},0)`);
     ctx.save();
     ctx.beginPath();
@@ -423,7 +431,14 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawMonsterSprite(rows: readonly string[], cx: number, cy: number, mirror: boolean, shadow: boolean): void {
+  private drawMonsterSprite(
+    rows: readonly string[],
+    cx: number,
+    cy: number,
+    mirror: boolean,
+    shadow: boolean,
+    palette: Record<string, string> = SCHRAT_PALETTE,
+  ): void {
     const { ctx, tile } = this;
     if (shadow) {
       ctx.fillStyle = "rgba(10,8,16,0.45)";
@@ -432,14 +447,16 @@ export class Renderer {
       ctx.fill();
     }
     // Plus petit que le héros (Thomas : « trop gros, trop grand ») : dessiné à la taille de la case, pieds au même niveau.
+    // Un dessin de 16 pixels de haut fait une case ; un plus large (l'araignée, 18) déborde un peu sur les côtés.
     const size = Math.round(tile * 1.0);
+    const width = Math.round((size * rows[0].length) / rows.length);
     const top = Math.round(cy + tile * 0.5 - size);
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.save();
     ctx.translate(Math.round(cx), 0);
     if (mirror) ctx.scale(-1, 1);
-    ctx.drawImage(this.sprite(rows, SCHRAT_PALETTE), -size / 2, top, size, size);
+    ctx.drawImage(this.sprite(rows, palette), -width / 2, top, width, size);
     ctx.restore();
     ctx.imageSmoothingEnabled = smooth;
   }
@@ -775,7 +792,15 @@ export class Renderer {
     for (const c of this.corpses) {
       if (!game.isVisible(c.actor.x, c.actor.y)) continue;
       ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
-      this.drawMonsterSprite(SCHRAT.dead[0], ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false);
+      const spider = c.actor.defId === "araignee";
+      this.drawMonsterSprite(
+        spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
+        ox + (c.actor.x + 0.5) * tile,
+        oy + (c.actor.y + 0.5) * tile,
+        c.facing === "left",
+        false,
+        spider ? ARAIGNEE.dead.palette : SCHRAT_PALETTE,
+      );
       ctx.globalAlpha = 1;
     }
     // Monstres en vue : leur sprite (le Schrat), ou un losange de la couleur de leur fiche s'ils n'en ont pas encore.
@@ -786,7 +811,7 @@ export class Renderer {
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
       const r = tile * 0.36;
-      if (m.defId === "schrat") {
+      if (m.defId === "schrat" || m.defId === "araignee") {
         const advantage = game.heroHasAdvantageOn(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.
@@ -1074,7 +1099,7 @@ export class Renderer {
     for (const f of list) {
       const def = FURNITURE_KINDS[f.kind];
       // Le tapis est dessiné avec le sol (dans la case), pour prendre exactement sa lumière (Thomas : il clignotait).
-      if (!def || f.kind.startsWith("rug")) continue;
+      if (!def || f.kind.startsWith("rug") || f.kind.startsWith("web")) continue;
       // Un meuble passe DEVANT un personnage qui se tient derrière lui (Thomas) : sur une rangée au-dessus de sa rangée
       // du bas, dans la hauteur du dessin (2 rangées au plus), et dans sa largeur (à une case près).
       const bottom = f.y + def.h - 1;
@@ -1099,7 +1124,7 @@ export class Renderer {
         warm = lit * flicker * 0.2;
       }
       const name = f.kind.startsWith("table") ? `${f.kind}${visible ? frame : 0}` : f.kind;
-      const art = DORTOIR[name];
+      const art = DORTOIR[name] ?? TRAINARDS[name];
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -1110,7 +1135,7 @@ export class Renderer {
         px = (f.x + def.w / 2) * 16 - w / 2;
         py = (f.y + def.h / 2) * 16 - h / 2;
       } else {
-        const off = f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
+        const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }

@@ -35,6 +35,10 @@ export interface Actor {
   slowed?: number;
   /** Empoisonné : perd `damage` PV au début de chacun de ses `turns` prochains tours. */
   poison?: { damage: number; turns: number };
+  /** Englué (toile, morsure d'araignée) : il perd ce nombre de déplacements (il peut encore frapper). */
+  stuck?: number;
+  /** Vers où il regarde (monstres) : son éventail de vue part de là. */
+  facing?: "up" | "down" | "left" | "right";
   /** Ronde : il ne se promène que dans ce rectangle (sa salle). */
   patrol?: { x: number; y: number; w: number; h: number };
   /** Destination de promenade d'un monstre qui se balade. */

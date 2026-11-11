@@ -37,6 +37,9 @@ export type GameEvent =
   | { type: "revealed" }
   /** Un meuble prend feu. */
   | { type: "furnitureFire"; x: number; y: number; kind: string }
+  | { type: "web"; escaped: boolean; roll: number; bonus: number }
+  | { type: "webbed"; by: Actor }
+  | { type: "stuck" }
   /** Le héros marche sur du gravier : ça crisse ; `alerted` monstres l'ont entendu. */
   | { type: "gravel"; x: number; y: number; alerted: number }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */

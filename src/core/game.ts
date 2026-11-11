@@ -19,7 +19,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, Debris, FloorState, GroundItem, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, Debris, FloorState, GroundItem, guaranteedLoot, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -194,7 +194,7 @@ export class Game {
       const furnished = sandboxFloor
         ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes }
         : RULES.themedRoomsInDungeon
-          ? furnishFloor(floor, seed)
+          ? furnishFloor(floor, seed, depth)
           : { furniture: [], themes: [] };
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
       if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
@@ -266,6 +266,8 @@ export class Game {
       placeSecrets(state, depth, floorSeed(this.runSeed, depth));
       placeTraps(state, floorSeed(this.runSeed, depth));
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
+      // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
+      placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
     }
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -279,10 +281,16 @@ export class Game {
   private spawnMonsters(rooms: Room[]): void {
     const spawns = spawnsForDepth(this.depth);
     const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
-    for (const room of rooms.slice(1)) {
-      if (!this.rng.chance(spawns.roomChance)) continue;
+    rooms.slice(1).forEach((room) => {
+      // Une salle tissée de toiles abrite souvent une araignée (ou deux), qui l'attend dans le noir.
+      const webbed = this.current.furniture.some(
+        (f) => f.kind.startsWith("web") && f.x >= room.x && f.x < room.x + room.w && f.y >= room.y && f.y < room.y + room.h,
+      );
+      const spiders = webbed && this.rng.chance(RULES.spiderInWebRoomChance);
+      if (!spiders && !this.rng.chance(spawns.roomChance)) return;
       let pick = this.rng.next() * totalWeight;
-      const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
+      const rolled = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
+      const entry = spiders ? (spawns.entries.find((e) => e.monster === "araignee") ?? rolled) : rolled;
       const def = MONSTERS[entry.monster];
       const count = this.rng.int(entry.packMin, entry.packMax);
       const asleep = this.rng.chance(spawns.sleepChance); // tout le groupe dort, ou tout le groupe se promène
@@ -296,7 +304,7 @@ export class Game {
           break;
         }
       }
-    }
+    });
     // Il y a toujours au moins un promeneur sur l'étage : si tout le monde dort, le dernier venu se lève.
     if (this.monsters.length > 0 && this.monsters.every((m) => m.asleep)) this.monsters[this.monsters.length - 1].asleep = false;
   }
@@ -319,6 +327,8 @@ export class Game {
       vision: def.vision,
       alerted: false,
       asleep,
+      // Regard de départ : une des quatre directions, d'après son numéro (sans toucher au hasard du jeu).
+      facing: (["down", "left", "right", "up"] as const)[this.nextId % 4],
     };
   }
 
@@ -436,6 +446,22 @@ export class Game {
   }
 
   /** Le héros vient de poser le pied sur du gravier : ça crisse ; les monstres proches l'entendent et accourent. */
+  /**
+   * Entrer dans une toile : d20 + bonus de force contre `webEscapeDc`. Réussi, on la déchire en passant ; raté, on y
+   * reste collé un tour (le prochain déplacement sert à se dépêtrer). La toile est déchirée dans les deux cas.
+   */
+  private enterWeb(): void {
+    const web = this.current.furniture.find((f) => f.kind.startsWith("web") && f.x === this.hero.x && f.y === this.hero.y);
+    if (!web) return;
+    const roll = this.rng.int(1, 20);
+    const escaped = roll + this.pushBonus() >= RULES.webEscapeDc;
+    if (!escaped) this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+    this.current.furniture = this.current.furniture.filter((o) => o !== web);
+    this.map.touch(web.x, web.y);
+    this.path = escaped ? this.path : [];
+    this.events.push({ type: "web", escaped, roll, bonus: this.pushBonus() });
+  }
+
   private crunch(): void {
     if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel || this.peaceful) return;
     this.reveal();
@@ -492,7 +518,7 @@ export class Game {
   /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
   private populateSandbox(state: FloorState, plan: SandboxFloor): void {
     for (const m of plan.monsters) {
-      const monster = this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep);
+      const monster = this.newMonster(MONSTERS[m.monster ?? "schrat"], m.x, m.y, m.asleep);
       if (m.patrol) monster.patrol = state.rooms.find((r) => m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h);
       this.monsters.push(monster);
     }
@@ -1098,6 +1124,15 @@ export class Game {
    * brûle tout entier, et à son tour enflamme ses voisins à une case.
    */
   private igniteFurniture(): void {
+    // Une toile flambe d'un coup et disparaît (sans cendres) dès qu'une flamme la touche ou la frôle.
+    const webs = this.current.furniture.filter(
+      (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1),
+    );
+    for (const w of webs) {
+      this.current.furniture = this.current.furniture.filter((o) => o !== w);
+      this.map.touch(w.x, w.y);
+      this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: w.kind });
+    }
     let spread = true;
     while (spread) {
       spread = false;
@@ -1667,6 +1702,10 @@ export class Game {
         this.heroAttacks(blocker);
         this.path = [];
         this.targetId = null; // un toucher = une attaque
+      } else if (this.hero.stuck) {
+        // Englué : ce déplacement passe à se dépêtrer (on peut toujours frapper).
+        this.hero.stuck--;
+        this.events.push({ type: "stuck" });
       } else {
         // Les monstres alertés au contact avant le pas : s'en éloigner leur offre une attaque d'opportunité.
         const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
@@ -1685,6 +1724,7 @@ export class Game {
         this.collectGold();
         this.springTrap(this.hero);
         if (this.over) return true;
+        this.enterWeb();
         this.crunch();
         // Caché, on peut longer les murs ; s'écarter de tout abri fait sortir de l'ombre.
         if (this.hidden && !this.hasCover(this.hero)) this.reveal();
@@ -1997,7 +2037,9 @@ export class Game {
   /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
   isWatched(): boolean {
     return this.monsters.some(
-      (m) => !m.asleep && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) <= m.vision,
+      // Seul un monstre qui vous a REPÉRÉ (« ! ») vous empêche de vous cacher ; sous le regard d'un « ? », on a encore
+      // une chance de disparaître avant qu'il ne vous remarque (Thomas, 2026-11-11).
+      (m) => !m.asleep && m.alerted && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) <= m.vision,
     );
   }
 
@@ -2344,9 +2386,12 @@ export class Game {
           (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) *
           (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake) *
           (this.onRug() ? RULES.rugNotice : 1);
-        // Caché, le héros ne peut être remarqué que par un monstre arrivé à son contact.
-        const range = this.hidden ? 1 : m.vision;
-        if (this.isVisible(m.x, m.y) && distance <= range && this.rng.chance(chance)) {
+        // Caché, le héros ne peut être remarqué que par un monstre arrivé à son contact. Endormi, il n'entend que de
+        // près ; éveillé, il ne voit que dans l'éventail devant lui (celui qu'on dessine), ou au contact.
+        const range = this.hidden ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
+        const inSight = distance <= 1 || m.asleep || this.inGaze(m, this.hero);
+        if (this.isVisible(m.x, m.y) && distance <= range && inSight && this.rng.chance(chance)) {
+          this.faceToward(m, this.hero);
           m.alerted = true;
           m.asleep = false;
           this.events.push({ type: "noticed", actor: m });
@@ -2362,8 +2407,15 @@ export class Game {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.
         // Jamais deux avantages de suite sur le héros (Thomas) : après un coup avec avantage, il se reprend.
         const ambush = m.lastAdvantageOn !== this.hero.id && (this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero));
+        this.faceToward(m, this.hero);
         const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
         m.lastAdvantageOn = ambush ? this.hero.id : undefined;
+        // Morsure d'araignée : parfois elle englue (le héros perd son prochain déplacement).
+        const bite = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;
+        if (result.damage > 0 && bite.webBite && this.rng.chance(bite.webBite)) {
+          this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+          this.events.push({ type: "webbed", by: m });
+        }
         // Le monstre a rattrapé le héros : le combat reprend normalement.
         m.wary = false;
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
@@ -2374,8 +2426,32 @@ export class Game {
         continue;
       }
 
-      this.stepToward(m, this.hero);
+      // L'araignée fond sur sa proie : deux pas par tour (elle s'arrête si elle arrive au contact).
+      const steps = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).chaseSteps ?? 1;
+      for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) if (!this.stepToward(m, this.hero)) break;
+      this.faceToward(m, this.hero);
     }
+  }
+
+  /** Le héros est-il dans l'éventail de regard de ce monstre (devant lui, à moins de `gazeHalfAngle`) ? */
+  inGaze(m: Actor, p: Point): boolean {
+    const dx = p.x - m.x;
+    const dy = p.y - m.y;
+    if (dx === 0 && dy === 0) return true;
+    const facing = m.facing ?? "down";
+    const look = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
+    let diff = Math.atan2(dy, dx) - look;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    return Math.abs(diff) <= RULES.gazeHalfAngle + 1e-9;
+  }
+
+  /** Tourne un personnage vers une case (la direction dominante). */
+  private faceToward(a: Actor, p: Point): void {
+    const dx = p.x - a.x;
+    const dy = p.y - a.y;
+    if (dx === 0 && dy === 0) return;
+    a.facing = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
   }
 
   /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
@@ -2385,6 +2461,7 @@ export class Game {
     if (!this.actorAt(step.x, step.y)) {
       const left = { x: m.x, y: m.y };
       const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
+      this.faceToward(m, step);
       m.x = step.x;
       m.y = step.y;
       this.openDoorAt(m.x, m.y);

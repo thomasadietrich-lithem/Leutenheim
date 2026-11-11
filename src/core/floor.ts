@@ -1,10 +1,10 @@
 import { RULES } from "../data/rules";
 import { ItemId, ITEMS, Rarity } from "../data/items";
-import { GOLD_SIZE, goldRange, LOOT, RARITY_ODDS, sectionOf } from "../data/loot";
+import { GOLD_SIZE, goldRange, LOOT, RARITY_ODDS, SECTION_GUARANTEES, sectionOf } from "../data/loot";
 import { Actor } from "../entities/actor";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
-import { Furniture, RoomTheme } from "../world/furnish";
+import { Furniture, furnitureCells, RoomTheme } from "../world/furnish";
 import { Motif } from "../world/grounds";
 import { THEMED_ROOMS } from "../data/themedRooms";
 import { GameMap, Point, Tile } from "../world/map";
@@ -125,8 +125,10 @@ export function placeSecrets(state: FloorState, depth: number, seed: number): vo
       }
       if (spots.length === 0) return;
       const spot = spots[rng.int(0, spots.length - 1)];
-      let pick = rng.next() * theme.loot.reduce((sum, l) => sum + l.weight, 0);
-      const loot = theme.loot.find((l) => (pick -= l.weight) < 0) ?? theme.loot[0];
+      // Certains objets n'apparaissent pas trop tôt (sac de cuir : pas avant la fin de la section 1).
+      const pool = theme.loot.filter((l) => (l.minDepth ?? 1) <= depth);
+      let pick = rng.next() * pool.reduce((sum, l) => sum + l.weight, 0);
+      const loot = pool.find((l) => (pick -= l.weight) < 0) ?? pool[0];
       const count = rng.int(loot.min, loot.max) + (loot.item === "or" ? RULES.secretGoldPerDepth * (depth - 1) : 0);
       state.secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count, found: false });
       return;
@@ -158,6 +160,8 @@ export function placeTraps(state: FloorState, seed: number): void {
   const rng = new Rng(seed ^ 0x51ed2701);
   state.rooms.forEach((room, index) => {
     if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
+    // Pas de piège dans une salle à thème (Thomas, 2026-11-11). Le tirage a eu lieu : le hasard des autres salles ne change pas.
+    if (state.themes.some((t) => t.room === index)) return;
     for (let attempt = 0; attempt < 20; attempt++) {
       const x = rng.int(room.x, room.x + room.w - 1);
       const y = rng.int(room.y, room.y + room.h - 1);
@@ -165,6 +169,7 @@ export function placeTraps(state: FloorState, seed: number): void {
       let open = true;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (state.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
       if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
+      if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
       state.traps.push({ x, y });
       return;
     }
@@ -208,6 +213,59 @@ export function placeLoot(state: FloorState, depth: number, seed: number): void 
       return;
     }
   });
+}
+
+/**
+ * Butin garanti de la première section (`SECTION_GUARANTEES`) : l'étage de chaque garantie est tiré une fois pour toute
+ * la partie, à partir de la graine de la partie ; on rend ici ce qui doit tomber à l'étage `depth`.
+ */
+export function guaranteedLoot(runSeed: number, depth: number): ItemId[] {
+  const rng = new Rng(runSeed ^ 0x7e1a9c55);
+  const out: ItemId[] = [];
+  const pools: Record<string, ItemId[]> = {
+    pomme: ["pomme"],
+    equipment: lootPool(depth, (k) => k === "melee" || k === "ranged" || k === "armor"),
+    gem: lootPool(depth, (k) => k === "gem"),
+    potion: lootPool(depth, (k, id) => id.startsWith("potion_")),
+  };
+  for (const g of SECTION_GUARANTEES) {
+    for (let i = 0; i < g.count; i++) {
+      const floor = rng.int(g.floors[0], g.floors[1]);
+      const pickIndex = rng.int(0, 999);
+      const pool = pools[g.what];
+      if (floor === depth && pool.length > 0) out.push(pool[pickIndex % pool.length]);
+    }
+  }
+  return out;
+}
+
+/** Les objets des tables de butin (peu communs et rares compris) d'une sorte donnée, permis à cet étage. */
+function lootPool(depth: number, keep: (kind: string, id: string) => boolean): ItemId[] {
+  const ids: ItemId[] = [];
+  for (const rarity of ["common", "uncommon", "rare"] as Rarity[]) {
+    for (const l of LOOT[rarity]) {
+      if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item)) continue;
+      if (keep(ITEMS[l.item].kind, l.item)) ids.push(l.item);
+    }
+  }
+  return ids;
+}
+
+/** Pose le butin garanti de cet étage, chacun dans une salle au hasard (jamais celle de départ). */
+export function placeGuaranteed(state: FloorState, items: ItemId[], seed: number): void {
+  const rng = new Rng(seed ^ 0x4d2c6b1f);
+  for (const item of items) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const room = state.rooms[rng.int(Math.min(1, state.rooms.length - 1), state.rooms.length - 1)];
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y, room.y + room.h - 1);
+      if (state.map.get(x, y) !== Tile.Floor || state.ground.some((g) => g.x === x && g.y === y)) continue;
+      if (state.traps.some((t) => t.x === x && t.y === y)) continue;
+      if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
+      state.ground.push({ x, y, item, count: 1 });
+      break;
+    }
+  }
 }
 
 /** Avec un peu de chance, une clef traîne dans une salle de l'étage (jamais sous les pieds du héros). */

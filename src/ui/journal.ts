@@ -87,9 +87,26 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "revealed":
       return "Vous sortez de l'ombre.";
     case "furnitureFire": {
-      const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : "Une chaise";
+      if (e.kind.startsWith("web")) return "Une toile d'araignée s'embrase et disparaît.";
+      const name = e.kind.startsWith("bunk")
+        ? "Un lit"
+        : e.kind.startsWith("table")
+          ? "La table"
+          : e.kind.startsWith("rug")
+            ? "Le tapis"
+            : e.kind === "barrel"
+              ? "Un tonneau"
+              : e.kind.startsWith("crate")
+                ? "Une caisse"
+                : "Une chaise";
       return `${name} prend feu !`;
     }
+    case "web":
+      return `Une toile d'araignée ! Force : ${roll(e.roll, e.bonus, e.roll + e.bonus)} — ${e.escaped ? "vous la déchirez en passant." : "raté, vous voilà englué un tour."}`;
+    case "webbed":
+      return `La morsure de ${e.by.name.toLowerCase() === "araignée" ? "l'araignée" : e.by.name} vous englue : votre prochain pas servira à vous dégager.`;
+    case "stuck":
+      return "Vous vous dépêtrez des fils collants.";
     case "gravel":
       return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":

@@ -12,7 +12,8 @@ import { generateFloor } from "../src/world/generator";
 import { GameMap, Tile } from "../src/world/map";
 import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath } from "../src/world/pathfinding";
-import { furnishFloor, furnitureCells } from "../src/world/furnish";
+import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
+import { guaranteedLoot } from "../src/core/floor";
 import { FURNITURE_KINDS } from "../src/data/themedRooms";
 import { MOTIF_SIZE } from "../src/data/motifs";
 
@@ -851,7 +852,7 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const foe = game.monsters[0];
   assert.ok(foe);
   game.monsters.splice(1);
-  // Trois victoires (3 à 5 points chacune) : passage au niveau 2 (6 points), pas au niveau 3 (12 de plus) ; un point à placer, pas de PV automatiques.
+  // Trois victoires (3 à 5 points chacune) : passage au niveau 2 (5 points) ; un point à placer par niveau, pas de PV automatiques.
   const maxHp = game.hero.maxHp;
   let kills = 0;
   game.xp = 0;
@@ -869,9 +870,12 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
   assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
   const total = gains.reduce((a, b) => a + b, 0);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, total - 6, 12, maxHp]);
+  // Niveau 2 à 5 points, niveau 3 à 15 (5 + 10) : trois victoires mènent au niveau 2, parfois au 3.
+  const level = total >= 15 ? 3 : 2;
+  const left = total - (level === 3 ? 15 : 5);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, level === 3 ? 17 : 10, maxHp]);
   assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
-  assert.equal(game.points, 1);
+  assert.equal(game.points, level - 1);
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
 
   // L'or ramassé va dans la bourse, pas dans le sac.
@@ -1596,8 +1600,11 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
       assert.notEqual(dist[game.map.index(x, y - 1)], -1, `porte verrouillée (${x},${y}) inaccessible`);
     }
   }
-  assert.equal(game.monsters.length, 4);
-  assert.equal(game.monsters.filter((m) => m.patrol).length, 2, "deux Schrats font leur ronde");
+  assert.equal(game.monsters.length, 5);
+  assert.equal(game.monsters.filter((m) => m.patrol && m.defId === "schrat").length, 2, "deux Schrats font leur ronde");
+  assert.ok(game.monsters.some((m) => m.defId === "araignee"), "une araignée dans son antre");
+  assert.ok(game.furnitureList().some((f) => f.kind.startsWith("web")), "des toiles");
+  assert.ok(game.furnitureList().some((f) => f.kind === "barrel"), "un tonneau");
   // Les nouveaux objets sont dans la salle de départ, au plus près du héros.
   const start = game.rooms[0];
   for (const id of ["pomme", "torche", "fleche_poison", "epee_longue", "lance", "cimeterre", "armure_cloutee"]) {
@@ -1861,13 +1868,13 @@ test("butin : rareté selon la section, tas d'or selon la section, jamais dans l
   }
 });
 
-test("expérience : chaque niveau demande un peu plus que le précédent (6, 12, 20, 30, 42)", () => {
+test("expérience : chaque niveau demande un peu plus que le précédent (5, 10, 17, 26, 37)", () => {
   const game = new Game(1);
   const needs = [1, 2, 3, 4, 5].map((level) => {
     game.level = level;
     return game.xpToNext();
   });
-  assert.deepEqual(needs, [6, 12, 20, 30, 42]);
+  assert.deepEqual(needs, [5, 10, 17, 26, 37]);
 });
 
 test("salle d'essai : les Schrats en ronde restent dans leur salle ; « Réveiller » les lance sur le héros", () => {
@@ -2300,7 +2307,7 @@ test("sols spéciaux du donjon : jamais à l'arrivée ni sur l'escalier, et le h
   assert.ok(gravel > 40 && water > 20, `gravier ${gravel}, eau ${water}`);
 });
 
-test("se cacher : impossible si un monstre éveillé vous a en vue ; possible s'il dort", () => {
+test("se cacher : impossible si un monstre qui vous a repéré vous voit ; possible s'il dort ou n'a rien remarqué", () => {
   for (let seed = 1; seed <= 40; seed++) {
     const game = new Game(seed);
     const m = game.monsters[0];
@@ -2312,6 +2319,8 @@ test("se cacher : impossible si un monstre éveillé vous a en vue ; possible s'
     Object.assign(m, { x: spot.x, y: spot.y, asleep: true, alerted: false });
     assert.notEqual(game.hideRefusal(), "watched", "un dormeur ne regarde pas");
     m.asleep = false;
+    assert.notEqual(game.hideRefusal(), "watched", "un « ? » laisse une chance de se cacher");
+    m.alerted = true;
     assert.equal(game.hideRefusal(), "watched");
     return;
   }
@@ -2421,4 +2430,58 @@ test("avantage : jamais deux de suite sur la même cible (porte, coin de mur, ci
     return;
   }
   assert.fail("aucune graine utilisable");
+});
+
+test("regard : un monstre éveillé ne remarque le héros que dans son éventail (ou au contact)", () => {
+  const game = new Game(3);
+  const m = game.monsters[0];
+  assert.ok(m);
+  Object.assign(m, { x: 10, y: 10, facing: "right" });
+  assert.ok(game.inGaze(m, { x: 14, y: 10 }), "droit devant");
+  assert.ok(game.inGaze(m, { x: 14, y: 12 }), "un peu de biais");
+  assert.ok(!game.inGaze(m, { x: 6, y: 10 }), "dans le dos");
+  assert.ok(!game.inGaze(m, { x: 10, y: 14 }), "sur le côté");
+});
+
+test("araignées : à partir de l'étage 3, avec les toiles ; une toile colle ou se déchire", () => {
+  let webs = 0;
+  let early = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    for (const depth of [1, 2, 4]) {
+      const floor = generateFloor(seed * 7 + depth, DEFAULT_FLOOR);
+      const { furniture } = furnishFloor(floor, seed * 7 + depth, depth);
+      const n = furniture.filter((f) => f.kind.startsWith("web")).length;
+      if (depth < 3) early += n;
+      else webs += n;
+      // Ni lit ni trainard sous une torche du mur (Thomas : « torche derrière un meuble, c'est bizarre »).
+      for (const f of furniture) {
+        if (f.kind === "barrel" || f.kind.startsWith("crate") || f.kind.startsWith("bunk")) {
+          for (const c of furnitureCells(f)) assert.ok(!underTorch(floor, c.x, c.y), `${f.kind} sous une torche`);
+        }
+      }
+    }
+  }
+  assert.equal(early, 0, "pas de toile avant l'étage 3");
+  assert.ok(webs > 0, "des toiles dès l'étage 3");
+  // Entrer dans une toile : on la déchire, englué ou non.
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  const web = game.furnitureList().find((f) => f.kind.startsWith("web"))!;
+  Object.assign(game.hero, { x: web.x + 1, y: web.y + 1, fromX: web.x + 1, fromY: web.y + 1 });
+  assert.ok(game.moveBy(-1, -1));
+  for (let i = 0; i < 80 && (game.hero.x !== web.x || game.hero.y !== web.y); i++) game.tick();
+  assert.deepEqual([game.hero.x, game.hero.y], [web.x, web.y]);
+  assert.ok(!game.furnitureList().includes(web), "la toile est déchirée");
+});
+
+test("butin garanti de la section 1 : une pomme à l'étage 1, deux équipements, une gemme, une potion", () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const all = [1, 2, 3, 4, 5].flatMap((d) => guaranteedLoot(seed, d));
+    assert.ok(guaranteedLoot(seed, 1).includes("pomme"));
+    assert.ok(all.filter((i) => ["melee", "ranged", "armor"].includes(ITEMS[i].kind)).length >= 2);
+    assert.ok(all.some((i) => ITEMS[i].kind === "gem"));
+    assert.ok(all.some((i) => i.startsWith("potion_")));
+    assert.ok(!all.includes("sac_cuir"));
+    assert.equal(guaranteedLoot(seed, 6).length, 0);
+  }
 });

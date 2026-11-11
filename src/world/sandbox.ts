@@ -31,11 +31,11 @@ export interface SandboxFloor extends Floor {
   /** Niveau du héros en arrivant (pour essayer les objets qui demandent un niveau). */
   heroLevel: number;
   /** `patrol` : il fait les cent pas dans sa salle au lieu de se promener dans tout l'étage. */
-  monsters: { x: number; y: number; asleep: boolean; patrol?: boolean }[];
+  monsters: { x: number; y: number; asleep: boolean; patrol?: boolean; monster?: "schrat" | "araignee" }[];
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 7;
+export const SANDBOX_LAYOUT = 8;
 
 export function buildSandbox(): SandboxFloor {
   const map = new GameMap(32, 32);
@@ -84,11 +84,21 @@ export function buildSandbox(): SandboxFloor {
   carve(dortoir);
   for (let y = 20; y <= 27; y++) map.set(13, y, Tile.Floor);
   map.set(12, 27, Tile.Floor);
-  const rooms = [start, pillars, combat, patrolRoom, dortoir];
+  // Antre de l'araignée (2026-11-11) : au sud de la salle de combat, sans torche, des toiles dans trois coins.
+  const den: Room = { x: 17, y: 23, w: 9, h: 6 };
+  carve(den);
+  for (let y = 20; y <= 22; y++) map.set(21, y, Tile.Floor);
+  const rooms = [start, pillars, combat, patrolRoom, dortoir, den];
   const floorPlan: Floor = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
   const furniture: Furniture[] = [];
   furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
   const themes: RoomTheme[] = [{ room: 4, id: "dortoir" }];
+  // Toiles de l'antre, et des trainards (tonneau, caisses) contre le mur gauche de la salle des colonnes.
+  furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });
+  for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }]) {
+    furniture.push(f);
+    map.set(f.x, f.y, Tile.Furniture);
+  }
   // La cache, au pied du premier lit.
   const firstBunk = furniture.find((f) => f.kind.startsWith("bunk"));
   const secrets: SandboxFloor["secrets"] = [{ x: 22, y: 8, room: 1, item: "or", count: 12 }];
@@ -150,6 +160,7 @@ export function buildSandbox(): SandboxFloor {
       { x: 7, y: 20, asleep: false, patrol: true },
       { x: 25, y: 16, asleep: false },
       { x: 18, y: 18, asleep: true },
+      { x: 22, y: 26, asleep: false, patrol: true, monster: "araignee" },
     ],
   };
 }

@@ -3,6 +3,7 @@ import { Tile } from "../world/map";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { groundImage } from "./ground";
 import { DORTOIR } from "./sprites/dortoir";
+import { TRAINARDS } from "./sprites/trainards";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 
 /**
@@ -69,11 +70,23 @@ export class TilePainter {
         this.drawFeature(game, t, x, y, sx, sy);
   }
 
-  /** La part de tapis qui tombe sur cette case : dessinée avec le sol, elle prend la même ombre et la même lumière. */
+  /**
+   * La part de tapis qui tombe sur cette case, et les toiles d'araignée (une case, dans un coin) : dessinées avec le sol,
+   * elles prennent la même ombre et la même lumière.
+   */
   drawRugs(game: Game, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
     const u = tile / 16;
     for (const f of game.furnitureList()) {
+      if (f.kind.startsWith("web")) {
+        if (f.x !== x || f.y !== y) continue;
+        const web = TRAINARDS[f.kind];
+        const smooth = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.sprite(web.rows, web.palette), sx, sy, 16 * u, 16 * u);
+        ctx.imageSmoothingEnabled = smooth;
+        continue;
+      }
       if (!f.kind.startsWith("rug")) continue;
       const def = FURNITURE_KINDS[f.kind];
       const art = DORTOIR[f.kind];

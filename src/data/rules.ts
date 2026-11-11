@@ -82,6 +82,23 @@ export const RULES = {
   themedSecretChance: 0.75,
   /** Tapis : marcher dessus étouffe les pas (chance d'être remarqué multipliée par tant) ; il brûle tout entier. */
   rugNotice: 0.5,
+  /**
+   * Regard des monstres (Thomas, 2026-11-11 : « l'angle de vue doit correspondre au ? et au ! ») : un monstre éveillé
+   * ne remarque le héros que dans l'éventail devant lui (demi-ouverture en radians, ≈ 46°), ou à son contact.
+   * Endormi, il n'a pas d'éventail : il n'entend que de près (tant de cases).
+   */
+  gazeHalfAngle: 0.8,
+  asleepHearing: 3,
+  /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
+  websFromDepth: 3,
+  webRoomChance: 0.35,
+  webCorners: [1, 2] as [number, number],
+  /** Entrer dans une toile : d20 + bonus de force contre cette difficulté, sinon englué un tour. La toile se déchire. */
+  webEscapeDc: 12,
+  /** Une salle tissée abrite souvent une araignée (ou deux). */
+  spiderInWebRoomChance: 0.6,
+  /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
+  clutterPerFloor: [1, 4] as [number, number],
   /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
   pushDc: 10,
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -100,10 +117,10 @@ export const RULES = {
   /**
    * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
    * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
-   * grandit lui-même de `xpStepGrowth`. Avec 6 / 6 / 2 : 6, 12, 20, 30, 42, 56, 72… (C)
+   * grandit lui-même de `xpStepGrowth`. Avec 5 / 5 / 2 : 5, 10, 17, 26, 37, 50, 65… (2026-11-11 : un peu moins, pour que le niveau suive l'étage)
    */
-  xpFirst: 6,
-  xpStep: 6,
+  xpFirst: 5,
+  xpStep: 5,
   xpStepGrowth: 2,
   /** Points de vie gagnés à chaque niveau. */
   hpPerLevel: 3,

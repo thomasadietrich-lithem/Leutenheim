@@ -1108,6 +1108,27 @@
       noticeChance: 0.4,
       color: "#d9763a",
       blood: "green"
+    },
+    araignee: {
+      id: "araignee",
+      name: "Araign\xE9e",
+      family: "araign\xE9es",
+      description: "Elle guette dans les coins sombres, pr\xE8s de ses toiles. Tr\xE8s vive quand elle fond sur sa proie, et sa morsure colle.",
+      // Validée par Thomas le 2026-11-11 (planche art/araignee_v1.png) : plus rapide, plus de santé, plus de dégâts que le Schrat.
+      hp: 10,
+      armorClass: 13,
+      attackBonus: 3,
+      damage: { count: 1, sides: 6, bonus: 0 },
+      vision: 6,
+      xpMin: 5,
+      xpMax: 7,
+      goldChance: 0,
+      goldMax: 0,
+      noticeChance: 0.45,
+      color: "#5a4466",
+      blood: "green",
+      chaseSteps: 2,
+      webBite: 1 / 3
     }
   };
   function spawnsForDepth(depth) {
@@ -1115,7 +1136,11 @@
       roomChance: Math.min(0.3 + depth * 0.05, 0.7),
       // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
       sleepChance: Math.max(0.2, 0.65 - (depth - 1) * 0.1),
-      entries: [{ monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) }]
+      entries: [
+        { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) },
+        // Les araignées arrivent à l'étage 3, avec les toiles (Thomas) ; elles chassent seules ou à deux.
+        ...depth >= 3 ? [{ monster: "araignee", weight: 0.25, packMin: 1, packMax: 2 }] : []
+      ]
     };
   }
 
@@ -1237,6 +1262,23 @@
     themedSecretChance: 0.75,
     /** Tapis : marcher dessus étouffe les pas (chance d'être remarqué multipliée par tant) ; il brûle tout entier. */
     rugNotice: 0.5,
+    /**
+     * Regard des monstres (Thomas, 2026-11-11 : « l'angle de vue doit correspondre au ? et au ! ») : un monstre éveillé
+     * ne remarque le héros que dans l'éventail devant lui (demi-ouverture en radians, ≈ 46°), ou à son contact.
+     * Endormi, il n'a pas d'éventail : il n'entend que de près (tant de cases).
+     */
+    gazeHalfAngle: 0.8,
+    asleepHearing: 3,
+    /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
+    websFromDepth: 3,
+    webRoomChance: 0.35,
+    webCorners: [1, 2],
+    /** Entrer dans une toile : d20 + bonus de force contre cette difficulté, sinon englué un tour. La toile se déchire. */
+    webEscapeDc: 12,
+    /** Une salle tissée abrite souvent une araignée (ou deux). */
+    spiderInWebRoomChance: 0.6,
+    /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
+    clutterPerFloor: [1, 4],
     /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
     pushDc: 10,
     /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -1255,10 +1297,10 @@
     /**
      * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
      * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
-     * grandit lui-même de `xpStepGrowth`. Avec 6 / 6 / 2 : 6, 12, 20, 30, 42, 56, 72… (C)
+     * grandit lui-même de `xpStepGrowth`. Avec 5 / 5 / 2 : 5, 10, 17, 26, 37, 50, 65… (2026-11-11 : un peu moins, pour que le niveau suive l'étage)
      */
-    xpFirst: 6,
-    xpStep: 6,
+    xpFirst: 5,
+    xpStep: 5,
     xpStepGrowth: 2,
     /** Points de vie gagnés à chaque niveau. */
     hpPerLevel: 3,
@@ -1965,7 +2007,8 @@
       loot: [
         { item: "or", min: 8, max: 16, weight: 3 },
         { item: "pomme", min: 1, max: 2, weight: 2 },
-        { item: "sac_cuir", min: 1, max: 1, weight: 1 }
+        { item: "sac_cuir", min: 1, max: 1, weight: 1, minDepth: 5 }
+        // pas avant la fin de la section 1 (Thomas)
       ]
     }
   ];
@@ -1980,7 +2023,16 @@
     rug: { blocks: false, w: 3, h: 2, burns: true },
     rugB: { blocks: false, w: 3, h: 2, burns: true },
     ashes1: { blocks: false, w: 1, h: 1, burns: false },
-    ashes2: { blocks: false, w: 2, h: 1, burns: false }
+    ashes2: { blocks: false, w: 2, h: 1, burns: false },
+    // Trainards (planche art/trainards_v3.png, validée) : tonneau, caisse, deux caisses empilées. On se cache derrière.
+    barrel: { blocks: true, w: 1, h: 1, burns: true },
+    crate: { blocks: true, w: 1, h: 1, burns: true },
+    crateStack: { blocks: true, w: 1, h: 1, burns: true },
+    // Toiles d'araignée (dès l'étage 3), dans un coin de salle sans torche : TL = coin en haut à gauche, etc. Elles collent.
+    webTL: { blocks: false, w: 1, h: 1, burns: true },
+    webTR: { blocks: false, w: 1, h: 1, burns: true },
+    webBL: { blocks: false, w: 1, h: 1, burns: true },
+    webBR: { blocks: false, w: 1, h: 1, burns: true }
   };
 
   // src/world/furnish.ts
@@ -2001,6 +2053,9 @@
       }
     }
     return count;
+  }
+  function underTorch(floor, x, y) {
+    return floor.torches.some((t) => t.x === x && t.y === y - 1);
   }
   function furnitureCells(f) {
     const k = FURNITURE_KINDS[f.kind] ?? { w: 1, h: 1 };
@@ -2051,7 +2106,8 @@
     const wanted = rng.int(RULES.bunksMin, RULES.bunksMax);
     let bunks = 0;
     for (let x = room.x; x + 1 < room.x + room.w && bunks < wanted; ) {
-      if (tryPlace({ x, y: room.y, kind: rng.chance(0.5) ? "bunkA" : "bunkB" })) {
+      const kind = rng.chance(0.5) ? "bunkA" : "bunkB";
+      if (!underTorch(floor, x, room.y) && !underTorch(floor, x + 1, room.y) && tryPlace({ x, y: room.y, kind })) {
         bunks++;
         x += 3;
       } else x++;
@@ -2120,24 +2176,89 @@
     out.push(...placed);
     return true;
   }
-  function furnishFloor(floor, seed) {
+  function furnishFloor(floor, seed, depth = 1) {
     const rng = new Rng(seed ^ 1867128211);
     const furniture = [];
     const themes = [];
-    if (!rng.chance(RULES.dortoirChance)) return { furniture, themes };
-    const candidates = floor.rooms.map((room, index) => ({ room, index })).filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
-    while (candidates.length > 0) {
-      const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
-      if (furnishDortoir(floor, room, rng, furniture)) {
-        themes.push({ room: index, id: "dortoir" });
-        break;
+    if (rng.chance(RULES.dortoirChance)) {
+      const candidates = floor.rooms.map((room, index) => ({ room, index })).filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
+      while (candidates.length > 0) {
+        const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
+        if (furnishDortoir(floor, room, rng, furniture)) {
+          themes.push({ room: index, id: "dortoir" });
+          break;
+        }
       }
     }
+    const special = new Set(themes.map((t) => t.room));
+    placeClutter(floor, new Rng(seed ^ 473587319), furniture, special);
+    if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 1046183193), furniture, special);
     return { furniture, themes };
+  }
+  function freeCell(floor, furniture, x, y) {
+    if (floor.map.get(x, y) !== Tile.Floor) return false;
+    if (x === floor.start.x && y === floor.start.y || x === floor.stairs.x && y === floor.stairs.y) return false;
+    return !furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y));
+  }
+  function besideOpening(floor, room, x, y) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const inside = nx >= room.x && nx < room.x + room.w && ny >= room.y && ny < room.y + room.h;
+        if (!inside && floor.map.get(nx, ny) !== Tile.Wall) return true;
+      }
+    }
+    return false;
+  }
+  function placeClutter(floor, rng, furniture, special) {
+    const { map } = floor;
+    const wanted = rng.int(RULES.clutterPerFloor[0], RULES.clutterPerFloor[1]);
+    let before = reachable(map, floor.start);
+    let placed = 0;
+    for (let attempt = 0; attempt < wanted * 15 && placed < wanted; attempt++) {
+      const index = rng.int(1, Math.max(1, floor.rooms.length - 1));
+      const room = floor.rooms[index];
+      if (!room || special.has(index)) continue;
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y, room.y + room.h - 1);
+      const kind = ["barrel", "crate", "crateStack"][rng.int(0, 2)];
+      const againstWall = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
+      if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y)) continue;
+      map.set(x, y, Tile.Furniture);
+      const after = reachable(map, floor.start);
+      if (after !== before - 1) {
+        map.set(x, y, Tile.Floor);
+        continue;
+      }
+      before = after;
+      furniture.push({ x, y, kind });
+      placed++;
+    }
+  }
+  function placeWebs(floor, rng, furniture, special) {
+    floor.rooms.forEach((room, index) => {
+      if (index === 0 || special.has(index) || !rng.chance(RULES.webRoomChance)) return;
+      const lit = floor.torches.some((t) => t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h);
+      if (lit) return;
+      const corners = [
+        { x: room.x, y: room.y, kind: "webTL" },
+        { x: room.x + room.w - 1, y: room.y, kind: "webTR" },
+        { x: room.x, y: room.y + room.h - 1, kind: "webBL" },
+        { x: room.x + room.w - 1, y: room.y + room.h - 1, kind: "webBR" }
+      ];
+      let wanted = rng.int(RULES.webCorners[0], RULES.webCorners[1]);
+      while (wanted > 0 && corners.length > 0) {
+        const c = corners.splice(rng.int(0, corners.length - 1), 1)[0];
+        if (!freeCell(floor, furniture, c.x, c.y) || besideOpening(floor, room, c.x, c.y)) continue;
+        furniture.push(c);
+        wanted--;
+      }
+    });
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 7;
+  var SANDBOX_LAYOUT = 8;
   function buildSandbox() {
     const map = new GameMap(32, 32);
     const carve = (r) => {
@@ -2175,11 +2296,19 @@
     carve(dortoir);
     for (let y = 20; y <= 27; y++) map.set(13, y, Tile.Floor);
     map.set(12, 27, Tile.Floor);
-    const rooms = [start, pillars, combat, patrolRoom, dortoir];
+    const den = { x: 17, y: 23, w: 9, h: 6 };
+    carve(den);
+    for (let y = 20; y <= 22; y++) map.set(21, y, Tile.Floor);
+    const rooms = [start, pillars, combat, patrolRoom, dortoir, den];
     const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
     const furniture = [];
     furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
     const themes = [{ room: 4, id: "dortoir" }];
+    furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });
+    for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }]) {
+      furniture.push(f);
+      map.set(f.x, f.y, Tile.Furniture);
+    }
     const firstBunk = furniture.find((f) => f.kind.startsWith("bunk"));
     const secrets = [{ x: 22, y: 8, room: 1, item: "or", count: 12 }];
     if (firstBunk) secrets.push({ x: firstBunk.x, y: firstBunk.y + 1, room: 4, item: "or", count: 14 });
@@ -2238,7 +2367,8 @@
         { x: 24, y: 6, asleep: false, patrol: true },
         { x: 7, y: 20, asleep: false, patrol: true },
         { x: 25, y: 16, asleep: false },
-        { x: 18, y: 18, asleep: true }
+        { x: 18, y: 18, asleep: true },
+        { x: 22, y: 26, asleep: false, patrol: true, monster: "araignee" }
       ]
     };
   }
@@ -2367,7 +2497,7 @@
       { item: "epee_longue" },
       { item: "lance" },
       { item: "amethyste" },
-      { item: "sac_cuir" },
+      { item: "sac_cuir", minDepth: 5 },
       { item: "potion_poison" },
       { item: "potion_vitesse" },
       { item: "potion_feu" }
@@ -2393,6 +2523,12 @@
     const factor = 2 ** Math.max(0, section - (GOLD_PILES.length - 1));
     return [row[0] * factor, row[1] * factor];
   }
+  var SECTION_GUARANTEES = [
+    { what: "pomme", count: 1, floors: [1, 1] },
+    { what: "equipment", count: 2, floors: [1, 5] },
+    { what: "gem", count: 1, floors: [1, 5] },
+    { what: "potion", count: 1, floors: [1, 5] }
+  ];
 
   // src/core/floor.ts
   function roomElements(map, torches, room) {
@@ -2426,8 +2562,9 @@
         }
         if (spots.length === 0) return;
         const spot = spots[rng.int(0, spots.length - 1)];
-        let pick = rng.next() * theme.loot.reduce((sum, l) => sum + l.weight, 0);
-        const loot = theme.loot.find((l) => (pick -= l.weight) < 0) ?? theme.loot[0];
+        const pool = theme.loot.filter((l) => (l.minDepth ?? 1) <= depth);
+        let pick = rng.next() * pool.reduce((sum, l) => sum + l.weight, 0);
+        const loot = pool.find((l) => (pick -= l.weight) < 0) ?? pool[0];
         const count = rng.int(loot.min, loot.max) + (loot.item === "or" ? RULES.secretGoldPerDepth * (depth - 1) : 0);
         state.secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count, found: false });
         return;
@@ -2455,12 +2592,14 @@
     const rng = new Rng(seed ^ 1374496513);
     state.rooms.forEach((room, index) => {
       if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
+      if (state.themes.some((t) => t.room === index)) return;
       for (let attempt = 0; attempt < 20; attempt++) {
         const x = rng.int(room.x, room.x + room.w - 1);
         const y = rng.int(room.y, room.y + room.h - 1);
         let open = true;
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (state.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
         if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
+        if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
         state.traps.push({ x, y });
         return;
       }
@@ -2500,6 +2639,50 @@
         return;
       }
     });
+  }
+  function guaranteedLoot(runSeed, depth) {
+    const rng = new Rng(runSeed ^ 2115673173);
+    const out = [];
+    const pools = {
+      pomme: ["pomme"],
+      equipment: lootPool(depth, (k) => k === "melee" || k === "ranged" || k === "armor"),
+      gem: lootPool(depth, (k) => k === "gem"),
+      potion: lootPool(depth, (k, id) => id.startsWith("potion_"))
+    };
+    for (const g of SECTION_GUARANTEES) {
+      for (let i = 0; i < g.count; i++) {
+        const floor = rng.int(g.floors[0], g.floors[1]);
+        const pickIndex = rng.int(0, 999);
+        const pool = pools[g.what];
+        if (floor === depth && pool.length > 0) out.push(pool[pickIndex % pool.length]);
+      }
+    }
+    return out;
+  }
+  function lootPool(depth, keep) {
+    const ids = [];
+    for (const rarity of ["common", "uncommon", "rare"]) {
+      for (const l of LOOT[rarity]) {
+        if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item)) continue;
+        if (keep(ITEMS[l.item].kind, l.item)) ids.push(l.item);
+      }
+    }
+    return ids;
+  }
+  function placeGuaranteed(state, items, seed) {
+    const rng = new Rng(seed ^ 1294756639);
+    for (const item of items) {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const room = state.rooms[rng.int(Math.min(1, state.rooms.length - 1), state.rooms.length - 1)];
+        const x = rng.int(room.x, room.x + room.w - 1);
+        const y = rng.int(room.y, room.y + room.h - 1);
+        if (state.map.get(x, y) !== Tile.Floor || state.ground.some((g) => g.x === x && g.y === y)) continue;
+        if (state.traps.some((t) => t.x === x && t.y === y)) continue;
+        if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
+        state.ground.push({ x, y, item, count: 1 });
+        break;
+      }
+    }
   }
   function placeKey(state, rng, hero) {
     if (!rng.chance(RULES.keyChance)) return;
@@ -2661,7 +2844,7 @@
         if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
         const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
-        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed) : { furniture: [], themes: [] };
+        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth) : { furniture: [], themes: [] };
         if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
         const motifs = sandboxFloor ? sandboxFloor.motifs : placeMotifs(floor, seed);
         state = {
@@ -2731,6 +2914,7 @@
         placeSecrets(state, depth, floorSeed(this.runSeed, depth));
         placeTraps(state, floorSeed(this.runSeed, depth));
         if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
+        placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
       }
       for (const m of this.monsters) {
         m.fromX = m.x;
@@ -2742,10 +2926,15 @@
     spawnMonsters(rooms) {
       const spawns = spawnsForDepth(this.depth);
       const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
-      for (const room of rooms.slice(1)) {
-        if (!this.rng.chance(spawns.roomChance)) continue;
+      rooms.slice(1).forEach((room) => {
+        const webbed = this.current.furniture.some(
+          (f) => f.kind.startsWith("web") && f.x >= room.x && f.x < room.x + room.w && f.y >= room.y && f.y < room.y + room.h
+        );
+        const spiders = webbed && this.rng.chance(RULES.spiderInWebRoomChance);
+        if (!spiders && !this.rng.chance(spawns.roomChance)) return;
         let pick = this.rng.next() * totalWeight;
-        const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
+        const rolled = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
+        const entry = spiders ? spawns.entries.find((e) => e.monster === "araignee") ?? rolled : rolled;
         const def = MONSTERS[entry.monster];
         const count = this.rng.int(entry.packMin, entry.packMax);
         const asleep = this.rng.chance(spawns.sleepChance);
@@ -2758,7 +2947,7 @@
             break;
           }
         }
-      }
+      });
       if (this.monsters.length > 0 && this.monsters.every((m) => m.asleep)) this.monsters[this.monsters.length - 1].asleep = false;
     }
     newMonster(def, x, y, asleep) {
@@ -2778,7 +2967,9 @@
         damage: def.damage,
         vision: def.vision,
         alerted: false,
-        asleep
+        asleep,
+        // Regard de départ : une des quatre directions, d'après son numéro (sans toucher au hasard du jeu).
+        facing: ["down", "left", "right", "up"][this.nextId % 4]
       };
     }
     /**
@@ -2878,6 +3069,21 @@
       return quiet && quiet.length <= plain.length + RULES.gravelDetour ? quiet : plain;
     }
     /** Le héros vient de poser le pied sur du gravier : ça crisse ; les monstres proches l'entendent et accourent. */
+    /**
+     * Entrer dans une toile : d20 + bonus de force contre `webEscapeDc`. Réussi, on la déchire en passant ; raté, on y
+     * reste collé un tour (le prochain déplacement sert à se dépêtrer). La toile est déchirée dans les deux cas.
+     */
+    enterWeb() {
+      const web = this.current.furniture.find((f) => f.kind.startsWith("web") && f.x === this.hero.x && f.y === this.hero.y);
+      if (!web) return;
+      const roll2 = this.rng.int(1, 20);
+      const escaped = roll2 + this.pushBonus() >= RULES.webEscapeDc;
+      if (!escaped) this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+      this.current.furniture = this.current.furniture.filter((o) => o !== web);
+      this.map.touch(web.x, web.y);
+      this.path = escaped ? this.path : [];
+      this.events.push({ type: "web", escaped, roll: roll2, bonus: this.pushBonus() });
+    }
     crunch() {
       if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel || this.peaceful) return;
       this.reveal();
@@ -2928,7 +3134,7 @@
     /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
     populateSandbox(state, plan) {
       for (const m of plan.monsters) {
-        const monster = this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep);
+        const monster = this.newMonster(MONSTERS[m.monster ?? "schrat"], m.x, m.y, m.asleep);
         if (m.patrol) monster.patrol = state.rooms.find((r) => m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h);
         this.monsters.push(monster);
       }
@@ -3465,6 +3671,14 @@
      * brûle tout entier, et à son tour enflamme ses voisins à une case.
      */
     igniteFurniture() {
+      const webs = this.current.furniture.filter(
+        (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1)
+      );
+      for (const w of webs) {
+        this.current.furniture = this.current.furniture.filter((o) => o !== w);
+        this.map.touch(w.x, w.y);
+        this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: w.kind });
+      }
       let spread = true;
       while (spread) {
         spread = false;
@@ -3978,6 +4192,9 @@
           this.heroAttacks(blocker);
           this.path = [];
           this.targetId = null;
+        } else if (this.hero.stuck) {
+          this.hero.stuck--;
+          this.events.push({ type: "stuck" });
         } else {
           const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
           const left = { x: this.hero.x, y: this.hero.y };
@@ -3994,6 +4211,7 @@
           this.collectGold();
           this.springTrap(this.hero);
           if (this.over) return true;
+          this.enterWeb();
           this.crunch();
           if (this.hidden && !this.hasCover(this.hero)) this.reveal();
           const here = this.map.get(next.x, next.y);
@@ -4274,7 +4492,9 @@
     /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
     isWatched() {
       return this.monsters.some(
-        (m) => !m.asleep && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) <= m.vision
+        // Seul un monstre qui vous a REPÉRÉ (« ! ») vous empêche de vous cacher ; sous le regard d'un « ? », on a encore
+        // une chance de disparaître avant qu'il ne vous remarque (Thomas, 2026-11-11).
+        (m) => !m.asleep && m.alerted && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) <= m.vision
       );
     }
     isThreatened() {
@@ -4562,8 +4782,10 @@
         if (!m.alerted && !this.peaceful) {
           const def = MONSTERS[m.defId];
           const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) * (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake) * (this.onRug() ? RULES.rugNotice : 1);
-          const range = this.hidden ? 1 : m.vision;
-          if (this.isVisible(m.x, m.y) && distance <= range && this.rng.chance(chance)) {
+          const range = this.hidden ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
+          const inSight = distance <= 1 || m.asleep || this.inGaze(m, this.hero);
+          if (this.isVisible(m.x, m.y) && distance <= range && inSight && this.rng.chance(chance)) {
+            this.faceToward(m, this.hero);
             m.alerted = true;
             m.asleep = false;
             this.events.push({ type: "noticed", actor: m });
@@ -4576,8 +4798,14 @@
         }
         if (this.inReach(m, this.hero)) {
           const ambush = m.lastAdvantageOn !== this.hero.id && (this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero));
+          this.faceToward(m, this.hero);
           const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
           m.lastAdvantageOn = ambush ? this.hero.id : void 0;
+          const bite = MONSTERS[m.defId];
+          if (result.damage > 0 && bite.webBite && this.rng.chance(bite.webBite)) {
+            this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+            this.events.push({ type: "webbed", by: m });
+          }
           m.wary = false;
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
           if (result.damage > 0) this.bleed(this.hero, m);
@@ -4586,8 +4814,29 @@
           this.hurtHero(result.damage);
           continue;
         }
-        this.stepToward(m, this.hero);
+        const steps = MONSTERS[m.defId].chaseSteps ?? 1;
+        for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) if (!this.stepToward(m, this.hero)) break;
+        this.faceToward(m, this.hero);
       }
+    }
+    /** Le héros est-il dans l'éventail de regard de ce monstre (devant lui, à moins de `gazeHalfAngle`) ? */
+    inGaze(m, p) {
+      const dx = p.x - m.x;
+      const dy = p.y - m.y;
+      if (dx === 0 && dy === 0) return true;
+      const facing = m.facing ?? "down";
+      const look = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
+      let diff = Math.atan2(dy, dx) - look;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      return Math.abs(diff) <= RULES.gazeHalfAngle + 1e-9;
+    }
+    /** Tourne un personnage vers une case (la direction dominante). */
+    faceToward(a, p) {
+      const dx = p.x - a.x;
+      const dy = p.y - a.y;
+      if (dx === 0 && dy === 0) return;
+      a.facing = Math.abs(dx) >= Math.abs(dy) ? dx > 0 ? "right" : "left" : dy > 0 ? "down" : "up";
     }
     /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
     stepToward(m, target) {
@@ -4596,6 +4845,7 @@
       if (!this.actorAt(step.x, step.y)) {
         const left = { x: m.x, y: m.y };
         const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
+        this.faceToward(m, step);
         m.x = step.x;
         m.y = step.y;
         this.openDoorAt(m.x, m.y);
@@ -7886,6 +8136,271 @@
     ] }
   };
 
+  // src/render/sprites/trainards.ts
+  var TRAINARDS = {
+    barrel: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#704c28", "d": "#8a6238", "e": "#342010", "f": "#56381c", "g": "#8a90a8", "h": "#1c1622", "i": "#b4bacc" }, rows: [
+      "...aaaabaaaa...",
+      "..abbcccccbba..",
+      ".abdddddddddba.",
+      "abbcceeeeeccbba",
+      ".abdddddddddba.",
+      ".afbbcccccbbfa.",
+      "agfeddebececfga",
+      "abgggeddecgggba",
+      "ahbbbiiiiibbbha",
+      "afhhhbbbbbhhhfa",
+      "afcedhhhhheccfa",
+      "afcededdececcfa",
+      "ffcededdececcff",
+      "afcededdececcfa",
+      "afcededdececcfa",
+      "afcededdececcfa",
+      "aggggeddecgggga",
+      "abbbbiiiiibbbba",
+      "ahhhhbbbbbhhhha",
+      ".afcehhhhhecfa.",
+      ".afcededeeccfa.",
+      ".ahfffffffffha."
+    ] },
+    crate: { palette: { "a": "#5a5f74", "b": "#b4bacc", "c": "#704c28", "d": "#8a6238", "e": "#56381c", "f": "#120d08", "g": "#1c1622" }, rows: [
+      "abacdddcdddcaba",
+      "aaacdddcdddcaaa",
+      "dddcdddcdddcddd",
+      "dddcdddcdddcddd",
+      "ccccccccccccccc",
+      "aaaeeeeeeeedaaa",
+      "abacccccccdeaba",
+      "aaaccccccdecaaa",
+      "eeeeeeeedeeeeee",
+      "eecccccdeccccee",
+      "eeccccdecccccee",
+      "eeeeedeeeeeeeee",
+      "eeccdecccccccee",
+      "eecdeccccccccee",
+      "aaaeeeeeeeeeaaa",
+      "abaeeeeeeeeeaba",
+      "aaaeeeeeeeeeaaa",
+      "fgggggggggggggf",
+      "fgggggggggggggf"
+    ] },
+    crateStack: { palette: { "a": "#5a5f74", "b": "#b4bacc", "c": "#704c28", "d": "#8a6238", "e": "#56381c", "f": "#120d08", "g": "#1c1622" }, rows: [
+      "..abacdddcdddcaba",
+      "..aaacdddcdddcaaa",
+      "..dddcdddcdddcddd",
+      "..dddcdddcdddcddd",
+      "..ccccccccccccccc",
+      "..aaaeeeeeeeedaaa",
+      "..abacccccccdeaba",
+      "..aaaccccccdecaaa",
+      "..eeeeeeeedeeeeee",
+      "..eecccccdeccccee",
+      "..eeccccdecccccee",
+      "abeeeeedeeeeeeeee",
+      "aaeeccdecccccccee",
+      "ddeecdeccccccccee",
+      "ddaaaeeeeeeeeeaaa",
+      "ccabaeeeeeeeeeaba",
+      "aaaaaeeeeeeeeeaaa",
+      "abfgggggggggggggf",
+      "aafgggggggggggggf",
+      "eeeeeeeedeeeeee..",
+      "eecccccdeccccee..",
+      "eeccccdecccccee..",
+      "eeeeedeeeeeeeee..",
+      "eeccdecccccccee..",
+      "eecdeccccccccee..",
+      "aaaeeeeeeeeeaaa..",
+      "abaeeeeeeeeeaba..",
+      "aaaeeeeeeeeeaaa..",
+      "fgggggggggggggf..",
+      "fgggggggggggggf.."
+    ] },
+    webTL: { palette: { "a": "rgba(220,224,236,0.59)", "b": "rgba(240,244,255,0.82)", "c": "#1c1622" }, rows: [
+      "abbbbbbbbabbbabb",
+      "baa..b...a...a..",
+      "baaaab...a...a..",
+      "b.aabaa.aa...a..",
+      "b.abb..aa...a...",
+      "bbba.a.aaaa.a...",
+      "b..a..cc...aa...",
+      "b...aaca...a....",
+      "b..aaa..a.aa....",
+      "aaaa.a...aa.....",
+      "b....a..aaa.....",
+      "b.....aaa..a....",
+      "b...aaa.....a...",
+      "aaaa............",
+      "b...............",
+      "b..............."
+    ] },
+    webTR: { palette: { "a": "rgba(240,244,255,0.82)", "b": "rgba(220,224,236,0.59)", "c": "#1c1622" }, rows: [
+      "aabaaabaaaaaaaab",
+      "..b...b...a..bba",
+      "..b...b...abbbba",
+      "..b...bb.bbabb.a",
+      "...b...bb..aab.a",
+      "...b.bbbb.b.baaa",
+      "...bb...cc..b..a",
+      "....b...bcbb...a",
+      "....bb.b..bbb..a",
+      ".....bb...b.bbbb",
+      ".....bbb..b....a",
+      "....b..bbb.....a",
+      "...b.....bbb...a",
+      "............bbbb",
+      "...............a",
+      "...............a"
+    ] },
+    webBL: { palette: { "a": "rgba(240,244,255,0.82)", "b": "rgba(220,224,236,0.59)", "c": "#1c1622" }, rows: [
+      "a...............",
+      "a...............",
+      "bbbb............",
+      "a...bbb.....b...",
+      "a.....bbb..b....",
+      "a....b..bbb.....",
+      "bbbb.b...bb.....",
+      "a..bbb..b.bb....",
+      "a...bbcb...b....",
+      "a..b..cc...bb...",
+      "aaab.b.bbbb.b...",
+      "a.baa..bb...b...",
+      "a.bbabb.bb...b..",
+      "abbbba...b...b..",
+      "abb..a...b...b..",
+      "baaaaaaaabaaabaa"
+    ] },
+    webBR: { palette: { "a": "rgba(240,244,255,0.82)", "b": "rgba(220,224,236,0.59)", "c": "#1c1622" }, rows: [
+      "...............a",
+      "...............a",
+      "............bbbb",
+      "...b.....bbb...a",
+      "....b..bbb.....a",
+      ".....bbb..b....a",
+      ".....bb...b.bbbb",
+      "....bb.b..bbb..a",
+      "....b...bcbb...a",
+      "...bb...cc..b..a",
+      "...b.bbbb.b.baaa",
+      "...b...bb..aab.a",
+      "..b...bb.bbabb.a",
+      "..b...b...abbbba",
+      "..b...b...a..bba",
+      "aabaaabaaaaaaaab"
+    ] }
+  };
+
+  // src/render/sprites/araignee.ts
+  var ARAIGNEE = {
+    idle0: { palette: { "a": "#766486", "b": "#120d08", "c": "#544462", "d": "#34283e", "e": "#b4282e", "f": "#e63232", "g": "#ffaa96", "h": "#dcd6c4", "i": "#1c1622" }, rows: [
+      "..................",
+      "...a...bbbb...a...",
+      ".aa.a.bccddb.a.aa.",
+      "a....addeedda....a",
+      "..aa.badeedab.aa..",
+      "..a.abddddddba..a.",
+      ".a...aaddddaa...a.",
+      "a..aa.baaaab.aa.a.",
+      "a..a.aafgffaa.a..a",
+      "..a...acccca...a..",
+      "..a..a.bhhb.a..a..",
+      ".a..a...bb..a...a.",
+      ".a..a........a..a.",
+      "....a.........a...",
+      "...aiiiiiiiiiia...",
+      "...iiiiiiiiiiii..."
+    ] },
+    idle1: { palette: { "a": "#766486", "b": "#120d08", "c": "#544462", "d": "#34283e", "e": "#b4282e", "f": "#e63232", "g": "#ffaa96", "h": "#dcd6c4", "i": "#1c1622" }, rows: [
+      "..................",
+      "...a...bbbb...a...",
+      ".aa.a.bccddb.a.aa.",
+      "a....addeedda....a",
+      "..aa.badeedab.aa..",
+      "..a.abddddddba..a.",
+      ".a...aaddddaa...a.",
+      "a..aa.baaaab.aa.a.",
+      "a..a.aafgffaa.a..a",
+      "..a...acccca...a..",
+      "..a..a.bhhb.a..a..",
+      ".a..a...bb..a...a.",
+      ".a..a........a..a.",
+      "....a.........a...",
+      "...aiiiiiiiiiia...",
+      "...iiiiiiiiiiii..."
+    ] },
+    walk0: { palette: { "a": "#766486", "b": "#120d08", "c": "#544462", "d": "#34283e", "e": "#b4282e", "f": "#e63232", "g": "#ffaa96", "h": "#dcd6c4", "i": "#1c1622" }, rows: [
+      "..............a...",
+      "...a...bbbb..a.aa.",
+      ".aa.a.bccddba....a",
+      "a.a..addeedda.....",
+      "..aaabadeedab.aa..",
+      ".a...addddddba..a.",
+      "a.....addddaa.a.a.",
+      "a..aa.baaaabaaa.a.",
+      "...a.aafgffa...a.a",
+      "..a..aacccca...a..",
+      "..a.a..bhhb.a...a.",
+      ".a..a...bb..a...a.",
+      ".a..a........a....",
+      "...a..........a...",
+      "...iiiiiiiiiiia...",
+      "...iiiiiiiiiiii..."
+    ] },
+    walk1: { palette: { "a": "#766486", "b": "#120d08", "c": "#544462", "d": "#34283e", "e": "#b4282e", "f": "#e63232", "g": "#ffaa96", "h": "#dcd6c4", "i": "#1c1622" }, rows: [
+      "...a...bbbb.......",
+      ".aa.a.bccddb..a...",
+      "a....addeeddaa.aa.",
+      ".....badeedab..a.a",
+      "..aaabddddddaaa.a.",
+      "..a..aadddda....a.",
+      ".a.aa.baaaab....a.",
+      "a..a.aafgffaaaa..a",
+      "a.a...acccca..a...",
+      "..a...abhhb.a..a..",
+      ".a...a..bb..a..a..",
+      ".a..a........a..a.",
+      "....a.........a.a.",
+      "....a.........a...",
+      "...aiiiiiiiiiii...",
+      "...iiiiiiiiiiii..."
+    ] },
+    bite: { palette: { "a": "#766486", "b": "#120d08", "c": "#544462", "d": "#34283e", "e": "#b4282e", "f": "#e63232", "g": "#ffaa96", "h": "#dcd6c4", "i": "#1c1622" }, rows: [
+      "..................",
+      "...a...bbbb...a...",
+      ".aa.a.bccddb.a.aa.",
+      "a....addeedda....a",
+      "..aa.badeedab.aa..",
+      "..a.abddddddba..a.",
+      ".a...aaddddaa...a.",
+      "a..aa.baaaab.aa.a.",
+      "a..a.aafgffaa.a..a",
+      "..a...acccca...a..",
+      "..a..abhbbhba..a..",
+      ".a..a.bhbbhba...a.",
+      ".a..a..b..b..a..a.",
+      "....a.........a...",
+      "...aiiiiiiiiiia...",
+      "...iiiiiiiiiiii..."
+    ] },
+    dead: { palette: { "a": "#766486", "b": "#120d08", "c": "#544462", "d": "#34283e", "e": "#1c1622" }, rows: [
+      "..................",
+      "..................",
+      "..................",
+      "..................",
+      "..................",
+      "......a..aa..a....",
+      ".....a...a...a....",
+      ".....a.bbab..a....",
+      "......acacaba.....",
+      ".....bacacaca.....",
+      ".....bccccccb.....",
+      ".....bccccccb.....",
+      ".....bccccccb.....",
+      "......bddddb......",
+      "....eeeeeeeeee....",
+      "....eeeeeeeeee...."
+    ] }
+  };
+
   // src/render/motifs.ts
   var hypot = Math.hypot;
   var MOTIFS = {
@@ -8190,11 +8705,23 @@
       if (!wall) this.drawRugs(game2, x, y, sx, sy);
       this.drawFeature(game2, t, x, y, sx, sy);
     }
-    /** La part de tapis qui tombe sur cette case : dessinée avec le sol, elle prend la même ombre et la même lumière. */
+    /**
+     * La part de tapis qui tombe sur cette case, et les toiles d'araignée (une case, dans un coin) : dessinées avec le sol,
+     * elles prennent la même ombre et la même lumière.
+     */
     drawRugs(game2, x, y, sx, sy) {
       const { ctx, tile } = this;
       const u = tile / 16;
       for (const f of game2.furnitureList()) {
+        if (f.kind.startsWith("web")) {
+          if (f.x !== x || f.y !== y) continue;
+          const web = TRAINARDS[f.kind];
+          const smooth2 = ctx.imageSmoothingEnabled;
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(this.sprite(web.rows, web.palette), sx, sy, 16 * u, 16 * u);
+          ctx.imageSmoothingEnabled = smooth2;
+          continue;
+        }
         if (!f.kind.startsWith("rug")) continue;
         const def = FURNITURE_KINDS[f.kind];
         const art = DORTOIR[f.kind];
@@ -8778,32 +9305,34 @@
       const mdy = m.y - m.fromY;
       const moving = progress < 1 && (mdx !== 0 || mdy !== 0);
       const slash = this.slashes.find((sl) => sl.attackerId === m.id);
-      const turn = (dx, dy) => {
-        if (dx === 0 && dy === 0) return;
-        this.monsterFacing.set(m.id, Math.abs(dx) >= Math.abs(dy) ? dx > 0 ? "right" : "left" : dy > 0 ? "down" : "up");
-      };
-      if (slash) turn(slash.x - slash.fromX, slash.y - slash.fromY);
-      else if (moving) turn(mdx, mdy);
-      const facing = this.monsterFacing.get(m.id) ?? "down";
+      const facing = m.facing ?? this.monsterFacing.get(m.id) ?? "down";
+      this.monsterFacing.set(m.id, facing);
       const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
       const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
+      if (m.defId === "araignee") {
+        const name = slash || hurt ? "bite" : moving ? progress < 0.5 ? "walk0" : "walk1" : m.asleep ? "idle0" : `idle${Math.floor((Math.abs(this.time) + m.id * 170) / 380) % 2}`;
+        if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
+        this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", true, ARAIGNEE[name].palette);
+        return;
+      }
       let rows;
       if (m.asleep) rows = SCHRAT.sleep[0];
       else if (hurt) rows = SCHRAT.hurt[0];
       else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
       else if (moving) rows = SCHRAT[`walk${dir}`][progress < 0.5 ? 0 : 1];
       else rows = SCHRAT[`idle${dir}`][Math.floor((Math.abs(this.time) + m.id * 170) / 560) % 2];
-      if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted);
+      if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
       this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
     }
-    drawGaze(cx, cy, facing, alerted) {
+    drawGaze(cx, cy, facing, alerted, vision) {
       const { ctx, tile } = this;
       const angle = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
-      const half = 0.62;
-      const reach = tile * 2.4;
+      const half = RULES.gazeHalfAngle;
+      const reach = tile * (vision + 0.5);
       const rgb = alerted ? "255,110,90" : "255,226,170";
       const grad = ctx.createRadialGradient(cx, cy, tile * 0.3, cx, cy, reach);
       grad.addColorStop(0, `rgba(${rgb},0.16)`);
+      grad.addColorStop(0.45, `rgba(${rgb},0.07)`);
       grad.addColorStop(1, `rgba(${rgb},0)`);
       ctx.save();
       ctx.beginPath();
@@ -8822,7 +9351,7 @@
       }
       ctx.restore();
     }
-    drawMonsterSprite(rows, cx, cy, mirror, shadow) {
+    drawMonsterSprite(rows, cx, cy, mirror, shadow, palette = SCHRAT_PALETTE) {
       const { ctx, tile } = this;
       if (shadow) {
         ctx.fillStyle = "rgba(10,8,16,0.45)";
@@ -8831,13 +9360,14 @@
         ctx.fill();
       }
       const size = Math.round(tile * 1);
+      const width = Math.round(size * rows[0].length / rows.length);
       const top = Math.round(cy + tile * 0.5 - size);
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.save();
       ctx.translate(Math.round(cx), 0);
       if (mirror) ctx.scale(-1, 1);
-      ctx.drawImage(this.sprite(rows, SCHRAT_PALETTE), -size / 2, top, size, size);
+      ctx.drawImage(this.sprite(rows, palette), -width / 2, top, width, size);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
     }
@@ -9116,7 +9646,15 @@
       for (const c of this.corpses) {
         if (!game2.isVisible(c.actor.x, c.actor.y)) continue;
         ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
-        this.drawMonsterSprite(SCHRAT.dead[0], ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false);
+        const spider = c.actor.defId === "araignee";
+        this.drawMonsterSprite(
+          spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
+          ox + (c.actor.x + 0.5) * tile,
+          oy + (c.actor.y + 0.5) * tile,
+          c.facing === "left",
+          false,
+          spider ? ARAIGNEE.dead.palette : SCHRAT_PALETTE
+        );
         ctx.globalAlpha = 1;
       }
       ctx.textAlign = "center";
@@ -9126,7 +9664,7 @@
         const cx = ox + (p.x + 0.5) * tile;
         const cy = oy + (p.y + 0.5) * tile;
         const r = tile * 0.36;
-        if (m.defId === "schrat") {
+        if (m.defId === "schrat" || m.defId === "araignee") {
           const advantage = game2.heroHasAdvantageOn(m);
           if (advantage) {
             ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
@@ -9379,7 +9917,7 @@
       const actors = [hero, ...game2.monsters.filter((m) => game2.isVisible(m.x, m.y))];
       for (const f of list) {
         const def = FURNITURE_KINDS[f.kind];
-        if (!def || f.kind.startsWith("rug")) continue;
+        if (!def || f.kind.startsWith("rug") || f.kind.startsWith("web")) continue;
         const bottom = f.y + def.h - 1;
         const behind = actors.some(
           (a) => [a.y, a.fromY].some((ay) => ay < bottom && ay >= bottom - 2) && [a.x, a.fromX].some((ax) => ax >= f.x - 1 && ax <= f.x + def.w)
@@ -9402,7 +9940,7 @@
           warm = lit * flicker * 0.2;
         }
         const name = f.kind.startsWith("table") ? `${f.kind}${visible ? frame2 : 0}` : f.kind;
-        const art = DORTOIR[name];
+        const art = DORTOIR[name] ?? TRAINARDS[name];
         if (!art) continue;
         const w = art.rows[0].length;
         const h = art.rows.length;
@@ -9412,7 +9950,7 @@
           px = (f.x + def.w / 2) * 16 - w / 2;
           py = (f.y + def.h / 2) * 16 - h / 2;
         } else {
-          const off = f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
+          const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
           px = f.x * 16 + off[0];
           py = (f.y + def.h) * 16 - h + off[1];
         }
@@ -9568,9 +10106,16 @@
       case "revealed":
         return "Vous sortez de l'ombre.";
       case "furnitureFire": {
-        const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : "Une chaise";
+        if (e.kind.startsWith("web")) return "Une toile d'araign\xE9e s'embrase et dispara\xEEt.";
+        const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : e.kind === "barrel" ? "Un tonneau" : e.kind.startsWith("crate") ? "Une caisse" : "Une chaise";
         return `${name} prend feu !`;
       }
+      case "web":
+        return `Une toile d'araign\xE9e ! Force : ${roll(e.roll, e.bonus, e.roll + e.bonus)} \u2014 ${e.escaped ? "vous la d\xE9chirez en passant." : "rat\xE9, vous voil\xE0 englu\xE9 un tour."}`;
+      case "webbed":
+        return `La morsure de ${e.by.name.toLowerCase() === "araign\xE9e" ? "l'araign\xE9e" : e.by.name} vous englue : votre prochain pas servira \xE0 vous d\xE9gager.`;
+      case "stuck":
+        return "Vous vous d\xE9p\xEAtrez des fils collants.";
       case "gravel":
         return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
       case "jump":

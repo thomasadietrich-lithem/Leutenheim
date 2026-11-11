@@ -40,6 +40,11 @@ function reachable(map: GameMap, from: Point): number {
   return count;
 }
 
+/** Une torche (ou une cheminée) est-elle fixée dans le mur juste au-dessus de cette case ? Un meuble haut la cacherait. */
+export function underTorch(floor: Floor, x: number, y: number): boolean {
+  return floor.torches.some((t) => t.x === x && t.y === y - 1);
+}
+
 /** Les cases couvertes par un meuble. */
 export function furnitureCells(f: Furniture): Point[] {
   const k = FURNITURE_KINDS[f.kind] ?? { w: 1, h: 1 };
@@ -97,11 +102,13 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
     return true;
   };
 
-  // Lits superposés, contre le mur du haut, une case d'écart entre deux lits.
+  // Lits superposés, contre le mur du haut, une case d'écart entre deux lits. Jamais sous une torche du mur
+  // (Thomas : « torche derrière un meuble, c'est bizarre »).
   const wanted = rng.int(RULES.bunksMin, RULES.bunksMax);
   let bunks = 0;
   for (let x = room.x; x + 1 < room.x + room.w && bunks < wanted; ) {
-    if (tryPlace({ x, y: room.y, kind: rng.chance(0.5) ? "bunkA" : "bunkB" })) {
+    const kind = rng.chance(0.5) ? "bunkA" : "bunkB";
+    if (!underTorch(floor, x, room.y) && !underTorch(floor, x + 1, room.y) && tryPlace({ x, y: room.y, kind })) {
       bunks++;
       x += 3;
     } else x++;
@@ -181,21 +188,104 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
   return true;
 }
 
-/** Donjon : au plus un dortoir par étage, dans une salle ordinaire assez grande. Hasard à part. */
-export function furnishFloor(floor: Floor, seed: number): { furniture: Furniture[]; themes: RoomTheme[] } {
+/**
+ * Donjon : au plus un dortoir par étage, dans une salle ordinaire assez grande ; puis des trainards (tonneaux, caisses)
+ * dans les salles ordinaires, et dès l'étage 3 des toiles dans les coins des salles sans torche. Hasards à part.
+ */
+export function furnishFloor(floor: Floor, seed: number, depth = 1): { furniture: Furniture[]; themes: RoomTheme[] } {
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
-  if (!rng.chance(RULES.dortoirChance)) return { furniture, themes };
-  const candidates = floor.rooms
-    .map((room, index) => ({ room, index }))
-    .filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
-  while (candidates.length > 0) {
-    const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
-    if (furnishDortoir(floor, room, rng, furniture)) {
-      themes.push({ room: index, id: "dortoir" });
-      break;
+  if (rng.chance(RULES.dortoirChance)) {
+    const candidates = floor.rooms
+      .map((room, index) => ({ room, index }))
+      .filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
+    while (candidates.length > 0) {
+      const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
+      if (furnishDortoir(floor, room, rng, furniture)) {
+        themes.push({ room: index, id: "dortoir" });
+        break;
+      }
     }
   }
+  const special = new Set(themes.map((t) => t.room));
+  placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
+  if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
   return { furniture, themes };
+}
+
+/** Case de sol libre (ni meuble, ni départ, ni escalier) ? */
+function freeCell(floor: Floor, furniture: Furniture[], x: number, y: number): boolean {
+  if (floor.map.get(x, y) !== Tile.Floor) return false;
+  if ((x === floor.start.x && y === floor.start.y) || (x === floor.stairs.x && y === floor.stairs.y)) return false;
+  return !furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y));
+}
+
+/** Une voisine (8 directions) hors de la salle qui n'est pas du mur : porte ou couloir. */
+function besideOpening(floor: Floor, room: Room, x: number, y: number): boolean {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const inside = nx >= room.x && nx < room.x + room.w && ny >= room.y && ny < room.y + room.h;
+      if (!inside && floor.map.get(nx, ny) !== Tile.Wall) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Trainards (Thomas : « des items génériques qui traînent dans le donjon ») : un tonneau, une caisse ou deux caisses
+ * empilées, contre un mur d'une salle ordinaire, loin des ouvertures et jamais sous une torche. Ils bloquent leur case
+ * (on vérifie que rien ne devient inaccessible) et l'on peut se cacher derrière.
+ */
+export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
+  const { map } = floor;
+  const wanted = rng.int(RULES.clutterPerFloor[0], RULES.clutterPerFloor[1]);
+  let before = reachable(map, floor.start);
+  let placed = 0;
+  for (let attempt = 0; attempt < wanted * 15 && placed < wanted; attempt++) {
+    const index = rng.int(1, Math.max(1, floor.rooms.length - 1));
+    const room = floor.rooms[index];
+    if (!room || special.has(index)) continue;
+    const x = rng.int(room.x, room.x + room.w - 1);
+    const y = rng.int(room.y, room.y + room.h - 1);
+    const kind = (["barrel", "crate", "crateStack"] as const)[rng.int(0, 2)];
+    const againstWall = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
+    if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y)) continue;
+    map.set(x, y, Tile.Furniture);
+    const after = reachable(map, floor.start);
+    if (after !== before - 1) {
+      map.set(x, y, Tile.Floor);
+      continue;
+    }
+    before = after;
+    furniture.push({ x, y, kind });
+    placed++;
+  }
+}
+
+/**
+ * Toiles d'araignée (dès l'étage 3) : dans les coins des salles qui n'ont ni torche ni cheminée. Une toile ne bloque
+ * pas : elle colle (voir `Game.enterWeb`) et brûle.
+ */
+export function placeWebs(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
+  floor.rooms.forEach((room, index) => {
+    if (index === 0 || special.has(index) || !rng.chance(RULES.webRoomChance)) return;
+    const lit = floor.torches.some((t) => t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h);
+    if (lit) return;
+    const corners = [
+      { x: room.x, y: room.y, kind: "webTL" },
+      { x: room.x + room.w - 1, y: room.y, kind: "webTR" },
+      { x: room.x, y: room.y + room.h - 1, kind: "webBL" },
+      { x: room.x + room.w - 1, y: room.y + room.h - 1, kind: "webBR" },
+    ];
+    let wanted = rng.int(RULES.webCorners[0], RULES.webCorners[1]);
+    while (wanted > 0 && corners.length > 0) {
+      const c = corners.splice(rng.int(0, corners.length - 1), 1)[0];
+      if (!freeCell(floor, furniture, c.x, c.y) || besideOpening(floor, room, c.x, c.y)) continue;
+      furniture.push(c);
+      wanted--;
+    }
+  });
 }

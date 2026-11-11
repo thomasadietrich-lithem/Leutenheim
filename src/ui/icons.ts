@@ -557,6 +557,25 @@ const UI_ICONS = {
     "................",
     "................",
   ],
+  /** Pousser : une main ouverte qui pousse, avec des traits de mouvement. */
+  push: [
+    "................",
+    ".......K.K.K....",
+    "......KLKLKLK...",
+    "......KLKLKLKK..",
+    "......KLKLKLKLK.",
+    "......KLLLLLKLK.",
+    "..GG..KLLLLLLLK.",
+    "......KLLLLLLLK.",
+    ".GGG..KLLLLLLK..",
+    "......KLLLLLLK..",
+    "..GG...KLLLLK...",
+    ".......KLLLLK...",
+    ".......KWWWWK...",
+    ".......KSSSSK...",
+    "........KKKK....",
+    "................",
+  ],
   /** Annuler : une croix rouge. */
   cancel: [
     "................",

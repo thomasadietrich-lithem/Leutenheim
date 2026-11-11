@@ -90,6 +90,8 @@ let foundOpen = false;
 let wheelOpen = false;
 /** Se dégager : on attend que le joueur touche une des cases proposées. */
 let jumpMode = false;
+/** Pousser, avec plusieurs ennemis au contact : on attend que le joueur touche celui à pousser. */
+let pushMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
 let seenItems = new Set<ItemId>();
 
@@ -172,8 +174,8 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" }> =>
-  e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || (e.type === "door" && e.action !== "key");
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" }> =>
+  e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || (e.type === "door" && e.action !== "key");
 const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind === "monster";
 
 function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
@@ -361,6 +363,32 @@ function reveal(e: GameEvent): void {
     logLines.push(`Vous tentez de vous dégager : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`);
     renderer.addFloatingText(e.x, e.y, e.success ? "Dégagé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
     sfx.play(e.success ? "step" : "miss");
+  } else if (e.type === "push") {
+    landDie(e.d20, e.success ? "hit" : "miss", false);
+    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
+    const outcome = !e.success
+      ? `${e.target.name} ne bouge pas.`
+      : e.slam > 0
+        ? `${e.target.name} heurte le mur : ${e.slam} dégâts, il est sonné.`
+        : e.moved
+          ? `${e.target.name} recule, sonné.`
+          : `${e.target.name} est bloqué, mais sonné.`;
+    logLines.push(`Vous poussez ${e.target.name} : ${e.d20} ${bonus} = ${e.total} — ${outcome}`);
+    renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.target.x, e.target.y, "", false);
+    if (e.slam > 0) renderer.addFloatingText(e.target.x, e.target.y, `BAM ! −${e.slam}`, "#ffd75e");
+    else renderer.addFloatingText(e.target.x, e.target.y, e.success ? "Poussé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
+    sfx.play(!e.success ? "miss" : e.slam > 0 ? "thud" : "hit");
+  } else if (e.type === "trap") {
+    const hero = e.victim.kind === "hero";
+    logLines.push(hero ? `Vous marchez sur un piège : ${e.damage} dégâts.` : `${e.victim.name} tombe sur un piège : ${e.damage} dégâts.`);
+    renderer.addFloatingText(e.x, e.y, `Piège ! −${e.damage}`, "#ff6b7a");
+    sfx.play(hero ? "hurt" : "hit");
+    if (hero) {
+      renderer.heroHurt();
+      pulse(hpBar, "hit");
+      pulse(mapFrame, "hurt");
+      shownHp = game.hero.hp;
+    }
   } else if (e.type === "search") {
     if (e.phase === "start") logLines.push("Vous fouillez la salle…");
     else {
@@ -444,6 +472,17 @@ bindInput(canvas, {
   onTap(px, py) {
     if (menuOpen || bagOpen || foundOpen) return;
     const t = renderer.screenToTile(px, py);
+    if (pushMode) {
+      pushMode = false;
+      renderer.jumpCells = [];
+      const target = game.pushTargets().find((m) => m.x === t.x && m.y === t.y);
+      if (target && game.push(target.id)) stepMs = COMBAT_STEP_MS;
+      else {
+        logLines.push("Vous renoncez à pousser.");
+        renderLog();
+      }
+      return;
+    }
     if (jumpMode) {
       // Toucher une case proposée y fait sauter le héros ; toucher ailleurs renonce.
       jumpMode = false;
@@ -503,6 +542,7 @@ const wheel = $("wheel");
 /** Les cinq actions, dans l'ordre de la couronne (en partant du haut, dans le sens des aiguilles d'une montre). */
 const WHEEL = [
   ["wheel-search", "search", "Fouiller"],
+  ["wheel-push", "push", "Pousser"],
   ["wheel-disengage", "disengage", "Se dégager"],
   ["wheel-item", "item", "Utiliser un objet"],
   ["wheel-rest", "rest", "Se reposer"],
@@ -537,16 +577,17 @@ function openWheel(): void {
   if (game.over) return;
   aimMode = false;
   jumpMode = false;
+  pushMode = false;
   renderer.jumpCells = [];
   renderer.recenter();
   const frameBox = wheel.parentElement!.getBoundingClientRect();
-  const radius = 64;
+  const radius = 72;
   // Autour du héros ; si la vue est décalée, la couronne reste entière dans le cadre.
   const hero = renderer.tileCenter(game.hero.x, game.hero.y);
   const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
   const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
   WHEEL.forEach(([id], i) => {
-    const angle = ((-90 + i * 72) * Math.PI) / 180;
+    const angle = ((-90 + (i * 360) / WHEEL.length) * Math.PI) / 180;
     const b = $(id);
     b.style.left = `${cx + radius * Math.cos(angle)}px`;
     b.style.top = `${cy + radius * Math.sin(angle)}px`;
@@ -556,6 +597,7 @@ function openWheel(): void {
       : id === "wheel-hide" ? game.hideRefusal() === null
       : id === "wheel-disengage" ? game.disengageRefusal() === null
       : id === "wheel-search" ? game.searchRefusal() === null
+      : id === "wheel-push" ? game.pushRefusal() === null
       : false;
     b.classList.toggle("off", !possible);
   });
@@ -575,6 +617,16 @@ for (const [id, icon, label] of WHEEL) {
       const refusal = game.restRefusal();
       if (refusal) logLines.push(REST_REFUSALS[refusal]);
       else if (game.rest()) stepMs = COMBAT_STEP_MS;
+    } else if (id === "wheel-push") {
+      const targets = game.pushTargets();
+      if (targets.length === 0) logLines.push("Personne à pousser : aucun ennemi au contact.");
+      else if (targets.length === 1) {
+        if (game.push(targets[0].id)) stepMs = COMBAT_STEP_MS;
+      } else {
+        pushMode = true;
+        renderer.jumpCells = targets.map((m) => ({ x: m.x, y: m.y }));
+        logLines.push("Touchez l'ennemi à pousser.");
+      }
     } else if (id === "wheel-search") {
       const refusal = game.searchRefusal();
       if (refusal) logLines.push(SEARCH_REFUSALS[refusal]);
@@ -605,6 +657,8 @@ diceBox.addEventListener("click", () => {
   if (menuOpen || bagOpen || foundOpen || wheelOpen || game.over) return;
   sfx.unlock();
   jumpMode = false;
+  pushMode = false;
+  renderer.jumpCells = [];
   aimMode = false;
   if (game.strike()) stepMs = COMBAT_STEP_MS;
   else {
@@ -1123,7 +1177,7 @@ function frame(now: number): void {
 
   if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
   // Les cases de saut ne s'affichent que pendant le choix.
-  if (!jumpMode || game.disengageRefusal() !== null) {
+  if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode) {
     jumpMode = false;
     renderer.jumpCells = [];
   }

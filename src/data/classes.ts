@@ -21,6 +21,8 @@ export interface ClassDef {
   disengageBonus: number;
   /** Bonus au d20 pour fouiller une salle. */
   searchBonus: number;
+  /** Bonus au d20 pour pousser un ennemi. */
+  pushBonus: number;
   breakBonus: number;
 }
 
@@ -42,6 +44,7 @@ export const CLASSES = {
     stealthBonus: -5,
     disengageBonus: 2,
     searchBonus: 0,
+    pushBonus: 4,
     breakBonus: 4,
   },
   assassin: {
@@ -61,6 +64,7 @@ export const CLASSES = {
     stealthBonus: 4,
     disengageBonus: 4,
     searchBonus: 3,
+    pushBonus: 0,
     breakBonus: 0,
   },
   magicien: {
@@ -78,6 +82,7 @@ export const CLASSES = {
     stealthBonus: 0,
     disengageBonus: 0,
     searchBonus: 2,
+    pushBonus: -1,
     breakBonus: -1,
   },
 } satisfies Record<string, ClassDef>;

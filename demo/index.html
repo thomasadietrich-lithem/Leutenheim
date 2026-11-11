@@ -225,6 +225,7 @@
     <button id="recenter" type="button" hidden></button>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
+      <button id="wheel-push" type="button"></button>
       <button id="wheel-disengage" type="button"></button>
       <button id="wheel-item" type="button"></button>
       <button id="wheel-rest" type="button"></button>
@@ -519,6 +520,7 @@
       stealthBonus: -5,
       disengageBonus: 2,
       searchBonus: 0,
+      pushBonus: 4,
       breakBonus: 4
     },
     assassin: {
@@ -538,6 +540,7 @@
       stealthBonus: 4,
       disengageBonus: 4,
       searchBonus: 3,
+      pushBonus: 0,
       breakBonus: 0
     },
     magicien: {
@@ -555,6 +558,7 @@
       stealthBonus: 0,
       disengageBonus: 0,
       searchBonus: 2,
+      pushBonus: -1,
       breakBonus: -1
     }
   };
@@ -809,6 +813,13 @@
     secretGoldPerDepth: 2,
     secretArrowsMin: 2,
     secretArrowsMax: 5,
+    /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
+    pushDc: 10,
+    /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
+    pushSlamDamage: { count: 1, sides: 6, bonus: 0 },
+    /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ) en ait un, et dégâts à qui marche dessus. */
+    trapRoomChance: 0.15,
+    trapDamage: { count: 1, sides: 4, bonus: 1 },
     /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
     restTurns: 20,
     /** Part des points de vie manquants rendue par un repos mené à son terme. */
@@ -1479,6 +1490,7 @@
       /** Ordres de la roue d'actions en attente : se cacher, ou sauter vers une case. */
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       /** Tours de fouille restant à passer sur place (0 : pas de fouille en cours). */
       this.searching = 0;
       /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
@@ -1560,6 +1572,7 @@
           nextRespawn: 0,
           rested: false,
           secrets: [],
+          traps: [],
           searched: /* @__PURE__ */ new Set()
         };
         this.floors.set(depth, state);
@@ -1588,9 +1601,11 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.hidden = false;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
@@ -1601,6 +1616,7 @@
         state.nextRespawn = this.turn + RULES.respawnTurns;
         this.placeKey(state.rooms);
         this.placeSecrets(state, floorSeed(this.runSeed, depth));
+        this.placeTraps(state, floorSeed(this.runSeed, depth));
       }
       for (const m of this.monsters) {
         m.fromX = m.x;
@@ -1707,6 +1723,64 @@
           return;
         }
       });
+    }
+    /** Pose les pièges : au plus un par salle, jamais dans la salle de départ, toujours au milieu du sol. Hasard à part. */
+    placeTraps(state, seed) {
+      const rng = new Rng(seed ^ 1374496513);
+      state.rooms.forEach((room, index) => {
+        if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const x = rng.int(room.x, room.x + room.w - 1);
+          const y = rng.int(room.y, room.y + room.h - 1);
+          let open = true;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
+          if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
+          state.traps.push({ x, y });
+          return;
+        }
+      });
+    }
+    /** Les pièges de l'étage. */
+    traps() {
+      return this.current.traps;
+    }
+    isTrap(x, y) {
+      return this.current.traps.some((t) => t.x === x && t.y === y);
+    }
+    /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
+    avoidTraps(to, base, from = this.hero) {
+      return (x, y) => (!base || base(x, y)) && (x === to.x && y === to.y || x === from.x && y === from.y || !this.isTrap(x, y));
+    }
+    /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
+    springTrap(actor) {
+      if (!this.isTrap(actor.x, actor.y)) return;
+      const damage = rollDice(this.rng, RULES.trapDamage);
+      actor.hp = Math.max(0, actor.hp - damage);
+      this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
+      if (actor.kind === "hero") {
+        if (actor.hp === 0) {
+          this.over = true;
+          this.path = [];
+          this.events.push({ type: "death", actor });
+        }
+      } else {
+        this.removeIfDead(actor);
+      }
+    }
+    /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
+    pushTargets() {
+      return this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+    }
+    pushRefusal() {
+      return this.pushTargets().length === 0 ? "none" : null;
+    }
+    /** Ordre : pousser ce monstre (un tour, un jet). */
+    push(monsterId) {
+      if (this.over || !this.pushTargets().some((m) => m.id === monsterId)) return false;
+      this.wait();
+      this.waiting = false;
+      this.pushTargetId = monsterId;
+      return true;
     }
     /** La salle où se tient le héros (son numéro), ou -1 dans un couloir. */
     roomIndexAt(p) {
@@ -1832,6 +1906,7 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.shotTarget = { x, y };
       return null;
     }
@@ -1851,7 +1926,7 @@
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
       const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isKnown(cx, cy);
-      const path = findPath(this.map, this.hero, { x, y }, known);
+      const path = findPath(this.map, this.hero, { x, y }, this.avoidTraps({ x, y }, known));
       if (!path) return false;
       this.clearDoorOrders();
       this.targetId = monster ? monster.id : null;
@@ -1862,6 +1937,7 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.shotTarget = null;
       return true;
     }
@@ -1876,7 +1952,7 @@
           best = [];
           break;
         }
-        const path = findPath(this.map, this.hero, { x: nx, y: ny }, known);
+        const path = findPath(this.map, this.hero, { x: nx, y: ny }, this.avoidTraps({ x: nx, y: ny }, known));
         if (path && (!best || path.length < best.length)) best = path;
       }
       if (!best) return false;
@@ -1888,6 +1964,7 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.path = best;
       if (best.length === 0) {
         this.pendingDoor = { x, y };
@@ -1936,6 +2013,7 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.pendingDoor = null;
       this.doorTarget = null;
       this.doorAction = null;
@@ -1970,6 +2048,7 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.picking = true;
       this.pickingItem = null;
       return true;
@@ -2093,6 +2172,7 @@
       this.searching = 0;
       this.hideOrder = false;
       this.jumpTarget = null;
+      this.pushTargetId = null;
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
@@ -2121,6 +2201,10 @@
       } else if (this.hideOrder) {
         this.hideOrder = false;
         this.resolveHide();
+      } else if (this.pushTargetId !== null) {
+        const target = this.monsters.find((m) => m.id === this.pushTargetId);
+        this.pushTargetId = null;
+        if (target && this.inReach(this.hero, target)) this.resolvePush(target);
       } else if (this.jumpTarget) {
         this.resolveJump(this.jumpTarget);
         this.jumpTarget = null;
@@ -2133,7 +2217,7 @@
       } else {
         if (this.targetId !== null) {
           const target = this.monsters.find((m) => m.id === this.targetId);
-          this.path = target ? this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : findPath(this.map, this.hero, target) ?? [] : [];
+          this.path = target ? this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : findPath(this.map, this.hero, target, this.avoidTraps(target)) ?? [] : [];
           if (!target) this.targetId = null;
         }
         const next = this.path[0];
@@ -2153,6 +2237,8 @@
           this.closeDoorAt(left.x, left.y);
           this.useFeatureAt(next.x, next.y);
           this.collectGold();
+          this.springTrap(this.hero);
+          if (this.over) return true;
           if (this.hidden && !this.hasCover(this.hero)) this.reveal();
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
@@ -2197,6 +2283,44 @@
         }
       }
       this.events.push({ type: "hide", d20, bonus, total, success });
+    }
+    /**
+     * Poussée : réussie, le monstre recule d'une case dans l'axe du héros et perd son prochain tour ;
+     * s'il bute sur un mur, une colonne ou une porte fermée, il reste en place mais encaisse des dégâts en plus.
+     * S'il recule sur un piège, le piège se déclenche.
+     */
+    resolvePush(m) {
+      this.reveal();
+      const bonus = this.heroClass.pushBonus;
+      const d20 = this.rng.int(1, 20);
+      const total = d20 + bonus;
+      const success = d20 === 20 || d20 !== 1 && total >= RULES.pushDc;
+      m.alerted = true;
+      m.asleep = false;
+      let moved = false;
+      let slam = 0;
+      if (success) {
+        const dx = Math.sign(m.x - this.hero.x);
+        const dy = Math.sign(m.y - this.hero.y);
+        const to = { x: m.x + dx, y: m.y + dy };
+        const t = this.map.get(to.x, to.y);
+        const solid = !this.map.isWalkable(to.x, to.y) || t === Tile.DoorClosed;
+        if (!solid && !this.actorAt(to.x, to.y) && canStep(this.map, m.x, m.y, dx, dy)) {
+          m.x = to.x;
+          m.y = to.y;
+          moved = true;
+        } else if (solid) {
+          slam = rollDice(this.rng, RULES.pushSlamDamage);
+          m.hp -= slam;
+        }
+        m.stunned = 1;
+      }
+      this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam });
+      if (m.hp <= 0) {
+        this.removeIfDead(m);
+        return;
+      }
+      if (moved) this.springTrap(m);
     }
     /** Fin d'un tour de fouille : un monstre en vue l'interrompt (la salle n'est pas perdue) ; au dernier tour, le jet. */
     afterSearchTurn() {
@@ -2521,6 +2645,10 @@
     monstersAct() {
       for (const m of [...this.monsters]) {
         if (this.over) return;
+        if (m.stunned) {
+          m.stunned--;
+          continue;
+        }
         const dx = this.hero.x - m.x;
         const dy = this.hero.y - m.y;
         const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -2556,7 +2684,7 @@
     }
     /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
     stepToward(m, target) {
-      const step = findPath(this.map, m, target)?.[0];
+      const step = findPath(this.map, m, target, this.avoidTraps(target, void 0, m))?.[0];
       if (!step) return false;
       if (!this.actorAt(step.x, step.y)) {
         const left = { x: m.x, y: m.y };
@@ -4003,6 +4131,25 @@
       "................",
       "................"
     ],
+    /** Pousser : une main ouverte qui pousse, avec des traits de mouvement. */
+    push: [
+      "................",
+      ".......K.K.K....",
+      "......KLKLKLK...",
+      "......KLKLKLKK..",
+      "......KLKLKLKLK.",
+      "......KLLLLLKLK.",
+      "..GG..KLLLLLLLK.",
+      "......KLLLLLLLK.",
+      ".GGG..KLLLLLLK..",
+      "......KLLLLLLK..",
+      "..GG...KLLLLK...",
+      ".......KLLLLK...",
+      ".......KWWWWK...",
+      ".......KSSSSK...",
+      "........KKKK....",
+      "................"
+    ],
     /** Annuler : une croix rouge. */
     cancel: [
       "................",
@@ -4104,7 +4251,7 @@
   }
 
   // src/render/sprites/decor.ts
-  var DECOR_PALETTE = { "K": "#120d08", "N": "#06050a", "H": "#2a2e40", "C": "#4e5570", "D": "#7f88a6", "c": "#a4abc8", "S": "#c3cbe0", "W": "#f4f7ff", "B": "#9a6a34", "b": "#5a3817", "T": "#b9824a", "t": "#7a5230", "G": "#f0c050", "g": "#a87c1c", "s": "#0c0a12" };
+  var DECOR_PALETTE = { "K": "#120d08", "N": "#06050a", "H": "#2a2e40", "C": "#4e5570", "D": "#7f88a6", "c": "#a4abc8", "S": "#c3cbe0", "W": "#f4f7ff", "B": "#9a6a34", "b": "#5a3817", "T": "#b9824a", "t": "#7a5230", "G": "#f0c050", "g": "#a87c1c", "s": "#0c0a12", "R": "#d03a44", "r": "#8e1f28" };
   var DECOR = {
     stairsDown: [
       "KKKKKKKKKKKKKKKK",
@@ -4157,6 +4304,24 @@
       "..KKKKKKKKKKKK..",
       "...ss......ss...",
       "................",
+      "................",
+      "................"
+    ],
+    trap: [
+      "................",
+      "................",
+      "..KKKKKKKKKKKK..",
+      "..KHHHHHHHHHHK..",
+      "..KHSKHHHHSKHK..",
+      "..KHDKHrHHDKHK..",
+      "..KHHHHSKHHHHK..",
+      "..KHHHHDKHHHHK..",
+      "..KHSKHHHHSKHK..",
+      "..KHDKHHHrDKHK..",
+      "..KHHHHSKHHHHK..",
+      "..KHrHHDKHHHHK..",
+      "..KHHHHHHHHHHK..",
+      "..KKKKKKKKKKKK..",
       "................",
       "................"
     ],
@@ -4579,6 +4744,15 @@
         this.drawArrow(cx - Math.cos(d.angle) * tile * 0.16, cy - Math.sin(d.angle) * tile * 0.16, d.angle - 0.35, tile * 0.7, "back");
       }
       ctx.globalAlpha = 1;
+      for (const p of game2.traps()) {
+        if (!game2.isExplored(p.x, p.y)) continue;
+        const smooth = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.globalAlpha = game2.isVisible(p.x, p.y) ? 1 : 0.45;
+        ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), Math.round(ox + p.x * tile), Math.round(oy + p.y * tile), Math.round(tile), Math.round(tile));
+        ctx.globalAlpha = 1;
+        ctx.imageSmoothingEnabled = smooth;
+      }
       for (const g of game2.ground) {
         if (!game2.isExplored(g.x, g.y)) continue;
         const gx = ox + g.x * tile;
@@ -5200,6 +5374,7 @@
   var foundOpen = false;
   var wheelOpen = false;
   var jumpMode = false;
+  var pushMode = false;
   var seenItems = /* @__PURE__ */ new Set();
   var CODEX_KEY = "leutenheim.codex";
   var codex = /* @__PURE__ */ new Set();
@@ -5264,7 +5439,7 @@
       })
     );
   }
-  var isRoll = (e) => e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "door" && e.action !== "key";
+  var isRoll = (e) => e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "door" && e.action !== "key";
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   function describeAttack(e) {
     const r = e.result;
@@ -5416,6 +5591,26 @@
       logLines.push(`Vous tentez de vous d\xE9gager : ${e.d20} ${bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi, d'un bond." : "rat\xE9, vous restez au contact."}`);
       renderer.addFloatingText(e.x, e.y, e.success ? "D\xE9gag\xE9 !" : "Rat\xE9", e.success ? "#ffd75e" : "#ff6b7a");
       sfx.play(e.success ? "step" : "miss");
+    } else if (e.type === "push") {
+      landDie(e.d20, e.success ? "hit" : "miss", false);
+      const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `\u2212 ${-e.bonus}`;
+      const outcome = !e.success ? `${e.target.name} ne bouge pas.` : e.slam > 0 ? `${e.target.name} heurte le mur : ${e.slam} d\xE9g\xE2ts, il est sonn\xE9.` : e.moved ? `${e.target.name} recule, sonn\xE9.` : `${e.target.name} est bloqu\xE9, mais sonn\xE9.`;
+      logLines.push(`Vous poussez ${e.target.name} : ${e.d20} ${bonus} = ${e.total} \u2014 ${outcome}`);
+      renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.target.x, e.target.y, "", false);
+      if (e.slam > 0) renderer.addFloatingText(e.target.x, e.target.y, `BAM ! \u2212${e.slam}`, "#ffd75e");
+      else renderer.addFloatingText(e.target.x, e.target.y, e.success ? "Pouss\xE9 !" : "Rat\xE9", e.success ? "#ffd75e" : "#ff6b7a");
+      sfx.play(!e.success ? "miss" : e.slam > 0 ? "thud" : "hit");
+    } else if (e.type === "trap") {
+      const hero = e.victim.kind === "hero";
+      logLines.push(hero ? `Vous marchez sur un pi\xE8ge : ${e.damage} d\xE9g\xE2ts.` : `${e.victim.name} tombe sur un pi\xE8ge : ${e.damage} d\xE9g\xE2ts.`);
+      renderer.addFloatingText(e.x, e.y, `Pi\xE8ge ! \u2212${e.damage}`, "#ff6b7a");
+      sfx.play(hero ? "hurt" : "hit");
+      if (hero) {
+        renderer.heroHurt();
+        pulse(hpBar, "hit");
+        pulse(mapFrame, "hurt");
+        shownHp = game.hero.hp;
+      }
     } else if (e.type === "search") {
       if (e.phase === "start") logLines.push("Vous fouillez la salle\u2026");
       else {
@@ -5492,6 +5687,17 @@
     onTap(px, py) {
       if (menuOpen || bagOpen || foundOpen) return;
       const t = renderer.screenToTile(px, py);
+      if (pushMode) {
+        pushMode = false;
+        renderer.jumpCells = [];
+        const target = game.pushTargets().find((m) => m.x === t.x && m.y === t.y);
+        if (target && game.push(target.id)) stepMs = COMBAT_STEP_MS;
+        else {
+          logLines.push("Vous renoncez \xE0 pousser.");
+          renderLog();
+        }
+        return;
+      }
       if (jumpMode) {
         jumpMode = false;
         renderer.jumpCells = [];
@@ -5543,6 +5749,7 @@
   var wheel = $("wheel");
   var WHEEL = [
     ["wheel-search", "search", "Fouiller"],
+    ["wheel-push", "push", "Pousser"],
     ["wheel-disengage", "disengage", "Se d\xE9gager"],
     ["wheel-item", "item", "Utiliser un objet"],
     ["wheel-rest", "rest", "Se reposer"],
@@ -5575,19 +5782,20 @@
     if (game.over) return;
     aimMode = false;
     jumpMode = false;
+    pushMode = false;
     renderer.jumpCells = [];
     renderer.recenter();
     const frameBox = wheel.parentElement.getBoundingClientRect();
-    const radius = 64;
+    const radius = 72;
     const hero = renderer.tileCenter(game.hero.x, game.hero.y);
     const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
     const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
     WHEEL.forEach(([id], i) => {
-      const angle = (-90 + i * 72) * Math.PI / 180;
+      const angle = (-90 + i * 360 / WHEEL.length) * Math.PI / 180;
       const b = $(id);
       b.style.left = `${cx + radius * Math.cos(angle)}px`;
       b.style.top = `${cy + radius * Math.sin(angle)}px`;
-      const possible = id === "wheel-rest" ? game.restRefusal() === null : id === "wheel-hide" ? game.hideRefusal() === null : id === "wheel-disengage" ? game.disengageRefusal() === null : id === "wheel-search" ? game.searchRefusal() === null : false;
+      const possible = id === "wheel-rest" ? game.restRefusal() === null : id === "wheel-hide" ? game.hideRefusal() === null : id === "wheel-disengage" ? game.disengageRefusal() === null : id === "wheel-search" ? game.searchRefusal() === null : id === "wheel-push" ? game.pushRefusal() === null : false;
       b.classList.toggle("off", !possible);
     });
     wheelOpen = true;
@@ -5605,6 +5813,16 @@
         const refusal = game.restRefusal();
         if (refusal) logLines.push(REST_REFUSALS[refusal]);
         else if (game.rest()) stepMs = COMBAT_STEP_MS;
+      } else if (id === "wheel-push") {
+        const targets = game.pushTargets();
+        if (targets.length === 0) logLines.push("Personne \xE0 pousser : aucun ennemi au contact.");
+        else if (targets.length === 1) {
+          if (game.push(targets[0].id)) stepMs = COMBAT_STEP_MS;
+        } else {
+          pushMode = true;
+          renderer.jumpCells = targets.map((m) => ({ x: m.x, y: m.y }));
+          logLines.push("Touchez l'ennemi \xE0 pousser.");
+        }
       } else if (id === "wheel-search") {
         const refusal = game.searchRefusal();
         if (refusal) logLines.push(SEARCH_REFUSALS[refusal]);
@@ -5634,6 +5852,8 @@
     if (menuOpen || bagOpen || foundOpen || wheelOpen || game.over) return;
     sfx.unlock();
     jumpMode = false;
+    pushMode = false;
+    renderer.jumpCells = [];
     aimMode = false;
     if (game.strike()) stepMs = COMBAT_STEP_MS;
     else {
@@ -6076,7 +6296,7 @@
       }
     }
     if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
-    if (!jumpMode || game.disengageRefusal() !== null) {
+    if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode) {
       jumpMode = false;
       renderer.jumpCells = [];
     }

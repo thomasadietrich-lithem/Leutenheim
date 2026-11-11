@@ -51,6 +51,13 @@ export const RULES = {
   secretGoldPerDepth: 2,
   secretArrowsMin: 2,
   secretArrowsMax: 5,
+  /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
+  pushDc: 10,
+  /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
+  pushSlamDamage: { count: 1, sides: 6, bonus: 0 },
+  /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ) en ait un, et dégâts à qui marche dessus. */
+  trapRoomChance: 0.15,
+  trapDamage: { count: 1, sides: 4, bonus: 1 },
   /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
   restTurns: 20,
   /** Part des points de vie manquants rendue par un repos mené à son terme. */

@@ -25,6 +25,8 @@ export interface Actor {
   asleep: boolean;
   /** Le héros vient de lui échapper en passant une porte : il ne se laisse plus surprendre tant qu'il ne l'a pas rattrapé. */
   wary?: boolean;
+  /** Sonné (poussé par le héros) : il perd ce nombre de tours. */
+  stunned?: number;
   /** Destination de promenade d'un monstre qui se balade. */
   goal?: { x: number; y: number };
 }

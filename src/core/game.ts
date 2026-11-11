@@ -11,6 +11,7 @@ import { generateFloor, Room } from "../world/generator";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
 import { AttackResult, rollAttack } from "./combat";
+import { rollDice } from "./dice";
 import { floorSeed, Rng } from "./rng";
 
 /** Ce qui s'est passé pendant un tour, pour que l'affichage puisse le montrer. */
@@ -42,6 +43,10 @@ export type GameEvent =
   | { type: "revealed" }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
   | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
+  /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */
+  | { type: "push"; target: Actor; d20: number; bonus: number; total: number; success: boolean; moved: boolean; slam: number }
+  /** Quelqu'un a marché sur un piège. */
+  | { type: "trap"; x: number; y: number; victim: Actor; damage: number }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */
   | { type: "search"; phase: "start" | "interrupted" }
   | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; room: Room }
@@ -89,6 +94,8 @@ interface FloorState {
   /** Caches de l'étage (butin enfoui dans une salle) et salles déjà fouillées (une fouille par salle). */
   secrets: Secret[];
   searched: Set<number>;
+  /** Pièges de l'étage (visibles pour l'instant) : ils restent armés. */
+  traps: Point[];
 }
 
 /** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */
@@ -170,6 +177,7 @@ export class Game {
   /** Ordres de la roue d'actions en attente : se cacher, ou sauter vers une case. */
   private hideOrder = false;
   private jumpTarget: Point | null = null;
+  private pushTargetId: number | null = null;
   /** Tours de fouille restant à passer sur place (0 : pas de fouille en cours). */
   private searching = 0;
   /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
@@ -262,6 +270,7 @@ export class Game {
         nextRespawn: 0,
         rested: false,
         secrets: [],
+        traps: [],
         searched: new Set<number>(),
       };
       this.floors.set(depth, state);
@@ -291,9 +300,11 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.hidden = false;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
@@ -304,6 +315,7 @@ export class Game {
       state.nextRespawn = this.turn + RULES.respawnTurns;
       this.placeKey(state.rooms);
       this.placeSecrets(state, floorSeed(this.runSeed, depth));
+      this.placeTraps(state, floorSeed(this.runSeed, depth));
     }
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -419,6 +431,73 @@ export class Game {
         return;
       }
     });
+  }
+
+  /** Pose les pièges : au plus un par salle, jamais dans la salle de départ, toujours au milieu du sol. Hasard à part. */
+  private placeTraps(state: FloorState, seed: number): void {
+    const rng = new Rng(seed ^ 0x51ed2701);
+    state.rooms.forEach((room, index) => {
+      if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const x = rng.int(room.x, room.x + room.w - 1);
+        const y = rng.int(room.y, room.y + room.h - 1);
+        // Seulement au milieu du sol (8 voisines dégagées) : un piège ne bouche jamais un passage, et l'on peut toujours le contourner.
+        let open = true;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
+        if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
+        state.traps.push({ x, y });
+        return;
+      }
+    });
+  }
+
+  /** Les pièges de l'étage. */
+  traps(): readonly Point[] {
+    return this.current.traps;
+  }
+
+  isTrap(x: number, y: number): boolean {
+    return this.current.traps.some((t) => t.x === x && t.y === y);
+  }
+
+  /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
+  private avoidTraps(to: Point, base?: (x: number, y: number) => boolean, from: Point = this.hero): (x: number, y: number) => boolean {
+    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || !this.isTrap(x, y));
+  }
+
+  /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
+  private springTrap(actor: Actor): void {
+    if (!this.isTrap(actor.x, actor.y)) return;
+    const damage = rollDice(this.rng, RULES.trapDamage);
+    actor.hp = Math.max(0, actor.hp - damage);
+    this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
+    if (actor.kind === "hero") {
+      if (actor.hp === 0) {
+        this.over = true;
+        this.path = [];
+        this.events.push({ type: "death", actor });
+      }
+    } else {
+      this.removeIfDead(actor);
+    }
+  }
+
+  /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
+  pushTargets(): Actor[] {
+    return this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+  }
+
+  pushRefusal(): "none" | null {
+    return this.pushTargets().length === 0 ? "none" : null;
+  }
+
+  /** Ordre : pousser ce monstre (un tour, un jet). */
+  push(monsterId: number): boolean {
+    if (this.over || !this.pushTargets().some((m) => m.id === monsterId)) return false;
+    this.wait();
+    this.waiting = false;
+    this.pushTargetId = monsterId;
+    return true;
   }
 
   /** La salle où se tient le héros (son numéro), ou -1 dans un couloir. */
@@ -568,6 +647,7 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.shotTarget = { x, y };
     return null;
   }
@@ -590,7 +670,7 @@ export class Game {
     const monster = seen && this.isVisible(x, y) ? seen : undefined;
     // Vers un monstre en vue, on trouve toujours un chemin ; sinon on ne passe que par les cases déjà vues.
     const known = ignoreFog || monster ? undefined : (cx: number, cy: number) => this.isKnown(cx, cy);
-    const path = findPath(this.map, this.hero, { x, y }, known);
+    const path = findPath(this.map, this.hero, { x, y }, this.avoidTraps({ x, y }, known));
     if (!path) return false;
     this.clearDoorOrders();
     this.targetId = monster ? monster.id : null;
@@ -601,6 +681,7 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.shotTarget = null;
     return true;
   }
@@ -616,7 +697,7 @@ export class Game {
         best = [];
         break;
       }
-      const path = findPath(this.map, this.hero, { x: nx, y: ny }, known);
+      const path = findPath(this.map, this.hero, { x: nx, y: ny }, this.avoidTraps({ x: nx, y: ny }, known));
       if (path && (!best || path.length < best.length)) best = path;
     }
     if (!best) return false;
@@ -628,6 +709,7 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.path = best;
     if (best.length === 0) {
       this.pendingDoor = { x, y };
@@ -685,6 +767,7 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.pendingDoor = null;
     this.doorTarget = null;
     this.doorAction = null;
@@ -722,6 +805,7 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.picking = true;
     this.pickingItem = null;
     return true;
@@ -862,6 +946,7 @@ export class Game {
     this.searching = 0;
     this.hideOrder = false;
     this.jumpTarget = null;
+    this.pushTargetId = null;
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
@@ -894,6 +979,10 @@ export class Game {
     } else if (this.hideOrder) {
       this.hideOrder = false;
       this.resolveHide();
+    } else if (this.pushTargetId !== null) {
+      const target = this.monsters.find((m) => m.id === this.pushTargetId);
+      this.pushTargetId = null;
+      if (target && this.inReach(this.hero, target)) this.resolvePush(target);
     } else if (this.jumpTarget) {
       this.resolveJump(this.jumpTarget);
       this.jumpTarget = null;
@@ -908,7 +997,7 @@ export class Game {
         // La cible a pu bouger : on recalcule le chemin vers elle.
         const target = this.monsters.find((m) => m.id === this.targetId);
         // Au contact (y compris en diagonale par-delà un coin de mur) : on frappe sans avoir à contourner.
-        this.path = target ? (this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : (findPath(this.map, this.hero, target) ?? [])) : [];
+        this.path = target ? (this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : (findPath(this.map, this.hero, target, this.avoidTraps(target)) ?? [])) : [];
         if (!target) this.targetId = null;
       }
       const next = this.path[0];
@@ -929,6 +1018,8 @@ export class Game {
         this.closeDoorAt(left.x, left.y);
         this.useFeatureAt(next.x, next.y);
         this.collectGold();
+        this.springTrap(this.hero);
+        if (this.over) return true;
         // Caché, on peut longer les murs ; s'écarter de tout abri fait sortir de l'ombre.
         if (this.hidden && !this.hasCover(this.hero)) this.reveal();
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
@@ -981,6 +1072,45 @@ export class Game {
       }
     }
     this.events.push({ type: "hide", d20, bonus, total, success });
+  }
+
+  /**
+   * Poussée : réussie, le monstre recule d'une case dans l'axe du héros et perd son prochain tour ;
+   * s'il bute sur un mur, une colonne ou une porte fermée, il reste en place mais encaisse des dégâts en plus.
+   * S'il recule sur un piège, le piège se déclenche.
+   */
+  private resolvePush(m: Actor): void {
+    this.reveal();
+    const bonus = this.heroClass.pushBonus;
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.pushDc);
+    m.alerted = true;
+    m.asleep = false;
+    let moved = false;
+    let slam = 0;
+    if (success) {
+      const dx = Math.sign(m.x - this.hero.x);
+      const dy = Math.sign(m.y - this.hero.y);
+      const to = { x: m.x + dx, y: m.y + dy };
+      const t = this.map.get(to.x, to.y);
+      const solid = !this.map.isWalkable(to.x, to.y) || t === Tile.DoorClosed;
+      if (!solid && !this.actorAt(to.x, to.y) && canStep(this.map, m.x, m.y, dx, dy)) {
+        m.x = to.x;
+        m.y = to.y;
+        moved = true;
+      } else if (solid) {
+        slam = rollDice(this.rng, RULES.pushSlamDamage);
+        m.hp -= slam;
+      }
+      m.stunned = 1;
+    }
+    this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam });
+    if (m.hp <= 0) {
+      this.removeIfDead(m);
+      return;
+    }
+    if (moved) this.springTrap(m);
   }
 
   /** Fin d'un tour de fouille : un monstre en vue l'interrompt (la salle n'est pas perdue) ; au dernier tour, le jet. */
@@ -1351,6 +1481,11 @@ export class Game {
   private monstersAct(): void {
     for (const m of [...this.monsters]) {
       if (this.over) return;
+      if (m.stunned) {
+        // Sonné par une poussée : il perd ce tour.
+        m.stunned--;
+        continue;
+      }
       const dx = this.hero.x - m.x;
       const dy = this.hero.y - m.y;
       const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -1396,7 +1531,7 @@ export class Game {
 
   /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
   private stepToward(m: Actor, target: Point): boolean {
-    const step = findPath(this.map, m, target)?.[0];
+    const step = findPath(this.map, m, target, this.avoidTraps(target, undefined, m))?.[0];
     if (!step) return false;
     if (!this.actorAt(step.x, step.y)) {
       const left = { x: m.x, y: m.y };

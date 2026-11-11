@@ -1,6 +1,6 @@
 // FICHIER GÉNÉRÉ par art/escaliers_coffres.py (export_decor) : ne pas modifier à la main.
 /** Escaliers et coffres en pixels 16×16, validés par Thomas le 2026-11-11 (planche v1). */
-export const DECOR_PALETTE: Record<string, string> = {"K": "#120d08", "N": "#06050a", "H": "#2a2e40", "C": "#4e5570", "D": "#7f88a6", "c": "#a4abc8", "S": "#c3cbe0", "W": "#f4f7ff", "B": "#9a6a34", "b": "#5a3817", "T": "#b9824a", "t": "#7a5230", "G": "#f0c050", "g": "#a87c1c", "s": "#0c0a12"};
+export const DECOR_PALETTE: Record<string, string> = {"K": "#120d08", "N": "#06050a", "H": "#2a2e40", "C": "#4e5570", "D": "#7f88a6", "c": "#a4abc8", "S": "#c3cbe0", "W": "#f4f7ff", "B": "#9a6a34", "b": "#5a3817", "T": "#b9824a", "t": "#7a5230", "G": "#f0c050", "g": "#a87c1c", "s": "#0c0a12", "R": "#d03a44", "r": "#8e1f28"};
 export const DECOR = {
   stairsDown: [
     "KKKKKKKKKKKKKKKK",
@@ -53,6 +53,24 @@ export const DECOR = {
     "..KKKKKKKKKKKK..",
     "...ss......ss...",
     "................",
+    "................",
+    "................",
+  ],
+  trap: [
+    "................",
+    "................",
+    "..KKKKKKKKKKKK..",
+    "..KHHHHHHHHHHK..",
+    "..KHSKHHHHSKHK..",
+    "..KHDKHrHHDKHK..",
+    "..KHHHHSKHHHHK..",
+    "..KHHHHDKHHHHK..",
+    "..KHSKHHHHSKHK..",
+    "..KHDKHHHrDKHK..",
+    "..KHHHHSKHHHHK..",
+    "..KHrHHDKHHHHK..",
+    "..KHHHHHHHHHHK..",
+    "..KKKKKKKKKKKK..",
     "................",
     "................",
   ],

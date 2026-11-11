@@ -514,6 +514,16 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     // Objets au sol : flèches à ramasser, clef.
+    // Pièges (visibles pour l'instant) : sur les cases déjà vues, estompés hors de vue.
+    for (const p of game.traps()) {
+      if (!game.isExplored(p.x, p.y)) continue;
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = game.isVisible(p.x, p.y) ? 1 : 0.45;
+      ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), Math.round(ox + p.x * tile), Math.round(oy + p.y * tile), Math.round(tile), Math.round(tile));
+      ctx.globalAlpha = 1;
+      ctx.imageSmoothingEnabled = smooth;
+    }
     for (const g of game.ground) {
       if (!game.isExplored(g.x, g.y)) continue;
       const gx = ox + g.x * tile;

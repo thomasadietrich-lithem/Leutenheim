@@ -1498,3 +1498,67 @@ test("toucher le dé : frappe l'ennemi au contact, et rien s'il n'y en a pas", (
   }
   assert.fail("aucune situation trouvée");
 });
+
+test("pièges : jamais dans la salle de départ ; le héros les contourne, sauf si on l'y envoie", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 120 && checked < 5; seed++) {
+    const game = new Game(seed);
+    const start = game.rooms[0];
+    for (const t of game.traps()) {
+      assert.ok(!(t.x >= start.x && t.x < start.x + start.w && t.y >= start.y && t.y < start.y + start.h), `graine ${seed} : piège dans la salle de départ`);
+    }
+    const trap = game.traps()[0];
+    if (!trap) continue;
+    // Une case de l'autre côté du piège, dans la même ligne : le chemin ne doit pas marcher dessus.
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+      const from = { x: trap.x - dx, y: trap.y - dy };
+      const to = { x: trap.x + dx, y: trap.y + dy };
+      if (game.map.get(from.x, from.y) !== Tile.Floor || game.map.get(to.x, to.y) !== Tile.Floor) continue;
+      game.monsters.length = 0;
+      game.hero.x = game.hero.fromX = from.x;
+      game.hero.y = game.hero.fromY = from.y;
+      assert.ok(game.setDestination(to.x, to.y, true));
+      assert.ok(!game.path.some((p) => p.x === trap.x && p.y === trap.y), `graine ${seed} : le chemin passe sur le piège`);
+      // Envoyé exprès sur le piège : il y va et le déclenche.
+      assert.ok(game.setDestination(trap.x, trap.y, true));
+      const hp = game.hero.hp;
+      for (let i = 0; i < 5 && (game.hero.x !== trap.x || game.hero.y !== trap.y); i++) game.tick();
+      assert.ok(game.events.some((e) => e.type === "trap"), `graine ${seed} : le piège ne s'est pas déclenché`);
+      assert.ok(game.hero.hp < hp);
+      checked++;
+      break;
+    }
+  }
+  assert.ok(checked > 0, "aucun piège testé");
+});
+
+test("pousser : réussi, le monstre recule et est sonné ; contre un mur, il encaisse des dégâts", () => {
+  let moved = 0;
+  let slammed = 0;
+  for (let seed = 1; seed <= 300 && (moved === 0 || slammed === 0); seed++) {
+    const t = threatenedHero(seed);
+    if (!t) continue;
+    const { game, m } = t;
+    game.tick();
+    if (game.over || !game.pushTargets().includes(m)) continue;
+    const before = { x: m.x, y: m.y, hp: m.hp };
+    game.events.length = 0;
+    assert.ok(game.push(m.id));
+    game.tick();
+    const e = game.events.find((ev) => ev.type === "push");
+    assert.ok(e && e.type === "push");
+    if (!e.success) continue;
+    if (e.moved) {
+      assert.equal(Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)), 2, `graine ${seed} : le monstre n'a pas reculé`);
+      moved++;
+    } else if (e.slam > 0) {
+      assert.deepEqual({ x: m.x, y: m.y }, { x: before.x, y: before.y });
+      assert.ok(m.hp < before.hp || !game.monsters.includes(m));
+      slammed++;
+    }
+    // Sonné : il n'attaque pas le héros dans ce tour.
+    assert.ok(!game.events.some((ev) => ev.type === "attack" && ev.attacker === m), `graine ${seed} : le monstre sonné a attaqué`);
+  }
+  assert.ok(moved > 0, "jamais vu un monstre reculer");
+  assert.ok(slammed > 0, "jamais vu un monstre heurter un mur");
+});

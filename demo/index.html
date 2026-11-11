@@ -35,6 +35,7 @@
   #alarm-fill { display: block; height: 100%; width: 0; }
   @keyframes bang-blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.25); } }
   #bag-bang:not([hidden]) { animation: bang-blink 0.9s ease-in-out infinite; }
+  #power.off { filter: grayscale(1) brightness(0.6); }
   #open-bag.pending { box-shadow: inset 0 0 0 2px var(--gold); }
   #floor-badge { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; color: var(--gold); font-size: 30px; line-height: 1; }
   #floor-icon svg { width: 30px; height: 30px; display: block; }
@@ -150,10 +151,10 @@
   #log div { flex: none; }
   #log div:last-child { color: var(--ink); }
 
-  .bar { display: flex; align-items: stretch; gap: 6px; flex: none; height: 48px; }
+  .bar { display: flex; align-items: stretch; gap: 5px; flex: none; height: 48px; }
   .bar button { flex: 1; padding: 8px 4px; display: flex; align-items: center; justify-content: center; gap: 4px; }
-  .bar button { min-height: 0; height: 100%; font-size: 24px; white-space: nowrap; overflow: hidden; }
-  .bar button svg { height: 30px; width: auto; flex: none; }
+  .bar button { min-height: 0; height: 100%; font-size: 20px; white-space: nowrap; overflow: hidden; }
+  .bar button svg { height: 28px; width: auto; flex: none; }
 
   /* Menus. */
   #menu { z-index: 2; }
@@ -307,7 +308,7 @@
       <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
       <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
     </div>
-    <button id="alarm-badge" type="button" aria-label="Tocsin"><span id="alarm-bell"></span><span class="alarm-bar"><span id="alarm-fill"></span></span></button>
+    <button id="alarm-badge" type="button" aria-label="Niveau d'alerte"><span id="alarm-bell"></span><span class="alarm-bar"><span id="alarm-fill"></span></span></button>
     <div id="floor-badge" aria-label="Étage"><span id="floor-icon"></span><span id="floor-num"></span></div>
     <button id="open-menu" type="button"></button>
   </div>
@@ -316,7 +317,7 @@
     <button id="recenter" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Tocsin</button></div>
+    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button></div>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
@@ -355,6 +356,7 @@
     <button id="wait" type="button"></button>
     <button id="aim" type="button"></button>
     <button id="actions" type="button"></button>
+    <button id="power" type="button" hidden></button>
     <button id="open-bag" type="button"></button>
   </div>
   <div id="found" class="overlay" hidden>
@@ -1199,6 +1201,14 @@
     secretGoldPerDepth: 2,
     secretArrowsMin: 2,
     secretArrowsMax: 5,
+    /** Salles de fouille (mobilier v1) : seulement en salle d'essai tant que les dessins ne sont pas validés. */
+    themedRoomsInDungeon: false,
+    /** Chance qu'une salle ordinaire assez grande (5 × 5) devienne une salle de fouille, et nombre de meubles. */
+    themedRoomChance: 0.3,
+    themedFurnitureMin: 2,
+    themedFurnitureMax: 4,
+    /** Chance qu'une salle de fouille cache quelque chose (au pied d'un meuble, butin du thème). */
+    themedSecretChance: 0.75,
     /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
     pushDc: 10,
     /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -1271,21 +1281,24 @@
     fireTurns: 5,
     /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
     burnAfter: 2,
-    // ---- Tocsin (2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
+    // ---- Niveau d'alerte (ex-« Tocsin », 2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
     /** L'alerte monte d'un point tous les tant de tours passés sur l'étage. */
     alarmTurnsPerPoint: 12,
     /** Bruit : porte enfoncée (réussie ou non), chaque coup échangé, un monstre qui remarque le héros. */
     alarmBreak: 15,
     alarmCombat: 1,
     alarmNoticed: 3,
-    /** Seuils des paliers : agité, alerte, hallali (sur 100). */
+    /** Seuils des paliers : agité, alerte, traque (sur 100). */
     alarmStages: [25, 50, 75],
     /** Agité : un promeneur arrive tous les tant de tours, et l'étage peut compter tant de monstres de plus. */
-    agitatedRespawnTurns: 20,
-    agitatedExtraPopulation: 2,
-    /** Alerte et hallali : traqueurs qui arrivent par l'entrée de l'étage et foncent sur le héros. */
-    trackersAlert: 2,
-    trackersHallali: 3,
+    agitatedRespawnTurns: 30,
+    agitatedExtraPopulation: 1,
+    /** Alerte : un promeneur tous les tant de tours, et tant de monstres de plus (Thomas : « trop de mobs » à 50). */
+    alertRespawnTurns: 20,
+    alertExtraPopulation: 2,
+    /** Traqueurs (arrivent par l'entrée de l'étage) : mis de côté par Thomas le 2026-11-11, à 0 pour l'instant. */
+    trackersAlert: 0,
+    trackersHunt: 0,
     /** Taches de sang gardées par étage, au plus. */
     bloodMax: 150,
     fireDamage: { count: 1, sides: 4, bonus: 0 },
@@ -1565,7 +1578,9 @@
     Chest: 8,
     ChestOpen: 9,
     Pillar: 10,
-    StairsUp: 11
+    StairsUp: 11,
+    /** Meuble d'une salle de fouille : on ne le traverse pas, mais il ne cache pas la vue. */
+    Furniture: 12
   };
   var GameMap = class {
     constructor(width, height) {
@@ -1596,7 +1611,7 @@
     /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
     isWalkable(x, y) {
       const t = this.get(x, y);
-      return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar;
+      return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar && t !== Tile.Furniture;
     }
     /** Bloque la vue et la lumière : murs et portes non ouvertes. */
     blocksSight(x, y) {
@@ -1628,12 +1643,7 @@
   ];
   function canStep(map, x, y, dx, dy) {
     if (!map.isWalkable(x + dx, y + dy)) return false;
-    if (dx !== 0 && dy !== 0) {
-      const sideA = map.isWalkable(x + dx, y);
-      const sideB = map.isWalkable(x, y + dy);
-      if (map.isDoor(x, y) || map.isDoor(x + dx, y + dy)) return sideA || sideB;
-      return sideA && sideB;
-    }
+    if (dx !== 0 && dy !== 0) return map.isWalkable(x + dx, y) || map.isWalkable(x, y + dy);
     return true;
   }
   function distanceField(map, from, allowed) {
@@ -1907,10 +1917,155 @@
     return cells;
   }
 
+  // src/data/themedRooms.ts
+  var THEMED_ROOMS = [
+    {
+      id: "garde_manger",
+      name: "Garde-manger",
+      weight: 1,
+      furniture: ["tonneau", "caisse", "sac_grain"],
+      loot: [
+        { item: "pomme", min: 2, max: 4, weight: 4 },
+        { item: "torche", min: 1, max: 1, weight: 1 },
+        { item: "or", min: 4, max: 10, weight: 1 }
+      ]
+    },
+    {
+      id: "ossuaire",
+      name: "Ossuaire",
+      weight: 1,
+      furniture: ["os", "sarcophage"],
+      loot: [
+        { item: "or", min: 10, max: 20, weight: 3 },
+        { item: "amethyste", min: 1, max: 1, weight: 2 },
+        { item: "saphir", min: 1, max: 1, weight: 1 }
+      ]
+    },
+    {
+      id: "bibliotheque",
+      name: "Biblioth\xE8que",
+      weight: 1,
+      furniture: ["etagere", "pupitre"],
+      loot: [
+        { item: "potion_jouvence", min: 1, max: 1, weight: 1 },
+        { item: "potion_vitesse", min: 1, max: 1, weight: 2 },
+        { item: "potion_feu", min: 1, max: 1, weight: 2 },
+        { item: "or", min: 6, max: 12, weight: 2 }
+      ]
+    },
+    {
+      id: "dortoir",
+      name: "Dortoir",
+      weight: 1,
+      furniture: ["paillasse", "malle"],
+      loot: [
+        { item: "or", min: 8, max: 16, weight: 3 },
+        { item: "pomme", min: 1, max: 2, weight: 2 },
+        { item: "sac_cuir", min: 1, max: 1, weight: 1 }
+      ]
+    },
+    {
+      id: "forge",
+      name: "Forge",
+      weight: 1,
+      furniture: ["enclume", "etabli", "ratelier"],
+      loot: [
+        { item: "fleche", min: 4, max: 8, weight: 3 },
+        { item: "fleche_poison", min: 2, max: 4, weight: 1 },
+        { item: "potion_poison", min: 1, max: 1, weight: 1 }
+      ]
+    }
+  ];
+
+  // src/world/furnish.ts
+  function reachable(map, from) {
+    const seen = new Uint8Array(map.width * map.height);
+    const stack = [from];
+    seen[map.index(from.x, from.y)] = 1;
+    let count = 0;
+    while (stack.length > 0) {
+      const p = stack.pop();
+      count++;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = p.x + dx;
+        const y = p.y + dy;
+        if (!map.inBounds(x, y) || seen[map.index(x, y)] || !map.isWalkable(x, y)) continue;
+        seen[map.index(x, y)] = 1;
+        stack.push({ x, y });
+      }
+    }
+    return count;
+  }
+  function wallSpots(floor, room) {
+    const { map } = floor;
+    const spots = [];
+    const inside = (x, y) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const onEdgeX = x === room.x || x === room.x + room.w - 1;
+        const onEdgeY = y === room.y || y === room.y + room.h - 1;
+        if (onEdgeX === onEdgeY) continue;
+        if (onEdgeY && (x - room.x < 2 || room.x + room.w - 1 - x < 2)) continue;
+        if (onEdgeX && (y - room.y < 2 || room.y + room.h - 1 - y < 2)) continue;
+        if (map.get(x, y) !== Tile.Floor) continue;
+        let ok = true;
+        for (let dy = -1; dy <= 1 && ok; dy++) {
+          for (let dx = -1; dx <= 1 && ok; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            const t = map.get(nx, ny);
+            if (inside(nx, ny) ? t !== Tile.Floor && t !== Tile.Furniture : t !== Tile.Wall) ok = false;
+            if (nx === floor.start.x && ny === floor.start.y || nx === floor.stairs.x && ny === floor.stairs.y) ok = false;
+          }
+        }
+        if (ok) spots.push({ x, y });
+      }
+    }
+    return spots;
+  }
+  function furnishRoom(floor, room, theme, rng, out) {
+    const { map } = floor;
+    const wanted = rng.int(RULES.themedFurnitureMin, RULES.themedFurnitureMax);
+    const spots = wallSpots(floor, room);
+    let placed = 0;
+    let before = reachable(map, floor.start);
+    while (placed < wanted && spots.length > 0) {
+      const spot = spots.splice(rng.int(0, spots.length - 1), 1)[0];
+      if (map.get(spot.x, spot.y) !== Tile.Floor) continue;
+      map.set(spot.x, spot.y, Tile.Furniture);
+      const after = reachable(map, floor.start);
+      if (after !== before - 1) {
+        map.set(spot.x, spot.y, Tile.Floor);
+        continue;
+      }
+      before = after;
+      const kind = theme.furniture[placed < theme.furniture.length ? placed : rng.int(0, theme.furniture.length - 1)];
+      out.push({ x: spot.x, y: spot.y, kind });
+      placed++;
+    }
+    return placed;
+  }
+  function furnishFloor(floor, seed) {
+    const rng = new Rng(seed ^ 1867128211);
+    const furniture = [];
+    const themes = [];
+    const total = THEMED_ROOMS.reduce((sum, t) => sum + t.weight, 0);
+    floor.rooms.forEach((room, index) => {
+      if (index === 0 || room.w < 5 || room.h < 5 || !rng.chance(RULES.themedRoomChance)) return;
+      for (let y = room.y; y < room.y + room.h; y++) {
+        for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Pillar) return;
+      }
+      let pick = rng.next() * total;
+      const theme = THEMED_ROOMS.find((t) => (pick -= t.weight) < 0) ?? THEMED_ROOMS[0];
+      if (furnishRoom(floor, room, theme, rng, furniture) > 0) themes.push({ room: index, id: theme.id });
+    });
+    return { furniture, themes };
+  }
+
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 3;
+  var SANDBOX_LAYOUT = 4;
   function buildSandbox() {
-    const map = new GameMap(32, 24);
+    const map = new GameMap(32, 32);
     const carve = (r) => {
       for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
     };
@@ -1940,9 +2095,39 @@
     ];
     const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
     const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
+    map.set(7, 22, Tile.Floor);
+    for (let x = 4; x <= 28; x++) map.set(x, 23, Tile.Floor);
+    const themedRooms = [];
+    for (let i = 0; i < THEMED_ROOMS.length; i++) {
+      const r = { x: 2 + i * 6, y: 25, w: 5, h: 5 };
+      carve(r);
+      map.set(r.x + 2, 24, Tile.Floor);
+      themedRooms.push(r);
+    }
+    const rooms = [start, pillars, combat, patrolRoom, ...themedRooms];
+    const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches: [], specials: [] };
+    const furniture = [];
+    const themes = [];
+    const secrets = [{ x: 22, y: 8, room: 1, item: "or", count: 12 }];
+    for (const r of themedRooms) torches.push({ x: r.x + 2, y: r.y + r.h, radius: 4, faceX: 0, faceY: -1 });
+    const rng = new Rng(4242);
+    themedRooms.forEach((room, i) => {
+      const theme = THEMED_ROOMS[i];
+      const index = 4 + i;
+      const first = furniture.length;
+      furnishRoom(floorPlan, room, theme, rng, furniture);
+      themes.push({ room: index, id: theme.id });
+      const f = furniture[first];
+      if (!f) return;
+      const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: f.x + dx, y: f.y + dy })).find((p) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h && map.get(p.x, p.y) === Tile.Floor);
+      const loot = theme.loot[0];
+      if (spot) secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count: loot.max });
+    });
     return {
       map,
-      rooms: [start, pillars, combat, patrolRoom],
+      rooms,
+      furniture,
+      themes,
       start: { x: 7, y: 6 },
       stairs,
       torches,
@@ -1951,7 +2136,7 @@
         { room: chestRoom, kind: tresor }
       ],
       traps: [{ x: 21, y: 6 }, { x: 21, y: 17 }],
-      secrets: [{ x: 22, y: 8, room: 1, item: "or", count: 12 }],
+      secrets,
       ground: [
         { x: 5, y: 5, item: "clef", count: 1 },
         { x: 9, y: 7, item: "fleche", count: 3 },
@@ -2075,18 +2260,41 @@
   // src/core/floor.ts
   function roomElements(map, torches, room) {
     let pillars = false;
+    let furniture = false;
     for (let y = room.y; y < room.y + room.h; y++) {
-      for (let x = room.x; x < room.x + room.w; x++) if (map.get(x, y) === Tile.Pillar) pillars = true;
+      for (let x = room.x; x < room.x + room.w; x++) {
+        if (map.get(x, y) === Tile.Pillar) pillars = true;
+        if (map.get(x, y) === Tile.Furniture) furniture = true;
+      }
     }
     const hearth = torches.some(
       (t) => t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h
     );
-    return (pillars ? 1 : 0) + (hearth ? 1 : 0);
+    return (pillars ? 1 : 0) + (hearth ? 1 : 0) + (furniture ? 1 : 0);
   }
   function placeSecrets(state, depth, seed) {
     const rng = new Rng(seed ^ 739982445);
     state.rooms.forEach((room, index) => {
       if (index === 0) return;
+      const theme = THEMED_ROOMS.find((t) => state.themes.some((th) => th.room === index && th.id === t.id));
+      if (theme) {
+        if (!rng.chance(RULES.themedSecretChance)) return;
+        const spots = [];
+        for (const f of state.furniture) {
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const x = f.x + dx;
+            const y = f.y + dy;
+            if (x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h && state.map.get(x, y) === Tile.Floor) spots.push({ x, y });
+          }
+        }
+        if (spots.length === 0) return;
+        const spot = spots[rng.int(0, spots.length - 1)];
+        let pick = rng.next() * theme.loot.reduce((sum, l) => sum + l.weight, 0);
+        const loot = theme.loot.find((l) => (pick -= l.weight) < 0) ?? theme.loot[0];
+        const count = rng.int(loot.min, loot.max) + (loot.item === "or" ? RULES.secretGoldPerDepth * (depth - 1) : 0);
+        state.secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count, found: false });
+        return;
+      }
       const chance = Math.min(RULES.secretChanceMax, RULES.secretChancePerElement * roomElements(state.map, state.torches, room));
       if (chance <= 0 || !rng.chance(chance)) return;
       for (let attempt = 0; attempt < 20; attempt++) {
@@ -2310,6 +2518,7 @@
         if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
         const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
+        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed) : { furniture: [], themes: [] };
         state = {
           map: floor.map,
           start: floor.start,
@@ -2332,7 +2541,9 @@
           rested: false,
           secrets: [],
           traps: [],
-          searched: /* @__PURE__ */ new Set()
+          searched: /* @__PURE__ */ new Set(),
+          furniture: furnished.furniture,
+          themes: furnished.themes
         };
         this.floors.set(depth, state);
       }
@@ -2429,9 +2640,9 @@
     respawn() {
       const state = this.current;
       if (this.turn < state.nextRespawn) return;
-      const agitated = state.alarmStage >= 1;
-      state.nextRespawn = this.turn + (agitated ? RULES.agitatedRespawnTurns : RULES.respawnTurns);
-      const cap = state.population + (agitated ? RULES.agitatedExtraPopulation : 0);
+      const stage = Math.min(state.alarmStage, 2);
+      state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
+      const cap = state.population + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
       if (this.monsters.length >= cap || this.rooms.length === 0) return;
       const spawns = spawnsForDepth(this.depth);
       let pick = this.rng.next() * spawns.entries.reduce((sum, e) => sum + e.weight, 0);
@@ -2446,8 +2657,8 @@
         return;
       }
     }
-    // ---------- Tocsin ----------
-    /** Alerte de l'étage courant (0 à 100) et palier (0 calme, 1 agité, 2 alerte, 3 hallali). */
+    // ---------- Niveau d'alerte (ex-« Tocsin ») ----------
+    /** Alerte de l'étage courant (0 à 100) et palier (0 calme, 1 agité, 2 alerte, 3 traque). */
     alarm() {
       return { level: this.current.alarm, stage: this.current.alarmStage };
     }
@@ -2463,7 +2674,7 @@
         if (state.alarmStage === 1) state.nextRespawn = Math.min(state.nextRespawn, this.turn + 1);
         if (state.alarmStage === 2) this.sendTrackers(RULES.trackersAlert);
         if (state.alarmStage === 3) {
-          this.sendTrackers(RULES.trackersHallali);
+          this.sendTrackers(RULES.trackersHunt);
           for (const m of this.monsters) {
             m.alerted = true;
             m.asleep = false;
@@ -2550,6 +2761,14 @@
       for (const s of plan.secrets) state.secrets.push({ ...s, found: false });
       for (const t of plan.traps) state.traps.push({ ...t });
     }
+    /** Le meuble posé sur cette case (pour le dessin), ou `null`. */
+    furnitureAt(x, y) {
+      return this.current.furniture.find((f) => f.x === x && f.y === y) ?? null;
+    }
+    /** Le thème de la salle (salle de fouille), ou `null`. */
+    roomTheme(index) {
+      return this.current.themes.find((t) => t.room === index)?.id ?? null;
+    }
     /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
     roomElements(room) {
       return roomElements(this.map, this.torches, room);
@@ -2601,7 +2820,9 @@
         rested: f.rested,
         secrets: f.secrets,
         traps: f.traps,
-        searched: [...f.searched]
+        searched: [...f.searched],
+        furniture: f.furniture,
+        themes: f.themes
       }));
       return clone({
         version: SAVE_VERSION,
@@ -2675,7 +2896,9 @@
           rested: f.rested,
           secrets: f.secrets,
           traps: f.traps,
-          searched: new Set(f.searched)
+          searched: new Set(f.searched),
+          furniture: f.furniture ?? [],
+          themes: f.themes ?? []
         });
       }
       game2.turn = saved.turn;
@@ -6973,6 +7196,227 @@
     return buildIcon(UI_ICONS[name]);
   }
 
+  // src/render/sprites/furniture.ts
+  var FURNITURE_PALETTE = { "K": "#120d08", "W": "#f4f7ff", "S": "#c3cbe0", "D": "#7f88a6", "G": "#f0c050", "g": "#a87c1c", "B": "#9a6a34", "b": "#5a3817", "R": "#d03a44", "r": "#8e1f28", "L": "#e6dcc0", "C": "#6e7594", "c": "#a4abc8", "T": "#b9824a", "t": "#7a5230", "P": "#7a5aa0", "p": "#4a3266", "H": "#3a4058", "U": "#4a8fd0", "u": "#2a5a94", "V": "#9fd0f4", "E": "#5cc860", "e": "#2e7a38", "O": "#e8782a", "Y": "#ffe27a", "A": "#b8e05a", "a": "#5e8a2a", "n": "#3c2814", "Q": "#b48ce0", "J": "#8ef0a0", "Z": "#d8c8a0", "z": "#a08c64", "X": "#ff9a3a", "x": "#c03a1a", "F": "#ffd84a", "f": "#c89a14", "I": "#6ad0ff", "i": "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50" };
+  var FURNITURE = {
+    tonneau: [
+      ".....KKKKKK.....",
+      "....KtTTTTtK....",
+      "...KtBbBBbBtK...",
+      "..KtBbBBbBBbtK..",
+      "..KTBbBBbBBbTK..",
+      "..KDDDDDDDDDDK..",
+      "..KTBBbBBbBBTK..",
+      "..KTBBbBBbBBTK..",
+      "..KTBBbBBbBBTK..",
+      "..KTBBbBBbBBTK..",
+      "..KDDDDDDDDDDK..",
+      "..KTBBbBBbBBTK..",
+      "...KtBbBBbBtK...",
+      "....KttttttK....",
+      ".....KKKKKK.....",
+      "................"
+    ],
+    caisse: [
+      "................",
+      "..KKKKKKKKKKKK..",
+      ".KTTTTTTTTTTTTK.",
+      ".KTBBBBBBBBBBtK.",
+      ".KTBtBBBBBBtBtK.",
+      ".KTBBtBBBBtBBtK.",
+      ".KTBBBtBBtBBBtK.",
+      ".KTBBBBttBBBBtK.",
+      ".KTBBBtBBtBBBtK.",
+      ".KTBBtBBBBtBBtK.",
+      ".KTBtBBBBBBtBtK.",
+      ".KTBBBBBBBBBBtK.",
+      ".KttttttttttttK.",
+      "..KKKKKKKKKKKK..",
+      "................",
+      "................"
+    ],
+    sac_grain: [
+      "................",
+      "......KKK.......",
+      ".....KzLzK......",
+      "....KzZZZzK.....",
+      "...KZZZZZZzK....",
+      "..KZZGZZZZZzK...",
+      "..KZZZZGZZZzK...",
+      ".KZZZZZZZZZZzK..",
+      ".KZZZZZZZZZZzK..",
+      ".KZzZZZZZZZzzK..",
+      "..KZZZZZZZZzKGK.",
+      "...KzzzzzzzKGKGK",
+      "....KKKKKKK.K.K.",
+      "................",
+      "................",
+      "................"
+    ],
+    os: [
+      "................",
+      ".....KKKKKK.....",
+      "....KWWWWWWK....",
+      "...KWSSSSSSWK...",
+      "..KWSSSSSSSSWK..",
+      "..KWSKKSSKKSWK..",
+      "..KWSKKSSKKSWK..",
+      "...KWSSKKSSWK...",
+      "..KKKWSSSSWKKK..",
+      ".KWWKWLSLSWKWWK.",
+      ".KWSSWWWWWWSSWK.",
+      "..KWSSSSSSSSWK..",
+      ".KWWKKKKKKKKWWK.",
+      "..KK........KK..",
+      "................",
+      "................"
+    ],
+    sarcophage: [
+      "....KKKKKKKK....",
+      "...KDDDDDDDDK...",
+      "..KDSSSSSSSSDK..",
+      "..KDScccccccDK..",
+      "..KDScSSSSScDK..",
+      "..KDScSccScDK...",
+      "..KDScSSSSScDK..",
+      "..KDScSccScDK...",
+      "..KDScSSSSScDK..",
+      "..KDScSSSSScDK..",
+      "..KDScccccccDK..",
+      "..KDSSSSSSSSDK..",
+      "...KDDDDDDDDK...",
+      "....KKKKKKKK....",
+      "................",
+      "................"
+    ],
+    etagere: [
+      "..KKKKKKKKKKKK..",
+      ".KTTTTTTTTTTTTK.",
+      ".KTRrUuEeRrPpTK.",
+      ".KTRrUuEeRrPpTK.",
+      ".KttttttttttttK.",
+      ".KTUuPpGgRrEeTK.",
+      ".KTUuPpGgRrEeTK.",
+      ".KttttttttttttK.",
+      ".KTEeRrKKUuGgTK.",
+      ".KTEeRrKKUuGgTK.",
+      ".KttttttttttttK.",
+      ".KTKKKKKKKKKKTK.",
+      "..K..........K..",
+      "................",
+      "................",
+      "................"
+    ],
+    pupitre: [
+      "................",
+      "....KKKKKKKK....",
+      "...KLLLLLLLLK...",
+      "..KLLLcLLcLLLK..",
+      "..KLcLLLLLcLLK..",
+      "..KLLLcLLLLLLK..",
+      "...KTTTTTTTTK...",
+      "....KKKBtKKK....",
+      "......KBtK......",
+      ".....KKBtKK.....",
+      "....KTTBtTTK....",
+      ".....KKKKKK.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    paillasse: [
+      "................",
+      "................",
+      "..KKKKKKKKKKKK..",
+      ".KZZZZZZZZZZZZK.",
+      ".KZLLLZZzZZzZzK.",
+      ".KZLLLZzZZzZZzK.",
+      ".KZZZZZZzZZzZzK.",
+      ".KZzZZzZZzZZZzK.",
+      ".KZZzZZzZZzZZzK.",
+      ".KzzzzzzzzzzzzK.",
+      "..KKKKKKKKKKKK..",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    malle: [
+      "................",
+      "...KKKKKKKKKK...",
+      "..KTTTTTTTTTTK..",
+      ".KTBBBBBBBBBBtK.",
+      ".KDDDDDDDDDDDDK.",
+      ".KTBBBBGGBBBBtK.",
+      ".KTBBBBGgBBBBtK.",
+      ".KTBBBBBBBBBBtK.",
+      ".KDDDDDDDDDDDDK.",
+      ".KTBBBBBBBBBBtK.",
+      ".KttttttttttttK.",
+      "..KKKKKKKKKKKK..",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    enclume: [
+      "................",
+      "................",
+      "..KKKKKKKKKK....",
+      ".KSSSSSSSSSSKKK.",
+      "KSDDDDDDDDDDSSSK",
+      ".KDDDDDDDDDDDDK.",
+      "..KKDDDDDDDKKK..",
+      "....KCCCCCK.....",
+      "....KCCCCCK.....",
+      "...KbBBBBBbK....",
+      "..KbBBBBBBBbK...",
+      "...KKKKKKKKK....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    etabli: [
+      "................",
+      ".KKKKKKKKKKKKKK.",
+      "KTTTTTTTTTTTTTTK",
+      "KTBBBBBBBBBBBBtK",
+      "KTBDDbKKSSBBBBtK",
+      "KTBDDbKKSSBBcBtK",
+      "KTBBBBBBBBBBBBtK",
+      "KttttttttttttttK",
+      "KTtKKKKKKKKKKTtK",
+      "KTtK........KTtK",
+      "KTtK........KTtK",
+      ".KK..........KK.",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    ratelier: [
+      "...K...K...K....",
+      "..KWK.KWK.KSK...",
+      "..KWK.KWKKSWSK..",
+      "..KWK.KWK.KWK...",
+      "..KWKKKWKKKWKK..",
+      ".KTTTTTTTTTTTTK.",
+      "..KSKKKWKKKWKK..",
+      "..KSK.KWK.KWK...",
+      ".KbTbKbTbKKBK...",
+      "..KBKKKBKKKBKK..",
+      ".KTTTTTTTTTTTTK.",
+      ".KTKKKKKKKKKKTK.",
+      "..K..........K..",
+      "................",
+      "................",
+      "................"
+    ]
+  };
+
   // src/render/tiles.ts
   var COLORS = {
     background: "#0c0b12",
@@ -7291,7 +7735,13 @@
     drawFeature(game2, t, x, y, sx, sy) {
       const { ctx, tile } = this;
       const decor = t === Tile.StairsDown ? DECOR.stairsDown : t === Tile.StairsUp ? DECOR.stairsUp : t === Tile.Chest ? DECOR.chest : t === Tile.ChestOpen ? DECOR.chestOpen : null;
-      if (decor) {
+      const furniture = t === Tile.Furniture ? FURNITURE[game2.furnitureAt(x, y)?.kind ?? ""] : void 0;
+      if (furniture) {
+        const smooth = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.sprite(furniture, FURNITURE_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+        ctx.imageSmoothingEnabled = smooth;
+      } else if (decor) {
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(this.sprite(decor, DECOR_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
@@ -8286,9 +8736,9 @@
       case "alarm":
         return [
           "",
-          "Au loin, une cloche sonne. Le donjon s'agite.",
-          "Le tocsin r\xE9sonne : des traqueurs sont l\xE2ch\xE9s sur votre piste !",
-          "Hallali ! Tout l'\xE9tage sait o\xF9 vous \xEAtes."
+          "Une cloche sonne : le donjon s'agite.",
+          "La cloche sonne encore : alerte.",
+          "Traque ! L'\xE9tage sait o\xF9 vous \xEAtes."
         ][e.stage] ?? null;
       case "dropped":
         return `Vous jetez : ${ITEMS[e.item].name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`;
@@ -8628,10 +9078,10 @@
         sfx.play("kill");
       }
     } else if (e.type === "noise") {
-      renderer.addNoise(e.x, e.y, e.points);
+      if (e.points >= RULES.alarmBreak) renderer.addNoise(e.x, e.y, e.points);
     } else if (e.type === "alarm") {
       for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
-      renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Tocsin !", "Hallali !"][e.stage] ?? "", "#ff8a7a");
+      renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Agit\xE9", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
     } else if (e.type === "fire") {
       renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
       sfx.play("break");
@@ -8851,7 +9301,7 @@
     const hero = renderer.tileCenter(game.hero.x, game.hero.y);
     const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
     const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
-    const withSkill = game.voie === "blue" || game.voie === "red";
+    const withSkill = false;
     $("wheel-skill").hidden = !withSkill;
     if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
     const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
@@ -9227,6 +9677,33 @@
     renderLog();
     renderHeroScreen();
   });
+  var powerShown = "";
+  function powerCharges() {
+    if (game.voie === "blue") return game.perks().secondWind ? 0 : 1;
+    if (game.voie === "red") return game.perks().doubleStrikes;
+    return 0;
+  }
+  function renderPower() {
+    const b = $("power");
+    const withPower = (game.voie === "blue" || game.voie === "red") && !game.over;
+    const ready = withPower && game.skillRefusal() === null;
+    const key = `${withPower}|${game.voie}|${powerCharges()}|${ready}`;
+    if (key === powerShown) return;
+    powerShown = key;
+    b.hidden = !withPower;
+    if (!withPower || !game.voie) return;
+    const name = game.voie === "blue" ? "Second souffle" : "Double frappe";
+    b.setAttribute("aria-label", name);
+    b.title = name;
+    b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(`\xD7${powerCharges()}`));
+    b.classList.toggle("off", !ready);
+  }
+  button("power", () => {
+    const refusal = game.skillRefusal();
+    if (refusal) logLines.push(REFUSALS.skill[refusal]);
+    else if (game.useSkill()) stepMs = COMBAT_STEP_MS;
+    renderLog();
+  });
   button("open-bag", () => {
     bagOpen = true;
     selected = null;
@@ -9268,12 +9745,12 @@
     if (game.skills.includes("dernier_rempart") && !game.perks().lastStand) list.push({ id: "rempart", name: "Dernier rempart", detail: "Pr\xEAt : un coup qui vous tuerait vous laissera \xE0 1 PV (une fois par \xE9tage)." });
     return list;
   }
-  var ALARM_NAMES = ["calme", "agit\xE9", "alerte", "hallali"];
+  var ALARM_NAMES = ["calme", "agit\xE9", "alerte", "traque"];
   var ALARM_DETAILS = [
-    "Le donjon dort encore. \xC0 25, il s'agite.",
-    "Plus de promeneurs. \xC0 50, des traqueurs sont l\xE2ch\xE9s.",
-    "Des traqueurs vous cherchent. \xC0 75, tout l'\xE9tage sera sur vous.",
-    "Tout l'\xE9tage sait o\xF9 vous \xEAtes. Descendez !"
+    "Le temps et le bruit la font monter.",
+    "Des renforts arrivent.",
+    "Les renforts arrivent plus vite.",
+    "L'\xE9tage sait o\xF9 vous \xEAtes."
   ];
   var alarmShown = "";
   function renderAlarm() {
@@ -9316,7 +9793,7 @@
       const { level, stage } = game.alarm();
       pop.hidden = false;
       pop.classList.add("right");
-      pop.replaceChildren(el("b", "", `Tocsin : ${ALARM_NAMES[stage]}`), document.createTextNode(`${level} / 100. ${ALARM_DETAILS[stage]} Le bruit (portes enfonc\xE9es, combats) le fait monter.`));
+      pop.replaceChildren(el("b", "", `Niveau d'alerte ${level}/100`), document.createTextNode(`${ALARM_NAMES[stage][0].toUpperCase()}${ALARM_NAMES[stage].slice(1)} : ${ALARM_DETAILS[stage].replace(/^./, (c) => c.toLowerCase())}`));
       return;
     }
     pop.classList.remove("right");
@@ -9762,6 +10239,7 @@
       aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(`\xD7${game.arrows()}`));
     }
     aim.classList.toggle("active", aimMode);
+    renderPower();
     requestAnimationFrame(frame);
   }
   savedRun = readSave();

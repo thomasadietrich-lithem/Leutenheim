@@ -6,6 +6,7 @@ import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
+import { RULES } from "./data/rules";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
@@ -382,11 +383,12 @@ function reveal(e: GameEvent): void {
       sfx.play("kill");
     }
   } else if (e.type === "noise") {
-    renderer.addNoise(e.x, e.y, e.points);
+    // Seulement les gros bruits (porte enfoncée) : pas d'ondes à chaque coup (Thomas, 2026-11-11).
+    if (e.points >= RULES.alarmBreak) renderer.addNoise(e.x, e.y, e.points);
   } else if (e.type === "alarm") {
-    // Le tocsin sonne une fois par palier atteint (une, deux, trois fois).
+    // La cloche d'alerte sonne une fois par palier atteint (une, deux, trois fois).
     for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
-    renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Tocsin !", "Hallali !"][e.stage] ?? "", "#ff8a7a");
+    renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Agité", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
   } else if (e.type === "fire") {
     renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
     sfx.play("break");
@@ -625,8 +627,8 @@ function openWheel(): void {
   const hero = renderer.tileCenter(game.hero.x, game.hero.y);
   const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
   const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
-  // La compétence de voie (bleue, rouge) a son bouton dans la couronne ; la verte change « pousser ».
-  const withSkill = game.voie === "blue" || game.voie === "red";
+  // Le pouvoir de la voie (bleue, rouge) a désormais son propre bouton dans la barre du bas (Thomas, 2026-11-11).
+  const withSkill = false;
   $("wheel-skill").hidden = !withSkill;
   if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
   const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
@@ -1052,6 +1054,35 @@ button("bag-equip", () => {
   renderLog();
   renderHeroScreen();
 });
+// ---------- Bouton du pouvoir (voie bleue ou rouge) : picto de la voie et charges restantes, grisé sinon ----------
+let powerShown = "";
+function powerCharges(): number {
+  if (game.voie === "blue") return game.perks().secondWind ? 0 : 1;
+  if (game.voie === "red") return game.perks().doubleStrikes;
+  return 0;
+}
+function renderPower(): void {
+  const b = $("power");
+  const withPower = (game.voie === "blue" || game.voie === "red") && !game.over;
+  const ready = withPower && game.skillRefusal() === null;
+  const key = `${withPower}|${game.voie}|${powerCharges()}|${ready}`;
+  if (key === powerShown) return;
+  powerShown = key;
+  b.hidden = !withPower;
+  if (!withPower || !game.voie) return;
+  const name = game.voie === "blue" ? "Second souffle" : "Double frappe";
+  b.setAttribute("aria-label", name);
+  b.title = name;
+  b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(`×${powerCharges()}`));
+  b.classList.toggle("off", !ready);
+}
+button("power", () => {
+  const refusal = game.skillRefusal();
+  if (refusal) logLines.push(REFUSALS.skill[refusal]);
+  else if (game.useSkill()) stepMs = COMBAT_STEP_MS;
+  renderLog();
+});
+
 button("open-bag", () => {
   bagOpen = true;
   selected = null;
@@ -1099,14 +1130,14 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   return list;
 }
 
-// ---------- Tocsin : la cloche à côté de l'étage, couleur du palier, barre qui se remplit ----------
+// ---------- Niveau d'alerte : la cloche à côté de l'étage, couleur du palier, barre qui se remplit ----------
 
-const ALARM_NAMES = ["calme", "agité", "alerte", "hallali"];
+const ALARM_NAMES = ["calme", "agité", "alerte", "traque"];
 const ALARM_DETAILS = [
-  "Le donjon dort encore. À 25, il s'agite.",
-  "Plus de promeneurs. À 50, des traqueurs sont lâchés.",
-  "Des traqueurs vous cherchent. À 75, tout l'étage sera sur vous.",
-  "Tout l'étage sait où vous êtes. Descendez !",
+  "Le temps et le bruit la font monter.",
+  "Des renforts arrivent.",
+  "Les renforts arrivent plus vite.",
+  "L'étage sait où vous êtes.",
 ];
 let alarmShown = "";
 function renderAlarm(): void {
@@ -1147,11 +1178,11 @@ function renderHeroStatus(): void {
   );
   const pop = $("status-pop");
   if (statusOpen === "tocsin") {
-    // Le détail du Tocsin s'ouvre sous la cloche, à droite.
+    // Le détail du niveau d'alerte s'ouvre sous la cloche, à droite.
     const { level, stage } = game.alarm();
     pop.hidden = false;
     pop.classList.add("right");
-    pop.replaceChildren(el("b", "", `Tocsin : ${ALARM_NAMES[stage]}`), document.createTextNode(`${level} / 100. ${ALARM_DETAILS[stage]} Le bruit (portes enfoncées, combats) le fait monter.`));
+    pop.replaceChildren(el("b", "", `Niveau d'alerte ${level}/100`), document.createTextNode(`${ALARM_NAMES[stage][0].toUpperCase()}${ALARM_NAMES[stage].slice(1)} : ${ALARM_DETAILS[stage].replace(/^./, (c) => c.toLowerCase())}`));
     return;
   }
   pop.classList.remove("right");
@@ -1671,6 +1702,7 @@ function frame(now: number): void {
     aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(`×${game.arrows()}`));
   }
   aim.classList.toggle("active", aimMode);
+  renderPower();
   requestAnimationFrame(frame);
 }
 

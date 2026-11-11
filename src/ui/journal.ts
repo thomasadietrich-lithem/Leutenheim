@@ -128,9 +128,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "alarm":
       return [
         "",
-        "Au loin, une cloche sonne. Le donjon s'agite.",
-        "Le tocsin résonne : des traqueurs sont lâchés sur votre piste !",
-        "Hallali ! Tout l'étage sait où vous êtes.",
+        "Une cloche sonne : le donjon s'agite.",
+        "La cloche sonne encore : alerte.",
+        "Traque ! L'étage sait où vous êtes.",
       ][e.stage] ?? null;
     case "dropped":
       return `Vous jetez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`;

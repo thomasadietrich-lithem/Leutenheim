@@ -10,6 +10,7 @@ import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
+import { furnishFloor, Furniture } from "../world/furnish";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
 import { rollAttack } from "./combat";
@@ -183,6 +184,12 @@ export class Game {
       const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
+      // Salles de fouille : à la main en salle d'essai ; dans le donjon, seulement quand le mobilier sera validé.
+      const furnished = sandboxFloor
+        ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes }
+        : RULES.themedRoomsInDungeon
+          ? furnishFloor(floor, seed)
+          : { furniture: [], themes: [] };
       state = {
         map: floor.map,
         start: floor.start,
@@ -205,6 +212,8 @@ export class Game {
         secrets: [],
         traps: [],
         searched: new Set<number>(),
+        furniture: furnished.furniture,
+        themes: furnished.themes,
       };
       this.floors.set(depth, state);
     }
@@ -307,10 +316,10 @@ export class Game {
   private respawn(): void {
     const state = this.current;
     if (this.turn < state.nextRespawn) return;
-    // Tocsin « agité » et plus : les promeneurs arrivent deux fois plus vite, et plus nombreux.
-    const agitated = state.alarmStage >= 1;
-    state.nextRespawn = this.turn + (agitated ? RULES.agitatedRespawnTurns : RULES.respawnTurns);
-    const cap = state.population + (agitated ? RULES.agitatedExtraPopulation : 0);
+    // Agité, puis alerte : les promeneurs arrivent un peu plus vite, et un peu plus nombreux (en douceur, Thomas 2026-11-11).
+    const stage = Math.min(state.alarmStage, 2);
+    state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
+    const cap = state.population + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
     if (this.monsters.length >= cap || this.rooms.length === 0) return;
     const spawns = spawnsForDepth(this.depth);
     let pick = this.rng.next() * spawns.entries.reduce((sum, e) => sum + e.weight, 0);
@@ -329,9 +338,9 @@ export class Game {
 
 
 
-  // ---------- Tocsin ----------
+  // ---------- Niveau d'alerte (ex-« Tocsin ») ----------
 
-  /** Alerte de l'étage courant (0 à 100) et palier (0 calme, 1 agité, 2 alerte, 3 hallali). */
+  /** Alerte de l'étage courant (0 à 100) et palier (0 calme, 1 agité, 2 alerte, 3 traque). */
   alarm(): { level: number; stage: number } {
     return { level: this.current.alarm, stage: this.current.alarmStage };
   }
@@ -347,10 +356,11 @@ export class Game {
       state.alarmStage++;
       this.events.push({ type: "alarm", stage: state.alarmStage });
       if (state.alarmStage === 1) state.nextRespawn = Math.min(state.nextRespawn, this.turn + 1);
+      // Alerte : seulement des renforts un peu plus fréquents (voir `respawn`). Traqueurs à 0 pour l'instant.
       if (state.alarmStage === 2) this.sendTrackers(RULES.trackersAlert);
       if (state.alarmStage === 3) {
-        // Hallali : de nouveaux traqueurs, et tout l'étage sait où est le héros.
-        this.sendTrackers(RULES.trackersHallali);
+        // Traque : tout l'étage sait où est le héros (traqueurs à 0 pour l'instant).
+        this.sendTrackers(RULES.trackersHunt);
         for (const m of this.monsters) {
           m.alerted = true;
           m.asleep = false;
@@ -453,6 +463,16 @@ export class Game {
   }
 
 
+  /** Le meuble posé sur cette case (pour le dessin), ou `null`. */
+  furnitureAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.x === x && f.y === y) ?? null;
+  }
+
+  /** Le thème de la salle (salle de fouille), ou `null`. */
+  roomTheme(index: number): string | null {
+    return this.current.themes.find((t) => t.room === index)?.id ?? null;
+  }
+
   /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
   roomElements(room: Room): number {
     return roomElements(this.map, this.torches, room);
@@ -509,6 +529,8 @@ export class Game {
       secrets: f.secrets,
       traps: f.traps,
       searched: [...f.searched],
+      furniture: f.furniture,
+      themes: f.themes,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -583,6 +605,8 @@ export class Game {
         secrets: f.secrets,
         traps: f.traps,
         searched: new Set(f.searched),
+        furniture: f.furniture ?? [],
+        themes: f.themes ?? [],
       });
     }
     game.turn = saved.turn;

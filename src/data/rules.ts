@@ -51,6 +51,14 @@ export const RULES = {
   secretGoldPerDepth: 2,
   secretArrowsMin: 2,
   secretArrowsMax: 5,
+  /** Salles de fouille (mobilier v1) : seulement en salle d'essai tant que les dessins ne sont pas validés. */
+  themedRoomsInDungeon: false,
+  /** Chance qu'une salle ordinaire assez grande (5 × 5) devienne une salle de fouille, et nombre de meubles. */
+  themedRoomChance: 0.3,
+  themedFurnitureMin: 2,
+  themedFurnitureMax: 4,
+  /** Chance qu'une salle de fouille cache quelque chose (au pied d'un meuble, butin du thème). */
+  themedSecretChance: 0.75,
   /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
   pushDc: 10,
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -123,21 +131,24 @@ export const RULES = {
   fireTurns: 5,
   /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
   burnAfter: 2,
-  // ---- Tocsin (2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
+  // ---- Niveau d'alerte (ex-« Tocsin », 2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
   /** L'alerte monte d'un point tous les tant de tours passés sur l'étage. */
   alarmTurnsPerPoint: 12,
   /** Bruit : porte enfoncée (réussie ou non), chaque coup échangé, un monstre qui remarque le héros. */
   alarmBreak: 15,
   alarmCombat: 1,
   alarmNoticed: 3,
-  /** Seuils des paliers : agité, alerte, hallali (sur 100). */
+  /** Seuils des paliers : agité, alerte, traque (sur 100). */
   alarmStages: [25, 50, 75],
   /** Agité : un promeneur arrive tous les tant de tours, et l'étage peut compter tant de monstres de plus. */
-  agitatedRespawnTurns: 20,
-  agitatedExtraPopulation: 2,
-  /** Alerte et hallali : traqueurs qui arrivent par l'entrée de l'étage et foncent sur le héros. */
-  trackersAlert: 2,
-  trackersHallali: 3,
+  agitatedRespawnTurns: 30,
+  agitatedExtraPopulation: 1,
+  /** Alerte : un promeneur tous les tant de tours, et tant de monstres de plus (Thomas : « trop de mobs » à 50). */
+  alertRespawnTurns: 20,
+  alertExtraPopulation: 2,
+  /** Traqueurs (arrivent par l'entrée de l'étage) : mis de côté par Thomas le 2026-11-11, à 0 pour l'instant. */
+  trackersAlert: 0,
+  trackersHunt: 0,
   /** Taches de sang gardées par étage, au plus. */
   bloodMax: 150,
   fireDamage: { count: 1, sides: 4, bonus: 0 },

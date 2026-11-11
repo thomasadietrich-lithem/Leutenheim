@@ -16,6 +16,8 @@ export const Tile = {
   ChestOpen: 9,
   Pillar: 10,
   StairsUp: 11,
+  /** Meuble d'une salle de fouille : on ne le traverse pas, mais il ne cache pas la vue. */
+  Furniture: 12,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -62,7 +64,7 @@ export class GameMap {
   /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
   isWalkable(x: number, y: number): boolean {
     const t = this.get(x, y);
-    return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar;
+    return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar && t !== Tile.Furniture;
   }
 
   /** Bloque la vue et la lumière : murs et portes non ouvertes. */

@@ -4,6 +4,8 @@ import { GOLD_SIZE, goldRange, LOOT, RARITY_ODDS, sectionOf } from "../data/loot
 import { Actor } from "../entities/actor";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
+import { Furniture, RoomTheme } from "../world/furnish";
+import { THEMED_ROOMS } from "../data/themedRooms";
 import { GameMap, Point, Tile } from "../world/map";
 import { Rng } from "./rng";
 
@@ -30,7 +32,7 @@ export interface FloorState {
   /** Repeuplement : nombre de monstres à l'origine, et tour du prochain renfort possible. */
   population: number;
   nextRespawn: number;
-  /** Tocsin : alerte de l'étage (0 à 100) et palier atteint (0 calme, 1 agité, 2 alerte, 3 hallali). */
+  /** Niveau d'alerte de l'étage (0 à 100) et palier atteint (0 calme, 1 agité, 2 alerte, 3 traque). */
   alarm: number;
   alarmStage: number;
   /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
@@ -40,6 +42,9 @@ export interface FloorState {
   searched: Set<number>;
   /** Pièges de l'étage (visibles pour l'instant) : ils restent armés. */
   traps: Point[];
+  /** Meubles des salles de fouille, et thème de ces salles. */
+  furniture: Furniture[];
+  themes: RoomTheme[];
 }
 
 /** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */
@@ -85,13 +90,17 @@ export interface GroundItem {
 /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
 export function roomElements(map: GameMap, torches: readonly LightSource[], room: Room): number {
   let pillars = false;
+  let furniture = false;
   for (let y = room.y; y < room.y + room.h; y++) {
-    for (let x = room.x; x < room.x + room.w; x++) if (map.get(x, y) === Tile.Pillar) pillars = true;
+    for (let x = room.x; x < room.x + room.w; x++) {
+      if (map.get(x, y) === Tile.Pillar) pillars = true;
+      if (map.get(x, y) === Tile.Furniture) furniture = true;
+    }
   }
   const hearth = torches.some(
     (t) => t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h,
   );
-  return (pillars ? 1 : 0) + (hearth ? 1 : 0);
+  return (pillars ? 1 : 0) + (hearth ? 1 : 0) + (furniture ? 1 : 0);
 }
 
 /** Enfouit des caches dans les salles garnies : une salle vide n'en a jamais. Hasard à part, pour ne rien changer au reste. */
@@ -99,6 +108,26 @@ export function placeSecrets(state: FloorState, depth: number, seed: number): vo
   const rng = new Rng(seed ^ 0x2c1b3c6d);
   state.rooms.forEach((room, index) => {
     if (index === 0) return; // salle de départ
+    const theme = THEMED_ROOMS.find((t) => state.themes.some((th) => th.room === index && th.id === t.id));
+    if (theme) {
+      // Salle de fouille : la cache est au pied d'un meuble, et son butin suit le thème.
+      if (!rng.chance(RULES.themedSecretChance)) return;
+      const spots: Point[] = [];
+      for (const f of state.furniture) {
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const x = f.x + dx;
+          const y = f.y + dy;
+          if (x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h && state.map.get(x, y) === Tile.Floor) spots.push({ x, y });
+        }
+      }
+      if (spots.length === 0) return;
+      const spot = spots[rng.int(0, spots.length - 1)];
+      let pick = rng.next() * theme.loot.reduce((sum, l) => sum + l.weight, 0);
+      const loot = theme.loot.find((l) => (pick -= l.weight) < 0) ?? theme.loot[0];
+      const count = rng.int(loot.min, loot.max) + (loot.item === "or" ? RULES.secretGoldPerDepth * (depth - 1) : 0);
+      state.secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count, found: false });
+      return;
+    }
     const chance = Math.min(RULES.secretChanceMax, RULES.secretChancePerElement * roomElements(state.map, state.torches, room));
     if (chance <= 0 || !rng.chance(chance)) return;
     for (let attempt = 0; attempt < 20; attempt++) {

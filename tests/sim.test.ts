@@ -9,9 +9,11 @@ import { DEFAULT_FLOOR } from "../src/data/floors";
 import { spawnsForDepth } from "../src/data/monsters";
 import { Inventory } from "../src/items/inventory";
 import { generateFloor } from "../src/world/generator";
-import { Tile } from "../src/world/map";
+import { GameMap, Tile } from "../src/world/map";
 import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath } from "../src/world/pathfinding";
+import { furnishFloor } from "../src/world/furnish";
+import { THEMED_ROOMS } from "../src/data/themedRooms";
 
 const FLOORS = 1000;
 
@@ -995,9 +997,9 @@ test("repeuplement : un étage vidé retrouve des promeneurs, sans dépasser sa 
   for (let t = 0; t < RULES.respawnTurns * (original + 3); t++) {
     game.wait();
     game.tick();
-    // Hors tocsin, jamais plus qu'à l'origine ; tocsin « agité » : 2 de plus ; ensuite viennent les traqueurs.
-    if (game.alarm().stage >= 2) break;
-    const cap = original + (game.alarm().stage >= 1 ? RULES.agitatedExtraPopulation : 0);
+    // Calme : jamais plus qu'à l'origine ; agité : 1 de plus ; alerte et traque : 2 de plus.
+    const stage = Math.min(game.alarm().stage, 2);
+    const cap = original + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
     assert.ok(game.monsters.length <= cap, "jamais plus de monstres que permis");
   }
 });
@@ -1655,6 +1657,7 @@ test("sauvegarde : une partie reprise continue exactement comme la partie d'orig
       // Les ordres en cours ne sont pas sauvegardés : on repart des deux côtés sans ordre.
       original.path = [];
       copy.path = [];
+      original.pendingStairs = null;
       assert.equal(fingerprint(copy), fingerprint(original), `graine ${seed} : la partie reprise diffère`);
       for (let i = 0; i < 80 && !original.over; i++) {
         autoStep(original);
@@ -2093,7 +2096,7 @@ test("sang : un coup qui porte laisse une tache (verte pour un Schrat) ; le feu 
   assert.equal(burns, 2);
 });
 
-test("Tocsin : l'alerte monte avec le temps et le bruit ; paliers agité, alerte (traqueurs), hallali (tout l'étage)", () => {
+test("Niveau d'alerte : monte avec le temps et le bruit ; paliers agité, alerte, traque (tout l'étage)", () => {
   const game = new Game(7);
   assert.deepEqual(game.alarm(), { level: 0, stage: 0 });
   game.monsters.splice(0);
@@ -2109,9 +2112,7 @@ test("Tocsin : l'alerte monte avec le temps et le bruit ; paliers agité, alerte
   const before = game.monsters.length;
   game.raiseAlarm(25);
   assert.equal(game.alarm().stage, 2);
-  const trackers = game.monsters.length - before;
-  assert.ok(trackers >= 1 && trackers <= RULES.trackersAlert, `traqueurs : ${trackers}`);
-  assert.ok(game.monsters.every((m) => m.alerted), "les traqueurs foncent sur le héros");
+  assert.equal(game.monsters.length, before, "pas de traqueurs pour l'instant");
   game.raiseAlarm(100);
   assert.equal(game.alarm().stage, 3);
   assert.equal(game.alarm().level, 100);
@@ -2120,9 +2121,63 @@ test("Tocsin : l'alerte monte avec le temps et le bruit ; paliers agité, alerte
   assert.equal(copy.alarm().stage, 3);
 });
 
-test("Tocsin : enfoncer une porte fait plus de bruit que la crocheter", () => {
+test("Niveau d'alerte : enfoncer une porte fait plus de bruit que la crocheter", () => {
   const broken = openLockedDoor("break");
   const picked = openLockedDoor("pick");
   assert.ok(broken.game.alarm().level >= RULES.alarmBreak, `porte enfoncée : ${broken.game.alarm().level}`);
   assert.ok(picked.game.alarm().level < RULES.alarmBreak, `porte crochetée : ${picked.game.alarm().level}`);
+});
+
+// ---------- Salles de fouille (mobilier v1), déplacement en diagonale (2026-11-11) ----------
+
+test("salles de fouille : cinq salles meublées en salle d'essai, meubles infranchissables mais transparents, caches au pied", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const themes = THEMED_ROOMS.map((t) => t.id);
+  for (let i = 4; i < 4 + themes.length; i++) assert.equal(game.roomTheme(i), themes[i - 4]);
+  let pieces = 0;
+  for (let y = 0; y < game.map.height; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      if (game.map.get(x, y) !== Tile.Furniture) continue;
+      pieces++;
+      assert.ok(game.furnitureAt(x, y), "chaque meuble a son dessin");
+      assert.equal(game.map.isWalkable(x, y), false);
+      assert.equal(game.map.blocksSight(x, y), false);
+    }
+  }
+  assert.ok(pieces >= 2 * themes.length, `meubles : ${pieces}`);
+  // Tout le sol reste atteignable depuis le départ (hors salles verrouillées).
+  const dist = distanceField(game.map, game.hero, (x, y) => game.map.get(x, y) !== Tile.DoorLocked);
+  for (let y = 0; y < game.map.height; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      const inSpecial = x <= 12 && y >= 13 && y <= 17;
+      if (game.map.get(x, y) === Tile.Floor && !inSpecial) assert.ok(dist[game.map.index(x, y)] >= 0, `case ${x},${y} coupée`);
+    }
+  }
+});
+
+test("salles de fouille dans le donjon : jamais de passage coupé, cache au pied d'un meuble avec le butin du thème", () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const floor = generateFloor(seed, DEFAULT_FLOOR);
+    const before = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
+    const { furniture, themes } = furnishFloor(floor, seed);
+    const after = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
+    assert.equal(after, before - furniture.length, `graine ${seed} : un meuble coupe un passage`);
+    for (const t of themes) assert.ok(furniture.some((f) => { const r = floor.rooms[t.room]; return f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h; }));
+  }
+});
+
+test("diagonale : on longe un mur ou une porte en coupant le coin, mais on ne se faufile pas entre deux coins", () => {
+  const map = new GameMap(5, 5);
+  for (let y = 1; y <= 3; y++) for (let x = 1; x <= 3; x++) map.set(x, y, Tile.Floor);
+  map.set(2, 1, Tile.Wall);
+  assert.ok(canStep(map, 1, 2, 1, -1) === false, "case d'arrivée bouchée");
+  assert.ok(canStep(map, 1, 1, 1, 1), "coin de mur : on passe");
+  map.set(2, 2, Tile.Wall);
+  map.set(1, 3, Tile.Floor);
+  assert.ok(canStep(map, 1, 2, 1, 1), "un côté libre");
+  map.set(1, 3, Tile.Wall);
+  map.set(2, 3, Tile.Floor);
+  map.set(3, 3, Tile.Floor);
+  // De (1,2) vers (2,3) : (2,2) mur et (1,3) mur → on ne se faufile pas.
+  assert.equal(canStep(map, 1, 2, 1, 1), false);
 });

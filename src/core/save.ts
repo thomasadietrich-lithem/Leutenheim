@@ -1,3 +1,4 @@
+import { Furniture, RoomTheme } from "../world/furnish";
 import { Actor } from "../entities/actor";
 import { BagItem } from "../items/inventory";
 import { Slot } from "../data/items";
@@ -39,6 +40,8 @@ export interface SavedFloor {
   secrets: Secret[];
   traps: Point[];
   searched: number[];
+  furniture?: Furniture[];
+  themes?: RoomTheme[];
 }
 
 export interface SaveData {

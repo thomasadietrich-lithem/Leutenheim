@@ -297,7 +297,16 @@ function playRun(seed: number, maxTurns: number): Game {
 
 test("300 parties jouées par un joueur automatique, sans incohérence", () => {
   const depths: number[] = [];
-  for (let seed = 1; seed <= 300; seed++) depths.push(playRun(seed, 3000).depth);
+  const levelAt = new Map<number, number[]>();
+  for (let seed = 1; seed <= 300; seed++) {
+    const g = playRun(seed, 3000);
+    depths.push(g.depth);
+    if (!levelAt.has(g.deepest)) levelAt.set(g.deepest, []);
+    levelAt.get(g.deepest)!.push(g.level);
+  }
+  // Niveau du héros atteint selon l'étage le plus profond (utile pour régler les objets « Lv »).
+  const levels = [...levelAt.entries()].sort((a, b) => a[0] - b[0]).map(([d, l]) => `étage ${d} : niv ${(l.reduce((a, b) => a + b, 0) / l.length).toFixed(1)}`);
+  console.log(`Niveau du héros en fin de partie : ${levels.join(" ; ")}`);
   depths.sort((a, b) => a - b);
   const mean = depths.reduce((a, b) => a + b, 0) / depths.length;
   console.log(
@@ -1648,4 +1657,185 @@ test("sauvegarde : une partie reprise continue exactement comme la partie d'orig
 test("sauvegarde : une version inconnue est ignorée", () => {
   const data = new Game(3).snapshot();
   assert.equal(Game.restore({ ...data, version: 999 }), null);
+});
+
+// ---------- Objets du 2026-11-11 : torche, pomme, niveau requis, vitesse, allonge, poison, butin ----------
+
+function bagUid(game: Game, id: keyof typeof ITEMS): number {
+  const item = game.inventory.items.find((i) => i.defId === id);
+  assert.ok(item, `${id} absent du sac`);
+  return item.uid;
+}
+
+/** Un monstre alerté posé à `dist` cases à droite (ou ailleurs) du héros, sur une ligne libre ; très solide. */
+function foeAt(dist: number, maxSeed = 200): { game: Game; m: import("../src/entities/actor").Actor } {
+  for (let seed = 1; seed <= maxSeed; seed++) {
+    const game = new Game(seed);
+    const m = game.monsters[0];
+    if (!m) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      let ok = true;
+      for (let k = 1; k <= dist; k++) {
+        const x = game.hero.x + dx * k, y = game.hero.y + dy * k;
+        if (!game.map.isWalkable(x, y) || game.map.isDoor(x, y) || game.monsterAt(x, y) || game.isTrap(x, y)) ok = false;
+      }
+      if (!ok) continue;
+      m.x = m.fromX = game.hero.x + dx * dist;
+      m.y = m.fromY = game.hero.y + dy * dist;
+      m.alerted = true;
+      m.asleep = false;
+      m.hp = m.maxHp = 999;
+      for (const other of [...game.monsters]) if (other !== m) game.monsters.splice(game.monsters.indexOf(other), 1);
+      game.tick(); // met la vue à jour (le héros passe un tour)
+      if (!game.isVisible(m.x, m.y)) continue;
+      return { game, m };
+    }
+  }
+  throw new Error("aucune position trouvée");
+}
+
+test("torche : 100 tours de lumière autour du héros ; on ne peut pas se cacher avec", () => {
+  const game = new Game(7);
+  game.inventory.add("torche", 1);
+  assert.ok(game.useItem(bagUid(game, "torche")));
+  game.tick();
+  assert.equal(game.inventory.count("torche"), 0);
+  assert.ok(game.torchTurns >= 98 && game.torchTurns <= 100);
+  assert.ok(game.heroInLight(), "le héros n'est pas éclairé");
+  assert.equal(game.hideRefusal() === "torch" || game.hideRefusal() === "threatened", true);
+  let out = false;
+  for (let t = 0; t < 120 && !game.over && !out; t++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    out = game.events.some((e) => e.type === "torchOut");
+  }
+  assert.ok(out || game.over, "la torche ne s'éteint jamais");
+  if (out) assert.equal(game.torchTurns, 0);
+});
+
+test("pomme : +5 PV, refusée en pleine santé", () => {
+  const game = new Game(7);
+  game.inventory.add("pomme", 2);
+  assert.equal(game.useItem(bagUid(game, "pomme")), false);
+  game.hero.hp = 3;
+  assert.ok(game.useItem(bagUid(game, "pomme")));
+  game.tick();
+  assert.equal(game.hero.hp, Math.min(game.hero.maxHp, 8));
+  assert.equal(game.inventory.count("pomme"), 1);
+});
+
+test("niveau requis : l'épée longue (Lv2) ne s'équipe qu'au niveau 2", () => {
+  const game = new Game(7);
+  game.inventory.add("epee_longue", 1);
+  assert.equal(game.equip(bagUid(game, "epee_longue")), false);
+  game.level = 2;
+  assert.ok(game.equip(bagUid(game, "epee_longue")));
+  assert.equal(game.weapon("melee")?.id, "epee_longue");
+});
+
+function monsterAttacksPerHeroAttack(weapon: "epee" | "epee_longue" | "cimeterre"): number {
+  const { game, m } = foeAt(1);
+  game.level = 5;
+  if (weapon !== "epee") {
+    game.inventory.add(weapon, 1);
+    assert.ok(game.equip(bagUid(game, weapon)));
+  }
+  game.hero.hp = game.hero.maxHp = 100000;
+  game.clock = 0;
+  let foe = 0;
+  for (let k = 0; k < 40; k++) {
+    game.events.length = 0;
+    assert.ok(game.setDestination(m.x, m.y));
+    game.tick();
+    foe += game.events.filter((e) => e.type === "attack" && e.attacker === m).length;
+  }
+  return foe / 40;
+}
+
+test("vitesse d'attaque : lente = 1,5 attaque des monstres par coup, rapide = ¾, normale = 1", () => {
+  assert.equal(monsterAttacksPerHeroAttack("epee"), 1);
+  assert.equal(monsterAttacksPerHeroAttack("epee_longue"), 1.5);
+  assert.equal(monsterAttacksPerHeroAttack("cimeterre"), 0.75);
+});
+
+test("lance : frappe un ennemi à deux cases sans bouger", () => {
+  const { game, m } = foeAt(2);
+  game.level = 2;
+  game.inventory.add("lance", 1);
+  assert.ok(game.equip(bagUid(game, "lance")));
+  m.stunned = 1; // qu'il ne s'approche pas avant le coup
+  const before = { x: game.hero.x, y: game.hero.y };
+  assert.ok(game.inWeaponReach(m));
+  assert.equal(game.meleeTarget(), m);
+  game.events.length = 0;
+  assert.ok(game.strike());
+  game.tick();
+  assert.deepEqual({ x: game.hero.x, y: game.hero.y }, before, "le héros a bougé");
+  assert.ok(game.events.some((e) => e.type === "attack" && e.attacker === game.hero && e.target === m));
+});
+
+test("flèches empoisonnées : choisies dans le carquois (niveau 4), le poison ronge 4 tours", () => {
+  const { game, m } = foeAt(3);
+  game.inventory.add("fleche_poison", 10);
+  assert.equal(game.chooseAmmo("fleche_poison"), false, "niveau 1 : refusé");
+  game.level = 4;
+  assert.ok(game.chooseAmmo("fleche_poison"));
+  assert.equal(game.currentAmmo(), "fleche_poison");
+  game.hero.hp = game.hero.maxHp = 100000;
+  let poisoned = false;
+  for (let k = 0; k < 10 && !poisoned; k++) {
+    game.events.length = 0;
+    if (game.shoot(m.x, m.y) !== null) break;
+    game.tick();
+    poisoned = game.events.some((e) => e.type === "poisoned");
+  }
+  assert.ok(poisoned, "jamais touché en 10 flèches");
+  const ticks: number[] = [];
+  for (let k = 0; k < 6; k++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    ticks.push(game.events.filter((e) => e.type === "poison").length);
+  }
+  assert.ok(ticks.reduce((a, b) => a + b) <= 4 && ticks.reduce((a, b) => a + b) >= 3, `poison : ${ticks}`);
+  assert.equal(m.poison, undefined);
+});
+
+test("butin : rareté selon la section, tas d'or selon la section, jamais dans la salle de départ", async () => {
+  const { rollLoot } = await import("../src/core/floor");
+  const { goldRange } = await import("../src/data/loot");
+  assert.deepEqual(goldRange(1, "small"), [3, 8]);
+  assert.deepEqual(goldRange(7, "medium"), [20, 40]);
+  assert.deepEqual(goldRange(12, "large"), [100, 160]);
+  const rng = new Rng(5);
+  const count = { common: 0, uncommon: 0, rare: 0 };
+  for (let i = 0; i < 4000; i++) {
+    const loot = rollLoot(rng, 1);
+    const def = ITEMS[loot.item] as import("../src/data/items").ItemDef;
+    if (loot.item === "or") {
+      assert.ok(loot.count >= 3 && loot.count <= 40);
+      continue;
+    }
+    count[def.rarity!]++;
+  }
+  assert.ok(count.common > count.uncommon && count.uncommon > count.rare && count.rare > 0, JSON.stringify(count));
+  const old = RULES.lootEnabled;
+  (RULES as { lootEnabled: boolean }).lootEnabled = true;
+  try {
+    let items = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const game = new Game(seed);
+      const start = game.rooms[0];
+      for (const g of game.ground) {
+        if (g.item === "clef") continue;
+        items++;
+        const inStart = g.x >= start.x && g.x < start.x + start.w && g.y >= start.y && g.y < start.y + start.h;
+        assert.ok(!inStart, `graine ${seed} : butin dans la salle de départ`);
+      }
+    }
+    assert.ok(items > 30, `trop peu de butin : ${items}`);
+  } finally {
+    (RULES as { lootEnabled: boolean }).lootEnabled = old;
+  }
 });

@@ -2,7 +2,7 @@ import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
-import { ITEMS, ItemDef, ItemId, KIND_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
+import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
@@ -764,6 +764,13 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.attackBonus !== undefined) rows.push(["Attaque", `d20 ${signedBonus(def.attackBonus)}`]);
   if (def.damage) rows.push(["Dégâts", diceLabel(def.damage)]);
   if (def.range) rows.push(["Portée", `${def.range} cases`]);
+  if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
+  if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
+  if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
+  if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
+  if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
+  if (def.rarity) rows.push(["Rareté", RARITY_LABELS[def.rarity]]);
+  if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
   if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
   const stats = el("div", "item-card-stats");
@@ -841,9 +848,10 @@ function renderBag(): void {
   const def: ItemDef = ITEMS[item.defId];
   const keyNote = def.kind === "key" && item.floor !== undefined ? ` — étage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
   info.replaceChildren(itemCard(def, item.count, selectedSlot ? " — porté" : keyNote));
-  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold";
-  action.hidden = !wearable;
-  action.textContent = selectedSlot ? "Retirer" : "Équiper";
+  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use";
+  const quiver = def.kind === "ammo" && !selectedSlot && game.ammoKinds().length > 1;
+  action.hidden = !wearable && def.kind !== "use" && !quiver;
+  action.textContent = selectedSlot ? "Retirer" : def.kind === "use" ? "Utiliser" : quiver ? (game.currentAmmo() === def.id ? "Choisies" : "Tirer celles-ci") : "Équiper";
 }
 
 $("bag-grid").addEventListener("click", (e) => {
@@ -860,7 +868,19 @@ $("bag-grid").addEventListener("click", (e) => {
   renderBag();
 });
 button("bag-equip", () => {
-  if (selected && "uid" in selected) {
+  const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
+  const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
+  if (chosen && chosenDef && game.tooLow(chosenDef)) {
+    logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
+  } else if (chosen && chosenDef?.kind === "use") {
+    // Utiliser prend un tour : on referme le sac pour le laisser passer.
+    if (!game.useItem(chosen.uid)) logLines.push("Vous êtes déjà en pleine santé.");
+    bagOpen = false;
+    $("bag").hidden = true;
+  } else if (chosen && chosenDef?.kind === "ammo") {
+    game.chooseAmmo(chosen.defId);
+    aimShown = "";
+  } else if (selected && "uid" in selected) {
     if (!game.equip(selected.uid)) logLines.push("Pas assez de place dans le sac pour échanger.");
   } else if (selected && "slot" in selected) {
     if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");

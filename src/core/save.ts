@@ -54,6 +54,10 @@ export interface SaveData {
   gold: number;
   xp: number;
   level: number;
+  /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
+  torchTurns?: number;
+  clock?: number;
+  ammoChoice?: string;
   heroMisses: number;
   hidden: boolean;
   nextId: number;

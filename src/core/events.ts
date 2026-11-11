@@ -46,6 +46,11 @@ export type GameEvent =
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
   | { type: "chest"; gold: number }
+  /** Objet utilisé (pomme : PV rendus ; torche : allumée), torche éteinte, poison posé et poison qui ronge. */
+  | { type: "used"; item: ItemId; healed?: number }
+  | { type: "torchOut" }
+  | { type: "poisoned"; actor: Actor }
+  | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number }
   | { type: "levelup"; level: number }
   | {

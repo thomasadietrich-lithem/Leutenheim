@@ -104,6 +104,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.healed > 0 ? `Vous buvez à la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez à la fontaine. Elle se tarit.";
     case "chest":
       return `Le coffre contient ${e.gold} pièces d'or.`;
+    case "used":
+      return e.healed !== undefined ? `Vous mangez : ${ITEMS[e.item].name.toLowerCase()}, +${e.healed} PV.` : "Vous allumez une torche.";
+    case "torchOut":
+      return "Votre torche s'éteint.";
+    case "poisoned":
+      return `${e.actor.name} est empoisonné.`;
+    case "poison":
+      return `Le poison ronge ${e.actor.name} : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
     default:
       return null;
   }
@@ -115,6 +123,7 @@ export const REFUSALS = {
     hidden: "Vous êtes déjà caché.",
     threatened: "Impossible de se cacher : un ennemi est à votre contact.",
     "no-cover": "Rien pour vous cacher ici : il faut une colonne à côté de vous, ou un angle de mur.",
+    torch: "Impossible de se cacher avec une torche allumée.",
   },
   disengage: {
     safe: "Aucun ennemi au contact : rien à quoi se dérober.",

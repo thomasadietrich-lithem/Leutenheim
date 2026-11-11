@@ -15,7 +15,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { Debris, FloorState, GroundItem, placeKey, placeSecrets, placeTraps, roomElements } from "./floor";
+import { Debris, FloorState, GroundItem, placeKey, placeLoot, placeSecrets, placeTraps, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -51,6 +51,17 @@ export class Game {
   gold = 0;
   xp = 0;
   level = 1;
+  /** Torche allumée : tours de lumière restants autour du héros. */
+  torchTurns = 0;
+  /** Munition choisie dans le carquois (la flèche ordinaire par défaut). */
+  ammoChoice: ItemId = "fleche";
+  /**
+   * Vitesse d'attaque : avance (+) ou retard (−) du héros sur les monstres, en tours. Une attaque lente l'ajoute,
+   * une rapide le retire ; à +1 les monstres jouent un tour de plus, à −1 ils en sautent un.
+   */
+  clock = 0;
+  private actionCost = 1;
+  private useOrder: number | null = null;
   /** Flèches brisées encore visibles au sol. */
   debris: Debris[] = [];
   /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -202,6 +213,7 @@ export class Game {
       placeKey(state, this.rng, this.hero);
       placeSecrets(state, depth, floorSeed(this.runSeed, depth));
       placeTraps(state, floorSeed(this.runSeed, depth));
+      if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
     }
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -367,7 +379,7 @@ export class Game {
     this.monsters = state.monsters;
     this.ground = state.ground;
     this.debris = state.debris.filter((d) => d.until > this.turn);
-    this.light = computeLight(this.map, this.torches);
+    this.refreshLight();
   }
 
   // ---------- Sauvegarde ----------
@@ -417,6 +429,9 @@ export class Game {
       gold: this.gold,
       xp: this.xp,
       level: this.level,
+      torchTurns: this.torchTurns,
+      clock: this.clock,
+      ammoChoice: this.ammoChoice,
       heroMisses: this.heroMisses,
       hidden: this.hidden,
       nextId: this.nextId,
@@ -466,6 +481,9 @@ export class Game {
     game.gold = saved.gold;
     game.xp = saved.xp;
     game.level = saved.level;
+    game.torchTurns = saved.torchTurns ?? 0;
+    game.clock = saved.clock ?? 0;
+    game.ammoChoice = ((saved.ammoChoice ?? "fleche") in ITEMS ? saved.ammoChoice : "fleche") as ItemId;
     game.heroMisses = saved.heroMisses;
     game.nextId = saved.nextId;
     game.lastFoeId = saved.lastFoeId;
@@ -532,7 +550,8 @@ export class Game {
     const item = this.inventory.get(uid);
     if (!item) return false;
     const kind = ITEMS[item.defId].kind;
-    if (kind === "ammo" || kind === "key" || kind === "gold") return false;
+    if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use") return false;
+    if (this.tooLow(ITEMS[item.defId])) return false;
     const previous = this.equipment[kind];
     const from = { x: item.x, y: item.y };
     this.inventory.removeItem(uid);
@@ -566,6 +585,75 @@ export class Game {
     this.hero.armorClass = (armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC;
   }
 
+  /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
+  tooLow(def: ItemDef): boolean {
+    return (def.level ?? 1) > this.level;
+  }
+
+  // ---------- Torche, objets à utiliser ----------
+
+  /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
+  private refreshLight(): void {
+    const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
+    this.light = computeLight(this.map, [...this.torches, ...carried]);
+  }
+
+  /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
+  useItem(uid: number): boolean {
+    const item = this.inventory.get(uid);
+    if (this.over || !item) return false;
+    const def = ITEMS[item.defId] as ItemDef;
+    if (def.kind !== "use" || this.tooLow(def)) return false;
+    if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
+    this.wait();
+    this.waiting = false;
+    this.useOrder = uid;
+    return true;
+  }
+
+  private resolveUse(uid: number): void {
+    const item = this.inventory.get(uid);
+    if (!item) return;
+    const def = ITEMS[item.defId] as ItemDef;
+    if (!this.inventory.take(item.defId, 1)) return;
+    if (def.heal) {
+      const before = this.hero.hp;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + def.heal);
+      this.events.push({ type: "used", item: item.defId, healed: this.hero.hp - before });
+    }
+    if (def.lightTurns) {
+      this.torchTurns = def.lightTurns;
+      this.refreshLight();
+      this.events.push({ type: "used", item: item.defId });
+      // On ne se cache pas une torche à la main.
+      this.reveal();
+    }
+  }
+
+  /** Les munitions de l'arc présentes dans le sac, ordinaires d'abord. */
+  ammoKinds(): ItemId[] {
+    const family = this.weapon("ranged")?.ammo;
+    if (!family) return [];
+    return (Object.keys(ITEMS) as ItemId[]).filter((id) => (ITEMS[id] as ItemDef).ammoFamily === family && this.inventory.count(id) > 0);
+  }
+
+  /** Choisir les flèches à tirer. Refusé si le héros n'a pas le niveau. */
+  chooseAmmo(id: ItemId): boolean {
+    const def = ITEMS[id] as ItemDef;
+    if (def.kind !== "ammo" || this.tooLow(def)) return false;
+    this.ammoChoice = id;
+    return true;
+  }
+
+  /** La munition qui partira au prochain tir : le choix du joueur s'il en reste, sinon la flèche ordinaire. */
+  currentAmmo(): ItemId | null {
+    const family = this.weapon("ranged")?.ammo;
+    if (!family) return null;
+    const chosen = ITEMS[this.ammoChoice] as ItemDef;
+    if (chosen.ammoFamily === family && !this.tooLow(chosen) && this.inventory.count(this.ammoChoice) > 0) return this.ammoChoice;
+    return this.inventory.count(family as ItemId) > 0 ? (family as ItemId) : null;
+  }
+
   /** Expérience à réunir pour passer au niveau suivant. */
   xpToNext(): number {
     return RULES.xpPerLevel * this.level;
@@ -585,9 +673,10 @@ export class Game {
     }
   }
 
+  /** Flèches prêtes à partir (celles choisies dans le carquois). */
   arrows(): number {
-    const ammo = this.weapon("ranged")?.ammo;
-    return ammo ? this.inventory.count(ammo as ItemId) : 0;
+    const ammo = this.currentAmmo();
+    return ammo ? this.inventory.count(ammo) : 0;
   }
 
   // ---------- Ordres du joueur ----------
@@ -832,8 +921,9 @@ export class Game {
   }
 
   /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
-  hideRefusal(): "hidden" | "threatened" | "no-cover" | null {
+  hideRefusal(): "hidden" | "threatened" | "no-cover" | "torch" | null {
     if (this.hidden) return "hidden";
+    if (this.torchTurns > 0) return "torch";
     if (this.isThreatened()) return "threatened";
     if (!this.hasCover(this.hero)) return "no-cover";
     return null;
@@ -942,6 +1032,10 @@ export class Game {
     } else if (this.picking) {
       // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.
       this.picking = this.pickUpOne();
+    } else if (this.useOrder !== null) {
+      const uid = this.useOrder;
+      this.useOrder = null;
+      this.resolveUse(uid);
     } else if (this.hideOrder) {
       this.hideOrder = false;
       this.resolveHide();
@@ -963,7 +1057,7 @@ export class Game {
         // La cible a pu bouger : on recalcule le chemin vers elle.
         const target = this.monsters.find((m) => m.id === this.targetId);
         // Au contact (y compris en diagonale par-delà un coin de mur) : on frappe sans avoir à contourner.
-        this.path = target ? (this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : (findPath(this.map, this.hero, target, this.avoidTraps(target)) ?? [])) : [];
+        this.path = target ? (this.inReach(this.hero, target) || this.inWeaponReach(target) ? [{ x: target.x, y: target.y }] : (findPath(this.map, this.hero, target, this.avoidTraps(target)) ?? [])) : [];
         if (!target) this.targetId = null;
       }
       const next = this.path[0];
@@ -1014,9 +1108,28 @@ export class Game {
     this.turn++;
     this.respawn();
     if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
+    if (this.torchTurns > 0) {
+      this.torchTurns--;
+      if (this.torchTurns === 0) this.events.push({ type: "torchOut" });
+      this.refreshLight();
+    }
     this.updateVision();
     const resting = wasResting;
-    this.monstersAct();
+    // Vitesse d'attaque : selon le temps pris par l'action du héros, les monstres jouent 0, 1 ou 2 fois.
+    this.clock += this.actionCost - 1;
+    this.actionCost = 1;
+    let rounds = 1;
+    if (this.clock >= 1 - 1e-9) {
+      rounds = 2;
+      this.clock -= 1;
+    } else if (this.clock <= -1 + 1e-9) {
+      rounds = 0;
+      this.clock += 1;
+    }
+    for (let r = 0; r < rounds && !this.over; r++) {
+      this.poisonTick();
+      this.monstersAct();
+    }
     if (resting) this.afterRestTurn();
     if (wasSearching) this.afterSearchTurn();
     return true;
@@ -1154,6 +1267,34 @@ export class Game {
     return this.map.isWalkable(a.x + dx, a.y) || this.map.isWalkable(a.x, a.y + dy);
   }
 
+  /**
+   * Arme à longue portée (lance) : le monstre est à deux cases en ligne droite ou en diagonale,
+   * la case du milieu est libre (ni mur, ni colonne, ni porte fermée, ni monstre), et on le voit.
+   */
+  inWeaponReach(m: Point): boolean {
+    const reach = this.weapon("melee")?.reach ?? 1;
+    if (reach < 2) return false;
+    const dx = m.x - this.hero.x;
+    const dy = m.y - this.hero.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== 2) return false;
+    if (!(dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy))) return false;
+    const mid = { x: this.hero.x + dx / 2, y: this.hero.y + dy / 2 };
+    if (!this.map.isWalkable(mid.x, mid.y) || this.map.blocksSight(mid.x, mid.y) || this.monsterAt(mid.x, mid.y)) return false;
+    return this.isVisible(m.x, m.y);
+  }
+
+  /** Le poison ronge les monstres empoisonnés, au début de leur tour. */
+  private poisonTick(): void {
+    for (const m of [...this.monsters]) {
+      if (!m.poison) continue;
+      m.hp -= m.poison.damage;
+      m.poison.turns--;
+      this.events.push({ type: "poison", actor: m, damage: m.poison.damage });
+      if (m.poison.turns <= 0) m.poison = undefined;
+      this.removeIfDead(m);
+    }
+  }
+
   /** Vrai si `a` et `b` se touchent en diagonale autour d'un coin de mur : celui qui frappe surprend l'autre. */
   private aroundCorner(a: Point, b: Point): boolean {
     const dx = b.x - a.x;
@@ -1175,7 +1316,7 @@ export class Game {
    * sinon un monstre alerté au contact (le plus abîmé d'abord), sinon n'importe quel monstre visible au contact.
    */
   meleeTarget(): Actor | null {
-    const near = this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+    const near = this.visibleMonsters().filter((m) => this.inReach(this.hero, m) || this.inWeaponReach(m));
     if (near.length === 0) return null;
     const last = near.find((m) => m.id === this.lastFoeId);
     if (last) return last;
@@ -1223,7 +1364,7 @@ export class Game {
   private openDoorAt(x: number, y: number): void {
     if (this.map.get(x, y) !== Tile.DoorClosed) return;
     this.map.set(x, y, Tile.DoorOpen);
-    this.light = computeLight(this.map, this.torches);
+    this.refreshLight();
     this.events.push({ type: "opened", x, y });
   }
 
@@ -1231,7 +1372,7 @@ export class Game {
   private closeDoorAt(x: number, y: number): void {
     if (this.map.get(x, y) !== Tile.DoorOpen || this.actorAt(x, y)) return;
     this.map.set(x, y, Tile.DoorClosed);
-    this.light = computeLight(this.map, this.torches);
+    this.refreshLight();
   }
 
   /** Ce qui se déclenche quand le héros marche sur une case particulière (fontaine, coffre). */
@@ -1255,7 +1396,7 @@ export class Game {
       // La clef ouvre sans jet, sans alerter personne (juste le bruit de la serrure) ; elle est consommée.
       if (!this.inventory.take("clef", 1, this.depth)) return;
       this.map.set(door.x, door.y, Tile.DoorOpen);
-      this.light = computeLight(this.map, this.torches);
+      this.refreshLight();
       this.pendingDoor = null;
       this.events.push({ type: "door", action, x: door.x, y: door.y, d20: 0, bonus: 0, total: 0, dc: 0, success: true, alerted: 0 });
       return;
@@ -1268,7 +1409,7 @@ export class Game {
     if (success) {
       // Crochetée, la porte s'ouvre ; enfoncée, elle est détruite.
       this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
-      this.light = computeLight(this.map, this.torches);
+      this.refreshLight();
       this.pendingDoor = null;
     } else {
       this.failedDoorAttempts.add(this.doorAttemptKey(door, action)); // raté : cette méthode ne marchera plus ici
@@ -1310,6 +1451,9 @@ export class Game {
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
     const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
     this.noteHeroAttack(result.hit);
+    // Vitesse de l'arme : une attaque lente laisse plus de temps aux monstres, une rapide moins.
+    const speed = this.weapon("melee")?.speed;
+    this.actionCost = speed === "slow" ? RULES.slowAttackTurns : speed === "fast" ? RULES.fastAttackTurns : 1;
     monster.alerted = true;
     monster.asleep = false;
     monster.hp -= result.damage;
@@ -1334,7 +1478,9 @@ export class Game {
    */
   private heroShoots(target: Point): void {
     const bow = this.weapon("ranged");
-    if (!bow || !bow.ammo || !this.inventory.take(bow.ammo as ItemId, 1)) return;
+    const ammo = this.currentAmmo();
+    if (!bow || !ammo || !this.inventory.take(ammo, 1)) return;
+    const poison = (ITEMS[ammo] as ItemDef).poison;
     this.reveal();
     const origin = { x: this.hero.x, y: this.hero.y };
     const trail: Point[] = [origin];
@@ -1382,6 +1528,11 @@ export class Game {
       victim.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
       hit = result.hit;
+      if (hit && poison && victim.hp > 0) {
+        // Un nouveau poison remet le compteur à zéro, il ne s'ajoute pas (C).
+        victim.poison = { ...poison };
+        this.events.push({ type: "poisoned", actor: victim });
+      }
       if (hit) {
         keepChance = RULES.arrowKeepOnHit;
       } else {
@@ -1401,7 +1552,7 @@ export class Game {
     const end = trail[trail.length - 1];
     const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
     const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
-    if (kept) this.dropItem(landing.x, landing.y, bow.ammo as ItemId, 1, angle);
+    if (kept) this.dropItem(landing.x, landing.y, ammo, 1, angle);
     else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
     if (victim) this.removeIfDead(victim);

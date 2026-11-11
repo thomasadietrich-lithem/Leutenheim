@@ -27,6 +27,8 @@ export interface Actor {
   wary?: boolean;
   /** Sonné (poussé par le héros) : il perd ce nombre de tours. */
   stunned?: number;
+  /** Empoisonné : perd `damage` PV au début de chacun de ses `turns` prochains tours. */
+  poison?: { damage: number; turns: number };
   /** Destination de promenade d'un monstre qui se balade. */
   goal?: { x: number; y: number };
 }

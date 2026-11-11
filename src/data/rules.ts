@@ -82,4 +82,16 @@ export const RULES = {
   cornerReach: 4,
   /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
   senseDepth: 3,
+  /** Butin au sol : chance qu'une salle (hors départ) contienne un objet (C). */
+  lootRoomChance: 0.3,
+  /**
+   * Butin au sol activé dans le donjon. Éteint tant que Thomas n'a pas validé les dessins des nouveaux objets
+   * (art/objets_v1.png) : la règle « image d'abord ». Les tests l'allument eux-mêmes.
+   */
+  lootEnabled: false,
+  /** Torche portée : rayon de lumière autour du héros. */
+  torchRadius: 6,
+  /** Vitesse d'attaque : durée d'une attaque lente et d'une attaque rapide, en tours (C). */
+  slowAttackTurns: 1.5,
+  fastAttackTurns: 0.75,
 };

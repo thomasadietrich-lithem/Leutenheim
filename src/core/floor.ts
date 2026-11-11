@@ -1,5 +1,6 @@
 import { RULES } from "../data/rules";
-import { ItemId } from "../data/items";
+import { ItemId, ITEMS, Rarity } from "../data/items";
+import { GOLD_SIZE, goldRange, LOOT, RARITY_ODDS, sectionOf } from "../data/loot";
 import { Actor } from "../entities/actor";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
@@ -119,6 +120,45 @@ export function placeTraps(state: FloorState, seed: number): void {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (state.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
       if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
       state.traps.push({ x, y });
+      return;
+    }
+  });
+}
+
+/** Tire la rareté puis l'objet d'un butin, à cet étage. */
+export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number } {
+  const odds = RARITY_ODDS[Math.min(sectionOf(depth), RARITY_ODDS.length - 1)];
+  let roll = rng.int(1, 100);
+  let rarity: Rarity = "common";
+  for (const r of ["common", "uncommon", "rare"] as Rarity[]) {
+    if (roll <= odds[r]) {
+      rarity = r;
+      break;
+    }
+    roll -= odds[r];
+  }
+  const pool = LOOT[rarity];
+  const pick = pool[rng.int(0, pool.length - 1)];
+  if (pick.item === "gold") {
+    const [min, max] = goldRange(depth, GOLD_SIZE[rarity]);
+    return { item: "or", count: rng.int(min, max) };
+  }
+  const count = pick.count ? rng.int(pick.count[0], pick.count[1]) : 1;
+  return { item: pick.item, count: Math.min(count, ITEMS[pick.item].maxStack) };
+}
+
+/** Butin au sol : un objet dans certaines salles (jamais celle de départ), sur une case de sol libre. */
+export function placeLoot(state: FloorState, depth: number, seed: number): void {
+  const rng = new Rng(seed ^ 0x2b0f71c3);
+  state.rooms.forEach((room, index) => {
+    if (index === 0 || !rng.chance(RULES.lootRoomChance)) return;
+    const loot = rollLoot(rng, depth);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y, room.y + room.h - 1);
+      if (state.map.get(x, y) !== Tile.Floor || state.ground.some((g) => g.x === x && g.y === y)) continue;
+      if (state.traps.some((t) => t.x === x && t.y === y)) continue;
+      state.ground.push({ x, y, item: loot.item, count: loot.count });
       return;
     }
   });

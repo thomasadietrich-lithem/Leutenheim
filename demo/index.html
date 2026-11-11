@@ -3676,6 +3676,7 @@
       );
       for (const w of webs) {
         this.current.furniture = this.current.furniture.filter((o) => o !== w);
+        this.current.furniture.push({ x: w.x, y: w.y, kind: "ashes1" });
         this.map.touch(w.x, w.y);
         this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: w.kind });
       }

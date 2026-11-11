@@ -1124,12 +1124,13 @@ export class Game {
    * brûle tout entier, et à son tour enflamme ses voisins à une case.
    */
   private igniteFurniture(): void {
-    // Une toile flambe d'un coup et disparaît (sans cendres) dès qu'une flamme la touche ou la frôle.
+    // Une toile flambe d'un coup dès qu'une flamme la touche ou la frôle, et laisse un peu de cendre (Thomas).
     const webs = this.current.furniture.filter(
       (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1),
     );
     for (const w of webs) {
       this.current.furniture = this.current.furniture.filter((o) => o !== w);
+      this.current.furniture.push({ x: w.x, y: w.y, kind: "ashes1" });
       this.map.touch(w.x, w.y);
       this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: w.kind });
     }

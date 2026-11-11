@@ -2485,3 +2485,19 @@ test("butin garanti de la section 1 : une pomme à l'étage 1, deux équipements
     assert.equal(guaranteedLoot(seed, 6).length, 0);
   }
 });
+
+test("feu : une toile d'araignée flambe et laisse de la cendre ; tonneaux et caisses brûlent aussi", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  for (const kind of ["barrel", "crate", "crateStack", "webTL"]) assert.ok(FURNITURE_KINDS[kind].burns, `${kind} brûle`);
+  const web = game.furnitureList().find((f) => f.kind.startsWith("web"))!;
+  game.inventory.add("potion_feu", 1);
+  Object.assign(game.hero, { x: web.x + 3, y: web.y + 2, fromX: web.x + 3, fromY: web.y + 2 });
+  game.wait();
+  game.tick();
+  const uid = game.inventory.items.find((i) => i.defId === "potion_feu")!.uid;
+  assert.ok(game.throwPotion(uid, web.x + 1, web.y + 1), String(game.throwRefusal(uid, web.x + 1, web.y + 1)));
+  game.tick();
+  assert.ok(!game.furnitureList().includes(web), "la toile a brûlé");
+  assert.ok(game.furnitureList().some((f) => f.kind === "ashes1" && f.x === web.x && f.y === web.y), "il en reste de la cendre");
+});

@@ -200,7 +200,7 @@ function resumeRun(saved: Game): void {
 function setupRun(next: Game, lines: string[] | null): void {
   game = next;
   const sandbox = game.sandbox;
-  $("wake-all").hidden = !sandbox;
+  $("test-tools").hidden = !sandbox;
   aimMode = false;
   doorWasPending = false;
   foundOpen = false;
@@ -1194,6 +1194,10 @@ button("wake-all", () => {
   logLines.push("Tous les monstres se réveillent et foncent sur vous !");
   renderLog();
 });
+button("level-up", () => {
+  game.levelUpNow();
+  collectEvents();
+});
 button("menu-sandbox", () => {
   newRun(true);
   started = true;
@@ -1247,7 +1251,16 @@ function frame(now: number): void {
     }
   }
 
-  if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
+  // Seules les cheminées crépitent (les torches sont muettes) : plus fort à mesure qu'on s'en approche.
+  if (!menuOpen) {
+    let fire = 0;
+    for (const t of game.torches) {
+      if (!t.hearth || t.lit === false || !game.isVisible(t.x + t.faceX, t.y + t.faceY)) continue;
+      const d = Math.hypot(t.x - game.hero.x, t.y - game.hero.y);
+      fire = Math.max(fire, 1 - d / 8);
+    }
+    sfx.fireplace(fire, dt);
+  }
   // Les cases de saut ne s'affichent que pendant le choix.
   if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode) {
     jumpMode = false;

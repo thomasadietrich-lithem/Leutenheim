@@ -610,6 +610,12 @@ export class Game {
     this.reveal();
   }
 
+  /** Salle d'essai : gagner tout de suite le niveau suivant. */
+  levelUpNow(): void {
+    if (this.over) return;
+    this.gainXp(this.xpToNext() - this.xp);
+  }
+
   // ---------- Torche, objets à utiliser ----------
 
   /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */

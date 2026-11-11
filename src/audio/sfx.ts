@@ -76,23 +76,58 @@ export class Sfx {
     src.start(t);
   }
 
-  private crackleDebt = 0;
+  /** Bruit filtré à bande étroite (passe-bande) : un claquement de bois, une braise qui éclate. */
+  private snap(duration: number, volume: number, freq: number, q: number, delay = 0): void {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + delay;
+    const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    // Attaque sèche puis décroissance rapide, directement dans l'onde : un vrai « clac », pas un souffle.
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp((-6 * i) / length);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = freq;
+    filter.Q.value = q;
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.start(t);
+  }
+
+  private fireDebt = 0;
+  private fireBedDebt = 0;
 
   /**
-   * Crépitement des torches, à appeler à chaque image. `level` (0 à 1) est l'éclairage reçu par le héros :
-   * plus il est près d'une torche, plus les crépitements sont forts et nombreux.
+   * Feu de cheminée (les torches sont muettes, demande de Thomas), à appeler à chaque image. `level` (0 à 1) :
+   * proximité d'une cheminée allumée en vue. Un souffle grave à peine audible, des petits claquements de bois
+   * irréguliers, parfois en rafale, et de temps en temps une braise qui éclate plus fort.
    */
-  crackle(level: number, dt: number): void {
-    if (!this.enabled || !this.ctx || this.ctx.state !== "running" || level <= 0.03) return;
-    // Rare et discret : quelques petits craquements sourds par seconde, jamais un grésillement continu.
-    this.crackleDebt += dt * 0.0022 * (0.3 + level) * (0.4 + 1.2 * Math.random());
-    while (this.crackleDebt >= 1) {
-      this.crackleDebt -= 1;
-      try {
-        this.noise(0.03 + Math.random() * 0.05, (0.006 + Math.random() * 0.018) * level, 700 + Math.random() * 1300, Math.random() * 0.08);
-      } catch {
-        return;
+  fireplace(level: number, dt: number): void {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "running" || level <= 0.02) return;
+    try {
+      // Le souffle : des nappes graves qui se chevauchent.
+      this.fireBedDebt += dt / 450;
+      while (this.fireBedDebt >= 1) {
+        this.fireBedDebt -= 1;
+        this.noise(0.9, 0.012 * level, 260 + Math.random() * 120);
       }
+      // Les claquements : environ 4 à 7 par seconde près du feu, par petites rafales.
+      this.fireDebt += dt * 0.0055 * level * (0.3 + 1.4 * Math.random());
+      while (this.fireDebt >= 1) {
+        this.fireDebt -= 1;
+        const burst = Math.random() < 0.3 ? 2 + Math.floor(Math.random() * 3) : 1;
+        for (let k = 0; k < burst; k++) {
+          const delay = k * (0.015 + Math.random() * 0.05);
+          this.snap(0.008 + Math.random() * 0.02, (0.05 + Math.random() * 0.12) * level, 1800 + Math.random() * 3500, 1.5 + Math.random() * 3, delay);
+        }
+        // Une braise qui éclate, plus grave et plus forte.
+        if (Math.random() < 0.06) this.snap(0.05, 0.22 * level, 500 + Math.random() * 400, 1.2, Math.random() * 0.1);
+      }
+    } catch {
+      return;
     }
   }
 

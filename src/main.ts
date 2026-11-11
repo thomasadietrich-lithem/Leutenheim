@@ -427,6 +427,9 @@ function reveal(e: GameEvent): void {
     landDie(e.d20, e.success ? "hit" : "miss", false);
     renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
     if (!e.success) sfx.play("miss");
+  } else if (e.type === "gravel") {
+    sfx.play("gravel");
+    renderer.addFloatingText(e.x, e.y, "Crac", "#c8c0d4");
   } else if (e.type === "revealed") {
   } else if (e.type === "jump") {
     landDie(e.d20, e.success ? "hit" : "miss", false);

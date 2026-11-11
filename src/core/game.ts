@@ -11,6 +11,7 @@ import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov
 import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { furnishFloor, Furniture } from "../world/furnish";
+import { placeGrounds } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
 import { rollAttack } from "./combat";
@@ -190,6 +191,8 @@ export class Game {
         : RULES.themedRoomsInDungeon
           ? furnishFloor(floor, seed)
           : { furniture: [], themes: [] };
+      // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
+      if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
       state = {
         map: floor.map,
         start: floor.start,
@@ -404,6 +407,39 @@ export class Game {
   private avoidTraps(to: Point, base?: (x: number, y: number) => boolean, from: Point = this.hero): (x: number, y: number) => boolean {
     // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
     return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!this.isTrap(x, y) && !this.isBurning(x, y)));
+  }
+
+  /**
+   * Chemin du héros : il évite les pièges et le feu ; il contourne aussi le gravier quand le détour est court
+   * (au plus `gravelDetour` pas de plus). On peut toujours y marcher exprès (case d'arrivée sur le gravier).
+   */
+  private heroPath(to: Point, known?: (x: number, y: number) => boolean): Point[] | null {
+    const plain = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+    if (!plain || !plain.some((p) => this.map.get(p.x, p.y) === Tile.Gravel)) return plain;
+    const quiet = findPath(
+      this.map,
+      this.hero,
+      to,
+      this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (this.map.get(x, y) !== Tile.Gravel || (x === to.x && y === to.y))),
+    );
+    return quiet && quiet.length <= plain.length + RULES.gravelDetour ? quiet : plain;
+  }
+
+  /** Le héros vient de poser le pied sur du gravier : ça crisse ; les monstres proches l'entendent et accourent. */
+  private crunch(): void {
+    if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel) return;
+    this.reveal();
+    let alerted = 0;
+    for (const m of this.monsters) {
+      const d = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
+      if (d <= RULES.gravelRadius && !m.alerted) {
+        m.alerted = true;
+        m.asleep = false;
+        alerted++;
+      }
+    }
+    this.events.push({ type: "gravel", x: this.hero.x, y: this.hero.y, alerted });
+    this.raiseAlarm(RULES.gravelAlarm, this.hero);
   }
 
   /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
@@ -1014,7 +1050,7 @@ export class Game {
     const extra = splash[this.rng.int(0, splash.length - 1)];
     const cells = [...cross, extra]
       .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
-      .filter((c) => this.map.isWalkable(c.x, c.y));
+      .filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
     for (const c of cells) {
       const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
       if (old) old.turns = RULES.fireTurns;
@@ -1030,6 +1066,11 @@ export class Game {
     // Ceux qui ont quitté les flammes brûlent encore un peu (les flammes les suivent).
     for (const a of [this.hero, ...this.monsters]) {
       if (!a.burning || this.over || this.isBurning(a.x, a.y)) continue;
+      // Dans une flaque, on s'éteint.
+      if (this.map.get(a.x, a.y) === Tile.Water) {
+        a.burning = 0;
+        continue;
+      }
       a.burning--;
       const damage = rollDice(this.rng, RULES.fireDamage);
       this.events.push({ type: "burn", actor: a, damage });
@@ -1173,7 +1214,7 @@ export class Game {
     const monster = seen && this.isVisible(x, y) ? seen : undefined;
     // Vers un monstre en vue, on trouve toujours un chemin ; sinon on ne passe que par les cases déjà vues.
     const known = ignoreFog || monster ? undefined : (cx: number, cy: number) => this.isKnown(cx, cy);
-    const path = findPath(this.map, this.hero, { x, y }, this.avoidTraps({ x, y }, known));
+    const path = this.heroPath({ x, y }, known);
     if (!path) return false;
     this.clearDoorOrders();
     this.targetId = monster ? monster.id : null;
@@ -1203,7 +1244,7 @@ export class Game {
         best = [];
         break;
       }
-      const path = findPath(this.map, this.hero, { x: nx, y: ny }, this.avoidTraps({ x: nx, y: ny }, known));
+      const path = this.heroPath({ x: nx, y: ny }, known);
       if (path && (!best || path.length < best.length)) best = path;
     }
     if (!best) return false;
@@ -1560,6 +1601,7 @@ export class Game {
         this.collectGold();
         this.springTrap(this.hero);
         if (this.over) return true;
+        this.crunch();
         // Caché, on peut longer les murs ; s'écarter de tout abri fait sortir de l'ombre.
         if (this.hidden && !this.hasCover(this.hero)) this.reveal();
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.

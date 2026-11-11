@@ -18,6 +18,10 @@ export const Tile = {
   StairsUp: 11,
   /** Meuble d'une salle de fouille : on ne le traverse pas, mais il ne cache pas la vue. */
   Furniture: 12,
+  /** Gravier : on y marche, mais chaque pas crisse et attire les monstres proches. */
+  Gravel: 13,
+  /** Flaque d'eau : on y marche ; le feu n'y prend pas, on s'y éteint. */
+  Water: 14,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 

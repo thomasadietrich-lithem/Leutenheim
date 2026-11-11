@@ -1,6 +1,7 @@
 /** Sons synthétisés (aucun fichier audio) : de simples bips et souffles, faciles à remplacer plus tard. */
 export type SoundName =
   | "bell"
+  | "gravel"
   | "step"
   | "dice"
   | "hit"
@@ -231,6 +232,10 @@ export class Sfx {
         case "bell": // le tocsin : une cloche grave et lointaine, avec ses harmoniques qui s'éteignent lentement
           for (const [f, v, d] of [[220, 0.16, 2.2], [440, 0.07, 1.6], [587, 0.05, 1.2], [880, 0.03, 0.8]] as const) this.tone(f, f * 0.995, d, "sine", v);
           this.noise(0.05, 0.06, 1200);
+          break;
+        case "gravel": // crac, crac : des petits cailloux qui roulent et crissent sous la botte
+          for (let i = 0; i < 5; i++) this.noise(0.02 + Math.random() * 0.02, 0.1 + Math.random() * 0.08, 3000 + Math.random() * 2500, i * (0.025 + Math.random() * 0.03));
+          this.noise(0.06, 0.06, 900, 0.01);
           break;
         case "click":
           this.tone(700, 700, 0.03, "square", 0.05);

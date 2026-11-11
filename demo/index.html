@@ -727,6 +727,10 @@
             for (const [f, v, d] of [[220, 0.16, 2.2], [440, 0.07, 1.6], [587, 0.05, 1.2], [880, 0.03, 0.8]]) this.tone(f, f * 0.995, d, "sine", v);
             this.noise(0.05, 0.06, 1200);
             break;
+          case "gravel":
+            for (let i = 0; i < 5; i++) this.noise(0.02 + Math.random() * 0.02, 0.1 + Math.random() * 0.08, 3e3 + Math.random() * 2500, i * (0.025 + Math.random() * 0.03));
+            this.noise(0.06, 0.06, 900, 0.01);
+            break;
           case "click":
             this.tone(700, 700, 0.03, "square", 0.05);
             break;
@@ -1201,6 +1205,17 @@
     secretGoldPerDepth: 2,
     secretArrowsMin: 2,
     secretArrowsMax: 5,
+    /** Sols spéciaux (planche art/sols_v1.png validée le 2026-11-11) : plaques de gravier et flaques par étage. */
+    groundsInDungeon: true,
+    gravelPatches: [0, 2],
+    gravelSize: [3, 8],
+    puddles: [0, 3],
+    puddleSize: [1, 4],
+    /** Un pas sur le gravier : les monstres à tant de cases ou moins l'entendent (réveillés, ils foncent), +1 d'alerte. */
+    gravelRadius: 5,
+    gravelAlarm: 1,
+    /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
+    gravelDetour: 6,
     /** Salles de fouille (mobilier v1) : seulement en salle d'essai tant que les dessins ne sont pas validés. */
     themedRoomsInDungeon: false,
     /** Chance qu'une salle ordinaire assez grande (5 × 5) devienne une salle de fouille, et nombre de meubles. */
@@ -1580,7 +1595,11 @@
     Pillar: 10,
     StairsUp: 11,
     /** Meuble d'une salle de fouille : on ne le traverse pas, mais il ne cache pas la vue. */
-    Furniture: 12
+    Furniture: 12,
+    /** Gravier : on y marche, mais chaque pas crisse et attire les monstres proches. */
+    Gravel: 13,
+    /** Flaque d'eau : on y marche ; le feu n'y prend pas, on s'y éteint. */
+    Water: 14
   };
   var GameMap = class {
     constructor(width, height) {
@@ -1852,8 +1871,8 @@
         (c) => map.get(c.x, c.y) === Tile.Floor && map.get(c.x + c.tx, c.y + c.ty) === Tile.Wall && map.get(c.x - c.tx, c.y - c.ty) === Tile.Wall
       );
       for (const c of doorways) {
-        const around = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
-        const detour = around[map.index(c.x - c.nx, c.y - c.ny)];
+        const around2 = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
+        const detour = around2[map.index(c.x - c.nx, c.y - c.ny)];
         const pointless = detour !== -1 && detour <= cfg.doorDetour;
         if (!pointless && !bypassed(c) && !doorNearby(map, c.x, c.y, cfg.doorSpacing) && rng.chance(cfg.doorChance)) {
           map.set(c.x, c.y, Tile.DoorClosed);
@@ -1891,8 +1910,8 @@
     for (const room of rooms) {
       for (const c of ringCells(room)) {
         if (map.get(c.x, c.y) !== Tile.DoorClosed) continue;
-        const around = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
-        const detour = around[map.index(c.x - c.nx, c.y - c.ny)];
+        const around2 = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
+        const detour = around2[map.index(c.x - c.nx, c.y - c.ny)];
         if (detour !== -1 && detour <= cfg.doorDetour) map.set(c.x, c.y, Tile.Floor);
       }
     }
@@ -2063,7 +2082,7 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 4;
+  var SANDBOX_LAYOUT = 5;
   function buildSandbox() {
     const map = new GameMap(32, 32);
     const carve = (r) => {
@@ -2095,6 +2114,8 @@
     ];
     const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
     const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
+    for (const [x, y] of [[21, 10], [21, 11], [21, 12], [20, 9], [21, 9], [22, 9]]) map.set(x, y, Tile.Gravel);
+    for (const [x, y] of [[5, 20], [6, 20], [6, 21], [5, 21]]) map.set(x, y, Tile.Water);
     map.set(7, 22, Tile.Floor);
     for (let x = 4; x <= 28; x++) map.set(x, 23, Tile.Floor);
     const themedRooms = [];
@@ -2172,6 +2193,34 @@
         { x: 18, y: 18, asleep: true }
       ]
     };
+  }
+
+  // src/world/grounds.ts
+  function placeGrounds(floor, seed) {
+    const rng = new Rng(seed ^ 981225961);
+    const { map } = floor;
+    const far = (p, q) => Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)) > 2;
+    const free = (x, y) => map.get(x, y) === Tile.Floor && far({ x, y }, floor.start) && far({ x, y }, floor.stairs);
+    const patch = (tile, size) => {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const seedCell = { x: rng.int(1, map.width - 2), y: rng.int(1, map.height - 2) };
+        if (!free(seedCell.x, seedCell.y)) continue;
+        const cells = [seedCell];
+        map.set(seedCell.x, seedCell.y, tile);
+        for (let tries = 0; cells.length < size && tries < size * 12; tries++) {
+          const from = cells[rng.int(0, cells.length - 1)];
+          const [dx, dy] = [[1, 0], [-1, 0], [0, 1], [0, -1]][rng.int(0, 3)];
+          const x = from.x + dx;
+          const y = from.y + dy;
+          if (!free(x, y)) continue;
+          map.set(x, y, tile);
+          cells.push({ x, y });
+        }
+        return;
+      }
+    };
+    for (let i = rng.int(RULES.gravelPatches[0], RULES.gravelPatches[1]); i > 0; i--) patch(Tile.Gravel, rng.int(RULES.gravelSize[0], RULES.gravelSize[1]));
+    for (let i = rng.int(RULES.puddles[0], RULES.puddles[1]); i > 0; i--) patch(Tile.Water, rng.int(RULES.puddleSize[0], RULES.puddleSize[1]));
   }
 
   // src/core/combat.ts
@@ -2519,6 +2568,7 @@
         const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
         const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed) : { furniture: [], themes: [] };
+        if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
         state = {
           map: floor.map,
           start: floor.start,
@@ -2713,6 +2763,37 @@
     /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
     avoidTraps(to, base, from = this.hero) {
       return (x, y) => (!base || base(x, y)) && (x === to.x && y === to.y || x === from.x && y === from.y || !this.isTrap(x, y) && !this.isBurning(x, y));
+    }
+    /**
+     * Chemin du héros : il évite les pièges et le feu ; il contourne aussi le gravier quand le détour est court
+     * (au plus `gravelDetour` pas de plus). On peut toujours y marcher exprès (case d'arrivée sur le gravier).
+     */
+    heroPath(to, known) {
+      const plain = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+      if (!plain || !plain.some((p) => this.map.get(p.x, p.y) === Tile.Gravel)) return plain;
+      const quiet = findPath(
+        this.map,
+        this.hero,
+        to,
+        this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (this.map.get(x, y) !== Tile.Gravel || x === to.x && y === to.y))
+      );
+      return quiet && quiet.length <= plain.length + RULES.gravelDetour ? quiet : plain;
+    }
+    /** Le héros vient de poser le pied sur du gravier : ça crisse ; les monstres proches l'entendent et accourent. */
+    crunch() {
+      if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel) return;
+      this.reveal();
+      let alerted = 0;
+      for (const m of this.monsters) {
+        const d = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
+        if (d <= RULES.gravelRadius && !m.alerted) {
+          m.alerted = true;
+          m.asleep = false;
+          alerted++;
+        }
+      }
+      this.events.push({ type: "gravel", x: this.hero.x, y: this.hero.y, alerted });
+      this.raiseAlarm(RULES.gravelAlarm, this.hero);
     }
     /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
     springTrap(actor) {
@@ -3254,7 +3335,7 @@
       const cross = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
       const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
       const extra = splash[this.rng.int(0, splash.length - 1)];
-      const cells = [...cross, extra].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      const cells = [...cross, extra].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
       for (const c of cells) {
         const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
         if (old) old.turns = RULES.fireTurns;
@@ -3270,6 +3351,10 @@
     burn() {
       for (const a of [this.hero, ...this.monsters]) {
         if (!a.burning || this.over || this.isBurning(a.x, a.y)) continue;
+        if (this.map.get(a.x, a.y) === Tile.Water) {
+          a.burning = 0;
+          continue;
+        }
         a.burning--;
         const damage = rollDice(this.rng, RULES.fireDamage);
         this.events.push({ type: "burn", actor: a, damage });
@@ -3398,7 +3483,7 @@
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
       const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isKnown(cx, cy);
-      const path = findPath(this.map, this.hero, { x, y }, this.avoidTraps({ x, y }, known));
+      const path = this.heroPath({ x, y }, known);
       if (!path) return false;
       this.clearDoorOrders();
       this.targetId = monster ? monster.id : null;
@@ -3427,7 +3512,7 @@
           best = [];
           break;
         }
-        const path = findPath(this.map, this.hero, { x: nx, y: ny }, this.avoidTraps({ x: nx, y: ny }, known));
+        const path = this.heroPath({ x: nx, y: ny }, known);
         if (path && (!best || path.length < best.length)) best = path;
       }
       if (!best) return false;
@@ -3747,6 +3832,7 @@
           this.collectGold();
           this.springTrap(this.hero);
           if (this.over) return true;
+          this.crunch();
           if (this.hidden && !this.hasCover(this.hero)) this.reveal();
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
@@ -7196,6 +7282,175 @@
     return buildIcon(UI_ICONS[name]);
   }
 
+  // src/render/ground.ts
+  function hash2(x, y, seed) {
+    let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 2246822519 | 0) >>> 0;
+    h = Math.imul(h ^ h >>> 13, 1274126177) >>> 0;
+    h = (h ^ h >>> 16) >>> 0;
+    return (h & 65535) / 65535;
+  }
+  function valueNoise(px, py, scale2, seed) {
+    const fx = px / scale2;
+    const fy = py / scale2;
+    const x0 = Math.floor(fx);
+    const y0 = Math.floor(fy);
+    const tx = fx - x0;
+    const ty = fy - y0;
+    const sx = tx * tx * (3 - 2 * tx);
+    const sy = ty * ty * (3 - 2 * ty);
+    const a = hash2(x0, y0, seed);
+    const b = hash2(x0 + 1, y0, seed);
+    const c = hash2(x0, y0 + 1, seed);
+    const d = hash2(x0 + 1, y0 + 1, seed);
+    return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+  }
+  function fbm(px, py, scale2, seed, octaves) {
+    let total = 0;
+    let amp = 1;
+    let norm = 0;
+    for (let o = 0; o < octaves; o++) {
+      total += amp * valueNoise(px, py, scale2 / 2 ** o, seed + 17 * o);
+      norm += amp;
+      amp *= 0.5;
+    }
+    return total / norm;
+  }
+  var hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  var EARTH = [hex("#352c38"), hex("#3e3442"), hex("#473c4a")];
+  var STONE = hex("#4b4560");
+  var STONE_HI = hex("#5a5372");
+  var JOINT = hex("#221d2c");
+  var PEBBLES = [hex("#9c94a8"), hex("#766e84"), hex("#4e4758")];
+  var WATER = hex("#2f4f7e");
+  var WATER_DEEP = hex("#24365a");
+  var WATER_RIM = hex("#6a9ad0");
+  var WATER_SPARK = hex("#a8d0f0");
+  var WATER_RIPPLE = hex("#3d6596");
+  var T = 16;
+  var scale = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+  function earth(px, py, seed) {
+    const n = fbm(px, py, 6, seed, 2);
+    const c = EARTH[n < 1 / 3 ? 0 : n < 2 / 3 ? 1 : 2];
+    return hash2(px, py, seed + 5) > 0.93 ? scale(c, 0.75) : c;
+  }
+  function slab(px, py, seed) {
+    const cx = Math.floor(px / T);
+    const cy = Math.floor(py / T);
+    const lx = px - cx * T;
+    const ly = py - cy * T;
+    if (lx === 0 || ly === 0) return JOINT;
+    const crack = hash2(cx, cy, seed + 3) < 0.12 && Math.abs(lx - ly * (0.6 + hash2(cx, cy, seed + 4))) < 0.6 && lx > 3 && lx < 13;
+    if (crack) return JOINT;
+    const tint = 0.9 + 0.2 * hash2(cx, cy, seed);
+    let c = scale(lx === 1 || ly === 1 ? STONE_HI : STONE, tint);
+    if (fbm(px, py, 5, seed + 9, 2) > 0.62) c = scale(c, 0.9);
+    return c;
+  }
+  function floorB(px, py) {
+    const dust = fbm(px, py, 36, 51, 2) + 0.2 * (valueNoise(px, py, 3, 52) - 0.5);
+    if (dust < 0.4) return earth(px, py, 61);
+    const s = slab(px, py, 41);
+    if (dust < 0.47) {
+      const e = earth(px, py, 61);
+      return [s[0] * 0.55 + e[0] * 0.45, s[1] * 0.55 + e[1] * 0.45, s[2] * 0.55 + e[2] * 0.45];
+    }
+    return s;
+  }
+  function coverage(cells, px, py) {
+    let cov = 0;
+    for (const [cx, cy] of cells) {
+      const dx = (px + 0.5 - (cx + 0.5) * T) / T;
+      const dy = (py + 0.5 - (cy + 0.5) * T) / T;
+      cov += Math.exp(-(dx * dx + dy * dy) / 0.72);
+    }
+    return Math.min(cov, 1.4);
+  }
+  function around(map, x, y, tile) {
+    const out = [];
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (map.get(x + dx, y + dy) === tile) out.push([x + dx, y + dy]);
+    return out;
+  }
+  var canvases = /* @__PURE__ */ new Map();
+  function groundImage(map, x, y) {
+    const gravel = around(map, x, y, Tile.Gravel);
+    const water = around(map, x, y, Tile.Water);
+    const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}`;
+    const cached = canvases.get(key);
+    if (cached) return cached;
+    const canvas2 = document.createElement("canvas");
+    canvas2.width = T;
+    canvas2.height = T;
+    const ctx = canvas2.getContext("2d");
+    const img = ctx.createImageData(T, T);
+    const ox = x * T;
+    const oy = y * T;
+    const gravelEdge = (px, py) => coverage(gravel, px, py) + 0.5 * (fbm(px, py, 8, 81, 2) - 0.5);
+    const waterEdge = (px, py) => coverage(water, px, py) + 0.45 * (fbm(px, py, 9, 91, 2) - 0.5);
+    const wet = (px, py) => water.length > 0 && waterEdge(px, py) > 0.5;
+    const pixels = [];
+    for (let j = 0; j < T; j++) {
+      for (let i = 0; i < T; i++) {
+        const px = ox + i;
+        const py = oy + j;
+        let c = floorB(px, py);
+        if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
+        pixels.push(c);
+      }
+    }
+    if (gravel.length > 0) {
+      const start = (v) => Math.floor((v - 3) / 3) * 3;
+      for (let by = start(oy); by < oy + T; by += 3) {
+        for (let bx = start(ox); bx < ox + T; bx += 3) {
+          const px = bx + Math.floor(hash2(bx, by, 83) * 2);
+          const py = by + Math.floor(hash2(bx, by, 84) * 2);
+          const edge = gravelEdge(px, py);
+          if (edge <= 0.5) continue;
+          if (hash2(bx, by, 82) > Math.min(0.85, 0.25 + (edge - 0.5) * 2.5)) continue;
+          const light = hash2(bx, by, 85) > 0.5;
+          const put = (qx, qy, c) => {
+            if (qx >= ox && qx < ox + T && qy >= oy && qy < oy + T) pixels[(qy - oy) * T + (qx - ox)] = c;
+          };
+          put(px, py, light ? PEBBLES[0] : PEBBLES[1]);
+          put(px + 1, py, light ? PEBBLES[1] : PEBBLES[2]);
+          put(px, py + 1, light ? PEBBLES[1] : PEBBLES[2]);
+          put(px + 1, py + 1, PEBBLES[2]);
+        }
+      }
+    }
+    if (water.length > 0) {
+      for (let j = 0; j < T; j++) {
+        for (let i = 0; i < T; i++) {
+          const px = ox + i;
+          const py = oy + j;
+          const k = j * T + i;
+          if (!wet(px, py)) {
+            const near1 = wet(px + 1, py) || wet(px - 1, py) || wet(px, py + 1) || wet(px, py - 1);
+            const near2 = near1 || wet(px + 2, py) || wet(px - 2, py) || wet(px, py + 2) || wet(px, py - 2) || wet(px + 1, py + 1) || wet(px - 1, py - 1) || wet(px + 1, py - 1) || wet(px - 1, py + 1);
+            if (near2) pixels[k] = scale(pixels[k], 0.62);
+            continue;
+          }
+          const edge = waterEdge(px, py);
+          const deep = edge > 0.85;
+          let c = deep ? WATER_DEEP : WATER;
+          if (!wet(px, py - 1)) c = WATER_RIM;
+          else if (hash2(px, py, 94) > 0.996) c = WATER_SPARK;
+          else if (!deep && Math.abs(Math.sin((px * 0.7 + py * 1.3) * 0.5 + 3 * valueNoise(px, py, 8, 95))) < 0.08) c = WATER_RIPPLE;
+          pixels[k] = c;
+        }
+      }
+    }
+    for (let k = 0; k < pixels.length; k++) {
+      img.data[k * 4] = pixels[k][0];
+      img.data[k * 4 + 1] = pixels[k][1];
+      img.data[k * 4 + 2] = pixels[k][2];
+      img.data[k * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    if (canvases.size > 6e3) canvases.clear();
+    canvases.set(key, canvas2);
+    return canvas2;
+  }
+
   // src/render/sprites/furniture.ts
   var FURNITURE_PALETTE = { "K": "#120d08", "W": "#f4f7ff", "S": "#c3cbe0", "D": "#7f88a6", "G": "#f0c050", "g": "#a87c1c", "B": "#9a6a34", "b": "#5a3817", "R": "#d03a44", "r": "#8e1f28", "L": "#e6dcc0", "C": "#6e7594", "c": "#a4abc8", "T": "#b9824a", "t": "#7a5230", "P": "#7a5aa0", "p": "#4a3266", "H": "#3a4058", "U": "#4a8fd0", "u": "#2a5a94", "V": "#9fd0f4", "E": "#5cc860", "e": "#2e7a38", "O": "#e8782a", "Y": "#ffe27a", "A": "#b8e05a", "a": "#5e8a2a", "n": "#3c2814", "Q": "#b48ce0", "J": "#8ef0a0", "Z": "#d8c8a0", "z": "#a08c64", "X": "#ff9a3a", "x": "#c03a1a", "F": "#ffd84a", "f": "#c89a14", "I": "#6ad0ff", "i": "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50" };
   var FURNITURE = {
@@ -7449,7 +7704,7 @@
       const { ctx, tile } = this;
       const wall = t === Tile.Wall;
       if (t === Tile.Pillar) {
-        this.drawFloor(x, y, sx, sy);
+        this.drawFloor(game2, x, y, sx, sy);
         ctx.fillStyle = "rgba(12,11,18,0.45)";
         ctx.beginPath();
         ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
@@ -7465,38 +7720,20 @@
       } else if (wall) {
         this.drawWall(game2, x, y, sx, sy);
       } else {
-        this.drawFloor(x, y, sx, sy);
+        this.drawFloor(game2, x, y, sx, sy);
       }
       this.drawFeature(game2, t, x, y, sx, sy);
     }
     /**
-     * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; quelques-unes sont
-     * fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
+     * Sol B (planche `art/sols_v1.png`, validée le 2026-11-11) : dalles qu'une terre poussiéreuse recouvre par plaques,
+     * dessinées pixel par pixel ; gravier et flaques par-dessus (`render/ground.ts`). Toujours le même dessin pour une case.
      */
-    drawFloor(x, y, sx, sy) {
+    drawFloor(game2, x, y, sx, sy) {
       const { ctx, tile } = this;
-      const light = 0.92 + 0.16 * noise(x, y, 20);
-      ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
-      ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
-      const kind = noise(x, y, 21);
-      ctx.fillStyle = "rgba(20,18,30,0.45)";
-      ctx.strokeStyle = "rgba(20,18,30,0.45)";
-      ctx.lineWidth = Math.max(1, tile * 0.03);
-      if (kind < 0.09) {
-        const ax = 0.15 + 0.3 * noise(x, y, 24);
-        const ay = 0.15 + 0.7 * noise(x, y, 25);
-        ctx.beginPath();
-        ctx.moveTo(sx + ax * tile, sy + ay * tile);
-        ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
-        ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
-        ctx.stroke();
-      } else if (kind < 0.2) {
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(groundImage(game2.map, x, y), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.imageSmoothingEnabled = smooth;
     }
     /**
      * Mur de pierres : trois assises de hauteurs inégales, des joints placés au hasard (mais toujours au même
@@ -8027,8 +8264,8 @@
       ctx.translate(this.snap(gx + tile / 2), this.snap(gy + tile / 2));
       const long = h > w;
       if (long) ctx.rotate(Math.PI / 4);
-      const scale = tile * (long ? 1.05 : 0.8) / Math.max(w, h);
-      ctx.drawImage(this.sprite(rows, PALETTE), -w * scale / 2, -h * scale / 2, w * scale, h * scale);
+      const scale2 = tile * (long ? 1.05 : 0.8) / Math.max(w, h);
+      ctx.drawImage(this.sprite(rows, PALETTE), -w * scale2 / 2, -h * scale2 / 2, w * scale2, h * scale2);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
     }
@@ -8698,6 +8935,8 @@
         return `Vous vous cachez : ${roll(e.d20, e.bonus, e.total)} \u2014 ${e.success ? "r\xE9ussi, les monstres perdent votre trace." : "rat\xE9, vous restez visible."}`;
       case "revealed":
         return "Vous sortez de l'ombre.";
+      case "gravel":
+        return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
       case "jump":
         return `Vous tentez de vous d\xE9gager : ${roll(e.d20, e.bonus, e.total)} \u2014 ${e.success ? "r\xE9ussi, d'un bond." : "rat\xE9, vous restez au contact."}`;
       case "push": {
@@ -9120,6 +9359,9 @@
       landDie(e.d20, e.success ? "hit" : "miss", false);
       renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Cach\xE9" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
       if (!e.success) sfx.play("miss");
+    } else if (e.type === "gravel") {
+      sfx.play("gravel");
+      renderer.addFloatingText(e.x, e.y, "Crac", "#c8c0d4");
     } else if (e.type === "revealed") {
     } else if (e.type === "jump") {
       landDie(e.d20, e.success ? "hit" : "miss", false);

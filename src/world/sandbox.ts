@@ -16,6 +16,7 @@ import { GameMap, Point, Tile } from "./map";
  * - salle 1, « salle des colonnes » : quatre colonnes, une cheminée, une cache à fouiller, un piège, un Schrat endormi ;
  * - salle 2, « salle de combat » : un piège, un Schrat éveillé près d'un mur (pour pousser), un autre endormi, l'escalier ;
  * - deux salles spéciales verrouillées sous la salle de départ : fontaine et coffre ;
+ * - du gravier dans le couloir entre la salle des colonnes et la salle de combat, une flaque dans la salle de ronde ;
  * - sous la salle de ronde, une rangée de cinq salles de fouille (garde-manger, ossuaire, bibliothèque, dortoir,
  *   forge), chacune meublée avec une cache au pied d'un meuble.
  */
@@ -33,7 +34,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 4;
+export const SANDBOX_LAYOUT = 5;
 
 export function buildSandbox(): SandboxFloor {
   const map = new GameMap(32, 32);
@@ -72,6 +73,10 @@ export function buildSandbox(): SandboxFloor {
   ];
   const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
   const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
+
+  // Sols spéciaux (2026-11-11) : gravier dans le couloir colonnes → combat (et un peu autour), flaque dans la salle de ronde.
+  for (const [x, y] of [[21, 10], [21, 11], [21, 12], [20, 9], [21, 9], [22, 9]]) map.set(x, y, Tile.Gravel);
+  for (const [x, y] of [[5, 20], [6, 20], [6, 21], [5, 21]]) map.set(x, y, Tile.Water);
 
   // Salles de fouille (2026-11-11) : un couloir sous la salle de ronde, cinq salles de 5 × 5 en dessous.
   map.set(7, 22, Tile.Floor);

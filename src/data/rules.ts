@@ -51,6 +51,17 @@ export const RULES = {
   secretGoldPerDepth: 2,
   secretArrowsMin: 2,
   secretArrowsMax: 5,
+  /** Sols spéciaux (planche art/sols_v1.png validée le 2026-11-11) : plaques de gravier et flaques par étage. */
+  groundsInDungeon: true,
+  gravelPatches: [0, 2] as [number, number],
+  gravelSize: [3, 8] as [number, number],
+  puddles: [0, 3] as [number, number],
+  puddleSize: [1, 4] as [number, number],
+  /** Un pas sur le gravier : les monstres à tant de cases ou moins l'entendent (réveillés, ils foncent), +1 d'alerte. */
+  gravelRadius: 5,
+  gravelAlarm: 1,
+  /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
+  gravelDetour: 6,
   /** Salles de fouille (mobilier v1) : seulement en salle d'essai tant que les dessins ne sont pas validés. */
   themedRoomsInDungeon: false,
   /** Chance qu'une salle ordinaire assez grande (5 × 5) devienne une salle de fouille, et nombre de meubles. */

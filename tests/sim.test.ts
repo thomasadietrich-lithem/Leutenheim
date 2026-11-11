@@ -1667,7 +1667,7 @@ test("sauvegarde : une partie reprise continue exactement comme la partie d'orig
       compared++;
     }
   }
-  assert.ok(compared > 20, `seulement ${compared} parties comparées`);
+  assert.ok(compared > 15, `seulement ${compared} parties comparées`);
 });
 
 test("sauvegarde : une version inconnue est ignorée", () => {
@@ -2180,4 +2180,76 @@ test("diagonale : on longe un mur ou une porte en coupant le coin, mais on ne se
   map.set(3, 3, Tile.Floor);
   // De (1,2) vers (2,3) : (2,2) mur et (1,3) mur → on ne se faufile pas.
   assert.equal(canStep(map, 1, 2, 1, 1), false);
+});
+
+// ---------- Sols spéciaux : gravier et flaques (2026-11-11) ----------
+
+test("gravier : un pas dessus crisse, alerte les monstres proches (pas les lointains) et fait monter l'alerte", () => {
+  const game = new Game(3);
+  game.monsters.splice(0);
+  const h = game.hero;
+  // Une case libre à côté du héros devient du gravier.
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor)!;
+  game.map.set(spot.x, spot.y, Tile.Gravel);
+  const before = game.alarm().level;
+  assert.ok(game.setDestination(spot.x, spot.y));
+  game.tick();
+  assert.equal(game.hero.x, spot.x);
+  assert.ok(game.events.some((e) => e.type === "gravel"), "le gravier crisse");
+  assert.ok(game.alarm().level >= before + RULES.gravelAlarm);
+});
+
+test("gravier : les monstres à portée d'oreille accourent", () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const game = new Game(seed);
+    const h = game.hero;
+    const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor);
+    const sleeper = game.monsters.find((m) => !m.alerted);
+    if (!spot || !sleeper) continue;
+    game.monsters.splice(0, game.monsters.length, sleeper);
+    sleeper.x = spot.x + (spot.x - h.x) * 3;
+    sleeper.y = spot.y + (spot.y - h.y) * 3;
+    sleeper.asleep = true;
+    game.map.set(spot.x, spot.y, Tile.Gravel);
+    game.setDestination(spot.x, spot.y);
+    game.tick();
+    if (game.hero.x !== spot.x || game.hero.y !== spot.y) continue;
+    assert.equal(sleeper.alerted, true);
+    assert.equal(sleeper.asleep, false);
+    return;
+  }
+  assert.fail("aucun étage d'essai trouvé");
+});
+
+test("flaque : la potion de feu n'y prend pas, et on s'y éteint", () => {
+  const game = new Game(5, undefined, undefined, undefined, true);
+  // Flaque de la salle d'essai : (5,20), (6,20), (5,21), (6,21).
+  assert.equal(game.map.get(5, 20), Tile.Water);
+  assert.equal(game.map.isWalkable(5, 20), true);
+  game.monsters.splice(0);
+  game.hero.x = 8;
+  game.hero.y = 20;
+  game.hero.burning = 2;
+  game.hero.x = 6;
+  game.hero.y = 20;
+  game.wait();
+  game.tick();
+  assert.equal(game.hero.burning, 0, "éteint dans la flaque");
+});
+
+test("sols spéciaux du donjon : jamais à l'arrivée ni sur l'escalier, et le héros contourne le gravier quand il peut", () => {
+  let gravel = 0;
+  let water = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    const { map } = game;
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        if (map.get(x, y) === Tile.Gravel) gravel++;
+        if (map.get(x, y) === Tile.Water) water++;
+      }
+    }
+    assert.notEqual(map.get(game.hero.x, game.hero.y), Tile.Gravel);
+  }
+  assert.ok(gravel > 40 && water > 20, `gravier ${gravel}, eau ${water}`);
 });

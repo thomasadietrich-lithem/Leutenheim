@@ -76,6 +76,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous vous cachez : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, les monstres perdent votre trace." : "raté, vous restez visible."}`;
     case "revealed":
       return "Vous sortez de l'ombre.";
+    case "gravel":
+      return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;
     case "push": {

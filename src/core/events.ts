@@ -35,6 +35,8 @@ export type GameEvent =
   | { type: "hide"; d20: number; bonus: number; total: number; success: boolean }
   /** Le héros sort de sa cachette (il attaque, quitte l'abri d'un obstacle, fait du bruit). */
   | { type: "revealed" }
+  /** Le héros marche sur du gravier : ça crisse ; `alerted` monstres l'ont entendu. */
+  | { type: "gravel"; x: number; y: number; alerted: number }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
   | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
   /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */

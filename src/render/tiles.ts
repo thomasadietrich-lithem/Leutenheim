@@ -1,6 +1,7 @@
 import { Game } from "../core/game";
 import { Tile } from "../world/map";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
+import { groundImage } from "./ground";
 import { FURNITURE, FURNITURE_PALETTE } from "./sprites/furniture";
 
 /**
@@ -44,7 +45,7 @@ export class TilePainter {
     const wall = t === Tile.Wall;
         if (t === Tile.Pillar) {
           // Colonne : une dalle de sol, et un fût de pierre rond vu du dessus.
-          this.drawFloor(x, y, sx, sy);
+          this.drawFloor(game, x, y, sx, sy);
           ctx.fillStyle = "rgba(12,11,18,0.45)";
           ctx.beginPath();
           ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
@@ -61,41 +62,21 @@ export class TilePainter {
         if (wall) {
           this.drawWall(game, x, y, sx, sy);
         } else {
-          this.drawFloor(x, y, sx, sy);
+          this.drawFloor(game, x, y, sx, sy);
         }
         this.drawFeature(game, t, x, y, sx, sy);
   }
 
   /**
-   * Sol en dalles de pierre : chaque case est une dalle de teinte légèrement différente ; quelques-unes sont
-   * fissurées ou parsemées de gravillons. Le tirage est fixe pour une case donnée.
+   * Sol B (planche `art/sols_v1.png`, validée le 2026-11-11) : dalles qu'une terre poussiéreuse recouvre par plaques,
+   * dessinées pixel par pixel ; gravier et flaques par-dessus (`render/ground.ts`). Toujours le même dessin pour une case.
    */
-  drawFloor(x: number, y: number, sx: number, sy: number): void {
+  drawFloor(game: Game, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
-    const light = 0.92 + 0.16 * noise(x, y, 20);
-    ctx.fillStyle = `rgb(${Math.round(75 * light)},${Math.round(69 * light)},${Math.round(96 * light)})`;
-    ctx.fillRect(sx + 0.5, sy + 0.5, tile - 1, tile - 1);
-    const kind = noise(x, y, 21);
-    ctx.fillStyle = "rgba(20,18,30,0.45)";
-    ctx.strokeStyle = "rgba(20,18,30,0.45)";
-    ctx.lineWidth = Math.max(1, tile * 0.03);
-    if (kind < 0.09) {
-      // Fissure : une ligne brisée, rare.
-      const ax = 0.15 + 0.3 * noise(x, y, 24);
-      const ay = 0.15 + 0.7 * noise(x, y, 25);
-      ctx.beginPath();
-      ctx.moveTo(sx + ax * tile, sy + ay * tile);
-      ctx.lineTo(sx + (ax + 0.2) * tile, sy + (0.3 + 0.4 * noise(x, y, 26)) * tile);
-      ctx.lineTo(sx + (ax + 0.42) * tile, sy + (0.2 + 0.6 * noise(x, y, 27)) * tile);
-      ctx.stroke();
-    } else if (kind < 0.2) {
-      // Gravillons.
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.arc(sx + (0.2 + 0.6 * noise(x, y, 30 + i)) * tile, sy + (0.2 + 0.6 * noise(x, y, 40 + i)) * tile, tile * 0.035, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(groundImage(game.map, x, y), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    ctx.imageSmoothingEnabled = smooth;
   }
 
   /**

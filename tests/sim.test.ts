@@ -1584,3 +1584,68 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
   for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.StairsDown) stairs = { x, y };
   assert.ok(game.setDestination(stairs.x, stairs.y, true));
 });
+
+/** Un joueur automatique simple : fonce sur le monstre visible le plus proche, sinon vers l'escalier. */
+function autoStep(game: Game): void {
+  if (game.pendingStairs === "down") {
+    game.takeStairs();
+    return;
+  }
+  const foes = game.visibleMonsters();
+  if (foes.length > 0) {
+    const d = (m: { x: number; y: number }) => Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
+    const target = foes.reduce((a, b) => (d(b) < d(a) ? b : a));
+    game.setDestination(target.x, target.y);
+  } else if (game.path.length === 0) {
+    for (let y = 0; y < game.map.height; y++) {
+      for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.StairsDown) game.setDestination(x, y, true);
+    }
+  }
+  game.tick();
+  game.events.length = 0;
+}
+
+/** Ce qui doit être identique entre deux parties pour qu'on les dise « les mêmes ». */
+function fingerprint(game: Game): string {
+  return JSON.stringify({
+    depth: game.depth,
+    turn: game.turn,
+    hero: [game.hero.x, game.hero.y, game.hero.hp],
+    monsters: game.monsters.map((m) => [m.id, m.x, m.y, m.hp, m.alerted]),
+    gold: game.gold,
+    xp: game.xp,
+    bag: game.inventory.items.map((i) => [i.defId, i.count]),
+  });
+}
+
+test("sauvegarde : une partie reprise continue exactement comme la partie d'origine", () => {
+  let compared = 0;
+  for (const sandbox of [false, true]) {
+    for (let seed = 1; seed <= 25; seed++) {
+      const original = new Game(seed, undefined, undefined, undefined, sandbox);
+      for (let i = 0; i < 60 && !original.over; i++) autoStep(original);
+      if (original.over) continue;
+      // Sauvegarde passée par du texte, comme sur l'appareil.
+      const text = JSON.stringify(original.snapshot());
+      const copy = Game.restore(JSON.parse(text));
+      assert.ok(copy, `graine ${seed} : sauvegarde illisible`);
+      assert.equal(copy.sandbox, sandbox);
+      // Les ordres en cours ne sont pas sauvegardés : on repart des deux côtés sans ordre.
+      original.path = [];
+      copy.path = [];
+      assert.equal(fingerprint(copy), fingerprint(original), `graine ${seed} : la partie reprise diffère`);
+      for (let i = 0; i < 80 && !original.over; i++) {
+        autoStep(original);
+        autoStep(copy);
+      }
+      assert.equal(fingerprint(copy), fingerprint(original), `graine ${seed} : la suite diffère après la reprise`);
+      compared++;
+    }
+  }
+  assert.ok(compared > 20, `seulement ${compared} parties comparées`);
+});
+
+test("sauvegarde : une version inconnue est ignorée", () => {
+  const data = new Game(3).snapshot();
+  assert.equal(Game.restore({ ...data, version: 999 }), null);
+});

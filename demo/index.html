@@ -855,6 +855,14 @@
       this.items = [];
       this.nextUid = 1;
     }
+    /** Pour la sauvegarde : le contenu du sac et le prochain numéro d'objet. */
+    snapshot() {
+      return { items: this.items.map((i) => ({ ...i })), nextUid: this.nextUid };
+    }
+    restore(data) {
+      this.items = data.items.map((i) => ({ ...i }));
+      this.nextUid = data.nextUid;
+    }
     def(item) {
       return ITEMS[item.defId];
     }
@@ -1056,7 +1064,7 @@
   }
 
   // src/core/rng.ts
-  var Rng = class {
+  var Rng = class _Rng {
     constructor(seed) {
       this.state = seed >>> 0;
     }
@@ -1071,6 +1079,15 @@
     /** Entier entre min et max inclus. */
     int(min, max) {
       return min + Math.floor(this.next() * (max - min + 1));
+    }
+    /** État interne, pour la sauvegarde : un générateur recréé avec `Rng.fromState` reprend la même suite. */
+    getState() {
+      return this.state;
+    }
+    static fromState(state) {
+      const rng = new _Rng(0);
+      rng.state = state >>> 0;
+      return rng;
     }
     chance(probability) {
       return this.next() < probability;
@@ -1511,6 +1528,23 @@
     };
   }
 
+  // src/core/save.ts
+  var SAVE_VERSION = 1;
+  function bytesToText(bytes) {
+    let s = "";
+    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+  function textToBytes(text) {
+    const s = atob(text);
+    const bytes = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+    return bytes;
+  }
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
   // src/core/floor.ts
   function roomElements(map, torches, room) {
     let pillars = false;
@@ -1573,7 +1607,7 @@
   }
 
   // src/core/game.ts
-  var Game = class {
+  var Game = class _Game {
     constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR, sandbox = false) {
       this.runSeed = runSeed;
       this.race = race;
@@ -1705,19 +1739,7 @@
         };
         this.floors.set(depth, state);
       }
-      this.current = state;
-      this.depth = depth;
-      this.deepest = Math.max(this.deepest, depth);
-      this.map = state.map;
-      this.rng = state.rng;
-      this.rooms = state.rooms;
-      this.torches = state.torches;
-      this.explored = state.explored;
-      this.sensed = state.sensed;
-      this.seenMonsters = state.seenMonsters;
-      this.monsters = state.monsters;
-      this.ground = state.ground;
-      this.debris = state.debris.filter((d) => d.until > this.turn);
+      this.useFloor(state, depth);
       const arrival = via === "down" ? state.start : state.stairs;
       this.hero.x = this.hero.fromX = arrival.x;
       this.hero.y = this.hero.fromY = arrival.y;
@@ -1737,7 +1759,6 @@
       this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
-      this.light = computeLight(this.map, this.torches);
       if (fresh && sandboxFloor) {
         this.populateSandbox(state, sandboxFloor);
       } else if (fresh) {
@@ -1876,6 +1897,133 @@
     /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
     roomElements(room) {
       return roomElements(this.map, this.torches, room);
+    }
+    /** L'étage où se trouve désormais le héros : la partie travaille directement sur ses données. */
+    useFloor(state, depth) {
+      this.current = state;
+      this.depth = depth;
+      this.deepest = Math.max(this.deepest, depth);
+      this.map = state.map;
+      this.rng = state.rng;
+      this.rooms = state.rooms;
+      this.torches = state.torches;
+      this.explored = state.explored;
+      this.sensed = state.sensed;
+      this.seenMonsters = state.seenMonsters;
+      this.monsters = state.monsters;
+      this.ground = state.ground;
+      this.debris = state.debris.filter((d) => d.until > this.turn);
+      this.light = computeLight(this.map, this.torches);
+    }
+    // ---------- Sauvegarde ----------
+    /** Toute la partie sous forme de simples données, à écrire sur l'appareil. */
+    snapshot() {
+      this.current.monsters = this.monsters;
+      this.current.ground = this.ground;
+      this.current.debris = this.debris;
+      const floors = [...this.floors.entries()].map(([depth, f]) => ({
+        depth,
+        width: f.map.width,
+        height: f.map.height,
+        tiles: bytesToText(f.map.tiles),
+        start: f.start,
+        stairs: f.stairs,
+        rooms: f.rooms,
+        torches: f.torches,
+        monsters: f.monsters,
+        ground: f.ground,
+        debris: f.debris,
+        explored: bytesToText(f.explored),
+        sensed: bytesToText(f.sensed),
+        rng: f.rng.getState(),
+        seenMonsters: [...f.seenMonsters],
+        population: f.population,
+        nextRespawn: f.nextRespawn,
+        rested: f.rested,
+        secrets: f.secrets,
+        traps: f.traps,
+        searched: [...f.searched]
+      }));
+      return clone({
+        version: SAVE_VERSION,
+        savedAt: (/* @__PURE__ */ new Date(0)).toISOString(),
+        // l'heure est mise par l'affichage (la logique ne lit pas l'horloge)
+        runSeed: this.runSeed,
+        race: this.race.id,
+        heroClass: this.heroClass.id,
+        sandbox: this.sandbox,
+        depth: this.depth,
+        deepest: this.deepest,
+        turn: this.turn,
+        hero: this.hero,
+        bag: this.inventory.snapshot(),
+        equipment: this.equipment,
+        gold: this.gold,
+        xp: this.xp,
+        level: this.level,
+        heroMisses: this.heroMisses,
+        hidden: this.hidden,
+        nextId: this.nextId,
+        lastFoeId: this.lastFoeId,
+        failedDoorAttempts: [...this.failedDoorAttempts],
+        floors
+      });
+    }
+    /** Recrée une partie à partir d'une sauvegarde ; `null` si elle est illisible ou d'une ancienne version. */
+    static restore(data) {
+      if (!data || data.version !== SAVE_VERSION) return null;
+      const race = RACES[data.race];
+      const heroClass = CLASSES[data.heroClass];
+      if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
+      const game2 = new _Game(data.runSeed, race, heroClass, DEFAULT_FLOOR, data.sandbox);
+      const saved = clone(data);
+      game2.floors.clear();
+      for (const f of saved.floors) {
+        const map = new GameMap(f.width, f.height);
+        map.tiles.set(textToBytes(f.tiles));
+        game2.floors.set(f.depth, {
+          map,
+          start: f.start,
+          stairs: f.stairs,
+          rooms: f.rooms,
+          torches: f.torches,
+          monsters: f.monsters,
+          ground: f.ground,
+          debris: f.debris,
+          explored: textToBytes(f.explored),
+          sensed: textToBytes(f.sensed),
+          rng: Rng.fromState(f.rng),
+          seenMonsters: new Set(f.seenMonsters),
+          population: f.population,
+          nextRespawn: f.nextRespawn,
+          rested: f.rested,
+          secrets: f.secrets,
+          traps: f.traps,
+          searched: new Set(f.searched)
+        });
+      }
+      game2.turn = saved.turn;
+      game2.hero = saved.hero;
+      game2.inventory.restore(saved.bag);
+      game2.equipment = saved.equipment;
+      game2.gold = saved.gold;
+      game2.xp = saved.xp;
+      game2.level = saved.level;
+      game2.heroMisses = saved.heroMisses;
+      game2.nextId = saved.nextId;
+      game2.lastFoeId = saved.lastFoeId;
+      game2.failedDoorAttempts = new Set(saved.failedDoorAttempts);
+      game2.events = [];
+      game2.useFloor(game2.floors.get(saved.depth), saved.depth);
+      game2.deepest = saved.deepest;
+      game2.refreshStats();
+      game2.hidden = saved.hidden;
+      for (const a of [game2.hero, ...game2.monsters]) {
+        a.fromX = a.x;
+        a.fromY = a.y;
+      }
+      game2.updateVision();
+      return game2;
     }
     // ---------- Consultation ----------
     monsterAt(x, y) {
@@ -5607,6 +5755,7 @@
     }
   }
   var started = false;
+  var savedRun = null;
   var chosenRace = RACES.humain;
   var chosenClass = CLASSES.guerrier;
   var shownHp = 0;
@@ -5617,8 +5766,56 @@
   var stepMs = 125;
   var stepping = false;
   var stepTime = 0;
+  var SAVE_KEYS = { donjon: "leutenheim.save", essai: "leutenheim.save.essai", last: "leutenheim.save.last" };
+  var lastSaveAt = 0;
+  function saveSlot(sandbox) {
+    return sandbox ? SAVE_KEYS.essai : SAVE_KEYS.donjon;
+  }
+  function writeSave(force = false) {
+    if (!started || game.over) return;
+    const now = performance.now();
+    if (!force && now - lastSaveAt < 500) return;
+    lastSaveAt = now;
+    try {
+      const data = game.snapshot();
+      data.savedAt = (/* @__PURE__ */ new Date()).toISOString();
+      localStorage.setItem(saveSlot(game.sandbox), JSON.stringify(data));
+      localStorage.setItem(SAVE_KEYS.last, game.sandbox ? "essai" : "donjon");
+    } catch {
+    }
+  }
+  function eraseSave(sandbox) {
+    try {
+      localStorage.removeItem(saveSlot(sandbox));
+    } catch {
+    }
+  }
+  function readSave() {
+    try {
+      const last2 = localStorage.getItem(SAVE_KEYS.last);
+      const text = localStorage.getItem(last2 === "essai" ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
+      return text ? Game.restore(JSON.parse(text)) : null;
+    } catch {
+      return null;
+    }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") writeSave(true);
+  });
+  window.addEventListener("pagehide", () => writeSave(true));
   function newRun(sandbox = false) {
-    game = new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass, void 0, sandbox);
+    setupRun(new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass, void 0, sandbox), null);
+    started = true;
+    savedRun = null;
+    writeSave(true);
+  }
+  function resumeRun(saved) {
+    setupRun(saved, [`Partie reprise : \xE9tage ${saved.depth}, tour ${saved.turn}.`]);
+    started = true;
+  }
+  function setupRun(next, lines) {
+    game = next;
+    const sandbox = game.sandbox;
     aimMode = false;
     doorWasPending = false;
     foundOpen = false;
@@ -5630,10 +5827,10 @@
     cue = null;
     ghosts = [];
     shownHp = game.hero.hp;
-    logLines = sandbox ? [
+    logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
       "\xC0 l'est : colonnes, chemin\xE9e, cache \xE0 fouiller, pi\xE8ge. Au sud-est : Schrats \xE0 pousser, pi\xE8ge, escalier. Au sud : fontaine et coffre (clef au sol)."
-    ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
+    ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
     over.hidden = true;
@@ -6305,7 +6502,7 @@
     menu.hidden = !menuOpen;
     for (const name of ["main", "new", "settings", "codex"]) $(`screen-${name}`).hidden = screen !== name;
     $("detail").hidden = true;
-    $("menu-resume").hidden = !started || game.over;
+    $("menu-resume").hidden = (!started || game.over) && savedRun === null;
     $("settings-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
     if (screen === "new") renderCards();
     if (screen === "codex") renderCodex();
@@ -6397,7 +6594,13 @@
     $("detail").hidden = false;
   }
   button("open-menu", () => showScreen("main"));
-  button("menu-resume", () => showScreen(null));
+  button("menu-resume", () => {
+    if ((!started || game.over) && savedRun) {
+      resumeRun(savedRun);
+      savedRun = null;
+    }
+    showScreen(null);
+  });
   button("menu-new", () => showScreen("new"));
   button("menu-settings", () => showScreen("settings"));
   button("menu-codex", () => showScreen("codex"));
@@ -6450,6 +6653,8 @@
         stepping = true;
         if (game.hero.x !== before.x || game.hero.y !== before.y) sfx.play("step");
         collectEvents();
+        if (game.over) eraseSave(game.sandbox);
+        else writeSave();
       } else {
         stepTime = 0;
       }
@@ -6501,7 +6706,8 @@
     aim.classList.toggle("active", aimMode);
     requestAnimationFrame(frame);
   }
-  newRun();
+  savedRun = readSave();
+  setupRun(new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass), null);
   showScreen("main");
   requestAnimationFrame(frame);
   window.leutenheim = { game: () => game };

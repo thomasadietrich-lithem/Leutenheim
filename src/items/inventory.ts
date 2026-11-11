@@ -21,6 +21,16 @@ export class Inventory {
     readonly rows = 4,
   ) {}
 
+  /** Pour la sauvegarde : le contenu du sac et le prochain numéro d'objet. */
+  snapshot(): { items: BagItem[]; nextUid: number } {
+    return { items: this.items.map((i) => ({ ...i })), nextUid: this.nextUid };
+  }
+
+  restore(data: { items: BagItem[]; nextUid: number }): void {
+    this.items = data.items.map((i) => ({ ...i }));
+    this.nextUid = data.nextUid;
+  }
+
   def(item: BagItem): ItemDef {
     return ITEMS[item.defId];
   }

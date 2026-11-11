@@ -114,6 +114,8 @@ function discover(ids: Iterable<string>): void {
   }
 }
 let started = false;
+/** Partie trouvée sur l'appareil au lancement, proposée par « Reprendre ». */
+let savedRun: Game | null = null;
 /** Race et classe choisies dans l'écran de nouvelle partie. */
 let chosenRace: RaceDef = RACES.humain;
 let chosenClass: ClassDef = CLASSES.guerrier;
@@ -130,9 +132,74 @@ let stepMs = 125;
 let stepping = false;
 let stepTime = 0;
 
+// ---------- Sauvegarde (sur l'appareil) ----------
+
+/** Deux emplacements : la partie de donjon et la salle d'essai ; « last » dit laquelle reprendre. */
+const SAVE_KEYS = { donjon: "leutenheim.save", essai: "leutenheim.save.essai", last: "leutenheim.save.last" };
+let lastSaveAt = 0;
+
+function saveSlot(sandbox: boolean): string {
+  return sandbox ? SAVE_KEYS.essai : SAVE_KEYS.donjon;
+}
+
+/** Écrit la partie en cours (au plus deux fois par seconde, sauf si on force). Sans effet si l'appareil refuse. */
+function writeSave(force = false): void {
+  if (!started || game.over) return;
+  const now = performance.now();
+  if (!force && now - lastSaveAt < 500) return;
+  lastSaveAt = now;
+  try {
+    const data = game.snapshot();
+    data.savedAt = new Date().toISOString();
+    localStorage.setItem(saveSlot(game.sandbox), JSON.stringify(data));
+    localStorage.setItem(SAVE_KEYS.last, game.sandbox ? "essai" : "donjon");
+  } catch {
+    /* stockage plein ou interdit : on joue sans sauvegarde */
+  }
+}
+
+function eraseSave(sandbox: boolean): void {
+  try {
+    localStorage.removeItem(saveSlot(sandbox));
+  } catch {
+    /* sans gravité */
+  }
+}
+
+/** La dernière partie sauvegardée, relue ; `null` s'il n'y en a pas (ou si elle est illisible). */
+function readSave(): Game | null {
+  try {
+    const last = localStorage.getItem(SAVE_KEYS.last);
+    const text = localStorage.getItem(last === "essai" ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
+    return text ? Game.restore(JSON.parse(text)) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Le téléphone peut fermer l'application à tout moment : on sauvegarde dès qu'elle passe en arrière-plan.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") writeSave(true);
+});
+window.addEventListener("pagehide", () => writeSave(true));
+
 function newRun(sandbox = false): void {
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
-  game = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox);
+  setupRun(new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox), null);
+  started = true;
+  savedRun = null;
+  writeSave(true);
+}
+
+/** Reprend la partie sauvegardée. */
+function resumeRun(saved: Game): void {
+  setupRun(saved, [`Partie reprise : étage ${saved.depth}, tour ${saved.turn}.`]);
+  started = true;
+}
+
+function setupRun(next: Game, lines: string[] | null): void {
+  game = next;
+  const sandbox = game.sandbox;
   aimMode = false;
   doorWasPending = false;
   foundOpen = false;
@@ -144,12 +211,12 @@ function newRun(sandbox = false): void {
   cue = null;
   ghosts = [];
   shownHp = game.hero.hp;
-  logLines = sandbox
+  logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
         "À l'est : colonnes, cheminée, cache à fouiller, piège. Au sud-est : Schrats à pousser, piège, escalier. Au sud : fontaine et coffre (clef au sol).",
       ]
-    : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
+    : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
   clearDie();
   over.hidden = true;
@@ -916,7 +983,8 @@ function showScreen(screen: Screen | null): void {
   menu.hidden = !menuOpen;
   for (const name of ["main", "new", "settings", "codex"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
-  $("menu-resume").hidden = !started || game.over;
+  // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
+  $("menu-resume").hidden = (!started || game.over) && savedRun === null;
   $("settings-sound").textContent = `Sons : ${options.sound ? "activés" : "désactivés"}`;
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
@@ -1028,7 +1096,13 @@ function showDetail(card: Card): void {
 }
 
 button("open-menu", () => showScreen("main"));
-button("menu-resume", () => showScreen(null));
+button("menu-resume", () => {
+  if ((!started || game.over) && savedRun) {
+    resumeRun(savedRun);
+    savedRun = null;
+  }
+  showScreen(null);
+});
 button("menu-new", () => showScreen("new"));
 button("menu-settings", () => showScreen("settings"));
 button("menu-codex", () => showScreen("codex"));
@@ -1089,6 +1163,9 @@ function frame(now: number): void {
       stepping = true;
       if (game.hero.x !== before.x || game.hero.y !== before.y) sfx.play("step");
       collectEvents();
+      // Sauvegarde automatique après chaque tour (mort définitive : la sauvegarde s'efface à la mort).
+      if (game.over) eraseSave(game.sandbox);
+      else writeSave();
     } else {
       stepTime = 0;
     }
@@ -1149,7 +1226,10 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-newRun();
+// Au lancement : une partie toute prête derrière le menu (non sauvegardée tant qu'on ne l'a pas lancée),
+// et la dernière partie sauvegardée, proposée par « Reprendre ».
+savedRun = readSave();
+setupRun(new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass), null);
 showScreen("main");
 requestAnimationFrame(frame);
 

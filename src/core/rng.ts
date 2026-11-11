@@ -20,6 +20,17 @@ export class Rng {
     return min + Math.floor(this.next() * (max - min + 1));
   }
 
+  /** État interne, pour la sauvegarde : un générateur recréé avec `Rng.fromState` reprend la même suite. */
+  getState(): number {
+    return this.state;
+  }
+
+  static fromState(state: number): Rng {
+    const rng = new Rng(0);
+    rng.state = state >>> 0;
+    return rng;
+  }
+
   chance(probability: number): boolean {
     return this.next() < probability;
   }

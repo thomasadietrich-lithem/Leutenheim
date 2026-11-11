@@ -14,6 +14,7 @@ import { canStep, findPath } from "../world/pathfinding";
 import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
+import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
 import { Debris, FloorState, GroundItem, placeKey, placeSecrets, placeTraps, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
@@ -171,19 +172,7 @@ export class Game {
       };
       this.floors.set(depth, state);
     }
-    this.current = state;
-    this.depth = depth;
-    this.deepest = Math.max(this.deepest, depth);
-    this.map = state.map;
-    this.rng = state.rng;
-    this.rooms = state.rooms;
-    this.torches = state.torches;
-    this.explored = state.explored;
-    this.sensed = state.sensed;
-    this.seenMonsters = state.seenMonsters;
-    this.monsters = state.monsters;
-    this.ground = state.ground;
-    this.debris = state.debris.filter((d) => d.until > this.turn);
+    this.useFloor(state, depth);
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
     this.hero.x = this.hero.fromX = arrival.x;
@@ -204,7 +193,6 @@ export class Game {
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
-    this.light = computeLight(this.map, this.torches);
     if (fresh && sandboxFloor) {
       this.populateSandbox(state, sandboxFloor);
     } else if (fresh) {
@@ -362,6 +350,137 @@ export class Game {
   /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
   roomElements(room: Room): number {
     return roomElements(this.map, this.torches, room);
+  }
+
+  /** L'étage où se trouve désormais le héros : la partie travaille directement sur ses données. */
+  private useFloor(state: FloorState, depth: number): void {
+    this.current = state;
+    this.depth = depth;
+    this.deepest = Math.max(this.deepest, depth);
+    this.map = state.map;
+    this.rng = state.rng;
+    this.rooms = state.rooms;
+    this.torches = state.torches;
+    this.explored = state.explored;
+    this.sensed = state.sensed;
+    this.seenMonsters = state.seenMonsters;
+    this.monsters = state.monsters;
+    this.ground = state.ground;
+    this.debris = state.debris.filter((d) => d.until > this.turn);
+    this.light = computeLight(this.map, this.torches);
+  }
+
+  // ---------- Sauvegarde ----------
+
+  /** Toute la partie sous forme de simples données, à écrire sur l'appareil. */
+  snapshot(): SaveData {
+    // L'étage courant travaille sur des copies vivantes : on les range d'abord dans son état.
+    this.current.monsters = this.monsters;
+    this.current.ground = this.ground;
+    this.current.debris = this.debris;
+    const floors: SavedFloor[] = [...this.floors.entries()].map(([depth, f]) => ({
+      depth,
+      width: f.map.width,
+      height: f.map.height,
+      tiles: bytesToText(f.map.tiles),
+      start: f.start,
+      stairs: f.stairs,
+      rooms: f.rooms,
+      torches: f.torches,
+      monsters: f.monsters,
+      ground: f.ground,
+      debris: f.debris,
+      explored: bytesToText(f.explored),
+      sensed: bytesToText(f.sensed),
+      rng: f.rng.getState(),
+      seenMonsters: [...f.seenMonsters],
+      population: f.population,
+      nextRespawn: f.nextRespawn,
+      rested: f.rested,
+      secrets: f.secrets,
+      traps: f.traps,
+      searched: [...f.searched],
+    }));
+    return clone({
+      version: SAVE_VERSION,
+      savedAt: new Date(0).toISOString(), // l'heure est mise par l'affichage (la logique ne lit pas l'horloge)
+      runSeed: this.runSeed,
+      race: this.race.id,
+      heroClass: this.heroClass.id,
+      sandbox: this.sandbox,
+      depth: this.depth,
+      deepest: this.deepest,
+      turn: this.turn,
+      hero: this.hero,
+      bag: this.inventory.snapshot(),
+      equipment: this.equipment,
+      gold: this.gold,
+      xp: this.xp,
+      level: this.level,
+      heroMisses: this.heroMisses,
+      hidden: this.hidden,
+      nextId: this.nextId,
+      lastFoeId: this.lastFoeId,
+      failedDoorAttempts: [...this.failedDoorAttempts],
+      floors,
+    });
+  }
+
+  /** Recrée une partie à partir d'une sauvegarde ; `null` si elle est illisible ou d'une ancienne version. */
+  static restore(data: SaveData): Game | null {
+    if (!data || data.version !== SAVE_VERSION) return null;
+    const race = (RACES as Record<string, RaceDef>)[data.race];
+    const heroClass = (CLASSES as Record<string, ClassDef>)[data.heroClass];
+    if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
+    const game = new Game(data.runSeed, race, heroClass, DEFAULT_FLOOR, data.sandbox);
+    const saved = clone(data);
+    game.floors.clear();
+    for (const f of saved.floors) {
+      const map = new GameMap(f.width, f.height);
+      map.tiles.set(textToBytes(f.tiles));
+      game.floors.set(f.depth, {
+        map,
+        start: f.start,
+        stairs: f.stairs,
+        rooms: f.rooms,
+        torches: f.torches,
+        monsters: f.monsters,
+        ground: f.ground,
+        debris: f.debris,
+        explored: textToBytes(f.explored),
+        sensed: textToBytes(f.sensed),
+        rng: Rng.fromState(f.rng),
+        seenMonsters: new Set(f.seenMonsters),
+        population: f.population,
+        nextRespawn: f.nextRespawn,
+        rested: f.rested,
+        secrets: f.secrets,
+        traps: f.traps,
+        searched: new Set(f.searched),
+      });
+    }
+    game.turn = saved.turn;
+    game.hero = saved.hero;
+    game.inventory.restore(saved.bag);
+    game.equipment = saved.equipment;
+    game.gold = saved.gold;
+    game.xp = saved.xp;
+    game.level = saved.level;
+    game.heroMisses = saved.heroMisses;
+    game.nextId = saved.nextId;
+    game.lastFoeId = saved.lastFoeId;
+    game.failedDoorAttempts = new Set(saved.failedDoorAttempts);
+    game.events = [];
+    game.useFloor(game.floors.get(saved.depth)!, saved.depth);
+    game.deepest = saved.deepest;
+    game.refreshStats();
+    game.hidden = saved.hidden;
+    for (const a of [game.hero, ...game.monsters]) {
+      a.fromX = a.x;
+      a.fromY = a.y;
+    }
+    game.updateVision();
+    return game;
   }
 
   // ---------- Consultation ----------

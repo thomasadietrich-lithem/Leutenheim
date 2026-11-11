@@ -4,7 +4,7 @@ import { Slot } from "../data/items";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
 import { Point } from "../world/map";
-import { Debris, GroundItem, Secret } from "./floor";
+import { BloodStain, Debris, GroundItem, Secret } from "./floor";
 
 /**
  * Sauvegarde d'une partie : de simples données (texte JSON), écrites sur l'appareil à chaque tour.
@@ -26,6 +26,7 @@ export interface SavedFloor {
   monsters: Actor[];
   ground: GroundItem[];
   debris: Debris[];
+  blood?: BloodStain[];
   explored: string;
   sensed: string;
   rng: number;

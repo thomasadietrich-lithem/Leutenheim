@@ -9,8 +9,8 @@ import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
-import { buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, uiIcon } from "./ui/icons";
-import { PATH_LEVEL, PATHS, PathId, SECONDARY_LEVELS, SkillId, STAT_LABELS, StatId } from "./data/skills";
+import { buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
+import { PATH_LEVEL, PATHS, PathId, SECONDARY_LEVELS, SkillId, StatId } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
@@ -849,6 +849,27 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   return card;
 }
 
+/** Fiche courte d'un objet, pour l'inventaire : image, nom, chiffres clés sur une ligne, description. */
+function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
+  const card = el("div", "item-mini");
+  card.append(itemIcon(def.id as ItemId));
+  const body = el("div", "");
+  const bits: string[] = [];
+  if (def.attackBonus !== undefined) bits.push(`d20 ${signedBonus(def.attackBonus)}`);
+  if (def.damage) bits.push(diceLabel(def.damage));
+  if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
+  if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
+  if (def.range) bits.push(`portée ${def.range}`);
+  if (def.armorClass) bits.push(`CA ${def.armorClass}`);
+  if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
+  if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
+  if (def.rarity) bits.push(RARITY_LABELS[def.rarity].toLowerCase());
+  if (note) bits.push(note);
+  body.append(el("div", "t", `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "s", bits.join(" · ")), el("div", "", def.description));
+  card.append(body);
+  return card;
+}
+
 function itemNode(item: { defId: ItemId; count: number }, className: string): HTMLElement {
   const node = el("div", className);
   node.append(itemIcon(item.defId));
@@ -890,26 +911,34 @@ function renderBag(): void {
   // En haut : l'or de la bourse (les caractéristiques sont dans l'onglet Personnage).
   $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(String(game.gold)));
 
-  // Le carquois : les sortes de flèches du sac ; on touche celles à tirer (niveau trop bas : « Lv » en rouge).
+  // Le carquois, à côté du sac : la flèche qui partira et combien il en reste ; le toucher passe à l'autre sorte.
   const kinds = game.ammoKinds();
-  $("quiver-box").hidden = kinds.length === 0;
   const current = game.currentAmmo();
-  $("quiver").replaceChildren(
-    ...kinds.map((id) => {
-      const def = ITEMS[id] as ItemDef;
-      const node = itemNode({ defId: id, count: game.inventory.count(id) }, `quiver-item${id === current ? " selected" : ""}`);
-      if (game.tooLow(def)) node.append(el("span", "item-level", `Lv${def.level}`));
-      node.title = def.name;
-      node.addEventListener("click", () => {
-        sfx.play("click");
-        if (!game.chooseAmmo(id)) logLines.push(`Il faut être niveau ${def.level} pour tirer ces flèches.`);
-        aimShown = "";
-        renderLog();
-        renderHeroScreen();
-      });
-      return node;
-    }),
-  );
+  const quiver = el("div", "slot slot-quiver");
+  const qbox = el("div", "slot-box");
+  if (current) {
+    qbox.append(itemIcon(current), el("span", "slot-count", String(game.inventory.count(current))));
+  } else {
+    const ghost = itemIcon("fleche");
+    ghost.classList.add("ghost");
+    qbox.append(ghost);
+  }
+  quiver.append(qbox);
+  quiver.title = "Carquois : touchez pour changer de flèches";
+  quiver.addEventListener("click", () => {
+    sfx.play("click");
+    const usable = kinds.filter((id) => !game.tooLow(ITEMS[id] as ItemDef));
+    const locked = kinds.find((id) => game.tooLow(ITEMS[id] as ItemDef));
+    if (usable.length > 1 && current) {
+      game.chooseAmmo(usable[(usable.indexOf(current) + 1) % usable.length]);
+      aimShown = "";
+    } else if (locked) {
+      logLines.push(`Il faut être niveau ${(ITEMS[locked] as ItemDef).level} pour tirer ${ITEMS[locked].name.toLowerCase()}.`);
+      renderLog();
+    }
+    renderHeroScreen();
+  });
+  $("doll").append(quiver);
 
   // Le sac : grille de cases.
   const grid = $("bag-grid");
@@ -942,8 +971,8 @@ function renderBag(): void {
   }
   const def: ItemDef = ITEMS[item.defId];
   const keyNote = def.kind === "key" && item.floor !== undefined ? ` — étage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
-  // La fiche s'ouvre sous le sac ; la croix la referme (demande de Thomas).
-  const card = itemCard(def, item.count, selectedSlot ? " — porté" : keyNote);
+  // Une fiche courte s'ouvre sous le sac (l'écran ne défile pas) ; la croix la referme (demande de Thomas).
+  const card = miniCard(def, item.count, selectedSlot ? "porté" : keyNote.replace(/^ — /, ""));
   const close = el("button", "item-close", "×") as HTMLButtonElement;
   close.type = "button";
   close.setAttribute("aria-label", "Fermer la fiche");
@@ -1019,6 +1048,7 @@ button("open-bag", () => {
   pickedChoice = null;
   // Par défaut, l'inventaire (Thomas) ; le « ! » de l'onglet Personnage signale ce qui attend.
   heroTab = "inv";
+  statusOpen = null;
   $("bag").hidden = false;
   renderHeroScreen();
 });
@@ -1041,6 +1071,53 @@ button("char-confirm", () => {
   collectEvents();
   renderLog();
   renderHeroScreen();
+});
+
+// ---------- Statuts du héros : petits pictos en haut à gauche de la carte, détail au toucher ----------
+
+let statusShown = "";
+let statusOpen: string | null = null;
+
+function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: string }[] {
+  const list: { id: keyof typeof STATUS_ICONS; name: string; detail: string }[] = [];
+  if (game.hidden) list.push({ id: "cache", name: "Caché", detail: "Les monstres ne vous remarquent qu'au contact. Votre première attaque a l'avantage." });
+  if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 dégâts par tour. Sortez des flammes !" });
+  if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
+  if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
+  if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
+  if (game.skills.includes("dernier_rempart") && !game.perks().lastStand) list.push({ id: "rempart", name: "Dernier rempart", detail: "Prêt : un coup qui vous tuerait vous laissera à 1 PV (une fois par étage)." });
+  return list;
+}
+
+function renderHeroStatus(): void {
+  const list = heroStatuses();
+  const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}`;
+  if (key === statusShown) return;
+  statusShown = key;
+  $("hero-status").replaceChildren(
+    ...list.map((st) => {
+      const b = el("button", "", "") as HTMLButtonElement;
+      b.type = "button";
+      b.setAttribute("aria-label", st.name);
+      b.append(buildIcon(STATUS_ICONS[st.id]));
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        statusOpen = statusOpen === st.id ? null : st.id;
+        statusShown = "";
+      });
+      return b;
+    }),
+  );
+  const open = list.find((st) => st.id === statusOpen);
+  if (!open) statusOpen = null;
+  $("status-pop").hidden = !open;
+  if (open) {
+    $("status-pop").replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
+  }
+}
+$("status-pop").addEventListener("click", () => {
+  statusOpen = null;
+  statusShown = "";
 });
 
 // ---------- Écran du héros : onglets Inventaire et Personnage ----------
@@ -1067,13 +1144,12 @@ function renderCharacter(): void {
   $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
   $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} à attribuer` : "";
 
-  const row = (name: string, hint: string, value: string, stat?: StatId) => {
-    const node = el("div", "char-stat");
-    const label = el("span", "n", name);
-    if (hint) label.append(el("span", "hint", hint));
-    node.append(label, el("b", "", value));
+  // Caractéristiques sur deux colonnes (l'écran tient sans défiler).
+  const row = (name: string, value: string, stat?: StatId, wide = false) => {
+    const node = el("div", `r${wide ? " wide" : ""}`);
+    node.append(el("span", "", name), el("b", "", value));
     if (stat && game.points > 0) {
-      const plus = el("button", "char-plus", "+") as HTMLButtonElement;
+      const plus = el("button", "", "+") as HTMLButtonElement;
       plus.type = "button";
       plus.setAttribute("aria-label", `Un point en ${name}`);
       plus.addEventListener("click", () => {
@@ -1086,25 +1162,26 @@ function renderCharacter(): void {
     return node;
   };
   const c = game.heroClass;
-  $("char-stats").replaceChildren(
-    row(STAT_LABELS.vie.name, STAT_LABELS.vie.hint, `${game.hero.hp}/${game.hero.maxHp}`, "vie"),
-    row(STAT_LABELS.force.name, STAT_LABELS.force.hint, signedBonus(game.pushBonus()), "force"),
-    row(STAT_LABELS.agilite.name, STAT_LABELS.agilite.hint, signedBonus(game.disengageBonus()), "agilite"),
-    row(STAT_LABELS.intelligence.name, STAT_LABELS.intelligence.hint, signedBonus(game.alloc.intelligence), "intelligence"),
-    row(STAT_LABELS.charisme.name, STAT_LABELS.charisme.hint, signedBonus(game.alloc.charisme), "charisme"),
-    el("div", "char-sep"),
-    row("Fouille", "", signedBonus(c.searchBonus)),
-    row("Discrétion", "", signedBonus(c.stealthBonus)),
-    row("Classe d'armure", "", String(game.hero.armorClass)),
-    row("Attaque", "", signedBonus(game.hero.attackBonus)),
+  const grid = el("div", "char-grid");
+  grid.append(
+    row("Vie", String(game.hero.maxHp), "vie"),
+    row("Force", signedBonus(game.pushBonus()), "force"),
+    row("Agilité", signedBonus(game.disengageBonus()), "agilite"),
+    row("Intellig.", signedBonus(game.alloc.intelligence), "intelligence"),
+    row("Charisme", signedBonus(game.alloc.charisme), "charisme"),
+    row("Fouille", signedBonus(c.searchBonus)),
+    row("Discrétion", signedBonus(c.stealthBonus)),
+    row("Attaque", signedBonus(game.hero.attackBonus)),
+    row("Classe d'armure", String(game.hero.armorClass), undefined, true),
   );
+  $("char-stats").replaceChildren(grid);
 
-  // Compétences : choisir sa voie (niveau 2), puis une secondaire aux niveaux 4, 6 et 8.
-  const cards: HTMLElement[] = [];
+  // VOIE : la choisir (niveau 2, définitif), ou la voie prise. POUVOIRS : les compétences de la voie.
+  const pathCards: HTMLElement[] = [];
+  const powerCards: HTMLElement[] = [];
   const confirm = $("char-confirm") as HTMLButtonElement;
   let note = "";
   if (!game.voie) {
-    $("char-skills-title").textContent = game.canChoosePath() ? "Choisir une voie" : `Voies (au niveau ${PATH_LEVEL})`;
     for (const path of Object.values(PATHS)) {
       const picked = pickedChoice?.kind === "path" && pickedChoice.id === path.id;
       const card = el("div", `skill-card${picked ? " picked" : ""}${game.canChoosePath() ? "" : " locked"}`);
@@ -1116,26 +1193,27 @@ function renderCharacter(): void {
           renderCharacter();
         });
       }
-      cards.push(card);
+      pathCards.push(card);
     }
-    note = game.canChoosePath() ? "Choix définitif" : "";
+    note = game.canChoosePath() ? "Choix définitif" : `Voie à choisir au niveau ${PATH_LEVEL}`;
+    $("char-powers-title").hidden = true;
   } else {
     const path = PATHS[game.voie];
-    $("char-skills-title").textContent = "Compétences";
     const main = el("div", "skill-card main owned");
     const body = el("div", "");
     const uses = game.voie === "blue" ? (game.perks().secondWind ? " (déjà utilisé à cet étage)" : " (prêt)") : game.voie === "red" ? ` (${game.perks().doubleStrikes} à cet étage)` : "";
     body.append(el("b", "", path.name), document.createTextNode(path.description + uses));
     main.append(buildIcon(PATH_ICONS[path.id]), body);
-    cards.push(main);
+    pathCards.push(main);
+    $("char-powers-title").hidden = false;
     const picks = game.secondaryPicks();
-    path.secondaries.forEach((sk, i) => {
+    path.secondaries.forEach((sk) => {
       const owned = game.skills.includes(sk.id);
       const picked = pickedChoice?.kind === "skill" && pickedChoice.id === sk.id;
       const available = !owned && picks > 0;
       const card = el("div", `skill-card${owned ? " owned" : ""}${picked ? " picked" : ""}${!owned && !available ? " locked" : ""}`);
       card.append(el("b", "", sk.name), document.createTextNode(sk.description));
-      if (owned) card.append(el("div", "", "Acquise"));
+      if (owned) card.append(el("div", "", "Acquis"));
       else if (!available) card.append(el("div", "", `Niveau ${SECONDARY_LEVELS[Math.min(game.skills.length, SECONDARY_LEVELS.length - 1)]}`));
       if (available) {
         card.addEventListener("click", () => {
@@ -1144,15 +1222,15 @@ function renderCharacter(): void {
           renderCharacter();
         });
       }
-      void i;
-      cards.push(card);
+      powerCards.push(card);
     });
-    if (picks > 0) note = `${picks} compétence${picks > 1 ? "s" : ""} à choisir`;
+    if (picks > 0) note = `${picks} pouvoir${picks > 1 ? "s" : ""} à choisir`;
   }
-  $("char-skills").replaceChildren(...cards);
+  $("char-path").replaceChildren(...pathCards);
+  $("char-skills").replaceChildren(...powerCards);
   $("char-note").textContent = note;
   confirm.hidden = pickedChoice === null;
-  confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (définitif)" : "Prendre cette compétence";
+  confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (définitif)" : "Prendre ce pouvoir";
 }
 
 /** Cases où l'on peut lancer une potion : en vue, à portée. */
@@ -1499,6 +1577,7 @@ function frame(now: number): void {
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
+  renderHeroStatus();
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;

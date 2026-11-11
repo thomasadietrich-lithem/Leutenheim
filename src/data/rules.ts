@@ -119,6 +119,10 @@ export const RULES = {
   weaponPoisonHits: 15,
   hasteTurns: 4,
   fireTurns: 5,
+  /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
+  burnAfter: 2,
+  /** Taches de sang gardées par étage, au plus. */
+  bloodMax: 150,
   fireDamage: { count: 1, sides: 4, bonus: 0 },
   fastAttackTurns: 0.75,
 };

@@ -2063,3 +2063,29 @@ test("jeter un objet : il tombe aux pieds du héros ; Intelligence et Charisme p
   assert.ok(game.allocate("intelligence"));
   assert.equal(game.alloc.intelligence, 1);
 });
+
+test("sang : un coup qui porte laisse une tache (verte pour un Schrat) ; le feu suit celui qui en sort", () => {
+  const { game, m } = foeAt(1);
+  game.hero.hp = game.hero.maxHp = 100000;
+  for (let k = 0; k < 20 && game.bloodStains().length === 0; k++) {
+    assert.ok(game.setDestination(m.x, m.y));
+    game.tick();
+  }
+  assert.ok(game.bloodStains().some((b) => b.color === "green"), "pas de sang vert");
+  assert.ok(game.bloodStains().every((b) => b.shape !== 2 || game.map.get(b.x, b.y) === Tile.Wall), "tache de mur hors d'un mur");
+  // Brûlure : posé dans le feu puis sorti, il brûle encore 2 tours.
+  const g2 = new Game(7);
+  g2.hero.hp = g2.hero.maxHp = 1000;
+  g2.fires.push({ x: g2.hero.x, y: g2.hero.y, turns: 1 });
+  g2.wait();
+  g2.tick();
+  assert.equal(g2.hero.burning, 2);
+  let burns = 0;
+  for (let k = 0; k < 4; k++) {
+    g2.events.length = 0;
+    g2.wait();
+    g2.tick();
+    burns += g2.events.filter((e) => e.type === "burn").length;
+  }
+  assert.equal(burns, 2);
+});

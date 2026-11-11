@@ -27,6 +27,8 @@ export interface Actor {
   wary?: boolean;
   /** Sonné (poussé par le héros) : il perd ce nombre de tours. */
   stunned?: number;
+  /** En feu : encore tant de tours de brûlure après avoir quitté les flammes. */
+  burning?: number;
   /** Ralenti (bousculade) : ne joue qu'un tour sur deux pendant ce nombre de tours. */
   slowed?: number;
   /** Empoisonné : perd `damage` PV au début de chacun de ses `turns` prochains tours. */

@@ -6,7 +6,7 @@ import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
-import { GOLD_PILES, PALETTE as ICON_PALETTE, itemIconRows, uiIconRows } from "../ui/icons";
+import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { COLORS, TilePainter } from "./tiles";
@@ -277,6 +277,48 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
+  private drawFlames(gx: number, gy: number, seed: number, alpha: number): void {
+    const { ctx, tile } = this;
+    const frame = FIRE_FRAMES[(Math.floor(this.time / 130) + seed) % FIRE_FRAMES.length];
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = alpha;
+    const rx = this.snap(gx);
+    const ry = this.snap(gy);
+    ctx.drawImage(this.sprite(frame, ICON_PALETTE), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /** Les statuts d'un monstre en petites bulles au-dessus de sa tête (empoisonné, ralenti, sonné, en feu). */
+  private drawStatusBubbles(m: Actor, cx: number, cy: number, burning: boolean): void {
+    const { ctx, tile } = this;
+    const icons: (keyof typeof STATUS_ICONS)[] = [];
+    if (m.poison) icons.push("poison");
+    if (burning) icons.push("feu");
+    if (m.slowed) icons.push("ralenti");
+    if (m.stunned) icons.push("sonne");
+    if (icons.length === 0) return;
+    const s = Math.max(10, Math.round(tile * 0.36));
+    const gap = 3;
+    const total = icons.length * s + (icons.length - 1) * gap;
+    let x = Math.round(cx - total / 2);
+    const y = Math.round(cy - tile * 0.98);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    for (const id of icons) {
+      ctx.fillStyle = "rgba(20,15,10,0.9)";
+      ctx.fillRect(x - 2, y - 2, s + 4, s + 4);
+      ctx.strokeStyle = "#d6aa54";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 2, y - 2, s + 4, s + 4);
+      ctx.drawImage(this.sprite(STATUS_ICONS[id], ICON_PALETTE), x, y, s, s);
+      x += s + gap;
+    }
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
   /** Un objet posé au sol : son icône, réduite pour tenir dans la case (les longues armes en diagonale). */
   private drawGroundIcon(rows: readonly string[], gx: number, gy: number): void {
     const { ctx, tile } = this;
@@ -462,6 +504,9 @@ export class Renderer {
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, this.width, this.height);
 
+    // Taches de sang de l'étage, par case (dessinées sur la case, sous l'ombre).
+    const stains = new Map<number, { color: "red" | "green"; shape: 0 | 1 | 2 }>();
+    for (const b of game.bloodStains()) stains.set(game.map.index(b.x, b.y), b);
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
     const x1 = Math.ceil((this.width - ox) / tile);
@@ -490,6 +535,14 @@ export class Renderer {
         const rh = this.snap(sy + tile) - ry;
         // Chaque case est dessinée découpée sur ces mêmes pixels entiers : rien ne déborde sur une voisine déjà ombrée.
         this.drawCell(game, t, x, y, rx, ry, rw, rh);
+        const stain = stains.get(game.map.index(x, y));
+        if (stain) {
+          const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
+          const smooth = ctx.imageSmoothingEnabled;
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(this.sprite(rows, ICON_PALETTE), rx, ry, rw, rh);
+          ctx.imageSmoothingEnabled = smooth;
+        }
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
         const shade = wall || t === Tile.Pillar ? 0.6 : 1;
 
@@ -596,28 +649,10 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
-    // Cases en feu (potion de feu) : des flammes qui dansent.
+    // Cases en feu (potion de feu) : trois images de flammes qui alternent (planche art/objets_v3.png).
     for (const f of game.fires) {
       if (!game.isVisible(f.x, f.y)) continue;
-      const fx = ox + f.x * tile;
-      const fy = oy + f.y * tile;
-      ctx.fillStyle = "rgba(255,120,30,0.25)";
-      ctx.fillRect(fx, fy, tile, tile);
-      for (let k = 0; k < 3; k++) {
-        const phase = this.time / 140 + k * 2.1 + f.x * 1.7 + f.y * 0.9;
-        const h = tile * (0.38 + 0.14 * Math.sin(phase));
-        const cx = fx + tile * (0.25 + 0.25 * k);
-        const base = fy + tile * 0.9;
-        for (const [color, scale] of [["#c03a1a", 1], ["#ff9a3a", 0.7], ["#ffe27a", 0.4]] as const) {
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.moveTo(cx - tile * 0.12 * scale, base);
-          ctx.quadraticCurveTo(cx - tile * 0.1 * scale, base - h * scale * 0.6, cx + Math.sin(phase * 1.3) * tile * 0.04, base - h * scale);
-          ctx.quadraticCurveTo(cx + tile * 0.1 * scale, base - h * scale * 0.6, cx + tile * 0.12 * scale, base);
-          ctx.closePath();
-          ctx.fill();
-        }
-      }
+      this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
     }
     for (const g of game.ground) {
       if (!game.isExplored(g.x, g.y)) continue;
@@ -672,6 +707,9 @@ export class Renderer {
           ctx.stroke();
         }
         this.drawMonster(m, cx, cy, progress);
+        const burning = !!m.burning || game.isBurning(m.x, m.y);
+        if (m.burning && !game.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.8);
+        this.drawStatusBubbles(m, cx, cy, burning);
       } else {
       ctx.fillStyle = MONSTERS[m.defId as keyof typeof MONSTERS]?.color ?? "#c04040";
       ctx.beginPath();
@@ -740,6 +778,8 @@ export class Renderer {
 
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
+    // Le héros qui brûle encore après être sorti des flammes.
+    if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
     // Repos en cours : petite jauge au-dessus du héros.
     // Fouille en cours : la loupe oscille au-dessus de la tête du héros, comme s'il examinait le sol.
     const searching = game.searchProgress();

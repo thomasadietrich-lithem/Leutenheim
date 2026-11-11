@@ -16,7 +16,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { Debris, FloorState, GroundItem, placeKey, placeLoot, placeSecrets, placeTraps, roomElements } from "./floor";
+import { BloodStain, Debris, FloorState, GroundItem, placeKey, placeLoot, placeSecrets, placeTraps, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -190,6 +190,7 @@ export class Game {
         monsters: [],
         ground: [],
         debris: [],
+        blood: [],
         explored: new Uint8Array(floor.map.width * floor.map.height),
         sensed: new Uint8Array(floor.map.width * floor.map.height),
         rng: new Rng(seed ^ 0x5bd1e995), // hasard des combats et des monstres, propre à l'étage
@@ -341,6 +342,7 @@ export class Game {
     if (!this.isTrap(actor.x, actor.y)) return;
     const damage = rollDice(this.rng, RULES.trapDamage);
     this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
+    this.bleed(actor, actor);
     if (actor.kind === "hero") {
       this.hurtHero(damage);
     } else {
@@ -435,6 +437,7 @@ export class Game {
       monsters: f.monsters,
       ground: f.ground,
       debris: f.debris,
+      blood: f.blood,
       explored: bytesToText(f.explored),
       sensed: bytesToText(f.sensed),
       rng: f.rng.getState(),
@@ -506,6 +509,7 @@ export class Game {
         monsters: f.monsters,
         ground: f.ground,
         debris: f.debris,
+        blood: f.blood ?? [],
         explored: textToBytes(f.explored),
         sensed: textToBytes(f.sensed),
         rng: Rng.fromState(f.rng),
@@ -934,10 +938,23 @@ export class Game {
 
   /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
   private burn(): void {
+    // Ceux qui ont quitté les flammes brûlent encore un peu (les flammes les suivent).
+    for (const a of [this.hero, ...this.monsters]) {
+      if (!a.burning || this.over || this.isBurning(a.x, a.y)) continue;
+      a.burning--;
+      const damage = rollDice(this.rng, RULES.fireDamage);
+      this.events.push({ type: "burn", actor: a, damage });
+      if (a === this.hero) this.hurtHero(damage);
+      else {
+        a.hp -= damage;
+        this.removeIfDead(a);
+      }
+    }
     if (this.fires.length === 0) return;
     for (const f of this.fires) {
       for (const a of [this.hero, ...this.monsters]) {
         if (a.x !== f.x || a.y !== f.y || this.over) continue;
+        a.burning = RULES.burnAfter;
         const damage = rollDice(this.rng, RULES.fireDamage);
         this.events.push({ type: "burn", actor: a, damage });
         if (a === this.hero) this.hurtHero(damage);
@@ -951,6 +968,33 @@ export class Game {
       f.turns--;
     }
     this.fires = this.fires.filter((f) => f.turns > 0);
+  }
+
+  /** Taches de sang de l'étage courant. */
+  bloodStains(): readonly BloodStain[] {
+    return this.current.blood;
+  }
+
+  /**
+   * Un coup qui porte fait couler un peu de sang : une petite tache sur la case de la victime, ou sur la case
+   * derrière elle (à l'opposé du coup) ; si c'est un mur, la tache est sur le mur. Choix sans tirer au sort
+   * (pour ne pas changer le hasard des combats) : il dépend du tour et de la position.
+   */
+  private bleed(victim: Actor, from: Point): void {
+    const def = victim.kind === "monster" ? MONSTERS[victim.defId as keyof typeof MONSTERS] : undefined;
+    const color = def?.blood ?? "red";
+    const hash = (victim.x * 73 + victim.y * 151 + this.turn * 17 + victim.id * 7) >>> 0;
+    const dx = Math.sign(victim.x - from.x);
+    const dy = Math.sign(victim.y - from.y);
+    const behind = { x: victim.x + dx, y: victim.y + dy };
+    const onWall = (dx || dy) && hash % 3 !== 0 && this.map.get(behind.x, behind.y) === Tile.Wall;
+    const at = onWall ? behind : hash % 2 === 0 || !this.map.isWalkable(behind.x, behind.y) ? { x: victim.x, y: victim.y } : behind;
+    const shape: 0 | 1 | 2 = onWall ? 2 : ((hash >> 2) % 2 as 0 | 1);
+    const stains = this.current.blood;
+    const same = stains.findIndex((b) => b.x === at.x && b.y === at.y);
+    if (same >= 0) stains.splice(same, 1);
+    stains.push({ x: at.x, y: at.y, color, shape });
+    if (stains.length > RULES.bloodMax) stains.shift();
   }
 
   isBurning(x: number, y: number): boolean {
@@ -1703,6 +1747,7 @@ export class Game {
       if (this.over || this.inReach(m, this.hero)) continue;
       const result = rollAttack(this.rng, m, this.hero);
       this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
+      if (result.damage > 0) this.bleed(this.hero, m);
       this.hurtHero(result.damage);
       attacked = true;
     }
@@ -1820,6 +1865,7 @@ export class Game {
     monster.asleep = false;
     monster.hp -= result.damage;
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
+    if (result.damage > 0) this.bleed(monster, this.hero);
     // Arme enduite de poison (potion) : le coup qui porte empoisonne.
     if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
       this.weaponPoison--;
@@ -1902,6 +1948,7 @@ export class Game {
       victim.asleep = false;
       victim.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
+      if (result.damage > 0) this.bleed(victim, origin);
       hit = result.hit;
       if (hit && poison && victim.hp > 0) {
         // Un nouveau poison remet le compteur à zéro, il ne s'ajoute pas (C).
@@ -2015,6 +2062,7 @@ export class Game {
         // Le monstre a rattrapé le héros : le combat reprend normalement.
         m.wary = false;
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
+        if (result.damage > 0) this.bleed(this.hero, m);
         this.hurtHero(result.damage);
         continue;
       }

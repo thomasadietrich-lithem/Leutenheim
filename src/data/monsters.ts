@@ -20,6 +20,8 @@ export interface MonsterDef {
   /** Chance par tour de remarquer le héros quand il est en vue. */
   noticeChance: number;
   color: string;
+  /** Couleur du sang (le Schrat saigne vert). */
+  blood?: "red" | "green";
 }
 
 export const MONSTERS = {
@@ -39,6 +41,7 @@ export const MONSTERS = {
     goldMax: 4,
     noticeChance: 0.4,
     color: "#d9763a",
+    blood: "green",
   },
 } satisfies Record<string, MonsterDef>;
 

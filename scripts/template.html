@@ -66,7 +66,12 @@
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
     overflow-x: hidden; overflow-y: auto; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
-  #test-tools { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
+  #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
+  #hero-status svg { width: 100%; height: 100%; }
+  #status-pop { position: absolute; top: 42px; left: 6px; z-index: 1; width: min(260px, 80%); padding: 8px; background: #241c14; box-shadow: inset 0 0 0 2px var(--gold); font-size: 17px; color: var(--dim); }
+  #status-pop b { display: block; color: #fff3c8; font-weight: normal; font-size: 20px; text-transform: uppercase; }
+  #test-tools { position: absolute; bottom: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
   #test-tools button { padding: 4px 8px; font-size: 18px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
@@ -215,7 +220,28 @@
   #found { z-index: 2; background: rgba(13,10,8,0.92); }
   #found h2 { margin: 0; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
   #found button { width: 220px; padding: 10px; font-size: 22px; }
-  .hero-tabs { display: flex; width: min(100%, 318px); }
+  .hero-tabs { display: flex; width: min(100%, 318px); margin-right: 44px; }
+  .hero-close { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 26px; line-height: 1; z-index: 3; }
+  #bag .slot-box { width: 56px; height: 56px; }
+  #doll { grid-template-areas: "amulet hat artifact" "melee armor ranged" "quiver bag ." !important; }
+  .slot-quiver { grid-area: quiver; } .slot-bag { grid-area: bag; grid-column: auto; }
+  .slot-box .slot-count { position: absolute; right: 2px; bottom: -4px; font-size: 18px; color: #fff; text-shadow: 2px 2px 0 #000; }
+  .slot-box { position: relative; }
+  #bag-grid { max-height: 30vh; }
+  #bag-info { min-height: 0; }
+  .item-mini { position: relative; width: min(100%, 318px); padding: 6px 34px 6px 8px; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; font-size: 16px; color: var(--dim); display: flex; gap: 8px; align-items: center; text-align: left; }
+  .item-mini svg { width: 40px; height: 40px; flex: none; }
+  .item-mini .t { color: #fff3c8; font-size: 19px; text-transform: uppercase; }
+  .item-mini .s { color: var(--gold); font-size: 15px; }
+  .char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; width: min(100%, 330px); font-size: 18px; text-transform: uppercase; color: var(--dim); }
+  .char-grid .r { display: flex; align-items: center; gap: 4px; }
+  .char-grid .r span { flex: 1; text-align: left; }
+  .char-grid .r.wide { grid-column: 1 / -1; }
+  .char-grid b { color: #fff3c8; font-weight: normal; }
+  .char-grid button { width: 28px; height: 26px; padding: 0; font-size: 20px; line-height: 1; }
+  .char-sec { width: min(100%, 330px); font-size: 18px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #3a2e1e; margin-top: 4px; }
+  #char-path { width: min(100%, 330px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  #char-path .skill-card.main { grid-column: 1 / -1; }
   .hero-tab { flex: 1; padding: 6px 0; font-size: 22px; color: var(--dim); background: #1a140e; box-shadow: inset 2px 2px 0 #3a2e1e, inset -2px -2px 0 #0c0906; }
   .hero-tab.on { color: #fff3c8; background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bang { color: #ffd75e; margin-left: 6px; }
@@ -279,6 +305,8 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <div id="hero-status"></div>
+    <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button></div>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
@@ -326,6 +354,7 @@
     <button id="found-close" type="button">Continuer</button>
   </div>
   <div id="bag" class="overlay" hidden>
+    <button id="bag-close" class="hero-close" type="button" aria-label="Fermer">×</button>
     <div class="hero-tabs">
       <button id="tab-inv" class="hero-tab on" type="button">Inventaire</button>
       <button id="tab-char" class="hero-tab" type="button">Personnage<span id="tab-char-bang" class="bang" hidden>!</span></button>
@@ -333,7 +362,6 @@
     <section id="pane-inv">
       <div class="bag-top"><span>Équipement</span><span id="bag-gold"></span></div>
       <div id="doll"></div>
-      <div id="quiver-box"><h3>Carquois</h3><div id="quiver"></div></div>
       <h3>Sac</h3>
       <div id="bag-grid"></div>
       <div id="bag-info"></div>
@@ -346,12 +374,13 @@
       <div class="bag-top"><span id="char-who"></span><span id="char-xp"></span></div>
       <div id="char-points"></div>
       <div id="char-stats"></div>
-      <h3 id="char-skills-title"></h3>
+      <div class="char-sec">Voie</div>
+      <div id="char-path"></div>
+      <div class="char-sec" id="char-powers-title">Pouvoirs</div>
       <div id="char-skills"></div>
       <div id="char-note"></div>
       <button id="char-confirm" type="button" hidden></button>
     </section>
-    <button id="bag-close" type="button">Fermer</button>
   </div>
   <div id="menu" class="overlay">
     <section id="screen-main">

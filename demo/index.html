@@ -66,7 +66,12 @@
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
     overflow-x: hidden; overflow-y: auto; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
-  #test-tools { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
+  #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
+  #hero-status svg { width: 100%; height: 100%; }
+  #status-pop { position: absolute; top: 42px; left: 6px; z-index: 1; width: min(260px, 80%); padding: 8px; background: #241c14; box-shadow: inset 0 0 0 2px var(--gold); font-size: 17px; color: var(--dim); }
+  #status-pop b { display: block; color: #fff3c8; font-weight: normal; font-size: 20px; text-transform: uppercase; }
+  #test-tools { position: absolute; bottom: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
   #test-tools button { padding: 4px 8px; font-size: 18px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
@@ -215,7 +220,28 @@
   #found { z-index: 2; background: rgba(13,10,8,0.92); }
   #found h2 { margin: 0; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
   #found button { width: 220px; padding: 10px; font-size: 22px; }
-  .hero-tabs { display: flex; width: min(100%, 318px); }
+  .hero-tabs { display: flex; width: min(100%, 318px); margin-right: 44px; }
+  .hero-close { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 26px; line-height: 1; z-index: 3; }
+  #bag .slot-box { width: 56px; height: 56px; }
+  #doll { grid-template-areas: "amulet hat artifact" "melee armor ranged" "quiver bag ." !important; }
+  .slot-quiver { grid-area: quiver; } .slot-bag { grid-area: bag; grid-column: auto; }
+  .slot-box .slot-count { position: absolute; right: 2px; bottom: -4px; font-size: 18px; color: #fff; text-shadow: 2px 2px 0 #000; }
+  .slot-box { position: relative; }
+  #bag-grid { max-height: 30vh; }
+  #bag-info { min-height: 0; }
+  .item-mini { position: relative; width: min(100%, 318px); padding: 6px 34px 6px 8px; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; font-size: 16px; color: var(--dim); display: flex; gap: 8px; align-items: center; text-align: left; }
+  .item-mini svg { width: 40px; height: 40px; flex: none; }
+  .item-mini .t { color: #fff3c8; font-size: 19px; text-transform: uppercase; }
+  .item-mini .s { color: var(--gold); font-size: 15px; }
+  .char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; width: min(100%, 330px); font-size: 18px; text-transform: uppercase; color: var(--dim); }
+  .char-grid .r { display: flex; align-items: center; gap: 4px; }
+  .char-grid .r span { flex: 1; text-align: left; }
+  .char-grid .r.wide { grid-column: 1 / -1; }
+  .char-grid b { color: #fff3c8; font-weight: normal; }
+  .char-grid button { width: 28px; height: 26px; padding: 0; font-size: 20px; line-height: 1; }
+  .char-sec { width: min(100%, 330px); font-size: 18px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #3a2e1e; margin-top: 4px; }
+  #char-path { width: min(100%, 330px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  #char-path .skill-card.main { grid-column: 1 / -1; }
   .hero-tab { flex: 1; padding: 6px 0; font-size: 22px; color: var(--dim); background: #1a140e; box-shadow: inset 2px 2px 0 #3a2e1e, inset -2px -2px 0 #0c0906; }
   .hero-tab.on { color: #fff3c8; background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bang { color: #ffd75e; margin-left: 6px; }
@@ -279,6 +305,8 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <div id="hero-status"></div>
+    <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button></div>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
@@ -326,6 +354,7 @@
     <button id="found-close" type="button">Continuer</button>
   </div>
   <div id="bag" class="overlay" hidden>
+    <button id="bag-close" class="hero-close" type="button" aria-label="Fermer">×</button>
     <div class="hero-tabs">
       <button id="tab-inv" class="hero-tab on" type="button">Inventaire</button>
       <button id="tab-char" class="hero-tab" type="button">Personnage<span id="tab-char-bang" class="bang" hidden>!</span></button>
@@ -333,7 +362,6 @@
     <section id="pane-inv">
       <div class="bag-top"><span>Équipement</span><span id="bag-gold"></span></div>
       <div id="doll"></div>
-      <div id="quiver-box"><h3>Carquois</h3><div id="quiver"></div></div>
       <h3>Sac</h3>
       <div id="bag-grid"></div>
       <div id="bag-info"></div>
@@ -346,12 +374,13 @@
       <div class="bag-top"><span id="char-who"></span><span id="char-xp"></span></div>
       <div id="char-points"></div>
       <div id="char-stats"></div>
-      <h3 id="char-skills-title"></h3>
+      <div class="char-sec">Voie</div>
+      <div id="char-path"></div>
+      <div class="char-sec" id="char-powers-title">Pouvoirs</div>
       <div id="char-skills"></div>
       <div id="char-note"></div>
       <button id="char-confirm" type="button" hidden></button>
     </section>
-    <button id="bag-close" type="button">Fermer</button>
   </div>
   <div id="menu" class="overlay">
     <section id="screen-main">
@@ -1039,14 +1068,6 @@
   };
   var PATH_LEVEL = 2;
   var SECONDARY_LEVELS = [4, 6, 8];
-  var STAT_LABELS = {
-    vie: { name: "Vie", hint: "+4 PV max" },
-    force: { name: "Force", hint: "pousser, d\xE9g\xE2ts au contact" },
-    agilite: { name: "Agilit\xE9", hint: "se d\xE9gager, tir \xE0 l'arc" },
-    // Thomas, 2026-11-11 : viendront les quêtes et les conditions d'objet ; la magie dépendra de l'Intelligence.
-    intelligence: { name: "Intelligence", hint: "magie (\xE0 venir)" },
-    charisme: { name: "Charisme", hint: "qu\xEAtes, marchands (\xE0 venir)" }
-  };
 
   // src/data/monsters.ts
   var MONSTERS = {
@@ -1065,7 +1086,8 @@
       goldChance: 0.35,
       goldMax: 4,
       noticeChance: 0.4,
-      color: "#d9763a"
+      color: "#d9763a",
+      blood: "green"
     }
   };
   function spawnsForDepth(depth) {
@@ -1232,6 +1254,10 @@
     weaponPoisonHits: 15,
     hasteTurns: 4,
     fireTurns: 5,
+    /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
+    burnAfter: 2,
+    /** Taches de sang gardées par étage, au plus. */
+    bloodMax: 150,
     fireDamage: { count: 1, sides: 4, bonus: 0 },
     fastAttackTurns: 0.75
   };
@@ -2261,6 +2287,7 @@
           monsters: [],
           ground: [],
           debris: [],
+          blood: [],
           explored: new Uint8Array(floor.map.width * floor.map.height),
           sensed: new Uint8Array(floor.map.width * floor.map.height),
           rng: new Rng(seed ^ 1540483477),
@@ -2399,6 +2426,7 @@
       if (!this.isTrap(actor.x, actor.y)) return;
       const damage = rollDice(this.rng, RULES.trapDamage);
       this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
+      this.bleed(actor, actor);
       if (actor.kind === "hero") {
         this.hurtHero(damage);
       } else {
@@ -2479,6 +2507,7 @@
         monsters: f.monsters,
         ground: f.ground,
         debris: f.debris,
+        blood: f.blood,
         explored: bytesToText(f.explored),
         sensed: bytesToText(f.sensed),
         rng: f.rng.getState(),
@@ -2550,6 +2579,7 @@
           monsters: f.monsters,
           ground: f.ground,
           debris: f.debris,
+          blood: f.blood ?? [],
           explored: textToBytes(f.explored),
           sensed: textToBytes(f.sensed),
           rng: Rng.fromState(f.rng),
@@ -2928,10 +2958,22 @@
     }
     /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
     burn() {
+      for (const a of [this.hero, ...this.monsters]) {
+        if (!a.burning || this.over || this.isBurning(a.x, a.y)) continue;
+        a.burning--;
+        const damage = rollDice(this.rng, RULES.fireDamage);
+        this.events.push({ type: "burn", actor: a, damage });
+        if (a === this.hero) this.hurtHero(damage);
+        else {
+          a.hp -= damage;
+          this.removeIfDead(a);
+        }
+      }
       if (this.fires.length === 0) return;
       for (const f of this.fires) {
         for (const a of [this.hero, ...this.monsters]) {
           if (a.x !== f.x || a.y !== f.y || this.over) continue;
+          a.burning = RULES.burnAfter;
           const damage = rollDice(this.rng, RULES.fireDamage);
           this.events.push({ type: "burn", actor: a, damage });
           if (a === this.hero) this.hurtHero(damage);
@@ -2945,6 +2987,31 @@
         f.turns--;
       }
       this.fires = this.fires.filter((f) => f.turns > 0);
+    }
+    /** Taches de sang de l'étage courant. */
+    bloodStains() {
+      return this.current.blood;
+    }
+    /**
+     * Un coup qui porte fait couler un peu de sang : une petite tache sur la case de la victime, ou sur la case
+     * derrière elle (à l'opposé du coup) ; si c'est un mur, la tache est sur le mur. Choix sans tirer au sort
+     * (pour ne pas changer le hasard des combats) : il dépend du tour et de la position.
+     */
+    bleed(victim, from) {
+      const def = victim.kind === "monster" ? MONSTERS[victim.defId] : void 0;
+      const color = def?.blood ?? "red";
+      const hash = victim.x * 73 + victim.y * 151 + this.turn * 17 + victim.id * 7 >>> 0;
+      const dx = Math.sign(victim.x - from.x);
+      const dy = Math.sign(victim.y - from.y);
+      const behind = { x: victim.x + dx, y: victim.y + dy };
+      const onWall = (dx || dy) && hash % 3 !== 0 && this.map.get(behind.x, behind.y) === Tile.Wall;
+      const at = onWall ? behind : hash % 2 === 0 || !this.map.isWalkable(behind.x, behind.y) ? { x: victim.x, y: victim.y } : behind;
+      const shape = onWall ? 2 : (hash >> 2) % 2;
+      const stains = this.current.blood;
+      const same = stains.findIndex((b) => b.x === at.x && b.y === at.y);
+      if (same >= 0) stains.splice(same, 1);
+      stains.push({ x: at.x, y: at.y, color, shape });
+      if (stains.length > RULES.bloodMax) stains.shift();
     }
     isBurning(x, y) {
       return this.fires.some((f) => f.x === x && f.y === y);
@@ -3621,6 +3688,7 @@
         if (this.over || this.inReach(m, this.hero)) continue;
         const result = rollAttack(this.rng, m, this.hero);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
+        if (result.damage > 0) this.bleed(this.hero, m);
         this.hurtHero(result.damage);
         attacked = true;
       }
@@ -3723,6 +3791,7 @@
       monster.asleep = false;
       monster.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
+      if (result.damage > 0) this.bleed(monster, this.hero);
       if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
         this.weaponPoison--;
         monster.poison = { damage: 1, turns: 4 };
@@ -3791,6 +3860,7 @@
         victim.asleep = false;
         victim.hp -= result.damage;
         this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
+        if (result.damage > 0) this.bleed(victim, origin);
         hit = result.hit;
         if (hit && poison && victim.hp > 0) {
           victim.poison = { ...poison };
@@ -3883,6 +3953,7 @@
           const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
           m.wary = false;
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
+          if (result.damage > 0) this.bleed(this.hero, m);
           this.hurtHero(result.damage);
           continue;
         }
@@ -5222,7 +5293,7 @@
   };
 
   // src/ui/icons.ts
-  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8" };
+  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50" };
   var ICONS = {
     tunique: [
       "................................",
@@ -5709,36 +5780,36 @@
     cimeterre: [
       "................................",
       "................................",
-      ".............................K..",
-      "............................KWK.",
-      "...........................KWWK.",
-      "..........................KDWK..",
-      ".........................KDWWK..",
-      ".........................KDWK...",
-      ".......................KKDWK....",
-      "......................KDDDWK....",
-      "......................KDSWK.....",
-      ".....................KDDWWK.....",
-      "....................KKDSWK......",
-      "...................KDDSWK.......",
-      "..................KDSSWWK.......",
-      ".................KDSSSWK........",
-      "...............KKDSSSWK.........",
-      "..............KDDSSSWWK.........",
-      ".......K...KKKDDSSSWWK..........",
-      "......KgKKKDDDSSSSWKK...........",
-      "......KGDDDSSSSSSWK.............",
-      ".KKKKKKGDSSSSSSWWK..............",
-      "KgGBbBbGWWWWWWWKK...............",
-      "KgGbBbBGKKKKKKK.................",
-      ".KKKKKKGK.......................",
-      "......KgK.......................",
-      ".......K........................",
       "................................",
-      "................................",
-      "................................",
-      "................................",
-      "................................"
+      "....................KKKKKKKKKKK.",
+      "..................KKWWWWWWWWWWWK",
+      "................KKWWWWWSSSSSDKWK",
+      "...............KWWWWSSSDDDDDK.K.",
+      "..............KWWWSSSSDKKKKK....",
+      ".............KWWWSSSDDK.........",
+      "............KWWWSSSDKK..........",
+      "............KWWSSSDK............",
+      "...........KWWSSSDK.............",
+      "...........KWWSSDK..............",
+      "..........KWWSSDDK..............",
+      "..........KWWSSDK...............",
+      "..........KWSSDK................",
+      ".........KWWSSDK................",
+      ".........KWWSDK.................",
+      ".........KWWSDK.................",
+      "......K..KWSSDK.K...............",
+      ".....KgKKKWSDKKKgK..............",
+      "......KGGGGGGGGGK...............",
+      "......KgKKBbKKKgK...............",
+      ".......K.KbBK..K................",
+      ".........KBbK...................",
+      ".........KbBK...................",
+      ".........KBbK...................",
+      ".........KbBK...................",
+      ".........KGGK...................",
+      "........KGGGgK..................",
+      ".........KGGK...................",
+      "..........KK...................."
     ],
     armure_cloutee: [
       "................................",
@@ -5814,17 +5885,17 @@
     emeraude: [
       "................",
       "................",
-      "................",
-      "....KKKKKKKK....",
-      "...KJJJJJJEEK...",
-      "..KJWJJJJJEEK...",
-      "..KJJEEEEEEeeK..",
-      "..KEEEEEEEeeeK..",
-      "..KEEEEEEeeeeK..",
-      "..KEEEEeeeeeeK..",
-      "...KeeeeeeeeK...",
-      "....KKKKKKKK....",
-      "................",
+      ".....KKKKKK.....",
+      "....KJWJJEEKK...",
+      "...KJWWJJEEEeK..",
+      "..KJJJJJJEEEeeK.",
+      "..KEEEEEEeeeeeK.",
+      "...KEEEEEeeeeK..",
+      "....KEEEEeeeK...",
+      ".....KEEeeeK....",
+      "......KEeeK.....",
+      ".......KeK......",
+      "........K.......",
       "................",
       "................",
       "................"
@@ -5848,12 +5919,13 @@
       "................"
     ],
     sac_toile: [
-      "................",
-      ".......KK.......",
-      "......KLLK......",
-      ".....KLKKLK.....",
+      "......K..K......",
+      ".....KzKKzK.....",
+      "....KzZzzZzK....",
       ".....KzZZzK.....",
-      "....KzZZZZzK....",
+      "......KLLKK.....",
+      ".....KLzzLLKK...",
+      "....KzZZZZzKLK..",
       "...KZZZZZZZzK...",
       "..KZZZzZZZZZzK..",
       "..KZZZZZzZZZzK..",
@@ -5862,8 +5934,7 @@
       "..KZZZZZZZZzzK..",
       "...KzZZZZZzzK...",
       "....KzzzzzzK....",
-      ".....KKKKKK.....",
-      "................"
+      ".....KKKKKK....."
     ],
     sac_cuir: [
       "................",
@@ -5902,76 +5973,76 @@
       "...KKKKKKKKKK..."
     ],
     potion_jouvence: [
-      "......KKK.......",
-      ".....KbBbK......",
-      ".....KBBbK......",
-      ".....KcScK......",
-      ".....KcScK......",
-      "...KKcSSScKK....",
-      "..KccFFFFFccK...",
-      ".KcFWFFFFFGGcK..",
-      ".KcFWFFFFGGGcKK.",
-      ".KcFFFFFFGGGGfcK",
-      ".KcFFFFFGGGGffcK",
-      ".KcFFFFFGGGffcK.",
-      "..KcFGGGGfffcK..",
-      "...KccGGffccK...",
-      "....KKccccKK....",
-      "......KKKK......"
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      ".....KcSScK.....",
+      ".....KKcSKK..K..",
+      "....KcSSSScKKWK.",
+      "...KcFFFFFFcKYK.",
+      "..KcFWFFFFGGcK..",
+      "..KcFWFFFGGGcK..",
+      "..KcFFFFGGGfcK..",
+      "..KcFFFGGGffcK..",
+      "...KcFGGGffcK...",
+      "....KcGGffcK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
     ],
     potion_poison: [
-      "......KKK.......",
-      ".....KbBbK......",
-      ".....KBBbK......",
-      ".....KcScK......",
-      ".....KcScK......",
-      "...KKcSSScKK....",
-      "..KccAAAAAccK...",
-      ".KcAWAAAAAEEcK..",
-      ".KcAWAAAAEEEcKK.",
-      ".KcAAAAAAEEEEecK",
-      ".KcAAAAAEEEEeecK",
-      ".KcAAAAAEEEeecK.",
-      "..KcAEEEEeeecK..",
-      "...KccEEeeccK...",
-      "....KKccccKK....",
-      "......KKKK......"
+      "......KKKK......",
+      ".....KbBBbK.....",
+      ".....KBbbBK.....",
+      "....KcSSSScK....",
+      "....KKcSScKK....",
+      "...KcSSSSSScK...",
+      "...KcAAAAAAcK...",
+      "...KcAWLLLEcK...",
+      "...KcAWLKLEcK...",
+      "...KcAALLLEcK...",
+      "...KcAALKLEcK...",
+      "...KcAEEEEecK...",
+      "...KcEEEEeecK...",
+      "...KccccccccK...",
+      "....KKKKKKKK....",
+      "................"
     ],
     potion_vitesse: [
-      "......KKK.......",
-      ".....KbBbK......",
-      ".....KBBbK......",
-      ".....KcScK......",
-      ".....KcScK......",
-      "...KKcSSScKK....",
-      "..KccIIIIIccK...",
-      ".KcIWIIIIIUUcK..",
-      ".KcIWIIIIUUUcKK.",
-      ".KcIIIIIIUUUUicK",
-      ".KcIIIIIUUUUiicK",
-      ".KcIIIIIUUUiicK.",
-      "..KcIUUUUiiicK..",
-      "...KccUUiiccK...",
-      "....KKccccKK....",
-      "......KKKK......"
+      "......KbBK......",
+      "......KBbK......",
+      ".....KcSScK.....",
+      ".....KcSScK.....",
+      ".....KcIIcK.....",
+      "....KcIWIIcKKK..",
+      "....KcIWIUcKSSK.",
+      "....KcIIUUcSSWK.",
+      "....KcIIUUcKSSK.",
+      "....KcIUUicKKK..",
+      "....KcIUUicK....",
+      "....KcUUiicK....",
+      "....KcUUiicK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
     ],
     potion_feu: [
-      "......KKK.......",
-      ".....KbBbK......",
-      ".....KBBbK......",
-      ".....KcScK......",
-      ".....KcScK......",
-      "...KKcSSScKK....",
-      "..KccYYYYYccK...",
-      ".KcYWYYYYYXXcK..",
-      ".KcYWYYYYXXXcKK.",
-      ".KcYYYYYYXXXXxcK",
-      ".KcYYYYYXXXXxxcK",
-      ".KcYYYYYXXXxxcK.",
-      "..KcYXXXXxxxcK..",
-      "...KccXXxxccK...",
-      "....KKccccKK....",
-      "......KKKK......"
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      "......KcSK......",
+      "......KcSK......",
+      "....KKcSScKK....",
+      "...KccXXXXccK...",
+      "..KcXWXXYXXxcK..",
+      "..KcXWXYYYXxcK..",
+      "..KcXXYYWYXxcK..",
+      "..KcXXXYYXxxcK..",
+      "...KcXXXXxxcK...",
+      "....KccxxccK....",
+      ".....KKKKKK.....",
+      "................",
+      "................"
     ]
   };
   var GOLD_PILES2 = {
@@ -5983,15 +6054,15 @@
       "................",
       "................",
       "................",
-      "......KKK.......",
-      ".....KYGGK......",
-      "....KGGGGgK.....",
-      "....KgggggK.....",
-      "....KGGGGgK.....",
-      "....KgggggK.....",
-      "....KGGGGgK.....",
-      "....KgggggK.....",
-      ".....KKKKK......"
+      "......KKKK......",
+      ".....KgYGgK.....",
+      ".....KGGGgK.....",
+      ".....Kggg7K.....",
+      ".....KGGGgK.....",
+      ".....Kggg7KKK...",
+      ".....KGGGgKYGK..",
+      ".....Kggg7Kg7K..",
+      "......KKKK.KK..."
     ],
     medium: [
       "................",
@@ -5999,35 +6070,35 @@
       "................",
       "................",
       "................",
-      "................",
-      "................",
-      "....KKK.........",
-      "...KYGGK........",
-      "..KGGGGgKKKK....",
-      "..KgggggKYGGK...",
-      "..KGGGGgGGGGgK..",
-      "..KggggggggggK..",
-      "..KGGGGgGGGGgK..",
-      "..KggggggggggK..",
-      "...KKKKKKKKKK..."
+      "...KKKK.........",
+      "..KgYGgK........",
+      "..KGGGgK.KKKK...",
+      "..Kggg7KKgYGgK..",
+      "..KGGGgKKGGGgK..",
+      "..Kggg7KKggg7K..",
+      "..KGGGgKKGGGgK..",
+      "..Kggg7KKggg7K..",
+      "..KGGGgKKGGGgK..",
+      "..Kggg7KKggg7K..",
+      "...KKKK..KKKK..."
     ],
     large: [
       "................",
-      "......KKK.......",
-      ".....KYGGK......",
-      "....KGGGGgKKKK..",
-      "....KgggggKYGGK.",
-      "..KKKGGGGgGGGGgK",
-      ".KYGGggggggggggK",
-      "KGGGGGGGGgGGGGgK",
-      "KggggggggggggggK",
-      "KGGGGGGGGgGGGGgK",
-      "KggggggggggggggK",
-      "KGGGGGGGGgGGGGgK",
-      "KggggggggggggggK",
-      "KGGGGGGGGgGGGGgK",
-      "KggggggggggggggK",
-      ".KKKKKKKKKKKKKK."
+      ".....KKKK.......",
+      "....KgYGgK......",
+      "....KGGGgK.KKKK.",
+      "....Kggg7KKgYGgK",
+      "KKKKKGGGgKKGGGgK",
+      "gYGgKggg7KKggg7K",
+      "GGGgKGGGgKKGGGgK",
+      "ggg7Kggg7KKggg7K",
+      "GGGgKGGGgKKGGGgK",
+      "ggg7Kggg7KKggg7K",
+      "GGGgKGGGgKKGGGgK",
+      "ggg7Kggg7KKggg7K",
+      "GGGgKGGGgKKGGGgK",
+      "ggg7Kggg7KKggg7K",
+      "KKKK.KKKK..KKKK."
     ]
   };
   var PATH_ICONS = {
@@ -6088,6 +6159,340 @@
   };
   var HERO_HEAD = ["......OOOO......", ".....OHGGHO.....", "....OHGGHHHO....", "....OHHHHHHO....", "....OHSSSSHO....", "....OSOSSOSUO...", ".....OSssSOUuO..", "....OWWWWWWOO...", "...OwWWWWWWwO..."];
   var HERO_HEAD_PALETTE = { "B": "#966230", "D": "#e2ca8c", "G": "#b0763e", "H": "#804e28", "M": "#e0e6ec", "O": "#18121e", "P": "#4e5474", "Q": "#784a26", "R": "#d64a3e", "S": "#eebe91", "T": "#e8e8dc", "U": "#5496de", "W": "#f2eee2", "b": "#623e1e", "d": "#a8884e", "h": "#523018", "k": "#3c3442", "m": "#848e9c", "p": "#422e1e", "q": "#383c58", "r": "#a02c28", "s": "#c68e64", "u": "#3468b0", "w": "#c4beb0", "x": "#969086" };
+  var FIRE_FRAMES = [
+    [
+      "................",
+      "................",
+      "..Y.............",
+      "........xx......",
+      ".......xxx...Y..",
+      "......xXXx......",
+      "......xXXx......",
+      "......xXXXx.x...",
+      "....xx.XYYx.XX..",
+      "....XXxXYYx.XX..",
+      "...xXXxXYXxxXX..",
+      "...XYxxXYXxXYx..",
+      "...XYxxXYXxXYx..",
+      "...XYxxXYXxXYx..",
+      "...XYXxXYXxXYX..",
+      "...XYXxXYXxXYX.."
+    ],
+    [
+      "................",
+      "................",
+      "................",
+      ".....Y.....Y....",
+      ".......xx.......",
+      ".......xxx......",
+      ".......xXXx.....",
+      "....xx.xXXx.....",
+      "....Xx.XXXx.xx..",
+      "...XXxxXYXxxX...",
+      "...XXxxYYXxXX...",
+      "...XYxxXYXxXYx..",
+      "...XYXxXYXxXYX..",
+      "...xYXxXYXxxYX..",
+      "...XYXxXYXxXYX..",
+      "...XYXxXYXxXYX.."
+    ],
+    [
+      "................",
+      "................",
+      "................",
+      "........x.......",
+      "........xx......",
+      ".......xXXx.....",
+      "....x..xXXx.....",
+      "...xx.xXXX.xx...",
+      "...XX.xYYX.XX...",
+      "...XXxxYYXxXX...",
+      "...xYXxXYXxxXx..",
+      "...xYXxXYXxxYX..",
+      "...xYXxXYXxxYX..",
+      "...XYXxXYXxXYX..",
+      "...XYXxXYXxXYX..",
+      "...XYXxXYXxXYX.."
+    ]
+  ];
+  var BLOOD = {
+    red: {
+      sol1: [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        ".....1..........",
+        "...112.....1....",
+        "....1221........",
+        "...123221..1....",
+        "....12221.......",
+        ".1...121........",
+        ".........1......",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      sol2: [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "........1.......",
+        "..1...1121..1...",
+        "......12321.....",
+        ".....112221..1..",
+        "...1...111......",
+        "......1.........",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      mur: [
+        "................",
+        "................",
+        "....1....1......",
+        "...121..121.....",
+        "...1321.121..1..",
+        "....121..1...2..",
+        ".....2...1...1..",
+        ".....1.......1..",
+        ".....1..........",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    green: {
+      sol1: [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        ".....4..........",
+        "...445.....4....",
+        "....4554........",
+        "...456554..4....",
+        "....45554.......",
+        ".4...454........",
+        ".........4......",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      sol2: [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "........4.......",
+        "..4...4454..4...",
+        "......45654.....",
+        ".....445554..4..",
+        "...4...444......",
+        "......4.........",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      mur: [
+        "................",
+        "................",
+        "....4....4......",
+        "...454..454.....",
+        "...4654.454..4..",
+        "....454..4...5..",
+        ".....5...4...4..",
+        ".....4.......4..",
+        ".....4..........",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+      ]
+    }
+  };
+  var STATUS_ICONS = {
+    poison: [
+      "................",
+      "................",
+      ".......K........",
+      "......KAK.......",
+      ".....KAAEK......",
+      "....KAAEEEK.....",
+      "...KAWAEEEeK....",
+      "...KAWEEEEeK....",
+      "...KAEEEEeeK....",
+      "....KEEEeeK.....",
+      ".....KeeeK......",
+      "......KKK.......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    feu: [
+      "................",
+      ".......K........",
+      "......KXK...K...",
+      ".....KXXK..KXK..",
+      ".....KXXXKKXXK..",
+      "....KXXYXXXXK...",
+      "...KXXYYYXXXK...",
+      "...KXYYWYYXXK...",
+      "...KXYYWYYXK....",
+      "....KXYYYXK.....",
+      ".....KxxxK......",
+      "......KKK.......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    ralenti: [
+      "................",
+      "................",
+      "................",
+      "........KKK.....",
+      ".......KUUUK....",
+      "......KUVVUUK...",
+      "..K..KUVUUVUK...",
+      ".KVK.KUVUVUUK...",
+      ".KVUKKUUVUUuK...",
+      "..KUUUUUUUUuK...",
+      "...KuuuuuuuK....",
+      "....KKKKKKK.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    sonne: [
+      "................",
+      "...K.......K....",
+      "..KGK.....KGK...",
+      ".KGYGK...KGYGK..",
+      "..KGK.....KGK...",
+      "...K.......K....",
+      ".......K........",
+      "......KGK.......",
+      ".....KGYGK......",
+      "......KGK.......",
+      ".......K........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    cache: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "....KKKKKKKK....",
+      "...KLLLLLLLLK...",
+      "..KLKKKKKKKKLK..",
+      ".KLKLKKLKKLKKLK.",
+      "..KKLKKLKKLK.K..",
+      "....K..K..K.....",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    accelere: [
+      "................",
+      "........KK......",
+      ".......KVVK.....",
+      "......KVVK......",
+      ".....KVVKKK.....",
+      "....KVVVVVVK....",
+      ".....KKKKVVK....",
+      ".......KVVK.....",
+      "......KVVK......",
+      ".....KVKK.......",
+      "......K.........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    arme_poison: [
+      "................",
+      "...........KK...",
+      "..........KAWK..",
+      ".........KAWEK..",
+      "........KAWEK...",
+      ".......KAWEK....",
+      "...K..KAWEK.....",
+      "..KGKKAWEK......",
+      "...KGGWEK.......",
+      "...KbGGK........",
+      "..KbKKGK........",
+      "...K..K.........",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    rempart: [
+      "................",
+      "....KKKKKKK.....",
+      "...KUUUUUUUK....",
+      "...KUVVUUUuK....",
+      "...KUVUWUUuK....",
+      "...KUUWWWUuK....",
+      "...KUUUWUUuK....",
+      "....KUUUUuK.....",
+      ".....KUUuK......",
+      "......KuK.......",
+      ".......K........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ],
+    torche: [
+      "................",
+      ".........K......",
+      "........KYK.....",
+      ".......KXYXK....",
+      ".......KXYXK....",
+      "........KXK.....",
+      ".......KbK......",
+      "......KbK.......",
+      ".....KbK........",
+      "....KbK.........",
+      ".....K..........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ]
+  };
   function itemIconRows(id) {
     return ICONS[id];
   }
@@ -6992,6 +7397,46 @@
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
     }
+    /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
+    drawFlames(gx, gy, seed, alpha) {
+      const { ctx, tile } = this;
+      const frame2 = FIRE_FRAMES[(Math.floor(this.time / 130) + seed) % FIRE_FRAMES.length];
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = alpha;
+      const rx = this.snap(gx);
+      const ry = this.snap(gy);
+      ctx.drawImage(this.sprite(frame2, PALETTE), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
+      ctx.globalAlpha = 1;
+      ctx.imageSmoothingEnabled = smooth;
+    }
+    /** Les statuts d'un monstre en petites bulles au-dessus de sa tête (empoisonné, ralenti, sonné, en feu). */
+    drawStatusBubbles(m, cx, cy, burning) {
+      const { ctx, tile } = this;
+      const icons = [];
+      if (m.poison) icons.push("poison");
+      if (burning) icons.push("feu");
+      if (m.slowed) icons.push("ralenti");
+      if (m.stunned) icons.push("sonne");
+      if (icons.length === 0) return;
+      const s = Math.max(10, Math.round(tile * 0.36));
+      const gap = 3;
+      const total = icons.length * s + (icons.length - 1) * gap;
+      let x = Math.round(cx - total / 2);
+      const y = Math.round(cy - tile * 0.98);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      for (const id of icons) {
+        ctx.fillStyle = "rgba(20,15,10,0.9)";
+        ctx.fillRect(x - 2, y - 2, s + 4, s + 4);
+        ctx.strokeStyle = "#d6aa54";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - 2, y - 2, s + 4, s + 4);
+        ctx.drawImage(this.sprite(STATUS_ICONS[id], PALETTE), x, y, s, s);
+        x += s + gap;
+      }
+      ctx.imageSmoothingEnabled = smooth;
+    }
     /** Un objet posé au sol : son icône, réduite pour tenir dans la case (les longues armes en diagonale). */
     drawGroundIcon(rows, gx, gy) {
       const { ctx, tile } = this;
@@ -7150,6 +7595,8 @@
       const flicker = 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
       ctx.fillStyle = COLORS.background;
       ctx.fillRect(0, 0, this.width, this.height);
+      const stains = /* @__PURE__ */ new Map();
+      for (const b of game2.bloodStains()) stains.set(game2.map.index(b.x, b.y), b);
       const x0 = Math.floor(-ox / tile);
       const y0 = Math.floor(-oy / tile);
       const x1 = Math.ceil((this.width - ox) / tile);
@@ -7173,6 +7620,14 @@
           const rw = this.snap(sx + tile) - rx;
           const rh = this.snap(sy + tile) - ry;
           this.drawCell(game2, t, x, y, rx, ry, rw, rh);
+          const stain = stains.get(game2.map.index(x, y));
+          if (stain) {
+            const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
+            const smooth = ctx.imageSmoothingEnabled;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(this.sprite(rows, PALETTE), rx, ry, rw, rh);
+            ctx.imageSmoothingEnabled = smooth;
+          }
           const shade = wall || t === Tile.Pillar ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
             const lit = wall ? this.wallLight(game2, x, y) : game2.light[game2.map.index(x, y)];
@@ -7258,25 +7713,7 @@
       }
       for (const f of game2.fires) {
         if (!game2.isVisible(f.x, f.y)) continue;
-        const fx = ox + f.x * tile;
-        const fy = oy + f.y * tile;
-        ctx.fillStyle = "rgba(255,120,30,0.25)";
-        ctx.fillRect(fx, fy, tile, tile);
-        for (let k = 0; k < 3; k++) {
-          const phase = this.time / 140 + k * 2.1 + f.x * 1.7 + f.y * 0.9;
-          const h = tile * (0.38 + 0.14 * Math.sin(phase));
-          const cx = fx + tile * (0.25 + 0.25 * k);
-          const base = fy + tile * 0.9;
-          for (const [color, scale] of [["#c03a1a", 1], ["#ff9a3a", 0.7], ["#ffe27a", 0.4]]) {
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(cx - tile * 0.12 * scale, base);
-            ctx.quadraticCurveTo(cx - tile * 0.1 * scale, base - h * scale * 0.6, cx + Math.sin(phase * 1.3) * tile * 0.04, base - h * scale);
-            ctx.quadraticCurveTo(cx + tile * 0.1 * scale, base - h * scale * 0.6, cx + tile * 0.12 * scale, base);
-            ctx.closePath();
-            ctx.fill();
-          }
-        }
+        this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
       }
       for (const g of game2.ground) {
         if (!game2.isExplored(g.x, g.y)) continue;
@@ -7325,6 +7762,9 @@
             ctx.stroke();
           }
           this.drawMonster(m, cx, cy, progress);
+          const burning = !!m.burning || game2.isBurning(m.x, m.y);
+          if (m.burning && !game2.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.8);
+          this.drawStatusBubbles(m, cx, cy, burning);
         } else {
           ctx.fillStyle = MONSTERS[m.defId]?.color ?? "#c04040";
           ctx.beginPath();
@@ -7384,6 +7824,7 @@
         }
       }
       this.drawHero(game2, hero, ox, oy, progress);
+      if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
       const searching = game2.searchProgress();
       if (searching > 0) {
         const s = Math.round(tile * 0.55);
@@ -8413,6 +8854,25 @@
     card.append(picture, body);
     return card;
   }
+  function miniCard(def, count, note) {
+    const card = el("div", "item-mini");
+    card.append(itemIcon(def.id));
+    const body = el("div", "");
+    const bits = [];
+    if (def.attackBonus !== void 0) bits.push(`d20 ${signedBonus(def.attackBonus)}`);
+    if (def.damage) bits.push(diceLabel(def.damage));
+    if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
+    if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
+    if (def.range) bits.push(`port\xE9e ${def.range}`);
+    if (def.armorClass) bits.push(`CA ${def.armorClass}`);
+    if (def.bagCols) bits.push(`${def.bagCols} \xD7 ${def.bagRows} cases`);
+    if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
+    if (def.rarity) bits.push(RARITY_LABELS[def.rarity].toLowerCase());
+    if (note) bits.push(note);
+    body.append(el("div", "t", `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "s", bits.join(" \xB7 ")), el("div", "", def.description));
+    card.append(body);
+    return card;
+  }
   function itemNode(item, className) {
     const node = el("div", className);
     node.append(itemIcon(item.defId));
@@ -8448,24 +8908,32 @@
     );
     $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(String(game.gold)));
     const kinds = game.ammoKinds();
-    $("quiver-box").hidden = kinds.length === 0;
     const current = game.currentAmmo();
-    $("quiver").replaceChildren(
-      ...kinds.map((id) => {
-        const def2 = ITEMS[id];
-        const node = itemNode({ defId: id, count: game.inventory.count(id) }, `quiver-item${id === current ? " selected" : ""}`);
-        if (game.tooLow(def2)) node.append(el("span", "item-level", `Lv${def2.level}`));
-        node.title = def2.name;
-        node.addEventListener("click", () => {
-          sfx.play("click");
-          if (!game.chooseAmmo(id)) logLines.push(`Il faut \xEAtre niveau ${def2.level} pour tirer ces fl\xE8ches.`);
-          aimShown = "";
-          renderLog();
-          renderHeroScreen();
-        });
-        return node;
-      })
-    );
+    const quiver = el("div", "slot slot-quiver");
+    const qbox = el("div", "slot-box");
+    if (current) {
+      qbox.append(itemIcon(current), el("span", "slot-count", String(game.inventory.count(current))));
+    } else {
+      const ghost = itemIcon("fleche");
+      ghost.classList.add("ghost");
+      qbox.append(ghost);
+    }
+    quiver.append(qbox);
+    quiver.title = "Carquois : touchez pour changer de fl\xE8ches";
+    quiver.addEventListener("click", () => {
+      sfx.play("click");
+      const usable = kinds.filter((id) => !game.tooLow(ITEMS[id]));
+      const locked = kinds.find((id) => game.tooLow(ITEMS[id]));
+      if (usable.length > 1 && current) {
+        game.chooseAmmo(usable[(usable.indexOf(current) + 1) % usable.length]);
+        aimShown = "";
+      } else if (locked) {
+        logLines.push(`Il faut \xEAtre niveau ${ITEMS[locked].level} pour tirer ${ITEMS[locked].name.toLowerCase()}.`);
+        renderLog();
+      }
+      renderHeroScreen();
+    });
+    $("doll").append(quiver);
     const grid = $("bag-grid");
     grid.style.setProperty("--cols", String(bag.cols));
     grid.style.setProperty("--rows", String(bag.rows));
@@ -8494,7 +8962,7 @@
     }
     const def = ITEMS[item.defId];
     const keyNote = def.kind === "key" && item.floor !== void 0 ? ` \u2014 \xE9tage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
-    const card = itemCard(def, item.count, selectedSlot ? " \u2014 port\xE9" : keyNote);
+    const card = miniCard(def, item.count, selectedSlot ? "port\xE9" : keyNote.replace(/^ — /, ""));
     const close = el("button", "item-close", "\xD7");
     close.type = "button";
     close.setAttribute("aria-label", "Fermer la fiche");
@@ -8564,6 +9032,7 @@
     selected = null;
     pickedChoice = null;
     heroTab = "inv";
+    statusOpen = null;
     $("bag").hidden = false;
     renderHeroScreen();
   });
@@ -8587,6 +9056,48 @@
     renderLog();
     renderHeroScreen();
   });
+  var statusShown = "";
+  var statusOpen = null;
+  function heroStatuses() {
+    const list = [];
+    if (game.hidden) list.push({ id: "cache", name: "Cach\xE9", detail: "Les monstres ne vous remarquent qu'au contact. Votre premi\xE8re attaque a l'avantage." });
+    if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 d\xE9g\xE2ts par tour. Sortez des flammes !" });
+    if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allum\xE9e", detail: `Vous \xE9clairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
+    if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonn\xE9e", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
+    if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Acc\xE9l\xE9r\xE9", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
+    if (game.skills.includes("dernier_rempart") && !game.perks().lastStand) list.push({ id: "rempart", name: "Dernier rempart", detail: "Pr\xEAt : un coup qui vous tuerait vous laissera \xE0 1 PV (une fois par \xE9tage)." });
+    return list;
+  }
+  function renderHeroStatus() {
+    const list = heroStatuses();
+    const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}`;
+    if (key === statusShown) return;
+    statusShown = key;
+    $("hero-status").replaceChildren(
+      ...list.map((st) => {
+        const b = el("button", "", "");
+        b.type = "button";
+        b.setAttribute("aria-label", st.name);
+        b.append(buildIcon(STATUS_ICONS[st.id]));
+        b.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          statusOpen = statusOpen === st.id ? null : st.id;
+          statusShown = "";
+        });
+        return b;
+      })
+    );
+    const open = list.find((st) => st.id === statusOpen);
+    if (!open) statusOpen = null;
+    $("status-pop").hidden = !open;
+    if (open) {
+      $("status-pop").replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
+    }
+  }
+  $("status-pop").addEventListener("click", () => {
+    statusOpen = null;
+    statusShown = "";
+  });
   var heroTab = "inv";
   var pickedChoice = null;
   function renderHeroScreen() {
@@ -8605,13 +9116,11 @@
     $("char-who").replaceChildren(who);
     $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
     $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} \xE0 attribuer` : "";
-    const row = (name, hint, value, stat) => {
-      const node = el("div", "char-stat");
-      const label = el("span", "n", name);
-      if (hint) label.append(el("span", "hint", hint));
-      node.append(label, el("b", "", value));
+    const row = (name, value, stat, wide = false) => {
+      const node = el("div", `r${wide ? " wide" : ""}`);
+      node.append(el("span", "", name), el("b", "", value));
       if (stat && game.points > 0) {
-        const plus = el("button", "char-plus", "+");
+        const plus = el("button", "", "+");
         plus.type = "button";
         plus.setAttribute("aria-label", `Un point en ${name}`);
         plus.addEventListener("click", () => {
@@ -8624,23 +9133,24 @@
       return node;
     };
     const c = game.heroClass;
-    $("char-stats").replaceChildren(
-      row(STAT_LABELS.vie.name, STAT_LABELS.vie.hint, `${game.hero.hp}/${game.hero.maxHp}`, "vie"),
-      row(STAT_LABELS.force.name, STAT_LABELS.force.hint, signedBonus(game.pushBonus()), "force"),
-      row(STAT_LABELS.agilite.name, STAT_LABELS.agilite.hint, signedBonus(game.disengageBonus()), "agilite"),
-      row(STAT_LABELS.intelligence.name, STAT_LABELS.intelligence.hint, signedBonus(game.alloc.intelligence), "intelligence"),
-      row(STAT_LABELS.charisme.name, STAT_LABELS.charisme.hint, signedBonus(game.alloc.charisme), "charisme"),
-      el("div", "char-sep"),
-      row("Fouille", "", signedBonus(c.searchBonus)),
-      row("Discr\xE9tion", "", signedBonus(c.stealthBonus)),
-      row("Classe d'armure", "", String(game.hero.armorClass)),
-      row("Attaque", "", signedBonus(game.hero.attackBonus))
+    const grid = el("div", "char-grid");
+    grid.append(
+      row("Vie", String(game.hero.maxHp), "vie"),
+      row("Force", signedBonus(game.pushBonus()), "force"),
+      row("Agilit\xE9", signedBonus(game.disengageBonus()), "agilite"),
+      row("Intellig.", signedBonus(game.alloc.intelligence), "intelligence"),
+      row("Charisme", signedBonus(game.alloc.charisme), "charisme"),
+      row("Fouille", signedBonus(c.searchBonus)),
+      row("Discr\xE9tion", signedBonus(c.stealthBonus)),
+      row("Attaque", signedBonus(game.hero.attackBonus)),
+      row("Classe d'armure", String(game.hero.armorClass), void 0, true)
     );
-    const cards = [];
+    $("char-stats").replaceChildren(grid);
+    const pathCards = [];
+    const powerCards = [];
     const confirm = $("char-confirm");
     let note = "";
     if (!game.voie) {
-      $("char-skills-title").textContent = game.canChoosePath() ? "Choisir une voie" : `Voies (au niveau ${PATH_LEVEL})`;
       for (const path of Object.values(PATHS)) {
         const picked = pickedChoice?.kind === "path" && pickedChoice.id === path.id;
         const card = el("div", `skill-card${picked ? " picked" : ""}${game.canChoosePath() ? "" : " locked"}`);
@@ -8652,26 +9162,27 @@
             renderCharacter();
           });
         }
-        cards.push(card);
+        pathCards.push(card);
       }
-      note = game.canChoosePath() ? "Choix d\xE9finitif" : "";
+      note = game.canChoosePath() ? "Choix d\xE9finitif" : `Voie \xE0 choisir au niveau ${PATH_LEVEL}`;
+      $("char-powers-title").hidden = true;
     } else {
       const path = PATHS[game.voie];
-      $("char-skills-title").textContent = "Comp\xE9tences";
       const main = el("div", "skill-card main owned");
       const body = el("div", "");
       const uses = game.voie === "blue" ? game.perks().secondWind ? " (d\xE9j\xE0 utilis\xE9 \xE0 cet \xE9tage)" : " (pr\xEAt)" : game.voie === "red" ? ` (${game.perks().doubleStrikes} \xE0 cet \xE9tage)` : "";
       body.append(el("b", "", path.name), document.createTextNode(path.description + uses));
       main.append(buildIcon(PATH_ICONS[path.id]), body);
-      cards.push(main);
+      pathCards.push(main);
+      $("char-powers-title").hidden = false;
       const picks = game.secondaryPicks();
-      path.secondaries.forEach((sk, i) => {
+      path.secondaries.forEach((sk) => {
         const owned = game.skills.includes(sk.id);
         const picked = pickedChoice?.kind === "skill" && pickedChoice.id === sk.id;
         const available = !owned && picks > 0;
         const card = el("div", `skill-card${owned ? " owned" : ""}${picked ? " picked" : ""}${!owned && !available ? " locked" : ""}`);
         card.append(el("b", "", sk.name), document.createTextNode(sk.description));
-        if (owned) card.append(el("div", "", "Acquise"));
+        if (owned) card.append(el("div", "", "Acquis"));
         else if (!available) card.append(el("div", "", `Niveau ${SECONDARY_LEVELS[Math.min(game.skills.length, SECONDARY_LEVELS.length - 1)]}`));
         if (available) {
           card.addEventListener("click", () => {
@@ -8680,15 +9191,15 @@
             renderCharacter();
           });
         }
-        void i;
-        cards.push(card);
+        powerCards.push(card);
       });
-      if (picks > 0) note = `${picks} comp\xE9tence${picks > 1 ? "s" : ""} \xE0 choisir`;
+      if (picks > 0) note = `${picks} pouvoir${picks > 1 ? "s" : ""} \xE0 choisir`;
     }
-    $("char-skills").replaceChildren(...cards);
+    $("char-path").replaceChildren(...pathCards);
+    $("char-skills").replaceChildren(...powerCards);
     $("char-note").textContent = note;
     confirm.hidden = pickedChoice === null;
-    confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (d\xE9finitif)" : "Prendre cette comp\xE9tence";
+    confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (d\xE9finitif)" : "Prendre ce pouvoir";
   }
   function throwCells(uid) {
     const cells = [];
@@ -8977,6 +9488,7 @@
     const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
     $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
+    renderHeroStatus();
     const floorText = String(game.depth);
     if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;

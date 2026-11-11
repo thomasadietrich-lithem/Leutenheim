@@ -21,6 +21,8 @@ export interface FloorState {
   monsters: Actor[];
   ground: GroundItem[];
   debris: Debris[];
+  /** Taches de sang : sur le sol (forme 0 ou 1) ou sur un mur (forme 2) ; rouge (héros) ou vert (Schrats). */
+  blood: BloodStain[];
   explored: Uint8Array;
   sensed: Uint8Array;
   rng: Rng;
@@ -56,6 +58,13 @@ export interface Debris {
 }
 
 /** Un objet posé au sol. */
+export interface BloodStain {
+  x: number;
+  y: number;
+  color: "red" | "green";
+  shape: 0 | 1 | 2;
+}
+
 export interface GroundItem {
   x: number;
   y: number;

@@ -609,6 +609,7 @@
     { slot: "ranged", label: "Distance" }
   ];
   var UNARMORED_AC = 10;
+  var RARITY_LABELS = { common: "Commun", uncommon: "Peu commun", rare: "Rare" };
   var ITEMS = {
     epee: {
       id: "epee",
@@ -656,7 +657,87 @@
       range: 9,
       ammo: "fleche"
     },
-    fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20 },
+    fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20, rarity: "common", ammoFamily: "fleche" },
+    fleche_poison: {
+      id: "fleche_poison",
+      name: "Fl\xE8ches empoisonn\xE9es",
+      kind: "ammo",
+      description: "La pointe luit d'un enduit verd\xE2tre. La plaie br\xFBle encore plusieurs tours.",
+      w: 1,
+      h: 1,
+      maxStack: 20,
+      rarity: "uncommon",
+      level: 4,
+      ammoFamily: "fleche",
+      poison: { damage: 1, turns: 4 }
+    },
+    pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
+    torche: {
+      id: "torche",
+      name: "Torche",
+      kind: "use",
+      description: "Une fois allum\xE9e, elle \xE9claire autour de vous pendant 100 tours. Mais on vous voit venir.",
+      w: 1,
+      h: 1,
+      maxStack: 3,
+      rarity: "common",
+      lightTurns: 100
+    },
+    epee_longue: {
+      id: "epee_longue",
+      name: "\xC9p\xE9e longue",
+      kind: "melee",
+      description: "Lourde et longue. Chaque coup prend du temps, mais il porte.",
+      w: 1,
+      h: 3,
+      maxStack: 1,
+      rarity: "uncommon",
+      level: 2,
+      speed: "slow",
+      attackBonus: 4,
+      damage: { count: 2, sides: 6, bonus: 2 }
+    },
+    lance: {
+      id: "lance",
+      name: "Lance",
+      kind: "melee",
+      description: "Frappe \xE0 deux cases : on touche l'ennemi avant qu'il n'arrive au contact. Lente \xE0 manier.",
+      w: 1,
+      h: 4,
+      maxStack: 1,
+      rarity: "uncommon",
+      level: 2,
+      speed: "slow",
+      reach: 2,
+      attackBonus: 4,
+      damage: { count: 1, sides: 8, bonus: 1 }
+    },
+    cimeterre: {
+      id: "cimeterre",
+      name: "Cimeterre",
+      kind: "melee",
+      description: "Une lame courbe qui danse. Rapide et cruelle.",
+      w: 2,
+      h: 2,
+      maxStack: 1,
+      rarity: "rare",
+      level: 5,
+      speed: "fast",
+      attackBonus: 5,
+      damage: { count: 1, sides: 6, bonus: 3 }
+    },
+    armure_cloutee: {
+      id: "armure_cloutee",
+      name: "Cuir clout\xE9",
+      kind: "armor",
+      description: "Du cuir \xE9pais renforc\xE9 de rivets d'acier. Solide sans faire de bruit.",
+      w: 2,
+      h: 2,
+      maxStack: 1,
+      rarity: "rare",
+      level: 5,
+      armorClass: 14
+    },
     clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle ferm\xE9e de l'\xE9tage o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
     or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir ferm\xE9 par une cordelette. Son or rejoint votre bourse d\xE8s que vous marchez dessus.", w: 1, h: 1, maxStack: 9999 },
     tunique: {
@@ -701,7 +782,8 @@
     amulet: "Amulette",
     ammo: "Munition",
     key: "Objet utile",
-    gold: "Monnaie"
+    gold: "Monnaie",
+    use: "\xC0 utiliser"
   };
 
   // src/data/monsters.ts
@@ -850,7 +932,19 @@
     /** Coin de mur « logique » : deux pans vus qui se rejoindraient à moins de tant de cases font apparaître leur coin. */
     cornerReach: 4,
     /** Nombre de pas sur lesquels on « devine » les passages au-delà de ce qu'on voit. */
-    senseDepth: 3
+    senseDepth: 3,
+    /** Butin au sol : chance qu'une salle (hors départ) contienne un objet (C). */
+    lootRoomChance: 0.3,
+    /**
+     * Butin au sol activé dans le donjon. Éteint tant que Thomas n'a pas validé les dessins des nouveaux objets
+     * (art/objets_v1.png) : la règle « image d'abord ». Les tests l'allument eux-mêmes.
+     */
+    lootEnabled: false,
+    /** Torche portée : rayon de lumière autour du héros. */
+    torchRadius: 6,
+    /** Vitesse d'attaque : durée d'une attaque lente et d'une attaque rapide, en tours (C). */
+    slowAttackTurns: 1.5,
+    fastAttackTurns: 0.75
   };
 
   // src/items/inventory.ts
@@ -1551,6 +1645,32 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  // src/data/loot.ts
+  var RARITY_ODDS = [
+    { common: 75, uncommon: 22, rare: 3 },
+    { common: 55, uncommon: 35, rare: 10 },
+    { common: 40, uncommon: 40, rare: 20 }
+  ];
+  var GOLD_PILES = [
+    { small: [3, 8], medium: [10, 20], large: [25, 40] },
+    { small: [6, 15], medium: [20, 40], large: [50, 80] }
+  ];
+  var LOOT = {
+    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }],
+    uncommon: [{ item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" }],
+    rare: [{ item: "gold" }, { item: "cimeterre" }, { item: "armure_cloutee" }]
+  };
+  var GOLD_SIZE = { common: "small", uncommon: "medium", rare: "large" };
+  function sectionOf(depth) {
+    return Math.floor((depth - 1) / 5);
+  }
+  function goldRange(depth, size) {
+    const section = sectionOf(depth);
+    const row = GOLD_PILES[Math.min(section, GOLD_PILES.length - 1)][size];
+    const factor = 2 ** Math.max(0, section - (GOLD_PILES.length - 1));
+    return [row[0] * factor, row[1] * factor];
+  }
+
   // src/core/floor.ts
   function roomElements(map, torches, room) {
     let pillars = false;
@@ -1600,6 +1720,41 @@
       }
     });
   }
+  function rollLoot(rng, depth) {
+    const odds = RARITY_ODDS[Math.min(sectionOf(depth), RARITY_ODDS.length - 1)];
+    let roll2 = rng.int(1, 100);
+    let rarity = "common";
+    for (const r of ["common", "uncommon", "rare"]) {
+      if (roll2 <= odds[r]) {
+        rarity = r;
+        break;
+      }
+      roll2 -= odds[r];
+    }
+    const pool = LOOT[rarity];
+    const pick = pool[rng.int(0, pool.length - 1)];
+    if (pick.item === "gold") {
+      const [min, max] = goldRange(depth, GOLD_SIZE[rarity]);
+      return { item: "or", count: rng.int(min, max) };
+    }
+    const count = pick.count ? rng.int(pick.count[0], pick.count[1]) : 1;
+    return { item: pick.item, count: Math.min(count, ITEMS[pick.item].maxStack) };
+  }
+  function placeLoot(state, depth, seed) {
+    const rng = new Rng(seed ^ 722432451);
+    state.rooms.forEach((room, index) => {
+      if (index === 0 || !rng.chance(RULES.lootRoomChance)) return;
+      const loot = rollLoot(rng, depth);
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const x = rng.int(room.x, room.x + room.w - 1);
+        const y = rng.int(room.y, room.y + room.h - 1);
+        if (state.map.get(x, y) !== Tile.Floor || state.ground.some((g) => g.x === x && g.y === y)) continue;
+        if (state.traps.some((t) => t.x === x && t.y === y)) continue;
+        state.ground.push({ x, y, item: loot.item, count: loot.count });
+        return;
+      }
+    });
+  }
   function placeKey(state, rng, hero) {
     if (!rng.chance(RULES.keyChance)) return;
     for (let attempt = 0; attempt < 30; attempt++) {
@@ -1639,6 +1794,17 @@
       this.gold = 0;
       this.xp = 0;
       this.level = 1;
+      /** Torche allumée : tours de lumière restants autour du héros. */
+      this.torchTurns = 0;
+      /** Munition choisie dans le carquois (la flèche ordinaire par défaut). */
+      this.ammoChoice = "fleche";
+      /**
+       * Vitesse d'attaque : avance (+) ou retard (−) du héros sur les monstres, en tours. Une attaque lente l'ajoute,
+       * une rapide le retire ; à +1 les monstres jouent un tour de plus, à −1 ils en sautent un.
+       */
+      this.clock = 0;
+      this.actionCost = 1;
+      this.useOrder = null;
       /** Flèches brisées encore visibles au sol. */
       this.debris = [];
       /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -1774,6 +1940,7 @@
         placeKey(state, this.rng, this.hero);
         placeSecrets(state, depth, floorSeed(this.runSeed, depth));
         placeTraps(state, floorSeed(this.runSeed, depth));
+        if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
       }
       for (const m of this.monsters) {
         m.fromX = m.x;
@@ -1919,7 +2086,7 @@
       this.monsters = state.monsters;
       this.ground = state.ground;
       this.debris = state.debris.filter((d) => d.until > this.turn);
-      this.light = computeLight(this.map, this.torches);
+      this.refreshLight();
     }
     // ---------- Sauvegarde ----------
     /** Toute la partie sous forme de simples données, à écrire sur l'appareil. */
@@ -1967,6 +2134,9 @@
         gold: this.gold,
         xp: this.xp,
         level: this.level,
+        torchTurns: this.torchTurns,
+        clock: this.clock,
+        ammoChoice: this.ammoChoice,
         heroMisses: this.heroMisses,
         hidden: this.hidden,
         nextId: this.nextId,
@@ -2015,6 +2185,9 @@
       game2.gold = saved.gold;
       game2.xp = saved.xp;
       game2.level = saved.level;
+      game2.torchTurns = saved.torchTurns ?? 0;
+      game2.clock = saved.clock ?? 0;
+      game2.ammoChoice = (saved.ammoChoice ?? "fleche") in ITEMS ? saved.ammoChoice : "fleche";
       game2.heroMisses = saved.heroMisses;
       game2.nextId = saved.nextId;
       game2.lastFoeId = saved.lastFoeId;
@@ -2069,7 +2242,8 @@
       const item = this.inventory.get(uid);
       if (!item) return false;
       const kind = ITEMS[item.defId].kind;
-      if (kind === "ammo" || kind === "key" || kind === "gold") return false;
+      if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use") return false;
+      if (this.tooLow(ITEMS[item.defId])) return false;
       const previous = this.equipment[kind];
       const from = { x: item.x, y: item.y };
       this.inventory.removeItem(uid);
@@ -2099,6 +2273,66 @@
       const armor = this.equipment.armor;
       this.hero.armorClass = armor && ITEMS[armor.defId].armorClass || UNARMORED_AC;
     }
+    /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
+    tooLow(def) {
+      return (def.level ?? 1) > this.level;
+    }
+    // ---------- Torche, objets à utiliser ----------
+    /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
+    refreshLight() {
+      const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
+      this.light = computeLight(this.map, [...this.torches, ...carried]);
+    }
+    /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
+    useItem(uid) {
+      const item = this.inventory.get(uid);
+      if (this.over || !item) return false;
+      const def = ITEMS[item.defId];
+      if (def.kind !== "use" || this.tooLow(def)) return false;
+      if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
+      this.wait();
+      this.waiting = false;
+      this.useOrder = uid;
+      return true;
+    }
+    resolveUse(uid) {
+      const item = this.inventory.get(uid);
+      if (!item) return;
+      const def = ITEMS[item.defId];
+      if (!this.inventory.take(item.defId, 1)) return;
+      if (def.heal) {
+        const before = this.hero.hp;
+        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + def.heal);
+        this.events.push({ type: "used", item: item.defId, healed: this.hero.hp - before });
+      }
+      if (def.lightTurns) {
+        this.torchTurns = def.lightTurns;
+        this.refreshLight();
+        this.events.push({ type: "used", item: item.defId });
+        this.reveal();
+      }
+    }
+    /** Les munitions de l'arc présentes dans le sac, ordinaires d'abord. */
+    ammoKinds() {
+      const family = this.weapon("ranged")?.ammo;
+      if (!family) return [];
+      return Object.keys(ITEMS).filter((id) => ITEMS[id].ammoFamily === family && this.inventory.count(id) > 0);
+    }
+    /** Choisir les flèches à tirer. Refusé si le héros n'a pas le niveau. */
+    chooseAmmo(id) {
+      const def = ITEMS[id];
+      if (def.kind !== "ammo" || this.tooLow(def)) return false;
+      this.ammoChoice = id;
+      return true;
+    }
+    /** La munition qui partira au prochain tir : le choix du joueur s'il en reste, sinon la flèche ordinaire. */
+    currentAmmo() {
+      const family = this.weapon("ranged")?.ammo;
+      if (!family) return null;
+      const chosen = ITEMS[this.ammoChoice];
+      if (chosen.ammoFamily === family && !this.tooLow(chosen) && this.inventory.count(this.ammoChoice) > 0) return this.ammoChoice;
+      return this.inventory.count(family) > 0 ? family : null;
+    }
     /** Expérience à réunir pour passer au niveau suivant. */
     xpToNext() {
       return RULES.xpPerLevel * this.level;
@@ -2115,8 +2349,9 @@
         this.events.push({ type: "levelup", level: this.level });
       }
     }
+    /** Flèches prêtes à partir (celles choisies dans le carquois). */
     arrows() {
-      const ammo = this.weapon("ranged")?.ammo;
+      const ammo = this.currentAmmo();
       return ammo ? this.inventory.count(ammo) : 0;
     }
     // ---------- Ordres du joueur ----------
@@ -2338,6 +2573,7 @@
     /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
     hideRefusal() {
       if (this.hidden) return "hidden";
+      if (this.torchTurns > 0) return "torch";
       if (this.isThreatened()) return "threatened";
       if (!this.hasCover(this.hero)) return "no-cover";
       return null;
@@ -2432,6 +2668,10 @@
         this.doorAction = null;
       } else if (this.picking) {
         this.picking = this.pickUpOne();
+      } else if (this.useOrder !== null) {
+        const uid = this.useOrder;
+        this.useOrder = null;
+        this.resolveUse(uid);
       } else if (this.hideOrder) {
         this.hideOrder = false;
         this.resolveHide();
@@ -2451,7 +2691,7 @@
       } else {
         if (this.targetId !== null) {
           const target = this.monsters.find((m) => m.id === this.targetId);
-          this.path = target ? this.inReach(this.hero, target) ? [{ x: target.x, y: target.y }] : findPath(this.map, this.hero, target, this.avoidTraps(target)) ?? [] : [];
+          this.path = target ? this.inReach(this.hero, target) || this.inWeaponReach(target) ? [{ x: target.x, y: target.y }] : findPath(this.map, this.hero, target, this.avoidTraps(target)) ?? [] : [];
           if (!target) this.targetId = null;
         }
         const next = this.path[0];
@@ -2494,9 +2734,27 @@
       this.turn++;
       this.respawn();
       if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
+      if (this.torchTurns > 0) {
+        this.torchTurns--;
+        if (this.torchTurns === 0) this.events.push({ type: "torchOut" });
+        this.refreshLight();
+      }
       this.updateVision();
       const resting = wasResting;
-      this.monstersAct();
+      this.clock += this.actionCost - 1;
+      this.actionCost = 1;
+      let rounds = 1;
+      if (this.clock >= 1 - 1e-9) {
+        rounds = 2;
+        this.clock -= 1;
+      } else if (this.clock <= -1 + 1e-9) {
+        rounds = 0;
+        this.clock += 1;
+      }
+      for (let r = 0; r < rounds && !this.over; r++) {
+        this.poisonTick();
+        this.monstersAct();
+      }
       if (resting) this.afterRestTurn();
       if (wasSearching) this.afterSearchTurn();
       return true;
@@ -2625,6 +2883,32 @@
       if (dx === 0 || dy === 0) return true;
       return this.map.isWalkable(a.x + dx, a.y) || this.map.isWalkable(a.x, a.y + dy);
     }
+    /**
+     * Arme à longue portée (lance) : le monstre est à deux cases en ligne droite ou en diagonale,
+     * la case du milieu est libre (ni mur, ni colonne, ni porte fermée, ni monstre), et on le voit.
+     */
+    inWeaponReach(m) {
+      const reach = this.weapon("melee")?.reach ?? 1;
+      if (reach < 2) return false;
+      const dx = m.x - this.hero.x;
+      const dy = m.y - this.hero.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== 2) return false;
+      if (!(dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy))) return false;
+      const mid = { x: this.hero.x + dx / 2, y: this.hero.y + dy / 2 };
+      if (!this.map.isWalkable(mid.x, mid.y) || this.map.blocksSight(mid.x, mid.y) || this.monsterAt(mid.x, mid.y)) return false;
+      return this.isVisible(m.x, m.y);
+    }
+    /** Le poison ronge les monstres empoisonnés, au début de leur tour. */
+    poisonTick() {
+      for (const m of [...this.monsters]) {
+        if (!m.poison) continue;
+        m.hp -= m.poison.damage;
+        m.poison.turns--;
+        this.events.push({ type: "poison", actor: m, damage: m.poison.damage });
+        if (m.poison.turns <= 0) m.poison = void 0;
+        this.removeIfDead(m);
+      }
+    }
     /** Vrai si `a` et `b` se touchent en diagonale autour d'un coin de mur : celui qui frappe surprend l'autre. */
     aroundCorner(a, b) {
       const dx = b.x - a.x;
@@ -2643,7 +2927,7 @@
      * sinon un monstre alerté au contact (le plus abîmé d'abord), sinon n'importe quel monstre visible au contact.
      */
     meleeTarget() {
-      const near = this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+      const near = this.visibleMonsters().filter((m) => this.inReach(this.hero, m) || this.inWeaponReach(m));
       if (near.length === 0) return null;
       const last2 = near.find((m) => m.id === this.lastFoeId);
       if (last2) return last2;
@@ -2686,14 +2970,14 @@
     openDoorAt(x, y) {
       if (this.map.get(x, y) !== Tile.DoorClosed) return;
       this.map.set(x, y, Tile.DoorOpen);
-      this.light = computeLight(this.map, this.torches);
+      this.refreshLight();
       this.events.push({ type: "opened", x, y });
     }
     /** Une porte se referme dès que plus personne ne se tient dans son encadrement. */
     closeDoorAt(x, y) {
       if (this.map.get(x, y) !== Tile.DoorOpen || this.actorAt(x, y)) return;
       this.map.set(x, y, Tile.DoorClosed);
-      this.light = computeLight(this.map, this.torches);
+      this.refreshLight();
     }
     /** Ce qui se déclenche quand le héros marche sur une case particulière (fontaine, coffre). */
     useFeatureAt(x, y) {
@@ -2714,7 +2998,7 @@
       if (action === "key") {
         if (!this.inventory.take("clef", 1, this.depth)) return;
         this.map.set(door.x, door.y, Tile.DoorOpen);
-        this.light = computeLight(this.map, this.torches);
+        this.refreshLight();
         this.pendingDoor = null;
         this.events.push({ type: "door", action, x: door.x, y: door.y, d20: 0, bonus: 0, total: 0, dc: 0, success: true, alerted: 0 });
         return;
@@ -2726,7 +3010,7 @@
       const success = d20 === 20 || d20 !== 1 && total >= dc;
       if (success) {
         this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
-        this.light = computeLight(this.map, this.torches);
+        this.refreshLight();
         this.pendingDoor = null;
       } else {
         this.failedDoorAttempts.add(this.doorAttemptKey(door, action));
@@ -2762,6 +3046,8 @@
       const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
       const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
       this.noteHeroAttack(result.hit);
+      const speed = this.weapon("melee")?.speed;
+      this.actionCost = speed === "slow" ? RULES.slowAttackTurns : speed === "fast" ? RULES.fastAttackTurns : 1;
       monster.alerted = true;
       monster.asleep = false;
       monster.hp -= result.damage;
@@ -2783,7 +3069,9 @@
      */
     heroShoots(target) {
       const bow = this.weapon("ranged");
-      if (!bow || !bow.ammo || !this.inventory.take(bow.ammo, 1)) return;
+      const ammo = this.currentAmmo();
+      if (!bow || !ammo || !this.inventory.take(ammo, 1)) return;
+      const poison = ITEMS[ammo].poison;
       this.reveal();
       const origin = { x: this.hero.x, y: this.hero.y };
       const trail = [origin];
@@ -2823,6 +3111,10 @@
         victim.hp -= result.damage;
         this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
         hit = result.hit;
+        if (hit && poison && victim.hp > 0) {
+          victim.poison = { ...poison };
+          this.events.push({ type: "poisoned", actor: victim });
+        }
         if (hit) {
           keepChance = RULES.arrowKeepOnHit;
         } else {
@@ -2839,7 +3131,7 @@
       const end = trail[trail.length - 1];
       const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
       const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
-      if (kept) this.dropItem(landing.x, landing.y, bow.ammo, 1, angle);
+      if (kept) this.dropItem(landing.x, landing.y, ammo, 1, angle);
       else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
       this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
       if (victim) this.removeIfDead(victim);
@@ -3820,7 +4112,7 @@
   };
 
   // src/ui/icons.ts
-  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38" };
+  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814" };
   var ICONS = {
     tunique: [
       "................................",
@@ -4129,6 +4421,245 @@
       "......KPPPPPpPPPPPpPPPPPpK......",
       "......KGGGGGGGGGGGGGGGGGGK......",
       "......KggggggggggggggggggK......",
+      ".......KKKKKKKKKKKKKKKKKK.......",
+      "................................"
+    ],
+    // PROPOSITIONS (art/objets_v1.py, planche à valider par Thomas) : ces objets n'apparaissent pas encore en jeu.
+    fleche_poison: [
+      "...........KKKK.",
+      "..........KAAAAK",
+      "...........KaAaK",
+      "...........KBDaK",
+      "..........KTKKDK",
+      ".........KBKKAK.",
+      "........KTK.KaK.",
+      ".......KBK...K..",
+      "...KKKKTK.......",
+      "..KVUUBK........",
+      ".KVUUTuK........",
+      "KVUUBuuK........",
+      ".KKTuuuK........",
+      "...KuuK.........",
+      "...KuK..........",
+      "....K..........."
+    ],
+    pomme: [
+      "........K.......",
+      ".......KbKKK....",
+      ".......KbKEEK...",
+      "....KKKbEEEeK...",
+      "...KRRRbRReK....",
+      "..KRWWRRRRRRK...",
+      ".KRWWRRRRRRRrK..",
+      ".KRWRRRRRRRRrK..",
+      ".KRRRRRRRRRRrK..",
+      ".KRRRRRRRRRrrK..",
+      ".KRRRRRRRRRrrK..",
+      "..KRRRRRRRrrK...",
+      "..KrRRRRRrrrK...",
+      "...KrrrKrrrK....",
+      "....KKK.KKK.....",
+      "................"
+    ],
+    torche: [
+      ".........KYK....",
+      "........KOYOK...",
+      ".......KOYWYOK..",
+      ".......KOYWYOK..",
+      "........KOYOK...",
+      ".......KLnLnK...",
+      "......KnLnLK....",
+      ".....KTBKKK.....",
+      "....KTBK........",
+      "...KTBK.........",
+      "..KTBK..........",
+      ".KTBK...........",
+      "KtBK............",
+      "KtK.............",
+      ".K..............",
+      "................"
+    ],
+    epee_longue: [
+      "......KWDK......",
+      ".....KWWDK......",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      ".....KWWSDK.....",
+      "......KWSDK.....",
+      "..KKKKWWSDKK....",
+      ".KSSSSSSSSSDK...",
+      ".KcccccccccCK...",
+      "..KKKKbBbKKK....",
+      ".....KBbBK......",
+      ".....KbBbK......",
+      ".....KBbBK......",
+      ".....KbBbK......",
+      ".....KBbBK......",
+      "....KGGggK......",
+      ".....KggK.......",
+      "......KK........",
+      "................",
+      "................"
+    ],
+    lance: [
+      ".......KSK......",
+      "......KSWDK.....",
+      ".....KSWWSDK....",
+      ".....KWWSSDK....",
+      "....KSWWSSDK....",
+      "....KWWSSDDK....",
+      ".....KWSSDK.....",
+      ".....KWSDK......",
+      "......KDK.......",
+      ".....KbGgK......",
+      ".....KGgGK......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      "......KBK.......",
+      "......KBK.......",
+      "......KTK.......",
+      ".....KbBbK......",
+      ".....KSDDK......",
+      "......KDK.......",
+      ".......K........"
+    ],
+    cimeterre: [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "..............................K.",
+      "..........................KKKKWK",
+      "......................KKKKWWWWWK",
+      "....................KKWWWWSSSSSS",
+      "..................KKWWWSSDDKKKKK",
+      ".................KWWSSSDDKK.....",
+      "...............KKWWSDDDKK.......",
+      "..............KWWSSDDKK.........",
+      ".............KWWSSDKK...........",
+      "............KWWSDDK.............",
+      "............KWSDDK..............",
+      "...........KWSDDK...............",
+      "..........KWWSDK................",
+      "..........KWSDK.................",
+      ".........KWSSDK.................",
+      ".........KWSKK..................",
+      "........KWSSK...................",
+      "........KWSK....................",
+      "........KWSK....................",
+      ".......KKSSK....................",
+      "......KGWSK.....................",
+      ".....KGKGSK.....................",
+      "....KgKKWgK.....................",
+      "...KgK.KWSK.....................",
+      "....KBKKWSK.....................",
+      "...KbK..KSK.....................",
+      "..KBK....K......................",
+      ".KGK............................"
+    ],
+    armure_cloutee: [
+      "................................",
+      "................................",
+      "...KKKKKKKKK........KKKKKKKKK...",
+      "..KTTTBBBTTTK......KBTTTBBBTTK..",
+      "..KttttttttttK....KttttttttttK..",
+      "..KttctttctttK....KttctttctttK..",
+      "..KBBBTTTBBBTTKKKKTTTBBBTTTBBK..",
+      "..KBBBTTTBBBTTTBBBTTTBBBTTTBBK..",
+      "..KttttttttttttttttttttttttttK..",
+      "..KTTcBBBcTTBcBttcBBBcTTBcBTTK..",
+      "..KTTTBBBTTTBBBGtTBBBTTTBBBTTK..",
+      "..KTTTBBBTTTBBBttTBBBTTTBBBTTK..",
+      "...KKKKKTBBBTTTttBTTTBBBKKKKK...",
+      ".......KTcBBTcTttcTTTcBBK.......",
+      ".......KTBBBTTTGtBTTTBBBK.......",
+      ".......KttttttttttttttttK.......",
+      ".......KBTTTBBBttTBBBTTTK.......",
+      ".......KBcTTBcBttcBBBcTTK.......",
+      ".......KtttttttGttttttttK.......",
+      ".......KttttttttttttttttK.......",
+      ".......KTBBBTTTttBTTTBBBK.......",
+      ".......KtctttctttctttcttK.......",
+      ".......KbbbbbbbbbbbbbbbbK.......",
+      ".......KttttttttttttttttK.......",
+      ".......KttttttttttttttttK.......",
+      "......KttctttctttctttctttK......",
+      "......KttttttttttttttttttK......",
+      "......KBBTTTBBBttTBBBTTTBK......",
+      "......KttttttttttttttttttK......",
+      "......KttctttctttctttctttK......",
       ".......KKKKKKKKKKKKKKKKKK.......",
       "................................"
     ]
@@ -5676,6 +6207,14 @@
         return e.healed > 0 ? `Vous buvez \xE0 la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez \xE0 la fontaine. Elle se tarit.";
       case "chest":
         return `Le coffre contient ${e.gold} pi\xE8ces d'or.`;
+      case "used":
+        return e.healed !== void 0 ? `Vous mangez : ${ITEMS[e.item].name.toLowerCase()}, +${e.healed} PV.` : "Vous allumez une torche.";
+      case "torchOut":
+        return "Votre torche s'\xE9teint.";
+      case "poisoned":
+        return `${e.actor.name} est empoisonn\xE9.`;
+      case "poison":
+        return `Le poison ronge ${e.actor.name} : ${e.damage} d\xE9g\xE2t${e.damage > 1 ? "s" : ""}.`;
       default:
         return null;
     }
@@ -5684,7 +6223,8 @@
     hide: {
       hidden: "Vous \xEAtes d\xE9j\xE0 cach\xE9.",
       threatened: "Impossible de se cacher : un ennemi est \xE0 votre contact.",
-      "no-cover": "Rien pour vous cacher ici : il faut une colonne \xE0 c\xF4t\xE9 de vous, ou un angle de mur."
+      "no-cover": "Rien pour vous cacher ici : il faut une colonne \xE0 c\xF4t\xE9 de vous, ou un angle de mur.",
+      torch: "Impossible de se cacher avec une torche allum\xE9e."
     },
     disengage: {
       safe: "Aucun ennemi au contact : rien \xE0 quoi se d\xE9rober.",
@@ -6338,6 +6878,13 @@
     if (def.attackBonus !== void 0) rows.push(["Attaque", `d20 ${signedBonus(def.attackBonus)}`]);
     if (def.damage) rows.push(["D\xE9g\xE2ts", diceLabel(def.damage)]);
     if (def.range) rows.push(["Port\xE9e", `${def.range} cases`]);
+    if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
+    if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
+    if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
+    if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
+    if (def.lightTurns) rows.push(["Lumi\xE8re", `${def.lightTurns} tours`]);
+    if (def.rarity) rows.push(["Raret\xE9", RARITY_LABELS[def.rarity]]);
+    if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
     if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
     if (def.kind !== "gold") rows.push(["Place", `${def.w} \xD7 ${def.h}`]);
     const stats = el("div", "item-card-stats");
@@ -6406,9 +6953,10 @@
     const def = ITEMS[item.defId];
     const keyNote = def.kind === "key" && item.floor !== void 0 ? ` \u2014 \xE9tage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
     info.replaceChildren(itemCard(def, item.count, selectedSlot ? " \u2014 port\xE9" : keyNote));
-    const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold";
-    action.hidden = !wearable;
-    action.textContent = selectedSlot ? "Retirer" : "\xC9quiper";
+    const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use";
+    const quiver = def.kind === "ammo" && !selectedSlot && game.ammoKinds().length > 1;
+    action.hidden = !wearable && def.kind !== "use" && !quiver;
+    action.textContent = selectedSlot ? "Retirer" : def.kind === "use" ? "Utiliser" : quiver ? game.currentAmmo() === def.id ? "Choisies" : "Tirer celles-ci" : "\xC9quiper";
   }
   $("bag-grid").addEventListener("click", (e) => {
     const grid = $("bag-grid");
@@ -6424,7 +6972,18 @@
     renderBag();
   });
   button("bag-equip", () => {
-    if (selected && "uid" in selected) {
+    const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : void 0;
+    const chosenDef = chosen ? ITEMS[chosen.defId] : void 0;
+    if (chosen && chosenDef && game.tooLow(chosenDef)) {
+      logLines.push(`Il faut \xEAtre niveau ${chosenDef.level} pour cela.`);
+    } else if (chosen && chosenDef?.kind === "use") {
+      if (!game.useItem(chosen.uid)) logLines.push("Vous \xEAtes d\xE9j\xE0 en pleine sant\xE9.");
+      bagOpen = false;
+      $("bag").hidden = true;
+    } else if (chosen && chosenDef?.kind === "ammo") {
+      game.chooseAmmo(chosen.defId);
+      aimShown = "";
+    } else if (selected && "uid" in selected) {
       if (!game.equip(selected.uid)) logLines.push("Pas assez de place dans le sac pour \xE9changer.");
     } else if (selected && "slot" in selected) {
       if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");

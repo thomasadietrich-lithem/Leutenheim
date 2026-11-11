@@ -3656,7 +3656,7 @@
   };
 
   // src/ui/icons.ts
-  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4" };
+  var PALETTE = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38" };
   var ICONS = {
     tunique: [
       "................................",
@@ -4125,24 +4125,24 @@
       ".....KKKKKK.....",
       "................"
     ],
-    /** Se dégager : flèche qui bondit par-dessus deux cases. */
+    /** Se dégager : une flèche verte qui s'éloigne du crâne (l'ennemi). */
     disengage: [
       "................",
-      "....KKKKKK......",
-      "..KKGGGGGGKK....",
-      ".KGGGGGGGGGGK...",
-      ".KGGGKKKKGGGGK..",
-      "KGGGK....KGGGK..",
-      "KGGGK....KGGGK..",
-      "KGGGK..KKKGGGKKK",
-      "KGGGK..KGGGGGGGK",
-      "KGGGK...KGGGGGK.",
-      "KgggK....KgggK..",
-      "KKKKK.....KgK...",
-      "...........K....",
       "................",
-      "KLLLK.KLLLK.....",
-      "KKKKK.KKKKK....."
+      "................",
+      "................",
+      "..KKKKK.........",
+      ".KWWWWWK....K...",
+      "KWWWWWWWK...EK..",
+      "KWKKWKKSKKKKEEK.",
+      "KWKKWKKSKKEEEEEK",
+      "KWWWKWWSKKKKEeK.",
+      ".KWWWWSK....eK..",
+      "..KWKSK.....K...",
+      "..KKKKK.........",
+      "................",
+      "................",
+      "................"
     ],
     /** Utiliser un objet : fiole. */
     item: [
@@ -4201,23 +4201,23 @@
       "................",
       "................"
     ],
-    /** Pousser : une main ouverte qui pousse, avec des traits de mouvement. */
+    /** Pousser : une flèche rouge qui frappe le crâne (l'ennemi). */
     push: [
       "................",
-      ".......K.K.K....",
-      "......KLKLKLK...",
-      "......KLKLKLKK..",
-      "......KLKLKLKLK.",
-      "......KLLLLLKLK.",
-      "..GG..KLLLLLLLK.",
-      "......KLLLLLLLK.",
-      ".GGG..KLLLLLLK..",
-      "......KLLLLLLK..",
-      "..GG...KLLLLK...",
-      ".......KLLLLK...",
-      ".......KWWWWK...",
-      ".......KSSSSK...",
-      "........KKKK....",
+      "................",
+      "................",
+      "................",
+      ".........KKKKK..",
+      "...K....KWWWWWK.",
+      "...RK..KWWWWWWWK",
+      "KKKRRK.KWKKWKKSK",
+      "KRRRRRKKWKKWKKSK",
+      "KKKRrK.KWWWKWWSK",
+      "...rK...KWWWWSK.",
+      "...K.....KWKSK..",
+      ".........KKKKK..",
+      "................",
+      "................",
       "................"
     ],
     /** Annuler : une croix rouge. */

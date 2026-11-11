@@ -34,9 +34,10 @@
   .alarm-bar { display: block; width: 30px; height: 5px; background: #281e14; }
   #alarm-fill { display: block; height: 100%; width: 0; }
   @keyframes bang-blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.25); } }
-  #bag-bang:not([hidden]) { animation: bang-blink 0.9s ease-in-out infinite; }
+  /* Tout le bouton du héros clignote quand un choix l'attend (Thomas : pas seulement le « ! »). */
+  @keyframes hero-blink { 0%, 100% { background-color: #3a2e1c; box-shadow: inset 0 0 0 2px var(--gold); } 50% { background-color: #8a6a26; box-shadow: inset 0 0 0 3px #ffd75e; } }
   #power.off { filter: grayscale(1) brightness(0.6); }
-  #open-bag.pending { box-shadow: inset 0 0 0 2px var(--gold); }
+  #open-bag.pending { animation: hero-blink 0.9s ease-in-out infinite; }
   #floor-badge { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; color: var(--gold); font-size: 30px; line-height: 1; }
   #floor-icon svg { width: 30px; height: 30px; display: block; }
   #open-menu { flex: none; width: 46px; padding: 4px; display: flex; align-items: center; justify-content: center; }
@@ -3698,6 +3699,7 @@
       if (this.hidden) return "hidden";
       if (this.torchTurns > 0) return "torch";
       if (this.isThreatened()) return "threatened";
+      if (this.isWatched()) return "watched";
       if (!this.hasCover(this.hero)) return "no-cover";
       return null;
     }
@@ -4103,6 +4105,12 @@
       return this.setDestination(target.x, target.y);
     }
     /** Un ennemi alerté est-il au contact du héros ? */
+    /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
+    isWatched() {
+      return this.monsters.some(
+        (m) => !m.asleep && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) <= m.vision
+      );
+    }
     isThreatened() {
       return this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
     }
@@ -4148,8 +4156,16 @@
       } else if (t === Tile.Chest) {
         this.map.set(x, y, Tile.ChestOpen);
         const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
-        this.gold += gold;
-        this.events.push({ type: "chest", gold });
+        const loot = rollLoot(this.rng, this.depth);
+        const around2 = [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: x + dx, y: y + dy })).filter((p) => this.map.isWalkable(p.x, p.y) && this.map.get(p.x, p.y) !== Tile.ChestOpen && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y));
+        const free = around2.filter((p) => !this.ground.some((g) => g.x === p.x && g.y === p.y));
+        const spots = free.length > 0 ? free : around2.length > 0 ? around2 : [{ x, y }];
+        const goldAt = spots[this.rng.int(0, spots.length - 1)];
+        const others = spots.filter((p) => p !== goldAt);
+        const itemAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : goldAt;
+        this.dropItem(goldAt.x, goldAt.y, "or", gold);
+        this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
+        this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops: [goldAt, itemAt] });
       }
     }
     resolveDoor(action, door) {
@@ -8373,7 +8389,34 @@
       else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
       else if (moving) rows = SCHRAT[`walk${dir}`][progress < 0.5 ? 0 : 1];
       else rows = SCHRAT[`idle${dir}`][Math.floor((Math.abs(this.time) + m.id * 170) / 560) % 2];
+      if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted);
       this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
+    }
+    drawGaze(cx, cy, facing, alerted) {
+      const { ctx, tile } = this;
+      const angle = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
+      const half = 0.62;
+      const reach = tile * 2.4;
+      const rgb = alerted ? "255,110,90" : "255,226,170";
+      const grad = ctx.createRadialGradient(cx, cy, tile * 0.3, cx, cy, reach);
+      grad.addColorStop(0, `rgba(${rgb},0.16)`);
+      grad.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, reach, angle - half, angle + half);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, tile * 0.025);
+      ctx.strokeStyle = grad;
+      for (const side of [-half, half]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle + side) * tile * 0.35, cy + Math.sin(angle + side) * tile * 0.35);
+        ctx.lineTo(cx + Math.cos(angle + side) * reach, cy + Math.sin(angle + side) * reach);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     drawMonsterSprite(rows, cx, cy, mirror, shadow) {
       const { ctx, tile } = this;
@@ -9126,7 +9169,7 @@
       case "fountain":
         return e.healed > 0 ? `Vous buvez \xE0 la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez \xE0 la fontaine. Elle se tarit.";
       case "chest":
-        return `Le coffre contient ${e.gold} pi\xE8ces d'or.`;
+        return `Le coffre s'ouvre : ${e.gold} pi\xE8ces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombent \xE0 c\xF4t\xE9.`;
       case "used":
         return e.healed !== void 0 ? `Vous mangez : ${ITEMS[e.item].name.toLowerCase()}, +${e.healed} PV.` : "Vous allumez une torche.";
       case "path":
@@ -9173,6 +9216,7 @@
     hide: {
       hidden: "Vous \xEAtes d\xE9j\xE0 cach\xE9.",
       threatened: "Impossible de se cacher : un ennemi est \xE0 votre contact.",
+      watched: "Impossible de se cacher : un ennemi vous a en vue.",
       "no-cover": "Rien pour vous cacher ici : il faut une colonne \xE0 c\xF4t\xE9 de vous, ou un angle de mur.",
       torch: "Impossible de se cacher avec une torche allum\xE9e."
     },

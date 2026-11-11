@@ -34,9 +34,10 @@
   .alarm-bar { display: block; width: 30px; height: 5px; background: #281e14; }
   #alarm-fill { display: block; height: 100%; width: 0; }
   @keyframes bang-blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.25); } }
-  #bag-bang:not([hidden]) { animation: bang-blink 0.9s ease-in-out infinite; }
+  /* Tout le bouton du héros clignote quand un choix l'attend (Thomas : pas seulement le « ! »). */
+  @keyframes hero-blink { 0%, 100% { background-color: #3a2e1c; box-shadow: inset 0 0 0 2px var(--gold); } 50% { background-color: #8a6a26; box-shadow: inset 0 0 0 3px #ffd75e; } }
   #power.off { filter: grayscale(1) brightness(0.6); }
-  #open-bag.pending { box-shadow: inset 0 0 0 2px var(--gold); }
+  #open-bag.pending { animation: hero-blink 0.9s ease-in-out infinite; }
   #floor-badge { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; color: var(--gold); font-size: 30px; line-height: 1; }
   #floor-icon svg { width: 30px; height: 30px; display: block; }
   #open-menu { flex: none; width: 46px; padding: 4px; display: flex; align-items: center; justify-content: center; }

@@ -18,7 +18,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, Debris, FloorState, GroundItem, placeKey, placeLoot, placeSecrets, placeTraps, roomElements } from "./floor";
+import { BloodStain, Debris, FloorState, GroundItem, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -1439,10 +1439,11 @@ export class Game {
   }
 
   /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
-  hideRefusal(): "hidden" | "threatened" | "no-cover" | "torch" | null {
+  hideRefusal(): "hidden" | "threatened" | "watched" | "no-cover" | "torch" | null {
     if (this.hidden) return "hidden";
     if (this.torchTurns > 0) return "torch";
     if (this.isThreatened()) return "threatened";
+    if (this.isWatched()) return "watched";
     if (!this.hasCover(this.hero)) return "no-cover";
     return null;
   }
@@ -1893,6 +1894,13 @@ export class Game {
   }
 
   /** Un ennemi alerté est-il au contact du héros ? */
+  /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
+  isWatched(): boolean {
+    return this.monsters.some(
+      (m) => !m.asleep && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) <= m.vision,
+    );
+  }
+
   isThreatened(): boolean {
     return this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
   }
@@ -1943,8 +1951,19 @@ export class Game {
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
-      this.gold += gold;
-      this.events.push({ type: "chest", gold });
+      const loot = rollLoot(this.rng, this.depth);
+      // Ce que contient le coffre tombe à côté (Thomas) : l'or sur une case voisine, l'objet sur une autre.
+      const around = [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]
+        .map(([dx, dy]) => ({ x: x + dx, y: y + dy }))
+        .filter((p) => this.map.isWalkable(p.x, p.y) && this.map.get(p.x, p.y) !== Tile.ChestOpen && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y));
+      const free = around.filter((p) => !this.ground.some((g) => g.x === p.x && g.y === p.y));
+      const spots = free.length > 0 ? free : around.length > 0 ? around : [{ x, y }];
+      const goldAt = spots[this.rng.int(0, spots.length - 1)];
+      const others = spots.filter((p) => p !== goldAt);
+      const itemAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : goldAt;
+      this.dropItem(goldAt.x, goldAt.y, "or", gold);
+      this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
+      this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops: [goldAt, itemAt] });
     }
   }
 

@@ -888,7 +888,7 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   assert.equal(game.equip(-1), false);
 });
 
-test("coffre : l'ouvrir remplit la bourse", () => {
+test("coffre : en s'ouvrant, il fait tomber son or et un objet à côté de lui", () => {
   for (let seed = 1; seed <= 300; seed++) {
     const game = new Game(seed);
     let at: { x: number; y: number } | null = null;
@@ -906,7 +906,11 @@ test("coffre : l'ouvrir remplit la bourse", () => {
     assert.ok(game.moveBy(-1, 0));
     game.tick();
     assert.equal(game.map.get(at.x, at.y), Tile.ChestOpen);
-    assert.ok(game.gold >= 11 && game.gold <= 23, `or trouvé : ${game.gold}`);
+    const near = (g: { x: number; y: number }) => Math.max(Math.abs(g.x - at!.x), Math.abs(g.y - at!.y)) === 1;
+    const gold = game.ground.find((g) => g.item === "or" && near(g));
+    assert.ok(gold && gold.count >= 11 && gold.count <= 23, `or au sol : ${gold?.count}`);
+    const chest = game.events.find((e) => e.type === "chest");
+    assert.ok(chest && chest.type === "chest" && game.ground.some((g) => g.item === chest.item && near(g)), "l'objet tombe à côté");
     return;
   }
   assert.fail("aucun coffre trouvé");
@@ -2282,4 +2286,22 @@ test("sols spéciaux du donjon : jamais à l'arrivée ni sur l'escalier, et le h
     assert.notEqual(map.get(game.hero.x, game.hero.y), Tile.Gravel);
   }
   assert.ok(gravel > 40 && water > 20, `gravier ${gravel}, eau ${water}`);
+});
+
+test("se cacher : impossible si un monstre éveillé vous a en vue ; possible s'il dort", () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    const m = game.monsters[0];
+    if (!m) continue;
+    game.monsters.splice(0, game.monsters.length, m);
+    const h = game.hero;
+    const spot = [[3, 0], [-3, 0], [0, 3], [0, -3]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor && game.isVisible(p.x, p.y));
+    if (!spot) continue;
+    Object.assign(m, { x: spot.x, y: spot.y, asleep: true, alerted: false });
+    assert.notEqual(game.hideRefusal(), "watched", "un dormeur ne regarde pas");
+    m.asleep = false;
+    assert.equal(game.hideRefusal(), "watched");
+    return;
+  }
+  assert.fail("aucune graine utilisable");
 });

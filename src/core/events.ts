@@ -48,7 +48,7 @@ export type GameEvent =
   | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; room: Room }
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
-  | { type: "chest"; gold: number }
+  | { type: "chest"; gold: number; item: ItemId; count: number; x: number; y: number; drops: { x: number; y: number }[] }
   /** Objet utilisé (pomme : PV rendus ; torche : allumée), torche éteinte, poison posé et poison qui ronge. */
   | { type: "used"; item: ItemId; healed?: number }
   | { type: "torchOut" }

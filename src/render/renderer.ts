@@ -363,8 +363,39 @@ export class Renderer {
     else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
     else if (moving) rows = SCHRAT[`walk${dir}`][progress < 0.5 ? 0 : 1];
     else rows = SCHRAT[`idle${dir}`][Math.floor((Math.abs(this.time) + m.id * 170) / 560) % 2];
+    // Regard (Thomas : « très discret et très fin ») : un mince éventail clair qui part vers où il regarde,
+    // ambré s'il ne vous a pas vu, rouge s'il vous traque. Pas de regard quand il dort.
+    if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted);
     // Le profil « touché » regarde à droite : on le retourne s'il regarde à gauche, comme les autres profils.
     this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
+  }
+
+  private drawGaze(cx: number, cy: number, facing: Facing, alerted: boolean): void {
+    const { ctx, tile } = this;
+    const angle = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
+    const half = 0.62; // demi-ouverture de l'éventail (≈ 35°)
+    const reach = tile * 2.4;
+    const rgb = alerted ? "255,110,90" : "255,226,170";
+    const grad = ctx.createRadialGradient(cx, cy, tile * 0.3, cx, cy, reach);
+    grad.addColorStop(0, `rgba(${rgb},0.16)`);
+    grad.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, reach, angle - half, angle + half);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    // Les deux bords, en traits très fins qui s'effacent.
+    ctx.lineWidth = Math.max(1, tile * 0.025);
+    ctx.strokeStyle = grad;
+    for (const side of [-half, half]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(angle + side) * tile * 0.35, cy + Math.sin(angle + side) * tile * 0.35);
+      ctx.lineTo(cx + Math.cos(angle + side) * reach, cy + Math.sin(angle + side) * reach);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private drawMonsterSprite(rows: readonly string[], cx: number, cy: number, mirror: boolean, shadow: boolean): void {

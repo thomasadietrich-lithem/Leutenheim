@@ -200,6 +200,7 @@ function resumeRun(saved: Game): void {
 function setupRun(next: Game, lines: string[] | null): void {
   game = next;
   const sandbox = game.sandbox;
+  $("wake-all").hidden = !sandbox;
   aimMode = false;
   doorWasPending = false;
   foundOpen = false;
@@ -214,7 +215,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "À l'est : colonnes, cheminée, cache à fouiller, piège. Au sud-est : Schrats à pousser, piège, escalier. Au sud : fontaine et coffre (clef au sol). Au sud-ouest, par la salle de combat : l'armurerie (nouveaux objets ; vous êtes niveau 4).",
+        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Schrat qui fait sa ronde, cache à fouiller, piège. Au sud-est : Schrats à pousser, escalier. Au sud-ouest : un Schrat en ronde. Au sud : fontaine et coffre (clef au sol). Bouton « Réveiller » : tous les monstres foncent sur vous.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -351,7 +352,9 @@ function reveal(e: GameEvent): void {
     discover([e.item]);
     const found: ItemDef = ITEMS[e.item];
     sfx.play("pickup");
+    // Ce qu'on ramasse s'affiche au-dessus de la tête du héros (demande de Thomas).
     if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or ×${e.count}`, "#f0c850");
+    else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` ×${e.count}` : ""}`, "#fff3c8");
     // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
   } else if (e.type === "xp") {
     renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
@@ -1185,6 +1188,12 @@ button("new-start", () => {
   showScreen(null);
 });
 // Salle d'essai : un étage fixe qui rassemble les derniers éléments créés (Humain Guerrier).
+// Salle d'essai seulement : réveiller tous les monstres, pour tester les combats sans attendre (demande de Thomas).
+button("wake-all", () => {
+  game.wakeAll();
+  logLines.push("Tous les monstres se réveillent et foncent sur vous !");
+  renderLog();
+});
 button("menu-sandbox", () => {
   newRun(true);
   started = true;

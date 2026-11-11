@@ -8,7 +8,7 @@ import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
-import { buildSandbox, SandboxFloor } from "../world/sandbox";
+import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
 import { rollAttack } from "./combat";
@@ -350,7 +350,11 @@ export class Game {
 
   /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
   private populateSandbox(state: FloorState, plan: SandboxFloor): void {
-    for (const m of plan.monsters) this.monsters.push(this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep));
+    for (const m of plan.monsters) {
+      const monster = this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep);
+      if (m.patrol) monster.patrol = state.rooms.find((r) => m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h);
+      this.monsters.push(monster);
+    }
     // Niveau 4 dans la salle d'essai : on peut y essayer l'épée longue, la lance et les flèches empoisonnées ;
     // le cimeterre et le cuir clouté (niveau 5) montrent le refus.
     this.level = plan.heroLevel;
@@ -433,6 +437,7 @@ export class Game {
       xp: this.xp,
       level: this.level,
       torchTurns: this.torchTurns,
+      sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : undefined,
       clock: this.clock,
       ammoChoice: this.ammoChoice,
       heroMisses: this.heroMisses,
@@ -447,6 +452,7 @@ export class Game {
   /** Recrée une partie à partir d'une sauvegarde ; `null` si elle est illisible ou d'une ancienne version. */
   static restore(data: SaveData): Game | null {
     if (!data || data.version !== SAVE_VERSION) return null;
+    if (data.sandbox && data.sandboxLayout !== SANDBOX_LAYOUT) return null;
     const race = (RACES as Record<string, RaceDef>)[data.race];
     const heroClass = (CLASSES as Record<string, ClassDef>)[data.heroClass];
     if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
@@ -591,6 +597,17 @@ export class Game {
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
   tooLow(def: ItemDef): boolean {
     return (def.level ?? 1) > this.level;
+  }
+
+  /** Salle d'essai : réveille tous les monstres de l'étage, qui foncent sur le héros (pour tester les combats vite). */
+  wakeAll(): void {
+    for (const m of this.monsters) {
+      m.asleep = false;
+      m.alerted = true;
+      m.patrol = undefined;
+      m.goal = undefined;
+    }
+    this.reveal();
   }
 
   // ---------- Torche, objets à utiliser ----------
@@ -1669,8 +1686,17 @@ export class Game {
   /** Promenade : le monstre va de salle en salle, au hasard. */
   private wander(m: Actor): void {
     if (!m.goal || (m.goal.x === m.x && m.goal.y === m.y)) {
-      const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
-      m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+      if (m.patrol) {
+        // Ronde : une case libre au hasard de sa salle.
+        const r = m.patrol;
+        const x = this.rng.int(r.x, r.x + r.w - 1);
+        const y = this.rng.int(r.y, r.y + r.h - 1);
+        if (!this.map.isWalkable(x, y)) return;
+        m.goal = { x, y };
+      } else {
+        const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+        m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+      }
     }
     // Destination inaccessible (salle verrouillée) : il en choisira une autre au tour suivant.
     if (!this.stepToward(m, m.goal)) m.goal = undefined;

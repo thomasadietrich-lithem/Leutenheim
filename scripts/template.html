@@ -66,6 +66,7 @@
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
     overflow-x: hidden; overflow-y: auto; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
+  #wake-all { position: absolute; top: 8px; left: 8px; padding: 4px 8px; font-size: 18px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
   /* Roue d'actions : cinq boutons en couronne autour du héros, le reste de la carte assombri. */
@@ -242,6 +243,7 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <button id="wake-all" type="button" hidden>Réveiller</button>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>

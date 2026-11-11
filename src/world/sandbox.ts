@@ -21,8 +21,12 @@ export interface SandboxFloor extends Floor {
   ground: { x: number; y: number; item: ItemId; count: number }[];
   /** Niveau du héros en arrivant (pour essayer les objets qui demandent un niveau). */
   heroLevel: number;
-  monsters: { x: number; y: number; asleep: boolean }[];
+  /** `patrol` : il fait les cent pas dans sa salle au lieu de se promener dans tout l'étage. */
+  monsters: { x: number; y: number; asleep: boolean; patrol?: boolean }[];
 }
+
+/** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
+export const SANDBOX_LAYOUT = 2;
 
 export function buildSandbox(): SandboxFloor {
   const map = new GameMap(32, 24);
@@ -34,9 +38,9 @@ export function buildSandbox(): SandboxFloor {
   const combat: Room = { x: 17, y: 14, w: 9, h: 6 };
   const fountainRoom: Room = { x: 3, y: 14, w: 3, h: 3 };
   const chestRoom: Room = { x: 9, y: 14, w: 3, h: 3 };
-  // Armurerie (2026-11-11) : les nouveaux objets, à l'ouest de la salle de combat.
-  const armory: Room = { x: 3, y: 19, w: 9, h: 3 };
-  for (const r of [start, pillars, combat, fountainRoom, chestRoom, armory]) carve(r);
+  // Salle de ronde (2026-11-11) : un Schrat y fait les cent pas, à l'ouest de la salle de combat.
+  const patrolRoom: Room = { x: 3, y: 19, w: 9, h: 3 };
+  for (const r of [start, pillars, combat, fountainRoom, chestRoom, patrolRoom]) carve(r);
   for (let x = 12; x <= 16; x++) map.set(x, 19, Tile.Floor);
 
   // Couloirs : départ → colonnes (avec une porte), colonnes → combat (passage ouvert), départ → salles spéciales.
@@ -64,7 +68,7 @@ export function buildSandbox(): SandboxFloor {
 
   return {
     map,
-    rooms: [start, pillars, combat, armory],
+    rooms: [start, pillars, combat, patrolRoom],
     start: { x: 7, y: 6 },
     stairs,
     torches,
@@ -76,23 +80,24 @@ export function buildSandbox(): SandboxFloor {
     secrets: [{ x: 22, y: 8, room: 1, item: "or", count: 12 }],
     ground: [
       { x: 5, y: 5, item: "clef", count: 1 },
-      { x: 9, y: 8, item: "fleche", count: 3 },
+      { x: 9, y: 7, item: "fleche", count: 3 },
       { x: 9, y: 4, item: "or", count: 5 },
-      // Armurerie : une rangée d'objets à utiliser, une d'armes, une de tas d'or (petit, moyen, gros).
-      { x: 4, y: 19, item: "pomme", count: 2 },
-      { x: 6, y: 19, item: "torche", count: 1 },
-      { x: 8, y: 19, item: "fleche_poison", count: 6 },
-      { x: 4, y: 20, item: "epee_longue", count: 1 },
-      { x: 6, y: 20, item: "lance", count: 1 },
-      { x: 8, y: 20, item: "cimeterre", count: 1 },
-      { x: 10, y: 20, item: "armure_cloutee", count: 1 },
-      { x: 4, y: 21, item: "or", count: 5 },
-      { x: 7, y: 21, item: "or", count: 15 },
-      { x: 10, y: 21, item: "or", count: 30 },
+      // Les nouveaux objets, dans la salle de départ (Thomas ne trouvait pas l'armurerie) :
+      // en haut, ceux à utiliser ; en bas, les armes et l'armure ; à droite, les tas d'or moyen et gros.
+      { x: 4, y: 4, item: "pomme", count: 2 },
+      { x: 6, y: 4, item: "torche", count: 1 },
+      { x: 8, y: 4, item: "fleche_poison", count: 6 },
+      { x: 4, y: 8, item: "epee_longue", count: 1 },
+      { x: 6, y: 8, item: "lance", count: 1 },
+      { x: 8, y: 8, item: "cimeterre", count: 1 },
+      { x: 10, y: 8, item: "armure_cloutee", count: 1 },
+      { x: 10, y: 5, item: "or", count: 15 },
+      { x: 10, y: 7, item: "or", count: 30 },
     ],
     heroLevel: 4,
     monsters: [
-      { x: 24, y: 6, asleep: true },
+      { x: 24, y: 6, asleep: false, patrol: true },
+      { x: 7, y: 20, asleep: false, patrol: true },
       { x: 25, y: 16, asleep: false },
       { x: 18, y: 18, asleep: true },
     ],

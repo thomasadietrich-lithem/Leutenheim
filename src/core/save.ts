@@ -56,6 +56,8 @@ export interface SaveData {
   level: number;
   /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
   torchTurns?: number;
+  /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */
+  sandboxLayout?: number;
   clock?: number;
   ammoChoice?: string;
   heroMisses: number;

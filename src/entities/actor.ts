@@ -29,6 +29,8 @@ export interface Actor {
   stunned?: number;
   /** Empoisonné : perd `damage` PV au début de chacun de ses `turns` prochains tours. */
   poison?: { damage: number; turns: number };
+  /** Ronde : il ne se promène que dans ce rectangle (sa salle). */
+  patrol?: { x: number; y: number; w: number; h: number };
   /** Destination de promenade d'un monstre qui se balade. */
   goal?: { x: number; y: number };
 }

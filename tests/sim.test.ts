@@ -1583,7 +1583,14 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
       assert.notEqual(dist[game.map.index(x, y - 1)], -1, `porte verrouillée (${x},${y}) inaccessible`);
     }
   }
-  assert.equal(game.monsters.length, 3);
+  assert.equal(game.monsters.length, 4);
+  assert.equal(game.monsters.filter((m) => m.patrol).length, 2, "deux Schrats font leur ronde");
+  // Les nouveaux objets sont dans la salle de départ, au plus près du héros.
+  const start = game.rooms[0];
+  for (const id of ["pomme", "torche", "fleche_poison", "epee_longue", "lance", "cimeterre", "armure_cloutee"]) {
+    const g = game.ground.find((it) => it.item === id);
+    assert.ok(g && g.x >= start.x && g.x < start.x + start.w && g.y >= start.y && g.y < start.y + start.h, `${id} hors de la salle de départ`);
+  }
   assert.ok(game.traps().length >= 2);
   assert.ok(game.ground.some((g) => g.item === "clef"));
   assert.ok(game.torches.some((t) => t.hearth));
@@ -1847,4 +1854,28 @@ test("expérience : chaque niveau demande un peu plus que le précédent (6, 12,
     return game.xpToNext();
   });
   assert.deepEqual(needs, [6, 12, 20, 30, 42]);
+});
+
+test("salle d'essai : les Schrats en ronde restent dans leur salle ; « Réveiller » les lance sur le héros", () => {
+  const game = new Game(3, undefined, undefined, undefined, true);
+  const patrol = game.monsters.filter((m) => m.patrol);
+  const rooms = patrol.map((m) => ({ ...m.patrol! }));
+  for (let t = 0; t < 60; t++) {
+    game.wait();
+    game.tick();
+    patrol.forEach((m, i) => {
+      if (m.alerted) return;
+      const r = rooms[i];
+      assert.ok(m.x >= r.x - 1 && m.x <= r.x + r.w && m.y >= r.y - 1 && m.y <= r.y + r.h, "un Schrat a quitté sa ronde");
+    });
+  }
+  game.wakeAll();
+  assert.ok(game.monsters.every((m) => m.alerted && !m.asleep && !m.patrol));
+});
+
+test("salle d'essai : une sauvegarde d'un ancien plan n'est pas reprise", () => {
+  const game = new Game(3, undefined, undefined, undefined, true);
+  const data = game.snapshot();
+  assert.ok(Game.restore(data));
+  assert.equal(Game.restore({ ...data, sandboxLayout: 1 }), null);
 });

@@ -327,8 +327,9 @@ export class Renderer {
       ctx.ellipse(cx, cy + tile * 0.36, tile * 0.26, tile * 0.09, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    const size = Math.round(tile * 1.3);
-    const top = Math.round(cy - size / 2 - tile * 0.12);
+    // Plus petit que le héros (Thomas : « trop gros, trop grand ») : dessiné à la taille de la case, pieds au même niveau.
+    const size = Math.round(tile * 1.0);
+    const top = Math.round(cy + tile * 0.5 - size);
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.save();

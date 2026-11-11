@@ -66,6 +66,7 @@
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
     overflow-x: hidden; overflow-y: auto; }
   #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
+  #wake-all { position: absolute; top: 8px; left: 8px; padding: 4px 8px; font-size: 18px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
   /* Roue d'actions : cinq boutons en couronne autour du héros, le reste de la carte assombri. */
@@ -242,6 +243,7 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <button id="wake-all" type="button" hidden>Réveiller</button>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
@@ -1669,6 +1671,7 @@
   }
 
   // src/world/sandbox.ts
+  var SANDBOX_LAYOUT = 2;
   function buildSandbox() {
     const map = new GameMap(32, 24);
     const carve = (r) => {
@@ -1679,8 +1682,8 @@
     const combat = { x: 17, y: 14, w: 9, h: 6 };
     const fountainRoom = { x: 3, y: 14, w: 3, h: 3 };
     const chestRoom = { x: 9, y: 14, w: 3, h: 3 };
-    const armory = { x: 3, y: 19, w: 9, h: 3 };
-    for (const r of [start, pillars, combat, fountainRoom, chestRoom, armory]) carve(r);
+    const patrolRoom = { x: 3, y: 19, w: 9, h: 3 };
+    for (const r of [start, pillars, combat, fountainRoom, chestRoom, patrolRoom]) carve(r);
     for (let x = 12; x <= 16; x++) map.set(x, 19, Tile.Floor);
     for (let x = 12; x <= 16; x++) map.set(x, 6, Tile.Floor);
     map.set(12, 6, Tile.DoorClosed);
@@ -1702,7 +1705,7 @@
     const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
     return {
       map,
-      rooms: [start, pillars, combat, armory],
+      rooms: [start, pillars, combat, patrolRoom],
       start: { x: 7, y: 6 },
       stairs,
       torches,
@@ -1714,23 +1717,24 @@
       secrets: [{ x: 22, y: 8, room: 1, item: "or", count: 12 }],
       ground: [
         { x: 5, y: 5, item: "clef", count: 1 },
-        { x: 9, y: 8, item: "fleche", count: 3 },
+        { x: 9, y: 7, item: "fleche", count: 3 },
         { x: 9, y: 4, item: "or", count: 5 },
-        // Armurerie : une rangée d'objets à utiliser, une d'armes, une de tas d'or (petit, moyen, gros).
-        { x: 4, y: 19, item: "pomme", count: 2 },
-        { x: 6, y: 19, item: "torche", count: 1 },
-        { x: 8, y: 19, item: "fleche_poison", count: 6 },
-        { x: 4, y: 20, item: "epee_longue", count: 1 },
-        { x: 6, y: 20, item: "lance", count: 1 },
-        { x: 8, y: 20, item: "cimeterre", count: 1 },
-        { x: 10, y: 20, item: "armure_cloutee", count: 1 },
-        { x: 4, y: 21, item: "or", count: 5 },
-        { x: 7, y: 21, item: "or", count: 15 },
-        { x: 10, y: 21, item: "or", count: 30 }
+        // Les nouveaux objets, dans la salle de départ (Thomas ne trouvait pas l'armurerie) :
+        // en haut, ceux à utiliser ; en bas, les armes et l'armure ; à droite, les tas d'or moyen et gros.
+        { x: 4, y: 4, item: "pomme", count: 2 },
+        { x: 6, y: 4, item: "torche", count: 1 },
+        { x: 8, y: 4, item: "fleche_poison", count: 6 },
+        { x: 4, y: 8, item: "epee_longue", count: 1 },
+        { x: 6, y: 8, item: "lance", count: 1 },
+        { x: 8, y: 8, item: "cimeterre", count: 1 },
+        { x: 10, y: 8, item: "armure_cloutee", count: 1 },
+        { x: 10, y: 5, item: "or", count: 15 },
+        { x: 10, y: 7, item: "or", count: 30 }
       ],
       heroLevel: 4,
       monsters: [
-        { x: 24, y: 6, asleep: true },
+        { x: 24, y: 6, asleep: false, patrol: true },
+        { x: 7, y: 20, asleep: false, patrol: true },
         { x: 25, y: 16, asleep: false },
         { x: 18, y: 18, asleep: true }
       ]
@@ -2190,7 +2194,11 @@
     }
     /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
     populateSandbox(state, plan) {
-      for (const m of plan.monsters) this.monsters.push(this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep));
+      for (const m of plan.monsters) {
+        const monster = this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep);
+        if (m.patrol) monster.patrol = state.rooms.find((r) => m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h);
+        this.monsters.push(monster);
+      }
       this.level = plan.heroLevel;
       state.population = this.monsters.length;
       state.nextRespawn = this.turn + RULES.respawnTurns;
@@ -2266,6 +2274,7 @@
         xp: this.xp,
         level: this.level,
         torchTurns: this.torchTurns,
+        sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : void 0,
         clock: this.clock,
         ammoChoice: this.ammoChoice,
         heroMisses: this.heroMisses,
@@ -2279,6 +2288,7 @@
     /** Recrée une partie à partir d'une sauvegarde ; `null` si elle est illisible ou d'une ancienne version. */
     static restore(data) {
       if (!data || data.version !== SAVE_VERSION) return null;
+      if (data.sandbox && data.sandboxLayout !== SANDBOX_LAYOUT) return null;
       const race = RACES[data.race];
       const heroClass = CLASSES[data.heroClass];
       if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
@@ -2407,6 +2417,16 @@
     /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
     tooLow(def) {
       return (def.level ?? 1) > this.level;
+    }
+    /** Salle d'essai : réveille tous les monstres de l'étage, qui foncent sur le héros (pour tester les combats vite). */
+    wakeAll() {
+      for (const m of this.monsters) {
+        m.asleep = false;
+        m.alerted = true;
+        m.patrol = void 0;
+        m.goal = void 0;
+      }
+      this.reveal();
     }
     // ---------- Torche, objets à utiliser ----------
     /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
@@ -3358,8 +3378,16 @@
     /** Promenade : le monstre va de salle en salle, au hasard. */
     wander(m) {
       if (!m.goal || m.goal.x === m.x && m.goal.y === m.y) {
-        const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
-        m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+        if (m.patrol) {
+          const r = m.patrol;
+          const x = this.rng.int(r.x, r.x + r.w - 1);
+          const y = this.rng.int(r.y, r.y + r.h - 1);
+          if (!this.map.isWalkable(x, y)) return;
+          m.goal = { x, y };
+        } else {
+          const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+          m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+        }
       }
       if (!this.stepToward(m, m.goal)) m.goal = void 0;
     }
@@ -6225,8 +6253,8 @@
         ctx.ellipse(cx, cy + tile * 0.36, tile * 0.26, tile * 0.09, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      const size = Math.round(tile * 1.3);
-      const top = Math.round(cy - size / 2 - tile * 0.12);
+      const size = Math.round(tile * 1);
+      const top = Math.round(cy + tile * 0.5 - size);
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.save();
@@ -6977,6 +7005,7 @@
   function setupRun(next, lines) {
     game = next;
     const sandbox = game.sandbox;
+    $("wake-all").hidden = !sandbox;
     aimMode = false;
     doorWasPending = false;
     foundOpen = false;
@@ -6990,7 +7019,7 @@
     shownHp = game.hero.hp;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
-      "\xC0 l'est : colonnes, chemin\xE9e, cache \xE0 fouiller, pi\xE8ge. Au sud-est : Schrats \xE0 pousser, pi\xE8ge, escalier. Au sud : fontaine et coffre (clef au sol). Au sud-ouest, par la salle de combat : l'armurerie (nouveaux objets ; vous \xEAtes niveau 4)."
+      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Schrat qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge. Au sud-est : Schrats \xE0 pousser, escalier. Au sud-ouest : un Schrat en ronde. Au sud : fontaine et coffre (clef au sol). Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
@@ -7107,6 +7136,7 @@
       const found = ITEMS[e.item];
       sfx.play("pickup");
       if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or \xD7${e.count}`, "#f0c850");
+      else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}`, "#fff3c8");
     } else if (e.type === "xp") {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
       pulse(xpBar, "gain");
@@ -7836,6 +7866,11 @@
     newRun();
     started = true;
     showScreen(null);
+  });
+  button("wake-all", () => {
+    game.wakeAll();
+    logLines.push("Tous les monstres se r\xE9veillent et foncent sur vous !");
+    renderLog();
   });
   button("menu-sandbox", () => {
     newRun(true);

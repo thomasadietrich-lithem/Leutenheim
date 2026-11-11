@@ -7,9 +7,9 @@ import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 
-/** Kobold frondeur (planche art/frondeur_v1.png) : le dessin du Kobold, jaque de cuir et fronde à la place de la maille et
- * de la dague. */
-const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, C: "#a87c4a", c: "#6a4a2a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
+/** Kobold frondeur (planche art/frondeur_v2.png) : le dessin du Kobold en orange (Thomas), œil jaune, jaque de cuir sombre
+ * et fronde à la place de la maille et de la dague. */
+const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
 import { DORTOIR } from "./sprites/dortoir";

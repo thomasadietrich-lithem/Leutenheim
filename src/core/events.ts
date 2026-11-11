@@ -61,6 +61,8 @@ export type GameEvent =
   | { type: "dropped"; item: ItemId; count: number }
   /** Tocsin : l'étage passe au palier suivant (1 agité, 2 alerte, 3 hallali). */
   | { type: "alarm"; stage: number }
+  /** Du bruit à cet endroit (porte enfoncée, coups échangés) : il fait monter le tocsin. */
+  | { type: "noise"; x: number; y: number; points: number }
   | { type: "poisoned"; actor: Actor }
   | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number }

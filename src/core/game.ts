@@ -82,6 +82,8 @@ export class Game {
   /** Charge : pas faits en ligne droite juste avant d'attaquer. */
   private straight = { dx: 0, dy: 0, steps: 0, turn: -1 };
   private useOrder: number | null = null;
+  private lastGroundTorches = -1;
+  private torchWasLit = false;
   /** Flèches brisées encore visibles au sol. */
   debris: Debris[] = [];
   /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -335,9 +337,11 @@ export class Game {
   }
 
   /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
-  raiseAlarm(points: number): void {
+  raiseAlarm(points: number, at?: Point): void {
     const state = this.current;
     if (points <= 0 || this.over) return;
+    // Un bruit localisé se voit à l'écran (des ondes qui partent de l'endroit).
+    if (at) this.events.push({ type: "noise", x: at.x, y: at.y, points });
     state.alarm = Math.min(100, state.alarm + points);
     while (state.alarmStage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[state.alarmStage]) {
       state.alarmStage++;
@@ -747,7 +751,9 @@ export class Game {
   /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
   private refreshLight(): void {
     const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
-    this.light = computeLight(this.map, [...this.torches, ...carried]);
+    // Une torche posée au sol brille un peu, comme celles des murs (Thomas).
+    const dropped = (this.ground ?? []).filter((g) => g.item === "torche").map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
+    this.light = computeLight(this.map, [...this.torches, ...carried, ...dropped]);
   }
 
   /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
@@ -1046,13 +1052,22 @@ export class Game {
     const dx = Math.sign(victim.x - from.x);
     const dy = Math.sign(victim.y - from.y);
     const behind = { x: victim.x + dx, y: victim.y + dy };
-    const onWall = (dx || dy) && hash % 3 !== 0 && this.map.get(behind.x, behind.y) === Tile.Wall;
-    const at = onWall ? behind : hash % 2 === 0 || !this.map.isWalkable(behind.x, behind.y) ? { x: victim.x, y: victim.y } : behind;
+    // Les murs proches prennent volontiers des giclures (surtout dans un couloir, où il y en a de chaque côté) :
+    // d'abord le mur derrière la victime, sinon un mur voisin.
+    const walls: Point[] = [];
+    if ((dx || dy) && this.map.get(behind.x, behind.y) === Tile.Wall) walls.push(behind);
+    for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const w = { x: victim.x + ox, y: victim.y + oy };
+      if (this.map.get(w.x, w.y) === Tile.Wall && !walls.some((p) => p.x === w.x && p.y === w.y)) walls.push(w);
+    }
+    const onWall = walls.length > 0 && hash % 5 < 3;
+    const wall = walls[(hash >> 3) % Math.max(1, walls.length)];
+    const at = onWall ? wall : hash % 2 === 0 || !this.map.isWalkable(behind.x, behind.y) ? { x: victim.x, y: victim.y } : behind;
     const shape: 0 | 1 | 2 = onWall ? 2 : ((hash >> 2) % 2 as 0 | 1);
     const stains = this.current.blood;
     const same = stains.findIndex((b) => b.x === at.x && b.y === at.y);
     if (same >= 0) stains.splice(same, 1);
-    stains.push({ x: at.x, y: at.y, color, shape });
+    stains.push({ x: at.x, y: at.y, color, shape, turn: (hash >> 5) % 8 });
     if (stains.length > RULES.bloodMax) stains.shift();
   }
 
@@ -1554,8 +1569,12 @@ export class Game {
     if (this.torchTurns > 0) {
       this.torchTurns--;
       if (this.torchTurns === 0) this.events.push({ type: "torchOut" });
-      this.refreshLight();
     }
+    // La lumière suit la torche portée et celles qu'on ramasse ou qu'on pose.
+    const groundTorches = this.ground.filter((g) => g.item === "torche").length;
+    if (this.torchTurns > 0 || groundTorches !== this.lastGroundTorches || this.torchWasLit) this.refreshLight();
+    this.lastGroundTorches = groundTorches;
+    this.torchWasLit = this.torchTurns > 0;
     this.updateVision();
     const resting = wasResting;
     // Vitesse d'attaque : selon le temps pris par l'action du héros, les monstres jouent 0, 1 ou 2 fois.
@@ -1872,7 +1891,7 @@ export class Game {
     let alerted = 0;
     if (action === "break") {
       this.reveal();
-      this.raiseAlarm(RULES.alarmBreak);
+      this.raiseAlarm(RULES.alarmBreak, door);
       // Le vacarme alerte les monstres proches, que la porte cède ou non.
       for (const m of this.monsters) {
         const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
@@ -1928,7 +1947,7 @@ export class Game {
     monster.hp -= result.damage;
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
     if (result.damage > 0) this.bleed(monster, this.hero);
-    this.raiseAlarm(RULES.alarmCombat);
+    this.raiseAlarm(RULES.alarmCombat, monster);
     // Arme enduite de poison (potion) : le coup qui porte empoisonne.
     if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
       this.weaponPoison--;
@@ -2127,7 +2146,7 @@ export class Game {
         m.wary = false;
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
         if (result.damage > 0) this.bleed(this.hero, m);
-        this.raiseAlarm(RULES.alarmCombat);
+        this.raiseAlarm(RULES.alarmCombat, this.hero);
         this.hurtHero(result.damage);
         continue;
       }

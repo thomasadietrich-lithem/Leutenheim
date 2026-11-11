@@ -96,6 +96,8 @@ export const RULES = {
   lootEnabled: true,
   /** Torche portée : rayon de lumière autour du héros. */
   torchRadius: 6,
+  /** Torche posée au sol : petite lueur. */
+  groundTorchRadius: 3,
   /** Vitesse d'attaque : durée d'une attaque lente et d'une attaque rapide, en tours (C). */
   slowAttackTurns: 1.5,
   // ---- Points, voies et potions (2026-11-11) : valeurs proposées par Claude, validées par « Ok. Tout ». ----
@@ -123,11 +125,11 @@ export const RULES = {
   burnAfter: 2,
   // ---- Tocsin (2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
   /** L'alerte monte d'un point tous les tant de tours passés sur l'étage. */
-  alarmTurnsPerPoint: 8,
+  alarmTurnsPerPoint: 12,
   /** Bruit : porte enfoncée (réussie ou non), chaque coup échangé, un monstre qui remarque le héros. */
   alarmBreak: 15,
   alarmCombat: 1,
-  alarmNoticed: 4,
+  alarmNoticed: 3,
   /** Seuils des paliers : agité, alerte, hallali (sur 100). */
   alarmStages: [25, 50, 75],
   /** Agité : un promeneur arrive tous les tant de tours, et l'étage peut compter tant de monstres de plus. */

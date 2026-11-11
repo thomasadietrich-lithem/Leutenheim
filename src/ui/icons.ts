@@ -1219,6 +1219,32 @@ export const STATUS_ICONS = {
   ],
 };
 
+/** La cloche du Tocsin (art/tocsin_v1.png) : L clair, M moyen, W reflet, d contour ; couleurs selon le palier. */
+export const BELL = [
+  ".......KK.......",
+  "......KddK......",
+  ".....KdLLdK.....",
+  "....KLLLLMdK....",
+  "...KLWLLLMMdK...",
+  "...KLWLLLMMdK...",
+  "...KLWLLLMMdK...",
+  "..KLLWLLLMMMdK..",
+  "..KLLLLLLMMMdK..",
+  ".KLLLLLLLMMMMdK.",
+  "KdddddddddddddK.",
+  ".KKKKKdMMdKKKK..",
+  "......KddK......",
+  ".......KK.......",
+  "................",
+  "................",
+];
+export const BELL_COLORS = [
+  { L: "#8a8a98", M: "#4a4a58", W: "#c8c8d0", d: "#120d08", K: "#120d08" },
+  { L: "#d6aa2a", M: "#7a5a10", W: "#ffe27a", d: "#120d08", K: "#120d08" },
+  { L: "#e0782a", M: "#7a3410", W: "#ffb060", d: "#120d08", K: "#120d08" },
+  { L: "#d03a44", M: "#6a1018", W: "#ff7a7a", d: "#120d08", K: "#120d08" },
+];
+
 /** Les rangées de lettres de l'icône d'un objet (pour le dessiner au sol). */
 export function itemIconRows(id: ItemId): readonly string[] {
   return ICONS[id];

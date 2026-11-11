@@ -9,7 +9,7 @@ import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
-import { buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
+import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { PATH_LEVEL, PATHS, PathId, SECONDARY_LEVELS, SkillId, StatId } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
@@ -328,6 +328,10 @@ function reveal(e: GameEvent): void {
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
     if (!foe && r.hit) renderer.monsterHurt(e.target.id);
+    if (r.hit && r.damage > 0) {
+      const bloodColor = e.target.kind === "monster" ? (MONSTERS[e.target.defId as keyof typeof MONSTERS]?.blood ?? "red") : "red";
+      renderer.addBloodBurst(e.target.x, e.target.y, e.attacker.x, e.attacker.y, bloodColor);
+    }
     if (foe && r.hit) {
       renderer.heroHurt();
       pulse(hpBar, "hit");
@@ -377,6 +381,8 @@ function reveal(e: GameEvent): void {
       renderer.monsterDies(e.actor);
       sfx.play("kill");
     }
+  } else if (e.type === "noise") {
+    renderer.addNoise(e.x, e.y, e.points);
   } else if (e.type === "alarm") {
     // Le tocsin sonne une fois par palier atteint (une, deux, trois fois).
     for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
@@ -1093,9 +1099,36 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   return list;
 }
 
+// ---------- Tocsin : la cloche à côté de l'étage, couleur du palier, barre qui se remplit ----------
+
+const ALARM_NAMES = ["calme", "agité", "alerte", "hallali"];
+const ALARM_DETAILS = [
+  "Le donjon dort encore. À 25, il s'agite.",
+  "Plus de promeneurs. À 50, des traqueurs sont lâchés.",
+  "Des traqueurs vous cherchent. À 75, tout l'étage sera sur vous.",
+  "Tout l'étage sait où vous êtes. Descendez !",
+];
+let alarmShown = "";
+function renderAlarm(): void {
+  const { level, stage } = game.alarm();
+  const key = `${level}|${stage}`;
+  if (key === alarmShown) return;
+  alarmShown = key;
+  $("alarm-bell").replaceChildren(buildIcon(BELL, BELL_COLORS[stage]));
+  const fill = $("alarm-fill");
+  fill.style.width = `${level}%`;
+  fill.style.background = BELL_COLORS[stage].L;
+  if (statusOpen === "tocsin") statusShown = "";
+}
+$("alarm-badge").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  statusOpen = statusOpen === "tocsin" ? null : "tocsin";
+  statusShown = "";
+});
+
 function renderHeroStatus(): void {
   const list = heroStatuses();
-  const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}`;
+  const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}#${statusOpen === "tocsin" ? game.alarm().level : ""}`;
   if (key === statusShown) return;
   statusShown = key;
   $("hero-status").replaceChildren(
@@ -1112,11 +1145,21 @@ function renderHeroStatus(): void {
       return b;
     }),
   );
+  const pop = $("status-pop");
+  if (statusOpen === "tocsin") {
+    // Le détail du Tocsin s'ouvre sous la cloche, à droite.
+    const { level, stage } = game.alarm();
+    pop.hidden = false;
+    pop.classList.add("right");
+    pop.replaceChildren(el("b", "", `Tocsin : ${ALARM_NAMES[stage]}`), document.createTextNode(`${level} / 100. ${ALARM_DETAILS[stage]} Le bruit (portes enfoncées, combats) le fait monter.`));
+    return;
+  }
+  pop.classList.remove("right");
   const open = list.find((st) => st.id === statusOpen);
   if (!open) statusOpen = null;
-  $("status-pop").hidden = !open;
+  pop.hidden = !open;
   if (open) {
-    $("status-pop").replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
+    pop.replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
   }
 }
 $("status-pop").addEventListener("click", () => {
@@ -1234,7 +1277,7 @@ function renderCharacter(): void {
   $("char-skills").replaceChildren(...powerCards);
   $("char-note").textContent = note;
   confirm.hidden = pickedChoice === null;
-  confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (définitif)" : "Prendre ce pouvoir";
+  confirm.textContent = pickedChoice?.kind === "path" ? "Choisir cette voie (définitif)" : "Choisir ce pouvoir";
 }
 
 /** Cases où l'on peut lancer une potion : en vue, à portée. */
@@ -1585,6 +1628,8 @@ function frame(now: number): void {
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
+  $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
+  renderAlarm();
   renderHeroStatus();
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;

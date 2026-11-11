@@ -66,6 +66,8 @@ export interface BloodStain {
   y: number;
   color: "red" | "green";
   shape: 0 | 1 | 2;
+  /** Tache au sol : quart de tour et miroir, pour que les giclures varient. */
+  turn?: number;
 }
 
 export interface GroundItem {

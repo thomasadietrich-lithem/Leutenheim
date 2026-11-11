@@ -2101,7 +2101,7 @@ test("Tocsin : l'alerte monte avec le temps et le bruit ; paliers agité, alerte
     game.wait();
     game.tick();
   }
-  assert.equal(game.alarm().level, 3, "un point tous les 8 tours");
+  assert.equal(game.alarm().level, 3, "un point tous les 12 tours");
   game.events.length = 0;
   game.raiseAlarm(22);
   assert.equal(game.alarm().stage, 1);

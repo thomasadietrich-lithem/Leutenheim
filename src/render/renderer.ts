@@ -84,6 +84,9 @@ export class Renderer {
   private panY = 0;
   private time = 0;
   private floats: FloatingText[] = [];
+  /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
+  private drops: { x: number; y: number; vx: number; vy: number; color: string; age: number; life: number }[] = [];
+  private ripples: { x: number; y: number; strength: number; age: number }[] = [];
   private slashes: Slash[] = [];
   private projectiles: Projectile[] = [];
   /** Animation du héros : de quel côté il regarde, et depuis combien de temps il tire ou encaisse. */
@@ -382,6 +385,27 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  /** Un personnage est touché : quelques gouttes jaillissent et retombent (rouge, ou vert pour un Schrat). */
+  addBloodBurst(x: number, y: number, fromX: number, fromY: number, color: "red" | "green"): void {
+    const dx = Math.sign(x - fromX) || (Math.random() - 0.5);
+    const dy = Math.sign(y - fromY) || (Math.random() - 0.5);
+    const shades = color === "green" ? ["#4f8e1e", "#8ccc3a", "#2a5a12"] : ["#b0202a", "#e04048", "#7a0e14"];
+    for (let i = 0; i < 9; i++) {
+      const spread = (Math.random() - 0.5) * 1.6;
+      this.drops.push({
+        x: x + 0.5, y: y + 0.45,
+        vx: (dx + spread * Math.abs(dy || 1) * 0.6) * (1.2 + Math.random() * 1.4),
+        vy: (dy + spread * Math.abs(dx || 1) * 0.6) * (1.2 + Math.random() * 1.4) - 1.6,
+        color: shades[i % 3], age: 0, life: 260 + Math.random() * 180,
+      });
+    }
+  }
+
+  /** Du bruit à cet endroit : des ondes qui s'élargissent (plus le bruit est fort, plus il y en a). */
+  addNoise(x: number, y: number, strength: number): void {
+    this.ripples.push({ x, y, strength, age: 0 });
+  }
+
   /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
   addFloatingText(x: number, y: number, text: string, color: string): void {
     this.floats.push({ x, y, text, color, age: 0 });
@@ -505,7 +529,7 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
 
     // Taches de sang de l'étage, par case (dessinées sur la case, sous l'ombre).
-    const stains = new Map<number, { color: "red" | "green"; shape: 0 | 1 | 2 }>();
+    const stains = new Map<number, { color: "red" | "green"; shape: 0 | 1 | 2; turn?: number }>();
     for (const b of game.bloodStains()) stains.set(game.map.index(b.x, b.y), b);
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
@@ -540,7 +564,17 @@ export class Renderer {
           const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
           const smooth = ctx.imageSmoothingEnabled;
           ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(this.sprite(rows, ICON_PALETTE), rx, ry, rw, rh);
+          if (stain.shape === 2 || !stain.turn) {
+            ctx.drawImage(this.sprite(rows, ICON_PALETTE), rx, ry, rw, rh);
+          } else {
+            // Au sol, la giclure tourne d'un quart de tour et/ou se retourne : elles ne se ressemblent pas toutes.
+            ctx.save();
+            ctx.translate(rx + rw / 2, ry + rh / 2);
+            ctx.rotate((stain.turn % 4) * (Math.PI / 2));
+            if (stain.turn >= 4) ctx.scale(-1, 1);
+            ctx.drawImage(this.sprite(rows, ICON_PALETTE), -rw / 2, -rh / 2, rw, rh);
+            ctx.restore();
+          }
           ctx.imageSmoothingEnabled = smooth;
         }
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
@@ -886,6 +920,32 @@ export class Renderer {
 
     // Textes flottants.
     ctx.font = `${Math.round(Math.max(18, tile * 0.6))}px "VT323", "Courier New", monospace`;
+    // Gouttes de sang : elles partent du coup, retombent (gravité) et s'effacent.
+    this.drops = this.drops.filter((d) => (d.age += dt) < d.life);
+    for (const d of this.drops) {
+      const t = d.age / 1000;
+      const px = ox + (d.x + d.vx * t) * tile;
+      const py = oy + (d.y + d.vy * t + 9 * t * t) * tile;
+      const size = Math.max(2, Math.round(tile * 0.08));
+      ctx.globalAlpha = Math.min(1, 2 * (1 - d.age / d.life));
+      ctx.fillStyle = d.color;
+      ctx.fillRect(Math.round(px), Math.round(py), size, size);
+    }
+    ctx.globalAlpha = 1;
+    // Ondes du bruit : cercles dorés qui s'élargissent depuis l'endroit du bruit.
+    this.ripples = this.ripples.filter((r) => (r.age += dt) < 900);
+    for (const r of this.ripples) {
+      const rings = r.strength >= 10 ? 3 : 1;
+      for (let k = 0; k < rings; k++) {
+        const t = r.age / 900 - k * 0.18;
+        if (t <= 0 || t >= 1) continue;
+        ctx.strokeStyle = `rgba(255,215,94,${(0.7 * (1 - t)).toFixed(3)})`;
+        ctx.lineWidth = Math.max(1.5, tile * 0.06);
+        ctx.beginPath();
+        ctx.arc(ox + (r.x + 0.5) * tile, oy + (r.y + 0.5) * tile, tile * (0.4 + t * (r.strength >= 10 ? 3.5 : 1.4)), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
     for (const f of this.floats) {
       const t = f.age / FLOAT_MS;

@@ -29,6 +29,13 @@
   /* Jauges de vie et d'expérience, avec le bouton du menu à leur droite. */
   .gauges { display: flex; gap: 6px; align-items: stretch; }
   .gauges-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  #alarm-badge { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 2px; background: none; box-shadow: none; }
+  #alarm-bell svg { width: 30px; height: 30px; display: block; }
+  .alarm-bar { display: block; width: 30px; height: 5px; background: #281e14; }
+  #alarm-fill { display: block; height: 100%; width: 0; }
+  @keyframes bang-blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.25); } }
+  #bag-bang:not([hidden]) { animation: bang-blink 0.9s ease-in-out infinite; }
+  #open-bag.pending { box-shadow: inset 0 0 0 2px var(--gold); }
   #floor-badge { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; color: var(--gold); font-size: 30px; line-height: 1; }
   #floor-icon svg { width: 30px; height: 30px; display: block; }
   #open-menu { flex: none; width: 46px; padding: 4px; display: flex; align-items: center; justify-content: center; }
@@ -69,6 +76,7 @@
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
+  #status-pop.right { left: auto; right: 6px; }
   #status-pop { position: absolute; top: 42px; left: 6px; z-index: 1; width: min(260px, 80%); padding: 8px; background: #241c14; box-shadow: inset 0 0 0 2px var(--gold); font-size: 17px; color: var(--dim); }
   #status-pop b { display: block; color: #fff3c8; font-weight: normal; font-size: 20px; text-transform: uppercase; }
   #test-tools { position: absolute; bottom: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -299,6 +307,7 @@
       <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
       <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
     </div>
+    <button id="alarm-badge" type="button" aria-label="Tocsin"><span id="alarm-bell"></span><span class="alarm-bar"><span id="alarm-fill"></span></span></button>
     <div id="floor-badge" aria-label="Étage"><span id="floor-icon"></span><span id="floor-num"></span></div>
     <button id="open-menu" type="button"></button>
   </div>
@@ -1235,6 +1244,8 @@
     lootEnabled: true,
     /** Torche portée : rayon de lumière autour du héros. */
     torchRadius: 6,
+    /** Torche posée au sol : petite lueur. */
+    groundTorchRadius: 3,
     /** Vitesse d'attaque : durée d'une attaque lente et d'une attaque rapide, en tours (C). */
     slowAttackTurns: 1.5,
     // ---- Points, voies et potions (2026-11-11) : valeurs proposées par Claude, validées par « Ok. Tout ». ----
@@ -1262,11 +1273,11 @@
     burnAfter: 2,
     // ---- Tocsin (2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
     /** L'alerte monte d'un point tous les tant de tours passés sur l'étage. */
-    alarmTurnsPerPoint: 8,
+    alarmTurnsPerPoint: 12,
     /** Bruit : porte enfoncée (réussie ou non), chaque coup échangé, un monstre qui remarque le héros. */
     alarmBreak: 15,
     alarmCombat: 1,
-    alarmNoticed: 4,
+    alarmNoticed: 3,
     /** Seuils des paliers : agité, alerte, hallali (sur 100). */
     alarmStages: [25, 50, 75],
     /** Agité : un promeneur arrive tous les tant de tours, et l'étage peut compter tant de monstres de plus. */
@@ -2214,6 +2225,8 @@
       /** Charge : pas faits en ligne droite juste avant d'attaquer. */
       this.straight = { dx: 0, dy: 0, steps: 0, turn: -1 };
       this.useOrder = null;
+      this.lastGroundTorches = -1;
+      this.torchWasLit = false;
       /** Flèches brisées encore visibles au sol. */
       this.debris = [];
       /** Événements en attente d'affichage ; l'affichage les lit puis vide la liste. */
@@ -2439,9 +2452,10 @@
       return { level: this.current.alarm, stage: this.current.alarmStage };
     }
     /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
-    raiseAlarm(points) {
+    raiseAlarm(points, at) {
       const state = this.current;
       if (points <= 0 || this.over) return;
+      if (at) this.events.push({ type: "noise", x: at.x, y: at.y, points });
       state.alarm = Math.min(100, state.alarm + points);
       while (state.alarmStage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[state.alarmStage]) {
         state.alarmStage++;
@@ -2807,7 +2821,8 @@
     /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
     refreshLight() {
       const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
-      this.light = computeLight(this.map, [...this.torches, ...carried]);
+      const dropped = (this.ground ?? []).filter((g) => g.item === "torche").map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
+      this.light = computeLight(this.map, [...this.torches, ...carried, ...dropped]);
     }
     /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
     useItem(uid) {
@@ -3076,13 +3091,20 @@
       const dx = Math.sign(victim.x - from.x);
       const dy = Math.sign(victim.y - from.y);
       const behind = { x: victim.x + dx, y: victim.y + dy };
-      const onWall = (dx || dy) && hash % 3 !== 0 && this.map.get(behind.x, behind.y) === Tile.Wall;
-      const at = onWall ? behind : hash % 2 === 0 || !this.map.isWalkable(behind.x, behind.y) ? { x: victim.x, y: victim.y } : behind;
+      const walls = [];
+      if ((dx || dy) && this.map.get(behind.x, behind.y) === Tile.Wall) walls.push(behind);
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const w = { x: victim.x + ox, y: victim.y + oy };
+        if (this.map.get(w.x, w.y) === Tile.Wall && !walls.some((p) => p.x === w.x && p.y === w.y)) walls.push(w);
+      }
+      const onWall = walls.length > 0 && hash % 5 < 3;
+      const wall = walls[(hash >> 3) % Math.max(1, walls.length)];
+      const at = onWall ? wall : hash % 2 === 0 || !this.map.isWalkable(behind.x, behind.y) ? { x: victim.x, y: victim.y } : behind;
       const shape = onWall ? 2 : (hash >> 2) % 2;
       const stains = this.current.blood;
       const same = stains.findIndex((b) => b.x === at.x && b.y === at.y);
       if (same >= 0) stains.splice(same, 1);
-      stains.push({ x: at.x, y: at.y, color, shape });
+      stains.push({ x: at.x, y: at.y, color, shape, turn: (hash >> 5) % 8 });
       if (stains.length > RULES.bloodMax) stains.shift();
     }
     isBurning(x, y) {
@@ -3527,8 +3549,11 @@
       if (this.torchTurns > 0) {
         this.torchTurns--;
         if (this.torchTurns === 0) this.events.push({ type: "torchOut" });
-        this.refreshLight();
       }
+      const groundTorches = this.ground.filter((g) => g.item === "torche").length;
+      if (this.torchTurns > 0 || groundTorches !== this.lastGroundTorches || this.torchWasLit) this.refreshLight();
+      this.lastGroundTorches = groundTorches;
+      this.torchWasLit = this.torchTurns > 0;
       this.updateVision();
       const resting = wasResting;
       this.clock += this.actionCost - 1;
@@ -3819,7 +3844,7 @@
       let alerted = 0;
       if (action === "break") {
         this.reveal();
-        this.raiseAlarm(RULES.alarmBreak);
+        this.raiseAlarm(RULES.alarmBreak, door);
         for (const m of this.monsters) {
           const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
           if (!m.alerted && d <= RULES.noiseRadius) {
@@ -3866,7 +3891,7 @@
       monster.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
       if (result.damage > 0) this.bleed(monster, this.hero);
-      this.raiseAlarm(RULES.alarmCombat);
+      this.raiseAlarm(RULES.alarmCombat, monster);
       if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
         this.weaponPoison--;
         monster.poison = { damage: 1, turns: 4 };
@@ -4030,7 +4055,7 @@
           m.wary = false;
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
           if (result.damage > 0) this.bleed(this.hero, m);
-          this.raiseAlarm(RULES.alarmCombat);
+          this.raiseAlarm(RULES.alarmCombat, this.hero);
           this.hurtHero(result.damage);
           continue;
         }
@@ -6570,6 +6595,30 @@
       "................"
     ]
   };
+  var BELL = [
+    ".......KK.......",
+    "......KddK......",
+    ".....KdLLdK.....",
+    "....KLLLLMdK....",
+    "...KLWLLLMMdK...",
+    "...KLWLLLMMdK...",
+    "...KLWLLLMMdK...",
+    "..KLLWLLLMMMdK..",
+    "..KLLLLLLMMMdK..",
+    ".KLLLLLLLMMMMdK.",
+    "KdddddddddddddK.",
+    ".KKKKKdMMdKKKK..",
+    "......KddK......",
+    ".......KK.......",
+    "................",
+    "................"
+  ];
+  var BELL_COLORS = [
+    { L: "#8a8a98", M: "#4a4a58", W: "#c8c8d0", d: "#120d08", K: "#120d08" },
+    { L: "#d6aa2a", M: "#7a5a10", W: "#ffe27a", d: "#120d08", K: "#120d08" },
+    { L: "#e0782a", M: "#7a3410", W: "#ffb060", d: "#120d08", K: "#120d08" },
+    { L: "#d03a44", M: "#6a1018", W: "#ff7a7a", d: "#120d08", K: "#120d08" }
+  ];
   function itemIconRows(id) {
     return ICONS[id];
   }
@@ -7302,6 +7351,9 @@
       this.panY = 0;
       this.time = 0;
       this.floats = [];
+      /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
+      this.drops = [];
+      this.ripples = [];
       this.slashes = [];
       this.projectiles = [];
       /** Animation du héros : de quel côté il regarde, et depuis combien de temps il tire ou encaisse. */
@@ -7572,6 +7624,28 @@
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
     }
+    /** Un personnage est touché : quelques gouttes jaillissent et retombent (rouge, ou vert pour un Schrat). */
+    addBloodBurst(x, y, fromX, fromY, color) {
+      const dx = Math.sign(x - fromX) || Math.random() - 0.5;
+      const dy = Math.sign(y - fromY) || Math.random() - 0.5;
+      const shades = color === "green" ? ["#4f8e1e", "#8ccc3a", "#2a5a12"] : ["#b0202a", "#e04048", "#7a0e14"];
+      for (let i = 0; i < 9; i++) {
+        const spread = (Math.random() - 0.5) * 1.6;
+        this.drops.push({
+          x: x + 0.5,
+          y: y + 0.45,
+          vx: (dx + spread * Math.abs(dy || 1) * 0.6) * (1.2 + Math.random() * 1.4),
+          vy: (dy + spread * Math.abs(dx || 1) * 0.6) * (1.2 + Math.random() * 1.4) - 1.6,
+          color: shades[i % 3],
+          age: 0,
+          life: 260 + Math.random() * 180
+        });
+      }
+    }
+    /** Du bruit à cet endroit : des ondes qui s'élargissent (plus le bruit est fort, plus il y en a). */
+    addNoise(x, y, strength) {
+      this.ripples.push({ x, y, strength, age: 0 });
+    }
     /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
     addFloatingText(x, y, text, color) {
       this.floats.push({ x, y, text, color, age: 0 });
@@ -7702,7 +7776,16 @@
             const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
             const smooth = ctx.imageSmoothingEnabled;
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(this.sprite(rows, PALETTE), rx, ry, rw, rh);
+            if (stain.shape === 2 || !stain.turn) {
+              ctx.drawImage(this.sprite(rows, PALETTE), rx, ry, rw, rh);
+            } else {
+              ctx.save();
+              ctx.translate(rx + rw / 2, ry + rh / 2);
+              ctx.rotate(stain.turn % 4 * (Math.PI / 2));
+              if (stain.turn >= 4) ctx.scale(-1, 1);
+              ctx.drawImage(this.sprite(rows, PALETTE), -rw / 2, -rh / 2, rw, rh);
+              ctx.restore();
+            }
             ctx.imageSmoothingEnabled = smooth;
           }
           const shade = wall || t === Tile.Pillar ? 0.6 : 1;
@@ -7995,6 +8078,30 @@
       ctx.globalAlpha = 1;
       ctx.lineCap = "butt";
       ctx.font = `${Math.round(Math.max(18, tile * 0.6))}px "VT323", "Courier New", monospace`;
+      this.drops = this.drops.filter((d) => (d.age += dt) < d.life);
+      for (const d of this.drops) {
+        const t = d.age / 1e3;
+        const px = ox + (d.x + d.vx * t) * tile;
+        const py = oy + (d.y + d.vy * t + 9 * t * t) * tile;
+        const size = Math.max(2, Math.round(tile * 0.08));
+        ctx.globalAlpha = Math.min(1, 2 * (1 - d.age / d.life));
+        ctx.fillStyle = d.color;
+        ctx.fillRect(Math.round(px), Math.round(py), size, size);
+      }
+      ctx.globalAlpha = 1;
+      this.ripples = this.ripples.filter((r) => (r.age += dt) < 900);
+      for (const r of this.ripples) {
+        const rings = r.strength >= 10 ? 3 : 1;
+        for (let k = 0; k < rings; k++) {
+          const t = r.age / 900 - k * 0.18;
+          if (t <= 0 || t >= 1) continue;
+          ctx.strokeStyle = `rgba(255,215,94,${(0.7 * (1 - t)).toFixed(3)})`;
+          ctx.lineWidth = Math.max(1.5, tile * 0.06);
+          ctx.beginPath();
+          ctx.arc(ox + (r.x + 0.5) * tile, oy + (r.y + 0.5) * tile, tile * (0.4 + t * (r.strength >= 10 ? 3.5 : 1.4)), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
       this.floats = this.floats.filter((f) => (f.age += dt) < FLOAT_MS);
       for (const f of this.floats) {
         const t = f.age / FLOAT_MS;
@@ -8470,6 +8577,10 @@
       );
       if (foe) shownHp = Math.max(0, shownHp - r.damage);
       if (!foe && r.hit) renderer.monsterHurt(e.target.id);
+      if (r.hit && r.damage > 0) {
+        const bloodColor = e.target.kind === "monster" ? MONSTERS[e.target.defId]?.blood ?? "red" : "red";
+        renderer.addBloodBurst(e.target.x, e.target.y, e.attacker.x, e.attacker.y, bloodColor);
+      }
       if (foe && r.hit) {
         renderer.heroHurt();
         pulse(hpBar, "hit");
@@ -8516,6 +8627,8 @@
         renderer.monsterDies(e.actor);
         sfx.play("kill");
       }
+    } else if (e.type === "noise") {
+      renderer.addNoise(e.x, e.y, e.points);
     } else if (e.type === "alarm") {
       for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
       renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Tocsin !", "Hallali !"][e.stage] ?? "", "#ff8a7a");
@@ -9155,9 +9268,33 @@
     if (game.skills.includes("dernier_rempart") && !game.perks().lastStand) list.push({ id: "rempart", name: "Dernier rempart", detail: "Pr\xEAt : un coup qui vous tuerait vous laissera \xE0 1 PV (une fois par \xE9tage)." });
     return list;
   }
+  var ALARM_NAMES = ["calme", "agit\xE9", "alerte", "hallali"];
+  var ALARM_DETAILS = [
+    "Le donjon dort encore. \xC0 25, il s'agite.",
+    "Plus de promeneurs. \xC0 50, des traqueurs sont l\xE2ch\xE9s.",
+    "Des traqueurs vous cherchent. \xC0 75, tout l'\xE9tage sera sur vous.",
+    "Tout l'\xE9tage sait o\xF9 vous \xEAtes. Descendez !"
+  ];
+  var alarmShown = "";
+  function renderAlarm() {
+    const { level, stage } = game.alarm();
+    const key = `${level}|${stage}`;
+    if (key === alarmShown) return;
+    alarmShown = key;
+    $("alarm-bell").replaceChildren(buildIcon(BELL, BELL_COLORS[stage]));
+    const fill = $("alarm-fill");
+    fill.style.width = `${level}%`;
+    fill.style.background = BELL_COLORS[stage].L;
+    if (statusOpen === "tocsin") statusShown = "";
+  }
+  $("alarm-badge").addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    statusOpen = statusOpen === "tocsin" ? null : "tocsin";
+    statusShown = "";
+  });
   function renderHeroStatus() {
     const list = heroStatuses();
-    const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}`;
+    const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}#${statusOpen === "tocsin" ? game.alarm().level : ""}`;
     if (key === statusShown) return;
     statusShown = key;
     $("hero-status").replaceChildren(
@@ -9174,11 +9311,20 @@
         return b;
       })
     );
+    const pop = $("status-pop");
+    if (statusOpen === "tocsin") {
+      const { level, stage } = game.alarm();
+      pop.hidden = false;
+      pop.classList.add("right");
+      pop.replaceChildren(el("b", "", `Tocsin : ${ALARM_NAMES[stage]}`), document.createTextNode(`${level} / 100. ${ALARM_DETAILS[stage]} Le bruit (portes enfonc\xE9es, combats) le fait monter.`));
+      return;
+    }
+    pop.classList.remove("right");
     const open = list.find((st) => st.id === statusOpen);
     if (!open) statusOpen = null;
-    $("status-pop").hidden = !open;
+    pop.hidden = !open;
     if (open) {
-      $("status-pop").replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
+      pop.replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
     }
   }
   $("status-pop").addEventListener("click", () => {
@@ -9286,7 +9432,7 @@
     $("char-skills").replaceChildren(...powerCards);
     $("char-note").textContent = note;
     confirm.hidden = pickedChoice === null;
-    confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (d\xE9finitif)" : "Prendre ce pouvoir";
+    confirm.textContent = pickedChoice?.kind === "path" ? "Choisir cette voie (d\xE9finitif)" : "Choisir ce pouvoir";
   }
   function throwCells(uid) {
     const cells = [];
@@ -9579,6 +9725,8 @@
     const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
     $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
+    $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
+    renderAlarm();
     renderHeroStatus();
     const floorText = String(game.depth);
     if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;

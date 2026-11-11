@@ -73,7 +73,7 @@ export interface SaveData {
   floorPerks: Record<number, { secondWind: boolean; doubleStrikes: number; lastStand: boolean }>;
   weaponPoison: number;
   hasteTurns: number;
-  fires: { x: number; y: number; turns: number }[];
+  fires: { x: number; y: number; turns: number; gen?: number }[];
   /** Nuages de gaz empoisonné (absent des sauvegardes d'avant les pièges v3). */
   gas?: { x: number; y: number; turns: number }[];
   bagSize: { cols: number; rows: number };

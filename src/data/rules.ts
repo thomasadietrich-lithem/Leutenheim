@@ -113,6 +113,10 @@ export const RULES = {
   bossFireFactor: 2,
   /** Une nappe de toile brûle tant de tours, et enflamme ses voisines au tour suivant. */
   webFireTurns: 2,
+  /** …mais au plus à tant de cases de toile de la flamme d'origine, et une nappe voisine sur deux (2026-11-11 : le feu
+   * ne doit pas ravager toute la nichée). */
+  webFireReach: 3,
+  webFireSpreadChance: 0.5,
   webRoomChance: 0.35,
   webCorners: [1, 2] as [number, number],
   /** Entrer dans une toile : d20 + bonus de force contre cette difficulté, sinon englué un tour. La toile se déchire. */
@@ -140,14 +144,12 @@ export const RULES = {
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
   keyChance: 0.35,
   /**
-   * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
-   * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
-   * grandit lui-même de `xpStepGrowth`. Avec 5 / 2 / 1 : 5, 7, 10, 14, 19, 25, 32… soit 5, 12, 22, 36, 55 au total
-   * (Thomas, 2026-11-11 : « à peu près un niveau par étage » ; mesuré : on arrive à l'étage N vers le niveau N).
+   * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « à peu près un niveau par étage »).
+   * Réglée sur l'expérience que rapporte un étage nettoyé (mesuré : 10, 12, 22, 24 XP aux étages 1 à 4, la Tisseuse 30) :
+   * chaque niveau demande à peu près ce que donne l'étage où l'on se trouve. Au-delà du tableau, +6 par niveau.
    */
-  xpFirst: 5,
-  xpStep: 2,
-  xpStepGrowth: 1,
+  xpLevels: [9, 11, 18, 20, 26, 30, 34],
+  xpLevelStep: 6,
   /** Points de vie gagnés à chaque niveau. */
   hpPerLevel: 3,
   /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */

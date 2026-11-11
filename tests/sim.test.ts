@@ -876,10 +876,10 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
   assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
   const total = gains.reduce((a, b) => a + b, 0);
-  // Niveau 2 à 5 points, niveau 3 à 12 (5 + 7) : trois victoires mènent au niveau 2, souvent au 3.
-  const level = total >= 12 ? 3 : 2;
-  const left = total - (level === 3 ? 12 : 5);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, level === 3 ? 10 : 7, maxHp]);
+  // Niveau 2 à 9 points, niveau 3 à 20 (9 + 11) : trois victoires (9 à 15 points) mènent au niveau 2.
+  const level = 2;
+  const left = total - 9;
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, 11, maxHp]);
   assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
   assert.equal(game.points, level - 1);
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
@@ -1878,13 +1878,13 @@ test("butin : rareté selon la section, tas d'or selon la section, jamais dans l
   }
 });
 
-test("expérience : chaque niveau demande un peu plus que le précédent (5, 7, 10, 14, 19)", () => {
+test("expérience : chaque niveau demande un peu plus que le précédent (9, 11, 18, 20, 26)", () => {
   const game = new Game(1);
   const needs = [1, 2, 3, 4, 5].map((level) => {
     game.level = level;
     return game.xpToNext();
   });
-  assert.deepEqual(needs, [5, 7, 10, 14, 19]);
+  assert.deepEqual(needs, [9, 11, 18, 20, 26]);
 });
 
 test("salle d'essai : les Schrats en ronde restent dans leur salle ; « Réveiller » les lance sur le héros", () => {
@@ -2846,13 +2846,19 @@ test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèc
   assert.ok(q2.boss!.hatched);
 });
 
-test("arme à deux mains : ni arc ni javeline ; salle d'essai : l'escalier de la salle de départ mène à la Tisseuse", () => {
+test("arme à deux mains : l'arc retourne au sac, pas de javeline ; salle d'essai : l'escalier de la salle de départ mène à la Tisseuse", () => {
   const game = new Game(1, undefined, undefined, undefined, true);
   game.setPeaceful(true);
   game.inventory.add("epee_longue", 1);
   const sword = game.inventory.items.find((i) => i.defId === "epee_longue")!;
+  assert.ok(game.equipment.ranged, "l'arc est en main");
   assert.ok(game.equip(sword.uid));
-  assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "two-hands");
+  // L'épée longue fait sauter l'autre main : l'arc retourne dans le sac, et on ne peut pas le reprendre.
+  assert.equal(game.equipment.ranged, null);
+  const bow = game.inventory.items.find((i) => i.defId === "arc_court")!;
+  assert.ok(bow, "l'arc est dans le sac");
+  assert.equal(game.equip(bow.uid), false);
+  assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "no-bow");
   game.inventory.add("javeline", 3);
   assert.ok(game.chooseAmmo("javeline"));
   assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "two-hands");

@@ -397,6 +397,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "levelup") {
     shownHp = game.hero.hp;
     sfx.play("heal");
+  } else if (e.type === "boss" && e.what === "dead") {
+    // Thomas (2026-11-11) : la démo s'arrête après la Tisseuse ; on peut continuer à explorer la nichée.
+    setTimeout(showDemoEnd, 900);
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       renderer.heroFalls();
@@ -513,7 +516,31 @@ function reveal(e: GameEvent): void {
  * Écran de fin (Thomas, 2026-11-11) : de quoi le héros est mort, plus le nombre de tours ; la partie entre dans les
  * records (sauf en salle d'essai), avec les trois meilleures dessous.
  */
+/** Fin de la démo (Thomas, 2026-11-11) : après la victoire contre la Tisseuse. La partie reste ouverte derrière. */
+function showDemoEnd(): void {
+  over.replaceChildren();
+  over.classList.add("over-win");
+  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", "La Tisseuse est vaincue : la première section du donjon est terminée."));
+  over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
+  over.append(el("div", "over-sub", "Merci d'avoir joué ! La suite du donjon arrive bientôt."));
+  const stay = el("button", "", "Continuer à explorer") as HTMLButtonElement;
+  stay.type = "button";
+  stay.addEventListener("click", () => {
+    over.hidden = true;
+    over.classList.remove("over-win");
+  });
+  const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
+  again.type = "button";
+  again.addEventListener("click", () => {
+    over.classList.remove("over-win");
+    showScreen("new");
+  });
+  over.append(stay, again);
+  over.hidden = false;
+}
+
 function showDeath(): void {
+  over.classList.remove("over-win");
   const cause = game.deathCause ?? "ses blessures";
   over.replaceChildren();
   over.append(el("div", "over-title", "Vous êtes mort"), el("div", "over-line", `À l'étage ${game.depth}, tué par ${cause}.`));
@@ -921,7 +948,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.range) rows.push(["Portée", `${def.range} cases`]);
   if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
-  if (def.twoHanded) rows.push(["Prise", "Deux mains (ni arc, ni javeline, ni torche)"]);
+  if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; ni javeline, ni torche)"]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
@@ -1123,11 +1150,16 @@ button("bag-equip", () => {
     $("bag").hidden = true;
   } else if (selected && "uid" in selected) {
     const bagSwap = chosenDef?.kind === "bag";
-    if (!game.equip(selected.uid)) {
+    const hadBow = !!game.equipment.ranged;
+    if (game.equip(selected.uid)) {
+      if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged) logLines.push("Arme à deux mains : votre arc retourne dans le sac.");
+    } else {
       logLines.push(
         chosenDef?.twoHanded && game.torchTurns > 0
           ? "Une arme à deux mains ? Votre torche brûle encore dans l'autre main."
-          : bagSwap
+          : chosenDef?.kind === "ranged" && game.twoHanded()
+            ? "Votre arme se tient à deux mains : rangez-la d'abord pour prendre un arc."
+            : bagSwap
             ? "Ce sac est trop petit pour tout ce que vous portez."
             : "Pas assez de place dans le sac pour échanger.",
       );
@@ -1316,8 +1348,9 @@ function renderCharacter(): void {
     const node = el("div", `r${wide ? " wide" : ""}`);
     node.append(el("span", "", name), el("b", "", value));
     if (stat && game.points > 0) {
-      const plus = el("button", "", "+") as HTMLButtonElement;
+      const plus = el("button", "plus") as HTMLButtonElement;
       plus.type = "button";
+      plus.append(plusIcon());
       plus.setAttribute("aria-label", `Un point en ${name}`);
       // En combat, les « + » sont grisés (Thomas : on n'augmente pas ses caractéristiques en plein combat).
       if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
@@ -1399,6 +1432,7 @@ function renderCharacter(): void {
     if (picks > 0) note = `${picks} pouvoir${picks > 1 ? "s" : ""} à choisir`;
   }
   $("char-path").replaceChildren(...pathCards);
+  $("char-path").classList.toggle("choose", !game.voie);
   $("char-skills").replaceChildren(...powerCards);
   $("char-note").textContent = note;
   confirm.hidden = pickedChoice === null;
@@ -1592,6 +1626,24 @@ function classCard(c: ClassDef): Card {
   };
 }
 
+/** Un « + » en pixels, aux deux branches égales (Thomas : celui de la police était plus haut que large). */
+function plusIcon(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const cross = document.createElementNS(ns, "svg");
+  cross.setAttribute("viewBox", "0 0 8 8");
+  cross.classList.add("plus-icon");
+  for (const [x, y, w, h] of [[3, 0, 2, 8], [0, 3, 8, 2]]) {
+    const bar = document.createElementNS(ns, "rect");
+    bar.setAttribute("x", String(x));
+    bar.setAttribute("y", String(y));
+    bar.setAttribute("width", String(w));
+    bar.setAttribute("height", String(h));
+    bar.setAttribute("fill", "currentColor");
+    cross.append(bar);
+  }
+  return cross;
+}
+
 function el(tag: string, className: string, text = ""): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
@@ -1603,7 +1655,8 @@ function buildCards(container: HTMLElement, cards: Card[], selectedId: string, o
   container.replaceChildren(
     ...cards.map((card) => {
       const node = el("div", `card${card.available ? "" : " locked"}${card.id === selectedId ? " selected" : ""}`);
-      const more = el("button", "more", "+");
+      const more = el("button", "more");
+      more.append(plusIcon());
       more.setAttribute("aria-label", `Détail : ${card.name}`);
       more.addEventListener("click", (e) => {
         e.stopPropagation();

@@ -82,7 +82,7 @@ export class Game {
   weaponPoison = 0;
   hasteTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
-  fires: { x: number; y: number; turns: number }[] = [];
+  fires: { x: number; y: number; turns: number; gen?: number }[] = [];
   /** Salle d'essai : combats coupés (bouton « Combats »), pour visiter tranquillement. Pas sauvegardé. */
   peaceful = false;
   private throwOrder: { uid: number; x: number; y: number } | null = null;
@@ -422,6 +422,8 @@ export class Game {
     this.events.push({ type: "breakWeb", kind: f.kind.startsWith("cocoon") ? "cocoon" : f.kind === "eggSac" ? "eggs" : "anchor", left, x: f.x, y: f.y });
     // Dans un cocon, il reste parfois quelques pièces de la victime.
     if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
+    // Du sang (Thomas : « pense au sang ») : rouge pour la proie du cocon, vert pour les œufs.
+    if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "green" : "red");
     const queen = this.bossActor();
     if (queen?.boss) queen.boss.target = { x: this.hero.x, y: this.hero.y };
     if (f.kind === "anchor") this.checkHub();
@@ -649,6 +651,7 @@ export class Game {
       if (cocoon && gapBetween(m, cocoon) === 1) {
         this.current.furniture = this.current.furniture.filter((o) => o !== cocoon);
         this.map.set(cocoon.x, cocoon.y, Tile.Floor);
+        this.stain(cocoon.x, cocoon.y, "red");
         const healed = Math.min(RULES.bossCocoonHeal, m.maxHp - m.hp);
         m.hp += healed;
         this.events.push({ type: "boss", what: "eat", x: cocoon.x, y: cocoon.y, amount: healed });
@@ -1226,9 +1229,22 @@ export class Game {
     if (this.tooLow(ITEMS[item.defId])) return false;
     // Arme à deux mains (Thomas, 2026-11-11) : pas tant qu'une torche brûle dans l'autre main.
     if ((ITEMS[item.defId] as ItemDef).twoHanded && this.torchTurns > 0) return false;
+    // Pas d'arc tant qu'une arme à deux mains est en main : il faut d'abord la ranger.
+    if (kind === "ranged" && this.twoHanded()) return false;
     const previous = this.equipment[kind];
     const from = { x: item.x, y: item.y };
     this.inventory.removeItem(uid);
+    // Arme à deux mains (Thomas, 2026-11-11) : elle fait sauter l'autre main, l'arc retourne dans le sac.
+    const bow = (ITEMS[item.defId] as ItemDef).twoHanded ? this.equipment.ranged : null;
+    if (bow) {
+      if (!this.inventory.placeItem(bow)) {
+        item.x = from.x;
+        item.y = from.y;
+        this.inventory.items.push(item);
+        return false;
+      }
+      this.equipment.ranged = null;
+    }
     if (kind === "bag") {
       // Un sac : le sac change de taille ; ce qu'il contient doit tenir dans le nouveau.
       const def = ITEMS[item.defId] as ItemDef;
@@ -1244,7 +1260,11 @@ export class Game {
       return true;
     }
     if (previous && !this.inventory.placeItem(previous)) {
-      // Pas de place pour ranger l'ancien : on annule.
+      // Pas de place pour ranger l'ancien : on annule (l'arc rangé reprend sa place).
+      if (bow) {
+        this.inventory.removeItem(bow.uid);
+        this.equipment.ranged = bow;
+      }
       item.x = from.x;
       item.y = from.y;
       this.inventory.items.push(item);
@@ -1622,16 +1642,25 @@ export class Game {
   private igniteFurniture(): void {
     this.burnWoodTiles();
     // Une toile flambe d'un coup dès qu'une flamme la touche ou la frôle, et laisse un peu de cendre (Thomas).
-    const webs = this.current.furniture.filter(
-      (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1),
-    );
+    const near = (f: { x: number; y: number }) => this.fires.filter((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1);
+    const webs = this.current.furniture.filter((f) => {
+      if (!f.kind.startsWith("web")) return false;
+      const flames = near(f);
+      if (flames.length === 0) return false;
+      // Nappes de la nichée (Thomas : « il ne doit pas pouvoir se répandre dans toute la salle ») : le feu ne court que
+      // `webFireReach` cases de toile depuis sa source, et une nappe sur deux seulement s'embrase.
+      if (!(f.kind.startsWith("webN") || f.kind.startsWith("webHub"))) return true;
+      const gen = Math.min(...flames.map((fl) => fl.gen ?? 0));
+      return gen < RULES.webFireReach && (gen === 0 || this.rng.chance(RULES.webFireSpreadChance));
+    });
+    const genOf = (f: { x: number; y: number }) => Math.min(...near(f).map((fl) => fl.gen ?? 0));
     for (const w of webs) {
       this.current.furniture = this.current.furniture.filter((o) => o !== w);
       this.current.furniture.push({ x: w.x, y: w.y, kind: "ashes1" });
       this.map.touch(w.x, w.y);
       // Nappes et grande toile (nichée) : la flamme court de toile en toile, une case par tour.
       const sheet = w.kind.startsWith("webN") || w.kind.startsWith("webHub");
-      if (sheet && !this.fires.some((f) => f.x === w.x && f.y === w.y)) this.fires.push({ x: w.x, y: w.y, turns: RULES.webFireTurns });
+      if (sheet && !this.fires.some((f) => f.x === w.x && f.y === w.y)) this.fires.push({ x: w.x, y: w.y, turns: RULES.webFireTurns, gen: genOf(w) + 1 });
       // Pas une ligne de journal par nappe : une seule quand le feu prend dans la toile.
       if (!sheet || !this.events.some((e) => e.type === "furnitureFire" && e.kind === "webN")) this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: sheet ? "webN" : w.kind });
     }
@@ -1732,9 +1761,11 @@ export class Game {
    * derrière elle (à l'opposé du coup) ; si c'est un mur, la tache est sur le mur. Choix sans tirer au sort
    * (pour ne pas changer le hasard des combats) : il dépend du tour et de la position.
    */
-  private bleed(victim: Actor, from: Point): void {
-    const def = victim.kind === "monster" ? MONSTERS[victim.defId as keyof typeof MONSTERS] : undefined;
+  private bleed(target: Actor, from: Point): void {
+    const def = target.kind === "monster" ? MONSTERS[target.defId as keyof typeof MONSTERS] : undefined;
     const color = def?.blood ?? "red";
+    // La Tisseuse (2 × 2) saigne du côté où on la frappe : la case de son carré la plus proche du coup.
+    const victim = sizeOf(target) > 1 ? { ...target, ...cellsOf(target).reduce((a, b) => (Math.hypot(b.x - from.x, b.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? b : a)) } : target;
     const hash = (victim.x * 73 + victim.y * 151 + this.turn * 17 + victim.id * 7) >>> 0;
     const dx = Math.sign(victim.x - from.x);
     const dy = Math.sign(victim.y - from.y);
@@ -1758,14 +1789,24 @@ export class Game {
     if (stains.length > RULES.bloodMax) stains.shift();
   }
 
+  /** Une tache de sang posée sur une case (cocon ou œufs crevés). */
+  private stain(x: number, y: number, color: "red" | "green"): void {
+    const stains = this.current.blood;
+    const same = stains.findIndex((b) => b.x === x && b.y === y);
+    if (same >= 0) stains.splice(same, 1);
+    stains.push({ x, y, color, shape: ((x + y) % 2) as 0 | 1, turn: (x * 7 + y * 3) % 8 });
+    if (stains.length > RULES.bloodMax) stains.shift();
+  }
+
   isBurning(x: number, y: number): boolean {
     return this.fires.some((f) => f.x === x && f.y === y);
   }
 
   /** Expérience à réunir pour passer au niveau suivant. */
   xpToNext(): number {
+    const table = RULES.xpLevels as readonly number[];
     const n = this.level - 1;
-    return RULES.xpFirst + n * RULES.xpStep + ((n * (n - 1)) / 2) * RULES.xpStepGrowth;
+    return n < table.length ? table[n] : table[table.length - 1] + (n - table.length + 1) * RULES.xpLevelStep;
   }
 
   private gainXp(amount: number): void {

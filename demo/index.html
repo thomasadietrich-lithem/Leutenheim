@@ -76,6 +76,8 @@
     overflow-x: hidden; overflow-y: auto; }
   #over { inset: 14% 6%; background: #140808; border-color: #7a2a2a; font-size: 22px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
   #over .over-title { font-size: 34px; color: #ff6b7a; }
+  #over.over-win { background: #0e1408; border-color: #8a7a2a; }
+  #over.over-win .over-title { color: #ffd75e; }
   #over .over-best { color: #ffd75e; font-size: 26px; }
   #over .over-sub { margin-top: 8px; color: #e0c890; }
   .over-record { font-size: 17px; color: #d8cfc0; }
@@ -254,9 +256,13 @@
   .char-grid .r.wide { grid-column: 1 / -1; }
   .char-grid b { color: #fff3c8; font-weight: normal; }
   .char-grid button { width: 28px; height: 26px; padding: 0; font-size: 20px; line-height: 1; }
+  .char-grid button.plus, .card .more { display: flex; align-items: center; justify-content: center; }
+  .plus-icon { width: 12px; height: 12px; shape-rendering: crispEdges; }
   .char-sec { width: min(100%, 330px); font-size: 18px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #3a2e1e; margin-top: 4px; }
   #char-path { width: min(100%, 330px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
   #char-path .skill-card.main { grid-column: 1 / -1; }
+  /* Choix de la voie : deux cartes, côte à côte et centrées (Thomas : « centre mieux les deux voies »). */
+  #char-path.choose { grid-template-columns: repeat(2, 1fr); margin: 0 auto; }
   .hero-tab { flex: 1; padding: 6px 0; font-size: 22px; color: var(--dim); background: #1a140e; box-shadow: inset 2px 2px 0 #3a2e1e, inset -2px -2px 0 #0c0906; }
   .hero-tab.on { color: #fff3c8; background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bang { color: #ffd75e; margin-left: 6px; }
@@ -1408,6 +1414,10 @@
     bossFireFactor: 2,
     /** Une nappe de toile brûle tant de tours, et enflamme ses voisines au tour suivant. */
     webFireTurns: 2,
+    /** …mais au plus à tant de cases de toile de la flamme d'origine, et une nappe voisine sur deux (2026-11-11 : le feu
+     * ne doit pas ravager toute la nichée). */
+    webFireReach: 3,
+    webFireSpreadChance: 0.5,
     webRoomChance: 0.35,
     webCorners: [1, 2],
     /** Entrer dans une toile : d20 + bonus de force contre cette difficulté, sinon englué un tour. La toile se déchire. */
@@ -1435,14 +1445,12 @@
     /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
     keyChance: 0.35,
     /**
-     * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
-     * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
-     * grandit lui-même de `xpStepGrowth`. Avec 5 / 2 / 1 : 5, 7, 10, 14, 19, 25, 32… soit 5, 12, 22, 36, 55 au total
-     * (Thomas, 2026-11-11 : « à peu près un niveau par étage » ; mesuré : on arrive à l'étage N vers le niveau N).
+     * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « à peu près un niveau par étage »).
+     * Réglée sur l'expérience que rapporte un étage nettoyé (mesuré : 10, 12, 22, 24 XP aux étages 1 à 4, la Tisseuse 30) :
+     * chaque niveau demande à peu près ce que donne l'étage où l'on se trouve. Au-delà du tableau, +6 par niveau.
      */
-    xpFirst: 5,
-    xpStep: 2,
-    xpStepGrowth: 1,
+    xpLevels: [9, 11, 18, 20, 26, 30, 34],
+    xpLevelStep: 6,
     /** Points de vie gagnés à chaque niveau. */
     hpPerLevel: 3,
     /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */
@@ -3982,6 +3990,7 @@
       const left = this.current.furniture.filter((o) => o.kind === "anchor").length;
       this.events.push({ type: "breakWeb", kind: f.kind.startsWith("cocoon") ? "cocoon" : f.kind === "eggSac" ? "eggs" : "anchor", left, x: f.x, y: f.y });
       if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
+      if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "green" : "red");
       const queen = this.bossActor();
       if (queen?.boss) queen.boss.target = { x: this.hero.x, y: this.hero.y };
       if (f.kind === "anchor") this.checkHub();
@@ -4193,6 +4202,7 @@
         if (cocoon && gapBetween(m, cocoon) === 1) {
           this.current.furniture = this.current.furniture.filter((o) => o !== cocoon);
           this.map.set(cocoon.x, cocoon.y, Tile.Floor);
+          this.stain(cocoon.x, cocoon.y, "red");
           const healed = Math.min(RULES.bossCocoonHeal, m.maxHp - m.hp);
           m.hp += healed;
           this.events.push({ type: "boss", what: "eat", x: cocoon.x, y: cocoon.y, amount: healed });
@@ -4701,9 +4711,20 @@
       if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem") return false;
       if (this.tooLow(ITEMS[item.defId])) return false;
       if (ITEMS[item.defId].twoHanded && this.torchTurns > 0) return false;
+      if (kind === "ranged" && this.twoHanded()) return false;
       const previous = this.equipment[kind];
       const from = { x: item.x, y: item.y };
       this.inventory.removeItem(uid);
+      const bow = ITEMS[item.defId].twoHanded ? this.equipment.ranged : null;
+      if (bow) {
+        if (!this.inventory.placeItem(bow)) {
+          item.x = from.x;
+          item.y = from.y;
+          this.inventory.items.push(item);
+          return false;
+        }
+        this.equipment.ranged = null;
+      }
       if (kind === "bag") {
         const def = ITEMS[item.defId];
         const before = { cols: this.inventory.cols, rows: this.inventory.rows };
@@ -4718,6 +4739,10 @@
         return true;
       }
       if (previous && !this.inventory.placeItem(previous)) {
+        if (bow) {
+          this.inventory.removeItem(bow.uid);
+          this.equipment.ranged = bow;
+        }
         item.x = from.x;
         item.y = from.y;
         this.inventory.items.push(item);
@@ -5044,15 +5069,22 @@
     }
     igniteFurniture() {
       this.burnWoodTiles();
-      const webs = this.current.furniture.filter(
-        (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1)
-      );
+      const near = (f) => this.fires.filter((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1);
+      const webs = this.current.furniture.filter((f) => {
+        if (!f.kind.startsWith("web")) return false;
+        const flames = near(f);
+        if (flames.length === 0) return false;
+        if (!(f.kind.startsWith("webN") || f.kind.startsWith("webHub"))) return true;
+        const gen = Math.min(...flames.map((fl) => fl.gen ?? 0));
+        return gen < RULES.webFireReach && (gen === 0 || this.rng.chance(RULES.webFireSpreadChance));
+      });
+      const genOf = (f) => Math.min(...near(f).map((fl) => fl.gen ?? 0));
       for (const w of webs) {
         this.current.furniture = this.current.furniture.filter((o) => o !== w);
         this.current.furniture.push({ x: w.x, y: w.y, kind: "ashes1" });
         this.map.touch(w.x, w.y);
         const sheet = w.kind.startsWith("webN") || w.kind.startsWith("webHub");
-        if (sheet && !this.fires.some((f) => f.x === w.x && f.y === w.y)) this.fires.push({ x: w.x, y: w.y, turns: RULES.webFireTurns });
+        if (sheet && !this.fires.some((f) => f.x === w.x && f.y === w.y)) this.fires.push({ x: w.x, y: w.y, turns: RULES.webFireTurns, gen: genOf(w) + 1 });
         if (!sheet || !this.events.some((e) => e.type === "furnitureFire" && e.kind === "webN")) this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: sheet ? "webN" : w.kind });
       }
       if (webs.some((w) => w.kind.startsWith("webHub"))) this.checkHub();
@@ -5062,8 +5094,8 @@
         for (const f of this.current.furniture) {
           if (this.furnitureFire.has(f) || !FURNITURE_KINDS[f.kind]?.burns) continue;
           const cells = furnitureCells(f);
-          const near = cells.some((c) => this.fires.some((fire) => Math.max(Math.abs(fire.x - c.x), Math.abs(fire.y - c.y)) <= 1));
-          if (!near) continue;
+          const near2 = cells.some((c) => this.fires.some((fire) => Math.max(Math.abs(fire.x - c.x), Math.abs(fire.y - c.y)) <= 1));
+          if (!near2) continue;
           this.furnitureFire.set(f, RULES.fireTurns);
           for (const c of cells) {
             const old = this.fires.find((fire) => fire.x === c.x && fire.y === c.y);
@@ -5144,9 +5176,10 @@
      * derrière elle (à l'opposé du coup) ; si c'est un mur, la tache est sur le mur. Choix sans tirer au sort
      * (pour ne pas changer le hasard des combats) : il dépend du tour et de la position.
      */
-    bleed(victim, from) {
-      const def = victim.kind === "monster" ? MONSTERS[victim.defId] : void 0;
+    bleed(target, from) {
+      const def = target.kind === "monster" ? MONSTERS[target.defId] : void 0;
       const color = def?.blood ?? "red";
+      const victim = sizeOf(target) > 1 ? { ...target, ...cellsOf(target).reduce((a, b) => Math.hypot(b.x - from.x, b.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? b : a) } : target;
       const hash = victim.x * 73 + victim.y * 151 + this.turn * 17 + victim.id * 7 >>> 0;
       const dx = Math.sign(victim.x - from.x);
       const dy = Math.sign(victim.y - from.y);
@@ -5167,13 +5200,22 @@
       stains.push({ x: at.x, y: at.y, color, shape, turn: (hash >> 5) % 8 });
       if (stains.length > RULES.bloodMax) stains.shift();
     }
+    /** Une tache de sang posée sur une case (cocon ou œufs crevés). */
+    stain(x, y, color) {
+      const stains = this.current.blood;
+      const same = stains.findIndex((b) => b.x === x && b.y === y);
+      if (same >= 0) stains.splice(same, 1);
+      stains.push({ x, y, color, shape: (x + y) % 2, turn: (x * 7 + y * 3) % 8 });
+      if (stains.length > RULES.bloodMax) stains.shift();
+    }
     isBurning(x, y) {
       return this.fires.some((f) => f.x === x && f.y === y);
     }
     /** Expérience à réunir pour passer au niveau suivant. */
     xpToNext() {
+      const table = RULES.xpLevels;
       const n = this.level - 1;
-      return RULES.xpFirst + n * RULES.xpStep + n * (n - 1) / 2 * RULES.xpStepGrowth;
+      return n < table.length ? table[n] : table[table.length - 1] + (n - table.length + 1) * RULES.xpLevelStep;
     }
     gainXp(amount) {
       if (amount <= 0) return;
@@ -14982,6 +15024,8 @@
     } else if (e.type === "levelup") {
       shownHp = game.hero.hp;
       sfx.play("heal");
+    } else if (e.type === "boss" && e.what === "dead") {
+      setTimeout(showDemoEnd, 900);
     } else if (e.type === "death") {
       if (e.actor.kind === "hero") {
         renderer.heroFalls();
@@ -15091,7 +15135,29 @@
     }
     renderLog();
   }
+  function showDemoEnd() {
+    over.replaceChildren();
+    over.classList.add("over-win");
+    over.append(el("div", "over-title", "Fin de la d\xE9mo"), el("div", "over-line", "La Tisseuse est vaincue : la premi\xE8re section du donjon est termin\xE9e."));
+    over.append(el("div", "over-line", `Niveau ${game.level} \xB7 ${game.gold} pi\xE8ces d'or`));
+    over.append(el("div", "over-sub", "Merci d'avoir jou\xE9 ! La suite du donjon arrive bient\xF4t."));
+    const stay = el("button", "", "Continuer \xE0 explorer");
+    stay.type = "button";
+    stay.addEventListener("click", () => {
+      over.hidden = true;
+      over.classList.remove("over-win");
+    });
+    const again = el("button", "", "Nouvelle partie");
+    again.type = "button";
+    again.addEventListener("click", () => {
+      over.classList.remove("over-win");
+      showScreen("new");
+    });
+    over.append(stay, again);
+    over.hidden = false;
+  }
   function showDeath() {
+    over.classList.remove("over-win");
     const cause = game.deathCause ?? "ses blessures";
     over.replaceChildren();
     over.append(el("div", "over-title", "Vous \xEAtes mort"), el("div", "over-line", `\xC0 l'\xE9tage ${game.depth}, tu\xE9 par ${cause}.`));
@@ -15449,7 +15515,7 @@
     if (def.range) rows.push(["Port\xE9e", `${def.range} cases`]);
     if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
     if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
-    if (def.twoHanded) rows.push(["Prise", "Deux mains (ni arc, ni javeline, ni torche)"]);
+    if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; ni javeline, ni torche)"]);
     if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
     if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
     if (def.lightTurns) rows.push(["Lumi\xE8re", `${def.lightTurns} tours`]);
@@ -15630,9 +15696,12 @@
       $("bag").hidden = true;
     } else if (selected && "uid" in selected) {
       const bagSwap = chosenDef?.kind === "bag";
-      if (!game.equip(selected.uid)) {
+      const hadBow = !!game.equipment.ranged;
+      if (game.equip(selected.uid)) {
+        if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged) logLines.push("Arme \xE0 deux mains : votre arc retourne dans le sac.");
+      } else {
         logLines.push(
-          chosenDef?.twoHanded && game.torchTurns > 0 ? "Une arme \xE0 deux mains ? Votre torche br\xFBle encore dans l'autre main." : bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour \xE9changer."
+          chosenDef?.twoHanded && game.torchTurns > 0 ? "Une arme \xE0 deux mains ? Votre torche br\xFBle encore dans l'autre main." : chosenDef?.kind === "ranged" && game.twoHanded() ? "Votre arme se tient \xE0 deux mains : rangez-la d'abord pour prendre un arc." : bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour \xE9changer."
         );
       }
     } else if (selected && "slot" in selected) {
@@ -15798,8 +15867,9 @@
       const node = el("div", `r${wide ? " wide" : ""}`);
       node.append(el("span", "", name), el("b", "", value));
       if (stat && game.points > 0) {
-        const plus = el("button", "", "+");
+        const plus = el("button", "plus");
         plus.type = "button";
+        plus.append(plusIcon());
         plus.setAttribute("aria-label", `Un point en ${name}`);
         if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
         plus.addEventListener("click", () => {
@@ -15878,6 +15948,7 @@
       if (picks > 0) note = `${picks} pouvoir${picks > 1 ? "s" : ""} \xE0 choisir`;
     }
     $("char-path").replaceChildren(...pathCards);
+    $("char-path").classList.toggle("choose", !game.voie);
     $("char-skills").replaceChildren(...powerCards);
     $("char-note").textContent = note;
     confirm.hidden = pickedChoice === null;
@@ -16031,6 +16102,22 @@
       ]
     };
   }
+  function plusIcon() {
+    const ns = "http://www.w3.org/2000/svg";
+    const cross = document.createElementNS(ns, "svg");
+    cross.setAttribute("viewBox", "0 0 8 8");
+    cross.classList.add("plus-icon");
+    for (const [x, y, w, h] of [[3, 0, 2, 8], [0, 3, 8, 2]]) {
+      const bar = document.createElementNS(ns, "rect");
+      bar.setAttribute("x", String(x));
+      bar.setAttribute("y", String(y));
+      bar.setAttribute("width", String(w));
+      bar.setAttribute("height", String(h));
+      bar.setAttribute("fill", "currentColor");
+      cross.append(bar);
+    }
+    return cross;
+  }
   function el(tag, className, text = "") {
     const node = document.createElement(tag);
     node.className = className;
@@ -16041,7 +16128,8 @@
     container.replaceChildren(
       ...cards.map((card) => {
         const node = el("div", `card${card.available ? "" : " locked"}${card.id === selectedId ? " selected" : ""}`);
-        const more = el("button", "more", "+");
+        const more = el("button", "more");
+        more.append(plusIcon());
         more.setAttribute("aria-label", `D\xE9tail : ${card.name}`);
         more.addEventListener("click", (e) => {
           e.stopPropagation();

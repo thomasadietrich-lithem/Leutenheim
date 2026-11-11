@@ -103,13 +103,34 @@ export class Renderer {
     this.canvas.width = Math.round(rect.width * dpr);
     this.canvas.height = Math.round(rect.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.tile = this.width / this.columns;
+    this.tile = this.snapTile();
+  }
+
+  /** Pixels réels de l'écran par pixel de page (2 ou 3 sur un téléphone). */
+  private dpr(): number {
+    return window.devicePixelRatio || 1;
+  }
+
+  /**
+   * Taille d'une case, arrondie à un nombre entier de pixels de l'écran : toutes les cases ont alors exactement la même
+   * taille. Sinon, quand la vue glisse, chaque case grandit et rétrécit d'un pixel tour à tour : la carte « gigote » et
+   * les cases gardées en mémoire doivent être redessinées sans cesse.
+   */
+  private snapTile(): number {
+    const dpr = this.dpr();
+    return Math.max(1, Math.round((this.width / this.columns) * dpr)) / dpr;
+  }
+
+  /** Arrondit une position au pixel réel de l'écran le plus proche. */
+  private snap(v: number): number {
+    const dpr = this.dpr();
+    return Math.round(v * dpr) / dpr;
   }
 
   /** Zoom : facteur > 1 pour agrandir les cases, < 1 pour en voir davantage. */
   zoomBy(factor: number): void {
     this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
-    this.tile = this.width / this.columns;
+    this.tile = this.snapTile();
   }
 
   /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
@@ -288,12 +309,13 @@ export class Renderer {
     ctx.restore();
   }
 
+  // L'origine de la carte tombe toujours sur un pixel réel de l'écran : la grille ne tremble pas quand la vue glisse.
   private originX(): number {
-    return this.width / 2 - (this.camX + 0.5) * this.tile;
+    return this.snap(this.width / 2 - (this.camX + 0.5) * this.tile);
   }
 
   private originY(): number {
-    return this.height / 2 - (this.camY + 0.5) * this.tile;
+    return this.snap(this.height / 2 - (this.camY + 0.5) * this.tile);
   }
 
   /** Fouille : une vague dorée balaie les cases de la salle depuis le héros, puis les trouvailles scintillent. */
@@ -378,10 +400,11 @@ export class Renderer {
         const wall = t === Tile.Wall;
         // Les voiles d'ombre et de lumière sont calés sur les pixels entiers : deux cases voisines ne laissent
         // ni jour ni recouvrement, donc aucune ligne claire ou sombre à leur jonction.
-        const rx = Math.round(sx);
-        const ry = Math.round(sy);
-        const rw = Math.round(sx + tile) - rx;
-        const rh = Math.round(sy + tile) - ry;
+        // Origine et taille des cases sont calées sur les pixels réels : toutes les cases ont la même taille.
+        const rx = this.snap(sx);
+        const ry = this.snap(sy);
+        const rw = this.snap(sx + tile) - rx;
+        const rh = this.snap(sy + tile) - ry;
         // Chaque case est dessinée découpée sur ces mêmes pixels entiers : rien ne déborde sur une voisine déjà ombrée.
         this.drawCell(game, t, x, y, rx, ry, rw, rh);
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
@@ -727,7 +750,7 @@ export class Renderer {
     const dpr = window.devicePixelRatio || 1;
     // Le dessin d'un mur ou d'une porte dépend des cases voisines (raccords, coins, sens) : la carte tient à jour, pour
     // chaque case, le numéro de la dernière modification à moins de deux cases (`changed`).
-    const key = `${rw}x${rh}@${this.tile}`;
+    const key = `${Math.round(rw * dpr)}x${Math.round(rh * dpr)}`;
     const index = game.map.index(x, y);
     const stamp = game.map.changed[index];
     let entry = this.cellCache.get(index);

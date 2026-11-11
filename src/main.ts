@@ -1234,4 +1234,4 @@ showScreen("main");
 requestAnimationFrame(frame);
 
 // Accès de débogage pour les tests automatiques dans un navigateur (sans effet sur le jeu).
-(window as unknown as { leutenheim: unknown }).leutenheim = { game: () => game };
+(window as unknown as { leutenheim: unknown }).leutenheim = { game: () => game, renderer: () => renderer };

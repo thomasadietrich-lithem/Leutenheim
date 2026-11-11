@@ -4973,12 +4973,30 @@
       this.canvas.width = Math.round(rect.width * dpr);
       this.canvas.height = Math.round(rect.height * dpr);
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      this.tile = this.width / this.columns;
+      this.tile = this.snapTile();
+    }
+    /** Pixels réels de l'écran par pixel de page (2 ou 3 sur un téléphone). */
+    dpr() {
+      return window.devicePixelRatio || 1;
+    }
+    /**
+     * Taille d'une case, arrondie à un nombre entier de pixels de l'écran : toutes les cases ont alors exactement la même
+     * taille. Sinon, quand la vue glisse, chaque case grandit et rétrécit d'un pixel tour à tour : la carte « gigote » et
+     * les cases gardées en mémoire doivent être redessinées sans cesse.
+     */
+    snapTile() {
+      const dpr = this.dpr();
+      return Math.max(1, Math.round(this.width / this.columns * dpr)) / dpr;
+    }
+    /** Arrondit une position au pixel réel de l'écran le plus proche. */
+    snap(v) {
+      const dpr = this.dpr();
+      return Math.round(v * dpr) / dpr;
     }
     /** Zoom : facteur > 1 pour agrandir les cases, < 1 pour en voir davantage. */
     zoomBy(factor) {
       this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
-      this.tile = this.width / this.columns;
+      this.tile = this.snapTile();
     }
     /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
     panBy(dxPixels, dyPixels) {
@@ -5134,11 +5152,12 @@
       }
       ctx.restore();
     }
+    // L'origine de la carte tombe toujours sur un pixel réel de l'écran : la grille ne tremble pas quand la vue glisse.
     originX() {
-      return this.width / 2 - (this.camX + 0.5) * this.tile;
+      return this.snap(this.width / 2 - (this.camX + 0.5) * this.tile);
     }
     originY() {
-      return this.height / 2 - (this.camY + 0.5) * this.tile;
+      return this.snap(this.height / 2 - (this.camY + 0.5) * this.tile);
     }
     scanRoom(room, from, found) {
       const cells = [];
@@ -5206,10 +5225,10 @@
           }
           const t = game2.map.get(x, y);
           const wall = t === Tile.Wall;
-          const rx = Math.round(sx);
-          const ry = Math.round(sy);
-          const rw = Math.round(sx + tile) - rx;
-          const rh = Math.round(sy + tile) - ry;
+          const rx = this.snap(sx);
+          const ry = this.snap(sy);
+          const rw = this.snap(sx + tile) - rx;
+          const rh = this.snap(sy + tile) - ry;
           this.drawCell(game2, t, x, y, rx, ry, rw, rh);
           const shade = wall || t === Tile.Pillar ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
@@ -5503,7 +5522,7 @@
     /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
     drawCell(game2, t, x, y, rx, ry, rw, rh) {
       const dpr = window.devicePixelRatio || 1;
-      const key = `${rw}x${rh}@${this.tile}`;
+      const key = `${Math.round(rw * dpr)}x${Math.round(rh * dpr)}`;
       const index = game2.map.index(x, y);
       const stamp = game2.map.changed[index];
       let entry = this.cellCache.get(index);
@@ -6710,7 +6729,7 @@
   setupRun(new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass), null);
   showScreen("main");
   requestAnimationFrame(frame);
-  window.leutenheim = { game: () => game };
+  window.leutenheim = { game: () => game, renderer: () => renderer };
 })();
 
 </script>

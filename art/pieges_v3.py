@@ -19,8 +19,10 @@ from planche import planche
 
 T = 16
 P = {
-    "out": (18, 13, 8, 255), "dark": (14, 10, 18, 255), "hole": (8, 6, 12, 255),
-    "slab": (92, 88, 110, 255), "slab_l": (118, 114, 138, 255), "slab_d": (66, 62, 82, 255),
+    "out": (18, 13, 8, 255), "dark": (34, 29, 44, 200), "hole": (12, 9, 16, 255),
+    # 2026-11-11 (Thomas : « ils contrastent trop, surtout sur les sols usés ») : la dalle reprend les couleurs du sol B
+    # (pierre, joint), et elle est un peu transparente : la poussière du sol passe à travers.
+    "slab": (75, 69, 96, 140), "slab_l": (90, 83, 114, 150), "slab_d": (52, 46, 68, 170),
     "spike": (220, 226, 240, 255), "spike_d": (130, 136, 158, 255), "rust": (120, 70, 46, 255),
     "blood": (120, 28, 34, 255), "green": (96, 170, 60, 255), "green_l": (170, 230, 110, 255), "green_d": (52, 100, 40, 255),
     "mist": (150, 220, 110, 120), "mist_l": (190, 240, 150, 90), "iron": (90, 95, 116, 255), "iron_l": (138, 144, 168, 255),

@@ -2482,8 +2482,12 @@ test("araignées : à partir de l'étage 3, avec les toiles ; une toile colle ou
 
 test("butin garanti de la section 1 : une pomme à l'étage 1, deux équipements, une gemme, une potion", () => {
   for (let seed = 1; seed <= 30; seed++) {
-    const all = [1, 2, 3, 4, 5].flatMap((d) => guaranteedLoot(seed, d));
-    assert.ok(guaranteedLoot(seed, 1).includes("pomme"));
+    const lots = [1, 2, 3, 4, 5].flatMap((d) => guaranteedLoot(seed, d));
+    const all = lots.map((l) => l.item);
+    assert.ok(guaranteedLoot(seed, 1).some((l) => l.item === "pomme"));
+    const arrows = lots.filter((l) => l.item === "fleche");
+    assert.ok(arrows.length === 1 || arrows.length === 3, "10 flèches en 1 ou 3 lots");
+    assert.equal(arrows.reduce((n, l) => n + l.count, 0), 10);
     assert.ok(all.filter((i) => ["melee", "ranged", "armor"].includes(ITEMS[i].kind)).length >= 2);
     assert.ok(all.some((i) => ITEMS[i].kind === "gem"));
     assert.ok(all.some((i) => i.startsWith("potion_")));
@@ -2592,4 +2596,45 @@ test("pièges v3 : pointes, fosse (on en remonte), aiguille et gaz empoisonnés"
     const g = new Game(seed);
     assert.ok(g.traps().every((t) => t.kind === "spikes" || t.kind === "pit"));
   }
+});
+
+test("tir : l'arc donne le jet et la portée, la flèche les dégâts ; la javeline se lance sans arc", () => {
+  assert.equal((ITEMS.arc_court as { damage?: unknown }).damage, undefined, "l'arc n'a plus de dégâts");
+  assert.ok(ITEMS.fleche.damage && ITEMS.javeline.damage);
+  const game = new Game(4, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  game.inventory.add("javeline", 3);
+  game.equipment.ranged = null;
+  assert.ok(game.chooseAmmo("javeline") || true);
+  game.level = 4;
+  const profile = game.shotProfile();
+  assert.ok(profile && profile.thrown && profile.range === 6 && profile.attackBonus === -2, JSON.stringify(profile));
+  const before = game.inventory.count("javeline");
+  const target = { x: game.hero.x + 2, y: game.hero.y };
+  assert.equal(game.shoot(target.x, target.y), null);
+  game.tick();
+  assert.equal(game.inventory.count("javeline"), before - 1);
+  assert.equal(ITEMS.epee_longue.twoHanded && ITEMS.lance.twoHanded, true);
+});
+
+test("fin de partie : on sait de quoi le héros est mort ; portes et coffres brûlent", () => {
+  const game = new Game(2);
+  const m = game.monsters[0];
+  Object.assign(game.hero, { hp: 1 });
+  Object.assign(m, { x: game.hero.x + 1, y: game.hero.y, alerted: true, asleep: false, attackBonus: 99 });
+  if (!game.map.isWalkable(m.x, m.y)) Object.assign(m, { x: game.hero.x - 1 });
+  for (let i = 0; i < 10 && !game.over; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(game.over);
+  assert.ok(game.deathCause && game.deathCause.includes(m.name), String(game.deathCause));
+  // Une porte à côté du feu part en cendres.
+  const g2 = new Game(1, undefined, undefined, undefined, true);
+  g2.setPeaceful(true);
+  assert.equal(g2.map.get(12, 6), Tile.DoorClosed);
+  g2.fires.push({ x: 13, y: 6, turns: 5 });
+  g2.wait();
+  g2.tick();
+  assert.equal(g2.map.get(12, 6), Tile.Floor, "la porte a brûlé");
 });

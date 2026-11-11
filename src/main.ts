@@ -1,3 +1,4 @@
+import { addRecord, loadRecords, recordLine } from "./ui/records";
 import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
@@ -50,7 +51,6 @@ const die2 = $("die2");
 const dieWho = $("die-who");
 const log = $("log");
 const over = $("over");
-const overText = $("over-text");
 const seedLabel = $("seed");
 const doorActions = $("door-actions");
 const menu = $("menu");
@@ -395,7 +395,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       renderer.heroFalls();
-      overText.textContent = `Vous êtes mort à l'étage ${game.depth}, au tour ${game.turn}.`;
+      showDeath();
       over.hidden = false;
       sfx.play("death");
     } else {
@@ -502,6 +502,42 @@ function reveal(e: GameEvent): void {
     sfx.play("unlock");
   }
   renderLog();
+}
+
+/**
+ * Écran de fin (Thomas, 2026-11-11) : de quoi le héros est mort, plus le nombre de tours ; la partie entre dans les
+ * records (sauf en salle d'essai), avec les trois meilleures dessous.
+ */
+function showDeath(): void {
+  const cause = game.deathCause ?? "ses blessures";
+  over.replaceChildren();
+  over.append(el("div", "over-title", "Vous êtes mort"), el("div", "over-line", `À l'étage ${game.depth}, tué par ${cause}.`));
+  over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
+  if (!game.sandbox) {
+    const d = new Date();
+    const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date });
+    if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
+    else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
+    const best = loadRecords().slice(0, 3);
+    if (best.length > 0) {
+      over.append(el("div", "over-sub", "Records"));
+      best.forEach((r, i) => over.append(el("div", "over-record", recordLine(r, i + 1))));
+    }
+  }
+  const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
+  again.type = "button";
+  again.addEventListener("click", () => showScreen("new"));
+  over.append(again);
+  over.hidden = false;
+}
+
+function renderRecords(): void {
+  const list = $("records-list");
+  list.replaceChildren();
+  const records = loadRecords();
+  if (records.length === 0) list.append(el("p", "", "Aucune partie terminée pour l'instant."));
+  records.forEach((r, i) => list.append(el("div", "over-record", recordLine(r, i + 1))));
 }
 
 /** Fait avancer la file : un jet à la fois, les autres événements sont immédiats. */
@@ -760,9 +796,9 @@ function fireAt(x: number, y: number): void {
   if (refusal) {
     const why = {
       "no-bow": "Aucun arc en main.",
-      "no-ammo": "Plus de flèches.",
+      "no-ammo": "Plus de munitions.",
       "no-target": "Impossible de tirer là.",
-      "out-of-range": `Hors de portée (${game.weapon("ranged")?.range ?? 0} cases).`,
+      "out-of-range": `Hors de portée (${game.shotProfile()?.range ?? 0} cases).`,
     }[refusal];
     logLines.push(why);
     renderLog();
@@ -774,7 +810,7 @@ function fireAt(x: number, y: number): void {
 
 /** La cible visée d'office quand l'arc est bandé : le monstre en vue le plus proche, s'il est à portée. */
 function aimTarget(): Actor | null {
-  const range = game.weapon("ranged")?.range ?? 0;
+  const range = game.shotProfile()?.range ?? 0;
   let best: Actor | null = null;
   let bestDist = Infinity;
   for (const m of game.visibleMonsters()) {
@@ -877,6 +913,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.range) rows.push(["Portée", `${def.range} cases`]);
   if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
+  if (def.twoHanded) rows.push(["Prise", "Deux mains"]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
@@ -900,6 +937,7 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.attackBonus !== undefined) bits.push(`d20 ${signedBonus(def.attackBonus)}`);
   if (def.damage) bits.push(diceLabel(def.damage));
   if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
+  if (def.twoHanded) bits.push("deux mains");
   if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
@@ -1463,18 +1501,19 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex";
+type Screen = "main" | "new" | "settings" | "codex" | "records";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "records"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
   $("settings-sound").textContent = `Sons : ${options.sound ? "activés" : "désactivés"}`;
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
+  if (screen === "records") renderRecords();
 }
 
 interface Card {
@@ -1593,6 +1632,8 @@ button("menu-resume", () => {
 button("menu-new", () => showScreen("new"));
 button("menu-settings", () => showScreen("settings"));
 button("menu-codex", () => showScreen("codex"));
+button("menu-records", () => showScreen("records"));
+button("records-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));
 button("settings-back", () => showScreen("main"));
@@ -1701,7 +1742,7 @@ function frame(now: number): void {
     if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = hint;
   }
   if (started) discoverSurroundings();
-  const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
+  const aimRange = aimMode && game.arrows() > 0 ? (game.shotProfile()?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
   $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
@@ -1736,8 +1777,10 @@ function frame(now: number): void {
   $("recenter").hidden = !renderer.isPanned();
   const bow = game.weapon("ranged");
   const aim = $("aim");
-  aim.hidden = !bow;
-  if (!bow) aimMode = false;
+  // Le bouton de tir sert aussi à lancer une javeline, même sans arc.
+  const canShoot = !!bow || game.shotProfile() !== null;
+  aim.hidden = !canShoot;
+  if (!canShoot) aimMode = false;
   // Dès qu'un ennemi arrive au contact, on repasse à l'arme de corps à corps.
   if (aimMode && game.isThreatened()) {
     aimMode = false;

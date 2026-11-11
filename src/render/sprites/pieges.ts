@@ -1,7 +1,7 @@
 // FICHIER GÉNÉRÉ par art/export_jeu_v4.py : ne pas modifier à la main.
 /** Pièges v3 (art/pieges_v3.png, validée le 2026-11-11) : armé / déclenché ; 18 pixels de large (1 de débord de chaque côté), le gaz a 6 pixels de vapeur au-dessus. */
 export const PIEGES: Record<string, { rows: string[]; palette: Record<string, string> }> = {
-  spikes: { palette: {"a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#82889e", "f": "#08060c"}, rows: [
+  spikes: { palette: {"a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#82889e", "f": "#0c0910"}, rows: [
     "aaa...aaa...aaa...",
     "aaaaaabbbaaaaaa...",
     "aabbbbbcdbbbbbba..",
@@ -21,7 +21,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     ".aaaaaaaaaaadbddda",
     "............aaaaaa",
   ] },
-  spikesSprung: { palette: {"a": "#0e0a12", "b": "#dce2f0", "c": "#82889e", "d": "#423e52", "e": "#781c22", "f": "#76728a", "g": "#5c586e", "h": "#08060c"}, rows: [
+  spikesSprung: { palette: {"a": "rgba(34,29,44,0.78)", "b": "#dce2f0", "c": "#82889e", "d": "rgba(52,46,68,0.67)", "e": "#781c22", "f": "rgba(90,83,114,0.59)", "g": "rgba(75,69,96,0.55)", "h": "#0c0910"}, rows: [
     "aaabc.aabc..aba...",
     "aaabcaddecaaabc...",
     "aadbcddfecdddbca..",
@@ -41,7 +41,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     ".aaaaaaaaaaagdggga",
     "............aaaaaa",
   ] },
-  pit: { palette: {"a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#08060c"}, rows: [
+  pit: { palette: {"a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#0c0910"}, rows: [
     "...aaa............",
     ".aabbbaaaaaaaaaaa.",
     ".abccdbbbbbbaaaba.",
@@ -61,7 +61,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     "abb...ddddddaaadda",
     "aaa...aaaaaa...aaa",
   ] },
-  pitSprung: { palette: {"a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#08060c"}, rows: [
+  pitSprung: { palette: {"a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#0c0910"}, rows: [
     "...aaa............",
     ".aabbbaaaaaaaaaaa.",
     ".abccdbbbbbbaaaba.",
@@ -81,7 +81,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     "abb...ddddddaaadda",
     "aaa...aaaaaa...aaa",
   ] },
-  needle: { palette: {"a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#5a5f74", "f": "#f0f4ff", "g": "#82889e", "h": "#60aa3c", "i": "#346428"}, rows: [
+  needle: { palette: {"a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#5a5f74", "f": "#f0f4ff", "g": "#82889e", "h": "#60aa3c", "i": "#346428"}, rows: [
     "aaa......aaaaaaaaa",
     "abbaaaaaaaaabbbbba",
     "abcbbbbbbbbbddddba",
@@ -101,7 +101,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     ".aabbbaaaaaaaaadda",
     "...aaa.........aaa",
   ] },
-  needleSprung: { palette: {"a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#aae66e", "e": "#5c586e", "f": "#60aa3c", "g": "#f0f4ff", "h": "#5a5f74", "i": "#82889e", "j": "#346428"}, rows: [
+  needleSprung: { palette: {"a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "#aae66e", "e": "rgba(75,69,96,0.55)", "f": "#60aa3c", "g": "#f0f4ff", "h": "#5a5f74", "i": "#82889e", "j": "#346428"}, rows: [
     "aaa......aaaaaaaaa",
     "abbaaaaaaaaabbbbba",
     "abcbbbbbdbbbdeeeba",
@@ -121,7 +121,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     ".aabbbaaaaaaaaaeea",
     "...aaa.........aaa",
   ] },
-  gas0: { palette: {"a": "rgba(190,240,150,0.35)", "b": "#0e0a12", "c": "rgba(150,220,110,0.47)", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c"}, rows: [
+  gas0: { palette: {"a": "rgba(190,240,150,0.35)", "b": "rgba(34,29,44,0.78)", "c": "rgba(150,220,110,0.47)", "d": "rgba(52,46,68,0.67)", "e": "rgba(90,83,114,0.59)", "f": "rgba(75,69,96,0.55)", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c"}, rows: [
     "..................",
     "..................",
     "..................",
@@ -147,7 +147,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     "bbb...bbbbbbbbb...",
     "bbb...............",
   ] },
-  gas1: { palette: {"a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "#0e0a12", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c"}, rows: [
+  gas1: { palette: {"a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "rgba(34,29,44,0.78)", "d": "rgba(52,46,68,0.67)", "e": "rgba(90,83,114,0.59)", "f": "rgba(75,69,96,0.55)", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c"}, rows: [
     "..................",
     "..................",
     "..................",
@@ -173,7 +173,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     "ccc...ccccccccc...",
     "ccc...............",
   ] },
-  gas2: { palette: {"a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "#0e0a12", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#60aa3c", "j": "#5a5f74"}, rows: [
+  gas2: { palette: {"a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "rgba(34,29,44,0.78)", "d": "rgba(52,46,68,0.67)", "e": "rgba(90,83,114,0.59)", "f": "rgba(75,69,96,0.55)", "g": "#8a90a8", "h": "#346428", "i": "#60aa3c", "j": "#5a5f74"}, rows: [
     "..................",
     "..................",
     "..................",
@@ -199,7 +199,7 @@ export const PIEGES: Record<string, { rows: string[]; palette: Record<string, st
     "ccc...ccccccccc...",
     "ccc...............",
   ] },
-  gasSprung: { palette: {"a": "rgba(150,220,110,0.38)", "b": "rgba(150,220,110,0.50)", "c": "rgba(61,83,50,0.81)", "d": "rgba(88,125,68,0.71)", "e": "#0e0a12", "f": "rgba(112,148,97,0.71)", "g": "rgba(95,117,91,0.81)", "h": "rgba(135,172,122,0.71)", "i": "rgba(123,160,110,0.71)", "j": "rgba(144,185,136,0.71)", "k": "rgba(105,166,78,0.71)", "l": "rgba(123,163,112,0.71)", "m": "rgba(125,197,87,0.71)", "n": "rgba(112,134,110,0.81)", "o": "rgba(111,138,113,0.81)", "p": "rgba(86,142,64,0.81)", "q": "#423e52", "r": "#5c586e"}, rows: [
+  gasSprung: { palette: {"a": "rgba(150,220,110,0.38)", "b": "rgba(150,220,110,0.50)", "c": "rgba(74,95,67,0.67)", "d": "rgba(97,134,80,0.61)", "e": "rgba(34,29,44,0.78)", "f": "rgba(105,141,91,0.56)", "g": "rgba(86,106,82,0.60)", "h": "rgba(123,158,111,0.52)", "i": "rgba(116,152,103,0.51)", "j": "rgba(144,185,136,0.71)", "k": "rgba(105,166,78,0.71)", "l": "rgba(123,163,112,0.71)", "m": "rgba(125,197,87,0.71)", "n": "rgba(101,121,100,0.52)", "o": "rgba(111,138,113,0.81)", "p": "rgba(86,142,64,0.81)", "q": "rgba(52,46,68,0.67)", "r": "rgba(75,69,96,0.55)"}, rows: [
     "......aaaa........",
     ".....aaaaa........",
     "....aaaaaaaaaa....",

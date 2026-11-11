@@ -36,7 +36,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 9;
+export const SANDBOX_LAYOUT = 10;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28 };
@@ -184,6 +184,10 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       { x: 11, y: 3, item: "potion_feu", count: 2 },
       { x: 3, y: 6, item: "sac_cuir", count: 1 },
       { x: 11, y: 6, item: "sac_voyage", count: 1 },
+      // Armes v4 (2026-11-11) : couteau de boucher, arc puissant (Lv5), javelines (à lancer depuis le carquois).
+      { x: 4, y: 9, item: "couteau_boucher", count: 1 },
+      { x: 6, y: 9, item: "arc_puissant", count: 1 },
+      { x: 8, y: 9, item: "javeline", count: 3 },
     ],
     heroLevel: 4,
     monsters: [

@@ -74,7 +74,12 @@
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
     overflow-x: hidden; overflow-y: auto; }
-  #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
+  #over { inset: 14% 6%; background: #140808; border-color: #7a2a2a; font-size: 22px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+  #over .over-title { font-size: 34px; color: #ff6b7a; }
+  #over .over-best { color: #ffd75e; font-size: 26px; }
+  #over .over-sub { margin-top: 8px; color: #e0c890; }
+  .over-record { font-size: 17px; color: #d8cfc0; }
+  #records-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
@@ -402,6 +407,7 @@
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
+      <button id="menu-records" type="button">Records</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
     </section>
@@ -420,6 +426,11 @@
       <button id="new-start" type="button">Commencer</button>
       <button id="new-back" type="button" class="ghost">Retour</button>
     </section>
+    <section id="screen-records" hidden>
+      <h2>Records</h2>
+      <div id="records-list"></div>
+      <button id="records-back" type="button" class="ghost">Retour</button>
+    </section>
     <section id="screen-settings" hidden>
       <h2>Paramètres</h2>
       <button id="settings-sound" type="button"></button>
@@ -435,6 +446,30 @@
 <script>
 "use strict";
 (() => {
+  // src/ui/records.ts
+  var KEY = "leutenheim.records";
+  var MAX = 10;
+  function loadRecords() {
+    try {
+      const list = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+      return Array.isArray(list) ? list.filter((r) => r && typeof r.deepest === "number") : [];
+    } catch {
+      return [];
+    }
+  }
+  var better = (a, b) => b.deepest - a.deepest || b.level - a.level || b.gold - a.gold;
+  function addRecord(record) {
+    const list = [...loadRecords(), record].sort(better).slice(0, MAX);
+    try {
+      localStorage.setItem(KEY, JSON.stringify(list));
+    } catch {
+    }
+    return list.indexOf(record) + 1;
+  }
+  function recordLine(r, rank) {
+    return `${rank}. \xC9tage ${r.deepest} \xB7 Niv ${r.level} \xB7 ${r.gold} or \u2014 ${r.cause} (${r.date})`;
+  }
+
   // src/render/sprites/decor.ts
   var DECOR_PALETTE = { "K": "#120d08", "N": "#06050a", "H": "#2a2e40", "C": "#4e5570", "D": "#7f88a6", "c": "#a4abc8", "S": "#c3cbe0", "W": "#f4f7ff", "B": "#9a6a34", "b": "#5a3817", "T": "#b9824a", "t": "#7a5230", "G": "#f0c050", "g": "#a87c1c", "s": "#0c0a12", "R": "#d03a44", "r": "#8e1f28" };
   var DECOR = {
@@ -900,12 +935,52 @@
       w: 1,
       h: 2,
       maxStack: 1,
+      // Règle de Thomas (2026-11-11) : l'arc donne le jet (d20 + bonus) et la portée ; la FLÈCHE donne les dégâts.
       attackBonus: 3,
-      damage: { count: 1, sides: 6, bonus: 0 },
       range: 9,
       ammo: "fleche"
     },
-    fleche: { id: "fleche", name: "Fl\xE8ches", kind: "ammo", description: "Munitions pour l'arc.", w: 1, h: 1, maxStack: 20, rarity: "common", ammoFamily: "fleche" },
+    arc_puissant: {
+      id: "arc_puissant",
+      name: "Arc puissant",
+      kind: "ranged",
+      description: "Un arc recourb\xE9 aux bouts de corne. Il porte loin, et la fl\xE8che part droit.",
+      w: 1,
+      h: 2,
+      maxStack: 1,
+      rarity: "uncommon",
+      level: 5,
+      attackBonus: 5,
+      range: 11,
+      ammo: "fleche"
+    },
+    fleche: {
+      id: "fleche",
+      name: "Fl\xE8ches",
+      kind: "ammo",
+      description: "Munitions pour l'arc.",
+      w: 1,
+      h: 1,
+      maxStack: 20,
+      rarity: "common",
+      ammoFamily: "fleche",
+      damage: { count: 1, sides: 6, bonus: 0 }
+    },
+    javeline: {
+      id: "javeline",
+      name: "Javelines",
+      kind: "ammo",
+      description: "Se lance \xE0 la main, sans arc (choisie dans le carquois). Moins pr\xE9cise qu'une fl\xE8che, elle frappe fort, et se ramasse.",
+      w: 1,
+      h: 1,
+      maxStack: 6,
+      rarity: "uncommon",
+      level: 3,
+      ammoFamily: "jet",
+      attackBonus: -2,
+      range: 6,
+      damage: { count: 1, sides: 8, bonus: 2 }
+    },
     fleche_poison: {
       id: "fleche_poison",
       name: "Fl\xE8ches empoisonn\xE9es",
@@ -917,6 +992,7 @@
       rarity: "uncommon",
       level: 4,
       ammoFamily: "fleche",
+      damage: { count: 1, sides: 6, bonus: 0 },
       poison: { damage: 1, turns: 4 }
     },
     pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
@@ -935,27 +1011,43 @@
       id: "epee_longue",
       name: "\xC9p\xE9e longue",
       kind: "melee",
-      description: "Lourde et longue. Chaque coup prend du temps, mais il porte.",
+      description: "Lourde et longue, elle se tient \xE0 deux mains. Chaque coup prend du temps, mais il porte.",
       w: 1,
       h: 3,
       maxStack: 1,
       rarity: "uncommon",
       level: 2,
       speed: "slow",
+      twoHanded: true,
       attackBonus: 4,
       damage: { count: 2, sides: 6, bonus: 2 }
+    },
+    couteau_boucher: {
+      id: "couteau_boucher",
+      name: "Couteau de boucher",
+      kind: "melee",
+      description: "Une lame large et lourde du bout, faite pour trancher la viande. Vive en main.",
+      w: 1,
+      h: 1,
+      maxStack: 1,
+      rarity: "common",
+      level: 2,
+      speed: "fast",
+      attackBonus: 4,
+      damage: { count: 1, sides: 4, bonus: 2 }
     },
     lance: {
       id: "lance",
       name: "Lance",
       kind: "melee",
-      description: "Frappe \xE0 deux cases : on touche l'ennemi avant qu'il n'arrive au contact. Lente \xE0 manier.",
+      description: "Frappe \xE0 deux cases : on touche l'ennemi avant qu'il n'arrive au contact. \xC0 deux mains, lente \xE0 manier.",
       w: 1,
       h: 4,
       maxStack: 1,
       rarity: "uncommon",
       level: 2,
       speed: "slow",
+      twoHanded: true,
       reach: 2,
       attackBonus: 4,
       damage: { count: 1, sides: 8, bonus: 1 }
@@ -2098,11 +2190,13 @@
     vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
     vitrail1: { blocks: false, w: 1, h: 1, burns: false, wall: true },
     // SALLE DE TORTURE v1 : table à chaînes (2 cases), râtelier, planche au mur, corde à crochet (mur du fond),
-    // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille.
+    // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille. Les cordes pendent en grappe, immobiles (3 dessins).
     rackTable: { blocks: true, w: 2, h: 1, burns: true },
     toolRack: { blocks: true, w: 1, h: 1, burns: true },
     wallBoard: { blocks: true, w: 1, h: 1, burns: true },
-    rope: { blocks: true, w: 1, h: 1, burns: true },
+    ropeA: { blocks: true, w: 1, h: 1, burns: true },
+    ropeB: { blocks: true, w: 1, h: 1, burns: true },
+    ropeC: { blocks: true, w: 1, h: 1, burns: true },
     maiden: { blocks: true, w: 1, h: 1, burns: false },
     maidenOpen: { blocks: true, w: 1, h: 1, burns: false },
     bloodGutterV: { blocks: false, w: 1, h: 1, burns: false, flat: true },
@@ -2442,10 +2536,18 @@
       if (underTorch(floor, s.x, s.y)) continue;
       if (P.tryPlace({ ...s, kind: ["candelBare", "candelA", "candelB", "candelC"][rng.int(0, 3)] })) lit++;
     }
-    for (const [i, x] of [room.x + 1, room.x + room.w - 2].entries()) {
-      const wy = room.y - 1;
-      if (floor.map.get(x, wy) !== Tile.Wall || floor.torches.some((t) => t.x === x && t.y === wy)) continue;
-      P.placed.push({ x, y: wy, kind: `vitrail${i}` });
+    const wy = room.y - 1;
+    const wallSpots = shuffle(
+      rng,
+      [...Array(room.w).keys()].map((i) => room.x + i).filter((x) => floor.map.get(x, wy) === Tile.Wall && !floor.torches.some((t) => t.x === x && t.y === wy))
+    );
+    const windows = rng.int(2, 6);
+    const glassAt = [];
+    for (const x of wallSpots) {
+      if (glassAt.length >= windows) break;
+      if (glassAt.some((g) => Math.abs(g - x) < 2)) continue;
+      glassAt.push(x);
+      P.placed.push({ x, y: wy, kind: `vitrail${glassAt.length % 2}` });
     }
     out.push(...P.placed);
     return true;
@@ -2453,7 +2555,7 @@
   function furnishTorture(floor, room, rng, out) {
     const P = roomPlacer(floor, room);
     if (!P.allFloor()) return false;
-    const back = [...Array(rng.int(1, 2)).fill("toolRack"), ...Array(rng.int(0, 1)).fill("wallBoard"), ...Array(rng.int(0, 2)).fill("rope")];
+    const back = [...Array(rng.int(1, 2)).fill("toolRack"), ...Array(rng.int(0, 1)).fill("wallBoard"), ...Array(rng.int(0, 2)).fill("rope")].map((k) => k === "rope" ? ["ropeA", "ropeB", "ropeC"][rng.int(0, 2)] : k);
     P.alongBackWall(shuffle(rng, back));
     if (!P.placed.some((f) => f.kind === "toolRack")) {
       P.undo();
@@ -2547,7 +2649,7 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 9;
+  var SANDBOX_LAYOUT = 10;
   var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
     const map = new GameMap(40, 32);
@@ -2673,7 +2775,11 @@
         { x: 10, y: 3, item: "potion_vitesse", count: 1 },
         { x: 11, y: 3, item: "potion_feu", count: 2 },
         { x: 3, y: 6, item: "sac_cuir", count: 1 },
-        { x: 11, y: 6, item: "sac_voyage", count: 1 }
+        { x: 11, y: 6, item: "sac_voyage", count: 1 },
+        // Armes v4 (2026-11-11) : couteau de boucher, arc puissant (Lv5), javelines (à lancer depuis le carquois).
+        { x: 4, y: 9, item: "couteau_boucher", count: 1 },
+        { x: 6, y: 9, item: "arc_puissant", count: 1 },
+        { x: 8, y: 9, item: "javeline", count: 3 }
       ],
       heroLevel: 4,
       monsters: [
@@ -2803,7 +2909,7 @@
     { small: [6, 15], medium: [20, 40], large: [50, 80] }
   ];
   var LOOT = {
-    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }],
+    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }],
     uncommon: [
       { item: "fleche_poison", count: [2, 4] },
       { item: "gold" },
@@ -2811,6 +2917,8 @@
       { item: "lance" },
       { item: "amethyste" },
       { item: "sac_cuir", minDepth: 5 },
+      { item: "javeline", count: [3, 3], minDepth: 3 },
+      { item: "arc_puissant", minDepth: 5 },
       { item: "potion_poison" },
       { item: "potion_vitesse" },
       { item: "potion_feu" }
@@ -2838,6 +2946,8 @@
   }
   var SECTION_GUARANTEES = [
     { what: "pomme", count: 1, floors: [1, 1] },
+    // Thomas : 10 flèches dans la première section, en un lot ou en trois (tiré au début de la partie).
+    { what: "fleches", count: 1, floors: [1, 5] },
     { what: "equipment", count: 2, floors: [1, 5] },
     { what: "gem", count: 1, floors: [1, 5] },
     { what: "potion", count: 1, floors: [1, 5] }
@@ -2968,10 +3078,15 @@
     };
     for (const g of SECTION_GUARANTEES) {
       for (let i = 0; i < g.count; i++) {
+        if (g.what === "fleches") {
+          const lots = rng.chance(0.5) ? [10] : [3, 3, 4];
+          for (const n of lots) if (rng.int(g.floors[0], g.floors[1]) === depth) out.push({ item: "fleche", count: n });
+          continue;
+        }
         const floor = rng.int(g.floors[0], g.floors[1]);
         const pickIndex = rng.int(0, 999);
         const pool = pools[g.what];
-        if (floor === depth && pool.length > 0) out.push(pool[pickIndex % pool.length]);
+        if (floor === depth && pool.length > 0) out.push({ item: pool[pickIndex % pool.length], count: 1 });
       }
     }
     return out;
@@ -2988,7 +3103,7 @@
   }
   function placeGuaranteed(state, items, seed) {
     const rng = new Rng(seed ^ 1294756639);
-    for (const item of items) {
+    for (const { item, count } of items) {
       for (let attempt = 0; attempt < 40; attempt++) {
         const room = state.rooms[rng.int(Math.min(1, state.rooms.length - 1), state.rooms.length - 1)];
         const x = rng.int(room.x, room.x + room.w - 1);
@@ -2996,7 +3111,7 @@
         if (state.map.get(x, y) !== Tile.Floor || state.ground.some((g) => g.x === x && g.y === y)) continue;
         if (state.traps.some((t) => t.x === x && t.y === y)) continue;
         if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
-        state.ground.push({ x, y, item, count: 1 });
+        state.ground.push({ x, y, item, count });
         break;
       }
     }
@@ -3113,6 +3228,9 @@
       this.deepest = 0;
       /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
       this.gas = [];
+      /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
+      /** Ce qui a tué le héros, pour l'écran de fin (Thomas : « dis de quoi il est mort »). */
+      this.deathCause = null;
       /** Meubles en feu : tours restants avant qu'il n'en reste qu'un tas de cendres. */
       this.furnitureFire = /* @__PURE__ */ new Map();
       this.peacefulStash = [];
@@ -3449,12 +3567,16 @@
       if (damage > 0) {
         this.bleed(actor, actor);
         if (actor.kind === "hero") {
-          this.hurtHero(damage);
+          this.hurtHero(damage, { spikes: "un pi\xE8ge \xE0 pointes", pit: "une chute dans une fosse", needle: "une aiguille empoisonn\xE9e", gas: "le gaz" }[kind]);
         } else {
           actor.hp = Math.max(0, actor.hp - damage);
           this.removeIfDead(actor);
         }
       }
+    }
+    /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
+    killerName(m) {
+      return `${m.defId === "araignee" ? "une" : "un"} ${m.name}`;
     }
     /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
     poisonActor(actor, poison) {
@@ -3876,11 +3998,22 @@
       this.events.push({ type: "dropped", item: item.defId, count: item.count });
       return true;
     }
-    /** Les munitions de l'arc présentes dans le sac, ordinaires d'abord. */
+    /** Les munitions présentes dans le sac : celles de l'arc (ordinaires d'abord), puis ce qui se lance à la main (javelines). */
     ammoKinds() {
       const family = this.weapon("ranged")?.ammo;
-      if (!family) return [];
-      return Object.keys(ITEMS).filter((id) => ITEMS[id].ammoFamily === family && this.inventory.count(id) > 0);
+      return Object.keys(ITEMS).filter((id) => {
+        const f = ITEMS[id].ammoFamily;
+        return (f === "jet" || !!family && f === family) && this.inventory.count(id) > 0;
+      });
+    }
+    /** Le tir qui partira : portée et bonus au jet viennent de l'arc, ou de la javeline si on la lance à la main. */
+    shotProfile() {
+      const ammo = this.currentAmmo();
+      if (!ammo) return null;
+      const def = ITEMS[ammo];
+      if (def.ammoFamily === "jet") return { range: def.range ?? 0, attackBonus: def.attackBonus ?? 0, thrown: true };
+      const bow = this.weapon("ranged");
+      return bow ? { range: bow.range ?? 0, attackBonus: bow.attackBonus ?? 0, thrown: false } : null;
     }
     /** Choisir les flèches à tirer. Refusé si le héros n'a pas le niveau. */
     chooseAmmo(id) {
@@ -3892,10 +4025,11 @@
     /** La munition qui partira au prochain tir : le choix du joueur s'il en reste, sinon la flèche ordinaire. */
     currentAmmo() {
       const family = this.weapon("ranged")?.ammo;
-      if (!family) return null;
       const chosen = ITEMS[this.ammoChoice];
-      if (chosen.ammoFamily === family && !this.tooLow(chosen) && this.inventory.count(this.ammoChoice) > 0) return this.ammoChoice;
-      return this.inventory.count(family) > 0 ? family : null;
+      const usable = (id) => !this.tooLow(ITEMS[id]) && this.inventory.count(id) > 0;
+      if ((chosen.ammoFamily === "jet" || !!family && chosen.ammoFamily === family) && usable(this.ammoChoice)) return this.ammoChoice;
+      if (family && this.inventory.count(family) > 0) return family;
+      return this.ammoKinds().find((id) => ITEMS[id].ammoFamily === "jet" && usable(id)) ?? null;
     }
     // ---------- Points, voie, compétences ----------
     /** Ce qui ne sert qu'un nombre limité de fois sur l'étage courant. */
@@ -3990,8 +4124,7 @@
         if (this.monsters.includes(target)) this.heroAttacks(target, true);
       }
     }
-    /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
-    hurtHero(damage) {
+    hurtHero(damage, cause = "ses blessures") {
       if (damage <= 0) return;
       if (this.hero.hp - damage <= 0 && this.skills.includes("dernier_rempart") && !this.perks().lastStand) {
         this.perks().lastStand = true;
@@ -4002,6 +4135,7 @@
       this.hero.hp = Math.max(0, this.hero.hp - damage);
       if (this.hero.hp === 0 && !this.over) {
         this.over = true;
+        this.deathCause = cause;
         this.path = [];
         this.events.push({ type: "death", actor: this.hero });
       }
@@ -4048,7 +4182,38 @@
      * Le feu gagne les meubles (Thomas) : un meuble qui brûle s'il y a des flammes à une case de lui (ou sur lui). Il
      * brûle tout entier, et à son tour enflamme ses voisins à une case.
      */
+    /**
+     * Tout ce qui est en bois brûle (Thomas) : les portes (même verrouillées) partent en cendres et laissent le passage
+     * ouvert ; un coffre brûle et laisse tomber son or et son objet à côté.
+     */
+    burnWoodTiles() {
+      let changed = false;
+      for (const fire of [...this.fires]) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = fire.x + dx;
+            const y = fire.y + dy;
+            const t = this.map.get(x, y);
+            const door = t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked;
+            if (!door && t !== Tile.Chest) continue;
+            if (t === Tile.Chest) {
+              const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+              this.map.set(x, y, Tile.Floor);
+              this.spillLoot(x, y, gold, rollLoot(this.rng, this.depth));
+            } else this.map.set(x, y, Tile.Floor);
+            if (!this.furnitureAt(x, y)) this.current.furniture.push({ x, y, kind: "ashes1" });
+            this.events.push({ type: "furnitureFire", x, y, kind: door ? "door" : "chest" });
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        this.refreshLight();
+        this.updateVision();
+      }
+    }
     igniteFurniture() {
+      this.burnWoodTiles();
       const webs = this.current.furniture.filter(
         (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1)
       );
@@ -4107,7 +4272,7 @@
         a.burning--;
         const damage = rollDice(this.rng, RULES.fireDamage);
         this.events.push({ type: "burn", actor: a, damage });
-        if (a === this.hero) this.hurtHero(damage);
+        if (a === this.hero) this.hurtHero(damage, "les flammes");
         else {
           a.hp -= damage;
           this.removeIfDead(a);
@@ -4122,7 +4287,7 @@
           a.burning = RULES.burnAfter;
           const damage = rollDice(this.rng, RULES.fireDamage);
           this.events.push({ type: "burn", actor: a, damage });
-          if (a === this.hero) this.hurtHero(damage);
+          if (a === this.hero) this.hurtHero(damage, "les flammes");
           else {
             a.hp -= damage;
             a.alerted = true;
@@ -4196,12 +4361,12 @@
      * Renvoie la raison du refus, ou null si le tir est lancé.
      */
     shoot(x, y) {
-      const bow = this.weapon("ranged");
-      if (this.over || !bow) return "no-bow";
-      if (this.arrows() < 1) return "no-ammo";
+      const profile = this.shotProfile();
+      if (this.over || !profile && !this.weapon("ranged")) return "no-bow";
+      if (!profile || this.arrows() < 1) return "no-ammo";
       if (!this.map.inBounds(x, y) || x === this.hero.x && y === this.hero.y) return "no-target";
       const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
-      if (distance > (bow.range ?? 0)) return "out-of-range";
+      if (distance > profile.range) return "out-of-range";
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
@@ -4807,7 +4972,7 @@
       this.hero.poison.turns--;
       if (this.hero.poison.turns <= 0) this.hero.poison = void 0;
       this.events.push({ type: "poison", actor: this.hero, damage });
-      this.hurtHero(damage);
+      this.hurtHero(damage, "le poison");
     }
     poisonTick() {
       for (const m of [...this.monsters]) {
@@ -4905,7 +5070,7 @@
         const result = rollAttack(this.rng, m, this.hero);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
         if (result.damage > 0) this.bleed(this.hero, m);
-        this.hurtHero(result.damage);
+        this.hurtHero(result.damage, this.killerName(m));
         attacked = true;
       }
       return attacked;
@@ -4989,7 +5154,7 @@
       this.events.push({ type: "maiden", action, x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
       if (damage > 0) {
         this.bleed(this.hero, this.hero);
-        this.hurtHero(damage);
+        this.hurtHero(damage, "la pointe d'un sarcophage");
       }
     }
     resolveDoor(action, door) {
@@ -5094,9 +5259,9 @@
      * (jet d'attaque), rebondit d'une case sur un mur, une colonne ou une porte fermée, ou se plante dans la case visée.
      */
     heroShoots(target) {
-      const bow = this.weapon("ranged");
+      const profile = this.shotProfile();
       const ammo = this.currentAmmo();
-      if (!bow || !ammo || !this.inventory.take(ammo, 1)) return;
+      if (!profile || !ammo || !this.inventory.take(ammo, 1)) return;
       const poison = ITEMS[ammo].poison;
       this.reveal();
       const origin = { x: this.hero.x, y: this.hero.y };
@@ -5129,8 +5294,8 @@
         const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
         const open = (dx, dy) => this.map.isWalkable(victim.x + dx, victim.y + dy);
         const narrow = !open(-1, 0) && !open(1, 0) || !open(0, -1) && !open(0, 1);
-        const attackBonus = (bow.attackBonus ?? 0) + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
-        const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+        const attackBonus = profile.attackBonus + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
+        const result = rollAttack(this.rng, { attackBonus, damage: ITEMS[ammo].damage ?? UNARMED.damage }, victim, mode);
         this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : void 0;
         this.noteHeroAttack(result.hit);
         victim.alerted = true;
@@ -5244,7 +5409,7 @@
           if (result.damage > 0) this.bleed(this.hero, m);
           this.raiseAlarm(RULES.alarmCombat, this.hero);
           this.wakeNear(this.hero);
-          this.hurtHero(result.damage);
+          this.hurtHero(result.damage, this.killerName(m));
           continue;
         }
         const steps = MONSTERS[m.defId].chaseSteps ?? 1;
@@ -6936,6 +7101,77 @@
       "...KuuK.........",
       "...KuK..........",
       "....K..........."
+    ],
+    // Armes v4 (planche art/armes_v4.png, validée le 2026-11-11) ; l'arc puissant redessiné en 16 × 32 comme l'arc court.
+    javeline: [
+      ".............KK.",
+      "............KDWK",
+      "...........KDDCK",
+      "...........KCCK.",
+      "..........KtKK..",
+      ".........KtK....",
+      "........KtK.....",
+      ".......KtK......",
+      "......KtK.......",
+      ".....KtK........",
+      "....KtK.........",
+      "...KtK..........",
+      "..KtK...........",
+      ".KtK............",
+      "KtK.............",
+      ".K.............."
+    ],
+    couteau_boucher: [
+      "................",
+      ".....KKKKKKKKK..",
+      "....KDDDDDDDDDK.",
+      "....KCCCCCCCKCK.",
+      "....KCCCCCCCCCK.",
+      "....KC11CCCCCCK.",
+      "....KCCCCCCCCCK.",
+      "....KCCCCCCCCCK.",
+      ".KKKKDWWWWWWWWK.",
+      "KBBBBDKKKKKKKK..",
+      "KbSbSDK.........",
+      "KbbbbDK.........",
+      ".KKKKK..........",
+      "................",
+      "................",
+      "................"
+    ],
+    arc_puissant: [
+      "KzZZKK..........",
+      ".KZZnbK.........",
+      ".KZZKnbK........",
+      ".KLK.KnbK.......",
+      ".KLK.KnbK.......",
+      ".KLK..KnbK......",
+      ".KLK...KnbK.....",
+      ".KLK...KnbK.....",
+      ".KLK...KnbK.....",
+      ".KLK....KnbK....",
+      ".KLK....KnbK....",
+      ".KLK....KnbK....",
+      ".KLK....KnbK....",
+      ".KLK....KttK....",
+      ".KLK....KttK....",
+      ".KLK....KttK....",
+      ".KLK....KttK....",
+      ".KLK....KttK....",
+      ".KLK....KttK....",
+      ".KLK....KnbK....",
+      ".KLK....KnbK....",
+      ".KLK....KnbK....",
+      ".KLK...KnbK.....",
+      ".KLK...KnbK.....",
+      ".KLK...KnbK.....",
+      ".KLK..KnbK......",
+      ".KLK.KnbK.......",
+      ".KLK.KnbK.......",
+      ".KLKKnbK........",
+      ".KZZnbK.........",
+      ".KZZKK..........",
+      "KzZZK..........."
     ],
     pomme: [
       "........K.......",
@@ -8836,7 +9072,7 @@
 
   // src/render/sprites/pieges.ts
   var PIEGES = {
-    spikes: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#82889e", "f": "#08060c" }, rows: [
+    spikes: { palette: { "a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#82889e", "f": "#0c0910" }, rows: [
       "aaa...aaa...aaa...",
       "aaaaaabbbaaaaaa...",
       "aabbbbbcdbbbbbba..",
@@ -8856,7 +9092,7 @@
       ".aaaaaaaaaaadbddda",
       "............aaaaaa"
     ] },
-    spikesSprung: { palette: { "a": "#0e0a12", "b": "#dce2f0", "c": "#82889e", "d": "#423e52", "e": "#781c22", "f": "#76728a", "g": "#5c586e", "h": "#08060c" }, rows: [
+    spikesSprung: { palette: { "a": "rgba(34,29,44,0.78)", "b": "#dce2f0", "c": "#82889e", "d": "rgba(52,46,68,0.67)", "e": "#781c22", "f": "rgba(90,83,114,0.59)", "g": "rgba(75,69,96,0.55)", "h": "#0c0910" }, rows: [
       "aaabc.aabc..aba...",
       "aaabcaddecaaabc...",
       "aadbcddfecdddbca..",
@@ -8876,7 +9112,7 @@
       ".aaaaaaaaaaagdggga",
       "............aaaaaa"
     ] },
-    pit: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#08060c" }, rows: [
+    pit: { palette: { "a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#0c0910" }, rows: [
       "...aaa............",
       ".aabbbaaaaaaaaaaa.",
       ".abccdbbbbbbaaaba.",
@@ -8896,7 +9132,7 @@
       "abb...ddddddaaadda",
       "aaa...aaaaaa...aaa"
     ] },
-    pitSprung: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#08060c" }, rows: [
+    pitSprung: { palette: { "a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#0c0910" }, rows: [
       "...aaa............",
       ".aabbbaaaaaaaaaaa.",
       ".abccdbbbbbbaaaba.",
@@ -8916,7 +9152,7 @@
       "abb...ddddddaaadda",
       "aaa...aaaaaa...aaa"
     ] },
-    needle: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#5a5f74", "f": "#f0f4ff", "g": "#82889e", "h": "#60aa3c", "i": "#346428" }, rows: [
+    needle: { palette: { "a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "rgba(75,69,96,0.55)", "e": "#5a5f74", "f": "#f0f4ff", "g": "#82889e", "h": "#60aa3c", "i": "#346428" }, rows: [
       "aaa......aaaaaaaaa",
       "abbaaaaaaaaabbbbba",
       "abcbbbbbbbbbddddba",
@@ -8936,7 +9172,7 @@
       ".aabbbaaaaaaaaadda",
       "...aaa.........aaa"
     ] },
-    needleSprung: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#aae66e", "e": "#5c586e", "f": "#60aa3c", "g": "#f0f4ff", "h": "#5a5f74", "i": "#82889e", "j": "#346428" }, rows: [
+    needleSprung: { palette: { "a": "rgba(34,29,44,0.78)", "b": "rgba(52,46,68,0.67)", "c": "rgba(90,83,114,0.59)", "d": "#aae66e", "e": "rgba(75,69,96,0.55)", "f": "#60aa3c", "g": "#f0f4ff", "h": "#5a5f74", "i": "#82889e", "j": "#346428" }, rows: [
       "aaa......aaaaaaaaa",
       "abbaaaaaaaaabbbbba",
       "abcbbbbbdbbbdeeeba",
@@ -8956,7 +9192,7 @@
       ".aabbbaaaaaaaaaeea",
       "...aaa.........aaa"
     ] },
-    gas0: { palette: { "a": "rgba(190,240,150,0.35)", "b": "#0e0a12", "c": "rgba(150,220,110,0.47)", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c" }, rows: [
+    gas0: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(34,29,44,0.78)", "c": "rgba(150,220,110,0.47)", "d": "rgba(52,46,68,0.67)", "e": "rgba(90,83,114,0.59)", "f": "rgba(75,69,96,0.55)", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c" }, rows: [
       "..................",
       "..................",
       "..................",
@@ -8982,7 +9218,7 @@
       "bbb...bbbbbbbbb...",
       "bbb..............."
     ] },
-    gas1: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "#0e0a12", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c" }, rows: [
+    gas1: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "rgba(34,29,44,0.78)", "d": "rgba(52,46,68,0.67)", "e": "rgba(90,83,114,0.59)", "f": "rgba(75,69,96,0.55)", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c" }, rows: [
       "..................",
       "..................",
       "..................",
@@ -9008,7 +9244,7 @@
       "ccc...ccccccccc...",
       "ccc..............."
     ] },
-    gas2: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "#0e0a12", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#60aa3c", "j": "#5a5f74" }, rows: [
+    gas2: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "rgba(34,29,44,0.78)", "d": "rgba(52,46,68,0.67)", "e": "rgba(90,83,114,0.59)", "f": "rgba(75,69,96,0.55)", "g": "#8a90a8", "h": "#346428", "i": "#60aa3c", "j": "#5a5f74" }, rows: [
       "..................",
       "..................",
       "..................",
@@ -9034,7 +9270,7 @@
       "ccc...ccccccccc...",
       "ccc..............."
     ] },
-    gasSprung: { palette: { "a": "rgba(150,220,110,0.38)", "b": "rgba(150,220,110,0.50)", "c": "rgba(61,83,50,0.81)", "d": "rgba(88,125,68,0.71)", "e": "#0e0a12", "f": "rgba(112,148,97,0.71)", "g": "rgba(95,117,91,0.81)", "h": "rgba(135,172,122,0.71)", "i": "rgba(123,160,110,0.71)", "j": "rgba(144,185,136,0.71)", "k": "rgba(105,166,78,0.71)", "l": "rgba(123,163,112,0.71)", "m": "rgba(125,197,87,0.71)", "n": "rgba(112,134,110,0.81)", "o": "rgba(111,138,113,0.81)", "p": "rgba(86,142,64,0.81)", "q": "#423e52", "r": "#5c586e" }, rows: [
+    gasSprung: { palette: { "a": "rgba(150,220,110,0.38)", "b": "rgba(150,220,110,0.50)", "c": "rgba(74,95,67,0.67)", "d": "rgba(97,134,80,0.61)", "e": "rgba(34,29,44,0.78)", "f": "rgba(105,141,91,0.56)", "g": "rgba(86,106,82,0.60)", "h": "rgba(123,158,111,0.52)", "i": "rgba(116,152,103,0.51)", "j": "rgba(144,185,136,0.71)", "k": "rgba(105,166,78,0.71)", "l": "rgba(123,163,112,0.71)", "m": "rgba(125,197,87,0.71)", "n": "rgba(101,121,100,0.52)", "o": "rgba(111,138,113,0.81)", "p": "rgba(86,142,64,0.81)", "q": "rgba(52,46,68,0.67)", "r": "rgba(75,69,96,0.55)" }, rows: [
       "......aaaa........",
       ".....aaaaa........",
       "....aaaaaaaaaa....",
@@ -9964,95 +10200,77 @@
       ".ajjjjjjjjjjjja.",
       ".ajjjjjjjjjjjja."
     ] },
-    rope0: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
-      "..abccccba..",
-      "..abbbbbba..",
-      "...aaadaa...",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      "....aea.....",
-      "....ada.....",
-      "....ada.....",
-      "....aea.....",
-      "....ada.....",
-      "....ada.....",
-      "....aea.....",
-      "....ada.....",
-      "....aca.....",
-      "....aca.....",
-      "...aaca.....",
-      "..afaaa.....",
-      "..acaaba....",
-      "..abbba.....",
-      "...aaa......",
-      "............"
+    ropeA: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
+      "...abccccba...",
+      "...abbbbbba...",
+      "...adaadaada..",
+      "...aeaaeaaea..",
+      "...adaadaada..",
+      "...adaadaada..",
+      "...aeaaea.aea.",
+      "...adaadaaada.",
+      "...adaadaedea.",
+      "...aeaaeaeeea.",
+      "...adaadaaaa..",
+      "....a.ada.....",
+      "......aea.....",
+      "......ada.....",
+      "......ada.....",
+      "......aea.....",
+      "......ada.....",
+      "......ada.....",
+      "......aca.....",
+      ".....aaca.....",
+      "....afaa......",
+      "....abbba....."
     ] },
-    rope1: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
-      "..abccccba..",
-      "..abbbbbba..",
-      "...aaadaa...",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....aca....",
-      ".....aca....",
-      "....aaca....",
-      "...afaaa....",
-      "...acaaba...",
-      "...abbba....",
-      "....aaa.....",
-      "............"
+    ropeB: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
+      "...abccccba...",
+      "...abbbbbba...",
+      "...adaadaada..",
+      "...aeaaeaaea..",
+      "...adaadaada..",
+      "...adaadaada..",
+      "...aeaaeaaea..",
+      "....adadaada..",
+      "....adadaedea.",
+      "....aeaeaeeea.",
+      "....adadaaaa..",
+      ".....aada.....",
+      "......aea.....",
+      "......ada.....",
+      "......ada.....",
+      "......aea.....",
+      "......ada.....",
+      "......ada.....",
+      "......aca.....",
+      ".....aaca.....",
+      "....afaa......",
+      "....abbba....."
     ] },
-    rope2: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
-      "..abccccba..",
-      "..abbbbbba..",
-      "...aaadaa...",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      ".....aea....",
-      ".....ada....",
-      ".....ada....",
-      "......aea...",
-      "......ada...",
-      "......ada...",
-      "......aea...",
-      "......ada...",
-      "......ada...",
-      "......aea...",
-      "......ada...",
-      "......aca...",
-      "......aca...",
-      ".....aaca...",
-      "....afaaa...",
-      "....acaaba..",
-      "....abbba...",
-      ".....aaa....",
-      "............"
+    ropeC: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
+      "...abccccba...",
+      "...abbbbbba...",
+      "...adaadaada..",
+      "...aeaaeaaea..",
+      "...adaadaada..",
+      "...adaadaada..",
+      "...aeaaeaaea..",
+      "...adaadaada..",
+      "...adaadaedea.",
+      "...aeaaeaeeea.",
+      "...adaadaaaa..",
+      "....a..ada....",
+      ".......aea....",
+      ".......ada....",
+      ".......ada....",
+      ".......aea....",
+      ".......ada....",
+      ".......ada....",
+      "......aca.....",
+      ".....aaca.....",
+      "....afaa......",
+      "....abbba....."
     ] },
     maiden: { palette: { "a": "#120d08", "b": "#a0603c", "c": "#7a4228", "d": "#522c1c", "e": "#08060c", "f": "#b4bacc", "g": "#5a5f74", "h": "#1c1622" }, rows: [
       "...abbcccccccda...",
@@ -11139,7 +11357,10 @@
     }
     /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
     addFloatingText(x, y, text, color) {
-      this.floats.push({ x, y, text, color, age: 0 });
+      const busy = this.floats.filter((f) => f.x === x && f.y === y && f.age < FLOAT_MS * 0.6).map((f) => f.slot);
+      let slot = 0;
+      while (busy.includes(slot)) slot++;
+      this.floats.push({ x, y, text, color, age: 0, slot });
     }
     /** Anime une attaque : l'attaquant s'élance vers sa cible et une lame balaie la case visée. */
     addSlash(attackerId, fromX, fromY, x, y, color, arc = true) {
@@ -11632,7 +11853,7 @@
         ctx.lineWidth = 3;
         ctx.strokeStyle = "rgba(0,0,0,0.7)";
         const fx = ox + (f.x + 0.5) * tile;
-        const fy = oy + (f.y + 0.1 - t * 0.8) * tile;
+        const fy = oy + (f.y + 0.1 - t * 0.8 - f.slot * 0.42) * tile;
         ctx.strokeText(f.text, fx, fy);
         ctx.fillStyle = f.color;
         ctx.fillText(f.text, fx, fy);
@@ -11876,6 +12097,8 @@
         return "Vous sortez de l'ombre.";
       case "furnitureFire": {
         if (e.kind.startsWith("web")) return "Une toile d'araign\xE9e s'embrase et dispara\xEEt.";
+        if (e.kind === "door") return "Une porte de bois flambe et s'effondre en cendres.";
+        if (e.kind === "chest") return "Un coffre br\xFBle : son contenu roule \xE0 c\xF4t\xE9.";
         const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : e.kind === "barrel" ? "Un tonneau" : e.kind.startsWith("crate") ? "Une caisse" : "Une chaise";
         return `${name} prend feu !`;
       }
@@ -12015,7 +12238,6 @@
   var dieWho = $("die-who");
   var log = $("log");
   var over = $("over");
-  var overText = $("over-text");
   var seedLabel = $("seed");
   var doorActions = $("door-actions");
   var menu = $("menu");
@@ -12284,7 +12506,7 @@
     } else if (e.type === "death") {
       if (e.actor.kind === "hero") {
         renderer.heroFalls();
-        overText.textContent = `Vous \xEAtes mort \xE0 l'\xE9tage ${game.depth}, au tour ${game.turn}.`;
+        showDeath();
         over.hidden = false;
         sfx.play("death");
       } else {
@@ -12389,6 +12611,36 @@
       sfx.play("unlock");
     }
     renderLog();
+  }
+  function showDeath() {
+    const cause = game.deathCause ?? "ses blessures";
+    over.replaceChildren();
+    over.append(el("div", "over-title", "Vous \xEAtes mort"), el("div", "over-line", `\xC0 l'\xE9tage ${game.depth}, tu\xE9 par ${cause}.`));
+    over.append(el("div", "over-line", `Niveau ${game.level} \xB7 ${game.gold} pi\xE8ces d'or`));
+    if (!game.sandbox) {
+      const d = /* @__PURE__ */ new Date();
+      const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+      const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date });
+      if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
+      else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
+      const best = loadRecords().slice(0, 3);
+      if (best.length > 0) {
+        over.append(el("div", "over-sub", "Records"));
+        best.forEach((r, i) => over.append(el("div", "over-record", recordLine(r, i + 1))));
+      }
+    }
+    const again = el("button", "", "Nouvelle partie");
+    again.type = "button";
+    again.addEventListener("click", () => showScreen("new"));
+    over.append(again);
+    over.hidden = false;
+  }
+  function renderRecords() {
+    const list = $("records-list");
+    list.replaceChildren();
+    const records = loadRecords();
+    if (records.length === 0) list.append(el("p", "", "Aucune partie termin\xE9e pour l'instant."));
+    records.forEach((r, i) => list.append(el("div", "over-record", recordLine(r, i + 1))));
   }
   function advanceCues(dt) {
     for (let guard = 0; guard < 16; guard++) {
@@ -12616,9 +12868,9 @@
     if (refusal) {
       const why = {
         "no-bow": "Aucun arc en main.",
-        "no-ammo": "Plus de fl\xE8ches.",
+        "no-ammo": "Plus de munitions.",
         "no-target": "Impossible de tirer l\xE0.",
-        "out-of-range": `Hors de port\xE9e (${game.weapon("ranged")?.range ?? 0} cases).`
+        "out-of-range": `Hors de port\xE9e (${game.shotProfile()?.range ?? 0} cases).`
       }[refusal];
       logLines.push(why);
       renderLog();
@@ -12628,7 +12880,7 @@
     }
   }
   function aimTarget() {
-    const range = game.weapon("ranged")?.range ?? 0;
+    const range = game.shotProfile()?.range ?? 0;
     let best = null;
     let bestDist = Infinity;
     for (const m of game.visibleMonsters()) {
@@ -12715,6 +12967,7 @@
     if (def.range) rows.push(["Port\xE9e", `${def.range} cases`]);
     if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
     if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
+    if (def.twoHanded) rows.push(["Prise", "Deux mains"]);
     if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
     if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
     if (def.lightTurns) rows.push(["Lumi\xE8re", `${def.lightTurns} tours`]);
@@ -12736,6 +12989,7 @@
     if (def.attackBonus !== void 0) bits.push(`d20 ${signedBonus(def.attackBonus)}`);
     if (def.damage) bits.push(diceLabel(def.damage));
     if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
+    if (def.twoHanded) bits.push("deux mains");
     if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
     if (def.range) bits.push(`port\xE9e ${def.range}`);
     if (def.armorClass) bits.push(`CA ${def.armorClass}`);
@@ -13238,12 +13492,13 @@
   function showScreen(screen) {
     menuOpen = screen !== null;
     menu.hidden = !menuOpen;
-    for (const name of ["main", "new", "settings", "codex"]) $(`screen-${name}`).hidden = screen !== name;
+    for (const name of ["main", "new", "settings", "codex", "records"]) $(`screen-${name}`).hidden = screen !== name;
     $("detail").hidden = true;
     $("menu-resume").hidden = (!started || game.over) && savedRun === null;
     $("settings-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
     if (screen === "new") renderCards();
     if (screen === "codex") renderCodex();
+    if (screen === "records") renderRecords();
   }
   var signedBonus = (n) => n >= 0 ? `+${n}` : `${n}`;
   function raceCard(r) {
@@ -13342,6 +13597,8 @@
   button("menu-new", () => showScreen("new"));
   button("menu-settings", () => showScreen("settings"));
   button("menu-codex", () => showScreen("codex"));
+  button("menu-records", () => showScreen("records"));
+  button("records-back", () => showScreen("main"));
   button("codex-back", () => showScreen("main"));
   button("new-back", () => showScreen("main"));
   button("settings-back", () => showScreen("main"));
@@ -13435,7 +13692,7 @@
       if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = hint;
     }
     if (started) discoverSurroundings();
-    const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;
+    const aimRange = aimMode && game.arrows() > 0 ? game.shotProfile()?.range ?? null : null;
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
     $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
     $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
@@ -13466,8 +13723,9 @@
     $("recenter").hidden = !renderer.isPanned();
     const bow = game.weapon("ranged");
     const aim = $("aim");
-    aim.hidden = !bow;
-    if (!bow) aimMode = false;
+    const canShoot = !!bow || game.shotProfile() !== null;
+    aim.hidden = !canShoot;
+    if (!canShoot) aimMode = false;
     if (aimMode && game.isThreatened()) {
       aimMode = false;
       logLines.push("Ennemi au contact : vous reprenez votre arme de corps \xE0 corps.");

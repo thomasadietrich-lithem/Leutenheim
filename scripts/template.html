@@ -74,7 +74,12 @@
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
     overflow-x: hidden; overflow-y: auto; }
-  #over { inset: 18% 8%; background: #140808; border-color: #7a2a2a; font-size: 22px; }
+  #over { inset: 14% 6%; background: #140808; border-color: #7a2a2a; font-size: 22px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+  #over .over-title { font-size: 34px; color: #ff6b7a; }
+  #over .over-best { color: #ffd75e; font-size: 26px; }
+  #over .over-sub { margin-top: 8px; color: #e0c890; }
+  .over-record { font-size: 17px; color: #d8cfc0; }
+  #records-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
@@ -402,6 +407,7 @@
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
+      <button id="menu-records" type="button">Records</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
     </section>
@@ -419,6 +425,11 @@
       <div id="class-cards" class="cards"></div>
       <button id="new-start" type="button">Commencer</button>
       <button id="new-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-records" hidden>
+      <h2>Records</h2>
+      <div id="records-list"></div>
+      <button id="records-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-settings" hidden>
       <h2>Paramètres</h2>

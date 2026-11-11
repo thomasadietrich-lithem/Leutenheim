@@ -88,6 +88,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return "Vous sortez de l'ombre.";
     case "furnitureFire": {
       if (e.kind.startsWith("web")) return "Une toile d'araignée s'embrase et disparaît.";
+      if (e.kind === "door") return "Une porte de bois flambe et s'effondre en cendres.";
+      if (e.kind === "chest") return "Un coffre brûle : son contenu roule à côté.";
       const name = e.kind.startsWith("bunk")
         ? "Un lit"
         : e.kind.startsWith("table")

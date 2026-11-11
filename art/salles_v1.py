@@ -263,6 +263,25 @@ def maiden(state="closed"):
     return s.done()
 
 
+def rope_cluster(variant=0):
+    """Grappe de cordes pendues au mur du fond (Thomas, 2026-11-11 : « rends les cordes statiques, plus courtes, en
+    grappe de diverses longueurs ») : un anneau scellé, 3 cordes de longueurs différentes, un crochet au bout de la plus
+    longue, un nœud coulant sur une autre. Immobiles."""
+    s = Sprite(14, 22)
+    s.r(4, 0, 6, 2, "iron").r(5, 0, 4, 1, "iron_l")
+    lengths = [(4, 9, 12), (7, 16, 7), (10, 6, 10)][variant % 3:] + [(4, 9, 12), (7, 16, 7), (10, 6, 10)][:variant % 3]
+    for i, (x, ln, _) in enumerate(lengths):
+        for y in range(2, 2 + ln):
+            s.p(x + (1 if y > 2 + ln // 2 and i == 2 else 0), y, "rope" if y % 3 else "rope_d")
+    # Crochet au bout de la plus longue corde, nœud coulant sur la plus courte.
+    x, ln, _ = max(lengths, key=lambda t: t[1])
+    y = 2 + ln
+    s.r(x, y, 1, 2, "iron_l").r(x - 2, y + 2, 1, 2, "iron_l").r(x - 2, y + 3, 3, 1, "iron").p(x - 2, y + 2, "blood")
+    x, ln, _ = min(lengths, key=lambda t: t[1])
+    s.r(x - 1, 2 + ln, 3, 2, "rope_d").p(x, 2 + ln, "rope")
+    return s.done()
+
+
 def rope_hook(phase=0):
     """Corde pendue d'un anneau scellé au mur du fond, crochet de fer au bout ; elle oscille un peu (3 images)."""
     sway = (-1, 0, 1)[phase % 3]
@@ -291,8 +310,8 @@ if __name__ == "__main__":
         im = sp.img() if hasattr(sp, "img") else sp
         room.alpha_composite(im, (cx * T + ox, cy * T + T - im.height + oy))
 
-    room.alpha_composite(stained_glass(0).img(), (2 * T + 1, -1))
-    room.alpha_composite(stained_glass(1).img(), (8 * T + 1, -1))
+    for i, cx in enumerate((1, 3, 7, 9)):
+        room.alpha_composite(stained_glass(i % 2).img(), (cx * T + 1, -1))
     room.alpha_composite(runner(1, 6).img(), (5 * T, 3 * T))
     put(chest_sprite(), 5, 1)
     put(altar(), 4, 2, ox=8, oy=-1)
@@ -328,8 +347,8 @@ if __name__ == "__main__":
 
     put2(tool_rack(), 1, 1, oy=-1)
     put2(wall_board(), 3, 1, oy=-1)
-    put2(rope_hook(0), 5, 1, ox=2, oy=-4)
-    put2(rope_hook(2), 6, 1, ox=2, oy=-4)
+    put2(rope_cluster(0), 5, 1, ox=1, oy=-4)
+    put2(rope_cluster(1), 6, 1, ox=1, oy=-4)
     put2(tool_rack(), 7, 1, oy=-1)
     put2(maiden("closed"), 9, 1, ox=-1, oy=-1)
     put2(maiden("open"), 9, 3, ox=-1, oy=-1)
@@ -339,7 +358,7 @@ if __name__ == "__main__":
         ("table à chaînes (2 cases)", [rack_table().img()]),
         ("râtelier d'outils rouillés", [tool_rack().img()]),
         ("planche au mur", [wall_board().img()]),
-        ("corde et crochet (mur du fond, oscille)", [rope_hook(i).img() for i in range(3)]),
+        ("cordes en grappe (mur du fond, immobiles)", [rope_cluster(i).img() for i in range(3)]),
         ("sarcophage à pointes : fermé / ouvert (squelette) / la pointe part", [maiden("closed").img(), maiden("open").img(), maiden("sprung").img()]),
     ], "art/torture_v1.png",
         note="Sarcophage : DÉSAMORCER (agilité) ou FORCER (force). Raté : une pointe jaillit, -1d4. Dedans : un squelette, et du butin.")

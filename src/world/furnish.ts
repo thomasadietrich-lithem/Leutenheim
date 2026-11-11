@@ -379,7 +379,7 @@ function placeTableWithChairs(P: ReturnType<typeof roomPlacer>, room: Room, rng:
  * SALLE DE PRIÈRE v1 (planche art/priere_v1.png) : une allée au milieu, couverte d'un tapis de velours déchiré ; 2 à 6
  * bancs de 2 cases de part et d'autre (0 à 3 cassés ; autant que la salle en tient), une rangée libre entre deux rangs ;
  * l'autel (3 cases) en haut de l'allée ; derrière lui, une rangée libre et un coffre contre le mur ; 0 à 2 candélabres ;
- * 2 vitraux dans le mur du fond.
+ * 2 à 6 vitraux dans le mur du fond.
  */
 export function furnishChapel(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
   const P = roomPlacer(floor, room);
@@ -419,11 +419,19 @@ export function furnishChapel(floor: Floor, room: Room, rng: Rng, out: Furniture
     if (underTorch(floor, s.x, s.y)) continue;
     if (P.tryPlace({ ...s, kind: (["candelBare", "candelA", "candelB", "candelC"] as const)[rng.int(0, 3)] })) lit++;
   }
-  // Deux vitraux abîmés dans le mur du fond (sur la case de mur), là où il n'y a ni torche ni ouverture.
-  for (const [i, x] of [room.x + 1, room.x + room.w - 2].entries()) {
-    const wy = room.y - 1;
-    if (floor.map.get(x, wy) !== Tile.Wall || floor.torches.some((t) => t.x === x && t.y === wy)) continue;
-    P.placed.push({ x, y: wy, kind: `vitrail${i}` });
+  // 2 à 6 vitraux abîmés dans le mur du fond (Thomas), sur des cases de mur qui ne se touchent pas, sans torche.
+  const wy = room.y - 1;
+  const wallSpots = shuffle(
+    rng,
+    [...Array(room.w).keys()].map((i) => room.x + i).filter((x) => floor.map.get(x, wy) === Tile.Wall && !floor.torches.some((t) => t.x === x && t.y === wy)),
+  );
+  const windows = rng.int(2, 6);
+  const glassAt: number[] = [];
+  for (const x of wallSpots) {
+    if (glassAt.length >= windows) break;
+    if (glassAt.some((g) => Math.abs(g - x) < 2)) continue;
+    glassAt.push(x);
+    P.placed.push({ x, y: wy, kind: `vitrail${glassAt.length % 2}` });
   }
   out.push(...P.placed);
   return true;
@@ -431,13 +439,13 @@ export function furnishChapel(floor: Floor, room: Room, rng: Rng, out: Furniture
 
 /**
  * SALLE DE TORTURE v1 (planche art/torture_v1.png) : contre le mur du fond, 1 à 2 râteliers d'outils, 0 à 1 planche au
- * mur et 0 à 2 cordes à crochet ; la table à chaînes au milieu, une rigole de sang qui descend jusqu'à une grille ;
+ * mur et 0 à 2 grappes de cordes ; la table à chaînes au milieu, une rigole de sang qui descend jusqu'à une grille ;
  * 0 à 2 sarcophages à pointes contre les murs de côté. Dalles sombres (voir `Game.floorStyle`).
  */
 export function furnishTorture(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
   const P = roomPlacer(floor, room);
   if (!P.allFloor()) return false;
-  const back = [...Array(rng.int(1, 2)).fill("toolRack"), ...Array(rng.int(0, 1)).fill("wallBoard"), ...Array(rng.int(0, 2)).fill("rope")];
+  const back = [...Array(rng.int(1, 2)).fill("toolRack"), ...Array(rng.int(0, 1)).fill("wallBoard"), ...Array(rng.int(0, 2)).fill("rope")].map((k) => (k === "rope" ? ["ropeA", "ropeB", "ropeC"][rng.int(0, 2)] : k));
   P.alongBackWall(shuffle(rng, back));
   if (!P.placed.some((f) => f.kind === "toolRack")) {
     P.undo();

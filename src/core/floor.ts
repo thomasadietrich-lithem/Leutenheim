@@ -231,9 +231,9 @@ export function placeLoot(state: FloorState, depth: number, seed: number): void 
  * Butin garanti de la première section (`SECTION_GUARANTEES`) : l'étage de chaque garantie est tiré une fois pour toute
  * la partie, à partir de la graine de la partie ; on rend ici ce qui doit tomber à l'étage `depth`.
  */
-export function guaranteedLoot(runSeed: number, depth: number): ItemId[] {
+export function guaranteedLoot(runSeed: number, depth: number): { item: ItemId; count: number }[] {
   const rng = new Rng(runSeed ^ 0x7e1a9c55);
-  const out: ItemId[] = [];
+  const out: { item: ItemId; count: number }[] = [];
   const pools: Record<string, ItemId[]> = {
     pomme: ["pomme"],
     equipment: lootPool(depth, (k) => k === "melee" || k === "ranged" || k === "armor"),
@@ -242,10 +242,16 @@ export function guaranteedLoot(runSeed: number, depth: number): ItemId[] {
   };
   for (const g of SECTION_GUARANTEES) {
     for (let i = 0; i < g.count; i++) {
+      if (g.what === "fleches") {
+        // Dix flèches : en un seul lot, ou en trois lots (3, 3 et 4) sur des étages tirés à part.
+        const lots = rng.chance(0.5) ? [10] : [3, 3, 4];
+        for (const n of lots) if (rng.int(g.floors[0], g.floors[1]) === depth) out.push({ item: "fleche", count: n });
+        continue;
+      }
       const floor = rng.int(g.floors[0], g.floors[1]);
       const pickIndex = rng.int(0, 999);
       const pool = pools[g.what];
-      if (floor === depth && pool.length > 0) out.push(pool[pickIndex % pool.length]);
+      if (floor === depth && pool.length > 0) out.push({ item: pool[pickIndex % pool.length], count: 1 });
     }
   }
   return out;
@@ -264,9 +270,9 @@ function lootPool(depth: number, keep: (kind: string, id: string) => boolean): I
 }
 
 /** Pose le butin garanti de cet étage, chacun dans une salle au hasard (jamais celle de départ). */
-export function placeGuaranteed(state: FloorState, items: ItemId[], seed: number): void {
+export function placeGuaranteed(state: FloorState, items: { item: ItemId; count: number }[], seed: number): void {
   const rng = new Rng(seed ^ 0x4d2c6b1f);
-  for (const item of items) {
+  for (const { item, count } of items) {
     for (let attempt = 0; attempt < 40; attempt++) {
       const room = state.rooms[rng.int(Math.min(1, state.rooms.length - 1), state.rooms.length - 1)];
       const x = rng.int(room.x, room.x + room.w - 1);
@@ -274,7 +280,7 @@ export function placeGuaranteed(state: FloorState, items: ItemId[], seed: number
       if (state.map.get(x, y) !== Tile.Floor || state.ground.some((g) => g.x === x && g.y === y)) continue;
       if (state.traps.some((t) => t.x === x && t.y === y)) continue;
       if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
-      state.ground.push({ x, y, item, count: 1 });
+      state.ground.push({ x, y, item, count });
       break;
     }
   }

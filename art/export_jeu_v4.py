@@ -107,4 +107,4 @@ if __name__ == "__main__":
            "runnerA": runner.crop((0, 0, 16, 16)), "runnerB": runner.crop((0, 16, 16, 32)), "runnerC": runner.crop((0, 32, 16, 48)),
            "vitrail0": sa.stained_glass(0).img(), "vitrail1": sa.stained_glass(1).img(),
            "rackTable": sa.rack_table().img(), "toolRack": sa.tool_rack().img(), "wallBoard": sa.wall_board().img(),
-           **{f"rope{i}": sa.rope_hook(i).img() for i in range(3)}, "maiden": sa.maiden("closed").img(), "maidenOpen": sa.maiden("open").img()})
+           "ropeA": sa.rope_cluster(0).img(), "ropeB": sa.rope_cluster(1).img(), "ropeC": sa.rope_cluster(2).img(), "maiden": sa.maiden("closed").img(), "maidenOpen": sa.maiden("open").img()})

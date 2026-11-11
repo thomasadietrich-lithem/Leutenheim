@@ -102,11 +102,13 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   vitrail1: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   // SALLE DE TORTURE v1 : table à chaînes (2 cases), râtelier, planche au mur, corde à crochet (mur du fond),
-  // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille.
+  // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille. Les cordes pendent en grappe, immobiles (3 dessins).
   rackTable: { blocks: true, w: 2, h: 1, burns: true },
   toolRack: { blocks: true, w: 1, h: 1, burns: true },
   wallBoard: { blocks: true, w: 1, h: 1, burns: true },
-  rope: { blocks: true, w: 1, h: 1, burns: true },
+  ropeA: { blocks: true, w: 1, h: 1, burns: true },
+  ropeB: { blocks: true, w: 1, h: 1, burns: true },
+  ropeC: { blocks: true, w: 1, h: 1, burns: true },
   maiden: { blocks: true, w: 1, h: 1, burns: false },
   maidenOpen: { blocks: true, w: 1, h: 1, burns: false },
   bloodGutterV: { blocks: false, w: 1, h: 1, burns: false, flat: true },

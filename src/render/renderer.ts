@@ -66,6 +66,8 @@ interface FloatingText {
   text: string;
   color: string;
   age: number;
+  /** Rang dans la pile (Thomas : les textes d'une même case se superposaient) : 0 en bas, puis au-dessus. */
+  slot: number;
 }
 
 /** Dessine l'état du jeu sur le Canvas. Design volontairement minimal : des formes colorées. */
@@ -492,7 +494,11 @@ export class Renderer {
 
   /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
   addFloatingText(x: number, y: number, text: string, color: string): void {
-    this.floats.push({ x, y, text, color, age: 0 });
+    // Plusieurs textes sur la même case en même temps (aiguille + poison, gaz + poison…) : on les empile.
+    const busy = this.floats.filter((f) => f.x === x && f.y === y && f.age < FLOAT_MS * 0.6).map((f) => f.slot);
+    let slot = 0;
+    while (busy.includes(slot)) slot++;
+    this.floats.push({ x, y, text, color, age: 0, slot });
   }
 
   /** Anime une attaque : l'attaquant s'élance vers sa cible et une lame balaie la case visée. */
@@ -1086,7 +1092,7 @@ export class Renderer {
       ctx.lineWidth = 3;
       ctx.strokeStyle = "rgba(0,0,0,0.7)";
       const fx = ox + (f.x + 0.5) * tile;
-      const fy = oy + (f.y + 0.1 - t * 0.8) * tile;
+      const fy = oy + (f.y + 0.1 - t * 0.8 - f.slot * 0.42) * tile;
       ctx.strokeText(f.text, fx, fy);
       ctx.fillStyle = f.color;
       ctx.fillText(f.text, fx, fy);

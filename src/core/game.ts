@@ -510,12 +510,17 @@ export class Game {
     if (damage > 0) {
       this.bleed(actor, actor);
       if (actor.kind === "hero") {
-        this.hurtHero(damage);
+        this.hurtHero(damage, { spikes: "un piège à pointes", pit: "une chute dans une fosse", needle: "une aiguille empoisonnée", gas: "le gaz" }[kind]);
       } else {
         actor.hp = Math.max(0, actor.hp - damage);
         this.removeIfDead(actor);
       }
     }
+  }
+
+  /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
+  private killerName(m: Actor): string {
+    return `${m.defId === "araignee" ? "une" : "un"} ${m.name}`;
   }
 
   /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
@@ -995,11 +1000,23 @@ export class Game {
     return true;
   }
 
-  /** Les munitions de l'arc présentes dans le sac, ordinaires d'abord. */
+  /** Les munitions présentes dans le sac : celles de l'arc (ordinaires d'abord), puis ce qui se lance à la main (javelines). */
   ammoKinds(): ItemId[] {
     const family = this.weapon("ranged")?.ammo;
-    if (!family) return [];
-    return (Object.keys(ITEMS) as ItemId[]).filter((id) => (ITEMS[id] as ItemDef).ammoFamily === family && this.inventory.count(id) > 0);
+    return (Object.keys(ITEMS) as ItemId[]).filter((id) => {
+      const f = (ITEMS[id] as ItemDef).ammoFamily;
+      return (f === "jet" || (!!family && f === family)) && this.inventory.count(id) > 0;
+    });
+  }
+
+  /** Le tir qui partira : portée et bonus au jet viennent de l'arc, ou de la javeline si on la lance à la main. */
+  shotProfile(): { range: number; attackBonus: number; thrown: boolean } | null {
+    const ammo = this.currentAmmo();
+    if (!ammo) return null;
+    const def = ITEMS[ammo] as ItemDef;
+    if (def.ammoFamily === "jet") return { range: def.range ?? 0, attackBonus: def.attackBonus ?? 0, thrown: true };
+    const bow = this.weapon("ranged");
+    return bow ? { range: bow.range ?? 0, attackBonus: bow.attackBonus ?? 0, thrown: false } : null;
   }
 
   /** Choisir les flèches à tirer. Refusé si le héros n'a pas le niveau. */
@@ -1013,10 +1030,12 @@ export class Game {
   /** La munition qui partira au prochain tir : le choix du joueur s'il en reste, sinon la flèche ordinaire. */
   currentAmmo(): ItemId | null {
     const family = this.weapon("ranged")?.ammo;
-    if (!family) return null;
     const chosen = ITEMS[this.ammoChoice] as ItemDef;
-    if (chosen.ammoFamily === family && !this.tooLow(chosen) && this.inventory.count(this.ammoChoice) > 0) return this.ammoChoice;
-    return this.inventory.count(family as ItemId) > 0 ? (family as ItemId) : null;
+    const usable = (id: ItemId) => !this.tooLow(ITEMS[id] as ItemDef) && this.inventory.count(id) > 0;
+    if ((chosen.ammoFamily === "jet" || (!!family && chosen.ammoFamily === family)) && usable(this.ammoChoice)) return this.ammoChoice;
+    if (family && this.inventory.count(family as ItemId) > 0) return family as ItemId;
+    // Sans arc (ou sans flèches) : on peut encore lancer une javeline.
+    return this.ammoKinds().find((id) => (ITEMS[id] as ItemDef).ammoFamily === "jet" && usable(id)) ?? null;
   }
 
   // ---------- Points, voie, compétences ----------
@@ -1124,7 +1143,10 @@ export class Game {
   }
 
   /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
-  private hurtHero(damage: number): void {
+  /** Ce qui a tué le héros, pour l'écran de fin (Thomas : « dis de quoi il est mort »). */
+  deathCause: string | null = null;
+
+  private hurtHero(damage: number, cause = "ses blessures"): void {
     if (damage <= 0) return;
     if (this.hero.hp - damage <= 0 && this.skills.includes("dernier_rempart") && !this.perks().lastStand) {
       this.perks().lastStand = true;
@@ -1135,6 +1157,7 @@ export class Game {
     this.hero.hp = Math.max(0, this.hero.hp - damage);
     if (this.hero.hp === 0 && !this.over) {
       this.over = true;
+      this.deathCause = cause;
       this.path = [];
       this.events.push({ type: "death", actor: this.hero });
     }
@@ -1191,7 +1214,39 @@ export class Game {
    * Le feu gagne les meubles (Thomas) : un meuble qui brûle s'il y a des flammes à une case de lui (ou sur lui). Il
    * brûle tout entier, et à son tour enflamme ses voisins à une case.
    */
+  /**
+   * Tout ce qui est en bois brûle (Thomas) : les portes (même verrouillées) partent en cendres et laissent le passage
+   * ouvert ; un coffre brûle et laisse tomber son or et son objet à côté.
+   */
+  private burnWoodTiles(): void {
+    let changed = false;
+    for (const fire of [...this.fires]) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const x = fire.x + dx;
+          const y = fire.y + dy;
+          const t = this.map.get(x, y);
+          const door = t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked;
+          if (!door && t !== Tile.Chest) continue;
+          if (t === Tile.Chest) {
+            const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+            this.map.set(x, y, Tile.Floor);
+            this.spillLoot(x, y, gold, rollLoot(this.rng, this.depth));
+          } else this.map.set(x, y, Tile.Floor);
+          if (!this.furnitureAt(x, y)) this.current.furniture.push({ x, y, kind: "ashes1" });
+          this.events.push({ type: "furnitureFire", x, y, kind: door ? "door" : "chest" });
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      this.refreshLight();
+      this.updateVision();
+    }
+  }
+
   private igniteFurniture(): void {
+    this.burnWoodTiles();
     // Une toile flambe d'un coup dès qu'une flamme la touche ou la frôle, et laisse un peu de cendre (Thomas).
     const webs = this.current.furniture.filter(
       (f) => f.kind.startsWith("web") && this.fires.some((fire) => Math.max(Math.abs(fire.x - f.x), Math.abs(fire.y - f.y)) <= 1),
@@ -1256,7 +1311,7 @@ export class Game {
       a.burning--;
       const damage = rollDice(this.rng, RULES.fireDamage);
       this.events.push({ type: "burn", actor: a, damage });
-      if (a === this.hero) this.hurtHero(damage);
+      if (a === this.hero) this.hurtHero(damage, "les flammes");
       else {
         a.hp -= damage;
         this.removeIfDead(a);
@@ -1271,7 +1326,7 @@ export class Game {
         a.burning = RULES.burnAfter;
         const damage = rollDice(this.rng, RULES.fireDamage);
         this.events.push({ type: "burn", actor: a, damage });
-        if (a === this.hero) this.hurtHero(damage);
+        if (a === this.hero) this.hurtHero(damage, "les flammes");
         else {
           a.hp -= damage;
           a.alerted = true;
@@ -1356,13 +1411,13 @@ export class Game {
    * Renvoie la raison du refus, ou null si le tir est lancé.
    */
   shoot(x: number, y: number): ShootRefusal | null {
-    const bow = this.weapon("ranged");
-    if (this.over || !bow) return "no-bow";
-    if (this.arrows() < 1) return "no-ammo";
+    const profile = this.shotProfile();
+    if (this.over || (!profile && !this.weapon("ranged"))) return "no-bow";
+    if (!profile || this.arrows() < 1) return "no-ammo";
     // On peut tirer vers une case qu'on ne voit pas (à l'aveugle), mais pas sur soi ni hors de la carte.
     if (!this.map.inBounds(x, y) || (x === this.hero.x && y === this.hero.y)) return "no-target";
     const distance = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
-    if (distance > (bow.range ?? 0)) return "out-of-range";
+    if (distance > profile.range) return "out-of-range";
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
@@ -2034,7 +2089,7 @@ export class Game {
     this.hero.poison.turns--;
     if (this.hero.poison.turns <= 0) this.hero.poison = undefined;
     this.events.push({ type: "poison", actor: this.hero, damage });
-    this.hurtHero(damage);
+    this.hurtHero(damage, "le poison");
   }
 
   private poisonTick(): void {
@@ -2147,7 +2202,7 @@ export class Game {
       const result = rollAttack(this.rng, m, this.hero);
       this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
       if (result.damage > 0) this.bleed(this.hero, m);
-      this.hurtHero(result.damage);
+      this.hurtHero(result.damage, this.killerName(m));
       attacked = true;
     }
     return attacked;
@@ -2244,7 +2299,7 @@ export class Game {
     this.events.push({ type: "maiden", action, x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
     if (damage > 0) {
       this.bleed(this.hero, this.hero);
-      this.hurtHero(damage);
+      this.hurtHero(damage, "la pointe d'un sarcophage");
     }
   }
 
@@ -2367,9 +2422,9 @@ export class Game {
    * (jet d'attaque), rebondit d'une case sur un mur, une colonne ou une porte fermée, ou se plante dans la case visée.
    */
   private heroShoots(target: Point): void {
-    const bow = this.weapon("ranged");
+    const profile = this.shotProfile();
     const ammo = this.currentAmmo();
-    if (!bow || !ammo || !this.inventory.take(ammo, 1)) return;
+    if (!profile || !ammo || !this.inventory.take(ammo, 1)) return;
     const poison = (ITEMS[ammo] as ItemDef).poison;
     this.reveal();
     const origin = { x: this.hero.x, y: this.hero.y };
@@ -2411,8 +2466,9 @@ export class Game {
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
       const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);
       const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
-      const attackBonus = (bow.attackBonus ?? 0) + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
-      const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
+      // L'arc (ou la main qui lance) donne le jet ; la flèche (ou la javeline) donne les dégâts (Thomas, 2026-11-11).
+      const attackBonus = profile.attackBonus + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
+      const result = rollAttack(this.rng, { attackBonus, damage: (ITEMS[ammo] as ItemDef).damage ?? UNARMED.damage }, victim, mode);
       this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : undefined;
       this.noteHeroAttack(result.hit);
       victim.alerted = true;
@@ -2552,7 +2608,7 @@ export class Game {
         if (result.damage > 0) this.bleed(this.hero, m);
         this.raiseAlarm(RULES.alarmCombat, this.hero);
         this.wakeNear(this.hero);
-        this.hurtHero(result.damage);
+        this.hurtHero(result.damage, this.killerName(m));
         continue;
       }
 

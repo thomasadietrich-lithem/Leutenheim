@@ -22,12 +22,19 @@ export type Tile = (typeof Tile)[keyof typeof Tile];
 /** Grille de cases d'un étage. */
 export class GameMap {
   readonly tiles: Uint8Array;
+  /**
+   * Pour l'affichage : numéro de la dernière modification qui touche chaque case ou une voisine (jusqu'à deux cases),
+   * pour savoir quand redessiner une case gardée en mémoire. Ne sert pas aux règles.
+   */
+  readonly changed: Uint32Array;
+  private revision = 0;
 
   constructor(
     readonly width: number,
     readonly height: number,
   ) {
     this.tiles = new Uint8Array(width * height); // tout en mur au départ
+    this.changed = new Uint32Array(width * height);
   }
 
   index(x: number, y: number): number {
@@ -43,7 +50,13 @@ export class GameMap {
   }
 
   set(x: number, y: number, tile: Tile): void {
-    this.tiles[this.index(x, y)] = tile;
+    const i = this.index(x, y);
+    if (this.tiles[i] === tile) return;
+    this.tiles[i] = tile;
+    this.revision++;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) if (this.inBounds(x + dx, y + dy)) this.changed[this.index(x + dx, y + dy)] = this.revision;
+    }
   }
 
   /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */

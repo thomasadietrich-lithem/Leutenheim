@@ -81,7 +81,15 @@ interface FloatingText {
 
 /** Dessine l'état du jeu sur le Canvas. Design volontairement minimal : des formes colorées. */
 export class Renderer {
-  private readonly ctx: CanvasRenderingContext2D;
+  private ctx: CanvasRenderingContext2D;
+  /**
+   * Dessin de chaque case (sol, mur, porte, coffre…) gardé en mémoire : il ne dépend que de la carte autour de la case,
+   * on ne le refait que si elle change (porte ouverte, coffre vidé) ou si le zoom change. Les ombres, la lumière et
+   * les flammes, elles, sont dessinées à chaque image par-dessus.
+   */
+  private readonly cellCache = new Map<number, { key: string; stamp: number; canvas: HTMLCanvasElement }>();
+  /** Nombre de cases redessinées depuis le début (pour mesurer l'effet du cache). */
+  cellRedraws = 0;
   private width = 0;
   private height = 0;
   private tile = 32;
@@ -153,6 +161,7 @@ export class Renderer {
     this.camX = game.hero.x;
     this.camY = game.hero.y;
     this.floats = [];
+    this.cellCache.clear();
     this.slashes = [];
     this.projectiles = [];
     this.bowAge = Infinity;
@@ -394,33 +403,7 @@ export class Renderer {
         const rw = Math.round(sx + tile) - rx;
         const rh = Math.round(sy + tile) - ry;
         // Chaque case est dessinée découpée sur ces mêmes pixels entiers : rien ne déborde sur une voisine déjà ombrée.
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(rx, ry, rw, rh);
-        ctx.clip();
-        if (t === Tile.Pillar) {
-          // Colonne : une dalle de sol, et un fût de pierre rond vu du dessus.
-          this.drawFloor(x, y, sx, sy);
-          ctx.fillStyle = "rgba(12,11,18,0.45)";
-          ctx.beginPath();
-          ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#6e7290";
-          ctx.beginPath();
-          ctx.arc(sx + tile * 0.5, sy + tile * 0.5, tile * 0.38, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#9296b6";
-          ctx.beginPath();
-          ctx.arc(sx + tile * 0.46, sy + tile * 0.45, tile * 0.25, 0, Math.PI * 2);
-          ctx.fill();
-        } else
-        if (wall) {
-          this.drawWall(game, x, y, sx, sy);
-        } else {
-          this.drawFloor(x, y, sx, sy);
-        }
-        this.drawFeature(game, t, x, y, sx, sy);
-        ctx.restore();
+        this.drawCell(game, t, x, y, rx, ry, rw, rh);
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
         const shade = wall || t === Tile.Pillar ? 0.6 : 1;
 
@@ -757,6 +740,68 @@ export class Renderer {
       ctx.fillText(f.text, fx, fy);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
+  private drawCell(game: Game, t: Tile, x: number, y: number, rx: number, ry: number, rw: number, rh: number): void {
+    const dpr = window.devicePixelRatio || 1;
+    // Le dessin d'un mur ou d'une porte dépend des cases voisines (raccords, coins, sens) : la carte tient à jour, pour
+    // chaque case, le numéro de la dernière modification à moins de deux cases (`changed`).
+    const key = `${rw}x${rh}@${this.tile}`;
+    const index = game.map.index(x, y);
+    const stamp = game.map.changed[index];
+    let entry = this.cellCache.get(index);
+    if (!entry || entry.key !== key || entry.stamp !== stamp) {
+      const canvas = entry?.canvas ?? document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(rw * dpr));
+      canvas.height = Math.max(1, Math.round(rh * dpr));
+      const cellCtx = canvas.getContext("2d")!;
+      cellCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cellCtx.clearRect(0, 0, rw, rh);
+      // On dessine la case comme sur l'écran, avec le coin en (0, 0) : les fonctions de dessin écrivent dans `this.ctx`.
+      const screen = this.ctx;
+      this.ctx = cellCtx;
+      try {
+        this.paintCell(game, t, x, y, 0, 0);
+      } finally {
+        this.ctx = screen;
+      }
+      entry = { key, stamp, canvas };
+      this.cellCache.set(index, entry);
+      this.cellRedraws++;
+    }
+    const smooth = this.ctx.imageSmoothingEnabled;
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
+    this.ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /** Le dessin d'une case : sol, mur, colonne, porte, escalier, coffre… (sans ombre ni lumière). */
+  private paintCell(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    const wall = t === Tile.Wall;
+        if (t === Tile.Pillar) {
+          // Colonne : une dalle de sol, et un fût de pierre rond vu du dessus.
+          this.drawFloor(x, y, sx, sy);
+          ctx.fillStyle = "rgba(12,11,18,0.45)";
+          ctx.beginPath();
+          ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#6e7290";
+          ctx.beginPath();
+          ctx.arc(sx + tile * 0.5, sy + tile * 0.5, tile * 0.38, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#9296b6";
+          ctx.beginPath();
+          ctx.arc(sx + tile * 0.46, sy + tile * 0.45, tile * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        } else
+        if (wall) {
+          this.drawWall(game, x, y, sx, sy);
+        } else {
+          this.drawFloor(x, y, sx, sy);
+        }
+        this.drawFeature(game, t, x, y, sx, sy);
   }
 
   /**

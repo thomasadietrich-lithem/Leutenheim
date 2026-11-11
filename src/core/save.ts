@@ -12,7 +12,7 @@ import { Debris, GroundItem, Secret } from "./floor";
  * continue comme elle aurait continué. Les ordres en cours (chemin, repos, fouille) ne sont pas gardés.
  * Changer la forme de ces données : augmenter `SAVE_VERSION` (les anciennes sauvegardes sont alors ignorées).
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface SavedFloor {
   depth: number;
@@ -54,6 +54,16 @@ export interface SaveData {
   gold: number;
   xp: number;
   level: number;
+  /** Version 2 (2026-11-11) : points, voie, compétences, potions, feu, taille du sac. */
+  points: number;
+  alloc: { vie: number; force: number; agilite: number };
+  voie: string | null;
+  skills: string[];
+  floorPerks: Record<number, { secondWind: boolean; doubleStrikes: number; lastStand: boolean }>;
+  weaponPoison: number;
+  hasteTurns: number;
+  fires: { x: number; y: number; turns: number }[];
+  bagSize: { cols: number; rows: number };
   /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
   torchTurns?: number;
   /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */

@@ -26,7 +26,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 2;
+export const SANDBOX_LAYOUT = 3;
 
 export function buildSandbox(): SandboxFloor {
   const map = new GameMap(32, 24);
@@ -93,6 +93,17 @@ export function buildSandbox(): SandboxFloor {
       { x: 10, y: 8, item: "armure_cloutee", count: 1 },
       { x: 10, y: 5, item: "or", count: 15 },
       { x: 10, y: 7, item: "or", count: 30 },
+      // 2026-11-11 (après-midi) : gemmes et potions sur la rangée du haut, sacs à gauche et à droite.
+      { x: 4, y: 3, item: "amethyste", count: 1 },
+      { x: 5, y: 3, item: "saphir", count: 1 },
+      { x: 6, y: 3, item: "emeraude", count: 1 },
+      { x: 7, y: 3, item: "diamant", count: 1 },
+      { x: 8, y: 3, item: "potion_jouvence", count: 1 },
+      { x: 9, y: 3, item: "potion_poison", count: 1 },
+      { x: 10, y: 3, item: "potion_vitesse", count: 1 },
+      { x: 11, y: 3, item: "potion_feu", count: 2 },
+      { x: 3, y: 6, item: "sac_cuir", count: 1 },
+      { x: 11, y: 6, item: "sac_voyage", count: 1 },
     ],
     heroLevel: 4,
     monsters: [

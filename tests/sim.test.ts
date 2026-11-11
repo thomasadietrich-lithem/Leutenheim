@@ -258,6 +258,8 @@ function playRun(seed: number, maxTurns: number): Game {
   while (!game.over && game.turn < maxTurns) {
     // Comme la boucle d'affichage après chaque pas, mais ce joueur-ci ne remonte jamais.
     if (game.pendingStairs === "down" && game.takeStairs()) continue;
+    // Comme un joueur prudent : chaque point gagné va en Vie.
+    while (game.points > 0) game.allocate("vie");
     const foes = game.visibleMonsters();
     if (foes.length > 0) {
       const d = (m: { x: number; y: number }) => Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
@@ -846,7 +848,7 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const foe = game.monsters[0];
   assert.ok(foe);
   game.monsters.splice(1);
-  // Trois victoires (3 à 5 points chacune) : passage au niveau 2 (6 points), pas au niveau 3 (12 de plus), avec 3 PV de plus.
+  // Trois victoires (3 à 5 points chacune) : passage au niveau 2 (6 points), pas au niveau 3 (12 de plus) ; un point à placer, pas de PV automatiques.
   const maxHp = game.hero.maxHp;
   let kills = 0;
   game.xp = 0;
@@ -864,8 +866,9 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
   assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
   const total = gains.reduce((a, b) => a + b, 0);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, total - 6, 12, maxHp + 3]);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, total - 6, 12, maxHp]);
   assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
+  assert.equal(game.points, 1);
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
 
   // L'or ramassé va dans la bourse, pas dans le sac.
@@ -1878,4 +1881,174 @@ test("salle d'essai : une sauvegarde d'un ancien plan n'est pas reprise", () => 
   const data = game.snapshot();
   assert.ok(Game.restore(data));
   assert.equal(Game.restore({ ...data, sandboxLayout: 1 }), null);
+});
+
+// ---------- 2026-11-11 après-midi : points, voies, compétences, sacs, gemmes, potions, feu ----------
+
+test("points : un par niveau ; Vie +4 PV max, Force +1 dégâts et pousser ; jouvence les rend tous, plus un", () => {
+  const game = new Game(7);
+  const maxHp = game.hero.maxHp;
+  game.levelUpNow();
+  game.levelUpNow();
+  assert.equal(game.points, 2);
+  assert.ok(game.allocate("vie"));
+  assert.ok(game.allocate("force"));
+  assert.equal(game.allocate("agilite"), false, "plus de point");
+  assert.equal(game.hero.maxHp, maxHp + 4);
+  assert.equal(game.pushBonus(), game.heroClass.pushBonus + 1);
+  assert.equal(game.hero.damage.bonus, 3); // épée courte 1d6+2, +1 de Force
+  game.inventory.add("potion_jouvence", 1);
+  assert.ok(game.useItem(bagUid(game, "potion_jouvence")));
+  game.tick();
+  assert.equal(game.points, 3);
+  assert.equal(game.hero.maxHp, maxHp);
+  assert.equal(game.hero.damage.bonus, 2);
+});
+
+test("voie : au niveau 2, définitive ; secondaires aux niveaux 4, 6, 8 et seulement dans sa voie", () => {
+  const game = new Game(7);
+  assert.equal(game.choosePath("red"), false, "niveau 1 : trop tôt");
+  game.levelUpNow();
+  assert.ok(game.hasPendingChoice());
+  assert.ok(game.choosePath("red"));
+  assert.equal(game.choosePath("blue"), false, "définitif");
+  assert.equal(game.secondaryPicks(), 0);
+  game.levelUpNow();
+  game.levelUpNow();
+  assert.equal(game.secondaryPicks(), 1);
+  assert.equal(game.chooseSkill("peau_dure"), false, "pas dans la voie rouge");
+  assert.ok(game.chooseSkill("rage"));
+  assert.equal(game.secondaryPicks(), 0);
+});
+
+test("voie bleue : second souffle +10 PV, une fois par étage ; dernier rempart laisse à 1 PV", () => {
+  const { game, m } = foeAt(1);
+  game.level = 4;
+  game.voie = "blue";
+  game.skills = ["dernier_rempart"];
+  game.hero.hp = 2;
+  assert.ok(game.useSkill());
+  game.tick();
+  assert.ok(game.hero.hp >= 1);
+  assert.equal(game.skillRefusal() === "used" || game.skillRefusal() === "full", true);
+  // Dernier rempart : un coup mortel laisse à 1 PV, une fois.
+  m.damage = { count: 1, sides: 1, bonus: 500 };
+  m.attackBonus = 100;
+  game.hero.hp = 5;
+  game.events.length = 0;
+  game.wait();
+  game.tick();
+  assert.equal(game.hero.hp, 1);
+  assert.ok(game.events.some((e) => e.type === "lastStand"));
+  game.wait();
+  game.tick();
+  assert.ok(game.over, "une seule fois par étage");
+});
+
+test("voie rouge : double frappe = deux coups en un tour, trois fois par étage", () => {
+  const { game, m } = foeAt(1);
+  game.level = 2;
+  game.voie = "red";
+  for (let k = 0; k < 3; k++) {
+    game.events.length = 0;
+    assert.ok(game.useSkill(), `utilisation ${k + 1}`);
+    game.tick();
+    assert.equal(game.events.filter((e) => e.type === "attack" && e.attacker === game.hero && e.target === m).length, 2);
+  }
+  assert.equal(game.skillRefusal(), "used");
+});
+
+test("voie verte : pousser repousse jusqu'à 3 cases et ralentit", () => {
+  let shoved = false;
+  for (let seed = 1; seed <= 200 && !shoved; seed++) {
+    const t = threatenedHero(seed);
+    if (!t) continue;
+    const { game, m } = t;
+    game.voie = "green";
+    game.hero.hp = game.hero.maxHp = 999;
+    m.hp = m.maxHp = 999;
+    game.tick();
+    if (game.over || !game.pushTargets().includes(m)) continue;
+    game.events.length = 0;
+    assert.ok(game.push(m.id));
+    game.tick();
+    const e = game.events.find((ev) => ev.type === "push");
+    if (!e || e.type !== "push" || !e.success) continue;
+    assert.ok(game.events.some((ev) => ev.type === "slowed"));
+    const d = Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
+    if (d === 4) shoved = true;
+  }
+  assert.ok(shoved, "jamais vu un ennemi repoussé de 3 cases");
+});
+
+test("sac : on commence avec le sac en toile (6×4) ; le sac de cuir (Lv3) agrandit à 7×5", () => {
+  const game = new Game(7);
+  assert.equal(game.equipment.bag?.defId, "sac_toile");
+  assert.deepEqual([game.inventory.cols, game.inventory.rows], [6, 4]);
+  game.inventory.add("sac_cuir", 1);
+  assert.equal(game.equip(bagUid(game, "sac_cuir")), false, "niveau 1");
+  game.level = 3;
+  assert.ok(game.equip(bagUid(game, "sac_cuir")));
+  assert.deepEqual([game.inventory.cols, game.inventory.rows], [7, 5]);
+  assert.equal(game.inventory.count("sac_toile"), 1, "l'ancien sac est rangé dedans");
+  assert.equal(game.unequip("bag"), false);
+});
+
+test("gemmes : ramassées toutes seules, elles valent leur prix en or", () => {
+  const game = new Game(7);
+  const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
+  game.ground.push({ x: game.hero.x + side, y: game.hero.y, item: "saphir", count: 1 }, { x: game.hero.x + side, y: game.hero.y, item: "diamant", count: 1 });
+  const before = game.gold;
+  assert.ok(game.setDestination(game.hero.x + side, game.hero.y, true));
+  game.tick();
+  assert.equal(game.gold, before + 250);
+});
+
+test("potions : poison sur l'arme (15 coups), vitesse (deux coups par attaque), feu (croix de 5 cases, 5 tours)", () => {
+  const { game, m } = foeAt(1);
+  game.hero.hp = game.hero.maxHp = 100000;
+  game.inventory.add("potion_poison", 1);
+  game.inventory.add("potion_vitesse", 1);
+  assert.ok(game.useItem(bagUid(game, "potion_poison")));
+  game.tick();
+  assert.equal(game.weaponPoison, 15);
+  assert.ok(game.useItem(bagUid(game, "potion_vitesse")));
+  game.tick();
+  game.events.length = 0;
+  assert.ok(game.setDestination(m.x, m.y));
+  game.tick();
+  assert.equal(game.events.filter((e) => e.type === "attack" && e.attacker === game.hero).length, 2, "vitesse : deux coups");
+  // Feu : lancé sur le monstre, 5 cases, il brûle.
+  const fire = new Game(7);
+  fire.inventory.add("potion_feu", 1);
+  const uid = bagUid(fire, "potion_feu");
+  let target: { x: number; y: number } | null = null;
+  for (let dy = -3; dy <= 3 && !target; dy++) for (let dx = -3; dx <= 3 && !target; dx++) if (Math.abs(dx) + Math.abs(dy) >= 3 && fire.throwRefusal(uid, fire.hero.x + dx, fire.hero.y + dy) === null) target = { x: fire.hero.x + dx, y: fire.hero.y + dy };
+  assert.ok(target);
+  assert.ok(fire.throwPotion(uid, target.x, target.y));
+  fire.tick();
+  assert.ok(fire.isBurning(target.x, target.y));
+  assert.ok(fire.fires.length >= 1 && fire.fires.length <= 5);
+  for (let k = 0; k < 6; k++) {
+    fire.wait();
+    fire.tick();
+  }
+  assert.equal(fire.fires.length, 0, "le feu s'éteint");
+});
+
+test("sauvegarde v2 : points, voie, compétences, sac et feu sont repris", () => {
+  const game = new Game(7);
+  game.levelUpNow();
+  game.choosePath("green");
+  game.allocate("agilite");
+  game.level = 3;
+  game.inventory.add("sac_cuir", 1);
+  game.equip(bagUid(game, "sac_cuir"));
+  game.fires.push({ x: game.hero.x, y: game.hero.y, turns: 3 });
+  const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  assert.ok(copy);
+  assert.equal(copy.voie, "green");
+  assert.equal(copy.alloc.agilite, 1);
+  assert.deepEqual([copy.inventory.cols, copy.inventory.rows], [7, 5]);
+  assert.equal(copy.fires.length, 1);
 });

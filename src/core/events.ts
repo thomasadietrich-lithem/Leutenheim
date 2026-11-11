@@ -3,6 +3,7 @@ import { Actor } from "../entities/actor";
 import { ItemId } from "../data/items";
 import { Point } from "../world/map";
 import { Room } from "../world/generator";
+import { PathId } from "../data/skills";
 
 /** Ce qui s'est passé pendant un tour, dans l'ordre : l'affichage les lit, les met en scène, puis vide la liste. */
 /** Crocheter (silencieux) ou enfoncer (bruyant) une porte verrouillée. */
@@ -49,6 +50,14 @@ export type GameEvent =
   /** Objet utilisé (pomme : PV rendus ; torche : allumée), torche éteinte, poison posé et poison qui ronge. */
   | { type: "used"; item: ItemId; healed?: number }
   | { type: "torchOut" }
+  /** Voie choisie, compétence de voie utilisée, Dernier rempart, potion (feu lancé, case qui brûle, statut posé). */
+  | { type: "path"; path: PathId }
+  | { type: "skill"; path: PathId; healed: number }
+  | { type: "lastStand" }
+  | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
+  | { type: "burn"; actor: Actor; damage: number }
+  | { type: "potion"; potion: "youth" | "poison" | "haste"; points?: number }
+  | { type: "slowed"; actor: Actor }
   | { type: "poisoned"; actor: Actor }
   | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number }

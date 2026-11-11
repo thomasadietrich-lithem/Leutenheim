@@ -9,7 +9,8 @@ import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
-import { buildIcon, itemIcon, uiIcon } from "./ui/icons";
+import { buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, uiIcon } from "./ui/icons";
+import { PATH_LEVEL, PATHS, PathId, SECONDARY_LEVELS, SkillId, STAT_LABELS, StatId } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
@@ -90,6 +91,8 @@ let foundOpen = false;
 let wheelOpen = false;
 /** Se dégager : on attend que le joueur touche une des cases proposées. */
 let jumpMode = false;
+/** Potion de feu sortie du sac : on attend la case où la lancer. */
+let throwUid: number | null = null;
 /** Pousser, avec plusieurs ennemis au contact : on attend que le joueur touche celui à pousser. */
 let pushMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
@@ -373,6 +376,28 @@ function reveal(e: GameEvent): void {
       renderer.monsterDies(e.actor);
       sfx.play("kill");
     }
+  } else if (e.type === "fire") {
+    renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
+    sfx.play("break");
+  } else if (e.type === "burn") {
+    if (e.actor.kind === "hero") {
+      renderer.heroHurt();
+      shownHp = Math.max(0, shownHp - e.damage);
+    } else renderer.monsterHurt(e.actor.id);
+    renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#ff9a3a");
+  } else if (e.type === "skill") {
+    if (e.path === "blue") {
+      renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.healed} PV`, "#9fd0f4");
+      shownHp = game.hero.hp;
+      sfx.play("heal");
+    }
+  } else if (e.type === "lastStand") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Dernier rempart !", "#9fd0f4");
+    shownHp = game.hero.hp;
+  } else if (e.type === "slowed") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "Ralenti", "#9fe060");
+  } else if (e.type === "potion") {
+    sfx.play("heal");
   } else if (e.type === "poison") {
     renderer.monsterHurt(e.actor.id);
     renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
@@ -492,6 +517,18 @@ bindInput(canvas, {
       }
       return;
     }
+    if (throwUid !== null) {
+      // Potion à lancer : toucher une case proposée la lance ; toucher ailleurs renonce.
+      const uid = throwUid;
+      throwUid = null;
+      renderer.jumpCells = [];
+      if (game.throwPotion(uid, t.x, t.y)) stepMs = COMBAT_STEP_MS;
+      else {
+        logLines.push("Vous gardez la potion.");
+        renderLog();
+      }
+      return;
+    }
     if (jumpMode) {
       // Toucher une case proposée y fait sauter le héros ; toucher ailleurs renonce.
       jumpMode = false;
@@ -556,6 +593,7 @@ const WHEEL = [
   ["wheel-item", "item", "Utiliser un objet"],
   ["wheel-rest", "rest", "Se reposer"],
   ["wheel-hide", "hide", "Se cacher"],
+  ["wheel-skill", "actions", "Compétence de voie"],
 ] as const;
 
 function closeWheel(): void {
@@ -576,8 +614,13 @@ function openWheel(): void {
   const hero = renderer.tileCenter(game.hero.x, game.hero.y);
   const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
   const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
-  WHEEL.forEach(([id], i) => {
-    const angle = ((-90 + (i * 360) / WHEEL.length) * Math.PI) / 180;
+  // La compétence de voie (bleue, rouge) a son bouton dans la couronne ; la verte change « pousser ».
+  const withSkill = game.voie === "blue" || game.voie === "red";
+  $("wheel-skill").hidden = !withSkill;
+  if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
+  const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
+  shown.forEach(([id], i) => {
+    const angle = ((-90 + (i * 360) / shown.length) * Math.PI) / 180;
     const b = $(id);
     b.style.left = `${cx + radius * Math.cos(angle)}px`;
     b.style.top = `${cy + radius * Math.sin(angle)}px`;
@@ -588,6 +631,7 @@ function openWheel(): void {
       : id === "wheel-disengage" ? game.disengageRefusal() === null
       : id === "wheel-search" ? game.searchRefusal() === null
       : id === "wheel-push" ? game.pushRefusal() === null
+      : id === "wheel-skill" ? game.skillRefusal() === null
       : false;
     b.classList.toggle("off", !possible);
   });
@@ -603,7 +647,11 @@ for (const [id, icon, label] of WHEEL) {
     sfx.unlock();
     sfx.play("click");
     closeWheel();
-    if (id === "wheel-rest") {
+    if (id === "wheel-skill") {
+      const refusal = game.skillRefusal();
+      if (refusal) logLines.push(REFUSALS.skill[refusal]);
+      else if (game.useSkill()) stepMs = COMBAT_STEP_MS;
+    } else if (id === "wheel-rest") {
       const refusal = game.restRefusal();
       if (refusal) logLines.push(REFUSALS.rest[refusal]);
       else if (game.rest()) stepMs = COMBAT_STEP_MS;
@@ -747,7 +795,6 @@ $("here-info").setAttribute("aria-label", "Fiche de l'objet");
 for (const [id, icon, label] of [
   ["wait", "wait", "Attendre un tour"],
   ["actions", "actions", "Actions"],
-  ["open-bag", "bag", "Équipement et sac"],
   ["open-menu", "menu", "Menu"],
   ["recenter", "recenter", "Recentrer la vue"],
   ["door-cancel", "cancel", "Ne rien faire"],
@@ -757,6 +804,15 @@ for (const [id, icon, label] of [
   $(id).title = label;
 }
 $("aim").setAttribute("aria-label", "Tirer à l'arc");
+// Le bouton de l'écran du héros : sa tête, et un « ! » doré quand un point ou une compétence attend (demande de Thomas).
+{
+  const bang = el("span", "", "!");
+  bang.id = "bag-bang";
+  bang.hidden = true;
+  $("open-bag").replaceChildren(buildIcon(HERO_HEAD, HERO_HEAD_PALETTE), bang);
+  $("open-bag").setAttribute("aria-label", "Le héros : inventaire et personnage");
+  $("open-bag").title = "Le héros";
+}
 // L'étage, en haut à droite : l'escalier du jeu et son numéro (demande de Thomas).
 $("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
 
@@ -814,7 +870,7 @@ function renderBag(): void {
         box.append(itemIcon(worn.defId));
       } else {
         // Emplacement vide : la silhouette estompée de ce qui s'y porte, à la place d'un nom.
-        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court") }[slot];
+        const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court"), bag: itemIcon("sac_toile") }[slot];
         ghost.classList.add("ghost");
         box.append(ghost);
       }
@@ -824,31 +880,14 @@ function renderBag(): void {
       node.addEventListener("click", () => {
         sfx.play("click");
         selected = worn && selectedSlot !== slot ? { slot } : null;
-        renderBag();
+        renderHeroScreen();
       });
       return node;
     }),
   );
 
-  // En haut : qui l'on est, l'or de la bourse, et les caractéristiques (demande de Thomas).
-  $("bag-who").textContent = `${game.heroClass.name} · Niv ${game.level}`;
+  // En haut : l'or de la bourse (les caractéristiques sont dans l'onglet Personnage).
   $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(String(game.gold)));
-  const c = game.heroClass;
-  const stat = (label: string, value: string) => {
-    const node = el("span", "", label);
-    node.append(el("b", "", value));
-    return node;
-  };
-  $("bag-stats").replaceChildren(
-    stat("PV", `${game.hero.hp}/${game.hero.maxHp}`),
-    stat("CA", String(game.hero.armorClass)),
-    stat("Attaque", signedBonus(game.hero.attackBonus)),
-    stat("XP", `${game.xp}/${game.xpToNext()}`),
-    stat("Force", signedBonus(c.pushBonus)),
-    stat("Agilité", signedBonus(c.disengageBonus)),
-    stat("Discrétion", signedBonus(c.stealthBonus)),
-    stat("Fouille", signedBonus(c.searchBonus)),
-  );
 
   // Le carquois : les sortes de flèches du sac ; on touche celles à tirer (niveau trop bas : « Lv » en rouge).
   const kinds = game.ammoKinds();
@@ -865,7 +904,7 @@ function renderBag(): void {
         if (!game.chooseAmmo(id)) logLines.push(`Il faut être niveau ${def.level} pour tirer ces flèches.`);
         aimShown = "";
         renderLog();
-        renderBag();
+        renderHeroScreen();
       });
       return node;
     }),
@@ -901,10 +940,21 @@ function renderBag(): void {
   }
   const def: ItemDef = ITEMS[item.defId];
   const keyNote = def.kind === "key" && item.floor !== undefined ? ` — étage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
-  info.replaceChildren(itemCard(def, item.count, selectedSlot ? " — porté" : keyNote));
-  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use";
-  action.hidden = !wearable && def.kind !== "use";
-  action.textContent = selectedSlot ? "Retirer" : def.kind === "use" ? "Utiliser" : "Équiper";
+  // La fiche s'ouvre sous le sac ; la croix la referme (demande de Thomas).
+  const card = itemCard(def, item.count, selectedSlot ? " — porté" : keyNote);
+  const close = el("button", "item-close", "×") as HTMLButtonElement;
+  close.type = "button";
+  close.setAttribute("aria-label", "Fermer la fiche");
+  close.addEventListener("click", () => {
+    selected = null;
+    renderHeroScreen();
+  });
+  card.prepend(close);
+  info.replaceChildren(card);
+  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
+  // Le sac porté ne s'enlève pas : on le remplace par un autre.
+  action.hidden = (!wearable && def.kind !== "use") || selectedSlot === "bag";
+  action.textContent = selectedSlot ? "Retirer" : def.throwRange ? "Lancer" : def.kind === "use" ? "Utiliser" : "Équiper";
 }
 
 $("bag-grid").addEventListener("click", (e) => {
@@ -918,34 +968,187 @@ $("bag-grid").addEventListener("click", (e) => {
   if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
   else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
   sfx.play("click");
-  renderBag();
+  renderHeroScreen();
 });
 button("bag-equip", () => {
   const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
     logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
+  } else if (chosen && chosenDef?.throwRange) {
+    // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
+    throwUid = chosen.uid;
+    renderer.jumpCells = throwCells(chosen.uid);
+    logLines.push("Touchez la case où lancer la potion.");
+    bagOpen = false;
+    $("bag").hidden = true;
   } else if (chosen && chosenDef?.kind === "use") {
     // Utiliser prend un tour : on referme le sac pour le laisser passer.
     if (!game.useItem(chosen.uid)) logLines.push("Vous êtes déjà en pleine santé.");
     bagOpen = false;
     $("bag").hidden = true;
   } else if (selected && "uid" in selected) {
-    if (!game.equip(selected.uid)) logLines.push("Pas assez de place dans le sac pour échanger.");
+    const bagSwap = chosenDef?.kind === "bag";
+    if (!game.equip(selected.uid)) logLines.push(bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour échanger.");
   } else if (selected && "slot" in selected) {
     if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
   }
   selected = null;
   aimShown = "";
   renderLog();
-  renderBag();
+  renderHeroScreen();
 });
 button("open-bag", () => {
   bagOpen = true;
   selected = null;
+  pickedChoice = null;
+  // S'il y a un point ou une compétence à choisir, on ouvre directement l'onglet Personnage.
+  heroTab = game.hasPendingChoice() ? "char" : "inv";
   $("bag").hidden = false;
-  renderBag();
+  renderHeroScreen();
 });
+button("tab-inv", () => {
+  heroTab = "inv";
+  pickedChoice = null;
+  renderHeroScreen();
+});
+button("tab-char", () => {
+  heroTab = "char";
+  renderHeroScreen();
+});
+button("char-confirm", () => {
+  if (pickedChoice?.kind === "path") {
+    if (game.choosePath(pickedChoice.id)) logLines.push(`Voie choisie : ${PATHS[pickedChoice.id].name}.`);
+  } else if (pickedChoice?.kind === "skill") {
+    if (game.chooseSkill(pickedChoice.id)) logLines.push("Compétence acquise.");
+  }
+  pickedChoice = null;
+  collectEvents();
+  renderLog();
+  renderHeroScreen();
+});
+
+// ---------- Écran du héros : onglets Inventaire et Personnage ----------
+
+let heroTab: "inv" | "char" = "inv";
+/** Voie ou compétence touchée, en attente de confirmation (le choix est définitif). */
+let pickedChoice: { kind: "path"; id: PathId } | { kind: "skill"; id: SkillId } | null = null;
+
+function renderHeroScreen(): void {
+  $("tab-inv").classList.toggle("on", heroTab === "inv");
+  $("tab-char").classList.toggle("on", heroTab === "char");
+  $("tab-char-bang").hidden = !game.hasPendingChoice();
+  $("pane-inv").hidden = heroTab !== "inv";
+  $("pane-char").hidden = heroTab !== "char";
+  if (heroTab === "inv") renderBag();
+  else renderCharacter();
+}
+
+function renderCharacter(): void {
+  const head = buildIcon(HERO_HEAD, HERO_HEAD_PALETTE);
+  const who = el("span", "char-head");
+  who.append(head, document.createTextNode(`${game.heroClass.name} · Niv ${game.level}`));
+  $("char-who").replaceChildren(who);
+  $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
+  $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} à attribuer` : "";
+
+  const row = (name: string, hint: string, value: string, stat?: StatId) => {
+    const node = el("div", "char-stat");
+    const label = el("span", "n", name);
+    if (hint) label.append(el("span", "hint", hint));
+    node.append(label, el("b", "", value));
+    if (stat && game.points > 0) {
+      const plus = el("button", "char-plus", "+") as HTMLButtonElement;
+      plus.type = "button";
+      plus.setAttribute("aria-label", `Un point en ${name}`);
+      plus.addEventListener("click", () => {
+        sfx.play("click");
+        game.allocate(stat);
+        renderHeroScreen();
+      });
+      node.append(plus);
+    }
+    return node;
+  };
+  const c = game.heroClass;
+  $("char-stats").replaceChildren(
+    row(STAT_LABELS.vie.name, STAT_LABELS.vie.hint, `${game.hero.hp}/${game.hero.maxHp}`, "vie"),
+    row(STAT_LABELS.force.name, STAT_LABELS.force.hint, signedBonus(game.pushBonus()), "force"),
+    row(STAT_LABELS.agilite.name, STAT_LABELS.agilite.hint, signedBonus(game.disengageBonus()), "agilite"),
+    el("div", "char-sep"),
+    row("Fouille", "à part : ne prend pas de points", signedBonus(c.searchBonus)),
+    row("Discrétion", "", signedBonus(c.stealthBonus)),
+    row("CA", "", String(game.hero.armorClass)),
+    row("Attaque", "", signedBonus(game.hero.attackBonus)),
+  );
+
+  // Compétences : choisir sa voie (niveau 2), puis une secondaire aux niveaux 4, 6 et 8.
+  const cards: HTMLElement[] = [];
+  const confirm = $("char-confirm") as HTMLButtonElement;
+  let note = "";
+  if (!game.voie) {
+    $("char-skills-title").textContent = game.canChoosePath() ? "Choisir une voie" : `Voies (au niveau ${PATH_LEVEL})`;
+    for (const path of Object.values(PATHS)) {
+      const picked = pickedChoice?.kind === "path" && pickedChoice.id === path.id;
+      const card = el("div", `skill-card${picked ? " picked" : ""}${game.canChoosePath() ? "" : " locked"}`);
+      card.append(buildIcon(PATH_ICONS[path.id]), el("b", "", path.name), document.createTextNode(path.description));
+      if (game.canChoosePath()) {
+        card.addEventListener("click", () => {
+          sfx.play("click");
+          pickedChoice = { kind: "path", id: path.id };
+          renderCharacter();
+        });
+      }
+      cards.push(card);
+    }
+    note = game.canChoosePath() ? "Choix définitif" : "";
+  } else {
+    const path = PATHS[game.voie];
+    $("char-skills-title").textContent = "Compétences";
+    const main = el("div", "skill-card main owned");
+    const body = el("div", "");
+    const uses = game.voie === "blue" ? (game.perks().secondWind ? " (déjà utilisé à cet étage)" : " (prêt)") : game.voie === "red" ? ` (${game.perks().doubleStrikes} à cet étage)` : "";
+    body.append(el("b", "", path.name), document.createTextNode(path.description + uses));
+    main.append(buildIcon(PATH_ICONS[path.id]), body);
+    cards.push(main);
+    const picks = game.secondaryPicks();
+    path.secondaries.forEach((sk, i) => {
+      const owned = game.skills.includes(sk.id);
+      const picked = pickedChoice?.kind === "skill" && pickedChoice.id === sk.id;
+      const available = !owned && picks > 0;
+      const card = el("div", `skill-card${owned ? " owned" : ""}${picked ? " picked" : ""}${!owned && !available ? " locked" : ""}`);
+      card.append(el("b", "", sk.name), document.createTextNode(sk.description));
+      if (owned) card.append(el("div", "", "Acquise"));
+      else if (!available) card.append(el("div", "", `Niveau ${SECONDARY_LEVELS[Math.min(game.skills.length, SECONDARY_LEVELS.length - 1)]}`));
+      if (available) {
+        card.addEventListener("click", () => {
+          sfx.play("click");
+          pickedChoice = { kind: "skill", id: sk.id };
+          renderCharacter();
+        });
+      }
+      void i;
+      cards.push(card);
+    });
+    if (picks > 0) note = `${picks} compétence${picks > 1 ? "s" : ""} à choisir`;
+  }
+  $("char-skills").replaceChildren(...cards);
+  $("char-note").textContent = note;
+  confirm.hidden = pickedChoice === null;
+  confirm.textContent = pickedChoice?.kind === "path" ? "Prendre cette voie (définitif)" : "Prendre cette compétence";
+}
+
+/** Cases où l'on peut lancer une potion : en vue, à portée. */
+function throwCells(uid: number): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  for (let y = game.hero.y - 6; y <= game.hero.y + 6; y++) {
+    for (let x = game.hero.x - 6; x <= game.hero.x + 6; x++) {
+      if ((x !== game.hero.x || y !== game.hero.y) && game.throwRefusal(uid, x, y) === null) cells.push({ x, y });
+    }
+  }
+  return cells;
+}
+
 button("found-close", () => {
   foundOpen = false;
   $("found").hidden = true;
@@ -999,7 +1202,10 @@ function renderCodex(): void {
       ["Heaumes", ["hat"]],
       ["Amulettes", ["amulet"]],
       ["Artefacts", ["artifact"]],
-      ["Divers", ["key", "gold"]],
+      ["Sacs", ["bag"]],
+      ["Potions et vivres", ["use"]],
+      ["Pierres précieuses et or", ["gem", "gold"]],
+      ["Divers", ["key"]],
     ];
     for (const [title, kinds] of groups) {
       const all = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
@@ -1262,7 +1468,7 @@ function frame(now: number): void {
     sfx.fireplace(fire, dt);
   }
   // Les cases de saut ne s'affichent que pendant le choix.
-  if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode) {
+  if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode && throwUid === null) {
     jumpMode = false;
     renderer.jumpCells = [];
   }
@@ -1275,6 +1481,7 @@ function frame(now: number): void {
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
+  $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;

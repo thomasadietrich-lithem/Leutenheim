@@ -1,7 +1,7 @@
 import { Dice } from "../core/dice";
 
 /** Ce que le héros peut porter sur lui, à part du sac. */
-export type Slot = "amulet" | "hat" | "artifact" | "armor" | "melee" | "ranged";
+export type Slot = "amulet" | "hat" | "artifact" | "armor" | "melee" | "ranged" | "bag";
 export const SLOTS: { slot: Slot; label: string }[] = [
   { slot: "amulet", label: "Amulette" },
   { slot: "hat", label: "Heaume" },
@@ -9,6 +9,7 @@ export const SLOTS: { slot: Slot; label: string }[] = [
   { slot: "armor", label: "Armure" },
   { slot: "melee", label: "Corps à corps" },
   { slot: "ranged", label: "Distance" },
+  { slot: "bag", label: "Sac" },
 ];
 
 /** Classe d'armure sans armure. */
@@ -19,7 +20,7 @@ export interface ItemDef {
   id: string;
   name: string;
   /** Les six premiers sont aussi des emplacements d'équipement ; munitions et clefs restent dans le sac. */
-  kind: Slot | "ammo" | "key" | "gold" | "use";
+  kind: Slot | "ammo" | "key" | "gold" | "use" | "gem";
   /** Une phrase de description, affichée sur la fiche de l'objet. */
   description: string;
   /** Place occupée dans le sac, en cases (largeur × hauteur). */
@@ -48,6 +49,15 @@ export interface ItemDef {
   /** Objets à utiliser : PV rendus, ou tours de lumière (torche). */
   heal?: number;
   lightTurns?: number;
+  /** Gemmes : leur valeur, versée dans la bourse en les ramassant. */
+  value?: number;
+  /** Sacs : nombre de cases (colonnes × rangées). */
+  bagCols?: number;
+  bagRows?: number;
+  /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
+  potion?: "youth" | "poison" | "haste" | "fire";
+  /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
+  throwRange?: number;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc). */
   ammoFamily?: string;
 }
@@ -215,6 +225,20 @@ export const ITEMS = {
     maxStack: 1,
     armorClass: 13,
   },
+  // ---- Gemmes (Thomas, 2026-11-11) : ramassées, elles vont dans la bourse pour leur valeur. ----
+  amethyste: { id: "amethyste", name: "Améthyste", kind: "gem", description: "Une pierre violette, taillée en brillant.", w: 1, h: 1, maxStack: 99, rarity: "uncommon", value: 20 },
+  saphir: { id: "saphir", name: "Saphir", kind: "gem", description: "Un bleu profond qui accroche la moindre lueur.", w: 1, h: 1, maxStack: 99, rarity: "rare", value: 50 },
+  emeraude: { id: "emeraude", name: "Émeraude", kind: "gem", description: "Taillée à degrés, d'un vert très pur.", w: 1, h: 1, maxStack: 99, rarity: "rare", value: 100 },
+  diamant: { id: "diamant", name: "Diamant", kind: "gem", description: "Il brille même dans le noir. Ou presque.", w: 1, h: 1, maxStack: 99, rarity: "rare", value: 200 },
+  // ---- Sacs (emplacement « sac ») : la toile au départ, puis plus grand. ----
+  sac_toile: { id: "sac_toile", name: "Sac en toile", kind: "bag", description: "Un sac de toile grossière. 6 × 4 cases.", w: 2, h: 2, maxStack: 1, level: 1, bagCols: 6, bagRows: 4 },
+  sac_cuir: { id: "sac_cuir", name: "Sac de cuir", kind: "bag", description: "Un sac à rabat, solide. 7 × 5 cases.", w: 2, h: 2, maxStack: 1, rarity: "uncommon", level: 3, bagCols: 7, bagRows: 5 },
+  sac_voyage: { id: "sac_voyage", name: "Sac d'aventurier", kind: "bag", description: "Un grand sac à dos, couverture roulée dessus. 8 × 6 cases.", w: 2, h: 2, maxStack: 1, rarity: "rare", level: 6, bagCols: 8, bagRows: 6 },
+  // ---- Potions ----
+  potion_jouvence: { id: "potion_jouvence", name: "Potion de jouvence", kind: "use", description: "Jaune et pétillante. Rend tous vos points à répartir, plus un. La voie choisie, elle, ne change pas.", w: 1, h: 1, maxStack: 3, rarity: "rare", potion: "youth" },
+  potion_poison: { id: "potion_poison", name: "Potion de poison", kind: "use", description: "Enduit votre arme : vos 15 prochains coups qui portent empoisonnent.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "poison" },
+  potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps à corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
+  potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "À lancer : la case visée et ses quatre voisines brûlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
   robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'étude. Elle ne protège guère.", w: 2, h: 2, maxStack: 1, armorClass: 11 },
 } satisfies Record<string, ItemDef>;
 
@@ -235,4 +259,6 @@ export const KIND_LABELS: Record<ItemDef["kind"], string> = {
   key: "Objet utile",
   gold: "Monnaie",
   use: "À utiliser",
+  gem: "Pierre précieuse",
+  bag: "Sac",
 };

@@ -1,6 +1,6 @@
 import { GameEvent } from "../core/game";
 import { ITEMS } from "../data/items";
-import { RULES } from "../data/rules";
+import { PATHS } from "../data/skills";
 
 /**
  * Tous les textes du journal (sous le dé), au même endroit : les règles produisent des événements, ce fichier dit
@@ -60,7 +60,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return found.kind === "gold" ? `Bourse : or ×${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
     }
     case "levelup":
-      return `Niveau ${e.level} ! Vous gagnez ${RULES.hpPerLevel} points de vie.`;
+      return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name} est vaincu.`;
     case "bagFull":
@@ -106,6 +106,24 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Le coffre contient ${e.gold} pièces d'or.`;
     case "used":
       return e.healed !== undefined ? `Vous mangez : ${ITEMS[e.item].name.toLowerCase()}, +${e.healed} PV.` : "Vous allumez une torche.";
+    case "path":
+      return `Vous suivez désormais la voie : ${PATHS[e.path].name}.`;
+    case "skill":
+      return e.path === "blue" ? `Second souffle : +${e.healed} PV.` : "Double frappe !";
+    case "lastStand":
+      return "Dernier rempart : vous tenez debout, à 1 PV.";
+    case "fire":
+      return "Vous lancez la potion : les flammes jaillissent !";
+    case "burn":
+      return e.actor.kind === "hero" ? `Vous brûlez : ${e.damage} dégâts.` : `${e.actor.name} brûle : ${e.damage} dégâts.`;
+    case "potion":
+      return e.potion === "youth"
+        ? `Jouvence : vos points vous reviennent (${e.points} à attribuer).`
+        : e.potion === "poison"
+          ? "Vous enduisez votre arme de poison (15 coups)."
+          : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "slowed":
+      return `${e.actor.name} est ralenti.`;
     case "torchOut":
       return "Votre torche s'éteint.";
     case "poisoned":
@@ -119,6 +137,13 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
 
 /** Pourquoi une action de la roue est impossible (le bouton est grisé ; le journal l'explique si on le touche). */
 export const REFUSALS = {
+  skill: {
+    none: "Votre voie n'a pas de compétence à utiliser ici.",
+    used: "Plus d'utilisation à cet étage.",
+    full: "Vous êtes déjà en pleine santé.",
+    "no-target": "Aucun ennemi au contact.",
+    danger: "Pas maintenant.",
+  },
   hide: {
     hidden: "Vous êtes déjà caché.",
     threatened: "Impossible de se cacher : un ennemi est à votre contact.",

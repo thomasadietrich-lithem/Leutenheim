@@ -98,5 +98,27 @@ export const RULES = {
   torchRadius: 6,
   /** Vitesse d'attaque : durée d'une attaque lente et d'une attaque rapide, en tours (C). */
   slowAttackTurns: 1.5,
+  // ---- Points, voies et potions (2026-11-11) : valeurs proposées par Claude, validées par « Ok. Tout ». ----
+  /** Un point en Vie : PV max en plus. */
+  hpPerVie: 4,
+  /** Second souffle (voie bleue) : PV rendus. */
+  secondWindHeal: 10,
+  /** Double frappe (voie rouge) : utilisations par étage. */
+  doubleStrikesPerFloor: 3,
+  /** Bousculade (voie verte) : distance de poussée et tours de ralentissement. */
+  shoveDistance: 3,
+  slowTurns: 3,
+  /** Impact (voie verte) : dégâts contre un mur ; Charge : dégâts en plus ; Rage : dégâts en plus. */
+  impactDamage: { count: 2, sides: 6, bonus: 0 },
+  chargeDamage: { count: 1, sides: 6, bonus: 0 },
+  rageBonus: 2,
+  /** Pas de côté (voie verte) : bonus pour se dégager et longueur du saut. */
+  sidestepBonus: 3,
+  sidestepDistance: 3,
+  /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */
+  weaponPoisonHits: 15,
+  hasteTurns: 4,
+  fireTurns: 5,
+  fireDamage: { count: 1, sides: 4, bonus: 0 },
   fastAttackTurns: 0.75,
 };

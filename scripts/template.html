@@ -215,6 +215,41 @@
   #found { z-index: 2; background: rgba(13,10,8,0.92); }
   #found h2 { margin: 0; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
   #found button { width: 220px; padding: 10px; font-size: 22px; }
+  .hero-tabs { display: flex; width: min(100%, 318px); }
+  .hero-tab { flex: 1; padding: 6px 0; font-size: 22px; color: var(--dim); background: #1a140e; box-shadow: inset 2px 2px 0 #3a2e1e, inset -2px -2px 0 #0c0906; }
+  .hero-tab.on { color: #fff3c8; background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
+  .bang { color: #ffd75e; margin-left: 6px; }
+  #pane-inv, #pane-char { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+  #pane-inv[hidden], #pane-char[hidden] { display: none; }
+  .slot-bag { grid-column: 2; }
+  .char-head { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .char-head svg { width: 44px; height: 25px; }
+  #char-points { width: min(100%, 318px); padding: 6px 8px; color: #ffd75e; font-size: 20px; text-transform: uppercase; box-shadow: inset 0 0 0 2px var(--gold); background: #2a2010; text-align: center; }
+  #char-points:empty { display: none; }
+  #char-stats { width: min(100%, 318px); }
+  .char-stat { display: flex; align-items: center; gap: 8px; font-size: 20px; text-transform: uppercase; color: var(--dim); margin: 3px 0; }
+  .char-stat .n { flex: 1; text-align: left; }
+  .char-stat .hint { display: block; font-size: 15px; color: #8a8070; text-transform: none; }
+  .char-stat b { color: #fff3c8; font-weight: normal; min-width: 64px; text-align: right; }
+  .char-plus { width: 34px; height: 30px; padding: 0; font-size: 24px; line-height: 1; }
+  .char-sep { border-top: 2px solid #3a2e1e; margin: 6px 0; }
+  #char-skills { width: min(100%, 318px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .skill-card { padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; text-align: center; font-size: 15px; color: var(--dim); line-height: 1.1; cursor: pointer; }
+  .skill-card svg { width: 40px; height: 40px; display: block; margin: 0 auto 4px; }
+  .skill-card b { display: block; font-size: 17px; color: #fff3c8; font-weight: normal; text-transform: uppercase; }
+  .skill-card.owned { box-shadow: inset 0 0 0 2px var(--gold); background: #3a2c14; }
+  .skill-card.picked { box-shadow: inset 0 0 0 3px #ffd75e; background: #4a3814; }
+  .skill-card.locked { opacity: 0.45; cursor: default; }
+  .skill-card.main { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; text-align: left; }
+  .skill-card.main svg { margin: 0; }
+  #char-note { font-size: 16px; color: #ff8a7a; text-align: center; width: min(100%, 318px); }
+  #char-note:empty { display: none; }
+  #bag-info .item-card { position: relative; padding-right: 34px; }
+  .item-close { position: absolute; right: 4px; top: 4px; width: 26px; height: 26px; padding: 0; font-size: 18px; line-height: 1; }
+  #char-xp { white-space: nowrap; color: var(--dim); margin-left: 10px; }
+  #open-bag { position: relative; }
+  #open-bag svg { width: 44px; height: 25px; }
+  #bag-bang { position: absolute; right: 6px; top: 0; color: #ffd75e; font-size: 28px; text-shadow: 2px 2px 0 #000; }
   .bag-top { width: min(100%, 318px); display: flex; justify-content: space-between; align-items: center; font-size: 20px; color: #fff3c8; text-transform: uppercase; }
   #bag-gold { display: flex; align-items: center; gap: 6px; color: var(--gold); font-size: 24px; }
   #bag-gold svg { width: 30px; height: 30px; }
@@ -252,6 +287,7 @@
       <button id="wheel-item" type="button"></button>
       <button id="wheel-rest" type="button"></button>
       <button id="wheel-hide" type="button"></button>
+      <button id="wheel-skill" type="button" hidden></button>
     </div>
     <div id="door-actions" hidden>
       <div class="door-choices">
@@ -290,18 +326,31 @@
     <button id="found-close" type="button">Continuer</button>
   </div>
   <div id="bag" class="overlay" hidden>
-    <h2>Équipement</h2>
-    <div class="bag-top"><span id="bag-who"></span><span id="bag-gold"></span></div>
-    <div id="bag-stats"></div>
-    <div id="doll"></div>
-    <div id="quiver-box"><h3>Carquois</h3><div id="quiver"></div></div>
-    <h3>Sac</h3>
-    <div id="bag-grid"></div>
-    <div id="bag-info"></div>
-    <div class="bag-buttons">
-      <button id="bag-equip" type="button" hidden></button>
-      <button id="bag-close" type="button">Fermer</button>
+    <div class="hero-tabs">
+      <button id="tab-inv" class="hero-tab on" type="button">Inventaire</button>
+      <button id="tab-char" class="hero-tab" type="button">Personnage<span id="tab-char-bang" class="bang" hidden>!</span></button>
     </div>
+    <section id="pane-inv">
+      <div class="bag-top"><span>Équipement</span><span id="bag-gold"></span></div>
+      <div id="doll"></div>
+      <div id="quiver-box"><h3>Carquois</h3><div id="quiver"></div></div>
+      <h3>Sac</h3>
+      <div id="bag-grid"></div>
+      <div id="bag-info"></div>
+      <div class="bag-buttons">
+        <button id="bag-equip" type="button" hidden></button>
+      </div>
+    </section>
+    <section id="pane-char" hidden>
+      <div class="bag-top"><span id="char-who"></span><span id="char-xp"></span></div>
+      <div id="char-points"></div>
+      <div id="char-stats"></div>
+      <h3 id="char-skills-title"></h3>
+      <div id="char-skills"></div>
+      <div id="char-note"></div>
+      <button id="char-confirm" type="button" hidden></button>
+    </section>
+    <button id="bag-close" type="button">Fermer</button>
   </div>
   <div id="menu" class="overlay">
     <section id="screen-main">

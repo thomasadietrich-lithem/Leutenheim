@@ -19,10 +19,16 @@ export const GOLD_PILES: Record<"small" | "medium" | "large", [number, number]>[
 ];
 
 /** Ce qu'on peut trouver, par rareté. `count` : nombre d'exemplaires (min, max). */
-export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number] }[]> = {
+export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number]; minDepth?: number }[]> = {
   common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }],
-  uncommon: [{ item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" }],
-  rare: [{ item: "gold" }, { item: "cimeterre" }, { item: "armure_cloutee" }],
+  uncommon: [
+    { item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
+    { item: "amethyste" }, { item: "sac_cuir" }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
+  ],
+  rare: [
+    { item: "gold" }, { item: "cimeterre" }, { item: "armure_cloutee" }, { item: "saphir" }, { item: "potion_jouvence" },
+    { item: "emeraude", minDepth: 6 }, { item: "diamant", minDepth: 11 }, { item: "sac_voyage", minDepth: 6 },
+  ],
 };
 
 /** Taille du tas d'or selon la rareté tirée. */

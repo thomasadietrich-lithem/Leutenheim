@@ -593,6 +593,29 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
+    // Cases en feu (potion de feu) : des flammes qui dansent.
+    for (const f of game.fires) {
+      if (!game.isVisible(f.x, f.y)) continue;
+      const fx = ox + f.x * tile;
+      const fy = oy + f.y * tile;
+      ctx.fillStyle = "rgba(255,120,30,0.25)";
+      ctx.fillRect(fx, fy, tile, tile);
+      for (let k = 0; k < 3; k++) {
+        const phase = this.time / 140 + k * 2.1 + f.x * 1.7 + f.y * 0.9;
+        const h = tile * (0.38 + 0.14 * Math.sin(phase));
+        const cx = fx + tile * (0.25 + 0.25 * k);
+        const base = fy + tile * 0.9;
+        for (const [color, scale] of [["#c03a1a", 1], ["#ff9a3a", 0.7], ["#ffe27a", 0.4]] as const) {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(cx - tile * 0.12 * scale, base);
+          ctx.quadraticCurveTo(cx - tile * 0.1 * scale, base - h * scale * 0.6, cx + Math.sin(phase * 1.3) * tile * 0.04, base - h * scale);
+          ctx.quadraticCurveTo(cx + tile * 0.1 * scale, base - h * scale * 0.6, cx + tile * 0.12 * scale, base);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
     for (const g of game.ground) {
       if (!game.isExplored(g.x, g.y)) continue;
       const gx = ox + g.x * tile;

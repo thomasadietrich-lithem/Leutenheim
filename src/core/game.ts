@@ -1,6 +1,7 @@
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
+import { PATH_LEVEL, PathId, PATHS, SECONDARY_LEVELS, SkillId, StatId } from "../data/skills";
 import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
@@ -44,7 +45,7 @@ export class Game {
   pendingDoor: Point | null = null;
   /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
   inventory = new Inventory();
-  equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null };
+  equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null, bag: null };
   /** Objets au sol sur l'étage courant (flèches à ramasser). */
   ground: GroundItem[] = [];
   /** Bourse, expérience et niveau du héros. */
@@ -61,6 +62,25 @@ export class Game {
    */
   clock = 0;
   private actionCost = 1;
+  // ---- Points, voie et compétences (2026-11-11) ----
+  /** Points gagnés aux niveaux, pas encore placés. */
+  points = 0;
+  /** Points placés dans chaque caractéristique. */
+  alloc: Record<StatId, number> = { vie: 0, force: 0, agilite: 0 };
+  /** Voie choisie (définitive) et compétences secondaires prises. */
+  voie: PathId | null = null;
+  skills: SkillId[] = [];
+  /** Ce qui ne sert qu'une fois (ou trois) par étage, étage par étage. */
+  floorPerks: Record<number, { secondWind: boolean; doubleStrikes: number; lastStand: boolean }> = {};
+  /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
+  weaponPoison = 0;
+  hasteTurns = 0;
+  /** Cases en feu (potion de feu), sur l'étage courant. */
+  fires: { x: number; y: number; turns: number }[] = [];
+  private throwOrder: { uid: number; x: number; y: number } | null = null;
+  private skillOrder: number | null = null;
+  /** Charge : pas faits en ligne droite juste avant d'attaquer. */
+  private straight = { dx: 0, dy: 0, steps: 0, turn: -1 };
   private useOrder: number | null = null;
   /** Flèches brisées encore visibles au sol. */
   debris: Debris[] = [];
@@ -184,6 +204,7 @@ export class Game {
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
+    this.fires = [];
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
     this.hero.x = this.hero.fromX = arrival.x;
@@ -197,10 +218,16 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.hidden = false;
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
@@ -305,22 +332,19 @@ export class Game {
 
   /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
   private avoidTraps(to: Point, base?: (x: number, y: number) => boolean, from: Point = this.hero): (x: number, y: number) => boolean {
-    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || !this.isTrap(x, y));
+    // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
+    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!this.isTrap(x, y) && !this.isBurning(x, y)));
   }
 
   /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
   private springTrap(actor: Actor): void {
     if (!this.isTrap(actor.x, actor.y)) return;
     const damage = rollDice(this.rng, RULES.trapDamage);
-    actor.hp = Math.max(0, actor.hp - damage);
     this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
     if (actor.kind === "hero") {
-      if (actor.hp === 0) {
-        this.over = true;
-        this.path = [];
-        this.events.push({ type: "death", actor });
-      }
+      this.hurtHero(damage);
     } else {
+      actor.hp = Math.max(0, actor.hp - damage);
       this.removeIfDead(actor);
     }
   }
@@ -358,6 +382,8 @@ export class Game {
     // Niveau 4 dans la salle d'essai : on peut y essayer l'épée longue, la lance et les flèches empoisonnées ;
     // le cimeterre et le cuir clouté (niveau 5) montrent le refus.
     this.level = plan.heroLevel;
+    // Les points des niveaux déjà passés sont à attribuer (et la voie à choisir).
+    this.points = plan.heroLevel - 1;
     state.population = this.monsters.length;
     state.nextRespawn = this.turn + RULES.respawnTurns;
     for (const g of plan.ground) this.ground.push({ ...g });
@@ -436,6 +462,15 @@ export class Game {
       gold: this.gold,
       xp: this.xp,
       level: this.level,
+      points: this.points,
+      alloc: this.alloc,
+      voie: this.voie,
+      skills: this.skills,
+      floorPerks: this.floorPerks,
+      weaponPoison: this.weaponPoison,
+      hasteTurns: this.hasteTurns,
+      fires: this.fires,
+      bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
       torchTurns: this.torchTurns,
       sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : undefined,
       clock: this.clock,
@@ -490,6 +525,15 @@ export class Game {
     game.gold = saved.gold;
     game.xp = saved.xp;
     game.level = saved.level;
+    game.points = saved.points;
+    game.alloc = saved.alloc;
+    game.voie = saved.voie as PathId | null;
+    game.skills = saved.skills as SkillId[];
+    game.floorPerks = saved.floorPerks;
+    game.weaponPoison = saved.weaponPoison;
+    game.hasteTurns = saved.hasteTurns;
+    game.inventory.cols = saved.bagSize.cols;
+    game.inventory.rows = saved.bagSize.rows;
     game.torchTurns = saved.torchTurns ?? 0;
     game.clock = saved.clock ?? 0;
     game.ammoChoice = ((saved.ammoChoice ?? "fleche") in ITEMS ? saved.ammoChoice : "fleche") as ItemId;
@@ -500,6 +544,7 @@ export class Game {
     game.events = [];
     game.useFloor(game.floors.get(saved.depth)!, saved.depth);
     game.deepest = saved.deepest;
+    game.fires = saved.fires;
     game.refreshStats();
     game.hidden = saved.hidden;
     for (const a of [game.hero, ...game.monsters]) {
@@ -559,11 +604,25 @@ export class Game {
     const item = this.inventory.get(uid);
     if (!item) return false;
     const kind = ITEMS[item.defId].kind;
-    if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use") return false;
+    if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem") return false;
     if (this.tooLow(ITEMS[item.defId])) return false;
     const previous = this.equipment[kind];
     const from = { x: item.x, y: item.y };
     this.inventory.removeItem(uid);
+    if (kind === "bag") {
+      // Un sac : le sac change de taille ; ce qu'il contient doit tenir dans le nouveau.
+      const def = ITEMS[item.defId] as ItemDef;
+      const before = { cols: this.inventory.cols, rows: this.inventory.rows };
+      if (!this.inventory.resize(def.bagCols ?? 6, def.bagRows ?? 4) || (previous && !this.inventory.placeItem(previous))) {
+        this.inventory.resize(before.cols, before.rows);
+        item.x = from.x;
+        item.y = from.y;
+        this.inventory.items.push(item);
+        return false;
+      }
+      this.equipment.bag = item;
+      return true;
+    }
     if (previous && !this.inventory.placeItem(previous)) {
       // Pas de place pour ranger l'ancien : on annule.
       item.x = from.x;
@@ -578,6 +637,8 @@ export class Game {
 
   /** Retire ce qui est porté à cet emplacement et le range dans le sac, s'il y a de la place. */
   unequip(slot: Slot): boolean {
+    // Le sac ne s'enlève pas : on le remplace par un autre.
+    if (slot === "bag") return false;
     const item = this.equipment[slot];
     if (!item || !this.inventory.placeItem(item)) return false;
     this.equipment[slot] = null;
@@ -589,9 +650,11 @@ export class Game {
   private refreshStats(): void {
     const melee = this.weapon("melee");
     this.hero.attackBonus = melee?.attackBonus ?? UNARMED.attackBonus;
-    this.hero.damage = melee?.damage ?? UNARMED.damage;
+    // Chaque point de Force ajoute 1 aux dégâts au contact.
+    const base = melee?.damage ?? UNARMED.damage;
+    this.hero.damage = { ...base, bonus: base.bonus + this.alloc.force };
     const armor = this.equipment.armor;
-    this.hero.armorClass = (armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC;
+    this.hero.armorClass = ((armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC) + (this.skills.includes("peau_dure") ? 1 : 0);
   }
 
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
@@ -629,7 +692,7 @@ export class Game {
     const item = this.inventory.get(uid);
     if (this.over || !item) return false;
     const def = ITEMS[item.defId] as ItemDef;
-    if (def.kind !== "use" || this.tooLow(def)) return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.throwRange) return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -646,6 +709,22 @@ export class Game {
       const before = this.hero.hp;
       this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + def.heal);
       this.events.push({ type: "used", item: item.defId, healed: this.hero.hp - before });
+    }
+    if (def.potion === "youth") {
+      // Jouvence : tous les points placés reviennent, plus un ; la voie ne change pas.
+      this.hero.maxHp -= this.alloc.vie * RULES.hpPerVie;
+      this.hero.hp = Math.min(this.hero.hp, this.hero.maxHp);
+      this.points += this.alloc.vie + this.alloc.force + this.alloc.agilite + 1;
+      this.alloc = { vie: 0, force: 0, agilite: 0 };
+      this.refreshStats();
+      this.events.push({ type: "potion", potion: "youth", points: this.points });
+    } else if (def.potion === "poison") {
+      this.weaponPoison = RULES.weaponPoisonHits;
+      this.events.push({ type: "potion", potion: "poison" });
+    } else if (def.potion === "haste") {
+      // +1 : le tour où on la boit ne compte pas.
+      this.hasteTurns = RULES.hasteTurns + 1;
+      this.events.push({ type: "potion", potion: "haste" });
     }
     if (def.lightTurns) {
       this.torchTurns = def.lightTurns;
@@ -680,6 +759,190 @@ export class Game {
     return this.inventory.count(family as ItemId) > 0 ? (family as ItemId) : null;
   }
 
+  // ---------- Points, voie, compétences ----------
+
+  /** Ce qui ne sert qu'un nombre limité de fois sur l'étage courant. */
+  perks(): { secondWind: boolean; doubleStrikes: number; lastStand: boolean } {
+    return (this.floorPerks[this.depth] ??= { secondWind: false, doubleStrikes: RULES.doubleStrikesPerFloor, lastStand: false });
+  }
+
+  /** Place un point dans une caractéristique (ne prend pas de tour). */
+  allocate(stat: StatId): boolean {
+    if (this.points <= 0 || this.over) return false;
+    this.points--;
+    this.alloc[stat]++;
+    if (stat === "vie") {
+      this.hero.maxHp += RULES.hpPerVie;
+      this.hero.hp += RULES.hpPerVie;
+    }
+    this.refreshStats();
+    return true;
+  }
+
+  /** Bonus du héros pour pousser, se dégager, se cacher, fouiller, tirer : classe + points + compétences. */
+  pushBonus(): number {
+    return this.heroClass.pushBonus + this.alloc.force;
+  }
+  disengageBonus(): number {
+    return this.heroClass.disengageBonus + this.alloc.agilite + (this.skills.includes("pas_de_cote") ? RULES.sidestepBonus : 0);
+  }
+  rangedBonus(): number {
+    return this.alloc.agilite;
+  }
+
+  /** Peut-on choisir sa voie maintenant ? */
+  canChoosePath(): boolean {
+    return this.voie === null && this.level >= PATH_LEVEL;
+  }
+
+  /** Choisir sa voie : une fois pour toutes. */
+  choosePath(id: PathId): boolean {
+    if (!this.canChoosePath()) return false;
+    this.voie = id;
+    this.events.push({ type: "path", path: id });
+    return true;
+  }
+
+  /** Compétences secondaires qu'on peut encore prendre (une par palier atteint). */
+  secondaryPicks(): number {
+    if (!this.voie) return 0;
+    return SECONDARY_LEVELS.filter((l) => this.level >= l).length - this.skills.length;
+  }
+
+  chooseSkill(id: SkillId): boolean {
+    if (!this.voie || this.secondaryPicks() <= 0 || this.skills.includes(id)) return false;
+    if (!PATHS[this.voie].secondaries.some((sk) => sk.id === id)) return false;
+    this.skills.push(id);
+    this.refreshStats();
+    return true;
+  }
+
+  /** Quelque chose attend le joueur dans l'écran du héros (le « ! » doré). */
+  hasPendingChoice(): boolean {
+    return this.points > 0 || this.canChoosePath() || this.secondaryPicks() > 0;
+  }
+
+  /** La compétence de voie qui s'utilise (bleue, rouge) ; la verte change « pousser ». Pourquoi c'est impossible, ou null. */
+  skillRefusal(): "none" | "used" | "full" | "no-target" | "danger" | null {
+    if (this.voie === "blue") {
+      if (this.perks().secondWind) return "used";
+      if (this.hero.hp >= this.hero.maxHp) return "full";
+      return null;
+    }
+    if (this.voie === "red") {
+      if (this.perks().doubleStrikes <= 0) return "used";
+      if (!this.meleeTarget()) return "no-target";
+      return null;
+    }
+    return "none";
+  }
+
+  /** Ordre : utiliser la compétence de sa voie (un tour). */
+  useSkill(): boolean {
+    if (this.over || this.skillRefusal() !== null) return false;
+    const target = this.voie === "red" ? this.meleeTarget() : null;
+    this.wait();
+    this.waiting = false;
+    this.skillOrder = target ? target.id : -1;
+    return true;
+  }
+
+  private resolveSkill(targetId: number): void {
+    if (this.voie === "blue") {
+      const before = this.hero.hp;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + RULES.secondWindHeal);
+      this.perks().secondWind = true;
+      this.events.push({ type: "skill", path: "blue", healed: this.hero.hp - before });
+    } else if (this.voie === "red") {
+      const target = this.monsters.find((m) => m.id === targetId);
+      if (!target || !(this.inReach(this.hero, target) || this.inWeaponReach(target))) return;
+      this.perks().doubleStrikes--;
+      this.events.push({ type: "skill", path: "red", healed: 0 });
+      this.heroAttacks(target);
+      if (this.monsters.includes(target)) this.heroAttacks(target, true);
+    }
+  }
+
+  /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
+  private hurtHero(damage: number): void {
+    if (damage <= 0) return;
+    if (this.hero.hp - damage <= 0 && this.skills.includes("dernier_rempart") && !this.perks().lastStand) {
+      this.perks().lastStand = true;
+      this.hero.hp = 1;
+      this.events.push({ type: "lastStand" });
+      return;
+    }
+    this.hero.hp = Math.max(0, this.hero.hp - damage);
+    if (this.hero.hp === 0 && !this.over) {
+      this.over = true;
+      this.path = [];
+      this.events.push({ type: "death", actor: this.hero });
+    }
+  }
+
+  // ---------- Potion de feu ----------
+
+  /** Pourquoi on ne peut pas lancer cette potion sur cette case (null : c'est possible). */
+  throwRefusal(uid: number, x: number, y: number): "far" | "unseen" | "wall" | null {
+    const def = this.inventory.get(uid) ? (ITEMS[this.inventory.get(uid)!.defId] as ItemDef) : undefined;
+    if (!def?.throwRange) return "far";
+    if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > def.throwRange) return "far";
+    if (!this.isVisible(x, y)) return "unseen";
+    if (!this.map.isWalkable(x, y)) return "wall";
+    return null;
+  }
+
+  /** Ordre : lancer une potion (de feu) sur une case. */
+  throwPotion(uid: number, x: number, y: number): boolean {
+    if (this.over || this.throwRefusal(uid, x, y) !== null) return false;
+    this.wait();
+    this.waiting = false;
+    this.throwOrder = { uid, x, y };
+    return true;
+  }
+
+  private resolveThrow(order: { uid: number; x: number; y: number }): void {
+    const item = this.inventory.get(order.uid);
+    if (!item || !this.inventory.take(item.defId, 1)) return;
+    this.reveal();
+    const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
+      .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
+      .filter((c) => this.map.isWalkable(c.x, c.y));
+    for (const c of cells) {
+      const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
+      if (old) old.turns = RULES.fireTurns;
+      else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
+    }
+    this.events.push({ type: "fire", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
+    // Les monstres touchés par l'éclaboussure se réveillent.
+    for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
+  }
+
+  /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
+  private burn(): void {
+    if (this.fires.length === 0) return;
+    for (const f of this.fires) {
+      for (const a of [this.hero, ...this.monsters]) {
+        if (a.x !== f.x || a.y !== f.y || this.over) continue;
+        const damage = rollDice(this.rng, RULES.fireDamage);
+        this.events.push({ type: "burn", actor: a, damage });
+        if (a === this.hero) this.hurtHero(damage);
+        else {
+          a.hp -= damage;
+          a.alerted = true;
+          a.asleep = false;
+          this.removeIfDead(a);
+        }
+      }
+      f.turns--;
+    }
+    this.fires = this.fires.filter((f) => f.turns > 0);
+  }
+
+  isBurning(x: number, y: number): boolean {
+    return this.fires.some((f) => f.x === x && f.y === y);
+  }
+
   /** Expérience à réunir pour passer au niveau suivant. */
   xpToNext(): number {
     const n = this.level - 1;
@@ -693,9 +956,8 @@ export class Game {
     while (this.xp >= this.xpToNext()) {
       this.xp -= this.xpToNext();
       this.level++;
-      // PROPOSITION à valider : un niveau donne quelques points de vie de plus, et rien d'autre pour l'instant.
-      this.hero.maxHp += RULES.hpPerLevel;
-      this.hero.hp += RULES.hpPerLevel;
+      // Un niveau donne un point à placer (Vie, Force ou Agilité) ; plus de PV automatiques.
+      this.points++;
       this.events.push({ type: "levelup", level: this.level });
     }
   }
@@ -730,6 +992,9 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.shotTarget = { x, y };
     return null;
   }
@@ -764,6 +1029,9 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.shotTarget = null;
     return true;
   }
@@ -792,6 +1060,9 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.path = best;
     if (best.length === 0) {
       this.pendingDoor = { x, y };
@@ -850,6 +1121,9 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.pendingDoor = null;
     this.doorTarget = null;
     this.doorAction = null;
@@ -888,6 +1162,9 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.picking = true;
     this.pickingItem = null;
     return true;
@@ -976,7 +1253,8 @@ export class Game {
         if (dx === 0 && dy === 0) continue;
         let at: Point = { x: this.hero.x, y: this.hero.y };
         let ok = true;
-        for (let i = 0; i < RULES.jumpDistance && ok; i++) {
+        const distance = this.skills.includes("pas_de_cote") ? RULES.sidestepDistance : RULES.jumpDistance;
+        for (let i = 0; i < distance && ok; i++) {
           const next = { x: at.x + dx, y: at.y + dy };
           // En diagonale, on ne passe pas entre deux murs qui se touchent par le coin.
           if (!free(next.x, next.y) || !this.inReach(at, next)) ok = false;
@@ -1030,6 +1308,9 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
@@ -1059,6 +1340,14 @@ export class Game {
     } else if (this.picking) {
       // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.
       this.picking = this.pickUpOne();
+    } else if (this.throwOrder) {
+      const order = this.throwOrder;
+      this.throwOrder = null;
+      this.resolveThrow(order);
+    } else if (this.skillOrder !== null) {
+      const id = this.skillOrder;
+      this.skillOrder = null;
+      this.resolveSkill(id);
     } else if (this.useOrder !== null) {
       const uid = this.useOrder;
       this.useOrder = null;
@@ -1069,6 +1358,9 @@ export class Game {
     } else if (this.pushTargetId !== null) {
       const target = this.monsters.find((m) => m.id === this.pushTargetId);
       this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
       if (target && this.inReach(this.hero, target)) this.resolvePush(target);
     } else if (this.jumpTarget) {
       this.resolveJump(this.jumpTarget);
@@ -1099,6 +1391,11 @@ export class Game {
         const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
         const left = { x: this.hero.x, y: this.hero.y };
         this.path.shift();
+        // Charge (voie verte) : on compte les pas faits d'affilée dans la même direction.
+        const sdx = next.x - left.x;
+        const sdy = next.y - left.y;
+        const same = this.straight.turn === this.turn - 1 && this.straight.dx === sdx && this.straight.dy === sdy;
+        this.straight = { dx: sdx, dy: sdy, steps: same ? this.straight.steps + 1 : 1, turn: this.turn };
         this.hero.x = next.x;
         this.hero.y = next.y;
         this.openDoorAt(next.x, next.y);
@@ -1157,6 +1454,8 @@ export class Game {
       this.poisonTick();
       this.monstersAct();
     }
+    this.burn();
+    if (this.hasteTurns > 0) this.hasteTurns--;
     if (resting) this.afterRestTurn();
     if (wasSearching) this.afterSearchTurn();
     return true;
@@ -1187,7 +1486,7 @@ export class Game {
    */
   private resolvePush(m: Actor): void {
     this.reveal();
-    const bonus = this.heroClass.pushBonus;
+    const bonus = this.pushBonus();
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
     const success = d20 === 20 || (d20 !== 1 && total >= RULES.pushDc);
@@ -1198,18 +1497,30 @@ export class Game {
     if (success) {
       const dx = Math.sign(m.x - this.hero.x);
       const dy = Math.sign(m.y - this.hero.y);
-      const to = { x: m.x + dx, y: m.y + dy };
-      const t = this.map.get(to.x, to.y);
-      const solid = !this.map.isWalkable(to.x, to.y) || t === Tile.DoorClosed;
-      if (!solid && !this.actorAt(to.x, to.y) && canStep(this.map, m.x, m.y, dx, dy)) {
-        m.x = to.x;
-        m.y = to.y;
-        moved = true;
-      } else if (solid) {
-        slam = rollDice(this.rng, RULES.pushSlamDamage);
-        m.hp -= slam;
+      // Bousculade (voie verte) : jusqu'à 3 cases, et l'ennemi est ralenti.
+      const distance = this.voie === "green" ? RULES.shoveDistance : 1;
+      for (let k = 0; k < distance; k++) {
+        const to = { x: m.x + dx, y: m.y + dy };
+        const t = this.map.get(to.x, to.y);
+        const solid = !this.map.isWalkable(to.x, to.y) || t === Tile.DoorClosed;
+        if (!solid && !this.actorAt(to.x, to.y) && canStep(this.map, m.x, m.y, dx, dy)) {
+          m.x = to.x;
+          m.y = to.y;
+          moved = true;
+          if (this.isTrap(m.x, m.y)) break;
+        } else {
+          if (solid) {
+            slam = rollDice(this.rng, this.skills.includes("impact") ? RULES.impactDamage : RULES.pushSlamDamage);
+            m.hp -= slam;
+          }
+          break;
+        }
       }
       m.stunned = 1;
+      if (this.voie === "green") {
+        m.slowed = RULES.slowTurns;
+        this.events.push({ type: "slowed", actor: m });
+      }
     }
     this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam });
     if (m.hp <= 0) {
@@ -1251,7 +1562,7 @@ export class Game {
   private resolveJump(to: Point): void {
     const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
     const from = { x: this.hero.x, y: this.hero.y };
-    const bonus = this.heroClass.disengageBonus;
+    const bonus = this.disengageBonus();
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
     const success = d20 === 20 || (d20 !== 1 && total >= RULES.disengageDc);
@@ -1275,7 +1586,8 @@ export class Game {
       this.resting = 0;
       this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
     } else if (this.resting === 0) {
-      const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * RULES.restHealShare);
+      const share = this.skills.includes("recuperation") ? 1 : RULES.restHealShare;
+      const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * share);
       this.hero.hp += healed;
       this.current.rested = true;
       this.events.push({ type: "rest", phase: "done", healed });
@@ -1376,13 +1688,9 @@ export class Game {
     for (const m of threats) {
       if (this.over || this.inReach(m, this.hero)) continue;
       const result = rollAttack(this.rng, m, this.hero);
-      this.hero.hp = Math.max(0, this.hero.hp - result.damage);
       this.events.push({ type: "attack", attacker: m, target: this.hero, result, opportunity: true });
+      this.hurtHero(result.damage);
       attacked = true;
-      if (this.hero.hp === 0) {
-        this.over = true;
-        this.events.push({ type: "death", actor: this.hero });
-      }
     }
     return attacked;
   }
@@ -1470,22 +1778,48 @@ export class Game {
     this.heroMisses = hit ? 0 : this.heroMisses + 1;
   }
 
-  private heroAttacks(monster: Actor): void {
+  /** Une attaque au corps à corps du héros. `extra` : un coup en plus du même tour (double frappe, vitesse). */
+  private heroAttacks(monster: Actor, extra = false): void {
     this.reveal();
     this.lastFoeId = monster.id;
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
     // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
-    const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
-    const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
+    let damageBonus = 0;
+    // Rage (voie rouge) : plus de dégâts sous la moitié des PV.
+    if (this.skills.includes("rage") && this.hero.hp * 2 < this.hero.maxHp) damageBonus += RULES.rageBonus;
+    const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
+    const critFrom = this.skills.includes("coup_puissant") ? 19 : 20;
+    const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal", critFrom);
+    // Charge (voie verte) : après deux pas en ligne droite, le premier coup fait 1d6 de plus.
+    if (result.hit && !extra && this.skills.includes("charge") && this.straight.turn === this.turn - 1 && this.straight.steps >= 2) {
+      const bonus = rollDice(this.rng, RULES.chargeDamage);
+      result.damage += bonus;
+    }
+    this.straight.steps = 0;
     this.noteHeroAttack(result.hit);
-    // Vitesse de l'arme : une attaque lente laisse plus de temps aux monstres, une rapide moins.
-    const speed = this.weapon("melee")?.speed;
-    this.actionCost = speed === "slow" ? RULES.slowAttackTurns : speed === "fast" ? RULES.fastAttackTurns : 1;
+    if (!extra) {
+      // Vitesse de l'arme : une attaque lente laisse plus de temps aux monstres, une rapide moins.
+      const speed = this.weapon("melee")?.speed;
+      this.actionCost = speed === "slow" ? RULES.slowAttackTurns : speed === "fast" ? RULES.fastAttackTurns : 1;
+    }
     monster.alerted = true;
     monster.asleep = false;
     monster.hp -= result.damage;
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
+    // Arme enduite de poison (potion) : le coup qui porte empoisonne.
+    if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
+      this.weaponPoison--;
+      monster.poison = { damage: 1, turns: 4 };
+      this.events.push({ type: "poisoned", actor: monster });
+    }
+    const wasAlive = this.monsters.includes(monster);
     this.removeIfDead(monster);
+    // Enchaînement (voie rouge) : tuer rend une double frappe.
+    if (wasAlive && !this.monsters.includes(monster) && this.skills.includes("enchainement")) {
+      this.perks().doubleStrikes = Math.min(RULES.doubleStrikesPerFloor, this.perks().doubleStrikes + 1);
+    }
+    // Potion de vitesse : un second coup, s'il reste debout.
+    if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
   }
 
   private removeIfDead(monster: Actor): void {
@@ -1547,7 +1881,7 @@ export class Game {
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
       const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);
       const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
-      const attackBonus = (bow.attackBonus ?? 0) + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
+      const attackBonus = (bow.attackBonus ?? 0) + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
       const result = rollAttack(this.rng, { attackBonus, damage: bow.damage ?? UNARMED.damage }, victim, mode);
       this.noteHeroAttack(result.hit);
       victim.alerted = true;
@@ -1595,8 +1929,10 @@ export class Game {
   /** L'or se ramasse tout seul en marchant dessus, sans y passer de tour. */
   private collectGold(): void {
     for (const pile of this.itemsHere()) {
-      if (pile.item !== "or") continue;
-      this.gold += pile.count;
+      const value = pile.item === "or" ? 1 : (ITEMS[pile.item] as ItemDef).value;
+      if (!value) continue;
+      // L'or et les gemmes vont tout seuls dans la bourse (une gemme vaut sa valeur en or).
+      this.gold += pile.count * value;
       this.events.push({ type: "pickup", item: pile.item, count: pile.count });
       pile.count = 0;
     }
@@ -1630,6 +1966,11 @@ export class Game {
         m.stunned--;
         continue;
       }
+      if (m.slowed) {
+        // Ralenti (bousculade) : il ne joue qu'un tour sur deux.
+        m.slowed--;
+        if (m.slowed % 2 === 0) continue;
+      }
       const dx = this.hero.x - m.x;
       const dy = this.hero.y - m.y;
       const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -1659,13 +2000,8 @@ export class Game {
         const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
         // Le monstre a rattrapé le héros : le combat reprend normalement.
         m.wary = false;
-        this.hero.hp = Math.max(0, this.hero.hp - result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
-        if (this.hero.hp === 0) {
-          this.over = true;
-          this.path = [];
-          this.events.push({ type: "death", actor: this.hero });
-        }
+        this.hurtHero(result.damage);
         continue;
       }
 

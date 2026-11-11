@@ -35,6 +35,7 @@ export const CLASSES = {
     trait: "Bonne armure, et la force d'enfoncer les portes.",
     hp: 10,
     startingItems: [
+      { item: "sac_toile", count: 1, equip: true },
       { item: "tunique", count: 1, equip: true },
       { item: "epee", count: 1, equip: true },
       { item: "arc_court", count: 1, equip: true },
@@ -55,6 +56,7 @@ export const CLASSES = {
     trait: "Gros dégâts sur un ennemi qui ne l'a pas remarqué ; crochète facilement.",
     hp: 8,
     startingItems: [
+      { item: "sac_toile", count: 1, equip: true },
       { item: "armure_cuir", count: 1, equip: true },
       { item: "dague", count: 1, equip: true },
       { item: "arc_court", count: 1, equip: true },
@@ -75,6 +77,7 @@ export const CLASSES = {
     trait: "Sorts en nombre limité, rechargés par le repos.",
     hp: 6,
     startingItems: [
+      { item: "sac_toile", count: 1, equip: true },
       { item: "robe", count: 1, equip: true },
       { item: "baton", count: 1, equip: true },
     ],

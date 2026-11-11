@@ -17,9 +17,20 @@ export class Inventory {
   private nextUid = 1;
 
   constructor(
-    readonly cols = 6,
-    readonly rows = 4,
+    public cols = 6,
+    public rows = 4,
   ) {}
+
+  /** Change la taille du sac (on en équipe un autre). Refusé si un objet se retrouverait dehors. */
+  resize(cols: number, rows: number): boolean {
+    for (const i of this.items) {
+      const d = this.def(i);
+      if (i.x + d.w > cols || i.y + d.h > rows) return false;
+    }
+    this.cols = cols;
+    this.rows = rows;
+    return true;
+  }
 
   /** Pour la sauvegarde : le contenu du sac et le prochain numéro d'objet. */
   snapshot(): { items: BagItem[]; nextUid: number } {

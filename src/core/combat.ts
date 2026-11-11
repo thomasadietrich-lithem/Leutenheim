@@ -26,12 +26,14 @@ export function rollAttack(
   attacker: { attackBonus: number; damage: Dice },
   defender: { armorClass: number },
   mode: RollMode = "normal",
+  /** Coup critique à partir de ce d20 (20 d'ordinaire ; 19 avec « Coup puissant »). */
+  critFrom = 20,
 ): AttackResult {
   const rolls = [rng.int(1, 20)];
   if (mode !== "normal") rolls.push(rng.int(1, 20));
   const d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
   const total = d20 + attacker.attackBonus;
-  const critical = d20 === 20;
+  const critical = d20 >= critFrom;
   const hit = critical || (d20 !== 1 && total >= defender.armorClass);
   return {
     mode,

@@ -137,7 +137,7 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
     }
     roll -= odds[r];
   }
-  const pool = LOOT[rarity];
+  const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth);
   const pick = pool[rng.int(0, pool.length - 1)];
   if (pick.item === "gold") {
     const [min, max] = goldRange(depth, GOLD_SIZE[rarity]);

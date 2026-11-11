@@ -42,23 +42,24 @@ const ICONS: Record<ItemId, string[]> = {
     "................................",
     "................................",
   ],
+  // Bourse A de la planche art/objets_v1.png (choisie le 2026-11-11).
   or: [
-    "................",
-    ".....K....K.....",
-    "....KBK..KBK....",
-    "....KBBKKBBK....",
-    ".....KBBBBK.....",
-    "....KLLLLLLK....",
-    ".....KBBBBKLK...",
-    "....KBTBBBBKLK..",
-    "...KBTTBBBBBKK..",
-    "..KBTTBBBBBBbK..",
-    "..KBTBBBBBBBbK..",
-    "..KBBBBBBBBBbK..",
+    "......K..K......",
+    ".....KBKKBK.....",
+    "....KBTBKTBK....",
+    ".....KBTTBK.....",
+    "......KGGK......",
+    ".....KbLLbK.....",
+    "....KTBBBBBK....",
+    "...KTTBBBBBbK...",
+    "..KTTBBBBBBBbK..",
+    "..KTBBBBGGBBbK..",
+    "..KTBBBGYGGBbK..",
+    "..KTBBBBGgBBbK..",
     "..KBBBBBBBBbbK..",
-    "...KBBBBBBbbK...",
-    "....KKbbbbKK....",
-    "......KKKK......",
+    "...KbBBBBBbbK...",
+    "....KbbbbbbK....",
+    ".....KKKKKK.....",
   ],
   epee: [
     ".......KK.......",
@@ -318,7 +319,7 @@ const ICONS: Record<ItemId, string[]> = {
     ".......KKKKKKKKKKKKKKKKKK.......",
     "................................",
   ],
-  // PROPOSITIONS (art/objets_v1.py, planche à valider par Thomas) : ces objets n'apparaissent pas encore en jeu.
+  // Planche art/objets_v1.png, validée par Thomas le 2026-11-11.
   fleche_poison: [
     "...........KKKK.",
     "..........KAAAAK",
@@ -559,13 +560,76 @@ const ICONS: Record<ItemId, string[]> = {
   ],
 };
 
+/** Tas d'or posés au sol : petit, moyen, gros (planche art/objets_v1.png). */
+export const GOLD_PILES = {
+  small: [
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "......KKK.......",
+    ".....KGGgK......",
+    "....KGYGGgK.KKK.",
+    "....KGGGggKKGGgK",
+    ".....KgggKKGYGGg",
+    "......KKK.KGGGgg",
+    "...........KgggK",
+    "............KKK.",
+  ],
+  medium: [
+    "................",
+    "................",
+    "................",
+    "................",
+    "......KKKK......",
+    ".....KGGGgK.....",
+    "....KGYGGggK....",
+    "....KggggggK....",
+    "....KGYGGggK....",
+    "..KKKggggggKKK..",
+    ".KGGgGYGGggGGgK.",
+    "KGYGggggggGYGGgK",
+    "KGGGgGYGGggGGggK",
+    ".KggggggggggggK.",
+    "..KKKKKKKKKKKK..",
+    "................",
+  ],
+  large: [
+    "................",
+    ".......KKK......",
+    "......KGGgK.....",
+    ".....KGYGGgK....",
+    "....KGGYGGggK...",
+    "...KGGYGGGGggK..",
+    "..KGGYGGGGGGggK.",
+    "..KGYGGGGGGGGgK.",
+    ".KGGYGGGGGGGGggK",
+    ".KGYGGGGGGGGGggK",
+    "KGGYGGGGGGGGGGgg",
+    "KGYGGGGGGGGGGGgg",
+    ".KgggggggggggggK",
+    "KGGgKKKKKKKGYGgK",
+    ".KggK......KggK.",
+    "..KK........KK..",
+  ],
+};
+
+/** Les rangées de lettres de l'icône d'un objet (pour le dessiner au sol). */
+export function itemIconRows(id: ItemId): readonly string[] {
+  return ICONS[id];
+}
+
 /** Construit l'icône SVG d'un objet. */
 export function itemIcon(id: ItemId): SVGSVGElement {
   return buildIcon(ICONS[id]);
 }
 
 /** Transforme des rangées de lettres en image SVG : un rectangle par suite de pixels de même couleur. */
-function buildIcon(rows: string[]): SVGSVGElement {
+export function buildIcon(rows: readonly string[], palette: Record<string, string> = PALETTE): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", `0 0 ${rows[0].length} ${rows.length}`);
@@ -581,7 +645,7 @@ function buildIcon(rows: string[]): SVGSVGElement {
         r.setAttribute("y", String(y));
         r.setAttribute("width", String(end - x));
         r.setAttribute("height", "1");
-        r.setAttribute("fill", PALETTE[c]);
+        r.setAttribute("fill", palette[c]);
         svg.appendChild(r);
       }
       x = end;

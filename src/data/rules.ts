@@ -66,8 +66,14 @@ export const RULES = {
   floorsPerSection: 5,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */
   keyChance: 0.35,
-  /** Expérience à réunir pour passer au niveau suivant : ce nombre × le niveau actuel. */
-  xpPerLevel: 30,
+  /**
+   * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
+   * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
+   * grandit lui-même de `xpStepGrowth`. Avec 6 / 6 / 2 : 6, 12, 20, 30, 42, 56, 72… (C)
+   */
+  xpFirst: 6,
+  xpStep: 6,
+  xpStepGrowth: 2,
   /** Points de vie gagnés à chaque niveau. */
   hpPerLevel: 3,
   /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */
@@ -85,10 +91,9 @@ export const RULES = {
   /** Butin au sol : chance qu'une salle (hors départ) contienne un objet (C). */
   lootRoomChance: 0.3,
   /**
-   * Butin au sol activé dans le donjon. Éteint tant que Thomas n'a pas validé les dessins des nouveaux objets
-   * (art/objets_v1.png) : la règle « image d'abord ». Les tests l'allument eux-mêmes.
+   * Butin au sol activé dans le donjon (dessins art/objets_v1.png validés par Thomas le 2026-11-11).
    */
-  lootEnabled: false,
+  lootEnabled: true,
   /** Torche portée : rayon de lumière autour du héros. */
   torchRadius: 6,
   /** Vitesse d'attaque : durée d'une attaque lente et d'une attaque rapide, en tours (C). */

@@ -5,7 +5,9 @@ import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
-import { PALETTE as ICON_PALETTE, uiIconRows } from "../ui/icons";
+import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
+import { GOLD_PILES, PALETTE as ICON_PALETTE, itemIconRows, uiIconRows } from "../ui/icons";
+import { goldRange } from "../data/loot";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { COLORS, TilePainter } from "./tiles";
 
@@ -24,6 +26,7 @@ const SLASH_MS = 220;
 /** Durée du geste de tir à l'arc, et de la grimace quand le héros est blessé. */
 const BOW_MS = 320;
 const HURT_MS = 260;
+const CORPSE_MS = 1400;
 type Facing = "down" | "up" | "left" | "right";
 
 /** Un coup porté de (fromX, fromY) vers (x, y). */
@@ -87,6 +90,11 @@ export class Renderer {
   private heroFacing: Facing = "down";
   private bowAge = Infinity;
   private hurtAge = Infinity;
+  /** Monstres : où chacun regarde, et depuis quand il a été touché (en ms). */
+  private monsterFacing = new Map<number, Facing>();
+  private monsterHurtAge = new Map<number, number>();
+  /** Monstres vaincus : leur corps reste un instant au sol avant de s'effacer. */
+  private corpses: { actor: Actor; age: number; facing: Facing }[] = [];
   private heroDown = false;
   private readonly spriteCache = new Map<readonly string[], HTMLCanvasElement>();
 
@@ -181,6 +189,16 @@ export class Renderer {
     this.hurtAge = 0;
   }
 
+  /** Un monstre vient d'être blessé : il s'éclaire un instant. */
+  monsterHurt(id: number): void {
+    this.monsterHurtAge.set(id, 0);
+  }
+
+  /** Un monstre est vaincu : son corps reste étendu une seconde, puis s'efface. */
+  monsterDies(actor: Actor): void {
+    this.corpses.push({ actor, age: 0, facing: this.monsterFacing.get(actor.id) ?? "down" });
+  }
+
   /** Le héros est tombé : il reste étendu au sol. */
   heroFalls(): void {
     this.heroDown = true;
@@ -259,6 +277,68 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  /** Un objet posé au sol : son icône, réduite pour tenir dans la case (les longues armes en diagonale). */
+  private drawGroundIcon(rows: readonly string[], gx: number, gy: number): void {
+    const { ctx, tile } = this;
+    const w = rows[0].length;
+    const h = rows.length;
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(gx + tile / 2, gy + tile / 2);
+    const long = h > w;
+    if (long) ctx.rotate(Math.PI / 4);
+    const scale = (tile * (long ? 1.05 : 0.8)) / Math.max(w, h);
+    ctx.drawImage(this.sprite(rows, ICON_PALETTE), (-w * scale) / 2, (-h * scale) / 2, w * scale, h * scale);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /** Le Schrat : repos, marche, coup de dague, blessure ou sommeil, tourné vers où il va ou vers sa cible. */
+  private drawMonster(m: Actor, cx: number, cy: number, progress: number): void {
+    const mdx = m.x - m.fromX;
+    const mdy = m.y - m.fromY;
+    const moving = progress < 1 && (mdx !== 0 || mdy !== 0);
+    const slash = this.slashes.find((sl) => sl.attackerId === m.id);
+    const turn = (dx: number, dy: number) => {
+      if (dx === 0 && dy === 0) return;
+      this.monsterFacing.set(m.id, Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
+    };
+    if (slash) turn(slash.x - slash.fromX, slash.y - slash.fromY);
+    else if (moving) turn(mdx, mdy);
+    const facing = this.monsterFacing.get(m.id) ?? "down";
+    const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
+    const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
+    let rows: readonly string[];
+    if (m.asleep) rows = SCHRAT.sleep[0];
+    else if (hurt) rows = SCHRAT.hurt[0];
+    else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
+    else if (moving) rows = SCHRAT[`walk${dir}`][progress < 0.5 ? 0 : 1];
+    else rows = SCHRAT[`idle${dir}`][Math.floor((Math.abs(this.time) + m.id * 170) / 560) % 2];
+    // Le profil « touché » regarde à droite : on le retourne s'il regarde à gauche, comme les autres profils.
+    this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
+  }
+
+  private drawMonsterSprite(rows: readonly string[], cx: number, cy: number, mirror: boolean, shadow: boolean): void {
+    const { ctx, tile } = this;
+    if (shadow) {
+      ctx.fillStyle = "rgba(10,8,16,0.45)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + tile * 0.36, tile * 0.26, tile * 0.09, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const size = Math.round(tile * 1.3);
+    const top = Math.round(cy - size / 2 - tile * 0.12);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(Math.round(cx), 0);
+    if (mirror) ctx.scale(-1, 1);
+    ctx.drawImage(this.sprite(rows, SCHRAT_PALETTE), -size / 2, top, size, size);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
   /** Affiche un petit texte qui s'élève au-dessus d'une case (dégâts, « Raté »). */
   addFloatingText(x: number, y: number, text: string, color: string): void {
     this.floats.push({ x, y, text, color, age: 0 });
@@ -275,7 +355,7 @@ export class Renderer {
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
-  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole"): void {
+  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", poisoned = false): void {
     const { ctx } = this;
     ctx.save();
     ctx.translate(cx, cy);
@@ -304,7 +384,7 @@ export class Renderer {
     shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
     if (part !== "back") {
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
-      shape("#eef2ff", [[L / 2, 0], [L * 0.2, -w * 2.3], [L * 0.2, w * 2.3]]);
+      shape(poisoned ? "#b8e05a" : "#eef2ff", [[L / 2, 0], [L * 0.2, -w * 2.3], [L * 0.2, w * 2.3]]);
     }
     ctx.restore();
   }
@@ -356,6 +436,8 @@ export class Renderer {
     this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
     this.bowAge += dt;
     this.hurtAge += dt;
+    for (const [id, age] of this.monsterHurtAge) this.monsterHurtAge.set(id, age + dt);
+    this.corpses = this.corpses.filter((c) => (c.age += dt) < CORPSE_MS);
     const shown = (a: Actor): Point => {
       const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
       // Élan : l'attaquant avance d'un tiers de case vers sa cible, puis revient.
@@ -526,31 +608,25 @@ export class Renderer {
         ctx.arc(gx + tile * 0.36, gy + tile * 0.4, tile * 0.05, 0, Math.PI * 2);
         ctx.fill();
       } else if (g.item === "or") {
-        // Or : une petite bourse de cuir fermée par une cordelette.
-        const u = tile / 16;
-        const px = (bx: number, by: number, w: number, h: number, color: string) => {
-          ctx.fillStyle = color;
-          ctx.fillRect(gx + bx * u, gy + by * u, w * u + 0.5, h * u + 0.5);
-        };
-        px(5, 7, 7, 7, "#120d08"); // contour
-        px(4, 8, 9, 5, "#120d08");
-        px(6, 4, 5, 3, "#120d08");
-        px(5, 8, 7, 5, "#9a6a34"); // panse
-        px(6, 7, 5, 7, "#9a6a34");
-        px(10, 9, 2, 4, "#5a3817"); // ombre
-        px(7, 13, 4, 1, "#5a3817");
-        px(6, 9, 1, 3, "#b9824a"); // reflet
-        px(7, 8, 1, 1, "#b9824a");
-        px(7, 4, 3, 2, "#9a6a34"); // col froncé
-        px(6, 6, 5, 1, "#e6dcc0"); // cordelette
-        px(11, 7, 1, 2, "#e6dcc0");
+        // Or : un tas, petit, moyen ou gros selon la somme comparée à ce qu'on trouve à cet étage.
+        const size = g.count >= goldRange(game.depth, "large")[0] ? "large" : g.count >= goldRange(game.depth, "medium")[0] ? "medium" : "small";
+        this.drawGroundIcon(GOLD_PILES[size], gx, gy);
+      } else if (g.item !== "fleche" && g.item !== "fleche_poison") {
+        this.drawGroundIcon(itemIconRows(g.item), gx, gy);
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
-        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8);
+        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison");
       }
     }
 
-    // Monstres en vue : un losange de la couleur de leur fiche.
+    // Corps des monstres vaincus : étendus, puis effacés.
+    for (const c of this.corpses) {
+      if (!game.isVisible(c.actor.x, c.actor.y)) continue;
+      ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
+      this.drawMonsterSprite(SCHRAT.dead[0], ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false);
+      ctx.globalAlpha = 1;
+    }
+    // Monstres en vue : leur sprite (le Schrat), ou un losange de la couleur de leur fiche s'ils n'en ont pas encore.
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (const m of [...game.visibleMonsters(), ...ghosts]) {
@@ -558,6 +634,18 @@ export class Renderer {
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
       const r = tile * 0.36;
+      if (m.defId === "schrat") {
+        const advantage = game.heroHasAdvantageOn(m);
+        if (advantage) {
+          // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.
+          ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+          ctx.lineWidth = Math.max(2, tile * 0.07);
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + tile * 0.36, tile * 0.38, tile * 0.14, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        this.drawMonster(m, cx, cy, progress);
+      } else {
       ctx.fillStyle = MONSTERS[m.defId as keyof typeof MONSTERS]?.color ?? "#c04040";
       ctx.beginPath();
       ctx.moveTo(cx, cy - r);
@@ -571,6 +659,7 @@ export class Renderer {
         ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
         ctx.lineWidth = Math.max(2, tile * 0.07);
         ctx.stroke();
+      }
       }
       if (!m.alerted) {
         // « z » : il dort. « ? » : il se promène sans avoir remarqué le héros.

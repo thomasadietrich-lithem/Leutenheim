@@ -1,3 +1,4 @@
+import { ItemId } from "../data/items";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
 import { SPECIAL_ROOMS } from "../data/specialRooms";
@@ -17,7 +18,9 @@ export interface SandboxFloor extends Floor {
   traps: Point[];
   /** Caches à fouiller : leur salle (numéro dans `rooms`), ce qu'elles contiennent. */
   secrets: { x: number; y: number; room: number; item: "or" | "fleche"; count: number }[];
-  ground: { x: number; y: number; item: "clef" | "fleche" | "or"; count: number }[];
+  ground: { x: number; y: number; item: ItemId; count: number }[];
+  /** Niveau du héros en arrivant (pour essayer les objets qui demandent un niveau). */
+  heroLevel: number;
   monsters: { x: number; y: number; asleep: boolean }[];
 }
 
@@ -31,7 +34,10 @@ export function buildSandbox(): SandboxFloor {
   const combat: Room = { x: 17, y: 14, w: 9, h: 6 };
   const fountainRoom: Room = { x: 3, y: 14, w: 3, h: 3 };
   const chestRoom: Room = { x: 9, y: 14, w: 3, h: 3 };
-  for (const r of [start, pillars, combat, fountainRoom, chestRoom]) carve(r);
+  // Armurerie (2026-11-11) : les nouveaux objets, à l'ouest de la salle de combat.
+  const armory: Room = { x: 3, y: 19, w: 9, h: 3 };
+  for (const r of [start, pillars, combat, fountainRoom, chestRoom, armory]) carve(r);
+  for (let x = 12; x <= 16; x++) map.set(x, 19, Tile.Floor);
 
   // Couloirs : départ → colonnes (avec une porte), colonnes → combat (passage ouvert), départ → salles spéciales.
   for (let x = 12; x <= 16; x++) map.set(x, 6, Tile.Floor);
@@ -58,7 +64,7 @@ export function buildSandbox(): SandboxFloor {
 
   return {
     map,
-    rooms: [start, pillars, combat],
+    rooms: [start, pillars, combat, armory],
     start: { x: 7, y: 6 },
     stairs,
     torches,
@@ -72,7 +78,19 @@ export function buildSandbox(): SandboxFloor {
       { x: 5, y: 5, item: "clef", count: 1 },
       { x: 9, y: 8, item: "fleche", count: 3 },
       { x: 9, y: 4, item: "or", count: 5 },
+      // Armurerie : une rangée d'objets à utiliser, une d'armes, une de tas d'or (petit, moyen, gros).
+      { x: 4, y: 19, item: "pomme", count: 2 },
+      { x: 6, y: 19, item: "torche", count: 1 },
+      { x: 8, y: 19, item: "fleche_poison", count: 6 },
+      { x: 4, y: 20, item: "epee_longue", count: 1 },
+      { x: 6, y: 20, item: "lance", count: 1 },
+      { x: 8, y: 20, item: "cimeterre", count: 1 },
+      { x: 10, y: 20, item: "armure_cloutee", count: 1 },
+      { x: 4, y: 21, item: "or", count: 5 },
+      { x: 7, y: 21, item: "or", count: 15 },
+      { x: 10, y: 21, item: "or", count: 30 },
     ],
+    heroLevel: 4,
     monsters: [
       { x: 24, y: 6, asleep: true },
       { x: 25, y: 16, asleep: false },

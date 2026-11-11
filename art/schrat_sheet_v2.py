@@ -54,7 +54,7 @@ def frames():
         out.append((label, g))
     return out
 
-if __name__ == "__main__":
+if __name__ == "__main__" and "export" not in __import__("sys").argv:
     FR = frames()
     S = 6
     cell = 16 * S + 12
@@ -90,3 +90,35 @@ if __name__ == "__main__":
     d.text((140 + 2 * T, y0 + 30 + T + 14), "héros / Schrat (profil) / Schrat (face)", fill=(200, 190, 170), font=fs, anchor="mm")
     sheet.save("art/schrat_v2.png")
     print(sheet.size)
+
+def export():
+    """Écrit src/render/sprites/schrat.ts (planche v2 validée par Thomas le 2026-11-11). Ne pas retoucher le fichier produit."""
+    import sys
+    FR = [["".join(r) for r in g] for _, g in frames()]
+    sets = {}
+    for view, base in (("Down", 0), ("Side", 6), ("Up", 12)):
+        sets[f"idle{view}"] = [FR[base], FR[base + 1]]
+        sets[f"walk{view}"] = [FR[base + 2], FR[base + 3]]
+        sets[f"stab{view}"] = [FR[base + 4], FR[base + 5]]
+    sets["hurt"] = [FR[18]]
+    sets["sleep"] = [FR[19]]
+    sets["dead"] = [FR[20]]
+    used = sorted({c for fs in sets.values() for f in fs for r in f for c in r if c != "."})
+    out = ["// Fichier généré par art/schrat_sheet_v2.py export (planche validée : art/schrat_v2.png). Ne pas modifier à la main.", "",
+           "export const SCHRAT_PALETTE: Record<string, string> = {"]
+    out += ['  %s: "#%02x%02x%02x",' % ((c,) + tuple(PAL[c])) for c in used]
+    out += ["};", "", "/** Images 16×16 du Schrat ; les vues de profil regardent vers la droite. */", "export const SCHRAT = {"]
+    for k, fs in sets.items():
+        out.append(f"  {k}: [")
+        for f in fs:
+            out.append("    [")
+            out += [f'      "{r}",' for r in f]
+            out.append("    ],")
+        out.append("  ],")
+    out += ["} as const;", ""]
+    open("src/render/sprites/schrat.ts", "w", encoding="utf8").write("\n".join(out))
+    print(len(used), "couleurs")
+
+import sys as _sys
+if len(_sys.argv) > 1 and _sys.argv[1] == "export":
+    export()

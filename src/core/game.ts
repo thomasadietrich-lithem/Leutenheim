@@ -351,6 +351,9 @@ export class Game {
   /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
   private populateSandbox(state: FloorState, plan: SandboxFloor): void {
     for (const m of plan.monsters) this.monsters.push(this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep));
+    // Niveau 4 dans la salle d'essai : on peut y essayer l'épée longue, la lance et les flèches empoisonnées ;
+    // le cimeterre et le cuir clouté (niveau 5) montrent le refus.
+    this.level = plan.heroLevel;
     state.population = this.monsters.length;
     state.nextRespawn = this.turn + RULES.respawnTurns;
     for (const g of plan.ground) this.ground.push({ ...g });
@@ -656,7 +659,8 @@ export class Game {
 
   /** Expérience à réunir pour passer au niveau suivant. */
   xpToNext(): number {
-    return RULES.xpPerLevel * this.level;
+    const n = this.level - 1;
+    return RULES.xpFirst + n * RULES.xpStep + ((n * (n - 1)) / 2) * RULES.xpStepGrowth;
   }
 
   private gainXp(amount: number): void {

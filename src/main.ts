@@ -1,3 +1,4 @@
+import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
@@ -8,7 +9,7 @@ import { RACES, RaceDef } from "./data/races";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
-import { itemIcon, uiIcon } from "./ui/icons";
+import { buildIcon, itemIcon, uiIcon } from "./ui/icons";
 import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
@@ -31,7 +32,6 @@ const OPTIONS_KEY = "leutenheim.options";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const canvas = $("game") as HTMLCanvasElement;
-const hudText = $("hud-text");
 const hpFill = $("hp-fill");
 const hpBar = document.querySelector(".hp:not(.xp)") as HTMLElement;
 const xpBar = document.querySelector(".hp.xp") as HTMLElement;
@@ -214,7 +214,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "À l'est : colonnes, cheminée, cache à fouiller, piège. Au sud-est : Schrats à pousser, piège, escalier. Au sud : fontaine et coffre (clef au sol).",
+        "À l'est : colonnes, cheminée, cache à fouiller, piège. Au sud-est : Schrats à pousser, piège, escalier. Au sud : fontaine et coffre (clef au sol). Au sud-ouest, par la salle de combat : l'armurerie (nouveaux objets ; vous êtes niveau 4).",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -323,6 +323,7 @@ function reveal(e: GameEvent): void {
       r.critical ? "#ffd75e" : r.hit ? (foe ? "#ff6b7a" : "#ffffff") : "#a8a2c0",
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
+    if (!foe && r.hit) renderer.monsterHurt(e.target.id);
     if (foe && r.hit) {
       renderer.heroHurt();
       pulse(hpBar, "hit");
@@ -366,8 +367,14 @@ function reveal(e: GameEvent): void {
       sfx.play("death");
     } else {
       ghosts = ghosts.filter((g) => g !== e.actor);
+      renderer.monsterDies(e.actor);
       sfx.play("kill");
     }
+  } else if (e.type === "poison") {
+    renderer.monsterHurt(e.actor.id);
+    renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
+  } else if (e.type === "used") {
+    sfx.play(e.healed !== undefined ? "heal" : "pickup");
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
@@ -747,6 +754,8 @@ for (const [id, icon, label] of [
   $(id).title = label;
 }
 $("aim").setAttribute("aria-label", "Tirer à l'arc");
+// L'étage, en haut à droite : l'escalier du jeu et son numéro (demande de Thomas).
+$("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
 
 // ---------- Sac : grille de cases à la Diablo ----------
 
@@ -818,6 +827,47 @@ function renderBag(): void {
     }),
   );
 
+  // En haut : qui l'on est, l'or de la bourse, et les caractéristiques (demande de Thomas).
+  $("bag-who").textContent = `${game.heroClass.name} · Niv ${game.level}`;
+  $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(String(game.gold)));
+  const c = game.heroClass;
+  const stat = (label: string, value: string) => {
+    const node = el("span", "", label);
+    node.append(el("b", "", value));
+    return node;
+  };
+  $("bag-stats").replaceChildren(
+    stat("PV", `${game.hero.hp}/${game.hero.maxHp}`),
+    stat("CA", String(game.hero.armorClass)),
+    stat("Attaque", signedBonus(game.hero.attackBonus)),
+    stat("XP", `${game.xp}/${game.xpToNext()}`),
+    stat("Force", signedBonus(c.pushBonus)),
+    stat("Agilité", signedBonus(c.disengageBonus)),
+    stat("Discrétion", signedBonus(c.stealthBonus)),
+    stat("Fouille", signedBonus(c.searchBonus)),
+  );
+
+  // Le carquois : les sortes de flèches du sac ; on touche celles à tirer (niveau trop bas : « Lv » en rouge).
+  const kinds = game.ammoKinds();
+  $("quiver-box").hidden = kinds.length === 0;
+  const current = game.currentAmmo();
+  $("quiver").replaceChildren(
+    ...kinds.map((id) => {
+      const def = ITEMS[id] as ItemDef;
+      const node = itemNode({ defId: id, count: game.inventory.count(id) }, `quiver-item${id === current ? " selected" : ""}`);
+      if (game.tooLow(def)) node.append(el("span", "item-level", `Lv${def.level}`));
+      node.title = def.name;
+      node.addEventListener("click", () => {
+        sfx.play("click");
+        if (!game.chooseAmmo(id)) logLines.push(`Il faut être niveau ${def.level} pour tirer ces flèches.`);
+        aimShown = "";
+        renderLog();
+        renderBag();
+      });
+      return node;
+    }),
+  );
+
   // Le sac : grille de cases.
   const grid = $("bag-grid");
   grid.style.setProperty("--cols", String(bag.cols));
@@ -828,6 +878,7 @@ function renderBag(): void {
       // Une clef d'un autre étage ne sert plus ici : elle reste dans le sac, grisée.
       const spent = ITEMS[item.defId].kind === "key" && item.floor !== game.depth;
       const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}`);
+      if (game.tooLow(def)) node.append(el("span", "item-level", `Lv${def.level}`));
       node.style.left = `${(100 * item.x) / bag.cols}%`;
       node.style.top = `${(100 * item.y) / bag.rows}%`;
       node.style.width = `${(100 * def.w) / bag.cols}%`;
@@ -849,9 +900,8 @@ function renderBag(): void {
   const keyNote = def.kind === "key" && item.floor !== undefined ? ` — étage ${item.floor}${item.floor !== game.depth ? ", ne sert plus ici" : ""}` : "";
   info.replaceChildren(itemCard(def, item.count, selectedSlot ? " — porté" : keyNote));
   const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use";
-  const quiver = def.kind === "ammo" && !selectedSlot && game.ammoKinds().length > 1;
-  action.hidden = !wearable && def.kind !== "use" && !quiver;
-  action.textContent = selectedSlot ? "Retirer" : def.kind === "use" ? "Utiliser" : quiver ? (game.currentAmmo() === def.id ? "Choisies" : "Tirer celles-ci") : "Équiper";
+  action.hidden = !wearable && def.kind !== "use";
+  action.textContent = selectedSlot ? "Retirer" : def.kind === "use" ? "Utiliser" : "Équiper";
 }
 
 $("bag-grid").addEventListener("click", (e) => {
@@ -877,9 +927,6 @@ button("bag-equip", () => {
     if (!game.useItem(chosen.uid)) logLines.push("Vous êtes déjà en pleine santé.");
     bagOpen = false;
     $("bag").hidden = true;
-  } else if (chosen && chosenDef?.kind === "ammo") {
-    game.chooseAmmo(chosen.defId);
-    aimShown = "";
   } else if (selected && "uid" in selected) {
     if (!game.equip(selected.uid)) logLines.push("Pas assez de place dans le sac pour échanger.");
   } else if (selected && "slot" in selected) {
@@ -1206,12 +1253,13 @@ function frame(now: number): void {
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
-  hudText.textContent = `Étage ${game.depth} · Niv ${game.level} · CA ${game.hero.armorClass} · Or ${game.gold}`;
+  const floorText = String(game.depth);
+  if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
   renderHere();
   $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
   $("xp-fill").style.width = `${(100 * game.xp) / game.xpToNext()}%`;
-  $("xp-label").textContent = `XP ${game.xp}/${game.xpToNext()}`;
+  $("xp-label").textContent = `Niv ${game.level} · XP ${game.xp}/${game.xpToNext()}`;
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
   // Avec la clef de l'étage, rien à choisir : elle sert toute seule.

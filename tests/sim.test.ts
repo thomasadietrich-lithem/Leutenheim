@@ -827,7 +827,7 @@ test("une flèche brisée reste quelques tours au sol, puis disparaît", () => {
     if (!arrow || arrow.type !== "arrow" || arrow.kept) continue; // on cherche une flèche qui se brise
     assert.equal(game.debris.length, 1);
     assert.deepEqual([game.debris[0].x, game.debris[0].y], [arrow.x, arrow.y]);
-    assert.ok(!game.ground.some((g) => g.item === "fleche"), "une flèche brisée ne se ramasse pas");
+    assert.ok(!game.ground.some((g) => g.item === "fleche" && g.x === arrow.x && g.y === arrow.y), "une flèche brisée ne se ramasse pas");
     for (let turn = 1; turn < 7; turn++) {
       game.wait();
       game.tick();
@@ -846,10 +846,10 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const foe = game.monsters[0];
   assert.ok(foe);
   game.monsters.splice(1);
-  // Trois victoires à 10 points : passage au niveau 2 (30 points), avec 3 PV de plus.
+  // Trois victoires (3 à 5 points chacune) : passage au niveau 2 (6 points), pas au niveau 3 (12 de plus), avec 3 PV de plus.
   const maxHp = game.hero.maxHp;
   let kills = 0;
-  game.xp = 21; // à 9 points du niveau 2 : trois victoires (3 à 5 points chacune) suffisent toujours
+  game.xp = 0;
   for (let turn = 0; turn < 400 && kills < 3; turn++) {
     const target = game.monsters[0];
     Object.assign(target, { x: game.hero.x + (game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1), y: game.hero.y, hp: 1, alerted: false, asleep: true });
@@ -864,7 +864,7 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
   assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
   const total = gains.reduce((a, b) => a + b, 0);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, 21 + total - 30, 60, maxHp + 3]);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [2, total - 6, 12, maxHp + 3]);
   assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
 
@@ -1838,4 +1838,13 @@ test("butin : rareté selon la section, tas d'or selon la section, jamais dans l
   } finally {
     (RULES as { lootEnabled: boolean }).lootEnabled = old;
   }
+});
+
+test("expérience : chaque niveau demande un peu plus que le précédent (6, 12, 20, 30, 42)", () => {
+  const game = new Game(1);
+  const needs = [1, 2, 3, 4, 5].map((level) => {
+    game.level = level;
+    return game.xpToNext();
+  });
+  assert.deepEqual(needs, [6, 12, 20, 30, 42]);
 });

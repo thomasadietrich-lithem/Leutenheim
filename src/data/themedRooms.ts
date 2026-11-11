@@ -25,14 +25,20 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
   },
 ];
 
-/** Meubles : ceux qui bloquent leur(s) case(s), leur largeur en cases. Les chaises debout et le tapis ne bloquent pas. */
-export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: number }> = {
-  bunkA: { blocks: true, w: 2, h: 1 },
-  bunkB: { blocks: true, w: 2, h: 1 },
-  table: { blocks: true, w: 2, h: 1 },
-  chairR: { blocks: false, w: 1, h: 1 },
-  chairL: { blocks: false, w: 1, h: 1 },
-  chairFallen: { blocks: true, w: 1, h: 1 },
-  rug: { blocks: false, w: 3, h: 2 },
-  rugB: { blocks: false, w: 3, h: 2 },
+/**
+ * Meubles : ceux qui bloquent leur(s) case(s), leur taille en cases, s'ils brûlent. Les chaises debout, le tapis et les
+ * cendres ne bloquent pas. Un meuble qui brûle met le feu à ses voisins (à une case) et laisse un tas de cendres.
+ */
+export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: number; burns: boolean }> = {
+  bunkA: { blocks: true, w: 2, h: 1, burns: true },
+  bunkB: { blocks: true, w: 2, h: 1, burns: true },
+  table: { blocks: true, w: 2, h: 1, burns: true },
+  tableApple: { blocks: true, w: 2, h: 1, burns: true },
+  chairR: { blocks: false, w: 1, h: 1, burns: true },
+  chairL: { blocks: false, w: 1, h: 1, burns: true },
+  chairFallen: { blocks: true, w: 1, h: 1, burns: true },
+  rug: { blocks: false, w: 3, h: 2, burns: true },
+  rugB: { blocks: false, w: 3, h: 2, burns: true },
+  ashes1: { blocks: false, w: 1, h: 1, burns: false },
+  ashes2: { blocks: false, w: 2, h: 1, burns: false },
 };

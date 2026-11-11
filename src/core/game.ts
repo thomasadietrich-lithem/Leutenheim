@@ -11,6 +11,7 @@ import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov
 import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { furnishFloor, Furniture, furnitureCells } from "../world/furnish";
+import { FURNITURE_KINDS } from "../data/themedRooms";
 import { placeGrounds } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
@@ -79,6 +80,8 @@ export class Game {
   hasteTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
   fires: { x: number; y: number; turns: number }[] = [];
+  /** Salle d'essai : combats coupés (bouton « Combats »), pour visiter tranquillement. Pas sauvegardé. */
+  peaceful = false;
   private throwOrder: { uid: number; x: number; y: number } | null = null;
   private skillOrder: number | null = null;
   /** Charge : pas faits en ligne droite juste avant d'attaquer. */
@@ -222,6 +225,7 @@ export class Game {
     }
     this.useFloor(state, depth);
     this.fires = [];
+    this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
     this.hero.x = this.hero.fromX = arrival.x;
@@ -427,7 +431,7 @@ export class Game {
 
   /** Le héros vient de poser le pied sur du gravier : ça crisse ; les monstres proches l'entendent et accourent. */
   private crunch(): void {
-    if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel) return;
+    if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel || this.peaceful) return;
     this.reveal();
     let alerted = 0;
     for (const m of this.monsters) {
@@ -1061,13 +1065,6 @@ export class Game {
     const cells = [...cross, extra]
       .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
       .filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
-    // Un tapis touché par les flammes brûle tout entier, puis disparaît.
-    for (const rug of this.current.furniture.filter((f) => f.kind.startsWith("rug"))) {
-      const rugCells = furnitureCells(rug);
-      if (!rugCells.some((r) => cells.some((c) => c.x === r.x && c.y === r.y))) continue;
-      for (const r of rugCells) if (!cells.some((c) => c.x === r.x && c.y === r.y)) cells.push(r);
-      this.current.furniture = this.current.furniture.filter((f) => f !== rug);
-    }
     for (const c of cells) {
       const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
       if (old) old.turns = RULES.fireTurns;
@@ -1076,6 +1073,56 @@ export class Game {
     this.events.push({ type: "fire", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
     // Les monstres touchés par l'éclaboussure se réveillent.
     for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
+    // Les meubles tout près prennent feu tout de suite.
+    this.igniteFurniture();
+  }
+
+  /** Meubles en feu : tours restants avant qu'il n'en reste qu'un tas de cendres. */
+  private furnitureFire = new Map<Furniture, number>();
+
+  /**
+   * Le feu gagne les meubles (Thomas) : un meuble qui brûle s'il y a des flammes à une case de lui (ou sur lui). Il
+   * brûle tout entier, et à son tour enflamme ses voisins à une case.
+   */
+  private igniteFurniture(): void {
+    let spread = true;
+    while (spread) {
+      spread = false;
+      for (const f of this.current.furniture) {
+        if (this.furnitureFire.has(f) || !FURNITURE_KINDS[f.kind]?.burns) continue;
+        const cells = furnitureCells(f);
+        const near = cells.some((c) => this.fires.some((fire) => Math.max(Math.abs(fire.x - c.x), Math.abs(fire.y - c.y)) <= 1));
+        if (!near) continue;
+        this.furnitureFire.set(f, RULES.fireTurns);
+        for (const c of cells) {
+          const old = this.fires.find((fire) => fire.x === c.x && fire.y === c.y);
+          if (old) old.turns = Math.max(old.turns, RULES.fireTurns);
+          else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
+        }
+        this.events.push({ type: "furnitureFire", x: f.x, y: f.y, kind: f.kind });
+        spread = true;
+      }
+    }
+  }
+
+  /** Fin de tour d'un meuble en feu : quand il a fini de brûler, il reste des cendres (le tapis, lui, disparaît). */
+  private burnFurniture(): void {
+    for (const [f, turns] of [...this.furnitureFire]) {
+      if (turns > 1) {
+        this.furnitureFire.set(f, turns - 1);
+        continue;
+      }
+      this.furnitureFire.delete(f);
+      const def = FURNITURE_KINDS[f.kind];
+      const cells = furnitureCells(f);
+      this.current.furniture = this.current.furniture.filter((o) => o !== f);
+      for (const c of cells) {
+        if (def.blocks) this.map.set(c.x, c.y, Tile.Floor);
+        else this.map.touch(c.x, c.y);
+      }
+      if (!f.kind.startsWith("rug")) this.current.furniture.push({ x: f.x, y: f.y, kind: def.w >= 2 ? "ashes2" : "ashes1" });
+      else for (let dy = -1; dy <= def.h; dy++) for (let dx = -1; dx <= def.w; dx++) this.map.touch(f.x + dx, f.y + dy);
+    }
   }
 
   /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
@@ -1097,6 +1144,8 @@ export class Game {
         this.removeIfDead(a);
       }
     }
+    this.igniteFurniture();
+    this.burnFurniture();
     if (this.fires.length === 0) return;
     for (const f of this.fires) {
       for (const a of [this.hero, ...this.monsters]) {
@@ -1404,8 +1453,12 @@ export class Game {
    */
   hasCover(p: Point): boolean {
     const wall = (x: number, y: number) => this.map.get(x, y) === Tile.Wall;
+    // Une colonne, ou un meuble qui bloque (lit, table, chaise renversée…), sur une des 8 cases voisines.
     for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) if (this.map.get(p.x + dx, p.y + dy) === Tile.Pillar) return true;
+      for (let dx = -1; dx <= 1; dx++) {
+        const t = this.map.get(p.x + dx, p.y + dy);
+        if (t === Tile.Pillar || t === Tile.Furniture) return true;
+      }
     }
     if ((wall(p.x, p.y - 1) || wall(p.x, p.y + 1)) && (wall(p.x - 1, p.y) || wall(p.x + 1, p.y))) return true;
     for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
@@ -2220,7 +2273,9 @@ export class Game {
       const dy = this.hero.y - m.y;
       const distance = Math.max(Math.abs(dx), Math.abs(dy));
 
-      if (!m.alerted) {
+      // Salle d'essai, combats coupés : personne ne remarque le héros, personne ne l'attaque.
+      if (this.peaceful) m.alerted = false;
+      if (!m.alerted && !this.peaceful) {
         const def = MONSTERS[m.defId as keyof typeof MONSTERS];
         const chance =
           def.noticeChance *

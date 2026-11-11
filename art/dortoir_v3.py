@@ -135,9 +135,25 @@ def candle_frames():
     return frames
 
 
-def table_v3(frame=0):
-    """La table validée, avec la bougie animée (image `frame`)."""
+def table_v3(frame=0, apple=False):
+    """La table validée, avec la bougie animée (image `frame`) ; une assiette d'étain à la place du pain (Thomas),
+    avec ou sans pomme dessus."""
     t = table()
+    t.a[4:10, 12:21] = t.a[4:5, 2:3]  # efface le pain (bois du plateau)
+    t.a[8:10, 12:21] = t.a[8:9, 2:3]
+    plate = Sprite(9, 5)
+    plate.r(1, 0, 7, 1, "iron").r(0, 1, 9, 3, "iron_l").r(1, 4, 7, 1, "iron").r(2, 1, 5, 2, "stone_l").r(3, 3, 3, 1, "iron")
+    if apple:
+        plate.r(3, -1, 3, 3, "red").p(3, -1, "red_l").p(5, 1, "red_d").p(4, -1, "wood_d") if False else None
+    pa = plate.a
+    m = pa[..., 3] > 0
+    t.a[5:10, 12:21][m] = pa[m]
+    if apple:
+        a = Sprite(5, 5)
+        a.r(1, 1, 3, 3, "red").r(0, 2, 5, 1, "red").p(1, 1, "red_l").p(3, 3, "red_d").p(2, 0, "wood_d")
+        aa = a.a
+        am = aa[..., 3] > 0
+        t.a[2:7, 14:19][am] = aa[am]
     t.a[0:8, 22:26] = 0  # efface l'ancienne bougie
     c = candle_frames()[frame].a
     m = c[..., 3] > 0
@@ -191,6 +207,27 @@ if __name__ == "__main__":
     print(sheet.size)
 
 
+def ashes(w):
+    """Ce qui reste d'un meuble brûlé (Thomas : « tas de cendres, ruines après ») : un tas de cendre grise, des bouts de
+    bois noircis, deux braises. `w` = largeur en cases (1 ou 2). Plat : on marche dessus."""
+    W = 16 * w
+    s = Sprite(W, 12)
+    for x in range(1, W - 1):
+        top = 6 - int(3 * np.sin(np.pi * x / (W - 1)))
+        for y in range(top, 11):
+            r = hash2(x, y, 700 + w)
+            s.p(x, y, (70, 66, 70, 255) if r > 0.6 else (96, 92, 94, 255) if r > 0.25 else (46, 42, 46, 255))
+    # Bouts de bois noircis.
+    for i in range(2 * w):
+        x0 = 2 + int(hash2(i, 1, 710) * (W - 10))
+        y0 = 5 + int(hash2(i, 2, 710) * 4)
+        for k in range(6):
+            s.p(x0 + k, y0 + (k * (1 if i % 2 else -1)) // 3, (28, 20, 16, 255))
+    for i in range(2):
+        s.p(3 + int(hash2(i, 3, 720) * (W - 6)), 8 + i, "ember")
+    return s.done()
+
+
 def export_ts():
     """Écrit src/render/sprites/dortoir.ts : chaque meuble en lignes de lettres + sa palette (validé le 2026-11-11)."""
     import json as _json
@@ -198,6 +235,8 @@ def export_ts():
     sprites = {
         "bunkA": bunk_v3(1).img(), "bunkB": bunk_v3(2).img(),
         "table0": table_v3(0).img(), "table1": table_v3(1).img(), "table2": table_v3(2).img(),
+        "tableApple0": table_v3(0, True).img(), "tableApple1": table_v3(1, True).img(), "tableApple2": table_v3(2, True).img(),
+        "ashes1": ashes(1).img(), "ashes2": ashes(2).img(),
         "chairR": chair("right").img(), "chairL": chair("left").img(), "chairFallen": chair_fallen().img(),
         "rug": shabby_rug(-17), "rugB": shabby_rug(14),
     }

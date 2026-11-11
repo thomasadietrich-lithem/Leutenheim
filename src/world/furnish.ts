@@ -136,7 +136,7 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
   let table: Furniture | null = null;
   while (tableSpots.length > 0 && !table) {
     const p = tableSpots.splice(rng.int(0, tableSpots.length - 1), 1)[0];
-    const f = { x: p.x, y: p.y, kind: "table" };
+    const f = { x: p.x, y: p.y, kind: rng.chance(RULES.tableAppleChance) ? "tableApple" : "table" };
     if (tryPlace(f)) table = f;
   }
   if (table) {
@@ -164,6 +164,18 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
       const y = rng.int(room.y + 2, room.y + room.h - 1);
       if (tryPlace({ x, y, kind: "chairFallen" })) break;
     }
+  }
+  // 0 à 2 coffres, contre un mur de côté ou du bas, loin des ouvertures (on marche dessus pour les ouvrir).
+  const chests = rng.int(RULES.dortoirChests[0], RULES.dortoirChests[1]);
+  let placedChests = 0;
+  for (let attempt = 0; attempt < 40 && placedChests < chests; attempt++) {
+    const x = rng.int(room.x, room.x + room.w - 1);
+    const y = rng.int(room.y + 2, room.y + room.h - 1);
+    const onEdge = x === room.x || x === room.x + room.w - 1 || y === room.y + room.h - 1;
+    if (!onEdge || used.has(key(x, y)) || special(x, y) || nearOpening(x, y)) continue;
+    map.set(x, y, Tile.Chest);
+    used.add(key(x, y));
+    placedChests++;
   }
   out.push(...placed);
   return true;

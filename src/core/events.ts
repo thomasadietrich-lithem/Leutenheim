@@ -35,6 +35,8 @@ export type GameEvent =
   | { type: "hide"; d20: number; bonus: number; total: number; success: boolean }
   /** Le héros sort de sa cachette (il attaque, quitte l'abri d'un obstacle, fait du bruit). */
   | { type: "revealed" }
+  /** Un meuble prend feu. */
+  | { type: "furnitureFire"; x: number; y: number; kind: string }
   /** Le héros marche sur du gravier : ça crisse ; `alerted` monstres l'ont entendu. */
   | { type: "gravel"; x: number; y: number; alerted: number }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */

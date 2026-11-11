@@ -205,6 +205,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   game = next;
   const sandbox = game.sandbox;
   $("test-tools").hidden = !sandbox;
+  $("peace").textContent = "Combats : oui";
   aimMode = false;
   doorWasPending = false;
   foundOpen = false;
@@ -1574,6 +1575,13 @@ button("new-start", () => {
 button("wake-all", () => {
   game.wakeAll();
   logLines.push("Tous les monstres se réveillent et foncent sur vous !");
+  renderLog();
+});
+// Salle d'essai : couper ou rétablir les combats (Thomas) — les monstres ne remarquent plus le héros.
+button("peace", () => {
+  game.peaceful = !game.peaceful;
+  $("peace").textContent = game.peaceful ? "Combats : non" : "Combats : oui";
+  logLines.push(game.peaceful ? "Combats coupés : les monstres vous ignorent." : "Combats rétablis.");
   renderLog();
 });
 button("alarm-up", () => {

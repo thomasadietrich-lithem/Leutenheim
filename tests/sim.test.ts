@@ -1414,7 +1414,7 @@ test("se cacher : un mur droit ne suffit pas ; une colonne voisine ou un coin re
       // Milieu du mur du haut, à l'intérieur : mur droit au-dessus, rien d'autre autour.
       const mid = { x: room.x + Math.floor(room.w / 2), y: room.y };
       const around = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => game.map.get(mid.x + dx, mid.y + dy)));
-      if (around.includes(Tile.Pillar) || game.map.get(mid.x, mid.y) !== Tile.Floor) continue;
+      if (around.includes(Tile.Pillar) || around.includes(Tile.Furniture) || game.map.get(mid.x, mid.y) !== Tile.Floor) continue;
       if (game.map.get(mid.x, mid.y - 1) !== Tile.Wall || game.map.get(mid.x - 1, mid.y - 1) !== Tile.Wall || game.map.get(mid.x + 1, mid.y - 1) !== Tile.Wall) continue;
       assert.equal(game.hasCover(mid), false, `graine ${seed} : un mur droit abrite`);
       // Coin intérieur de la salle : deux murs perpendiculaires.
@@ -2195,9 +2195,20 @@ test("tapis : il étouffe les pas, et brûle tout entier", () => {
   const uid = game.inventory.items.find((i) => i.defId === "potion_feu")!.uid;
   assert.ok(game.throwPotion(uid, rug.x, rug.y), String(game.throwRefusal(uid, rug.x, rug.y)));
   game.tick();
-  const fire = game.events.find((e) => e.type === "fire");
-  assert.ok(fire && fire.type === "fire" && fire.cells.length >= 6, "tout le tapis brûle");
-  assert.equal(game.furnitureList().some((f) => f === rug), false);
+  // Tout le tapis brûle, et le feu gagne les meubles voisins (à une case).
+  for (const c of furnitureCells(rug)) assert.ok(game.isBurning(c.x, c.y), `tapis en ${c.x},${c.y}`);
+  assert.ok(game.events.some((e) => e.type === "furnitureFire" && e.kind.startsWith("rug")));
+  const before = game.furnitureList().filter((f) => FURNITURE_KINDS[f.kind].blocks).length;
+  for (let t = 0; t < 12; t++) {
+    game.hero.x = game.rooms[0].x + 1;
+    game.hero.y = game.rooms[0].y + 1;
+    game.wait();
+    game.tick();
+  }
+  assert.equal(game.furnitureList().some((f) => f === rug), false, "le tapis a disparu");
+  const ashes = game.furnitureList().filter((f) => f.kind.startsWith("ashes")).length;
+  assert.ok(ashes >= 1, "des cendres là où un meuble a brûlé");
+  assert.ok(game.furnitureList().filter((f) => FURNITURE_KINDS[f.kind].blocks).length < before);
 });
 
 test("diagonale : on longe un mur ou une porte en coupant le coin, mais on ne se faufile pas entre deux coins", () => {
@@ -2304,4 +2315,25 @@ test("se cacher : impossible si un monstre éveillé vous a en vue ; possible s'
     return;
   }
   assert.fail("aucune graine utilisable");
+});
+
+test("dortoir : 0 à 2 coffres ; se cacher contre un meuble ; combats coupés en salle d'essai", () => {
+  let chests = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const floor = generateFloor(seed, DEFAULT_FLOOR);
+    const before = floor.map.tiles.filter((t) => t === Tile.Chest).length;
+    furnishFloor(floor, seed);
+    const after = floor.map.tiles.filter((t) => t === Tile.Chest).length;
+    assert.ok(after - before <= 2);
+    chests += after - before;
+  }
+  assert.ok(chests > 0, "des coffres dans les dortoirs");
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const table = game.furnitureList().find((f) => f.kind.startsWith("table"))!;
+  assert.equal(game.hasCover({ x: table.x, y: table.y + 1 }), true, "abri contre la table");
+  game.peaceful = true;
+  game.wakeAll();
+  game.wait();
+  game.tick();
+  assert.ok(game.monsters.every((m) => !m.alerted), "personne ne vous remarque");
 });

@@ -2,6 +2,8 @@ import { Game } from "../core/game";
 import { Tile } from "../world/map";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { groundImage } from "./ground";
+import { DORTOIR } from "./sprites/dortoir";
+import { FURNITURE_KINDS } from "../data/themedRooms";
 
 /**
  * Dessin des cases de la carte (sol, murs en briques, colonnes, portes, escaliers, coffres, fontaine), sans ombre
@@ -63,7 +65,28 @@ export class TilePainter {
         } else {
           this.drawFloor(game, x, y, sx, sy);
         }
+        if (!wall) this.drawRugs(game, x, y, sx, sy);
         this.drawFeature(game, t, x, y, sx, sy);
+  }
+
+  /** La part de tapis qui tombe sur cette case : dessinée avec le sol, elle prend la même ombre et la même lumière. */
+  drawRugs(game: Game, x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    for (const f of game.furnitureList()) {
+      if (!f.kind.startsWith("rug")) continue;
+      const def = FURNITURE_KINDS[f.kind];
+      const art = DORTOIR[f.kind];
+      const w = art.rows[0].length;
+      const h = art.rows.length;
+      const px = (f.x + def.w / 2) * 16 - w / 2;
+      const py = (f.y + def.h / 2) * 16 - h / 2;
+      if (px >= (x + 1) * 16 || px + w <= x * 16 || py >= (y + 1) * 16 || py + h <= y * 16) continue;
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(art.rows, art.palette), sx + (px - x * 16) * u, sy + (py - y * 16) * u, w * u, h * u);
+      ctx.imageSmoothingEnabled = smooth;
+    }
   }
 
   /**

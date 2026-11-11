@@ -1042,7 +1042,8 @@ export class Renderer {
     const frame = Math.floor(performance.now() / 160) % 3;
     for (const f of list) {
       const def = FURNITURE_KINDS[f.kind];
-      if (!def) continue;
+      // Le tapis est dessiné avec le sol (dans la case), pour prendre exactement sa lumière (Thomas : il clignotait).
+      if (!def || f.kind.startsWith("rug")) continue;
       const cells = furnitureCells(f);
       if (!cells.some((c) => game.isExplored(c.x, c.y))) continue;
       const visible = cells.some((c) => game.isVisible(c.x, c.y));
@@ -1059,7 +1060,7 @@ export class Renderer {
         dark = (1 - brightness) * 0.55;
         warm = lit * flicker * 0.2;
       }
-      const name = f.kind === "table" ? `table${visible ? frame : 0}` : f.kind;
+      const name = f.kind.startsWith("table") ? `${f.kind}${visible ? frame : 0}` : f.kind;
       const art = DORTOIR[name];
       if (!art) continue;
       const w = art.rows[0].length;
@@ -1071,7 +1072,7 @@ export class Renderer {
         px = (f.x + def.w / 2) * 16 - w / 2;
         py = (f.y + def.h / 2) * 16 - h / 2;
       } else {
-        const off = f.kind.startsWith("bunk") ? [-2, 0] : f.kind === "table" ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : [2, -1];
+        const off = f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }

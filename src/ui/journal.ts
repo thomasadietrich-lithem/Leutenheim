@@ -76,6 +76,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous vous cachez : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, les monstres perdent votre trace." : "raté, vous restez visible."}`;
     case "revealed":
       return "Vous sortez de l'ombre.";
+    case "furnitureFire": {
+      const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : "Une chaise";
+      return `${name} prend feu !`;
+    }
     case "gravel":
       return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":

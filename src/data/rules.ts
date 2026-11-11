@@ -71,6 +71,9 @@ export const RULES = {
   chairsMin: 1,
   chairsMax: 3,
   fallenChairChance: 0.5,
+  /** Coffres du dortoir (0 à 2) et chance qu'une pomme soit dans l'assiette de la table. */
+  dortoirChests: [0, 2] as [number, number],
+  tableAppleChance: 0.5,
   /** Chance qu'une salle à thème cache quelque chose (au pied d'un meuble, butin du thème). */
   themedSecretChance: 0.75,
   /** Tapis : marcher dessus étouffe les pas (chance d'être remarqué multipliée par tant) ; il brûle tout entier. */

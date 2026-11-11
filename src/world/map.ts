@@ -65,6 +65,15 @@ export class GameMap {
     }
   }
 
+  /** Signale qu'une case a changé d'aspect sans changer de type (tapis brûlé…) : son dessin sera refait. */
+  touch(x: number, y: number): void {
+    if (!this.inBounds(x, y)) return;
+    this.revision++;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) if (this.inBounds(x + dx, y + dy)) this.changed[this.index(x + dx, y + dy)] = this.revision;
+    }
+  }
+
   /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
   isWalkable(x: number, y: number): boolean {
     const t = this.get(x, y);

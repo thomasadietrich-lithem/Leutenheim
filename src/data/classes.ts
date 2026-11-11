@@ -15,6 +15,8 @@ export interface ClassDef {
   startingItems: { item: ItemId; count: number; equip?: boolean }[];
   /** Bonus au d20 pour crocheter une serrure et pour enfoncer une porte. */
   lockpickBonus: number;
+  /** Bonus au d20 pour se cacher. */
+  stealthBonus: number;
   breakBonus: number;
 }
 
@@ -33,6 +35,7 @@ export const CLASSES = {
       { item: "fleche", count: 10 },
     ],
     lockpickBonus: 0,
+    stealthBonus: 0,
     breakBonus: 4,
   },
   assassin: {
@@ -49,6 +52,7 @@ export const CLASSES = {
       { item: "fleche", count: 8 },
     ],
     lockpickBonus: 5,
+    stealthBonus: 4,
     breakBonus: 0,
   },
   magicien: {
@@ -63,6 +67,7 @@ export const CLASSES = {
       { item: "baton", count: 1, equip: true },
     ],
     lockpickBonus: 1,
+    stealthBonus: 0,
     breakBonus: -1,
   },
 } satisfies Record<string, ClassDef>;

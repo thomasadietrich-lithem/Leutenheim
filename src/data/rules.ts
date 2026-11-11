@@ -32,6 +32,10 @@ export const RULES = {
   missStreakBonus: 3,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 4,
+  /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
+  hideDc: 9,
+  /** Se dégager (roue d'actions) : le héros saute à tant de cases, en ligne droite. */
+  jumpDistance: 2,
   /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
   restTurns: 8,
   /** Part des points de vie manquants rendue par un repos mené à son terme. */

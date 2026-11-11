@@ -506,6 +506,7 @@
         { item: "fleche", count: 10 }
       ],
       lockpickBonus: 0,
+      stealthBonus: 0,
       breakBonus: 4
     },
     assassin: {
@@ -522,6 +523,7 @@
         { item: "fleche", count: 8 }
       ],
       lockpickBonus: 5,
+      stealthBonus: 4,
       breakBonus: 0
     },
     magicien: {
@@ -536,6 +538,7 @@
         { item: "baton", count: 1, equip: true }
       ],
       lockpickBonus: 1,
+      stealthBonus: 0,
       breakBonus: -1
     }
   };
@@ -771,6 +774,10 @@
     missStreakBonus: 3,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
     arrowOvershoot: 4,
+    /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
+    hideDc: 9,
+    /** Se dégager (roue d'actions) : le héros saute à tant de cases, en ligne droite. */
+    jumpDistance: 2,
     /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
     restTurns: 8,
     /** Part des points de vie manquants rendue par un repos mené à son terme. */
@@ -1422,6 +1429,11 @@
       /** Attaques du héros manquées d'affilée. */
       this.heroMisses = 0;
       this.picking = false;
+      /** Le héros est caché : les monstres l'ont perdu de vue et ne le remarquent plus que s'ils arrivent à son contact. */
+      this.hidden = false;
+      /** Ordres de la roue d'actions en attente : se cacher, ou sauter vers une case. */
+      this.hideOrder = false;
+      this.jumpTarget = null;
       /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
       this.resting = 0;
       /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
@@ -1524,6 +1536,11 @@
       this.waiting = false;
       this.picking = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
+      this.hidden = false;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
@@ -1722,6 +1739,8 @@
       this.waiting = false;
       this.picking = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.shotTarget = { x, y };
       return null;
     }
@@ -1749,6 +1768,8 @@
       this.waiting = false;
       this.picking = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.shotTarget = null;
       return true;
     }
@@ -1772,6 +1793,8 @@
       this.waiting = false;
       this.picking = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.path = best;
       if (best.length === 0) {
         this.pendingDoor = { x, y };
@@ -1812,6 +1835,8 @@
     clearDoorOrders() {
       this.picking = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.pendingDoor = null;
       this.doorTarget = null;
       this.doorAction = null;
@@ -1843,6 +1868,8 @@
       this.shotTarget = null;
       this.waiting = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.picking = true;
       this.pickingItem = null;
       return true;
@@ -1858,6 +1885,73 @@
     restProgress() {
       return this.resting > 0 ? Math.max(0.06, 1 - this.resting / RULES.restTurns) : 0;
     }
+    /** Un obstacle (mur, colonne, porte) touche-t-il cette case ? Il faut s'y adosser pour se cacher. */
+    hasCover(p) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const x = p.x + dx;
+          const y = p.y + dy;
+          if (!this.map.isWalkable(x, y) || this.map.isDoor(x, y)) return true;
+        }
+      }
+      return false;
+    }
+    /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
+    hideRefusal() {
+      if (this.hidden) return "hidden";
+      if (this.isThreatened()) return "threatened";
+      if (!this.hasCover(this.hero)) return "no-cover";
+      return null;
+    }
+    /** Ordre : se cacher contre l'obstacle voisin (un tour, un jet au d20). */
+    hide() {
+      if (this.over || this.hideRefusal() !== null) return false;
+      this.wait();
+      this.waiting = false;
+      this.hideOrder = true;
+      return true;
+    }
+    /** Cases où le héros peut sauter pour se dégager : à deux cases en ligne droite, passage libre, sans porte ni escalier. */
+    jumpCells() {
+      const cells = [];
+      const free = (x, y) => this.map.isWalkable(x, y) && !this.map.isDoor(x, y) && !this.monsterAt(x, y) && this.map.get(x, y) !== Tile.StairsDown && this.map.get(x, y) !== Tile.StairsUp;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          let at = { x: this.hero.x, y: this.hero.y };
+          let ok = true;
+          for (let i = 0; i < RULES.jumpDistance && ok; i++) {
+            const next = { x: at.x + dx, y: at.y + dy };
+            if (!free(next.x, next.y) || !this.inReach(at, next)) ok = false;
+            at = next;
+          }
+          if (ok) cells.push(at);
+        }
+      }
+      return cells;
+    }
+    /** Pourquoi le héros ne peut pas se dégager maintenant (`null` : il le peut). */
+    disengageRefusal() {
+      if (!this.isThreatened()) return "safe";
+      if (this.jumpCells().length === 0) return "no-room";
+      return null;
+    }
+    /** Ordre : sauter vers cette case (une de `jumpCells`), sans attaque d'opportunité. */
+    disengage(x, y) {
+      if (this.over || this.disengageRefusal() !== null) return false;
+      if (!this.jumpCells().some((c) => c.x === x && c.y === y)) return false;
+      this.wait();
+      this.waiting = false;
+      this.jumpTarget = { x, y };
+      return true;
+    }
+    /** Le héros sort de sa cachette. */
+    reveal() {
+      if (!this.hidden) return;
+      this.hidden = false;
+      this.events.push({ type: "revealed" });
+    }
     /** Ordre : se reposer sur place plusieurs tours. Tout autre ordre y renonce, un monstre en vue l'interrompt. */
     rest() {
       if (this.over || this.restRefusal() !== null) return false;
@@ -1871,6 +1965,8 @@
       if (this.over) return;
       this.picking = false;
       this.resting = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
       this.clearDoorOrders();
       this.path = [];
       this.targetId = null;
@@ -1895,6 +1991,12 @@
         this.doorAction = null;
       } else if (this.picking) {
         this.picking = this.pickUpOne();
+      } else if (this.hideOrder) {
+        this.hideOrder = false;
+        this.resolveHide();
+      } else if (this.jumpTarget) {
+        this.resolveJump(this.jumpTarget);
+        this.jumpTarget = null;
       } else if (this.resting > 0) {
         this.resting--;
       } else if (this.waiting) {
@@ -1922,6 +2024,7 @@
           this.closeDoorAt(left.x, left.y);
           this.useFeatureAt(next.x, next.y);
           this.collectGold();
+          if (this.hidden && !this.hasCover(this.hero)) this.reveal();
           const here = this.map.get(next.x, next.y);
           this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
           const throughDoor = this.map.isDoor(next.x, next.y) || this.map.isDoor(left.x, left.y);
@@ -1947,6 +2050,33 @@
       this.monstersAct();
       if (resting) this.afterRestTurn();
       return true;
+    }
+    /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
+    resolveHide() {
+      const bonus = this.heroClass.stealthBonus;
+      const d20 = this.rng.int(1, 20);
+      const total = d20 + bonus;
+      const success = d20 === 20 || d20 !== 1 && total >= RULES.hideDc;
+      if (success) {
+        this.hidden = true;
+        for (const m of this.monsters) {
+          if (!m.alerted) continue;
+          m.alerted = false;
+          m.asleep = false;
+          m.wary = false;
+        }
+      }
+      this.events.push({ type: "hide", d20, bonus, total, success });
+    }
+    /** Saut pour se dégager : ceux qu'il quitte n'ont pas d'attaque d'opportunité, mais restent sur leurs gardes. */
+    resolveJump(to) {
+      const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
+      const from = { x: this.hero.x, y: this.hero.y };
+      this.hero.x = to.x;
+      this.hero.y = to.y;
+      this.collectGold();
+      for (const m of threats) m.wary = true;
+      this.events.push({ type: "jump", fromX: from.x, fromY: from.y, x: to.x, y: to.y });
     }
     /** Fin d'un tour de repos : un monstre en vue l'interrompt (le repos de l'étage n'est pas perdu) ; au dernier tour, il soigne. */
     afterRestTurn() {
@@ -2061,6 +2191,7 @@
       }
       let alerted = 0;
       if (action === "break") {
+        this.reveal();
         for (const m of this.monsters) {
           const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
           if (!m.alerted && d <= RULES.noiseRadius) {
@@ -2084,6 +2215,7 @@
       this.heroMisses = hit ? 0 : this.heroMisses + 1;
     }
     heroAttacks(monster) {
+      this.reveal();
       const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
       const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
       this.noteHeroAttack(result.hit);
@@ -2109,6 +2241,7 @@
     heroShoots(target) {
       const bow = this.weapon("ranged");
       if (!bow || !bow.ammo || !this.inventory.take(bow.ammo, 1)) return;
+      this.reveal();
       const origin = { x: this.hero.x, y: this.hero.y };
       const trail = [origin];
       let landing = origin;
@@ -2209,10 +2342,12 @@
         if (!m.alerted) {
           const def = MONSTERS[m.defId];
           const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) * (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake);
-          if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(chance)) {
+          const range = this.hidden ? 1 : m.vision;
+          if (this.isVisible(m.x, m.y) && distance <= range && this.rng.chance(chance)) {
             m.alerted = true;
             m.asleep = false;
             this.events.push({ type: "noticed", actor: m });
+            this.reveal();
           } else if (!m.asleep) {
             this.wander(m);
           }
@@ -3188,6 +3323,8 @@
       this.hurtAge = Infinity;
       this.heroDown = false;
       this.spriteCache = /* @__PURE__ */ new Map();
+      /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
+      this.jumpCells = [];
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -3308,6 +3445,10 @@
       ctx.save();
       ctx.translate(Math.round(cx), 0);
       if (this.heroFacing === "left") ctx.scale(-1, 1);
+      if (game2.hidden) {
+        ctx.globalAlpha = 0.55;
+        ctx.filter = "grayscale(1) brightness(0.8)";
+      }
       ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
@@ -3608,6 +3749,17 @@
             ctx.lineTo(cx, cy + dy * c);
           }
           ctx.stroke();
+        }
+      }
+      if (this.jumpCells.length > 0) {
+        ctx.fillStyle = `rgba(255,215,94,${(0.16 + 0.1 * Math.sin(this.time / 140)).toFixed(2)})`;
+        ctx.strokeStyle = "#ffd75e";
+        ctx.lineWidth = Math.max(2, tile * 0.07);
+        for (const c of this.jumpCells) {
+          const x02 = Math.round(ox + c.x * tile);
+          const y02 = Math.round(oy + c.y * tile);
+          ctx.fillRect(x02 + 2, y02 + 2, Math.round(tile) - 4, Math.round(tile) - 4);
+          ctx.strokeRect(x02 + 3, y02 + 3, Math.round(tile) - 6, Math.round(tile) - 6);
         }
       }
       this.drawHero(game2, hero, ox, oy, progress);
@@ -4735,6 +4887,7 @@
   var aimShown = "";
   var foundOpen = false;
   var wheelOpen = false;
+  var jumpMode = false;
   var seenItems = /* @__PURE__ */ new Set();
   var CODEX_KEY = "leutenheim.codex";
   var codex = /* @__PURE__ */ new Set();
@@ -4799,7 +4952,7 @@
       })
     );
   }
-  var isRoll = (e) => e.type === "attack" || e.type === "door" && e.action !== "key";
+  var isRoll = (e) => e.type === "attack" || e.type === "hide" || e.type === "door" && e.action !== "key";
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   function describeAttack(e) {
     const r = e.result;
@@ -4944,6 +5097,18 @@
       );
       shownHp = game.hero.hp;
       sfx.play("descend");
+    } else if (e.type === "hide") {
+      landDie(e.d20, e.success ? "hit" : "miss", false);
+      const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `\u2212 ${-e.bonus}`;
+      logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi, les monstres perdent votre trace." : "rat\xE9, on pourrait encore vous voir."}`);
+      renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Cach\xE9" : "Rep\xE9r\xE9", e.success ? "#c8c8c8" : "#ff6b7a");
+      if (!e.success) sfx.play("miss");
+    } else if (e.type === "revealed") {
+      logLines.push("Vous sortez de l'ombre.");
+    } else if (e.type === "jump") {
+      logLines.push("Vous vous d\xE9gagez d'un bond.");
+      renderer.addFloatingText(e.x, e.y, "D\xE9gag\xE9 !", "#ffd75e");
+      sfx.play("step");
     } else if (e.type === "rest") {
       if (e.phase === "start") logLines.push("Vous vous installez pour vous reposer\u2026");
       else if (e.phase === "interrupted") {
@@ -5006,6 +5171,16 @@
     onTap(px, py) {
       if (menuOpen || bagOpen || foundOpen) return;
       const t = renderer.screenToTile(px, py);
+      if (jumpMode) {
+        jumpMode = false;
+        renderer.jumpCells = [];
+        if (game.disengage(t.x, t.y)) stepMs = COMBAT_STEP_MS;
+        else {
+          logLines.push("Vous renoncez \xE0 vous d\xE9gager.");
+          renderLog();
+        }
+        return;
+      }
       if (aimMode) {
         if (t.x === game.hero.x && t.y === game.hero.y) aimMode = false;
         else fireAt(t.x, t.y);
@@ -5052,6 +5227,15 @@
     ["wheel-rest", "rest", "Se reposer"],
     ["wheel-hide", "hide", "Se cacher"]
   ];
+  var HIDE_REFUSALS = {
+    hidden: "Vous \xEAtes d\xE9j\xE0 cach\xE9.",
+    threatened: "Impossible de se cacher : un ennemi est \xE0 votre contact.",
+    "no-cover": "Il faut un mur, une colonne ou une porte \xE0 c\xF4t\xE9 de vous pour vous cacher."
+  };
+  var DISENGAGE_REFUSALS = {
+    safe: "Aucun ennemi au contact : rien \xE0 quoi se d\xE9rober.",
+    "no-room": "Pas la place de sauter : tout est bouch\xE9 autour de vous."
+  };
   var REST_REFUSALS = {
     full: "Vous \xEAtes en pleine forme : inutile de vous reposer.",
     used: "Vous vous \xEAtes d\xE9j\xE0 repos\xE9 \xE0 cet \xE9tage.",
@@ -5064,6 +5248,8 @@
   function openWheel() {
     if (game.over) return;
     aimMode = false;
+    jumpMode = false;
+    renderer.jumpCells = [];
     renderer.recenter();
     const frameBox = wheel.parentElement.getBoundingClientRect();
     const radius = 64;
@@ -5075,7 +5261,8 @@
       const b = $(id);
       b.style.left = `${cx + radius * Math.cos(angle)}px`;
       b.style.top = `${cy + radius * Math.sin(angle)}px`;
-      b.classList.toggle("off", id !== "wheel-rest" || game.restRefusal() !== null);
+      const possible = id === "wheel-rest" ? game.restRefusal() === null : id === "wheel-hide" ? game.hideRefusal() === null : id === "wheel-disengage" ? game.disengageRefusal() === null : false;
+      b.classList.toggle("off", !possible);
     });
     wheelOpen = true;
     wheel.hidden = false;
@@ -5092,6 +5279,18 @@
         const refusal = game.restRefusal();
         if (refusal) logLines.push(REST_REFUSALS[refusal]);
         else if (game.rest()) stepMs = COMBAT_STEP_MS;
+      } else if (id === "wheel-hide") {
+        const refusal = game.hideRefusal();
+        if (refusal) logLines.push(HIDE_REFUSALS[refusal]);
+        else if (game.hide()) stepMs = COMBAT_STEP_MS;
+      } else if (id === "wheel-disengage") {
+        const refusal = game.disengageRefusal();
+        if (refusal) logLines.push(DISENGAGE_REFUSALS[refusal]);
+        else {
+          jumpMode = true;
+          renderer.jumpCells = game.jumpCells();
+          logLines.push("Touchez la case o\xF9 sauter.");
+        }
       } else {
         logLines.push(`${label} : pas encore possible.`);
       }
@@ -5533,6 +5732,10 @@
       }
     }
     if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
+    if (!jumpMode || game.disengageRefusal() !== null) {
+      jumpMode = false;
+      renderer.jumpCells = [];
+    }
     if (started) discoverSurroundings();
     const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;
     renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);

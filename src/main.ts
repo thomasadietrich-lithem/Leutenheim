@@ -88,6 +88,8 @@ let aimShown = "";
 /** Une fiche d'objet est affichée par-dessus le jeu (objet trouvé pour la première fois). */
 let foundOpen = false;
 let wheelOpen = false;
+/** Se dégager : on attend que le joueur touche une des cases proposées. */
+let jumpMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
 let seenItems = new Set<ItemId>();
 
@@ -170,8 +172,8 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" }> =>
-  e.type === "attack" || (e.type === "door" && e.action !== "key");
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" }> =>
+  e.type === "attack" || e.type === "hide" || (e.type === "door" && e.action !== "key");
 const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind === "monster";
 
 function describeAttack(e: Extract<GameEvent, { type: "attack" }>): string {
@@ -352,6 +354,18 @@ function reveal(e: GameEvent): void {
     );
     shownHp = game.hero.hp;
     sfx.play("descend");
+  } else if (e.type === "hide") {
+    landDie(e.d20, e.success ? "hit" : "miss", false);
+    const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
+    logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, les monstres perdent votre trace." : "raté, on pourrait encore vous voir."}`);
+    renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Repéré", e.success ? "#c8c8c8" : "#ff6b7a");
+    if (!e.success) sfx.play("miss");
+  } else if (e.type === "revealed") {
+    logLines.push("Vous sortez de l'ombre.");
+  } else if (e.type === "jump") {
+    logLines.push("Vous vous dégagez d'un bond.");
+    renderer.addFloatingText(e.x, e.y, "Dégagé !", "#ffd75e");
+    sfx.play("step");
   } else if (e.type === "rest") {
     if (e.phase === "start") logLines.push("Vous vous installez pour vous reposer…");
     else if (e.phase === "interrupted") {
@@ -421,6 +435,17 @@ bindInput(canvas, {
   onTap(px, py) {
     if (menuOpen || bagOpen || foundOpen) return;
     const t = renderer.screenToTile(px, py);
+    if (jumpMode) {
+      // Toucher une case proposée y fait sauter le héros ; toucher ailleurs renonce.
+      jumpMode = false;
+      renderer.jumpCells = [];
+      if (game.disengage(t.x, t.y)) stepMs = COMBAT_STEP_MS;
+      else {
+        logLines.push("Vous renoncez à vous dégager.");
+        renderLog();
+      }
+      return;
+    }
     if (aimMode) {
       // Mode arc : toucher sa propre case renonce au tir ; tout autre toucher tire vers la case désignée.
       if (t.x === game.hero.x && t.y === game.hero.y) aimMode = false;
@@ -474,6 +499,15 @@ const WHEEL = [
   ["wheel-rest", "rest", "Se reposer"],
   ["wheel-hide", "hide", "Se cacher"],
 ] as const;
+const HIDE_REFUSALS = {
+  hidden: "Vous êtes déjà caché.",
+  threatened: "Impossible de se cacher : un ennemi est à votre contact.",
+  "no-cover": "Il faut un mur, une colonne ou une porte à côté de vous pour vous cacher.",
+};
+const DISENGAGE_REFUSALS = {
+  safe: "Aucun ennemi au contact : rien à quoi se dérober.",
+  "no-room": "Pas la place de sauter : tout est bouché autour de vous.",
+};
 const REST_REFUSALS = {
   full: "Vous êtes en pleine forme : inutile de vous reposer.",
   used: "Vous vous êtes déjà reposé à cet étage.",
@@ -488,6 +522,8 @@ function closeWheel(): void {
 function openWheel(): void {
   if (game.over) return;
   aimMode = false;
+  jumpMode = false;
+  renderer.jumpCells = [];
   renderer.recenter();
   const frameBox = wheel.parentElement!.getBoundingClientRect();
   const radius = 64;
@@ -500,8 +536,13 @@ function openWheel(): void {
     const b = $(id);
     b.style.left = `${cx + radius * Math.cos(angle)}px`;
     b.style.top = `${cy + radius * Math.sin(angle)}px`;
-    // Seul le repos existe pour l'instant ; une action impossible reste visible, grisée.
-    b.classList.toggle("off", id !== "wheel-rest" || game.restRefusal() !== null);
+    // Une action impossible reste visible, grisée ; fouiller et utiliser un objet n'existent pas encore.
+    const possible =
+      id === "wheel-rest" ? game.restRefusal() === null
+      : id === "wheel-hide" ? game.hideRefusal() === null
+      : id === "wheel-disengage" ? game.disengageRefusal() === null
+      : false;
+    b.classList.toggle("off", !possible);
   });
   wheelOpen = true;
   wheel.hidden = false;
@@ -519,6 +560,18 @@ for (const [id, icon, label] of WHEEL) {
       const refusal = game.restRefusal();
       if (refusal) logLines.push(REST_REFUSALS[refusal]);
       else if (game.rest()) stepMs = COMBAT_STEP_MS;
+    } else if (id === "wheel-hide") {
+      const refusal = game.hideRefusal();
+      if (refusal) logLines.push(HIDE_REFUSALS[refusal]);
+      else if (game.hide()) stepMs = COMBAT_STEP_MS;
+    } else if (id === "wheel-disengage") {
+      const refusal = game.disengageRefusal();
+      if (refusal) logLines.push(DISENGAGE_REFUSALS[refusal]);
+      else {
+        jumpMode = true;
+        renderer.jumpCells = game.jumpCells();
+        logLines.push("Touchez la case où sauter.");
+      }
     } else {
       logLines.push(`${label} : pas encore possible.`);
     }
@@ -1035,6 +1088,11 @@ function frame(now: number): void {
   }
 
   if (!menuOpen) sfx.crackle(game.light[game.map.index(game.hero.x, game.hero.y)], dt);
+  // Les cases de saut ne s'affichent que pendant le choix.
+  if (!jumpMode || game.disengageRefusal() !== null) {
+    jumpMode = false;
+    renderer.jumpCells = [];
+  }
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;
   renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);

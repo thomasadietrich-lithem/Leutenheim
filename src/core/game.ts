@@ -36,6 +36,12 @@ export type GameEvent =
   | { type: "bagFull" }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
+  /** Se cacher : le jet au d20, et s'il a réussi. */
+  | { type: "hide"; d20: number; bonus: number; total: number; success: boolean }
+  /** Le héros sort de sa cachette (il attaque, quitte l'abri d'un obstacle, fait du bruit). */
+  | { type: "revealed" }
+  /** Se dégager : le héros saute d'une case à une autre sans attaque d'opportunité. */
+  | { type: "jump"; fromX: number; fromY: number; x: number; y: number }
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
   | { type: "chest"; gold: number }
@@ -141,6 +147,11 @@ export class Game {
   /** Attaques du héros manquées d'affilée. */
   heroMisses = 0;
   private picking = false;
+  /** Le héros est caché : les monstres l'ont perdu de vue et ne le remarquent plus que s'ils arrivent à son contact. */
+  hidden = false;
+  /** Ordres de la roue d'actions en attente : se cacher, ou sauter vers une case. */
+  private hideOrder = false;
+  private jumpTarget: Point | null = null;
   /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
   private resting = 0;
   /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
@@ -255,6 +266,11 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
+    this.hidden = false;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
@@ -481,6 +497,8 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.shotTarget = { x, y };
     return null;
   }
@@ -511,6 +529,8 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.shotTarget = null;
     return true;
   }
@@ -535,6 +555,8 @@ export class Game {
     this.waiting = false;
     this.picking = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.path = best;
     if (best.length === 0) {
       this.pendingDoor = { x, y };
@@ -583,6 +605,8 @@ export class Game {
     // Tout nouvel ordre interrompt aussi un ramassage en cours.
     this.picking = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.pendingDoor = null;
     this.doorTarget = null;
     this.doorAction = null;
@@ -617,6 +641,8 @@ export class Game {
     this.shotTarget = null;
     this.waiting = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.picking = true;
     this.pickingItem = null;
     return true;
@@ -635,6 +661,83 @@ export class Game {
     return this.resting > 0 ? Math.max(0.06, 1 - this.resting / RULES.restTurns) : 0;
   }
 
+  /** Un obstacle (mur, colonne, porte) touche-t-il cette case ? Il faut s'y adosser pour se cacher. */
+  hasCover(p: Point): boolean {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const x = p.x + dx;
+        const y = p.y + dy;
+        if (!this.map.isWalkable(x, y) || this.map.isDoor(x, y)) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
+  hideRefusal(): "hidden" | "threatened" | "no-cover" | null {
+    if (this.hidden) return "hidden";
+    if (this.isThreatened()) return "threatened";
+    if (!this.hasCover(this.hero)) return "no-cover";
+    return null;
+  }
+
+  /** Ordre : se cacher contre l'obstacle voisin (un tour, un jet au d20). */
+  hide(): boolean {
+    if (this.over || this.hideRefusal() !== null) return false;
+    this.wait();
+    this.waiting = false;
+    this.hideOrder = true;
+    return true;
+  }
+
+  /** Cases où le héros peut sauter pour se dégager : à deux cases en ligne droite, passage libre, sans porte ni escalier. */
+  jumpCells(): Point[] {
+    const cells: Point[] = [];
+    const free = (x: number, y: number) =>
+      this.map.isWalkable(x, y) && !this.map.isDoor(x, y) && !this.monsterAt(x, y) &&
+      this.map.get(x, y) !== Tile.StairsDown && this.map.get(x, y) !== Tile.StairsUp;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        let at: Point = { x: this.hero.x, y: this.hero.y };
+        let ok = true;
+        for (let i = 0; i < RULES.jumpDistance && ok; i++) {
+          const next = { x: at.x + dx, y: at.y + dy };
+          // En diagonale, on ne passe pas entre deux murs qui se touchent par le coin.
+          if (!free(next.x, next.y) || !this.inReach(at, next)) ok = false;
+          at = next;
+        }
+        if (ok) cells.push(at);
+      }
+    }
+    return cells;
+  }
+
+  /** Pourquoi le héros ne peut pas se dégager maintenant (`null` : il le peut). */
+  disengageRefusal(): "safe" | "no-room" | null {
+    if (!this.isThreatened()) return "safe";
+    if (this.jumpCells().length === 0) return "no-room";
+    return null;
+  }
+
+  /** Ordre : sauter vers cette case (une de `jumpCells`), sans attaque d'opportunité. */
+  disengage(x: number, y: number): boolean {
+    if (this.over || this.disengageRefusal() !== null) return false;
+    if (!this.jumpCells().some((c) => c.x === x && c.y === y)) return false;
+    this.wait();
+    this.waiting = false;
+    this.jumpTarget = { x, y };
+    return true;
+  }
+
+  /** Le héros sort de sa cachette. */
+  private reveal(): void {
+    if (!this.hidden) return;
+    this.hidden = false;
+    this.events.push({ type: "revealed" });
+  }
+
   /** Ordre : se reposer sur place plusieurs tours. Tout autre ordre y renonce, un monstre en vue l'interrompt. */
   rest(): boolean {
     if (this.over || this.restRefusal() !== null) return false;
@@ -649,6 +752,8 @@ export class Game {
     if (this.over) return;
     this.picking = false;
     this.resting = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
     this.clearDoorOrders();
     this.path = [];
     this.targetId = null;
@@ -677,6 +782,12 @@ export class Game {
     } else if (this.picking) {
       // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.
       this.picking = this.pickUpOne();
+    } else if (this.hideOrder) {
+      this.hideOrder = false;
+      this.resolveHide();
+    } else if (this.jumpTarget) {
+      this.resolveJump(this.jumpTarget);
+      this.jumpTarget = null;
     } else if (this.resting > 0) {
       this.resting--;
     } else if (this.waiting) {
@@ -707,6 +818,8 @@ export class Game {
         this.closeDoorAt(left.x, left.y);
         this.useFeatureAt(next.x, next.y);
         this.collectGold();
+        // Caché, on peut longer les murs ; s'écarter de tout abri fait sortir de l'ombre.
+        if (this.hidden && !this.hasCover(this.hero)) this.reveal();
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
         const here = this.map.get(next.x, next.y);
         this.pendingStairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp ? "up" : null;
@@ -738,6 +851,36 @@ export class Game {
     this.monstersAct();
     if (resting) this.afterRestTurn();
     return true;
+  }
+
+  /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
+  private resolveHide(): void {
+    const bonus = this.heroClass.stealthBonus;
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.hideDc);
+    if (success) {
+      this.hidden = true;
+      for (const m of this.monsters) {
+        if (!m.alerted) continue;
+        m.alerted = false;
+        m.asleep = false;
+        m.wary = false;
+      }
+    }
+    this.events.push({ type: "hide", d20, bonus, total, success });
+  }
+
+  /** Saut pour se dégager : ceux qu'il quitte n'ont pas d'attaque d'opportunité, mais restent sur leurs gardes. */
+  private resolveJump(to: Point): void {
+    const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
+    const from = { x: this.hero.x, y: this.hero.y };
+    this.hero.x = to.x;
+    this.hero.y = to.y;
+    this.collectGold();
+    // Un avantage à la fois : après s'être dégagé, pas d'embuscade contre ceux qu'on vient de fuir.
+    for (const m of threats) m.wary = true;
+    this.events.push({ type: "jump", fromX: from.x, fromY: from.y, x: to.x, y: to.y });
   }
 
   /** Fin d'un tour de repos : un monstre en vue l'interrompt (le repos de l'étage n'est pas perdu) ; au dernier tour, il soigne. */
@@ -866,6 +1009,7 @@ export class Game {
     }
     let alerted = 0;
     if (action === "break") {
+      this.reveal();
       // Le vacarme alerte les monstres proches, que la porte cède ou non.
       for (const m of this.monsters) {
         const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
@@ -893,6 +1037,7 @@ export class Game {
   }
 
   private heroAttacks(monster: Actor): void {
+    this.reveal();
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
     // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
@@ -923,6 +1068,7 @@ export class Game {
   private heroShoots(target: Point): void {
     const bow = this.weapon("ranged");
     if (!bow || !bow.ammo || !this.inventory.take(bow.ammo as ItemId, 1)) return;
+    this.reveal();
     const origin = { x: this.hero.x, y: this.hero.y };
     const trail: Point[] = [origin];
     let landing: Point = origin;
@@ -1044,10 +1190,13 @@ export class Game {
           def.noticeChance *
           (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) *
           (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake);
-        if (this.isVisible(m.x, m.y) && distance <= m.vision && this.rng.chance(chance)) {
+        // Caché, le héros ne peut être remarqué que par un monstre arrivé à son contact.
+        const range = this.hidden ? 1 : m.vision;
+        if (this.isVisible(m.x, m.y) && distance <= range && this.rng.chance(chance)) {
           m.alerted = true;
           m.asleep = false;
           this.events.push({ type: "noticed", actor: m });
+          this.reveal();
         } else if (!m.asleep) {
           this.wander(m);
         }

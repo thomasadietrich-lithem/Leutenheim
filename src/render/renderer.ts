@@ -237,6 +237,11 @@ export class Renderer {
     ctx.save();
     ctx.translate(Math.round(cx), 0);
     if (this.heroFacing === "left") ctx.scale(-1, 1);
+    // Caché : le héros devient gris et à demi effacé.
+    if (game.hidden) {
+      ctx.globalAlpha = 0.55;
+      ctx.filter = "grayscale(1) brightness(0.8)";
+    }
     ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
     ctx.restore();
     ctx.imageSmoothingEnabled = smooth;
@@ -299,6 +304,9 @@ export class Renderer {
   private originY(): number {
     return this.height / 2 - (this.camY + 0.5) * this.tile;
   }
+
+  /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
+  jumpCells: Point[] = [];
 
   /** Centre d'une case de la carte, en pixels dans le canvas. */
   tileCenter(x: number, y: number): Point {
@@ -589,6 +597,19 @@ export class Renderer {
           ctx.lineTo(cx, cy + dy * c);
         }
         ctx.stroke();
+      }
+    }
+
+    // Se dégager : les cases d'arrivée possibles, encadrées d'un doré qui palpite.
+    if (this.jumpCells.length > 0) {
+      ctx.fillStyle = `rgba(255,215,94,${(0.16 + 0.1 * Math.sin(this.time / 140)).toFixed(2)})`;
+      ctx.strokeStyle = "#ffd75e";
+      ctx.lineWidth = Math.max(2, tile * 0.07);
+      for (const c of this.jumpCells) {
+        const x0 = Math.round(ox + c.x * tile);
+        const y0 = Math.round(oy + c.y * tile);
+        ctx.fillRect(x0 + 2, y0 + 2, Math.round(tile) - 4, Math.round(tile) - 4);
+        ctx.strokeRect(x0 + 3, y0 + 3, Math.round(tile) - 6, Math.round(tile) - 6);
       }
     }
 

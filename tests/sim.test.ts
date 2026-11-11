@@ -1277,3 +1277,80 @@ test("repos : un monstre en vue l'empêche et l'interrompt", () => {
   }
   assert.fail("aucune graine utilisable");
 });
+
+/** Une partie où le héros se tient contre un mur, avec un monstre alerté posé à son contact (ou null si impossible). */
+function threatenedHero(seed: number) {
+  const game = new Game(seed);
+  const m = game.monsters[0];
+  if (!m) return null;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const x = game.hero.x + dx;
+    const y = game.hero.y + dy;
+    if (game.map.isWalkable(x, y) && !game.map.isDoor(x, y) && !game.monsterAt(x, y)) {
+      m.x = m.fromX = x;
+      m.y = m.fromY = y;
+      m.alerted = true;
+      m.asleep = false;
+      return { game, m };
+    }
+  }
+  return null;
+}
+
+test("se cacher : refusé au contact d'un ennemi ; réussi, les monstres perdent la trace ; attaquer fait sortir de l'ombre", () => {
+  const t = threatenedHero(3) ?? threatenedHero(4)!;
+  assert.equal(t.game.hideRefusal(), "threatened");
+  assert.equal(t.game.hide(), false);
+
+  let done = false;
+  for (let seed = 1; seed <= 80 && !done; seed++) {
+    const game = new Game(seed);
+    if (!game.hasCover(game.hero) || game.hideRefusal() !== null) continue;
+    for (const m of game.monsters) m.alerted = true;
+    assert.ok(game.hide());
+    game.tick();
+    const roll = game.events.find((e) => e.type === "hide");
+    assert.ok(roll && roll.type === "hide");
+    if (!roll.success) continue;
+    assert.ok(game.hidden);
+    assert.ok(game.monsters.every((m) => !m.alerted), `graine ${seed} : un monstre garde la trace`);
+    // Caché et immobile, il n'est remarqué que par un monstre à son contact.
+    for (let i = 0; i < 30 && game.hidden; i++) {
+      game.wait();
+      game.tick();
+      for (const e of game.events) if (e.type === "noticed") {
+        assert.ok(Math.max(Math.abs(e.actor.x - game.hero.x), Math.abs(e.actor.y - game.hero.y)) <= 1, "remarqué de loin");
+      }
+      game.events.length = 0;
+    }
+    done = true;
+  }
+  assert.ok(done, "aucun essai réussi");
+});
+
+test("se dégager : saut de deux cases, sans attaque d'opportunité, et le monstre quitté est sur ses gardes", () => {
+  let done = false;
+  for (let seed = 1; seed <= 80 && !done; seed++) {
+    const t = threatenedHero(seed);
+    if (!t) continue;
+    const { game, m } = t;
+    const cells = game.jumpCells();
+    if (cells.length === 0) continue;
+    for (const c of cells) {
+      assert.equal(Math.max(Math.abs(c.x - game.hero.x), Math.abs(c.y - game.hero.y)), RULES.jumpDistance);
+      assert.ok(game.map.isWalkable(c.x, c.y) && !game.map.isDoor(c.x, c.y));
+    }
+    assert.equal(game.disengage(game.hero.x, game.hero.y), false, "on ne saute pas sur place");
+    const to = cells[0];
+    assert.ok(game.disengage(to.x, to.y));
+    game.tick();
+    assert.deepEqual({ x: game.hero.x, y: game.hero.y }, to);
+    assert.ok(!game.events.some((e) => e.type === "attack" && e.opportunity), "attaque d'opportunité pendant le saut");
+    assert.ok(m.wary, "le monstre quitté devrait être sur ses gardes");
+    assert.equal(game.heroHasAdvantageOn(m), false);
+    done = true;
+  }
+  assert.ok(done, "aucune situation de test trouvée");
+  // Sans ennemi au contact, rien à quoi se dérober.
+  assert.equal(new Game(1).disengageRefusal(), "safe");
+});

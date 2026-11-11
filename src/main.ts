@@ -10,7 +10,6 @@ import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
 import { itemIcon, uiIcon } from "./ui/icons";
-import { Tile } from "./world/map";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
 function stepDuration(pathLength: number): number {
@@ -767,21 +766,11 @@ button("bag-close", () => {
 
 // ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
-// ---------- Encyclopédie : trois catégories (objets, créatures, lieux), seulement ce qu'on a déjà rencontré ----------
+// ---------- Encyclopédie : deux catégories (objets, créatures), seulement ce qu'on a déjà rencontré ----------
+// Les lieux (salles, décor, passages) ne sont plus dans le jeu : ils sont décrits dans `claude/LIEUX.md` du Projet.
 
-type CodexTab = "objets" | "creatures" | "lieux";
+type CodexTab = "objets" | "creatures";
 let codexTab: CodexTab = "objets";
-
-/** Ce qu'on peut croiser dans le donjon, hors objets et créatures. La clef d'encyclopédie est « l:<id> ». */
-const PLACES: { id: string; name: string; kind: string; color: string; description: string }[] = [
-  { id: "porte", name: "Porte verrouillée", kind: "Passage", color: "#f0c050", description: "Elle garde une salle spéciale. On la crochète, on l'enfonce, ou on l'ouvre avec une clef." },
-  { id: "fontaine", name: "Fontaine", kind: "Salle spéciale", color: "#4aa8d8", description: "Son eau rend tous les points de vie. Elle ne sert qu'une fois." },
-  { id: "coffre", name: "Coffre", kind: "Salle spéciale", color: "#b9824a", description: "Il renferme de l'or, davantage dans les profondeurs." },
-  { id: "torche", name: "Torche murale", kind: "Décor", color: "#ff9a3c", description: "Elle éclaire sa salle : on y voit plus loin, mais on y est remarqué plus vite." },
-  { id: "cheminee", name: "Cheminée", kind: "Décor", color: "#ff7a2a", description: "Encastrée dans un mur. Allumée, elle éclaire la salle comme une torche ; éteinte, il n'en reste que des cendres." },
-  { id: "colonne", name: "Colonne", kind: "Décor", color: "#9296b6", description: "Elle bloque le passage et la vue : on peut se cacher derrière." },
-  { id: "escalier", name: "Escalier", kind: "Passage", color: "#e0b040", description: "Il mène à l'étage du dessous, ou ramène à celui du dessus." },
-];
 
 /** Une fiche d'encyclopédie sans objet : un pictogramme de couleur, un nom, un genre, une description. */
 function codexCard(shape: "diamond" | "square", color: string, name: string, kind: string, description: string): HTMLElement {
@@ -840,16 +829,10 @@ function renderCodex(): void {
       const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Créature", m.description));
       section(`Famille : ${family}`, members.length, cards);
     }
-  } else {
-    for (const kind of [...new Set(PLACES.map((p) => p.kind))]) {
-      const members = PLACES.filter((p) => p.kind === kind);
-      const cards = members.filter((p) => codex.has(`l:${p.id}`)).map((p) => codexCard("square", p.color, p.name, p.kind, p.description));
-      section(kind, members.length, cards);
-    }
   }
   $("codex-list").replaceChildren(...nodes);
   $("codex-tabs").replaceChildren(
-    ...([["objets", "Objets"], ["creatures", "Créatures"], ["lieux", "Lieux"]] as const).map(([tab, label]) => {
+    ...([["objets", "Objets"], ["creatures", "Créatures"]] as const).map(([tab, label]) => {
       const b = el("button", tab === codexTab ? "active" : "", label) as HTMLButtonElement;
       b.type = "button";
       b.addEventListener("click", () => {
@@ -862,31 +845,13 @@ function renderCodex(): void {
   );
 }
 
-/** Note dans l'encyclopédie les créatures et les lieux que le héros a sous les yeux. */
+/** Note dans l'encyclopédie les créatures que le héros a sous les yeux. */
 let codexSeenAt = -1;
 function discoverSurroundings(): void {
   const stamp = game.depth * 100000 + game.turn;
   if (stamp === codexSeenAt) return;
   codexSeenAt = stamp;
   const found: string[] = game.visibleMonsters().map((m) => `m:${m.defId}`);
-  const byTile: Partial<Record<Tile, string>> = {
-    [Tile.DoorLocked]: "l:porte",
-    [Tile.Fountain]: "l:fontaine",
-    [Tile.FountainDry]: "l:fontaine",
-    [Tile.Chest]: "l:coffre",
-    [Tile.ChestOpen]: "l:coffre",
-    [Tile.Pillar]: "l:colonne",
-    [Tile.StairsDown]: "l:escalier",
-    [Tile.StairsUp]: "l:escalier",
-  };
-  for (let y = 0; y < game.map.height; y++) {
-    for (let x = 0; x < game.map.width; x++) {
-      const id = byTile[game.map.get(x, y)];
-      if (id && game.isVisible(x, y)) found.push(id);
-    }
-  }
-  if (game.torches.some((t) => !t.hearth && game.isVisible(t.x, t.y))) found.push("l:torche");
-  if (game.torches.some((t) => t.hearth && game.isVisible(t.x, t.y))) found.push("l:cheminee");
   discover(found);
 }
 

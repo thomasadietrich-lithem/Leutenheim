@@ -21,9 +21,14 @@
   [hidden] { display: none !important; }
 
   /* Cadre biseauté commun aux panneaux. */
-  .frame, .panel, .hp, #menu, #bag, #detail, #over {
+  .panel, .hp, #menu, #bag, #detail, #over {
     border: 3px solid var(--panel-hi); box-shadow: inset 0 0 0 2px var(--panel-lo), 0 0 0 2px var(--panel-lo); }
 
+  /* Jauges de vie et d'expérience, avec le bouton du menu à leur droite. */
+  .gauges { display: flex; gap: 6px; align-items: stretch; }
+  .gauges-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  #open-menu { flex: none; width: 46px; padding: 4px; display: flex; align-items: center; justify-content: center; }
+  #open-menu svg { height: 26px; width: auto; }
   #hud-text { font-size: 19px; text-align: center; letter-spacing: 0.04em; color: var(--gold); text-transform: uppercase; }
   .hp { position: relative; height: 18px; background: #2a0c10; padding: 0; }
   /* Petites animations : la barre de vie tressaute et blanchit quand on est blessé, la jauge d'expérience
@@ -121,9 +126,6 @@
   .bar button { flex: 1; padding: 8px 4px; display: flex; align-items: center; justify-content: center; gap: 4px; }
   .bar button { min-height: 0; height: 100%; font-size: 24px; white-space: nowrap; overflow: hidden; }
   .bar button svg { height: 30px; width: auto; flex: none; }
-  /* Cinq boutons dans la barre : le compteur de flèches doit tenir en entier. */
-  .bar #aim { font-size: 18px; gap: 0; padding: 8px 0; }
-  .bar #aim svg { height: 20px; }
 
   /* Menus. */
   #menu { z-index: 2; }
@@ -204,8 +206,13 @@
 <body>
 <div class="col">
   <div id="hud-text"></div>
-  <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
-  <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
+  <div class="gauges">
+    <div class="gauges-col">
+      <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
+      <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
+    </div>
+    <button id="open-menu" type="button"></button>
+  </div>
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
@@ -243,7 +250,6 @@
     <button id="aim" type="button"></button>
     <button id="actions" type="button"></button>
     <button id="open-bag" type="button"></button>
-    <button id="open-menu" type="button"></button>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>
@@ -5304,15 +5310,6 @@
     $("bag").hidden = true;
   });
   var codexTab = "objets";
-  var PLACES = [
-    { id: "porte", name: "Porte verrouill\xE9e", kind: "Passage", color: "#f0c050", description: "Elle garde une salle sp\xE9ciale. On la croch\xE8te, on l'enfonce, ou on l'ouvre avec une clef." },
-    { id: "fontaine", name: "Fontaine", kind: "Salle sp\xE9ciale", color: "#4aa8d8", description: "Son eau rend tous les points de vie. Elle ne sert qu'une fois." },
-    { id: "coffre", name: "Coffre", kind: "Salle sp\xE9ciale", color: "#b9824a", description: "Il renferme de l'or, davantage dans les profondeurs." },
-    { id: "torche", name: "Torche murale", kind: "D\xE9cor", color: "#ff9a3c", description: "Elle \xE9claire sa salle : on y voit plus loin, mais on y est remarqu\xE9 plus vite." },
-    { id: "cheminee", name: "Chemin\xE9e", kind: "D\xE9cor", color: "#ff7a2a", description: "Encastr\xE9e dans un mur. Allum\xE9e, elle \xE9claire la salle comme une torche ; \xE9teinte, il n'en reste que des cendres." },
-    { id: "colonne", name: "Colonne", kind: "D\xE9cor", color: "#9296b6", description: "Elle bloque le passage et la vue : on peut se cacher derri\xE8re." },
-    { id: "escalier", name: "Escalier", kind: "Passage", color: "#e0b040", description: "Il m\xE8ne \xE0 l'\xE9tage du dessous, ou ram\xE8ne \xE0 celui du dessus." }
-  ];
   function codexCard(shape, color, name, kind, description) {
     const card = el("div", "item-card");
     const picture = el("div", "item-card-icon");
@@ -5363,16 +5360,10 @@
         const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Cr\xE9ature", m.description));
         section(`Famille : ${family}`, members.length, cards);
       }
-    } else {
-      for (const kind of [...new Set(PLACES.map((p) => p.kind))]) {
-        const members = PLACES.filter((p) => p.kind === kind);
-        const cards = members.filter((p) => codex.has(`l:${p.id}`)).map((p) => codexCard("square", p.color, p.name, p.kind, p.description));
-        section(kind, members.length, cards);
-      }
     }
     $("codex-list").replaceChildren(...nodes);
     $("codex-tabs").replaceChildren(
-      ...[["objets", "Objets"], ["creatures", "Cr\xE9atures"], ["lieux", "Lieux"]].map(([tab, label]) => {
+      ...[["objets", "Objets"], ["creatures", "Cr\xE9atures"]].map(([tab, label]) => {
         const b = el("button", tab === codexTab ? "active" : "", label);
         b.type = "button";
         b.addEventListener("click", () => {
@@ -5390,24 +5381,6 @@
     if (stamp === codexSeenAt) return;
     codexSeenAt = stamp;
     const found = game.visibleMonsters().map((m) => `m:${m.defId}`);
-    const byTile = {
-      [Tile.DoorLocked]: "l:porte",
-      [Tile.Fountain]: "l:fontaine",
-      [Tile.FountainDry]: "l:fontaine",
-      [Tile.Chest]: "l:coffre",
-      [Tile.ChestOpen]: "l:coffre",
-      [Tile.Pillar]: "l:colonne",
-      [Tile.StairsDown]: "l:escalier",
-      [Tile.StairsUp]: "l:escalier"
-    };
-    for (let y = 0; y < game.map.height; y++) {
-      for (let x = 0; x < game.map.width; x++) {
-        const id = byTile[game.map.get(x, y)];
-        if (id && game.isVisible(x, y)) found.push(id);
-      }
-    }
-    if (game.torches.some((t) => !t.hearth && game.isVisible(t.x, t.y))) found.push("l:torche");
-    if (game.torches.some((t) => t.hearth && game.isVisible(t.x, t.y))) found.push("l:cheminee");
     discover(found);
   }
   function showScreen(screen) {

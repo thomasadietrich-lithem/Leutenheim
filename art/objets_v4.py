@@ -140,34 +140,42 @@ def render(rows, S=6, bg=(70, 61, 82)):
     return im
 
 
-def egg_smash(S=6):
-    """Sac d'œufs écrasé, plat (une case) : coquilles crevées, membrane affaissée, flaque verdâtre."""
-    pal = {"g": (84, 120, 40), "G": (130, 168, 60), "s": (200, 192, 170), "S": (236, 230, 210), "k": (40, 36, 30)}
-    rows = [
-        "................",
-        "................",
-        "....gg....g.....",
-        "...gGGg..gGg....",
-        "..gGsSGgggGg....",
-        "..gSSkSGGGg..g..",
-        ".gGsS.sGsSGg.gg.",
-        ".gGGgsSkSSsGgGg.",
-        "..gGGGsSssGGGg..",
-        "...ggGGGGgGGg...",
-        "..g..gggggGg....",
-        ".gg.....gGg.....",
-        "........gg......",
-        "................",
-        "................",
-        "................",
-    ]
-    im = Image.new("RGB", (16 * S, 16 * S), (58, 52, 66))
-    d = ImageDraw.Draw(im)
-    for y, r in enumerate(rows):
+EGG_PAL = {"g": (84, 120, 40, 255), "G": (130, 168, 60, 255), "s": (200, 192, 170, 255), "S": (236, 230, 210, 255), "k": (40, 36, 30, 255)}
+EGG_ROWS = [
+    "................",
+    "................",
+    "....gg....g.....",
+    "...gGGg..gGg....",
+    "..gGsSGgggGg....",
+    "..gSSkSGGGg..g..",
+    ".gGsS.sGsSGg.gg.",
+    ".gGGgsSkSSsGgGg.",
+    "..gGGGsSssGGGg..",
+    "...ggGGGGgGGg...",
+    "..g..gggggGg....",
+    ".gg.....gGg.....",
+    "........gg......",
+    "................",
+    "................",
+    "................",
+]
+
+
+def egg_smash_img():
+    """La trace, en vrai : 16 × 16, transparente (pour le jeu)."""
+    im = Image.new("RGBA", (16, 16))
+    for y, r in enumerate(EGG_ROWS):
         for x, c in enumerate(r):
             if c != ".":
-                d.rectangle([x * S, y * S, x * S + S - 1, y * S + S - 1], fill=pal[c])
+                im.putpixel((x, y), EGG_PAL[c])
     return im
+
+
+def egg_smash(S=6):
+    """Sac d'œufs écrasé, plat (une case) : coquilles crevées, membrane affaissée, flaque verdâtre."""
+    bg = Image.new("RGBA", (16, 16), (58, 52, 66, 255))
+    bg.alpha_composite(egg_smash_img())
+    return bg.convert("RGB").resize((16 * S, 16 * S), Image.NEAREST)
 
 
 def threads(S=3):

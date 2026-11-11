@@ -33,6 +33,8 @@ export interface ItemDef {
   damage?: Dice;
   /** Armures : classe d'armure une fois portée (10 sans armure). */
   armorClass?: number;
+  /** Casques : classe d'armure ajoutée à celle de l'armure. */
+  acBonus?: number;
   /** Armes à distance : portée en cases et munition consommée. */
   range?: number;
   ammo?: string;
@@ -146,7 +148,7 @@ export const ITEMS = {
     kind: "ammo",
     description: "Se lance à la main, sans arc (choisie dans le carquois). Moins précise qu'une flèche, elle frappe fort, et se ramasse.",
     w: 1,
-    h: 1,
+    h: 2,
     maxStack: 6,
     rarity: "uncommon",
     level: 3,
@@ -251,6 +253,31 @@ export const ITEMS = {
     rarity: "rare",
     level: 5,
     armorClass: 14,
+  },
+  // Casques (Thomas, 2026-11-11 ; planche art/objets_v4.png) : ils s'ajoutent à l'armure.
+  casque_cuir: {
+    id: "casque_cuir",
+    name: "Casque de cuir",
+    kind: "hat",
+    description: "Une calotte de cuir bouilli, cousue, avec deux protège-oreilles. Mieux que rien.",
+    w: 1,
+    h: 1,
+    maxStack: 1,
+    rarity: "common",
+    level: 1,
+    acBonus: 1,
+  },
+  casque_maille: {
+    id: "casque_maille",
+    name: "Casque de maille",
+    kind: "hat",
+    description: "Un camail d'anneaux d'acier qui couvre la tête et la nuque, le visage dégagé.",
+    w: 1,
+    h: 1,
+    maxStack: 1,
+    rarity: "uncommon",
+    level: 3,
+    acBonus: 2,
   },
   clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle fermée de l'étage où on l'a trouvée, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
   or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir fermé par une cordelette. Son or rejoint votre bourse dès que vous marchez dessus.", w: 1, h: 1, maxStack: 9999 },

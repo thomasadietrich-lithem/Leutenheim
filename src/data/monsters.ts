@@ -30,6 +30,8 @@ export interface MonsterDef {
   poisonBite?: { chance: number; damage: number; turns: number };
   /** Taille en cases (2 : elle occupe un carré de 2 × 2 ; sa case `x, y` est celle du haut à gauche). */
   size?: number;
+  /** Tireur (Kobold frondeur) : sa fronde (portée, bonus au d20, dégâts) et la distance qu'il cherche à garder. */
+  sling?: { range: number; attackBonus: number; damage: Dice; keep: number };
   /** Boss : ne se pousse pas, ne se repeuple pas ; son comportement est à part (`src/core/boss.ts`). */
   boss?: boolean;
 }
@@ -52,6 +54,26 @@ export const MONSTERS = {
     noticeChance: 0.4,
     color: "#d9763a",
     blood: "green",
+  },
+  // KOBOLD FRONDEUR (Thomas, 2026-11-11 : « Kobold frondeur ok » ; planche art/frondeur_v1.png). Valeurs (C).
+  frondeur: {
+    id: "frondeur",
+    name: "Kobold frondeur",
+    family: "kobolds",
+    description: "Un Kobold en jaque de cuir, fronde à la main. Il garde ses distances, tire de loin et recule derrière les colonnes quand on l'approche.",
+    hp: 6,
+    armorClass: 12,
+    attackBonus: 1,
+    damage: { count: 1, sides: 3, bonus: 0 },
+    vision: 7,
+    xpMin: 4,
+    xpMax: 6,
+    goldChance: 0.35,
+    goldMax: 4,
+    noticeChance: 0.45,
+    color: "#a87c4a",
+    blood: "green",
+    sling: { range: 6, attackBonus: 3, damage: { count: 1, sides: 4, bonus: 0 }, keep: 3 },
   },
   araignee: {
     id: "araignee",
@@ -128,6 +150,8 @@ export function spawnsForDepth(depth: number): FloorSpawns {
       // la chute de l'étage 3 à l'étage 4 était trop raide).
       { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor((depth - 1) / 2), 4) },
       // Les araignées arrivent à l'étage 3, avec les toiles (Thomas) ; elles chassent seules ou à deux.
+      // Kobold frondeur (2026-11-11) : dès l'étage 2, seul.
+      ...(depth >= 2 ? [{ monster: "frondeur" as const, weight: 0.35, packMin: 1, packMax: 1 }] : []),
       // (2026-11-11) : seules aux étages 3-4, jusqu'à deux ensuite.
       ...(depth >= 3 ? [{ monster: "araignee" as const, weight: 0.25, packMin: 1, packMax: depth >= 5 ? 2 : 1 }] : []),
     ],

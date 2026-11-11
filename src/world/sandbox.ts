@@ -32,11 +32,11 @@ export interface SandboxFloor extends Floor {
   /** Niveau du héros en arrivant (pour essayer les objets qui demandent un niveau). */
   heroLevel: number;
   /** `patrol` : il fait les cent pas dans sa salle au lieu de se promener dans tout l'étage. */
-  monsters: { x: number; y: number; asleep: boolean; patrol?: boolean; monster?: "schrat" | "araignee" }[];
+  monsters: { x: number; y: number; asleep: boolean; patrol?: boolean; monster?: "schrat" | "araignee" | "frondeur" }[];
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 12;
+export const SANDBOX_LAYOUT = 13;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
@@ -204,6 +204,9 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       { x: 4, y: 9, item: "couteau_boucher", count: 1 },
       { x: 6, y: 9, item: "arc_puissant", count: 1 },
       { x: 8, y: 9, item: "javeline", count: 3 },
+      // Casques (2026-11-11) : de cuir (+1 CA) et de maille (+2 CA, niveau 3).
+      { x: 3, y: 8, item: "casque_cuir", count: 1 },
+      { x: 3, y: 9, item: "casque_maille", count: 1 },
     ],
     heroLevel: 4,
     monsters: [
@@ -212,6 +215,8 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       { x: 25, y: 16, asleep: false },
       { x: 18, y: 18, asleep: true },
       { x: 22, y: 26, asleep: false, patrol: true, monster: "araignee" },
+      // Kobold frondeur (2026-11-11) : dans la salle de combat, il tire de loin et recule derrière les colonnes.
+      { x: 19, y: 15, asleep: false, patrol: true, monster: "frondeur" },
     ],
   };
 }

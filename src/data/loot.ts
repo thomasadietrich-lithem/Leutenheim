@@ -20,10 +20,10 @@ export const GOLD_PILES: Record<"small" | "medium" | "large", [number, number]>[
 
 /** Ce qu'on peut trouver, par rareté. `count` : nombre d'exemplaires (min, max). */
 export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number]; minDepth?: number }[]> = {
-  common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }],
+  common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }],
   uncommon: [
     { item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
-    { item: "amethyste" }, { item: "sac_cuir", minDepth: 5 },
+    { item: "amethyste" }, { item: "sac_cuir", minDepth: 5 }, { item: "casque_maille", minDepth: 3 },
     { item: "javeline", count: [3, 3], minDepth: 3 }, { item: "arc_puissant", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
   ],
   rare: [

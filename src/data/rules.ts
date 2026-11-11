@@ -125,6 +125,10 @@ export const RULES = {
   spiderInWebRoomChance: 0.6,
   /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
   clutterPerFloor: [1, 4] as [number, number],
+  /** Agilité (Thomas, 2026-11-11) : +1 CA d'esquive tous les `agilityPerDodge` points ; un piège sous les pieds du héros
+   * s'évite sur d20 + agilité contre `trapDodgeDc` (un 20 l'évite toujours, un 1 jamais). */
+  agilityPerDodge: 2,
+  trapDodgeDc: 18,
   /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
   pushDc: 10,
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -179,12 +183,8 @@ export const RULES = {
   // ---- Points, voies et potions (2026-11-11) : valeurs proposées par Claude, validées par « Ok. Tout ». ----
   /** Un point en Vie : PV max en plus. */
   hpPerVie: 4,
-  /** Second souffle (voie bleue) : PV rendus. */
-  secondWindHeal: 10,
-  /** Double frappe (voie rouge) : utilisations par étage. */
-  doubleStrikesPerFloor: 3,
-  /** Rage (voie rouge) : dégâts en plus. */
-  rageBonus: 2,
+  /** Second souffle (voie bleue) : PV rendus aux rangs 1, 2, 3. Double frappe : autant de fois par étage que son rang. */
+  secondWindHeal: [5, 8, 12],
   /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */
   weaponPoisonHits: 15,
   hasteTurns: 4,

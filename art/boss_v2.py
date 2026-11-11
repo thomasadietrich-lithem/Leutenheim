@@ -102,6 +102,8 @@ def export_sprites():
     sprites.update({"cocoonA": cocoon(True).img(), "cocoonB": cocoon(False).img(), "eggSac": egg_sac().img(),
                     "anchor": anchor_bands().img(), "sealedStairs": sealed_stairs().img(),
                     "bonesA": pad.crop((0, 0, 16, 16)), "bonesB": pad.crop((16, 0, 32, 16))})
+    from objets_v4 import egg_smash_img
+    sprites["eggSmash"] = egg_smash_img()
     return sprites
 
 

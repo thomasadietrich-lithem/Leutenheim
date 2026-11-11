@@ -1555,8 +1555,10 @@ test("pièges : jamais dans la salle de départ ; le héros les contourne, sauf 
       assert.ok(game.setDestination(trap.x, trap.y, true));
       const hp = game.hero.hp;
       for (let i = 0; i < 5 && (game.hero.x !== trap.x || game.hero.y !== trap.y); i++) game.tick();
-      assert.ok(game.events.some((e) => e.type === "trap"), `graine ${seed} : le piège ne s'est pas déclenché`);
-      assert.ok(game.hero.hp < hp);
+      // Le héros peut l'éviter d'un bond (agilité) : alors pas de dégâts.
+      const dodged = game.events.some((e) => e.type === "trapDodged");
+      assert.ok(dodged || game.events.some((e) => e.type === "trap"), `graine ${seed} : le piège ne s'est pas déclenché`);
+      if (!dodged) assert.ok(game.hero.hp < hp);
       checked++;
       break;
     }
@@ -1610,7 +1612,7 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
       assert.notEqual(dist[game.map.index(x, y - 1)], -1, `porte verrouillée (${x},${y}) inaccessible`);
     }
   }
-  assert.equal(game.monsters.length, 5);
+  assert.equal(game.monsters.length, 6);
   assert.equal(game.monsters.filter((m) => m.patrol && m.defId === "schrat").length, 2, "deux Schrats font leur ronde");
   assert.ok(game.monsters.some((m) => m.defId === "araignee"), "une araignée dans son antre");
   assert.ok(game.furnitureList().some((f) => f.kind.startsWith("web")), "des toiles");
@@ -1933,27 +1935,36 @@ test("points : un par niveau ; Vie +4 PV max, Force +1 dégâts et pousser ; jou
   assert.equal(game.hero.damage.bonus, 2);
 });
 
-test("voie : au niveau 2, définitive ; secondaires aux niveaux 4, 6, 8 et seulement dans sa voie", () => {
+test("voie : au niveau 2, définitive ; ensuite un point de voie par niveau, 3 rangs par pouvoir, seulement dans sa voie", () => {
   const game = new Game(7);
   assert.equal(game.choosePath("red"), false, "niveau 1 : trop tôt");
   game.levelUpNow();
   assert.ok(game.hasPendingChoice());
   assert.ok(game.choosePath("red"));
   assert.equal(game.choosePath("blue"), false, "définitif");
-  assert.equal(game.secondaryPicks(), 0);
+  assert.equal(game.rank("double_frappe"), 1, "rang 1 offert");
+  assert.equal(game.pathPoints(), 0);
   game.levelUpNow();
-  game.levelUpNow();
-  assert.equal(game.secondaryPicks(), 1);
-  assert.equal(game.chooseSkill("peau_dure"), false, "pas dans la voie rouge");
-  assert.ok(game.chooseSkill("rage"));
-  assert.equal(game.secondaryPicks(), 0);
+  assert.equal(game.pathPoints(), 1);
+  assert.equal(game.improve("peau_dure"), false, "pas dans la voie rouge");
+  assert.ok(game.improve("rage"));
+  assert.equal(game.pathPoints(), 0);
+  for (let k = 0; k < 4; k++) game.levelUpNow();
+  assert.ok(game.improve("double_frappe"));
+  assert.ok(game.improve("double_frappe"));
+  assert.equal(game.improve("double_frappe"), false, "rang 3 au plus");
+  assert.equal(game.rank("double_frappe"), 3);
+  // Sauvegarde : les rangs sont repris.
+  const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  assert.equal(copy.rank("double_frappe"), 3);
+  assert.equal(copy.rank("rage"), 1);
 });
 
-test("voie bleue : second souffle +10 PV, une fois par étage ; dernier rempart laisse à 1 PV", () => {
+test("voie bleue : second souffle +5 PV au rang 1, une fois par étage ; dernier rempart laisse à 1 PV", () => {
   const { game, m } = foeAt(1);
   game.level = 4;
   game.voie = "blue";
-  game.skills = ["dernier_rempart"];
+  game.ranks = { second_souffle: 1, dernier_rempart: 1 };
   game.hero.hp = 2;
   assert.ok(game.useSkill());
   game.tick();
@@ -1973,10 +1984,11 @@ test("voie bleue : second souffle +10 PV, une fois par étage ; dernier rempart 
   assert.ok(game.over, "une seule fois par étage");
 });
 
-test("voie rouge : double frappe = deux coups en un tour, trois fois par étage", () => {
+test("voie rouge : double frappe = deux coups en un tour, autant de fois par étage que son rang", () => {
   const { game, m } = foeAt(1);
   game.level = 2;
   game.voie = "red";
+  game.ranks = { double_frappe: 3 };
   for (let k = 0; k < 3; k++) {
     game.events.length = 0;
     assert.ok(game.useSkill(), `utilisation ${k + 1}`);
@@ -2871,4 +2883,40 @@ test("arme à deux mains : l'arc retourne au sac, pas de javeline ; salle d'essa
   game.takeStairs();
   assert.equal(game.depth, 2);
   assert.ok(game.bossActor(), "la Tisseuse attend à l'étage 2");
+});
+
+test("agilité : esquive (+1 CA tous les 2 points) ; casques ; le Kobold frondeur tire de loin et recule", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const ac0 = game.hero.armorClass;
+  game.points = 2;
+  game.setPeaceful(true);
+  assert.ok(game.allocate("agilite"));
+  assert.equal(game.hero.armorClass, ac0, "1 point : pas encore");
+  assert.ok(game.allocate("agilite"));
+  assert.equal(game.hero.armorClass, ac0 + 1, "2 points : +1 CA");
+  game.inventory.add("casque_cuir", 1);
+  assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "casque_cuir")!.uid));
+  assert.equal(game.hero.armorClass, ac0 + 2, "casque de cuir +1");
+  game.setPeaceful(false);
+  // Le frondeur : à 4 cases et en vue, il tire ; au contact, il recule.
+  const sling = game.monsters.find((m) => m.defId === "frondeur")!;
+  assert.ok(sling, "un frondeur dans la salle d'essai");
+  for (const m of game.monsters) if (m !== sling) m.hp = 0;
+  game.monsters = [sling];
+  sling.alerted = true;
+  sling.patrol = undefined;
+  game.hero.hp = game.hero.maxHp = 999;
+  game.hero.x = sling.x + 4;
+  game.hero.y = sling.y;
+  game.wait();
+  game.tick();
+  assert.ok(game.events.some((e) => e.type === "attack" && e.attacker === sling && e.ranged), "il tire");
+  game.hero.x = sling.x + 1;
+  game.hero.y = sling.y;
+  const before = Math.max(Math.abs(sling.x - game.hero.x), Math.abs(sling.y - game.hero.y));
+  game.events.length = 0;
+  game.wait();
+  game.tick();
+  const after = Math.max(Math.abs(sling.x - game.hero.x), Math.abs(sling.y - game.hero.y));
+  assert.ok(after > before, "il recule");
 });

@@ -112,6 +112,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Une toile d'araignée ! Force : ${roll(e.roll, e.bonus, e.roll + e.bonus)} — ${e.escaped ? "vous la déchirez en passant." : "raté, vous voilà englué un tour."}`;
     case "webbed":
       return `La morsure de ${e.by.name.toLowerCase() === "araignée" ? "l'araignée" : e.by.name} vous englue : votre prochain pas servira à vous dégager.`;
+    case "trapDodged":
+      return `Un piège ! Agilité : ${roll(e.d20, e.bonus, e.d20 + e.bonus)} — vous l'évitez d'un bond.`;
     case "stuck":
       return "Vous vous dépêtrez des fils collants.";
     case "webSlow":

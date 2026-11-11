@@ -76,6 +76,8 @@
     overflow-x: hidden; overflow-y: auto; }
   #over { inset: 14% 6%; background: #140808; border-color: #7a2a2a; font-size: 22px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
   #over .over-title { font-size: 34px; color: #ff6b7a; }
+  /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
+  .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   #over.over-win { background: #0e1408; border-color: #8a7a2a; }
   #over.over-win .over-title { color: #ffd75e; }
   #over .over-best { color: #ffd75e; font-size: 26px; }
@@ -197,6 +199,9 @@
   .bag-item { position: absolute; padding: 5px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906;
     display: flex; align-items: center; justify-content: center; }
   .bag-item svg { width: 100%; height: 100%; }
+  /* Prise de l'arme : une paume (une main) ou deux (deux mains), dans le coin bas-droit. */
+  .bag-item svg.grip, .slot-box svg.grip { position: absolute; right: 2px; bottom: 2px; width: auto; height: 12px; max-width: none; }
+  .slot-box { position: relative; }
   .bag-item.spent svg { filter: grayscale(1) brightness(0.55); opacity: 0.6; }
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
@@ -289,6 +294,10 @@
   .skill-card.locked { opacity: 0.45; cursor: default; }
   .skill-card.main { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; text-align: left; }
   .skill-card.main svg { margin: 0; }
+  .skill-card { position: relative; }
+  .skill-card .rank-now { color: #fff3c8; font-size: 15px; }
+  .skill-card .rank-next { color: var(--dim); font-size: 13px; }
+  .skill-card .rank-plus { position: absolute; top: 3px; right: 3px; width: 26px; height: 24px; padding: 0; display: flex; align-items: center; justify-content: center; }
   #char-note { font-size: 16px; color: #ff8a7a; text-align: center; width: min(100%, 318px); }
   #char-note:empty { display: none; }
   #bag-info .item-card { position: relative; padding-right: 34px; }
@@ -978,7 +987,7 @@
       kind: "ammo",
       description: "Se lance \xE0 la main, sans arc (choisie dans le carquois). Moins pr\xE9cise qu'une fl\xE8che, elle frappe fort, et se ramasse.",
       w: 1,
-      h: 1,
+      h: 2,
       maxStack: 6,
       rarity: "uncommon",
       level: 3,
@@ -1084,6 +1093,31 @@
       level: 5,
       armorClass: 14
     },
+    // Casques (Thomas, 2026-11-11 ; planche art/objets_v4.png) : ils s'ajoutent à l'armure.
+    casque_cuir: {
+      id: "casque_cuir",
+      name: "Casque de cuir",
+      kind: "hat",
+      description: "Une calotte de cuir bouilli, cousue, avec deux prot\xE8ge-oreilles. Mieux que rien.",
+      w: 1,
+      h: 1,
+      maxStack: 1,
+      rarity: "common",
+      level: 1,
+      acBonus: 1
+    },
+    casque_maille: {
+      id: "casque_maille",
+      name: "Casque de maille",
+      kind: "hat",
+      description: "Un camail d'anneaux d'acier qui couvre la t\xEAte et la nuque, le visage d\xE9gag\xE9.",
+      w: 1,
+      h: 1,
+      maxStack: 1,
+      rarity: "uncommon",
+      level: 3,
+      acBonus: 2
+    },
     clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle ferm\xE9e de l'\xE9tage o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
     or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir ferm\xE9 par une cordelette. Son or rejoint votre bourse d\xE8s que vous marchez dessus.", w: 1, h: 1, maxStack: 9999 },
     tunique: {
@@ -1154,27 +1188,29 @@
       id: "blue",
       name: "Second souffle",
       color: "#4a8fd0",
-      description: "Une fois par \xE9tage, en un tour : +10 PV.",
+      description: "Une fois par \xE9tage, en un tour : +5 PV. Se renforce.",
+      main: { id: "second_souffle", name: "Second souffle", ranks: ["+5 PV, une fois par \xE9tage", "+8 PV, une fois par \xE9tage", "+12 PV, deux fois par \xE9tage"] },
       secondaries: [
-        { id: "peau_dure", name: "Peau dure", description: "+1 \xE0 la classe d'armure." },
-        { id: "recuperation", name: "R\xE9cup\xE9ration", description: "Le repos rend tous les PV manquants, et non la moiti\xE9." },
-        { id: "dernier_rempart", name: "Dernier rempart", description: "Une fois par \xE9tage, un coup qui vous tuerait vous laisse \xE0 1 PV." }
+        { id: "peau_dure", name: "Peau dure", ranks: ["+1 \xE0 la classe d'armure", "+2 \xE0 la classe d'armure", "+3 \xE0 la classe d'armure"] },
+        { id: "recuperation", name: "R\xE9cup\xE9ration", ranks: ["Le repos rend 65 % des PV manquants", "Le repos rend 80 % des PV manquants", "Le repos rend tous les PV manquants"] },
+        { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse \xE0 1 PV (1 fois par \xE9tage)", "Un coup mortel vous laisse \xE0 5 PV (1 fois par \xE9tage)", "Un coup mortel vous laisse \xE0 5 PV (2 fois par \xE9tage)"] }
       ]
     },
     red: {
       id: "red",
       name: "Double frappe",
       color: "#d03a44",
-      description: "Trois fois par \xE9tage : deux coups d'\xE9p\xE9e en un seul tour.",
+      description: "Une fois par \xE9tage : deux coups d'\xE9p\xE9e en un seul tour. Se renforce.",
+      main: { id: "double_frappe", name: "Double frappe", ranks: ["Une fois par \xE9tage", "Deux fois par \xE9tage", "Trois fois par \xE9tage"] },
       secondaries: [
-        { id: "coup_puissant", name: "Coup puissant", description: "Coup critique sur 19 ou 20 au corps \xE0 corps." },
-        { id: "enchainement", name: "Encha\xEEnement", description: "Tuer un ennemi au corps \xE0 corps rend une double frappe (3 au plus)." },
-        { id: "rage", name: "Rage", description: "+2 d\xE9g\xE2ts au corps \xE0 corps sous la moiti\xE9 de vos PV." }
+        { id: "coup_puissant", name: "Coup puissant", ranks: ["Critique sur 19 ou 20", "Critique sur 18 \xE0 20", "Critique sur 17 \xE0 20"] },
+        { id: "enchainement", name: "Encha\xEEnement", ranks: ["Tuer rend une double frappe (1 par \xE9tage)", "Tuer rend une double frappe (2 par \xE9tage)", "Tuer rend une double frappe (3 par \xE9tage)"] },
+        { id: "rage", name: "Rage", ranks: ["+1 d\xE9g\xE2t sous la moiti\xE9 des PV", "+2 d\xE9g\xE2ts sous la moiti\xE9 des PV", "+3 d\xE9g\xE2ts sous la moiti\xE9 des PV"] }
       ]
     }
   };
+  var MAX_RANK = 3;
   var PATH_LEVEL = 2;
-  var SECONDARY_LEVELS = [4, 6, 8];
 
   // src/data/monsters.ts
   var MONSTERS = {
@@ -1195,6 +1231,26 @@
       noticeChance: 0.4,
       color: "#d9763a",
       blood: "green"
+    },
+    // KOBOLD FRONDEUR (Thomas, 2026-11-11 : « Kobold frondeur ok » ; planche art/frondeur_v1.png). Valeurs (C).
+    frondeur: {
+      id: "frondeur",
+      name: "Kobold frondeur",
+      family: "kobolds",
+      description: "Un Kobold en jaque de cuir, fronde \xE0 la main. Il garde ses distances, tire de loin et recule derri\xE8re les colonnes quand on l'approche.",
+      hp: 6,
+      armorClass: 12,
+      attackBonus: 1,
+      damage: { count: 1, sides: 3, bonus: 0 },
+      vision: 7,
+      xpMin: 4,
+      xpMax: 6,
+      goldChance: 0.35,
+      goldMax: 4,
+      noticeChance: 0.45,
+      color: "#a87c4a",
+      blood: "green",
+      sling: { range: 6, attackBonus: 3, damage: { count: 1, sides: 4, bonus: 0 }, keep: 3 }
     },
     araignee: {
       id: "araignee",
@@ -1251,6 +1307,8 @@
         // la chute de l'étage 3 à l'étage 4 était trop raide).
         { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor((depth - 1) / 2), 4) },
         // Les araignées arrivent à l'étage 3, avec les toiles (Thomas) ; elles chassent seules ou à deux.
+        // Kobold frondeur (2026-11-11) : dès l'étage 2, seul.
+        ...depth >= 2 ? [{ monster: "frondeur", weight: 0.35, packMin: 1, packMax: 1 }] : [],
         // (2026-11-11) : seules aux étages 3-4, jusqu'à deux ensuite.
         ...depth >= 3 ? [{ monster: "araignee", weight: 0.25, packMin: 1, packMax: depth >= 5 ? 2 : 1 }] : []
       ]
@@ -1426,6 +1484,10 @@
     spiderInWebRoomChance: 0.6,
     /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
     clutterPerFloor: [1, 4],
+    /** Agilité (Thomas, 2026-11-11) : +1 CA d'esquive tous les `agilityPerDodge` points ; un piège sous les pieds du héros
+     * s'évite sur d20 + agilité contre `trapDodgeDc` (un 20 l'évite toujours, un 1 jamais). */
+    agilityPerDodge: 2,
+    trapDodgeDc: 18,
     /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
     pushDc: 10,
     /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -1480,12 +1542,8 @@
     // ---- Points, voies et potions (2026-11-11) : valeurs proposées par Claude, validées par « Ok. Tout ». ----
     /** Un point en Vie : PV max en plus. */
     hpPerVie: 4,
-    /** Second souffle (voie bleue) : PV rendus. */
-    secondWindHeal: 10,
-    /** Double frappe (voie rouge) : utilisations par étage. */
-    doubleStrikesPerFloor: 3,
-    /** Rage (voie rouge) : dégâts en plus. */
-    rageBonus: 2,
+    /** Second souffle (voie bleue) : PV rendus aux rangs 1, 2, 3. Double frappe : autant de fois par étage que son rang. */
+    secondWindHeal: [5, 8, 12],
     /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */
     weaponPoisonHits: 15,
     hasteTurns: 4,
@@ -2296,6 +2354,8 @@
     anchor: { blocks: false, w: 1, h: 1, burns: false },
     sealedStairs: { blocks: true, w: 1, h: 1, burns: false },
     bonesA: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    // Sac d'œufs écrasé : coquilles et flaque verdâtre (planche art/objets_v4.png).
+    eggSmash: { blocks: false, w: 1, h: 1, burns: false, flat: true },
     bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true }
   };
   function isFlat(kind) {
@@ -2849,7 +2909,7 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 12;
+  var SANDBOX_LAYOUT = 13;
   var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
     const map = new GameMap(52, 32);
@@ -2992,7 +3052,10 @@
         // Armes v4 (2026-11-11) : couteau de boucher, arc puissant (Lv5), javelines (à lancer depuis le carquois).
         { x: 4, y: 9, item: "couteau_boucher", count: 1 },
         { x: 6, y: 9, item: "arc_puissant", count: 1 },
-        { x: 8, y: 9, item: "javeline", count: 3 }
+        { x: 8, y: 9, item: "javeline", count: 3 },
+        // Casques (2026-11-11) : de cuir (+1 CA) et de maille (+2 CA, niveau 3).
+        { x: 3, y: 8, item: "casque_cuir", count: 1 },
+        { x: 3, y: 9, item: "casque_maille", count: 1 }
       ],
       heroLevel: 4,
       monsters: [
@@ -3000,7 +3063,9 @@
         { x: 7, y: 20, asleep: false, patrol: true },
         { x: 25, y: 16, asleep: false },
         { x: 18, y: 18, asleep: true },
-        { x: 22, y: 26, asleep: false, patrol: true, monster: "araignee" }
+        { x: 22, y: 26, asleep: false, patrol: true, monster: "araignee" },
+        // Kobold frondeur (2026-11-11) : dans la salle de combat, il tire de loin et recule derrière les colonnes.
+        { x: 19, y: 15, asleep: false, patrol: true, monster: "frondeur" }
       ]
     };
   }
@@ -3413,7 +3478,7 @@
     { small: [6, 15], medium: [20, 40], large: [50, 80] }
   ];
   var LOOT = {
-    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }],
+    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }],
     uncommon: [
       { item: "fleche_poison", count: [2, 4] },
       { item: "gold" },
@@ -3421,6 +3486,7 @@
       { item: "lance" },
       { item: "amethyste" },
       { item: "sac_cuir", minDepth: 5 },
+      { item: "casque_maille", minDepth: 3 },
       { item: "javeline", count: [3, 3], minDepth: 3 },
       { item: "arc_puissant", minDepth: 5 },
       { item: "potion_poison" },
@@ -3677,7 +3743,8 @@
       this.alloc = { vie: 0, force: 0, agilite: 0, intelligence: 0, charisme: 0 };
       /** Voie choisie (définitive) et compétences secondaires prises. */
       this.voie = null;
-      this.skills = [];
+      /** Rang de chaque pouvoir de la voie (0 : pas pris ; 1 à 3). Le principal est au rang 1 dès le choix de la voie. */
+      this.ranks = {};
       /** Ce qui ne sert qu'une fois (ou trois) par étage, étage par étage. */
       this.floorPerks = {};
       /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
@@ -3934,6 +4001,10 @@
     isBossDepth(depth) {
       return this.sandbox ? depth === 2 : RULES.bossDepths.includes(depth);
     }
+    /** Le plan de la nichée (étage du boss), pour le dessin des amarres. */
+    bossLayout() {
+      return this.current.boss;
+    }
     /** Le boss de l'étage, s'il vit encore. */
     bossActor() {
       return this.monsters.find((m) => !!m.boss);
@@ -3991,6 +4062,7 @@
       this.events.push({ type: "breakWeb", kind: f.kind.startsWith("cocoon") ? "cocoon" : f.kind === "eggSac" ? "eggs" : "anchor", left, x: f.x, y: f.y });
       if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
       if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "green" : "red");
+      if (f.kind === "eggSac") this.current.furniture.push({ x: f.x, y: f.y, kind: "eggSmash" });
       const queen = this.bossActor();
       if (queen?.boss) queen.boss.target = { x: this.hero.x, y: this.hero.y };
       if (f.kind === "anchor") this.checkHub();
@@ -4134,6 +4206,7 @@
         for (const sac of sacs) {
           this.current.furniture = this.current.furniture.filter((o) => o !== sac);
           this.map.set(sac.x, sac.y, Tile.Floor);
+          this.current.furniture.push({ x: sac.x, y: sac.y, kind: "eggSmash" });
           const young = this.newMonster(MONSTERS.araignee, sac.x, sac.y, false);
           young.alerted = true;
           young.fromX = young.x;
@@ -4368,6 +4441,15 @@
       if (!trap) return;
       const kind = trap.kind ?? "spikes";
       const def = TRAPS[kind];
+      if (actor.kind === "hero") {
+        const d20 = this.rng.int(1, 20);
+        const bonus = this.alloc.agilite;
+        if (d20 !== 1 && (d20 === 20 || d20 + bonus >= RULES.trapDodgeDc)) {
+          if (kind === "pit") trap.sprung = true;
+          this.events.push({ type: "trapDodged", x: actor.x, y: actor.y, kind, d20, bonus });
+          return;
+        }
+      }
       const damage = def.damage ? rollDice(this.rng, def.damage) : 0;
       this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage, kind });
       if (kind === "pit") trap.sprung = true;
@@ -4566,7 +4648,8 @@
         points: this.points,
         alloc: this.alloc,
         voie: this.voie,
-        skills: this.skills,
+        skills: [],
+        ranks: this.ranks,
         floorPerks: this.floorPerks,
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
@@ -4637,8 +4720,20 @@
       game2.points = saved.points;
       game2.alloc = { intelligence: 0, charisme: 0, ...saved.alloc };
       game2.voie = saved.voie && saved.voie in PATHS ? saved.voie : null;
-      game2.skills = saved.skills.filter((id) => Object.values(PATHS).some((p) => p.secondaries.some((sk) => sk.id === id)));
-      game2.floorPerks = saved.floorPerks;
+      const known = (id) => game2.voie !== null && [PATHS[game2.voie].main, ...PATHS[game2.voie].secondaries].some((pw) => pw.id === id);
+      game2.ranks = {};
+      if (saved.ranks) {
+        for (const [id, r] of Object.entries(saved.ranks)) if (known(id)) game2.ranks[id] = r;
+        else if (game2.voie) {
+          game2.ranks[PATHS[game2.voie].main.id] = 1;
+          for (const id2 of saved.skills) if (known(id2)) game2.ranks[id2] = 1;
+        }
+      }
+      game2.floorPerks = {};
+      for (const [d, pk] of Object.entries(saved.floorPerks ?? {})) {
+        const old = pk;
+        game2.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0 };
+      }
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
       game2.inventory.cols = saved.bagSize.cols;
@@ -4768,7 +4863,8 @@
       const base = melee?.damage ?? UNARMED.damage;
       this.hero.damage = { ...base, bonus: base.bonus + this.alloc.force };
       const armor = this.equipment.armor;
-      this.hero.armorClass = (armor && ITEMS[armor.defId].armorClass || UNARMORED_AC) + (this.skills.includes("peau_dure") ? 1 : 0);
+      const hat = this.equipment.hat;
+      this.hero.armorClass = (armor && ITEMS[armor.defId].armorClass || UNARMORED_AC) + (hat && ITEMS[hat.defId].acBonus || 0) + this.rank("peau_dure") + Math.floor(this.alloc.agilite / RULES.agilityPerDodge);
     }
     /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
     tooLow(def) {
@@ -4890,7 +4986,18 @@
     /** Ce qui ne sert qu'un nombre limité de fois sur l'étage courant. */
     perks() {
       var _a, _b;
-      return (_a = this.floorPerks)[_b = this.depth] ?? (_a[_b] = { secondWind: false, doubleStrikes: RULES.doubleStrikesPerFloor, lastStand: false });
+      return (_a = this.floorPerks)[_b = this.depth] ?? (_a[_b] = { secondWind: 0, doubleStrikes: this.rank("double_frappe"), lastStand: 0, chainRefunds: 0 });
+    }
+    /** Rang d'un pouvoir (0 si on ne l'a pas). */
+    rank(id) {
+      return this.ranks[id] ?? 0;
+    }
+    /** Second souffle : PV rendus et fois par étage, selon le rang. */
+    secondWindHeal() {
+      return RULES.secondWindHeal[Math.max(0, this.rank("second_souffle") - 1)];
+    }
+    secondWindUses() {
+      return this.rank("second_souffle") >= MAX_RANK ? 2 : 1;
     }
     /** Place un point dans une caractéristique (ne prend pas de tour). */
     allocate(stat) {
@@ -4922,29 +5029,35 @@
     choosePath(id) {
       if (!this.canChoosePath()) return false;
       this.voie = id;
+      this.ranks = { [PATHS[id].main.id]: 1 };
+      if (id === "red") this.perks().doubleStrikes = Math.max(this.perks().doubleStrikes, 1);
       this.events.push({ type: "path", path: id });
       return true;
     }
-    /** Compétences secondaires qu'on peut encore prendre (une par palier atteint). */
-    secondaryPicks() {
+    /** Points de voie à placer : un par niveau après celui où l'on a choisi sa voie (le rang 1 du principal est offert). */
+    pathPoints() {
       if (!this.voie) return 0;
-      return SECONDARY_LEVELS.filter((l) => this.level >= l).length - this.skills.length;
+      const spent = Object.values(this.ranks).reduce((n, r) => n + (r ?? 0), 0) - 1;
+      return Math.max(0, this.level - PATH_LEVEL - spent);
     }
-    chooseSkill(id) {
-      if (!this.voie || this.secondaryPicks() <= 0 || this.skills.includes(id)) return false;
-      if (!PATHS[this.voie].secondaries.some((sk) => sk.id === id)) return false;
-      this.skills.push(id);
+    /** Améliorer un pouvoir de sa voie d'un rang (ne prend pas de tour ; pas en plein combat). */
+    improve(id) {
+      if (!this.voie || this.pathPoints() <= 0 || this.inCombat()) return false;
+      const path = PATHS[this.voie];
+      if (![path.main, ...path.secondaries].some((pw) => pw.id === id) || this.rank(id) >= MAX_RANK) return false;
+      this.ranks[id] = this.rank(id) + 1;
+      if (id === "double_frappe") this.perks().doubleStrikes++;
       this.refreshStats();
       return true;
     }
     /** Quelque chose attend le joueur dans l'écran du héros (le « ! » doré). */
     hasPendingChoice() {
-      return this.points > 0 || this.canChoosePath() || this.secondaryPicks() > 0;
+      return this.points > 0 || this.canChoosePath() || this.pathPoints() > 0;
     }
     /** La compétence de voie qui s'utilise (bleue, rouge) ; la verte change « pousser ». Pourquoi c'est impossible, ou null. */
     skillRefusal() {
       if (this.voie === "blue") {
-        if (this.perks().secondWind) return "used";
+        if (this.perks().secondWind >= this.secondWindUses()) return "used";
         if (this.hero.hp >= this.hero.maxHp) return "full";
         return null;
       }
@@ -4967,8 +5080,8 @@
     resolveSkill(targetId) {
       if (this.voie === "blue") {
         const before = this.hero.hp;
-        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + RULES.secondWindHeal);
-        this.perks().secondWind = true;
+        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.secondWindHeal());
+        this.perks().secondWind++;
         this.events.push({ type: "skill", path: "blue", healed: this.hero.hp - before });
       } else if (this.voie === "red") {
         const target = this.monsters.find((m) => m.id === targetId);
@@ -4981,9 +5094,10 @@
     }
     hurtHero(damage, cause = "ses blessures") {
       if (damage <= 0) return;
-      if (this.hero.hp - damage <= 0 && this.skills.includes("dernier_rempart") && !this.perks().lastStand) {
-        this.perks().lastStand = true;
-        this.hero.hp = 1;
+      const rampart = this.rank("dernier_rempart");
+      if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
+        this.perks().lastStand++;
+        this.hero.hp = Math.min(this.hero.maxHp, rampart >= 2 ? 5 : 1);
         this.events.push({ type: "lastStand" });
         return;
       }
@@ -5809,7 +5923,7 @@
         this.resting = 0;
         this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
       } else if (this.resting === 0) {
-        const share = this.skills.includes("recuperation") ? 1 : RULES.restHealShare;
+        const share = [RULES.restHealShare, 0.65, 0.8, 1][this.rank("recuperation")];
         const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * share);
         this.hero.hp += healed;
         this.current.rested = true;
@@ -6064,7 +6178,7 @@
         this.events.push({ type: "door", action, x: door.x, y: door.y, d20: 0, bonus: 0, total: 0, dc: 0, success: true, alerted: 0 });
         return;
       }
-      const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
+      const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.alloc.agilite : this.heroClass.breakBonus + this.alloc.force;
       const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
       const d20 = this.rng.int(1, 20);
       const total = d20 + bonus;
@@ -6107,9 +6221,9 @@
       this.reveal();
       this.lastFoeId = monster.id;
       let damageBonus = 0;
-      if (this.skills.includes("rage") && this.hero.hp * 2 < this.hero.maxHp) damageBonus += RULES.rageBonus;
+      if (this.rank("rage") > 0 && this.hero.hp * 2 < this.hero.maxHp) damageBonus += this.rank("rage");
       const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
-      const critFrom = this.skills.includes("coup_puissant") ? 19 : 20;
+      const critFrom = 20 - this.rank("coup_puissant");
       const advantaged = this.heroHasAdvantageOn(monster);
       const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom);
       this.hero.lastAdvantageOn = advantaged ? monster.id : void 0;
@@ -6132,8 +6246,9 @@
       }
       const wasAlive = this.monsters.includes(monster);
       this.removeIfDead(monster);
-      if (wasAlive && !this.monsters.includes(monster) && this.skills.includes("enchainement")) {
-        this.perks().doubleStrikes = Math.min(RULES.doubleStrikesPerFloor, this.perks().doubleStrikes + 1);
+      if (wasAlive && !this.monsters.includes(monster) && this.perks().chainRefunds < this.rank("enchainement")) {
+        this.perks().chainRefunds++;
+        this.perks().doubleStrikes = Math.min(this.rank("double_frappe"), this.perks().doubleStrikes + 1);
       }
       if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
     }
@@ -6293,6 +6408,8 @@
           }
           continue;
         }
+        const slinger = MONSTERS[m.defId].sling;
+        if (slinger && this.slingerAct(m, slinger, distance)) continue;
         if (this.inReach(m, this.hero)) {
           const ambush = m.lastAdvantageOn !== this.hero.id && (this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero));
           this.faceToward(m, this.hero);
@@ -6315,6 +6432,57 @@
         for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) if (!this.stepToward(m, this.hero)) break;
         this.faceToward(m, this.hero);
       }
+    }
+    /**
+     * Tour d'un tireur (Kobold frondeur, Thomas 2026-11-11) : trop près, il recule d'une case (vers un abri si possible) ;
+     * à portée et en vue, il tire ; sinon il s'approche (renvoie faux : le tour ordinaire d'un monstre s'applique).
+     */
+    slingerAct(m, sling, distance) {
+      const hero = this.hero;
+      if (distance < sling.keep) {
+        const away = this.stepAway(m);
+        if (away) {
+          const left = { x: m.x, y: m.y };
+          this.faceToward(m, hero);
+          m.x = away.x;
+          m.y = away.y;
+          this.closeDoorAt(left.x, left.y);
+          return true;
+        }
+        if (this.inReach(m, hero)) return false;
+      }
+      if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y)) return false;
+      this.faceToward(m, hero);
+      const covered = this.hasCover(hero) && !this.inReach(m, hero);
+      const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, hero, covered ? "disadvantage" : "normal");
+      this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
+      if (result.damage > 0) this.bleed(hero, m);
+      this.raiseAlarm(RULES.alarmCombat, hero);
+      this.hurtHero(result.damage, this.killerName(m));
+      return true;
+    }
+    /** Une case voisine qui éloigne le monstre du héros, de préférence collée à un abri (colonne, meuble). */
+    stepAway(m) {
+      const d0 = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
+      let best = null;
+      let bestScore = -Infinity;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const x = m.x + dx;
+          const y = m.y + dy;
+          if (!canStep(this.map, m.x, m.y, dx, dy) || this.actorAt(x, y) || this.isTrap(x, y) || this.isBurning(x, y) || this.map.isDoor(x, y)) continue;
+          const d = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
+          if (d <= d0) continue;
+          const shelter = this.hasCover({ x, y }) ? 3 : 0;
+          const score = d * 10 + shelter;
+          if (score > bestScore) {
+            bestScore = score;
+            best = { x, y };
+          }
+        }
+      }
+      return best;
     }
     /** Le héros est-il dans l'éventail de regard de ce monstre (devant lui, à moins de `gazeHalfAngle`) ? */
     inGaze(m, p) {
@@ -8003,22 +8171,75 @@
     ],
     // Armes v4 (planche art/armes_v4.png, validée le 2026-11-11) ; l'arc puissant redessiné en 16 × 32 comme l'arc court.
     javeline: [
-      ".............KK.",
-      "............KDWK",
-      "...........KDDCK",
-      "...........KCCK.",
-      "..........KtKK..",
-      ".........KtK....",
-      "........KtK.....",
-      ".......KtK......",
-      "......KtK.......",
-      ".....KtK........",
-      "....KtK.........",
-      "...KtK..........",
-      "..KtK...........",
-      ".KtK............",
-      "KtK.............",
-      ".K.............."
+      "......KK........",
+      ".....KWSK.......",
+      ".....KWSK.......",
+      "....KWSSDK......",
+      "....KWSSDK......",
+      "....KWSSDK......",
+      ".....KSDK.......",
+      ".....KCCK.......",
+      "......KK........",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KrrK.......",
+      ".....K2rK.......",
+      ".....Kr2K.......",
+      ".....K2rK.......",
+      ".....KrrK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KTtK.......",
+      ".....KbbK.......",
+      "......KK........",
+      "................"
+    ],
+    // Casques (planche art/objets_v4.png, validée le 2026-11-11).
+    casque_cuir: [
+      "................",
+      "......KKKK......",
+      "....KKtBBtKK....",
+      "...KtBBTTBBtK...",
+      "..KtBTTBBBBBtK..",
+      "..KBTBBBBBBBBK..",
+      "..KBBKBBBBKBBK..",
+      "..KbBBBBBBBBbK..",
+      "..KbbtttttttbK..",
+      "..KbKKKKKKKKbK..",
+      "..KbK......KbK..",
+      "..KbbK....KbbK..",
+      "...KbK....KbK...",
+      "...KKK....KKK...",
+      "................",
+      "................"
+    ],
+    casque_maille: [
+      "................",
+      "......KKKK......",
+      "....KKCSSCKK....",
+      "...KCSDSDSSCK...",
+      "..KCSDSDSDSDCK..",
+      "..KSDSDSDSDSSK..",
+      "..KDSKKKKKKSDK..",
+      "..KSDK....KDSK..",
+      "..KDSK....KSDK..",
+      "..KSDK....KDSK..",
+      "..KDSDK..KDSDK..",
+      "..KSDSDKKDSDSK..",
+      "..KDSDSDSDSDSK..",
+      "...KCCCCCCCCK...",
+      "....KKKKKKKK....",
+      "................"
     ],
     couteau_boucher: [
       "................",
@@ -8424,12 +8645,12 @@
       "......KbBK......",
       "......KBbK......",
       ".....KcSScK.....",
-      ".....KKcSKK..K..",
-      "....KcSSSScKKWK.",
-      "...KcFFFFFFcKYK.",
+      ".....KKcSKK.....",
+      "....KcSSSScK....",
+      "...KcFFFFFFcK...",
       "..KcFWFFFFGGcK..",
       "..KcFWFFFGGGcK..",
-      "..KcFFFFGGGfcK..",
+      "..KcFFFFGGGffK..",
       "..KcFFFGGGffcK..",
       "...KcFGGGffcK...",
       "....KcGGffcK....",
@@ -8438,36 +8659,36 @@
       "................"
     ],
     potion_poison: [
-      "......KKKK......",
-      ".....KbBBbK.....",
-      ".....KBbbBK.....",
-      "....KcSSSScK....",
-      "....KKcSScKK....",
-      "...KcSSSSSScK...",
-      "...KcAAAAAAcK...",
-      "...KcAWLLLEcK...",
-      "...KcAWLKLEcK...",
-      "...KcAALLLEcK...",
-      "...KcAALKLEcK...",
-      "...KcAEEEEecK...",
-      "...KcEEEEeecK...",
-      "...KccccccccK...",
-      "....KKKKKKKK....",
-      "................"
-    ],
-    potion_vitesse: [
+      ".......KK.......",
       "......KbBK......",
       "......KBbK......",
       ".....KcSScK.....",
+      ".....KKcSKK.....",
+      "....KcSSSScK....",
+      "...KcAAAAAAcK...",
+      "..KcAWAAAAEEcK..",
+      "..KcAWAAAEEEcK..",
+      "..KcAAAAEEEeeK..",
+      "..KcAAAEEEeecK..",
+      "...KcAEEEeecK...",
+      "....KcEEeecK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
+    ],
+    potion_vitesse: [
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
       ".....KcSScK.....",
-      ".....KcIIcK.....",
-      "....KcIWIIcKKK..",
-      "....KcIWIUcKSSK.",
-      "....KcIIUUcSSWK.",
-      "....KcIIUUcKSSK.",
-      "....KcIUUicKKK..",
-      "....KcIUUicK....",
-      "....KcUUiicK....",
+      ".....KKcSKK.....",
+      "....KcSSSScK....",
+      "...KcIIIIIIcK...",
+      "..KcIWIIIIUUcK..",
+      "..KcIWIIIUUUcK..",
+      "..KcIIIIUUUiiK..",
+      "..KcIIIUUUiicK..",
+      "...KcIUUUiicK...",
       "....KcUUiicK....",
       ".....KccccK.....",
       "......KKKK......",
@@ -8477,18 +8698,18 @@
       ".......KK.......",
       "......KbBK......",
       "......KBbK......",
-      "......KcSK......",
-      "......KcSK......",
-      "....KKcSScKK....",
-      "...KccXXXXccK...",
-      "..KcXWXXYXXxcK..",
-      "..KcXWXYYYXxcK..",
-      "..KcXXYYWYXxcK..",
-      "..KcXXXYYXxxcK..",
-      "...KcXXXXxxcK...",
-      "....KccxxccK....",
-      ".....KKKKKK.....",
-      "................",
+      ".....KcSScK.....",
+      ".....KKcSKK.....",
+      "....KcSSSScK....",
+      "...KcXXXXXXcK...",
+      "..KcXWXXXXOOcK..",
+      "..KcXWXXXOOOcK..",
+      "..KcXXXXOOOxxK..",
+      "..KcXXXOOOxxcK..",
+      "...KcXOOOxxcK...",
+      "....KcOOxxcK....",
+      ".....KccccK.....",
+      "......KKKK......",
       "................"
     ]
   };
@@ -9317,6 +9538,28 @@
   function uiIcon(name) {
     return buildIcon(UI_ICONS[name]);
   }
+  var GRIP_ICONS = {
+    one: [
+      "..K.K.K..",
+      ".KZKZKZK.",
+      ".KZKZKZK.",
+      "KKZZZZZK.",
+      "KZKZZZZK.",
+      ".KZZZZZK.",
+      "..KZZZK..",
+      "...KKK..."
+    ],
+    two: [
+      "..K.K.K....K.K.K..",
+      ".KZKZKZK..KZKZKZK.",
+      ".KZKZKZK..KZKZKZK.",
+      ".KZZZZZKKKKZZZZZK.",
+      ".KZZZZKZKKZKZZZZK.",
+      ".KZZZZZK..KZZZZZK.",
+      "..KZZZK....KZZZK..",
+      "...KKK......KKK..."
+    ]
+  };
 
   // src/render/sprites/dortoir.ts
   var DORTOIR = {
@@ -12713,6 +12956,24 @@
       "adaa.abba.......",
       ".aada.aa........",
       "...a............"
+    ] },
+    eggSmash: { palette: { "a": "#547828", "b": "#82a83c", "c": "#c8c0aa", "d": "#ece6d2", "e": "#28241e" }, rows: [
+      "................",
+      "................",
+      "....aa....a.....",
+      "...abba..aba....",
+      "..abcdbaaaba....",
+      "..addedbbba..a..",
+      ".abcd.cbcdba.aa.",
+      ".abbacdeddcbaba.",
+      "..abbbcdccbbba..",
+      "...aabbbbabba...",
+      "..a..aaaaaba....",
+      ".aa.....aba.....",
+      "........aa......",
+      "................",
+      "................",
+      "................"
     ] }
   };
 
@@ -13354,6 +13615,7 @@
   };
 
   // src/render/renderer.ts
+  var FRONDEUR_PALETTE = { ...SCHRAT_PALETTE, C: "#a87c4a", c: "#6a4a2a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
   var SALLES2 = { ...SALLES, ...ATELIERS, ...BOSS };
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
@@ -13669,7 +13931,7 @@
       else if (moving) rows = SCHRAT[`walk${dir}`][progress < 0.5 ? 0 : 1];
       else rows = SCHRAT[`idle${dir}`][Math.floor((Math.abs(this.time) + m.id * 170) / 560) % 2];
       if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
-      this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
+      this.drawMonsterSprite(rows, cx, cy, facing === "left", true, m.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE);
     }
     /** La Tisseuse (planche art/boss_v2.png) : repos, marche, morsure ; renversée sur le dos quand sa grande toile tombe. */
     drawQueen(m, cx, cy, progress, advantage) {
@@ -13709,6 +13971,50 @@
       ctx.drawImage(this.sprite(rows, palette), Math.round(-w / 2), Math.round(cy + tile - h), Math.round(w), Math.round(h));
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
+    }
+    /**
+     * Amarres de la grande toile (planche art/objets_v4.png, Thomas : « la toile sur les poteaux devrait être tendue entre
+     * eux ») : un fil épais tendu de chaque colonne jusqu'au centre de la grande toile ; une amarre coupée pend, effilochée.
+     */
+    drawAnchorThreads(game2, ox, oy) {
+      const layout = game2.bossLayout();
+      if (!layout) return;
+      const furniture = game2.furnitureList();
+      if (!furniture.some((f) => f.kind.startsWith("webHub"))) return;
+      const { ctx, tile } = this;
+      const hx = ox + (layout.hub.x + 1.5) * tile;
+      const hy = oy + (layout.hub.y + 1.5) * tile;
+      ctx.save();
+      ctx.lineCap = "round";
+      for (const p of layout.pillars) {
+        if (!game2.isExplored(p.x, p.y)) continue;
+        const px = ox + (p.x + 0.5) * tile;
+        const py = oy + (p.y + 0.5) * tile;
+        const intact = furniture.some((f) => f.kind === "anchor" && f.x === p.x && f.y === p.y);
+        const lit = game2.isVisible(p.x, p.y) ? 1 : 0.45;
+        const strand = (x0, y0, x1, y1) => {
+          ctx.strokeStyle = `rgba(60,56,50,${0.8 * lit})`;
+          ctx.lineWidth = Math.max(2, tile * 0.14);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.stroke();
+          ctx.strokeStyle = `rgba(240,236,226,${0.9 * lit})`;
+          ctx.lineWidth = Math.max(1, tile * 0.06);
+          ctx.stroke();
+        };
+        if (intact) strand(px, py, hx, hy);
+        else {
+          const dx = hx - px;
+          const dy = hy - py;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          strand(px, py, px + ux * tile * 0.7, py + uy * tile * 0.7 + tile * 0.25);
+          strand(hx - ux * tile * 1.4, hy - uy * tile * 1.4, hx - ux * tile * 2.1, hy - uy * tile * 2.1 + tile * 0.3);
+        }
+      }
+      ctx.restore();
     }
     /** Barre de vie du boss, en haut de la carte, tant que le combat est engagé (Thomas). */
     drawBossBar(game2) {
@@ -13821,8 +14127,8 @@
       this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0, arc });
     }
     /** Fait voler une flèche d'une case à une autre. */
-    addProjectile(fromX, fromY, x, y, delay = 0, tumble = false) {
-      this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble });
+    addProjectile(fromX, fromY, x, y, delay = 0, tumble = false, stone = false) {
+      this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone });
     }
     /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
     drawArrow(cx, cy, angle, length, part = "whole", poisoned = false) {
@@ -13973,6 +14279,7 @@
         }
       }
       this.drawFurniture(game2, ox, oy, flicker, "early");
+      this.drawAnchorThreads(game2, ox, oy);
       for (const torch of game2.torches) {
         if (!game2.isExplored(torch.x, torch.y)) continue;
         if (torch.hearth) {
@@ -13996,7 +14303,17 @@
         ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.32) * tile, oy + (torch.y + 0.5 + fy * 0.32) * tile);
         ctx.stroke();
         ctx.lineCap = "butt";
-        if (!burning) continue;
+        if (!burning) {
+          ctx.fillStyle = "rgba(150,80,30,0.55)";
+          ctx.beginPath();
+          ctx.arc(cx, cy, tile * 0.14, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(200,140,60,0.45)";
+          ctx.beginPath();
+          ctx.arc(cx, cy + tile * 0.02, tile * 0.07, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
         ctx.fillStyle = "#ff8a2a";
         ctx.beginPath();
         ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);
@@ -14087,7 +14404,7 @@
           oy + (c.actor.y + 0.5) * tile,
           c.facing === "left",
           false,
-          spider ? ARAIGNEE.dead.palette : SCHRAT_PALETTE
+          spider ? ARAIGNEE.dead.palette : c.actor.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE
         );
         ctx.globalAlpha = 1;
       }
@@ -14105,7 +14422,7 @@
           this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
           continue;
         }
-        if (m.defId === "schrat" || m.defId === "araignee") {
+        if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur") {
           const advantage = game2.heroHasAdvantageOn(m);
           if (advantage) {
             ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
@@ -14272,6 +14589,15 @@
         const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
         const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
         const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+        if (p.stone) {
+          const lift = Math.sin(t * Math.PI) * tile * 0.35;
+          const r = Math.max(2, tile * 0.09);
+          ctx.fillStyle = "#120d08";
+          ctx.fillRect(Math.round(px - r - 1), Math.round(py - lift - r - 1), Math.round(r * 2 + 2), Math.round(r * 2 + 2));
+          ctx.fillStyle = "#a4abc8";
+          ctx.fillRect(Math.round(px - r), Math.round(py - lift - r), Math.round(r * 2), Math.round(r * 2));
+          continue;
+        }
         if (!p.tumble) {
           const trail = Math.min(tile * 1.4, Math.hypot(p.x - p.fromX, p.y - p.fromY) * tile * t);
           const grad = ctx.createLinearGradient(px, py, px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
@@ -14591,6 +14917,8 @@
         return `Une toile d'araign\xE9e ! Force : ${roll(e.roll, e.bonus, e.roll + e.bonus)} \u2014 ${e.escaped ? "vous la d\xE9chirez en passant." : "rat\xE9, vous voil\xE0 englu\xE9 un tour."}`;
       case "webbed":
         return `La morsure de ${e.by.name.toLowerCase() === "araign\xE9e" ? "l'araign\xE9e" : e.by.name} vous englue : votre prochain pas servira \xE0 vous d\xE9gager.`;
+      case "trapDodged":
+        return `Un pi\xE8ge ! Agilit\xE9 : ${roll(e.d20, e.bonus, e.d20 + e.bonus)} \u2014 vous l'\xE9vitez d'un bond.`;
       case "stuck":
         return "Vous vous d\xE9p\xEAtrez des fils collants.";
       case "webSlow":
@@ -14932,7 +15260,8 @@
     dieWho.className = mode === "normal" ? "" : mode;
     sfx.play("dice");
     if (mode !== "normal") sfx.play(mode);
-    if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
+    if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
+    else if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
     if (e.type === "attack" && !e.ranged) {
       renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
     }
@@ -14941,7 +15270,7 @@
         const good = mode === "advantage" !== foe;
         renderer.addFloatingText(e.attacker.x, e.attacker.y, mode === "advantage" ? "Avantage !" : "D\xE9savantage", good ? "#ffd75e" : "#ff6b7a");
       }
-      if (e.ranged) sfx.play("bow");
+      if (e.ranged && !foe) sfx.play("bow");
     }
   }
   function landDie(value, outcome, foe, other) {
@@ -15020,10 +15349,14 @@
       else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}`, "#fff3c8");
     } else if (e.type === "xp") {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
-      pulse(xpBar, "gain");
+      if (lastKill) xpOrbs(lastKill, e.amount);
+      else pulse(xpBar, "gain");
+      lastKill = null;
     } else if (e.type === "levelup") {
       shownHp = game.hero.hp;
       sfx.play("heal");
+    } else if (e.type === "trapDodged") {
+      renderer.addFloatingText(e.x, e.y, "\xC9vit\xE9 !", "#9fe0a0");
     } else if (e.type === "boss" && e.what === "dead") {
       setTimeout(showDemoEnd, 900);
     } else if (e.type === "death") {
@@ -15035,6 +15368,7 @@
       } else {
         ghosts = ghosts.filter((g) => g !== e.actor);
         renderer.monsterDies(e.actor);
+        lastKill = { x: e.actor.x + ((e.actor.size ?? 1) - 1) / 2, y: e.actor.y + ((e.actor.size ?? 1) - 1) / 2 };
         sfx.play("kill");
       }
     } else if (e.type === "noise") {
@@ -15155,6 +15489,36 @@
     });
     over.append(stay, again);
     over.hidden = false;
+  }
+  var lastKill = null;
+  function xpOrbs(cell, amount) {
+    const box = canvas.getBoundingClientRect();
+    const c = renderer.tileCenter(cell.x, cell.y);
+    const bar = xpBar.getBoundingClientRect();
+    const count = Math.max(3, Math.min(8, amount));
+    for (let i = 0; i < count; i++) {
+      const orb = document.createElement("div");
+      orb.className = "xp-orb";
+      const sx = box.left + c.x + (Math.random() - 0.5) * 18;
+      const sy = box.top + c.y + (Math.random() - 0.5) * 18;
+      const tx = bar.left + bar.width * (0.25 + Math.random() * 0.5);
+      const ty = bar.top + bar.height / 2;
+      orb.style.left = `${sx}px`;
+      orb.style.top = `${sy}px`;
+      document.body.append(orb);
+      const delay = 120 + i * 70;
+      orb.animate(
+        [
+          { transform: "translate(0, 0) scale(0.6)", opacity: 0 },
+          { transform: `translate(${(Math.random() - 0.5) * 30}px, -22px) scale(1)`, opacity: 1, offset: 0.25 },
+          { transform: `translate(${tx - sx}px, ${ty - sy}px) scale(0.7)`, opacity: 0.9 }
+        ],
+        { duration: 650, delay, easing: "ease-in", fill: "forwards" }
+      ).onfinish = () => {
+        orb.remove();
+        pulse(xpBar, "gain");
+      };
+    }
   }
   function showDeath() {
     over.classList.remove("over-win");
@@ -15522,6 +15886,7 @@
     if (def.rarity) rows.push(["Raret\xE9", RARITY_LABELS[def.rarity]]);
     if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
     if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
+    if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
     if (def.kind !== "gold") rows.push(["Place", `${def.w} \xD7 ${def.h}`]);
     const stats = el("div", "item-card-stats");
     for (const [label, value] of rows) stats.append(el("span", "", label), el("span", "item-card-value", value));
@@ -15541,6 +15906,7 @@
     if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
     if (def.range) bits.push(`port\xE9e ${def.range}`);
     if (def.armorClass) bits.push(`CA ${def.armorClass}`);
+    if (def.acBonus) bits.push(`+${def.acBonus} CA`);
     if (def.bagCols) bits.push(`${def.bagCols} \xD7 ${def.bagRows} cases`);
     if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
     if (def.rarity) bits.push(RARITY_LABELS[def.rarity].toLowerCase());
@@ -15549,9 +15915,18 @@
     card.append(body);
     return card;
   }
+  function gripBadge(id) {
+    const def = ITEMS[id];
+    if (def.kind !== "melee") return null;
+    const badge = buildIcon(def.twoHanded ? GRIP_ICONS.two : GRIP_ICONS.one);
+    badge.classList.add("grip");
+    return badge;
+  }
   function itemNode(item, className) {
     const node = el("div", className);
     node.append(itemIcon(item.defId));
+    const grip = gripBadge(item.defId);
+    if (grip) node.append(grip);
     if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
     return node;
   }
@@ -15566,6 +15941,8 @@
         const box = el("div", "slot-box");
         if (worn) {
           box.append(itemIcon(worn.defId));
+          const grip = gripBadge(worn.defId);
+          if (grip) box.append(grip);
         } else {
           const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court"), bag: itemIcon("sac_toile") }[slot];
           ghost.classList.add("ghost");
@@ -15714,7 +16091,7 @@
   });
   var powerShown = "";
   function powerCharges() {
-    if (game.voie === "blue") return game.perks().secondWind ? 0 : 1;
+    if (game.voie === "blue") return Math.max(0, game.secondWindUses() - game.perks().secondWind);
     if (game.voie === "red") return game.perks().doubleStrikes;
     return 0;
   }
@@ -15760,8 +16137,6 @@
   button("char-confirm", () => {
     if (pickedChoice?.kind === "path") {
       if (game.choosePath(pickedChoice.id)) logLines.push(`Voie choisie : ${PATHS[pickedChoice.id].name}.`);
-    } else if (pickedChoice?.kind === "skill") {
-      if (game.chooseSkill(pickedChoice.id)) logLines.push("Comp\xE9tence acquise.");
     }
     pickedChoice = null;
     collectEvents();
@@ -15779,7 +16154,10 @@
     if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allum\xE9e", detail: `Vous \xE9clairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
     if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonn\xE9e", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
     if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Acc\xE9l\xE9r\xE9", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
-    if (game.skills.includes("dernier_rempart") && !game.perks().lastStand) list.push({ id: "rempart", name: "Dernier rempart", detail: "Pr\xEAt : un coup qui vous tuerait vous laissera \xE0 1 PV (une fois par \xE9tage)." });
+    const rampart = game.rank("dernier_rempart");
+    if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
+      list.push({ id: "rempart", name: "Dernier rempart", detail: `Pr\xEAt : un coup qui vous tuerait vous laissera \xE0 ${rampart >= 2 ? 5 : 1} PV.` });
+    }
     return list;
   }
   var ALARM_NAMES = ["calme", "agit\xE9", "alerte", "traque"];
@@ -15920,39 +16298,49 @@
       $("char-powers-title").hidden = true;
     } else {
       const path = PATHS[game.voie];
-      const main = el("div", "skill-card main owned");
-      const body = el("div", "");
-      const uses = game.voie === "blue" ? game.perks().secondWind ? " (d\xE9j\xE0 utilis\xE9 \xE0 cet \xE9tage)" : " (pr\xEAt)" : game.voie === "red" ? ` (${game.perks().doubleStrikes} \xE0 cet \xE9tage)` : "";
-      body.append(el("b", "", path.name), document.createTextNode(path.description + uses));
-      main.append(buildIcon(PATH_ICONS[path.id]), body);
-      pathCards.push(main);
-      $("char-powers-title").hidden = false;
-      const picks = game.secondaryPicks();
-      path.secondaries.forEach((sk) => {
-        const owned = game.skills.includes(sk.id);
-        const picked = pickedChoice?.kind === "skill" && pickedChoice.id === sk.id;
-        const available = !owned && picks > 0;
-        const card = el("div", `skill-card${owned ? " owned" : ""}${picked ? " picked" : ""}${!owned && !available ? " locked" : ""}`);
-        card.append(el("b", "", sk.name), document.createTextNode(sk.description));
-        if (owned) card.append(el("div", "", "Acquis"));
-        else if (!available) card.append(el("div", "", `Niveau ${SECONDARY_LEVELS[Math.min(game.skills.length, SECONDARY_LEVELS.length - 1)]}`));
-        if (available) {
-          card.addEventListener("click", () => {
-            sfx.play("click");
-            pickedChoice = { kind: "skill", id: sk.id };
-            renderCharacter();
-          });
+      const points = game.pathPoints();
+      const powerCard = (pw, main) => {
+        const r = game.rank(pw.id);
+        const card = el("div", `skill-card${main ? " main" : ""}${r > 0 ? " owned" : ""}`);
+        const body = el("div", "");
+        const now = r > 0 ? pw.ranks[r - 1] : "Pas encore pris";
+        const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
+        body.append(el("b", "", `${pw.name} ${r}/${MAX_RANK}`), el("div", "rank-now", now), el("div", "rank-next", next));
+        if (main) {
+          const uses = game.voie === "blue" ? ` (${powerCharges()} \xE0 cet \xE9tage)` : ` (${game.perks().doubleStrikes} \xE0 cet \xE9tage)`;
+          body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));
+          card.append(buildIcon(PATH_ICONS[path.id]));
         }
-        powerCards.push(card);
-      });
-      if (picks > 0) note = `${picks} pouvoir${picks > 1 ? "s" : ""} \xE0 choisir`;
+        card.append(body);
+        if (points > 0 && r < MAX_RANK) {
+          const plus = el("button", "plus rank-plus");
+          plus.type = "button";
+          plus.setAttribute("aria-label", `Am\xE9liorer ${pw.name}`);
+          plus.append(plusIcon());
+          if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
+          plus.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            sfx.play("click");
+            if (game.improve(pw.id)) logLines.push(`${pw.name} : rang ${game.rank(pw.id)}.`);
+            else if (game.inCombat()) logLines.push("Pas pendant un combat : \xE9loignez-vous d'abord des ennemis.");
+            renderLog();
+            renderHeroScreen();
+          });
+          card.append(plus);
+        }
+        return card;
+      };
+      pathCards.push(powerCard(path.main, true));
+      $("char-powers-title").hidden = false;
+      path.secondaries.forEach((pw) => powerCards.push(powerCard(pw, false)));
+      if (points > 0) note = `${points} point${points > 1 ? "s" : ""} de voie \xE0 placer${game.inCombat() ? " (pas en combat)" : ""}`;
     }
     $("char-path").replaceChildren(...pathCards);
     $("char-path").classList.toggle("choose", !game.voie);
     $("char-skills").replaceChildren(...powerCards);
     $("char-note").textContent = note;
     confirm.hidden = pickedChoice === null;
-    confirm.textContent = pickedChoice?.kind === "path" ? "Choisir cette voie (d\xE9finitif)" : "Choisir ce pouvoir";
+    confirm.textContent = "Choisir cette voie (d\xE9finitif)";
   }
   function throwCells(uid) {
     const cells = [];

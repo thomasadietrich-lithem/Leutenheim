@@ -11,8 +11,8 @@ import { RULES } from "./data/rules";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
-import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
-import { PATH_LEVEL, PATHS, PathId, SECONDARY_LEVELS, SkillId, StatId } from "./data/skills";
+import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
+import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
@@ -295,7 +295,8 @@ function startRoll(e: GameEvent): void {
   dieWho.className = mode === "normal" ? "" : mode;
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
-  if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
+  if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
+  else if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
   // Corps à corps : l'élan et la lame partent tout de suite, pendant que le dé roule.
   if (e.type === "attack" && !e.ranged) {
     renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
@@ -306,7 +307,7 @@ function startRoll(e: GameEvent): void {
       const good = (mode === "advantage") !== foe;
       renderer.addFloatingText(e.attacker.x, e.attacker.y, mode === "advantage" ? "Avantage !" : "Désavantage", good ? "#ffd75e" : "#ff6b7a");
     }
-    if (e.ranged) sfx.play("bow");
+    if (e.ranged && !foe) sfx.play("bow");
   }
 }
 
@@ -393,10 +394,15 @@ function reveal(e: GameEvent): void {
     // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
   } else if (e.type === "xp") {
     renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
-    pulse(xpBar, "gain");
+    // Billes d'expérience (Thomas, 2026-11-11) : elles quittent le monstre vaincu et filent vers la jauge.
+    if (lastKill) xpOrbs(lastKill, e.amount);
+    else pulse(xpBar, "gain");
+    lastKill = null;
   } else if (e.type === "levelup") {
     shownHp = game.hero.hp;
     sfx.play("heal");
+  } else if (e.type === "trapDodged") {
+    renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");
   } else if (e.type === "boss" && e.what === "dead") {
     // Thomas (2026-11-11) : la démo s'arrête après la Tisseuse ; on peut continuer à explorer la nichée.
     setTimeout(showDemoEnd, 900);
@@ -409,6 +415,7 @@ function reveal(e: GameEvent): void {
     } else {
       ghosts = ghosts.filter((g) => g !== e.actor);
       renderer.monsterDies(e.actor);
+      lastKill = { x: e.actor.x + ((e.actor.size ?? 1) - 1) / 2, y: e.actor.y + ((e.actor.size ?? 1) - 1) / 2 };
       sfx.play("kill");
     }
   } else if (e.type === "noise") {
@@ -537,6 +544,41 @@ function showDemoEnd(): void {
   });
   over.append(stay, again);
   over.hidden = false;
+}
+
+/** Dernier monstre vaincu (sa case) : c'est de là que partent les billes d'expérience. */
+let lastKill: { x: number; y: number } | null = null;
+
+/** Billes d'expérience : de petites perles bleues qui partent du monstre et volent jusqu'à la jauge, qui s'allume. */
+function xpOrbs(cell: { x: number; y: number }, amount: number): void {
+  const box = canvas.getBoundingClientRect();
+  const c = renderer.tileCenter(cell.x, cell.y);
+  const bar = xpBar.getBoundingClientRect();
+  const count = Math.max(3, Math.min(8, amount));
+  for (let i = 0; i < count; i++) {
+    const orb = document.createElement("div");
+    orb.className = "xp-orb";
+    const sx = box.left + c.x + (Math.random() - 0.5) * 18;
+    const sy = box.top + c.y + (Math.random() - 0.5) * 18;
+    const tx = bar.left + bar.width * (0.25 + Math.random() * 0.5);
+    const ty = bar.top + bar.height / 2;
+    orb.style.left = `${sx}px`;
+    orb.style.top = `${sy}px`;
+    document.body.append(orb);
+    const delay = 120 + i * 70;
+    // Un petit saut vers le haut, puis le vol jusqu'à la jauge.
+    orb.animate(
+      [
+        { transform: "translate(0, 0) scale(0.6)", opacity: 0 },
+        { transform: `translate(${(Math.random() - 0.5) * 30}px, -22px) scale(1)`, opacity: 1, offset: 0.25 },
+        { transform: `translate(${tx - sx}px, ${ty - sy}px) scale(0.7)`, opacity: 0.9 },
+      ],
+      { duration: 650, delay, easing: "ease-in", fill: "forwards" },
+    ).onfinish = () => {
+      orb.remove();
+      pulse(xpBar, "gain");
+    };
+  }
 }
 
 function showDeath(): void {
@@ -955,6 +997,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.rarity) rows.push(["Rareté", RARITY_LABELS[def.rarity]]);
   if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
+  if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
   if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
   const stats = el("div", "item-card-stats");
   for (const [label, value] of rows) stats.append(el("span", "", label), el("span", "item-card-value", value));
@@ -976,6 +1019,7 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
+  if (def.acBonus) bits.push(`+${def.acBonus} CA`);
   if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
   if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
   if (def.rarity) bits.push(RARITY_LABELS[def.rarity].toLowerCase());
@@ -985,9 +1029,20 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   return card;
 }
 
+/** Prise d'une arme de corps à corps (Thomas, 2026-11-11) : une paume ou deux, dans le coin de sa case. */
+function gripBadge(id: ItemId): SVGSVGElement | null {
+  const def = ITEMS[id] as ItemDef;
+  if (def.kind !== "melee") return null;
+  const badge = buildIcon(def.twoHanded ? GRIP_ICONS.two : GRIP_ICONS.one);
+  badge.classList.add("grip");
+  return badge;
+}
+
 function itemNode(item: { defId: ItemId; count: number }, className: string): HTMLElement {
   const node = el("div", className);
   node.append(itemIcon(item.defId));
+  const grip = gripBadge(item.defId);
+  if (grip) node.append(grip);
   if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
   return node;
 }
@@ -1005,6 +1060,8 @@ function renderBag(): void {
       const box = el("div", "slot-box");
       if (worn) {
         box.append(itemIcon(worn.defId));
+        const grip = gripBadge(worn.defId);
+        if (grip) box.append(grip);
       } else {
         // Emplacement vide : la silhouette estompée de ce qui s'y porte, à la place d'un nom.
         const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court"), bag: itemIcon("sac_toile") }[slot];
@@ -1175,7 +1232,7 @@ button("bag-equip", () => {
 // ---------- Bouton du pouvoir (voie bleue ou rouge) : picto de la voie et charges restantes, grisé sinon ----------
 let powerShown = "";
 function powerCharges(): number {
-  if (game.voie === "blue") return game.perks().secondWind ? 0 : 1;
+  if (game.voie === "blue") return Math.max(0, game.secondWindUses() - game.perks().secondWind);
   if (game.voie === "red") return game.perks().doubleStrikes;
   return 0;
 }
@@ -1223,8 +1280,6 @@ button("tab-char", () => {
 button("char-confirm", () => {
   if (pickedChoice?.kind === "path") {
     if (game.choosePath(pickedChoice.id)) logLines.push(`Voie choisie : ${PATHS[pickedChoice.id].name}.`);
-  } else if (pickedChoice?.kind === "skill") {
-    if (game.chooseSkill(pickedChoice.id)) logLines.push("Compétence acquise.");
   }
   pickedChoice = null;
   collectEvents();
@@ -1246,7 +1301,10 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
-  if (game.skills.includes("dernier_rempart") && !game.perks().lastStand) list.push({ id: "rempart", name: "Dernier rempart", detail: "Prêt : un coup qui vous tuerait vous laissera à 1 PV (une fois par étage)." });
+  const rampart = game.rank("dernier_rempart");
+  if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
+    list.push({ id: "rempart", name: "Dernier rempart", detail: `Prêt : un coup qui vous tuerait vous laissera à ${rampart >= 2 ? 5 : 1} PV.` });
+  }
   return list;
 }
 
@@ -1322,7 +1380,7 @@ $("status-pop").addEventListener("click", () => {
 
 let heroTab: "inv" | "char" = "inv";
 /** Voie ou compétence touchée, en attente de confirmation (le choix est définitif). */
-let pickedChoice: { kind: "path"; id: PathId } | { kind: "skill"; id: SkillId } | null = null;
+let pickedChoice: { kind: "path"; id: PathId } | null = null;
 
 function renderHeroScreen(): void {
   $("tab-inv").classList.toggle("on", heroTab === "inv");
@@ -1403,40 +1461,51 @@ function renderCharacter(): void {
     note = game.canChoosePath() ? "Choix définitif" : `Voie à choisir au niveau ${PATH_LEVEL}`;
     $("char-powers-title").hidden = true;
   } else {
+    // Voie prise (Thomas, 2026-11-11) : un point de voie par niveau, chaque pouvoir monte jusqu'au rang 3 (« + »).
     const path = PATHS[game.voie];
-    const main = el("div", "skill-card main owned");
-    const body = el("div", "");
-    const uses = game.voie === "blue" ? (game.perks().secondWind ? " (déjà utilisé à cet étage)" : " (prêt)") : game.voie === "red" ? ` (${game.perks().doubleStrikes} à cet étage)` : "";
-    body.append(el("b", "", path.name), document.createTextNode(path.description + uses));
-    main.append(buildIcon(PATH_ICONS[path.id]), body);
-    pathCards.push(main);
-    $("char-powers-title").hidden = false;
-    const picks = game.secondaryPicks();
-    path.secondaries.forEach((sk) => {
-      const owned = game.skills.includes(sk.id);
-      const picked = pickedChoice?.kind === "skill" && pickedChoice.id === sk.id;
-      const available = !owned && picks > 0;
-      const card = el("div", `skill-card${owned ? " owned" : ""}${picked ? " picked" : ""}${!owned && !available ? " locked" : ""}`);
-      card.append(el("b", "", sk.name), document.createTextNode(sk.description));
-      if (owned) card.append(el("div", "", "Acquis"));
-      else if (!available) card.append(el("div", "", `Niveau ${SECONDARY_LEVELS[Math.min(game.skills.length, SECONDARY_LEVELS.length - 1)]}`));
-      if (available) {
-        card.addEventListener("click", () => {
-          sfx.play("click");
-          pickedChoice = { kind: "skill", id: sk.id };
-          renderCharacter();
-        });
+    const points = game.pathPoints();
+    const powerCard = (pw: PowerDef, main: boolean): HTMLElement => {
+      const r = game.rank(pw.id);
+      const card = el("div", `skill-card${main ? " main" : ""}${r > 0 ? " owned" : ""}`);
+      const body = el("div", "");
+      const now = r > 0 ? pw.ranks[r - 1] : "Pas encore pris";
+      const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
+      body.append(el("b", "", `${pw.name} ${r}/${MAX_RANK}`), el("div", "rank-now", now), el("div", "rank-next", next));
+      if (main) {
+        const uses = game.voie === "blue" ? ` (${powerCharges()} à cet étage)` : ` (${game.perks().doubleStrikes} à cet étage)`;
+        body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));
+        card.append(buildIcon(PATH_ICONS[path.id]));
       }
-      powerCards.push(card);
-    });
-    if (picks > 0) note = `${picks} pouvoir${picks > 1 ? "s" : ""} à choisir`;
+      card.append(body);
+      if (points > 0 && r < MAX_RANK) {
+        const plus = el("button", "plus rank-plus") as HTMLButtonElement;
+        plus.type = "button";
+        plus.setAttribute("aria-label", `Améliorer ${pw.name}`);
+        plus.append(plusIcon());
+        if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
+        plus.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          sfx.play("click");
+          if (game.improve(pw.id)) logLines.push(`${pw.name} : rang ${game.rank(pw.id)}.`);
+          else if (game.inCombat()) logLines.push("Pas pendant un combat : éloignez-vous d'abord des ennemis.");
+          renderLog();
+          renderHeroScreen();
+        });
+        card.append(plus);
+      }
+      return card;
+    };
+    pathCards.push(powerCard(path.main, true));
+    $("char-powers-title").hidden = false;
+    path.secondaries.forEach((pw) => powerCards.push(powerCard(pw, false)));
+    if (points > 0) note = `${points} point${points > 1 ? "s" : ""} de voie à placer${game.inCombat() ? " (pas en combat)" : ""}`;
   }
   $("char-path").replaceChildren(...pathCards);
   $("char-path").classList.toggle("choose", !game.voie);
   $("char-skills").replaceChildren(...powerCards);
   $("char-note").textContent = note;
   confirm.hidden = pickedChoice === null;
-  confirm.textContent = pickedChoice?.kind === "path" ? "Choisir cette voie (définitif)" : "Choisir ce pouvoir";
+  confirm.textContent = "Choisir cette voie (définitif)";
 }
 
 /** Cases où l'on peut lancer une potion : en vue, à portée. */

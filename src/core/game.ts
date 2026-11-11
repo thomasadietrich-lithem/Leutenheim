@@ -1,14 +1,14 @@
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
-import { PATH_LEVEL, PathId, PATHS, SECONDARY_LEVELS, SkillId, StatId } from "../data/skills";
+import { MAX_RANK, PATH_LEVEL, PathId, PATHS, PowerId, StatId } from "../data/skills";
 import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
 import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
-import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
+import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
@@ -30,6 +30,15 @@ export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
 
 /** Ce qui s'est passé pendant un tour, pour que l'affichage puisse le montrer. */
+/** Ce qui ne sert qu'un nombre limité de fois par étage : second souffle et dernier rempart (fois déjà utilisés),
+ * doubles frappes qui restent, doubles frappes rendues par « Enchaînement ». */
+export interface FloorPerks {
+  secondWind: number;
+  doubleStrikes: number;
+  lastStand: number;
+  chainRefunds: number;
+}
+
 export class Game {
   depth = 0;
   turn = 0;
@@ -75,9 +84,10 @@ export class Game {
   alloc: Record<StatId, number> = { vie: 0, force: 0, agilite: 0, intelligence: 0, charisme: 0 };
   /** Voie choisie (définitive) et compétences secondaires prises. */
   voie: PathId | null = null;
-  skills: SkillId[] = [];
+  /** Rang de chaque pouvoir de la voie (0 : pas pris ; 1 à 3). Le principal est au rang 1 dès le choix de la voie. */
+  ranks: Partial<Record<PowerId, number>> = {};
   /** Ce qui ne sert qu'une fois (ou trois) par étage, étage par étage. */
-  floorPerks: Record<number, { secondWind: boolean; doubleStrikes: number; lastStand: boolean }> = {};
+  floorPerks: Record<number, FloorPerks> = {};
   /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
   weaponPoison = 0;
   hasteTurns = 0;
@@ -354,6 +364,11 @@ export class Game {
     return this.sandbox ? depth === 2 : (RULES.bossDepths as readonly number[]).includes(depth);
   }
 
+  /** Le plan de la nichée (étage du boss), pour le dessin des amarres. */
+  bossLayout(): { hub: Point; pillars: Point[] } | undefined {
+    return this.current.boss;
+  }
+
   /** Le boss de l'étage, s'il vit encore. */
   bossActor(): Actor | undefined {
     return this.monsters.find((m) => !!m.boss);
@@ -424,6 +439,8 @@ export class Game {
     if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
     // Du sang (Thomas : « pense au sang ») : rouge pour la proie du cocon, vert pour les œufs.
     if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "green" : "red");
+    // Les œufs écrasés laissent leurs coquilles et une flaque au sol (Thomas).
+    if (f.kind === "eggSac") this.current.furniture.push({ x: f.x, y: f.y, kind: "eggSmash" });
     const queen = this.bossActor();
     if (queen?.boss) queen.boss.target = { x: this.hero.x, y: this.hero.y };
     if (f.kind === "anchor") this.checkHub();
@@ -579,6 +596,7 @@ export class Game {
       for (const sac of sacs) {
         this.current.furniture = this.current.furniture.filter((o) => o !== sac);
         this.map.set(sac.x, sac.y, Tile.Floor);
+        this.current.furniture.push({ x: sac.x, y: sac.y, kind: "eggSmash" });
         const young = this.newMonster(MONSTERS.araignee, sac.x, sac.y, false);
         young.alerted = true;
         young.fromX = young.x;
@@ -841,6 +859,16 @@ export class Game {
     if (!trap) return;
     const kind = trap.kind ?? "spikes";
     const def = TRAPS[kind];
+    // Agilité (Thomas, 2026-11-11) : le héros qui marche sur un piège peut l'éviter d'un bond (d20 + agilité).
+    if (actor.kind === "hero") {
+      const d20 = this.rng.int(1, 20);
+      const bonus = this.alloc.agilite;
+      if (d20 !== 1 && (d20 === 20 || d20 + bonus >= RULES.trapDodgeDc)) {
+        if (kind === "pit") trap.sprung = true;
+        this.events.push({ type: "trapDodged", x: actor.x, y: actor.y, kind, d20, bonus });
+        return;
+      }
+    }
     const damage = def.damage ? rollDice(this.rng, def.damage) : 0;
     this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage, kind });
     if (kind === "pit") trap.sprung = true;
@@ -1068,7 +1096,8 @@ export class Game {
       points: this.points,
       alloc: this.alloc,
       voie: this.voie,
-      skills: this.skills,
+      skills: [],
+      ranks: this.ranks,
       floorPerks: this.floorPerks,
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
@@ -1141,8 +1170,19 @@ export class Game {
     game.alloc = { intelligence: 0, charisme: 0, ...saved.alloc };
     // La voie verte a été retirée : une ancienne partie qui l'avait prise peut choisir à nouveau.
     game.voie = saved.voie && saved.voie in PATHS ? (saved.voie as PathId) : null;
-    game.skills = (saved.skills as SkillId[]).filter((id) => Object.values(PATHS).some((p) => p.secondaries.some((sk) => sk.id === id)));
-    game.floorPerks = saved.floorPerks;
+    // Voies à rangs (2026-11-11) : une ancienne partie garde ses pouvoirs au rang 1.
+    const known = (id: string) => game.voie !== null && [PATHS[game.voie].main, ...PATHS[game.voie].secondaries].some((pw) => pw.id === id);
+    game.ranks = {};
+    if (saved.ranks) for (const [id, r] of Object.entries(saved.ranks)) if (known(id)) game.ranks[id as PowerId] = r;
+    else if (game.voie) {
+      game.ranks[PATHS[game.voie].main.id] = 1;
+      for (const id of saved.skills) if (known(id)) game.ranks[id as PowerId] = 1;
+    }
+    game.floorPerks = {};
+    for (const [d, pk] of Object.entries(saved.floorPerks ?? {})) {
+      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number };
+      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0 };
+    }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
     game.inventory.cols = saved.bagSize.cols;
@@ -1294,7 +1334,14 @@ export class Game {
     const base = melee?.damage ?? UNARMED.damage;
     this.hero.damage = { ...base, bonus: base.bonus + this.alloc.force };
     const armor = this.equipment.armor;
-    this.hero.armorClass = ((armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC) + (this.skills.includes("peau_dure") ? 1 : 0);
+    // Classe d'armure : l'armure, le casque, la peau dure, et l'ESQUIVE (Thomas, 2026-11-11 : +1 tous les 2 points
+    // d'agilité).
+    const hat = this.equipment.hat;
+    this.hero.armorClass =
+      ((armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC) +
+      ((hat && (ITEMS[hat.defId] as ItemDef).acBonus) || 0) +
+      this.rank("peau_dure") +
+      Math.floor(this.alloc.agilite / RULES.agilityPerDodge);
   }
 
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
@@ -1435,8 +1482,21 @@ export class Game {
   // ---------- Points, voie, compétences ----------
 
   /** Ce qui ne sert qu'un nombre limité de fois sur l'étage courant. */
-  perks(): { secondWind: boolean; doubleStrikes: number; lastStand: boolean } {
-    return (this.floorPerks[this.depth] ??= { secondWind: false, doubleStrikes: RULES.doubleStrikesPerFloor, lastStand: false });
+  perks(): FloorPerks {
+    return (this.floorPerks[this.depth] ??= { secondWind: 0, doubleStrikes: this.rank("double_frappe"), lastStand: 0, chainRefunds: 0 });
+  }
+
+  /** Rang d'un pouvoir (0 si on ne l'a pas). */
+  rank(id: PowerId): number {
+    return this.ranks[id] ?? 0;
+  }
+
+  /** Second souffle : PV rendus et fois par étage, selon le rang. */
+  secondWindHeal(): number {
+    return RULES.secondWindHeal[Math.max(0, this.rank("second_souffle") - 1)];
+  }
+  secondWindUses(): number {
+    return this.rank("second_souffle") >= MAX_RANK ? 2 : 1;
   }
 
   /** Place un point dans une caractéristique (ne prend pas de tour). */
@@ -1472,33 +1532,41 @@ export class Game {
   choosePath(id: PathId): boolean {
     if (!this.canChoosePath()) return false;
     this.voie = id;
+    this.ranks = { [PATHS[id].main.id]: 1 };
+    // La double frappe de l'étage en cours devient disponible tout de suite.
+    if (id === "red") this.perks().doubleStrikes = Math.max(this.perks().doubleStrikes, 1);
     this.events.push({ type: "path", path: id });
     return true;
   }
 
-  /** Compétences secondaires qu'on peut encore prendre (une par palier atteint). */
-  secondaryPicks(): number {
+  /** Points de voie à placer : un par niveau après celui où l'on a choisi sa voie (le rang 1 du principal est offert). */
+  pathPoints(): number {
     if (!this.voie) return 0;
-    return SECONDARY_LEVELS.filter((l) => this.level >= l).length - this.skills.length;
+    const spent = Object.values(this.ranks).reduce((n, r) => n + (r ?? 0), 0) - 1;
+    return Math.max(0, this.level - PATH_LEVEL - spent);
   }
 
-  chooseSkill(id: SkillId): boolean {
-    if (!this.voie || this.secondaryPicks() <= 0 || this.skills.includes(id)) return false;
-    if (!PATHS[this.voie].secondaries.some((sk) => sk.id === id)) return false;
-    this.skills.push(id);
+  /** Améliorer un pouvoir de sa voie d'un rang (ne prend pas de tour ; pas en plein combat). */
+  improve(id: PowerId): boolean {
+    if (!this.voie || this.pathPoints() <= 0 || this.inCombat()) return false;
+    const path = PATHS[this.voie];
+    if (![path.main, ...path.secondaries].some((pw) => pw.id === id) || this.rank(id) >= MAX_RANK) return false;
+    this.ranks[id] = this.rank(id) + 1;
+    // Une double frappe de plus tout de suite, sur l'étage en cours.
+    if (id === "double_frappe") this.perks().doubleStrikes++;
     this.refreshStats();
     return true;
   }
 
   /** Quelque chose attend le joueur dans l'écran du héros (le « ! » doré). */
   hasPendingChoice(): boolean {
-    return this.points > 0 || this.canChoosePath() || this.secondaryPicks() > 0;
+    return this.points > 0 || this.canChoosePath() || this.pathPoints() > 0;
   }
 
   /** La compétence de voie qui s'utilise (bleue, rouge) ; la verte change « pousser ». Pourquoi c'est impossible, ou null. */
   skillRefusal(): "none" | "used" | "full" | "no-target" | "danger" | null {
     if (this.voie === "blue") {
-      if (this.perks().secondWind) return "used";
+      if (this.perks().secondWind >= this.secondWindUses()) return "used";
       if (this.hero.hp >= this.hero.maxHp) return "full";
       return null;
     }
@@ -1523,8 +1591,8 @@ export class Game {
   private resolveSkill(targetId: number): void {
     if (this.voie === "blue") {
       const before = this.hero.hp;
-      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + RULES.secondWindHeal);
-      this.perks().secondWind = true;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.secondWindHeal());
+      this.perks().secondWind++;
       this.events.push({ type: "skill", path: "blue", healed: this.hero.hp - before });
     } else if (this.voie === "red") {
       const target = this.monsters.find((m) => m.id === targetId);
@@ -1542,9 +1610,10 @@ export class Game {
 
   private hurtHero(damage: number, cause = "ses blessures"): void {
     if (damage <= 0) return;
-    if (this.hero.hp - damage <= 0 && this.skills.includes("dernier_rempart") && !this.perks().lastStand) {
-      this.perks().lastStand = true;
-      this.hero.hp = 1;
+    const rampart = this.rank("dernier_rempart");
+    if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
+      this.perks().lastStand++;
+      this.hero.hp = Math.min(this.hero.maxHp, rampart >= 2 ? 5 : 1);
       this.events.push({ type: "lastStand" });
       return;
     }
@@ -2469,7 +2538,7 @@ export class Game {
       this.resting = 0;
       this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
     } else if (this.resting === 0) {
-      const share = this.skills.includes("recuperation") ? 1 : RULES.restHealShare;
+      const share = [RULES.restHealShare, 0.65, 0.8, 1][this.rank("recuperation")];
       const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * share);
       this.hero.hp += healed;
       this.current.rested = true;
@@ -2762,7 +2831,8 @@ export class Game {
       this.events.push({ type: "door", action, x: door.x, y: door.y, d20: 0, bonus: 0, total: 0, dc: 0, success: true, alerted: 0 });
       return;
     }
-    const bonus = action === "pick" ? this.heroClass.lockpickBonus : this.heroClass.breakBonus;
+    // Crocheter : l'agilité aide (Thomas, 2026-11-11) ; enfoncer : la force.
+    const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.alloc.agilite : this.heroClass.breakBonus + this.alloc.force;
     const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
@@ -2813,9 +2883,9 @@ export class Game {
     // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
     let damageBonus = 0;
     // Rage (voie rouge) : plus de dégâts sous la moitié des PV.
-    if (this.skills.includes("rage") && this.hero.hp * 2 < this.hero.maxHp) damageBonus += RULES.rageBonus;
+    if (this.rank("rage") > 0 && this.hero.hp * 2 < this.hero.maxHp) damageBonus += this.rank("rage");
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
-    const critFrom = this.skills.includes("coup_puissant") ? 19 : 20;
+    const critFrom = 20 - this.rank("coup_puissant");
     const advantaged = this.heroHasAdvantageOn(monster);
     const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom);
     this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
@@ -2841,8 +2911,9 @@ export class Game {
     const wasAlive = this.monsters.includes(monster);
     this.removeIfDead(monster);
     // Enchaînement (voie rouge) : tuer rend une double frappe.
-    if (wasAlive && !this.monsters.includes(monster) && this.skills.includes("enchainement")) {
-      this.perks().doubleStrikes = Math.min(RULES.doubleStrikesPerFloor, this.perks().doubleStrikes + 1);
+    if (wasAlive && !this.monsters.includes(monster) && this.perks().chainRefunds < this.rank("enchainement")) {
+      this.perks().chainRefunds++;
+      this.perks().doubleStrikes = Math.min(this.rank("double_frappe"), this.perks().doubleStrikes + 1);
     }
     // Potion de vitesse : un second coup, s'il reste debout.
     if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
@@ -3039,6 +3110,10 @@ export class Game {
         continue;
       }
 
+      // Kobold frondeur : il tire de loin et garde ses distances (recule, de préférence près d'une colonne ou d'un meuble).
+      const slinger = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).sling;
+      if (slinger && this.slingerAct(m, slinger, distance)) continue;
+
       if (this.inReach(m, this.hero)) {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.
         // Jamais deux avantages de suite sur le héros (Thomas) : après un coup avec avantage, il se reprend.
@@ -3067,6 +3142,61 @@ export class Game {
       for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) if (!this.stepToward(m, this.hero)) break;
       this.faceToward(m, this.hero);
     }
+  }
+
+  /**
+   * Tour d'un tireur (Kobold frondeur, Thomas 2026-11-11) : trop près, il recule d'une case (vers un abri si possible) ;
+   * à portée et en vue, il tire ; sinon il s'approche (renvoie faux : le tour ordinaire d'un monstre s'applique).
+   */
+  private slingerAct(m: Actor, sling: NonNullable<MonsterDef["sling"]>, distance: number): boolean {
+    const hero = this.hero;
+    if (distance < sling.keep) {
+      const away = this.stepAway(m);
+      if (away) {
+        const left = { x: m.x, y: m.y };
+        this.faceToward(m, hero);
+        m.x = away.x;
+        m.y = away.y;
+        this.closeDoorAt(left.x, left.y);
+        return true;
+      }
+      // Acculé : au contact il se défend à la dague, sinon il tire quand même.
+      if (this.inReach(m, hero)) return false;
+    }
+    if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y)) return false;
+    this.faceToward(m, hero);
+    // Le héros caché derrière une colonne ou un meuble, ou dans le noir : la pierre a du mal à l'atteindre.
+    const covered = this.hasCover(hero) && !this.inReach(m, hero);
+    const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, hero, covered ? "disadvantage" : "normal");
+    this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
+    if (result.damage > 0) this.bleed(hero, m);
+    this.raiseAlarm(RULES.alarmCombat, hero);
+    this.hurtHero(result.damage, this.killerName(m));
+    return true;
+  }
+
+  /** Une case voisine qui éloigne le monstre du héros, de préférence collée à un abri (colonne, meuble). */
+  private stepAway(m: Actor): Point | null {
+    const d0 = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
+    let best: Point | null = null;
+    let bestScore = -Infinity;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const x = m.x + dx;
+        const y = m.y + dy;
+        if (!canStep(this.map, m.x, m.y, dx, dy) || this.actorAt(x, y) || this.isTrap(x, y) || this.isBurning(x, y) || this.map.isDoor(x, y)) continue;
+        const d = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
+        if (d <= d0) continue;
+        const shelter = this.hasCover({ x, y }) ? 3 : 0;
+        const score = d * 10 + shelter;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { x, y };
+        }
+      }
+    }
+    return best;
   }
 
   /** Le héros est-il dans l'éventail de regard de ce monstre (devant lui, à moins de `gazeHalfAngle`) ? */

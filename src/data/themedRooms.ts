@@ -172,6 +172,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   anchor: { blocks: false, w: 1, h: 1, burns: false },
   sealedStairs: { blocks: true, w: 1, h: 1, burns: false },
   bonesA: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  // Sac d'œufs écrasé : coquilles et flaque verdâtre (planche art/objets_v4.png).
+  eggSmash: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true },
 };
 

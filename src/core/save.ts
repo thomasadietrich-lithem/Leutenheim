@@ -70,7 +70,9 @@ export interface SaveData {
   alloc: { vie: number; force: number; agilite: number; intelligence?: number; charisme?: number };
   voie: string | null;
   skills: string[];
-  floorPerks: Record<number, { secondWind: boolean; doubleStrikes: number; lastStand: boolean }>;
+  /** Rangs des pouvoirs de la voie (2026-11-11 ; absent des anciennes sauvegardes). */
+  ranks?: Record<string, number>;
+  floorPerks: Record<number, { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number }>;
   weaponPoison: number;
   hasteTurns: number;
   fires: { x: number; y: number; turns: number; gen?: number }[];

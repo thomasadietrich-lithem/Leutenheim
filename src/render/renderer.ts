@@ -6,6 +6,10 @@ import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
+
+/** Kobold frondeur (planche art/frondeur_v1.png) : le dessin du Kobold, jaque de cuir et fronde à la place de la maille et
+ * de la dague. */
+const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, C: "#a87c4a", c: "#6a4a2a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
 import { DORTOIR } from "./sprites/dortoir";
@@ -63,6 +67,8 @@ interface Projectile {
   age: number;
   /** Vrai : la flèche tournoie (après un rebond). */
   tumble: boolean;
+  /** Une pierre de fronde au lieu d'une flèche. */
+  stone?: boolean;
 }
 const PROJECTILE_MS = 170;
 
@@ -413,7 +419,7 @@ export class Renderer {
     // ambré s'il ne vous a pas vu, rouge s'il vous traque. Pas de regard quand il dort.
     if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
     // Le profil « touché » regarde à droite : on le retourne s'il regarde à gauche, comme les autres profils.
-    this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
+    this.drawMonsterSprite(rows, cx, cy, facing === "left", true, m.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE);
   }
 
   /** La Tisseuse (planche art/boss_v2.png) : repos, marche, morsure ; renversée sur le dos quand sa grande toile tombe. */
@@ -456,6 +462,52 @@ export class Renderer {
     ctx.drawImage(this.sprite(rows, palette), Math.round(-w / 2), Math.round(cy + tile - h), Math.round(w), Math.round(h));
     ctx.restore();
     ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /**
+   * Amarres de la grande toile (planche art/objets_v4.png, Thomas : « la toile sur les poteaux devrait être tendue entre
+   * eux ») : un fil épais tendu de chaque colonne jusqu'au centre de la grande toile ; une amarre coupée pend, effilochée.
+   */
+  private drawAnchorThreads(game: Game, ox: number, oy: number): void {
+    const layout = game.bossLayout();
+    if (!layout) return;
+    const furniture = game.furnitureList();
+    if (!furniture.some((f) => f.kind.startsWith("webHub"))) return;
+    const { ctx, tile } = this;
+    const hx = ox + (layout.hub.x + 1.5) * tile;
+    const hy = oy + (layout.hub.y + 1.5) * tile;
+    ctx.save();
+    ctx.lineCap = "round";
+    for (const p of layout.pillars) {
+      if (!game.isExplored(p.x, p.y)) continue;
+      const px = ox + (p.x + 0.5) * tile;
+      const py = oy + (p.y + 0.5) * tile;
+      const intact = furniture.some((f) => f.kind === "anchor" && f.x === p.x && f.y === p.y);
+      const lit = game.isVisible(p.x, p.y) ? 1 : 0.45;
+      const strand = (x0: number, y0: number, x1: number, y1: number) => {
+        ctx.strokeStyle = `rgba(60,56,50,${0.8 * lit})`;
+        ctx.lineWidth = Math.max(2, tile * 0.14);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(240,236,226,${0.9 * lit})`;
+        ctx.lineWidth = Math.max(1, tile * 0.06);
+        ctx.stroke();
+      };
+      if (intact) strand(px, py, hx, hy);
+      else {
+        // Tranchée : un bout pend de la colonne, l'autre de la toile.
+        const dx = hx - px;
+        const dy = hy - py;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        strand(px, py, px + ux * tile * 0.7, py + uy * tile * 0.7 + tile * 0.25);
+        strand(hx - ux * tile * 1.4, hy - uy * tile * 1.4, hx - ux * tile * 2.1, hy - uy * tile * 2.1 + tile * 0.3);
+      }
+    }
+    ctx.restore();
   }
 
   /** Barre de vie du boss, en haut de la carte, tant que le combat est engagé (Thomas). */
@@ -586,8 +638,8 @@ export class Renderer {
   }
 
   /** Fait voler une flèche d'une case à une autre. */
-  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false): void {
-    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble }); // un âge négatif : elle partira après ce délai
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone }); // un âge négatif : elle partira après ce délai
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
@@ -775,6 +827,7 @@ export class Renderer {
     }
 
     this.drawFurniture(game, ox, oy, flicker, "early");
+    this.drawAnchorThreads(game, ox, oy);
 
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
@@ -803,8 +856,19 @@ export class Renderer {
       ctx.lineTo(ox + (torch.x + 0.5 + fx * 0.32) * tile, oy + (torch.y + 0.5 + fy * 0.32) * tile);
       ctx.stroke();
       ctx.lineCap = "butt";
-      // La flamme ne se voit danser que si l'on a la salle sous les yeux.
-      if (!burning) continue;
+      // La flamme ne se voit danser que si l'on a la salle sous les yeux ; dans le brouillard, on en garde la tache ronde,
+      // éteinte et immobile (Thomas : « la torche devient un trait, elle devrait rester ronde »).
+      if (!burning) {
+        ctx.fillStyle = "rgba(150,80,30,0.55)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, tile * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(200,140,60,0.45)";
+        ctx.beginPath();
+        ctx.arc(cx, cy + tile * 0.02, tile * 0.07, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       ctx.fillStyle = "#ff8a2a";
       ctx.beginPath();
       ctx.arc(cx, cy, tile * 0.16 * flicker, 0, Math.PI * 2);
@@ -923,7 +987,7 @@ export class Renderer {
         oy + (c.actor.y + 0.5) * tile,
         c.facing === "left",
         false,
-        spider ? ARAIGNEE.dead.palette : SCHRAT_PALETTE,
+        spider ? ARAIGNEE.dead.palette : c.actor.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE,
       );
       ctx.globalAlpha = 1;
     }
@@ -943,7 +1007,7 @@ export class Renderer {
         this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
-      if (m.defId === "schrat" || m.defId === "araignee") {
+      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur") {
         const advantage = game.heroHasAdvantageOn(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.
@@ -1133,6 +1197,16 @@ export class Renderer {
       const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
       const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
       const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+      if (p.stone) {
+        // Pierre de fronde : un petit caillou gris qui file, en arc léger.
+        const lift = Math.sin(t * Math.PI) * tile * 0.35;
+        const r = Math.max(2, tile * 0.09);
+        ctx.fillStyle = "#120d08";
+        ctx.fillRect(Math.round(px - r - 1), Math.round(py - lift - r - 1), Math.round(r * 2 + 2), Math.round(r * 2 + 2));
+        ctx.fillStyle = "#a4abc8";
+        ctx.fillRect(Math.round(px - r), Math.round(py - lift - r), Math.round(r * 2), Math.round(r * 2));
+        continue;
+      }
       // En vol, la pointe suit la trajectoire ; après un rebond, la flèche tournoie en retombant.
       if (!p.tumble) {
         // Traînée claire derrière la flèche : on lit d'un coup d'œil d'où elle vient.

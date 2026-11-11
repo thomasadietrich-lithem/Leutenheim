@@ -40,6 +40,8 @@ export type GameEvent =
   | { type: "furnitureFire"; x: number; y: number; kind: string }
   | { type: "web"; escaped: boolean; roll: number; bonus: number }
   | { type: "webbed"; by: Actor }
+  /** Le héros évite d'un bond un piège qu'il vient de déclencher (agilité). */
+  | { type: "trapDodged"; x: number; y: number; kind: string; d20: number; bonus: number }
   /** Nichée : une nappe de toile (ou la grande toile) ralentit le héros. */
   | { type: "webSlow"; hub: boolean }
   /** Nichée : un cocon ou un sac d'œufs crevé, une amarre tranchée (il en reste `left`). */

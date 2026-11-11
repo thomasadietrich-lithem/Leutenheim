@@ -1,6 +1,6 @@
 /**
  * Arbre de compétences du Guerrier, étage 1 (Thomas, 2026-11-11 ; secondaires proposées par Claude, validées par « Ok. Tout »).
- * Une voie se choisit au niveau 2, une fois pour toutes ; puis une compétence secondaire de cette voie aux niveaux 4, 6 et 8.
+ * Une voie se choisit au niveau 2, une fois pour toutes ; ensuite un point de voie à chaque niveau (voir PROGRESSION).
  */
 
 /** La voie verte « Bousculade » a été retirée (Thomas, 2026-11-11 : « retire la voie bousculade »). */
@@ -14,51 +14,73 @@ export type SkillId =
   | "enchainement"
   | "rage";
 
+/** Un pouvoir de voie : le principal (celui du bouton) ou un des trois autres. */
+export type PowerId = "second_souffle" | "double_frappe" | SkillId;
+
+/** Un pouvoir et ce qu'il fait à chacun de ses trois rangs. */
+export interface PowerDef {
+  id: PowerId;
+  name: string;
+  ranks: [string, string, string];
+}
+
 export interface PathDef {
   id: PathId;
-  /** Nom de la compétence principale. */
+  /** Nom de la voie (celui du pouvoir principal). */
   name: string;
   /** Couleur de la voie (cadre, texte). */
   color: string;
+  /** Ce que fait le pouvoir principal, en une phrase (au rang 1). */
   description: string;
-  secondaries: { id: SkillId; name: string; description: string }[];
+  /** Le pouvoir principal (rang 1 à la prise de la voie), puis les trois autres. */
+  main: PowerDef;
+  secondaries: PowerDef[];
 }
 
+/**
+ * PROGRESSION (Thomas, 2026-11-11 : « un point à chaque niveau, améliorer les pouvoirs à chaque fois, plus faibles au
+ * début ») : la voie se choisit au niveau 2 et donne le rang 1 de son pouvoir principal ; ensuite CHAQUE niveau donne un
+ * point de voie, à mettre dans n'importe quel pouvoir de la voie (3 rangs chacun). Valeurs (C).
+ */
 export const PATHS: Record<PathId, PathDef> = {
   blue: {
     id: "blue",
     name: "Second souffle",
     color: "#4a8fd0",
-    description: "Une fois par étage, en un tour : +10 PV.",
+    description: "Une fois par étage, en un tour : +5 PV. Se renforce.",
+    main: { id: "second_souffle", name: "Second souffle", ranks: ["+5 PV, une fois par étage", "+8 PV, une fois par étage", "+12 PV, deux fois par étage"] },
     secondaries: [
-      { id: "peau_dure", name: "Peau dure", description: "+1 à la classe d'armure." },
-      { id: "recuperation", name: "Récupération", description: "Le repos rend tous les PV manquants, et non la moitié." },
-      { id: "dernier_rempart", name: "Dernier rempart", description: "Une fois par étage, un coup qui vous tuerait vous laisse à 1 PV." },
+      { id: "peau_dure", name: "Peau dure", ranks: ["+1 à la classe d'armure", "+2 à la classe d'armure", "+3 à la classe d'armure"] },
+      { id: "recuperation", name: "Récupération", ranks: ["Le repos rend 65 % des PV manquants", "Le repos rend 80 % des PV manquants", "Le repos rend tous les PV manquants"] },
+      { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse à 1 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (2 fois par étage)"] },
     ],
   },
   red: {
     id: "red",
     name: "Double frappe",
     color: "#d03a44",
-    description: "Trois fois par étage : deux coups d'épée en un seul tour.",
+    description: "Une fois par étage : deux coups d'épée en un seul tour. Se renforce.",
+    main: { id: "double_frappe", name: "Double frappe", ranks: ["Une fois par étage", "Deux fois par étage", "Trois fois par étage"] },
     secondaries: [
-      { id: "coup_puissant", name: "Coup puissant", description: "Coup critique sur 19 ou 20 au corps à corps." },
-      { id: "enchainement", name: "Enchaînement", description: "Tuer un ennemi au corps à corps rend une double frappe (3 au plus)." },
-      { id: "rage", name: "Rage", description: "+2 dégâts au corps à corps sous la moitié de vos PV." },
+      { id: "coup_puissant", name: "Coup puissant", ranks: ["Critique sur 19 ou 20", "Critique sur 18 à 20", "Critique sur 17 à 20"] },
+      { id: "enchainement", name: "Enchaînement", ranks: ["Tuer rend une double frappe (1 par étage)", "Tuer rend une double frappe (2 par étage)", "Tuer rend une double frappe (3 par étage)"] },
+      { id: "rage", name: "Rage", ranks: ["+1 dégât sous la moitié des PV", "+2 dégâts sous la moitié des PV", "+3 dégâts sous la moitié des PV"] },
     ],
   },
 };
 
-/** Niveau où l'on choisit sa voie, et niveaux qui donnent une compétence secondaire. */
+/** Rang le plus haut d'un pouvoir. */
+export const MAX_RANK = 3;
+
+/** Niveau où l'on choisit sa voie (un point de voie à chaque niveau ensuite). */
 export const PATH_LEVEL = 2;
-export const SECONDARY_LEVELS = [4, 6, 8];
 
 /** Caractéristiques où placer les points gagnés à chaque niveau (la fouille est à part). */
 export type StatId = "vie" | "force" | "agilite" | "intelligence" | "charisme";
 export const STAT_LABELS: Record<StatId, { name: string; hint: string }> = {
   vie: { name: "Vie", hint: "+4 PV max" },
   force: { name: "Force", hint: "pousser, dégâts au contact" },
-  agilite: { name: "Agilité", hint: "se dégager, tir à l'arc" },
+  agilite: { name: "Agilité", hint: "esquive, tir, pièges, serrures" },
   // Thomas, 2026-11-11 : viendront les quêtes et les conditions d'objet ; la magie dépendra de l'Intelligence.
   intelligence: { name: "Intelligence", hint: "magie (à venir)" },
   charisme: { name: "Charisme", hint: "quêtes, marchands (à venir)" },

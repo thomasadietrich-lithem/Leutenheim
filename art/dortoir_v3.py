@@ -189,3 +189,44 @@ if __name__ == "__main__":
         x += bw + 12
     sheet.save("art/dortoir_v3.png")
     print(sheet.size)
+
+
+def export_ts():
+    """Écrit src/render/sprites/dortoir.ts : chaque meuble en lignes de lettres + sa palette (validé le 2026-11-11)."""
+    import json as _json
+    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    sprites = {
+        "bunkA": bunk_v3(1).img(), "bunkB": bunk_v3(2).img(),
+        "table0": table_v3(0).img(), "table1": table_v3(1).img(), "table2": table_v3(2).img(),
+        "chairR": chair("right").img(), "chairL": chair("left").img(), "chairFallen": chair_fallen().img(),
+        "rug": shabby_rug(-17), "rugB": shabby_rug(14),
+    }
+    out = ["// FICHIER GÉNÉRÉ par art/dortoir_v3.py (export_ts) : ne pas modifier à la main.",
+           "/** Meubles du dortoir des Schrats (planche art/dortoir_v3.png, validée le 2026-11-11). Une palette par dessin. */",
+           "export const DORTOIR: Record<string, { rows: string[]; palette: Record<string, string> }> = {"]
+    for name, im in sprites.items():
+        a = np.array(im.convert("RGBA"))
+        pal, rows = {}, []
+        for y in range(a.shape[0]):
+            row = ""
+            for x in range(a.shape[1]):
+                r, g, b, al = a[y, x]
+                if al < 128:
+                    row += "."
+                    continue
+                key = "#%02x%02x%02x" % (r, g, b)
+                if key not in pal:
+                    pal[key] = letters[len(pal)]
+                row += pal[key]
+            rows.append(row)
+        palette = {v: k for k, v in pal.items()}
+        out.append(f"  {name}: {{ palette: {_json.dumps(palette)}, rows: [")
+        out += [f'    "{r}",' for r in rows]
+        out.append("  ] },")
+    out.append("};")
+    open("src/render/sprites/dortoir.ts", "w").write("\n".join(out) + "\n")
+    print("export :", {k: v.size for k, v in sprites.items()})
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export_ts()

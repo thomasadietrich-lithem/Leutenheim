@@ -1,17 +1,20 @@
 import { Rng } from "../core/rng";
 import { RULES } from "../data/rules";
-import { THEMED_ROOMS, ThemedRoomDef } from "../data/themedRooms";
+import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Floor, Room } from "./generator";
 import { GameMap, Point, Tile } from "./map";
 
-/** Un meuble posé sur une case (qu'on ne traverse pas, mais qui ne cache pas la vue). */
+/**
+ * Un meuble : `x`, `y` = sa case en haut à gauche ; il couvre `FURNITURE_KINDS[kind].w × h` cases. Ceux qui bloquent
+ * transforment leurs cases en `Tile.Furniture` (on ne passe pas, la vue passe) ; les chaises debout et le tapis non.
+ */
 export interface Furniture {
   x: number;
   y: number;
   kind: string;
 }
 
-/** Une salle de fouille : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */
+/** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */
 export interface RoomTheme {
   room: number;
   id: string;
@@ -37,80 +40,150 @@ function reachable(map: GameMap, from: Point): number {
   return count;
 }
 
+/** Les cases couvertes par un meuble. */
+export function furnitureCells(f: Furniture): Point[] {
+  const k = FURNITURE_KINDS[f.kind] ?? { w: 1, h: 1 };
+  const out: Point[] = [];
+  for (let dy = 0; dy < k.h; dy++) for (let dx = 0; dx < k.w; dx++) out.push({ x: f.x + dx, y: f.y + dy });
+  return out;
+}
+
 /**
- * Cases où poser un meuble : le long d'un mur de la salle, jamais dans un coin ni juste à côté, jamais près d'une
- * ouverture (porte, couloir), de l'escalier ou du point d'arrivée, et seulement entourées de sol ordinaire.
+ * Meuble un DORTOIR de Schrats (planche art/dortoir_v3.png) : 2 à 4 lits superposés contre le mur du haut, une cheminée
+ * sur un mur de côté, un tapis usé posé de travers, une table et 1 à 3 chaises, parfois une chaise renversée.
+ * Aucun meuble qui bloque ne coupe un passage : on vérifie que tout le reste de l'étage reste atteignable.
+ * Rend faux si la salle ne convient pas (rien n'est alors posé).
  */
-function wallSpots(floor: Floor, room: Room): Point[] {
+export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
   const { map } = floor;
-  const spots: Point[] = [];
+  if (room.w < 6 || room.h < 5) return false;
   const inside = (x: number, y: number) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
   for (let y = room.y; y < room.y + room.h; y++) {
-    for (let x = room.x; x < room.x + room.w; x++) {
-      const onEdgeX = x === room.x || x === room.x + room.w - 1;
-      const onEdgeY = y === room.y || y === room.y + room.h - 1;
-      if (onEdgeX === onEdgeY) continue; // milieu de la salle, ou coin
-      // Pas à côté d'un coin : à au moins deux cases des bouts du mur.
-      if (onEdgeY && (x - room.x < 2 || room.x + room.w - 1 - x < 2)) continue;
-      if (onEdgeX && (y - room.y < 2 || room.y + room.h - 1 - y < 2)) continue;
-      if (map.get(x, y) !== Tile.Floor) continue;
-      let ok = true;
-      for (let dy = -1; dy <= 1 && ok; dy++) {
-        for (let dx = -1; dx <= 1 && ok; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          const t = map.get(nx, ny);
-          // Dans la salle : du sol ordinaire. Autour : du mur, sinon c'est une ouverture.
-          if (inside(nx, ny) ? t !== Tile.Floor && t !== Tile.Furniture : t !== Tile.Wall) ok = false;
-          if ((nx === floor.start.x && ny === floor.start.y) || (nx === floor.stairs.x && ny === floor.stairs.y)) ok = false;
-        }
+    for (let x = room.x; x < room.x + room.w; x++) if (map.get(x, y) !== Tile.Floor) return false;
+  }
+  const special = (x: number, y: number) =>
+    (x === floor.start.x && y === floor.start.y) || (x === floor.stairs.x && y === floor.stairs.y);
+  // Une case « près d'une ouverture » : une de ses voisines hors de la salle n'est pas du mur (porte, couloir).
+  const nearOpening = (x: number, y: number) => {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!inside(nx, ny) && map.get(nx, ny) !== Tile.Wall) return true;
       }
-      if (ok) spots.push({ x, y });
     }
-  }
-  return spots;
-}
-
-/** Meuble une salle selon son thème : de `RULES.themedFurnitureMin` à `Max` meubles, sans jamais couper un passage. */
-export function furnishRoom(floor: Floor, room: Room, theme: ThemedRoomDef, rng: Rng, out: Furniture[]): number {
-  const { map } = floor;
-  const wanted = rng.int(RULES.themedFurnitureMin, RULES.themedFurnitureMax);
-  const spots = wallSpots(floor, room);
-  let placed = 0;
+    return false;
+  };
+  const used = new Set<string>();
+  const key = (x: number, y: number) => `${x},${y}`;
   let before = reachable(map, floor.start);
-  while (placed < wanted && spots.length > 0) {
-    const spot = spots.splice(rng.int(0, spots.length - 1), 1)[0];
-    if (map.get(spot.x, spot.y) !== Tile.Floor) continue;
-    // On vérifie que tout le reste de l'étage reste atteignable.
-    map.set(spot.x, spot.y, Tile.Furniture);
-    const after = reachable(map, floor.start);
-    if (after !== before - 1) {
-      map.set(spot.x, spot.y, Tile.Floor);
-      continue;
+  const placed: Furniture[] = [];
+  const tryPlace = (f: Furniture): boolean => {
+    const kind = FURNITURE_KINDS[f.kind];
+    const cells = furnitureCells(f);
+    if (cells.some((c) => !inside(c.x, c.y) || used.has(key(c.x, c.y)) || special(c.x, c.y))) return false;
+    if (kind.blocks) {
+      if (cells.some((c) => nearOpening(c.x, c.y))) return false;
+      for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
+      const after = reachable(map, floor.start);
+      if (after !== before - cells.length) {
+        for (const c of cells) map.set(c.x, c.y, Tile.Floor);
+        return false;
+      }
+      before = after;
     }
-    before = after;
-    // Le premier meuble de chaque genre d'abord, pour que la salle se reconnaisse.
-    const kind = theme.furniture[placed < theme.furniture.length ? placed : rng.int(0, theme.furniture.length - 1)];
-    out.push({ x: spot.x, y: spot.y, kind });
-    placed++;
+    for (const c of cells) used.add(key(c.x, c.y));
+    placed.push(f);
+    return true;
+  };
+
+  // Lits superposés, contre le mur du haut, une case d'écart entre deux lits.
+  const wanted = rng.int(RULES.bunksMin, RULES.bunksMax);
+  let bunks = 0;
+  for (let x = room.x; x + 1 < room.x + room.w && bunks < wanted; ) {
+    if (tryPlace({ x, y: room.y, kind: rng.chance(0.5) ? "bunkA" : "bunkB" })) {
+      bunks++;
+      x += 3;
+    } else x++;
   }
-  return placed;
+  if (bunks < 2) {
+    for (const f of placed) {
+      if (FURNITURE_KINDS[f.kind].blocks) for (const c of furnitureCells(f)) map.set(c.x, c.y, Tile.Floor);
+    }
+    return false;
+  }
+  // La rangée devant les lits reste libre (on doit pouvoir y passer).
+  for (let x = room.x; x < room.x + room.w; x++) used.add(key(x, room.y + 1));
+
+  // Cheminée, au milieu d'un mur de côté, si le mur est plein à cet endroit ; elle remplace une autre cheminée de la salle.
+  const hy = room.y + Math.floor(room.h / 2);
+  for (const side of rng.chance(0.5) ? [-1, 1] : [1, -1]) {
+    const wx = side < 0 ? room.x - 1 : room.x + room.w;
+    const ok = [-1, 0, 1].every((d) => map.get(wx, hy + d) === Tile.Wall) && !floor.torches.some((t) => t.x === wx && t.y === hy);
+    if (!ok) continue;
+    floor.torches = floor.torches.filter(
+      (t) => !(t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h),
+    );
+    floor.torches.push({ x: wx, y: hy, radius: 5, faceX: -side, faceY: 0, hearth: true, lit: true });
+    break;
+  }
+
+  // Table de deux cases, à une case au moins des côtés, avec ses chaises à gauche, à droite ou dessous.
+  const tableSpots: Point[] = [];
+  for (let y = room.y + 2; y < room.y + room.h; y++) {
+    for (let x = room.x + 1; x + 2 < room.x + room.w; x++) tableSpots.push({ x, y });
+  }
+  let table: Furniture | null = null;
+  while (tableSpots.length > 0 && !table) {
+    const p = tableSpots.splice(rng.int(0, tableSpots.length - 1), 1)[0];
+    const f = { x: p.x, y: p.y, kind: "table" };
+    if (tryPlace(f)) table = f;
+  }
+  if (table) {
+    const seats = [
+      { x: table.x - 1, y: table.y, kind: "chairR" },
+      { x: table.x + 2, y: table.y, kind: "chairL" },
+      { x: table.x, y: table.y + 1, kind: "chairR" },
+    ];
+    const wantChairs = rng.int(RULES.chairsMin, RULES.chairsMax);
+    let chairs = 0;
+    for (const s of seats) if (chairs < wantChairs && tryPlace(s)) chairs++;
+  }
+
+  // Le tapis (3 × 2) : sur des cases libres, pas sur la rangée devant les lits.
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const x = rng.int(room.x, room.x + room.w - 3);
+    const y = rng.int(room.y + 2, room.y + room.h - 2);
+    if (tryPlace({ x, y, kind: rng.chance(0.5) ? "rug" : "rugB" })) break;
+  }
+
+  // Une chaise renversée, parfois, qui bloque sa case.
+  if (rng.chance(RULES.fallenChairChance)) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y + 2, room.y + room.h - 1);
+      if (tryPlace({ x, y, kind: "chairFallen" })) break;
+    }
+  }
+  out.push(...placed);
+  return true;
 }
 
-/** Donjon : quelques salles ordinaires deviennent des salles de fouille. Hasard à part, pour ne rien changer au reste. */
+/** Donjon : au plus un dortoir par étage, dans une salle ordinaire assez grande. Hasard à part. */
 export function furnishFloor(floor: Floor, seed: number): { furniture: Furniture[]; themes: RoomTheme[] } {
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
-  const total = THEMED_ROOMS.reduce((sum, t) => sum + t.weight, 0);
-  floor.rooms.forEach((room, index) => {
-    if (index === 0 || room.w < 5 || room.h < 5 || !rng.chance(RULES.themedRoomChance)) return;
-    for (let y = room.y; y < room.y + room.h; y++) {
-      for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Pillar) return;
+  if (!rng.chance(RULES.dortoirChance)) return { furniture, themes };
+  const candidates = floor.rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
+  while (candidates.length > 0) {
+    const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
+    if (furnishDortoir(floor, room, rng, furniture)) {
+      themes.push({ room: index, id: "dortoir" });
+      break;
     }
-    let pick = rng.next() * total;
-    const theme = THEMED_ROOMS.find((t) => (pick -= t.weight) < 0) ?? THEMED_ROOMS[0];
-    if (furnishRoom(floor, room, theme, rng, furniture) > 0) themes.push({ room: index, id: theme.id });
-  });
+  }
   return { furniture, themes };
 }

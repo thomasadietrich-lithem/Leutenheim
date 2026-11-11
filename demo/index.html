@@ -1216,14 +1216,19 @@
     gravelAlarm: 1,
     /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
     gravelDetour: 6,
-    /** Salles de fouille (mobilier v1) : seulement en salle d'essai tant que les dessins ne sont pas validés. */
-    themedRoomsInDungeon: false,
-    /** Chance qu'une salle ordinaire assez grande (5 × 5) devienne une salle de fouille, et nombre de meubles. */
-    themedRoomChance: 0.3,
-    themedFurnitureMin: 2,
-    themedFurnitureMax: 4,
-    /** Chance qu'une salle de fouille cache quelque chose (au pied d'un meuble, butin du thème). */
+    /** Dortoir des Schrats (2026-11-11) : chance qu'un étage en ait un (au plus un), dans une salle d'au moins 6 × 5. */
+    themedRoomsInDungeon: true,
+    dortoirChance: 0.5,
+    /** Lits superposés (contre le mur du haut), chaises autour de la table. */
+    bunksMin: 2,
+    bunksMax: 4,
+    chairsMin: 1,
+    chairsMax: 3,
+    fallenChairChance: 0.5,
+    /** Chance qu'une salle à thème cache quelque chose (au pied d'un meuble, butin du thème). */
     themedSecretChance: 0.75,
+    /** Tapis : marcher dessus étouffe les pas (chance d'être remarqué multipliée par tant) ; il brûle tout entier. */
+    rugNotice: 0.5,
     /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
     pushDc: 10,
     /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
@@ -1939,62 +1944,25 @@
   // src/data/themedRooms.ts
   var THEMED_ROOMS = [
     {
-      id: "garde_manger",
-      name: "Garde-manger",
-      weight: 1,
-      furniture: ["tonneau", "caisse", "sac_grain"],
-      loot: [
-        { item: "pomme", min: 2, max: 4, weight: 4 },
-        { item: "torche", min: 1, max: 1, weight: 1 },
-        { item: "or", min: 4, max: 10, weight: 1 }
-      ]
-    },
-    {
-      id: "ossuaire",
-      name: "Ossuaire",
-      weight: 1,
-      furniture: ["os", "sarcophage"],
-      loot: [
-        { item: "or", min: 10, max: 20, weight: 3 },
-        { item: "amethyste", min: 1, max: 1, weight: 2 },
-        { item: "saphir", min: 1, max: 1, weight: 1 }
-      ]
-    },
-    {
-      id: "bibliotheque",
-      name: "Biblioth\xE8que",
-      weight: 1,
-      furniture: ["etagere", "pupitre"],
-      loot: [
-        { item: "potion_jouvence", min: 1, max: 1, weight: 1 },
-        { item: "potion_vitesse", min: 1, max: 1, weight: 2 },
-        { item: "potion_feu", min: 1, max: 1, weight: 2 },
-        { item: "or", min: 6, max: 12, weight: 2 }
-      ]
-    },
-    {
       id: "dortoir",
       name: "Dortoir",
-      weight: 1,
-      furniture: ["paillasse", "malle"],
       loot: [
         { item: "or", min: 8, max: 16, weight: 3 },
         { item: "pomme", min: 1, max: 2, weight: 2 },
         { item: "sac_cuir", min: 1, max: 1, weight: 1 }
       ]
-    },
-    {
-      id: "forge",
-      name: "Forge",
-      weight: 1,
-      furniture: ["enclume", "etabli", "ratelier"],
-      loot: [
-        { item: "fleche", min: 4, max: 8, weight: 3 },
-        { item: "fleche_poison", min: 2, max: 4, weight: 1 },
-        { item: "potion_poison", min: 1, max: 1, weight: 1 }
-      ]
     }
   ];
+  var FURNITURE_KINDS = {
+    bunkA: { blocks: true, w: 2, h: 1 },
+    bunkB: { blocks: true, w: 2, h: 1 },
+    table: { blocks: true, w: 2, h: 1 },
+    chairR: { blocks: false, w: 1, h: 1 },
+    chairL: { blocks: false, w: 1, h: 1 },
+    chairFallen: { blocks: true, w: 1, h: 1 },
+    rug: { blocks: false, w: 3, h: 2 },
+    rugB: { blocks: false, w: 3, h: 2 }
+  };
 
   // src/world/furnish.ts
   function reachable(map, from) {
@@ -2015,74 +1983,131 @@
     }
     return count;
   }
-  function wallSpots(floor, room) {
+  function furnitureCells(f) {
+    const k = FURNITURE_KINDS[f.kind] ?? { w: 1, h: 1 };
+    const out = [];
+    for (let dy = 0; dy < k.h; dy++) for (let dx = 0; dx < k.w; dx++) out.push({ x: f.x + dx, y: f.y + dy });
+    return out;
+  }
+  function furnishDortoir(floor, room, rng, out) {
     const { map } = floor;
-    const spots = [];
+    if (room.w < 6 || room.h < 5) return false;
     const inside = (x, y) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
     for (let y = room.y; y < room.y + room.h; y++) {
-      for (let x = room.x; x < room.x + room.w; x++) {
-        const onEdgeX = x === room.x || x === room.x + room.w - 1;
-        const onEdgeY = y === room.y || y === room.y + room.h - 1;
-        if (onEdgeX === onEdgeY) continue;
-        if (onEdgeY && (x - room.x < 2 || room.x + room.w - 1 - x < 2)) continue;
-        if (onEdgeX && (y - room.y < 2 || room.y + room.h - 1 - y < 2)) continue;
-        if (map.get(x, y) !== Tile.Floor) continue;
-        let ok = true;
-        for (let dy = -1; dy <= 1 && ok; dy++) {
-          for (let dx = -1; dx <= 1 && ok; dx++) {
-            const nx = x + dx;
-            const ny = y + dy;
-            const t = map.get(nx, ny);
-            if (inside(nx, ny) ? t !== Tile.Floor && t !== Tile.Furniture : t !== Tile.Wall) ok = false;
-            if (nx === floor.start.x && ny === floor.start.y || nx === floor.stairs.x && ny === floor.stairs.y) ok = false;
-          }
+      for (let x = room.x; x < room.x + room.w; x++) if (map.get(x, y) !== Tile.Floor) return false;
+    }
+    const special = (x, y) => x === floor.start.x && y === floor.start.y || x === floor.stairs.x && y === floor.stairs.y;
+    const nearOpening = (x, y) => {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!inside(nx, ny) && map.get(nx, ny) !== Tile.Wall) return true;
         }
-        if (ok) spots.push({ x, y });
       }
-    }
-    return spots;
-  }
-  function furnishRoom(floor, room, theme, rng, out) {
-    const { map } = floor;
-    const wanted = rng.int(RULES.themedFurnitureMin, RULES.themedFurnitureMax);
-    const spots = wallSpots(floor, room);
-    let placed = 0;
+      return false;
+    };
+    const used = /* @__PURE__ */ new Set();
+    const key = (x, y) => `${x},${y}`;
     let before = reachable(map, floor.start);
-    while (placed < wanted && spots.length > 0) {
-      const spot = spots.splice(rng.int(0, spots.length - 1), 1)[0];
-      if (map.get(spot.x, spot.y) !== Tile.Floor) continue;
-      map.set(spot.x, spot.y, Tile.Furniture);
-      const after = reachable(map, floor.start);
-      if (after !== before - 1) {
-        map.set(spot.x, spot.y, Tile.Floor);
-        continue;
+    const placed = [];
+    const tryPlace = (f) => {
+      const kind = FURNITURE_KINDS[f.kind];
+      const cells = furnitureCells(f);
+      if (cells.some((c) => !inside(c.x, c.y) || used.has(key(c.x, c.y)) || special(c.x, c.y))) return false;
+      if (kind.blocks) {
+        if (cells.some((c) => nearOpening(c.x, c.y))) return false;
+        for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
+        const after = reachable(map, floor.start);
+        if (after !== before - cells.length) {
+          for (const c of cells) map.set(c.x, c.y, Tile.Floor);
+          return false;
+        }
+        before = after;
       }
-      before = after;
-      const kind = theme.furniture[placed < theme.furniture.length ? placed : rng.int(0, theme.furniture.length - 1)];
-      out.push({ x: spot.x, y: spot.y, kind });
-      placed++;
+      for (const c of cells) used.add(key(c.x, c.y));
+      placed.push(f);
+      return true;
+    };
+    const wanted = rng.int(RULES.bunksMin, RULES.bunksMax);
+    let bunks = 0;
+    for (let x = room.x; x + 1 < room.x + room.w && bunks < wanted; ) {
+      if (tryPlace({ x, y: room.y, kind: rng.chance(0.5) ? "bunkA" : "bunkB" })) {
+        bunks++;
+        x += 3;
+      } else x++;
     }
-    return placed;
+    if (bunks < 2) {
+      for (const f of placed) {
+        if (FURNITURE_KINDS[f.kind].blocks) for (const c of furnitureCells(f)) map.set(c.x, c.y, Tile.Floor);
+      }
+      return false;
+    }
+    for (let x = room.x; x < room.x + room.w; x++) used.add(key(x, room.y + 1));
+    const hy = room.y + Math.floor(room.h / 2);
+    for (const side of rng.chance(0.5) ? [-1, 1] : [1, -1]) {
+      const wx = side < 0 ? room.x - 1 : room.x + room.w;
+      const ok = [-1, 0, 1].every((d) => map.get(wx, hy + d) === Tile.Wall) && !floor.torches.some((t) => t.x === wx && t.y === hy);
+      if (!ok) continue;
+      floor.torches = floor.torches.filter(
+        (t) => !(t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h)
+      );
+      floor.torches.push({ x: wx, y: hy, radius: 5, faceX: -side, faceY: 0, hearth: true, lit: true });
+      break;
+    }
+    const tableSpots = [];
+    for (let y = room.y + 2; y < room.y + room.h; y++) {
+      for (let x = room.x + 1; x + 2 < room.x + room.w; x++) tableSpots.push({ x, y });
+    }
+    let table = null;
+    while (tableSpots.length > 0 && !table) {
+      const p = tableSpots.splice(rng.int(0, tableSpots.length - 1), 1)[0];
+      const f = { x: p.x, y: p.y, kind: "table" };
+      if (tryPlace(f)) table = f;
+    }
+    if (table) {
+      const seats = [
+        { x: table.x - 1, y: table.y, kind: "chairR" },
+        { x: table.x + 2, y: table.y, kind: "chairL" },
+        { x: table.x, y: table.y + 1, kind: "chairR" }
+      ];
+      const wantChairs = rng.int(RULES.chairsMin, RULES.chairsMax);
+      let chairs = 0;
+      for (const s of seats) if (chairs < wantChairs && tryPlace(s)) chairs++;
+    }
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 3);
+      const y = rng.int(room.y + 2, room.y + room.h - 2);
+      if (tryPlace({ x, y, kind: rng.chance(0.5) ? "rug" : "rugB" })) break;
+    }
+    if (rng.chance(RULES.fallenChairChance)) {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const x = rng.int(room.x, room.x + room.w - 1);
+        const y = rng.int(room.y + 2, room.y + room.h - 1);
+        if (tryPlace({ x, y, kind: "chairFallen" })) break;
+      }
+    }
+    out.push(...placed);
+    return true;
   }
   function furnishFloor(floor, seed) {
     const rng = new Rng(seed ^ 1867128211);
     const furniture = [];
     const themes = [];
-    const total = THEMED_ROOMS.reduce((sum, t) => sum + t.weight, 0);
-    floor.rooms.forEach((room, index) => {
-      if (index === 0 || room.w < 5 || room.h < 5 || !rng.chance(RULES.themedRoomChance)) return;
-      for (let y = room.y; y < room.y + room.h; y++) {
-        for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Pillar) return;
+    if (!rng.chance(RULES.dortoirChance)) return { furniture, themes };
+    const candidates = floor.rooms.map((room, index) => ({ room, index })).filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
+    while (candidates.length > 0) {
+      const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
+      if (furnishDortoir(floor, room, rng, furniture)) {
+        themes.push({ room: index, id: "dortoir" });
+        break;
       }
-      let pick = rng.next() * total;
-      const theme = THEMED_ROOMS.find((t) => (pick -= t.weight) < 0) ?? THEMED_ROOMS[0];
-      if (furnishRoom(floor, room, theme, rng, furniture) > 0) themes.push({ room: index, id: theme.id });
-    });
+    }
     return { furniture, themes };
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 5;
+  var SANDBOX_LAYOUT = 6;
   function buildSandbox() {
     const map = new GameMap(32, 32);
     const carve = (r) => {
@@ -2116,34 +2141,18 @@
     const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
     for (const [x, y] of [[21, 10], [21, 11], [21, 12], [20, 9], [21, 9], [22, 9]]) map.set(x, y, Tile.Gravel);
     for (const [x, y] of [[5, 20], [6, 20], [6, 21], [5, 21]]) map.set(x, y, Tile.Water);
-    map.set(7, 22, Tile.Floor);
-    for (let x = 4; x <= 28; x++) map.set(x, 23, Tile.Floor);
-    const themedRooms = [];
-    for (let i = 0; i < THEMED_ROOMS.length; i++) {
-      const r = { x: 2 + i * 6, y: 25, w: 5, h: 5 };
-      carve(r);
-      map.set(r.x + 2, 24, Tile.Floor);
-      themedRooms.push(r);
-    }
-    const rooms = [start, pillars, combat, patrolRoom, ...themedRooms];
-    const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches: [], specials: [] };
+    const dortoir = { x: 3, y: 24, w: 9, h: 6 };
+    carve(dortoir);
+    for (let y = 20; y <= 27; y++) map.set(13, y, Tile.Floor);
+    map.set(12, 27, Tile.Floor);
+    const rooms = [start, pillars, combat, patrolRoom, dortoir];
+    const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
     const furniture = [];
-    const themes = [];
+    furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
+    const themes = [{ room: 4, id: "dortoir" }];
+    const firstBunk = furniture.find((f) => f.kind.startsWith("bunk"));
     const secrets = [{ x: 22, y: 8, room: 1, item: "or", count: 12 }];
-    for (const r of themedRooms) torches.push({ x: r.x + 2, y: r.y + r.h, radius: 4, faceX: 0, faceY: -1 });
-    const rng = new Rng(4242);
-    themedRooms.forEach((room, i) => {
-      const theme = THEMED_ROOMS[i];
-      const index = 4 + i;
-      const first = furniture.length;
-      furnishRoom(floorPlan, room, theme, rng, furniture);
-      themes.push({ room: index, id: theme.id });
-      const f = furniture[first];
-      if (!f) return;
-      const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: f.x + dx, y: f.y + dy })).find((p) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h && map.get(p.x, p.y) === Tile.Floor);
-      const loot = theme.loot[0];
-      if (spot) secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count: loot.max });
-    });
+    if (firstBunk) secrets.push({ x: firstBunk.x, y: firstBunk.y + 1, room: 4, item: "or", count: 14 });
     return {
       map,
       rooms,
@@ -2151,7 +2160,7 @@
       themes,
       start: { x: 7, y: 6 },
       stairs,
-      torches,
+      torches: floorPlan.torches,
       specials: [
         { room: fountainRoom, kind: fontaine },
         { room: chestRoom, kind: tresor }
@@ -2842,9 +2851,17 @@
       for (const s of plan.secrets) state.secrets.push({ ...s, found: false });
       for (const t of plan.traps) state.traps.push({ ...t });
     }
-    /** Le meuble posé sur cette case (pour le dessin), ou `null`. */
+    /** Le meuble qui couvre cette case, ou `null`. */
     furnitureAt(x, y) {
-      return this.current.furniture.find((f) => f.x === x && f.y === y) ?? null;
+      return this.current.furniture.find((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) ?? null;
+    }
+    /** Les meubles de l'étage courant (pour le dessin). */
+    furnitureList() {
+      return this.current.furniture;
+    }
+    /** Le héros marche sur un tapis : ses pas sont étouffés. */
+    onRug(p = this.hero) {
+      return this.current.furniture.some((f) => f.kind.startsWith("rug") && furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
     }
     /** Le thème de la salle (salle de fouille), ou `null`. */
     roomTheme(index) {
@@ -3336,6 +3353,12 @@
       const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
       const extra = splash[this.rng.int(0, splash.length - 1)];
       const cells = [...cross, extra].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
+      for (const rug of this.current.furniture.filter((f) => f.kind.startsWith("rug"))) {
+        const rugCells = furnitureCells(rug);
+        if (!rugCells.some((r) => cells.some((c) => c.x === r.x && c.y === r.y))) continue;
+        for (const r of rugCells) if (!cells.some((c) => c.x === r.x && c.y === r.y)) cells.push(r);
+        this.current.furniture = this.current.furniture.filter((f) => f !== rug);
+      }
       for (const c of cells) {
         const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
         if (old) old.turns = RULES.fireTurns;
@@ -4345,7 +4368,7 @@
         const distance = Math.max(Math.abs(dx), Math.abs(dy));
         if (!m.alerted) {
           const def = MONSTERS[m.defId];
-          const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) * (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake);
+          const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) * (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake) * (this.onRug() ? RULES.rugNotice : 1);
           const range = this.hidden ? 1 : m.vision;
           if (this.isVisible(m.x, m.y) && distance <= range && this.rng.chance(chance)) {
             m.alerted = true;
@@ -7282,6 +7305,292 @@
     return buildIcon(UI_ICONS[name]);
   }
 
+  // src/render/sprites/dortoir.ts
+  var DORTOIR = {
+    bunkA: { palette: { "a": "#120d08", "b": "#342010", "c": "#8a6238", "d": "#56381c", "e": "#ccb46e", "f": "#786234", "g": "#a88c4c", "h": "#787060", "i": "#5c564a", "j": "#3e3a34", "k": "#704c28", "l": "#1c1622" }, rows: [
+      "..abbba.......................aaa...",
+      "aaabbba......................abbba..",
+      "ccccbba......................abbbaaa",
+      "cdddbbaaaaaaaaaaaaaaaaaaaaaaaabbcccc",
+      "cddddedddedddddededdeedddddbddddcddd",
+      "cdddfgegegefggffggffeffegggfeggfcddd",
+      "cddddgggggggfeeehiihiihiihjihiifcddd",
+      "cddddfgfeggfgegijjjjjijiijjiiijfcddd",
+      "cdddfgeggfeffgggjijjiiijjijjiiidcddd",
+      "cddddgggggfgegfiijiijijiijiiiiifcddd",
+      "cddddegfgeeeegegjijiiijbeijiibedcddd",
+      "cdddfggfgfefgffiijiiiiibejiiibedcddd",
+      "cddddddddbdddddbdddddbdbeddbdbedcddd",
+      "cdddcccccccccccccccccccbeccccbeccddd",
+      "cdddkkkkkbkkkkkkkkkkkkkbeeeeeeekcddd",
+      "cdddkkkkkkkkkkkkkkkkkkbbebbbbbekcddd",
+      "cdddbbbbbbbbbbbbbbbbbbbbebbbbbebcddd",
+      "cdddlllllllllllllllllllbellllbelcddd",
+      "cdddlellellllelllelllllebellebelcddd",
+      "cdddgefegffeggfggfegfeggbeggfbedcddd",
+      "cdddffeggeeggfggefhiihijbeeeibedcddd",
+      "cdddggegggefggfffjiijiiibebbeejdcddd",
+      "cddddefegegfggggggiiiiiibeiibbjfcddd",
+      "cddddggeffggffgggijjjjiibeiibeidcddd",
+      "cdddfgggeefggegefgjiijjjbeiibeifcddd",
+      "cdddccccccccccccccccccccbeccbecccddd",
+      "cdddkkkkkkkkkkbkkkkkkkkkkbeeeekkcddd",
+      "cdddkkkkkkkkkkkkkkkkkkkkkbebbekkcddd",
+      "cdddbbbbbbbbbbbbbbbbbbbbbbebbebbcddd",
+      "cdddbbbaaaaaaaaaaaaaaaaaabeabebbcddd",
+      "cdddbbbaaaaaaaaaaaaaaaaaabeebebbcddd",
+      "cdddbbbllllllllllllllllllbelbebbcddd",
+      "aaallllllllllllllllllllllllllllllaaa",
+      "..alllllllllllllllllllllllllllllla.."
+    ] },
+    bunkB: { palette: { "a": "#120d08", "b": "#342010", "c": "#8a6238", "d": "#56381c", "e": "#ccb46e", "f": "#786234", "g": "#a88c4c", "h": "#787060", "i": "#5c564a", "j": "#3e3a34", "k": "#704c28", "l": "#1c1622" }, rows: [
+      "..abbba.......................aaa...",
+      "aaabbba......................abbba..",
+      "ccccbba......................abbbaaa",
+      "cdddbbaaaaaaaaaaaaaaaaaaaaaaaabbcccc",
+      "cddddedddbddeddedddddedddddededdcddd",
+      "cdddfgggfggfefgffgegfggegggeggedcddd",
+      "cdddfgggffegegggghijhijhiihiihidcddd",
+      "cdddffggegegeggfiiiiiiiiijjijiidcddd",
+      "cdddgffefefggfgffiiijiiiiiiijjigcddd",
+      "cdddfeggefgfggggiijiiiiijiijiiidcddd",
+      "cddddfgfggeeeggefiiijijbeiiiibegcddd",
+      "cddddgggfgfefggeiijjijjbejjiibegcddd",
+      "cddddddddbdddddbdddddbdbeddbdbedcddd",
+      "cdddcccccccccccccccccccbeccccbeccddd",
+      "cdddkkkkkbkkkkkkkkkkkkkbeeeeeeekcddd",
+      "cdddkkkkkkkkkkkkkkkkkkbbebbbbbekcddd",
+      "cdddbbbbbbbbbbbbbbbbbbbbebbbbbebcddd",
+      "cdddlllllllllllllllllllbellllbelcddd",
+      "cdddlelllelllllllellllllbeellbelcddd",
+      "cdddffgfffggfgggffefeggebeeeebedcddd",
+      "cdddfgegeggggfffghiihiihbeeeibefcddd",
+      "cdddgggfffgffffgijiiiijjbebbeeigcddd",
+      "cdddgggggfgggeffgiiiiiiibeiibbjdcddd",
+      "cdddffggeegggggeiiiiiiiibejibeidcddd",
+      "cddddfeffgfgfgfeejijijiibeijbeifcddd",
+      "cdddccccccccccccccccccccbeccbecccddd",
+      "cdddkkkkkkkkkkbkkkkkkkkkkbeeeekkcddd",
+      "cdddkkkkkkkkkkkkkkkkkkkkkbebbekkcddd",
+      "cdddbbbbbbbbbbbbbbbbbbbbbbebbebbcddd",
+      "cdddbbbaaaaaaaaaaaaaaaaaabeabebbcddd",
+      "cdddbbbaaaaaaaaaaaaaaaaaabeebebbcddd",
+      "cdddbbbllllllllllllllllllbelbebbcddd",
+      "aaallllllllllllllllllllllllllllllaaa",
+      "..alllllllllllllllllllllllllllllla.."
+    ] },
+    table0: { palette: { "a": "#120d08", "b": "#ffb040", "c": "#b9824a", "d": "#ff8a2a", "e": "#9a6a34", "f": "#8a90a8", "g": "#ffe08a", "h": "#5a5f74", "i": "#342010", "j": "#7a5230", "k": "#d8c8a0", "l": "#f4f7ff", "m": "#c3cbe0", "n": "#4a2e14", "o": "#1c1622" }, rows: [
+      "..............................",
+      "aaaaaaaaaaaaaaaaaaaaaa..b.aaaa",
+      "cccccccccccccccccccccc.dd.cccc",
+      "eeeeeffffeeeeeeeeeeeee.gd.eeee",
+      "eeeeehhhhheeeeeeeeeeee..i.eeee",
+      "ejjjjhhhhhjjjckkkkkcjj.lm.jjje",
+      "eeeeehhhhheeecccccccee.lm.eeee",
+      "eeeeehhhheeeeccjcjccee.lm.eeee",
+      "ejjjjjjjjjjjjcccccccjjjlmjjjje",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "annnaaaaaaaaaaaaaaaaaaaaaannna",
+      "annna....................annna",
+      "annna....................annna",
+      "annna....................annna",
+      "annnaaaaaaaaaaaaaaaaaaaaaannna",
+      "annnoooooooooooooooooooooonnna",
+      ".aooooooooooooooooooooooooooa."
+    ] },
+    table1: { palette: { "a": "#ffb040", "b": "#120d08", "c": "#ff8a2a", "d": "#b9824a", "e": "#9a6a34", "f": "#8a90a8", "g": "#ffe08a", "h": "#5a5f74", "i": "#342010", "j": "#7a5230", "k": "#d8c8a0", "l": "#f4f7ff", "m": "#c3cbe0", "n": "#4a2e14", "o": "#1c1622" }, rows: [
+      "......................aa......",
+      "bbbbbbbbbbbbbbbbbbbbbbcc..bbbb",
+      "ddddddddddddddddddddddcc..dddd",
+      "eeeeeffffeeeeeeeeeeeeegc..eeee",
+      "eeeeehhhhheeeeeeeeeeee..i.eeee",
+      "ejjjjhhhhhjjjdkkkkkdjj.lm.jjje",
+      "eeeeehhhhheeedddddddee.lm.eeee",
+      "eeeeehhhheeeeddjdjddee.lm.eeee",
+      "ejjjjjjjjjjjjdddddddjjjlmjjjje",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "bnnnbbbbbbbbbbbbbbbbbbbbbbnnnb",
+      "bnnnb....................bnnnb",
+      "bnnnb....................bnnnb",
+      "bnnnb....................bnnnb",
+      "bnnnbbbbbbbbbbbbbbbbbbbbbbnnnb",
+      "bnnnoooooooooooooooooooooonnnb",
+      ".boooooooooooooooooooooooooob."
+    ] },
+    table2: { palette: { "a": "#120d08", "b": "#ffb040", "c": "#b9824a", "d": "#ff8a2a", "e": "#9a6a34", "f": "#8a90a8", "g": "#ffe08a", "h": "#5a5f74", "i": "#342010", "j": "#7a5230", "k": "#d8c8a0", "l": "#f4f7ff", "m": "#c3cbe0", "n": "#4a2e14", "o": "#1c1622" }, rows: [
+      "..............................",
+      "aaaaaaaaaaaaaaaaaaaaaa...baaaa",
+      "cccccccccccccccccccccc..ddcccc",
+      "eeeeeffffeeeeeeeeeeeee..gdeeee",
+      "eeeeehhhhheeeeeeeeeeee..i.eeee",
+      "ejjjjhhhhhjjjckkkkkcjj.lm.jjje",
+      "eeeeehhhhheeecccccccee.lm.eeee",
+      "eeeeehhhheeeeccjcjccee.lm.eeee",
+      "ejjjjjjjjjjjjcccccccjjjlmjjjje",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeelmeeeee",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "annnaaaaaaaaaaaaaaaaaaaaaannna",
+      "annna....................annna",
+      "annna....................annna",
+      "annna....................annna",
+      "annnaaaaaaaaaaaaaaaaaaaaaannna",
+      "annnoooooooooooooooooooooonnna",
+      ".aooooooooooooooooooooooooooa."
+    ] },
+    chairR: { palette: { "a": "#b9824a", "b": "#120d08", "c": "#7a5230", "d": "#4a2e14", "e": "#9a6a34", "f": "#1c1622" }, rows: [
+      "aaab........",
+      "cccb........",
+      "cdcb........",
+      "cdcb........",
+      "cdcb........",
+      "cdcb........",
+      "cdcb........",
+      "cdcb........",
+      "cdcbbbbbbbb.",
+      "caaaaaaaaaab",
+      "ceeeeeeeeeeb",
+      "ceeeeeeeeeeb",
+      "ceeeeeeeeeeb",
+      "bddddddddddb",
+      "bddbbbbbbddb",
+      "bddb....bddb",
+      "bddb....bddb",
+      "bddbbbbbbddb",
+      "bddffffffddb",
+      "bffffffffffb"
+    ] },
+    chairL: { palette: { "a": "#120d08", "b": "#b9824a", "c": "#7a5230", "d": "#4a2e14", "e": "#9a6a34", "f": "#1c1622" }, rows: [
+      "........abbb",
+      "........accc",
+      "........acdc",
+      "........acdc",
+      "........acdc",
+      "........acdc",
+      "........acdc",
+      "........acdc",
+      ".aaaaaaaacdc",
+      "abbbbbbbbbbc",
+      "aeeeeeeeeeec",
+      "aeeeeeeeeeec",
+      "aeeeeeeeeeec",
+      "adddddddddda",
+      "addaaaaaadda",
+      "adda....adda",
+      "adda....adda",
+      "addaaaaaadda",
+      "addffffffdda",
+      "affffffffffa"
+    ] },
+    chairFallen: { palette: { "a": "#120d08", "b": "#b9824a", "c": "#9a6a34", "d": "#7a5230", "e": "#4a2e14", "f": "#1c1622" }, rows: [
+      ".........aaaaaaa",
+      "........abcdeeee",
+      "........abcdeeee",
+      "........abcdaaad",
+      "........abcda.ad",
+      "........abcdaaad",
+      "........abcdeeee",
+      "........abcdeeee",
+      "aaaaaaaaabcdaaaa",
+      "bbbbbbbbbbcda...",
+      "dddeddeddbcda...",
+      "dddeddeddbcdaaaa",
+      "ffffffffffffffff",
+      "ffffffffffffffff"
+    ] },
+    rug: { palette: { "a": "#c8b478", "b": "#968250", "c": "#6e542c", "d": "#5c2824", "e": "#3c281e", "f": "#7a3a32", "g": "#96763c" }, rows: [
+      "....................................................",
+      "....................................................",
+      "........abccc.......................................",
+      "..........cccc.c....................................",
+      ".......ab.c.dccccc..................................",
+      ".........ccdedddc...ccc.............................",
+      ".......abccdeedddddccccccc..........................",
+      ".........c.deeedddddfffcccce........................",
+      "......ab..ddeeedddddffffffcc.eccc...................",
+      "........ccdeeeddddfgggfffffffcccccc.................",
+      "......abccfeeeedddefffggggfffffdcccc................",
+      ".......ccffeeeedddfffffffggggffdddddccceccc.........",
+      ".....ab.cffgeeedfffffffffffffgggdddddffccccccc......",
+      ".......ecffgffefffffffffffffffffddgdfffdedccccccc...",
+      "....abcceffgffeefffffffeeefcfffffffggggfdddddc.cb...",
+      "........ffgffeeeffdddffffecfffffffffffggggddfdcc.a..",
+      "....abccffgffeeefddddfffccffcfffffffffffffgfff.c....",
+      ".......cffgfeeeedddddfcffffffcffffffffffffgffcc.....",
+      ".....ccffgffffefdddddceffffffcffffffffffffgffc.b....",
+      "...a..cffgfffffdddddffefffffffefffffffffffgffc..a...",
+      "....bc.ffgfffffddddffecffffffeeffffdddffdgffccbb....",
+      "..a.cceffgffffffdddffefcfffffcfeffddddddddddcc......",
+      "...b.cdfffggggfffddffeffffffcffffddddeedddddccba....",
+      ".....ccddffffgggddffefffcfccffff..dddeeddddccc......",
+      ".....ccc.cfffffeegggefffcfffffff.....edddddccba.....",
+      "......cccccccddfeeffgggffffffff......ddddddcc.......",
+      ".........cccccccfffffffggggffffdd...eddgdddeeba.....",
+      ".............c..cc..ffffffggggddddeeeefgffee........",
+      "................cc..c..ffddddddddddddeeeefceba......",
+      "....................c.ccccdeddfffddgeeeeefce........",
+      ".......................c.c.ecdffffffeeeefcc.........",
+      "..........................eeccc.cfffeeeef.c.........",
+      ".............................c.c.c.cfeeefc.ba.......",
+      ".................................ccce.eec.b.........",
+      "....................................c.ee..ba........",
+      ".......................................ecc..........",
+      "....................................................",
+      "...................................................."
+    ] },
+    rugB: { palette: { "a": "#6e542c", "b": "#968250", "c": "#c8b478", "d": "#3c281e", "e": "#5c2824", "f": "#7a3a32", "g": "#96763c" }, rows: [
+      "....................................................",
+      "....................................................",
+      ".......................................aaaabc.......",
+      "...................................aaaaaa.a.........",
+      ".................................daa.aaeeaa.........",
+      "...........................aa..aaaadeeeff.a.........",
+      ".......................daaaaaaaeffefeeegffa.bc......",
+      "...................aad.aaaaeeeeefffgggggffa.........",
+      "..............aaaaaaaaafffeeeeeggggffffgffaabc......",
+      "..........aa..aaaaaffffffffgeegffffffffgff.a........",
+      "......aa.aa...affffffffggggfffffffffffffgffaabc.....",
+      "....aaaaaaaeeeeffffggggfffffffffffffffffeeeaa.......",
+      "...baaaeeeeeeeeggggffffffffffffffffffffeeeeaabc.....",
+      "..c.a.eddeeeeeeffffffffdfaffffffffffeeeeeeeaa.......",
+      "...bbaaedddeeeedfffffffdafafffffffeeeddeeeeeadbc....",
+      ".....aaedddeeeeffffffdddfffaafffffeeeeddeeeedd......",
+      "...cba.eedddeeefffffffffffffffdfffeeeedeeeeeddbc....",
+      ".....a.eddddddeffffffffafffffdddffee..eeegffdd......",
+      "...cbb.afdddddfffeeeefafffffffaff.....ddefgdfaa.....",
+      "......aafdddfddffeeeeadffffffaffff.....dddddfaa.....",
+      "....cbaaffgffddffeeeeffdaffffaffff...dddddddf.abc...",
+      "......aaffgffddddeeeeffdfaffafffffeeeeeeddddfa...c..",
+      "....cbb.dffgffddfeeeeffdffafaffffeeeeeeggddddda.b...",
+      ".......d.ffgfdddfeeeeffdfffafffffgeeefffffdddd......",
+      ".....cba.ffgfffffeeeeffddffffggggeeffffffad.ddaa....",
+      "........affgfffffffeeeffdggggffeeeeffa.a.aa.dd......",
+      ".....cbb.affgfffffffeggggfffffeedaaa.a.aaa..........",
+      ".........affgffffgggedfffffffaa.dddaa...............",
+      "........aaffgggggffddffff.a..a.a....................",
+      "..........ffgfffffeefaaa..a.a.......................",
+      "......cbbaadfefffaaaa.aa............................",
+      "..........aee.aaaaaa................................",
+      ".......cb.aaaaaaa...................................",
+      "...........aa.......................................",
+      "....................................................",
+      "...................................................."
+    ] }
+  };
+
   // src/render/ground.ts
   function hash2(x, y, seed) {
     let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 2246822519 | 0) >>> 0;
@@ -7450,227 +7759,6 @@
     canvases.set(key, canvas2);
     return canvas2;
   }
-
-  // src/render/sprites/furniture.ts
-  var FURNITURE_PALETTE = { "K": "#120d08", "W": "#f4f7ff", "S": "#c3cbe0", "D": "#7f88a6", "G": "#f0c050", "g": "#a87c1c", "B": "#9a6a34", "b": "#5a3817", "R": "#d03a44", "r": "#8e1f28", "L": "#e6dcc0", "C": "#6e7594", "c": "#a4abc8", "T": "#b9824a", "t": "#7a5230", "P": "#7a5aa0", "p": "#4a3266", "H": "#3a4058", "U": "#4a8fd0", "u": "#2a5a94", "V": "#9fd0f4", "E": "#5cc860", "e": "#2e7a38", "O": "#e8782a", "Y": "#ffe27a", "A": "#b8e05a", "a": "#5e8a2a", "n": "#3c2814", "Q": "#b48ce0", "J": "#8ef0a0", "Z": "#d8c8a0", "z": "#a08c64", "X": "#ff9a3a", "x": "#c03a1a", "F": "#ffd84a", "f": "#c89a14", "I": "#6ad0ff", "i": "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50" };
-  var FURNITURE = {
-    tonneau: [
-      ".....KKKKKK.....",
-      "....KtTTTTtK....",
-      "...KtBbBBbBtK...",
-      "..KtBbBBbBBbtK..",
-      "..KTBbBBbBBbTK..",
-      "..KDDDDDDDDDDK..",
-      "..KTBBbBBbBBTK..",
-      "..KTBBbBBbBBTK..",
-      "..KTBBbBBbBBTK..",
-      "..KTBBbBBbBBTK..",
-      "..KDDDDDDDDDDK..",
-      "..KTBBbBBbBBTK..",
-      "...KtBbBBbBtK...",
-      "....KttttttK....",
-      ".....KKKKKK.....",
-      "................"
-    ],
-    caisse: [
-      "................",
-      "..KKKKKKKKKKKK..",
-      ".KTTTTTTTTTTTTK.",
-      ".KTBBBBBBBBBBtK.",
-      ".KTBtBBBBBBtBtK.",
-      ".KTBBtBBBBtBBtK.",
-      ".KTBBBtBBtBBBtK.",
-      ".KTBBBBttBBBBtK.",
-      ".KTBBBtBBtBBBtK.",
-      ".KTBBtBBBBtBBtK.",
-      ".KTBtBBBBBBtBtK.",
-      ".KTBBBBBBBBBBtK.",
-      ".KttttttttttttK.",
-      "..KKKKKKKKKKKK..",
-      "................",
-      "................"
-    ],
-    sac_grain: [
-      "................",
-      "......KKK.......",
-      ".....KzLzK......",
-      "....KzZZZzK.....",
-      "...KZZZZZZzK....",
-      "..KZZGZZZZZzK...",
-      "..KZZZZGZZZzK...",
-      ".KZZZZZZZZZZzK..",
-      ".KZZZZZZZZZZzK..",
-      ".KZzZZZZZZZzzK..",
-      "..KZZZZZZZZzKGK.",
-      "...KzzzzzzzKGKGK",
-      "....KKKKKKK.K.K.",
-      "................",
-      "................",
-      "................"
-    ],
-    os: [
-      "................",
-      ".....KKKKKK.....",
-      "....KWWWWWWK....",
-      "...KWSSSSSSWK...",
-      "..KWSSSSSSSSWK..",
-      "..KWSKKSSKKSWK..",
-      "..KWSKKSSKKSWK..",
-      "...KWSSKKSSWK...",
-      "..KKKWSSSSWKKK..",
-      ".KWWKWLSLSWKWWK.",
-      ".KWSSWWWWWWSSWK.",
-      "..KWSSSSSSSSWK..",
-      ".KWWKKKKKKKKWWK.",
-      "..KK........KK..",
-      "................",
-      "................"
-    ],
-    sarcophage: [
-      "....KKKKKKKK....",
-      "...KDDDDDDDDK...",
-      "..KDSSSSSSSSDK..",
-      "..KDScccccccDK..",
-      "..KDScSSSSScDK..",
-      "..KDScSccScDK...",
-      "..KDScSSSSScDK..",
-      "..KDScSccScDK...",
-      "..KDScSSSSScDK..",
-      "..KDScSSSSScDK..",
-      "..KDScccccccDK..",
-      "..KDSSSSSSSSDK..",
-      "...KDDDDDDDDK...",
-      "....KKKKKKKK....",
-      "................",
-      "................"
-    ],
-    etagere: [
-      "..KKKKKKKKKKKK..",
-      ".KTTTTTTTTTTTTK.",
-      ".KTRrUuEeRrPpTK.",
-      ".KTRrUuEeRrPpTK.",
-      ".KttttttttttttK.",
-      ".KTUuPpGgRrEeTK.",
-      ".KTUuPpGgRrEeTK.",
-      ".KttttttttttttK.",
-      ".KTEeRrKKUuGgTK.",
-      ".KTEeRrKKUuGgTK.",
-      ".KttttttttttttK.",
-      ".KTKKKKKKKKKKTK.",
-      "..K..........K..",
-      "................",
-      "................",
-      "................"
-    ],
-    pupitre: [
-      "................",
-      "....KKKKKKKK....",
-      "...KLLLLLLLLK...",
-      "..KLLLcLLcLLLK..",
-      "..KLcLLLLLcLLK..",
-      "..KLLLcLLLLLLK..",
-      "...KTTTTTTTTK...",
-      "....KKKBtKKK....",
-      "......KBtK......",
-      ".....KKBtKK.....",
-      "....KTTBtTTK....",
-      ".....KKKKKK.....",
-      "................",
-      "................",
-      "................",
-      "................"
-    ],
-    paillasse: [
-      "................",
-      "................",
-      "..KKKKKKKKKKKK..",
-      ".KZZZZZZZZZZZZK.",
-      ".KZLLLZZzZZzZzK.",
-      ".KZLLLZzZZzZZzK.",
-      ".KZZZZZZzZZzZzK.",
-      ".KZzZZzZZzZZZzK.",
-      ".KZZzZZzZZzZZzK.",
-      ".KzzzzzzzzzzzzK.",
-      "..KKKKKKKKKKKK..",
-      "................",
-      "................",
-      "................",
-      "................",
-      "................"
-    ],
-    malle: [
-      "................",
-      "...KKKKKKKKKK...",
-      "..KTTTTTTTTTTK..",
-      ".KTBBBBBBBBBBtK.",
-      ".KDDDDDDDDDDDDK.",
-      ".KTBBBBGGBBBBtK.",
-      ".KTBBBBGgBBBBtK.",
-      ".KTBBBBBBBBBBtK.",
-      ".KDDDDDDDDDDDDK.",
-      ".KTBBBBBBBBBBtK.",
-      ".KttttttttttttK.",
-      "..KKKKKKKKKKKK..",
-      "................",
-      "................",
-      "................",
-      "................"
-    ],
-    enclume: [
-      "................",
-      "................",
-      "..KKKKKKKKKK....",
-      ".KSSSSSSSSSSKKK.",
-      "KSDDDDDDDDDDSSSK",
-      ".KDDDDDDDDDDDDK.",
-      "..KKDDDDDDDKKK..",
-      "....KCCCCCK.....",
-      "....KCCCCCK.....",
-      "...KbBBBBBbK....",
-      "..KbBBBBBBBbK...",
-      "...KKKKKKKKK....",
-      "................",
-      "................",
-      "................",
-      "................"
-    ],
-    etabli: [
-      "................",
-      ".KKKKKKKKKKKKKK.",
-      "KTTTTTTTTTTTTTTK",
-      "KTBBBBBBBBBBBBtK",
-      "KTBDDbKKSSBBBBtK",
-      "KTBDDbKKSSBBcBtK",
-      "KTBBBBBBBBBBBBtK",
-      "KttttttttttttttK",
-      "KTtKKKKKKKKKKTtK",
-      "KTtK........KTtK",
-      "KTtK........KTtK",
-      ".KK..........KK.",
-      "................",
-      "................",
-      "................",
-      "................"
-    ],
-    ratelier: [
-      "...K...K...K....",
-      "..KWK.KWK.KSK...",
-      "..KWK.KWKKSWSK..",
-      "..KWK.KWK.KWK...",
-      "..KWKKKWKKKWKK..",
-      ".KTTTTTTTTTTTTK.",
-      "..KSKKKWKKKWKK..",
-      "..KSK.KWK.KWK...",
-      ".KbTbKbTbKKBK...",
-      "..KBKKKBKKKBKK..",
-      ".KTTTTTTTTTTTTK.",
-      ".KTKKKKKKKKKKTK.",
-      "..K..........K..",
-      "................",
-      "................",
-      "................"
-    ]
-  };
 
   // src/render/tiles.ts
   var COLORS = {
@@ -7972,13 +8060,7 @@
     drawFeature(game2, t, x, y, sx, sy) {
       const { ctx, tile } = this;
       const decor = t === Tile.StairsDown ? DECOR.stairsDown : t === Tile.StairsUp ? DECOR.stairsUp : t === Tile.Chest ? DECOR.chest : t === Tile.ChestOpen ? DECOR.chestOpen : null;
-      const furniture = t === Tile.Furniture ? FURNITURE[game2.furnitureAt(x, y)?.kind ?? ""] : void 0;
-      if (furniture) {
-        const smooth = ctx.imageSmoothingEnabled;
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this.sprite(furniture, FURNITURE_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
-        ctx.imageSmoothingEnabled = smooth;
-      } else if (decor) {
+      if (decor) {
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(this.sprite(decor, DECOR_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
@@ -8058,6 +8140,7 @@
       this.scan = null;
       /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
       this.jumpCells = [];
+      this.shadedCache = /* @__PURE__ */ new Map();
       this.ctx = canvas2.getContext("2d");
       this.resize();
     }
@@ -8492,6 +8575,7 @@
           }
         }
       }
+      this.drawFurniture(game2, ox, oy, flicker);
       for (const torch of game2.torches) {
         if (!game2.isExplored(torch.x, torch.y)) continue;
         if (torch.hearth) {
@@ -8826,6 +8910,91 @@
       this.ctx.imageSmoothingEnabled = false;
       this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
       this.ctx.imageSmoothingEnabled = smooth;
+    }
+    /**
+     * Meubles (dortoir, planche art/dortoir_v3.png) : vus de 3/4, ce qui est haut déborde sur la case du dessus. Dessinés
+     * après les cases, du fond vers l'avant (le tapis d'abord), avec la même ombre et la même lueur que leurs cases.
+     * La bougie de la table vacille (3 images).
+     */
+    drawFurniture(game2, ox, oy, flicker) {
+      const list = [...game2.furnitureList()].sort((a, b) => {
+        const ra = a.kind.startsWith("rug") ? 0 : 1;
+        const rb = b.kind.startsWith("rug") ? 0 : 1;
+        return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
+      });
+      if (list.length === 0) return;
+      const { ctx, tile } = this;
+      const u = tile / 16;
+      const hero = game2.hero;
+      const frame2 = Math.floor(performance.now() / 160) % 3;
+      for (const f of list) {
+        const def = FURNITURE_KINDS[f.kind];
+        if (!def) continue;
+        const cells = furnitureCells(f);
+        if (!cells.some((c) => game2.isExplored(c.x, c.y))) continue;
+        const visible = cells.some((c) => game2.isVisible(c.x, c.y));
+        let dark = 0.82;
+        let warm = 0;
+        if (visible) {
+          let lit = 0;
+          let glow = 0;
+          for (const c of cells) {
+            lit = Math.max(lit, game2.light[game2.map.index(c.x, c.y)]);
+            glow = Math.max(glow, 1 - Math.hypot(c.x - hero.x, c.y - hero.y) / (game2.race.darkVision + 1.5));
+          }
+          const brightness = Math.min(1, Math.max(lit * flicker, glow));
+          dark = (1 - brightness) * 0.55;
+          warm = lit * flicker * 0.2;
+        }
+        const name = f.kind === "table" ? `table${visible ? frame2 : 0}` : f.kind;
+        const art = DORTOIR[name];
+        if (!art) continue;
+        const w = art.rows[0].length;
+        const h = art.rows.length;
+        let px;
+        let py;
+        if (f.kind.startsWith("rug")) {
+          px = (f.x + def.w / 2) * 16 - w / 2;
+          py = (f.y + def.h / 2) * 16 - h / 2;
+        } else {
+          const off = f.kind.startsWith("bunk") ? [-2, 0] : f.kind === "table" ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : [2, -1];
+          px = f.x * 16 + off[0];
+          py = (f.y + def.h) * 16 - h + off[1];
+        }
+        const img = this.shadedSprite(name, art.rows, art.palette, dark, warm);
+        const smooth = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        const x = this.snap(ox + px * u);
+        const y = this.snap(oy + py * u);
+        ctx.drawImage(img, x, y, this.snap(ox + (px + w) * u) - x, this.snap(oy + (py + h) * u) - y);
+        ctx.imageSmoothingEnabled = smooth;
+      }
+    }
+    /** Un dessin assombri (et réchauffé par le feu) d'un coup, sans toucher au fond : gardé en mémoire par palier de 5 %. */
+    shadedSprite(name, rows, palette, dark, warm) {
+      const d = Math.round(dark * 20) / 20;
+      const wq = Math.round(warm * 20) / 20;
+      const key = `${name}|${d}|${wq}`;
+      let canvas2 = this.shadedCache.get(key);
+      if (canvas2) return canvas2;
+      const base = this.sprite(rows, palette);
+      canvas2 = document.createElement("canvas");
+      canvas2.width = base.width;
+      canvas2.height = base.height;
+      const c = canvas2.getContext("2d");
+      c.drawImage(base, 0, 0);
+      c.globalCompositeOperation = "source-atop";
+      if (d > 0) {
+        c.fillStyle = d >= 0.8 ? `rgba(8,7,14,${d})` : `rgba(12,11,18,${d})`;
+        c.fillRect(0, 0, canvas2.width, canvas2.height);
+      }
+      if (wq > 0) {
+        c.fillStyle = `rgba(255,150,60,${wq})`;
+        c.fillRect(0, 0, canvas2.width, canvas2.height);
+      }
+      if (this.shadedCache.size > 800) this.shadedCache.clear();
+      this.shadedCache.set(key, canvas2);
+      return canvas2;
     }
     /** Lumière visible sur un mur : la plus forte parmi les cases dégagées en vue qui le touchent. */
     wallLight(game2, x, y) {
@@ -10032,10 +10201,10 @@
     );
     const pop = $("status-pop");
     if (statusOpen === "tocsin") {
-      const { level, stage } = game.alarm();
+      const { stage } = game.alarm();
       pop.hidden = false;
       pop.classList.add("right");
-      pop.replaceChildren(el("b", "", `Niveau d'alerte ${level}/100`), document.createTextNode(`${ALARM_NAMES[stage][0].toUpperCase()}${ALARM_NAMES[stage].slice(1)} : ${ALARM_DETAILS[stage].replace(/^./, (c) => c.toLowerCase())}`));
+      pop.replaceChildren(el("b", "", "Niveau d'alerte"), document.createTextNode(`${ALARM_NAMES[stage][0].toUpperCase()}${ALARM_NAMES[stage].slice(1)} : ${ALARM_DETAILS[stage].replace(/^./, (c) => c.toLowerCase())}`));
       return;
     }
     pop.classList.remove("right");

@@ -10,7 +10,7 @@ import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
-import { furnishFloor, Furniture } from "../world/furnish";
+import { furnishFloor, Furniture, furnitureCells } from "../world/furnish";
 import { placeGrounds } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
@@ -499,9 +499,19 @@ export class Game {
   }
 
 
-  /** Le meuble posé sur cette case (pour le dessin), ou `null`. */
+  /** Le meuble qui couvre cette case, ou `null`. */
   furnitureAt(x: number, y: number): Furniture | null {
-    return this.current.furniture.find((f) => f.x === x && f.y === y) ?? null;
+    return this.current.furniture.find((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) ?? null;
+  }
+
+  /** Les meubles de l'étage courant (pour le dessin). */
+  furnitureList(): readonly Furniture[] {
+    return this.current.furniture;
+  }
+
+  /** Le héros marche sur un tapis : ses pas sont étouffés. */
+  onRug(p: Point = this.hero): boolean {
+    return this.current.furniture.some((f) => f.kind.startsWith("rug") && furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
   }
 
   /** Le thème de la salle (salle de fouille), ou `null`. */
@@ -1051,6 +1061,13 @@ export class Game {
     const cells = [...cross, extra]
       .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
       .filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
+    // Un tapis touché par les flammes brûle tout entier, puis disparaît.
+    for (const rug of this.current.furniture.filter((f) => f.kind.startsWith("rug"))) {
+      const rugCells = furnitureCells(rug);
+      if (!rugCells.some((r) => cells.some((c) => c.x === r.x && c.y === r.y))) continue;
+      for (const r of rugCells) if (!cells.some((c) => c.x === r.x && c.y === r.y)) cells.push(r);
+      this.current.furniture = this.current.furniture.filter((f) => f !== rug);
+    }
     for (const c of cells) {
       const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
       if (old) old.turns = RULES.fireTurns;
@@ -2189,7 +2206,8 @@ export class Game {
         const chance =
           def.noticeChance *
           (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) *
-          (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake);
+          (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake) *
+          (this.onRug() ? RULES.rugNotice : 1);
         // Caché, le héros ne peut être remarqué que par un monstre arrivé à son contact.
         const range = this.hidden ? 1 : m.vision;
         if (this.isVisible(m.x, m.y) && distance <= range && this.rng.chance(chance)) {

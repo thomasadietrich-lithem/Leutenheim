@@ -2,7 +2,6 @@ import { Game } from "../core/game";
 import { Tile } from "../world/map";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { groundImage } from "./ground";
-import { FURNITURE, FURNITURE_PALETTE } from "./sprites/furniture";
 
 /**
  * Dessin des cases de la carte (sol, murs en briques, colonnes, portes, escaliers, coffres, fontaine), sans ombre
@@ -364,14 +363,7 @@ export class TilePainter {
       : t === Tile.Chest ? DECOR.chest
       : t === Tile.ChestOpen ? DECOR.chestOpen
       : null;
-    const furniture = t === Tile.Furniture ? FURNITURE[game.furnitureAt(x, y)?.kind ?? ""] : undefined;
-    if (furniture) {
-      // Meuble des salles de fouille (art/mobilier_v1.png).
-      const smooth = ctx.imageSmoothingEnabled;
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.sprite(furniture, FURNITURE_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
-      ctx.imageSmoothingEnabled = smooth;
-    } else if (decor) {
+    if (decor) {
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(this.sprite(decor, DECOR_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));

@@ -1,7 +1,6 @@
 import { ItemId } from "../data/items";
-import { THEMED_ROOMS } from "../data/themedRooms";
 import { Rng } from "../core/rng";
-import { furnishRoom, Furniture, RoomTheme } from "./furnish";
+import { furnishDortoir, Furniture, RoomTheme } from "./furnish";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
 import { SPECIAL_ROOMS } from "../data/specialRooms";
@@ -17,8 +16,8 @@ import { GameMap, Point, Tile } from "./map";
  * - salle 2, « salle de combat » : un piège, un Schrat éveillé près d'un mur (pour pousser), un autre endormi, l'escalier ;
  * - deux salles spéciales verrouillées sous la salle de départ : fontaine et coffre ;
  * - du gravier dans le couloir entre la salle des colonnes et la salle de combat, une flaque dans la salle de ronde ;
- * - sous la salle de ronde, une rangée de cinq salles de fouille (garde-manger, ossuaire, bibliothèque, dortoir,
- *   forge), chacune meublée avec une cache au pied d'un meuble.
+ * - au sud de la salle de ronde, par un couloir, le DORTOIR des Schrats (lits superposés, cheminée, table, chaises, tapis),
+ *   avec une cache au pied d'un lit.
  */
 export interface SandboxFloor extends Floor {
   traps: Point[];
@@ -34,7 +33,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 5;
+export const SANDBOX_LAYOUT = 6;
 
 export function buildSandbox(): SandboxFloor {
   const map = new GameMap(32, 32);
@@ -78,39 +77,20 @@ export function buildSandbox(): SandboxFloor {
   for (const [x, y] of [[21, 10], [21, 11], [21, 12], [20, 9], [21, 9], [22, 9]]) map.set(x, y, Tile.Gravel);
   for (const [x, y] of [[5, 20], [6, 20], [6, 21], [5, 21]]) map.set(x, y, Tile.Water);
 
-  // Salles de fouille (2026-11-11) : un couloir sous la salle de ronde, cinq salles de 5 × 5 en dessous.
-  map.set(7, 22, Tile.Floor);
-  for (let x = 4; x <= 28; x++) map.set(x, 23, Tile.Floor);
-  const themedRooms: Room[] = [];
-  for (let i = 0; i < THEMED_ROOMS.length; i++) {
-    const r: Room = { x: 2 + i * 6, y: 25, w: 5, h: 5 };
-    carve(r);
-    map.set(r.x + 2, 24, Tile.Floor);
-    themedRooms.push(r);
-  }
-  const rooms = [start, pillars, combat, patrolRoom, ...themedRooms];
-  const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches: [] as LightSource[], specials: [] };
+  // Dortoir des Schrats (2026-11-11) : 9 × 6 cases au sud de la salle de ronde, entrée par le mur de droite.
+  const dortoir: Room = { x: 3, y: 24, w: 9, h: 6 };
+  carve(dortoir);
+  for (let y = 20; y <= 27; y++) map.set(13, y, Tile.Floor);
+  map.set(12, 27, Tile.Floor);
+  const rooms = [start, pillars, combat, patrolRoom, dortoir];
+  const floorPlan: Floor = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
   const furniture: Furniture[] = [];
-  const themes: RoomTheme[] = [];
+  furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
+  const themes: RoomTheme[] = [{ room: 4, id: "dortoir" }];
+  // La cache, au pied du premier lit.
+  const firstBunk = furniture.find((f) => f.kind.startsWith("bunk"));
   const secrets: SandboxFloor["secrets"] = [{ x: 22, y: 8, room: 1, item: "or", count: 12 }];
-  // Une torche au mur du fond de chaque salle de fouille.
-  for (const r of themedRooms) torches.push({ x: r.x + 2, y: r.y + r.h, radius: 4, faceX: 0, faceY: -1 });
-  const rng = new Rng(4242);
-  themedRooms.forEach((room, i) => {
-    const theme = THEMED_ROOMS[i];
-    const index = 4 + i;
-    const first = furniture.length;
-    furnishRoom(floorPlan, room, theme, rng, furniture);
-    themes.push({ room: index, id: theme.id });
-    // La cache, au pied du premier meuble (côté salle), avec le butin le plus courant du thème.
-    const f = furniture[first];
-    if (!f) return;
-    const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-      .map(([dx, dy]) => ({ x: f.x + dx, y: f.y + dy }))
-      .find((p) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h && map.get(p.x, p.y) === Tile.Floor);
-    const loot = theme.loot[0];
-    if (spot) secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count: loot.max });
-  });
+  if (firstBunk) secrets.push({ x: firstBunk.x, y: firstBunk.y + 1, room: 4, item: "or", count: 14 });
 
   return {
     map,
@@ -119,7 +99,7 @@ export function buildSandbox(): SandboxFloor {
     themes,
     start: { x: 7, y: 6 },
     stairs,
-    torches,
+    torches: floorPlan.torches,
     specials: [
       { room: fountainRoom, kind: fontaine },
       { room: chestRoom, kind: tresor },

@@ -12,8 +12,8 @@ import { generateFloor } from "../src/world/generator";
 import { GameMap, Tile } from "../src/world/map";
 import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath } from "../src/world/pathfinding";
-import { furnishFloor } from "../src/world/furnish";
-import { THEMED_ROOMS } from "../src/data/themedRooms";
+import { furnishFloor, furnitureCells } from "../src/world/furnish";
+import { FURNITURE_KINDS } from "../src/data/themedRooms";
 
 const FLOORS = 1000;
 
@@ -2130,21 +2130,26 @@ test("Niveau d'alerte : enfoncer une porte fait plus de bruit que la crocheter",
 
 // ---------- Salles de fouille (mobilier v1), déplacement en diagonale (2026-11-11) ----------
 
-test("salles de fouille : cinq salles meublées en salle d'essai, meubles infranchissables mais transparents, caches au pied", () => {
+test("dortoir de la salle d'essai : lits contre le mur du haut, table, chaises, tapis ; meubles qui bloquent sans couper de passage", () => {
   const game = new Game(1, undefined, undefined, undefined, true);
-  const themes = THEMED_ROOMS.map((t) => t.id);
-  for (let i = 4; i < 4 + themes.length; i++) assert.equal(game.roomTheme(i), themes[i - 4]);
-  let pieces = 0;
-  for (let y = 0; y < game.map.height; y++) {
-    for (let x = 0; x < game.map.width; x++) {
-      if (game.map.get(x, y) !== Tile.Furniture) continue;
-      pieces++;
-      assert.ok(game.furnitureAt(x, y), "chaque meuble a son dessin");
-      assert.equal(game.map.isWalkable(x, y), false);
-      assert.equal(game.map.blocksSight(x, y), false);
+  assert.equal(game.roomTheme(4), "dortoir");
+  const list = game.furnitureList();
+  const bunks = list.filter((f) => f.kind.startsWith("bunk"));
+  assert.ok(bunks.length >= 2 && bunks.length <= 4, `lits : ${bunks.length}`);
+  assert.ok(bunks.every((b) => b.y === game.rooms[4].y), "contre le mur du haut");
+  assert.ok(list.some((f) => f.kind === "table"));
+  assert.ok(list.some((f) => f.kind.startsWith("chair") && f.kind !== "chairFallen"));
+  assert.ok(list.some((f) => f.kind.startsWith("rug")));
+  for (const f of list) {
+    for (const c of furnitureCells(f)) {
+      const blocks = FURNITURE_KINDS[f.kind].blocks;
+      assert.equal(game.map.isWalkable(c.x, c.y), !blocks, `${f.kind} en ${c.x},${c.y}`);
+      assert.equal(game.map.blocksSight(c.x, c.y), false);
     }
   }
-  assert.ok(pieces >= 2 * themes.length, `meubles : ${pieces}`);
+  // Une cheminée dans le dortoir.
+  const r = game.rooms[4];
+  assert.ok(game.torches.some((t) => t.hearth && (t.x === r.x - 1 || t.x === r.x + r.w)), "cheminée sur un mur de côté");
   // Tout le sol reste atteignable depuis le départ (hors salles verrouillées).
   const dist = distanceField(game.map, game.hero, (x, y) => game.map.get(x, y) !== Tile.DoorLocked);
   for (let y = 0; y < game.map.height; y++) {
@@ -2155,15 +2160,40 @@ test("salles de fouille : cinq salles meublées en salle d'essai, meubles infran
   }
 });
 
-test("salles de fouille dans le donjon : jamais de passage coupé, cache au pied d'un meuble avec le butin du thème", () => {
-  for (let seed = 1; seed <= 40; seed++) {
+test("dortoir dans le donjon : au plus un par étage, jamais de passage coupé", () => {
+  let dortoirs = 0;
+  for (let seed = 1; seed <= 60; seed++) {
     const floor = generateFloor(seed, DEFAULT_FLOOR);
     const before = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
     const { furniture, themes } = furnishFloor(floor, seed);
+    assert.ok(themes.length <= 1);
+    dortoirs += themes.length;
+    const blocked = furniture.filter((f) => FURNITURE_KINDS[f.kind].blocks).reduce((n, f) => n + furnitureCells(f).length, 0);
     const after = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
-    assert.equal(after, before - furniture.length, `graine ${seed} : un meuble coupe un passage`);
-    for (const t of themes) assert.ok(furniture.some((f) => { const r = floor.rooms[t.room]; return f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h; }));
+    assert.equal(after, before - blocked, `graine ${seed} : un meuble coupe un passage`);
   }
+  assert.ok(dortoirs >= 10, `dortoirs : ${dortoirs}`);
+});
+
+test("tapis : il étouffe les pas, et brûle tout entier", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  const rug = game.furnitureList().find((f) => f.kind.startsWith("rug"))!;
+  game.hero.x = rug.x;
+  game.hero.y = rug.y;
+  assert.equal(game.onRug(), true);
+  // Une potion de feu sur un coin du tapis : tout le tapis brûle, puis il n'y a plus de tapis.
+  game.hero.x = rug.x + 2;
+  game.hero.y = rug.y + 4 <= game.rooms[4].y + game.rooms[4].h - 1 ? rug.y + 4 : rug.y - 1;
+  game.wait();
+  game.tick();
+  game.inventory.add("potion_feu", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "potion_feu")!.uid;
+  assert.ok(game.throwPotion(uid, rug.x, rug.y), String(game.throwRefusal(uid, rug.x, rug.y)));
+  game.tick();
+  const fire = game.events.find((e) => e.type === "fire");
+  assert.ok(fire && fire.type === "fire" && fire.cells.length >= 6, "tout le tapis brûle");
+  assert.equal(game.furnitureList().some((f) => f === rug), false);
 });
 
 test("diagonale : on longe un mur ou une porte en coupant le coin, mais on ne se faufile pas entre deux coins", () => {

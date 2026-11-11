@@ -1182,10 +1182,10 @@ function renderHeroStatus(): void {
   const pop = $("status-pop");
   if (statusOpen === "tocsin") {
     // Le détail du niveau d'alerte s'ouvre sous la cloche, à droite.
-    const { level, stage } = game.alarm();
+    const { stage } = game.alarm();
     pop.hidden = false;
     pop.classList.add("right");
-    pop.replaceChildren(el("b", "", `Niveau d'alerte ${level}/100`), document.createTextNode(`${ALARM_NAMES[stage][0].toUpperCase()}${ALARM_NAMES[stage].slice(1)} : ${ALARM_DETAILS[stage].replace(/^./, (c) => c.toLowerCase())}`));
+    pop.replaceChildren(el("b", "", "Niveau d'alerte"), document.createTextNode(`${ALARM_NAMES[stage][0].toUpperCase()}${ALARM_NAMES[stage].slice(1)} : ${ALARM_DETAILS[stage].replace(/^./, (c) => c.toLowerCase())}`));
     return;
   }
   pop.classList.remove("right");

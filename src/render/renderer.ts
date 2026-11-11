@@ -9,6 +9,9 @@ import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
+import { DORTOIR } from "./sprites/dortoir";
+import { FURNITURE_KINDS } from "../data/themedRooms";
+import { furnitureCells } from "../world/furnish";
 import { COLORS, TilePainter } from "./tiles";
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
@@ -602,6 +605,8 @@ export class Renderer {
       }
     }
 
+    this.drawFurniture(game, ox, oy, flicker);
+
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
       if (!game.isExplored(torch.x, torch.y)) continue;
@@ -986,6 +991,96 @@ export class Renderer {
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
     this.ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /**
+   * Meubles (dortoir, planche art/dortoir_v3.png) : vus de 3/4, ce qui est haut déborde sur la case du dessus. Dessinés
+   * après les cases, du fond vers l'avant (le tapis d'abord), avec la même ombre et la même lueur que leurs cases.
+   * La bougie de la table vacille (3 images).
+   */
+  private drawFurniture(game: Game, ox: number, oy: number, flicker: number): void {
+    const list = [...game.furnitureList()].sort((a, b) => {
+      const ra = a.kind.startsWith("rug") ? 0 : 1;
+      const rb = b.kind.startsWith("rug") ? 0 : 1;
+      return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
+    });
+    if (list.length === 0) return;
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const hero = game.hero;
+    const frame = Math.floor(performance.now() / 160) % 3;
+    for (const f of list) {
+      const def = FURNITURE_KINDS[f.kind];
+      if (!def) continue;
+      const cells = furnitureCells(f);
+      if (!cells.some((c) => game.isExplored(c.x, c.y))) continue;
+      const visible = cells.some((c) => game.isVisible(c.x, c.y));
+      let dark = 0.82;
+      let warm = 0;
+      if (visible) {
+        let lit = 0;
+        let glow = 0;
+        for (const c of cells) {
+          lit = Math.max(lit, game.light[game.map.index(c.x, c.y)]);
+          glow = Math.max(glow, 1 - Math.hypot(c.x - hero.x, c.y - hero.y) / (game.race.darkVision + 1.5));
+        }
+        const brightness = Math.min(1, Math.max(lit * flicker, glow));
+        dark = (1 - brightness) * 0.55;
+        warm = lit * flicker * 0.2;
+      }
+      const name = f.kind === "table" ? `table${visible ? frame : 0}` : f.kind;
+      const art = DORTOIR[name];
+      if (!art) continue;
+      const w = art.rows[0].length;
+      const h = art.rows.length;
+      // Place du dessin (en pixels du dessin, 16 par case) : bas du dessin = bas de l'emprise, sauf le tapis, centré.
+      let px: number;
+      let py: number;
+      if (f.kind.startsWith("rug")) {
+        px = (f.x + def.w / 2) * 16 - w / 2;
+        py = (f.y + def.h / 2) * 16 - h / 2;
+      } else {
+        const off = f.kind.startsWith("bunk") ? [-2, 0] : f.kind === "table" ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : [2, -1];
+        px = f.x * 16 + off[0];
+        py = (f.y + def.h) * 16 - h + off[1];
+      }
+      const img = this.shadedSprite(name, art.rows, art.palette, dark, warm);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      const x = this.snap(ox + px * u);
+      const y = this.snap(oy + py * u);
+      ctx.drawImage(img, x, y, this.snap(ox + (px + w) * u) - x, this.snap(oy + (py + h) * u) - y);
+      ctx.imageSmoothingEnabled = smooth;
+    }
+  }
+
+  private readonly shadedCache = new Map<string, HTMLCanvasElement>();
+
+  /** Un dessin assombri (et réchauffé par le feu) d'un coup, sans toucher au fond : gardé en mémoire par palier de 5 %. */
+  private shadedSprite(name: string, rows: readonly string[], palette: Record<string, string>, dark: number, warm: number): HTMLCanvasElement {
+    const d = Math.round(dark * 20) / 20;
+    const wq = Math.round(warm * 20) / 20;
+    const key = `${name}|${d}|${wq}`;
+    let canvas = this.shadedCache.get(key);
+    if (canvas) return canvas;
+    const base = this.sprite(rows, palette);
+    canvas = document.createElement("canvas");
+    canvas.width = base.width;
+    canvas.height = base.height;
+    const c = canvas.getContext("2d")!;
+    c.drawImage(base, 0, 0);
+    c.globalCompositeOperation = "source-atop";
+    if (d > 0) {
+      c.fillStyle = d >= 0.8 ? `rgba(8,7,14,${d})` : `rgba(12,11,18,${d})`;
+      c.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (wq > 0) {
+      c.fillStyle = `rgba(255,150,60,${wq})`;
+      c.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (this.shadedCache.size > 800) this.shadedCache.clear();
+    this.shadedCache.set(key, canvas);
+    return canvas;
   }
 
   /** Lumière visible sur un mur : la plus forte parmi les cases dégagées en vue qui le touchent. */

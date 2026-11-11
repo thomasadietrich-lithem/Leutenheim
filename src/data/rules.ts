@@ -62,14 +62,19 @@ export const RULES = {
   gravelAlarm: 1,
   /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
   gravelDetour: 6,
-  /** Salles de fouille (mobilier v1) : seulement en salle d'essai tant que les dessins ne sont pas validés. */
-  themedRoomsInDungeon: false,
-  /** Chance qu'une salle ordinaire assez grande (5 × 5) devienne une salle de fouille, et nombre de meubles. */
-  themedRoomChance: 0.3,
-  themedFurnitureMin: 2,
-  themedFurnitureMax: 4,
-  /** Chance qu'une salle de fouille cache quelque chose (au pied d'un meuble, butin du thème). */
+  /** Dortoir des Schrats (2026-11-11) : chance qu'un étage en ait un (au plus un), dans une salle d'au moins 6 × 5. */
+  themedRoomsInDungeon: true,
+  dortoirChance: 0.5,
+  /** Lits superposés (contre le mur du haut), chaises autour de la table. */
+  bunksMin: 2,
+  bunksMax: 4,
+  chairsMin: 1,
+  chairsMax: 3,
+  fallenChairChance: 0.5,
+  /** Chance qu'une salle à thème cache quelque chose (au pied d'un meuble, butin du thème). */
   themedSecretChance: 0.75,
+  /** Tapis : marcher dessus étouffe les pas (chance d'être remarqué multipliée par tant) ; il brûle tout entier. */
+  rugNotice: 0.5,
   /** Pousser (roue d'actions) : d20 + bonus de force contre cette difficulté. Le monstre recule d'une case et perd un tour… */
   pushDc: 10,
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */

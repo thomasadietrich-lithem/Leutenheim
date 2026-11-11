@@ -20,7 +20,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, Debris, FloorState, GroundItem, Trap, guaranteedLoot, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, Debris, FloorState, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -258,6 +258,8 @@ export class Game {
     this.shotTarget = null;
     this.pendingStairs = null;
     this.clearDoorOrders();
+    // Paniers à fruits : leurs pommes sont de vrais objets au sol, qu'on ramasse (le panier les montre).
+    if (fresh) for (const f of state.furniture) if (f.kind === "basket" && f.count) state.ground.push({ x: f.x, y: f.y, item: "pomme", count: f.count });
     if (fresh && sandboxFloor) {
       this.populateSandbox(state, sandboxFloor);
     } else if (fresh) {
@@ -622,13 +624,18 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | undefined {
+    const id = this.themeAt(x, y);
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : undefined;
+  }
+
+  /** Thème de la salle qui contient cette case (null hors des salles à thème). */
+  themeAt(x: number, y: number): string | null {
     for (const t of this.current.themes) {
-      if (t.id !== "cuisine" && t.id !== "torture") continue;
       const r = this.rooms[t.room];
-      if (r && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t.id === "cuisine" ? "kitchen" : "torture";
+      if (r && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t.id;
     }
-    return undefined;
+    return null;
   }
 
   /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
@@ -859,6 +866,8 @@ export class Game {
     const kind = ITEMS[item.defId].kind;
     if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem") return false;
     if (this.tooLow(ITEMS[item.defId])) return false;
+    // Arme à deux mains (Thomas, 2026-11-11) : pas tant qu'une torche brûle dans l'autre main.
+    if ((ITEMS[item.defId] as ItemDef).twoHanded && this.torchTurns > 0) return false;
     const previous = this.equipment[kind];
     const from = { x: item.x, y: item.y };
     this.inventory.removeItem(uid);
@@ -942,11 +951,18 @@ export class Game {
     this.light = computeLight(this.map, [...this.torches, ...carried, ...dropped]);
   }
 
+  /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
+  twoHanded(): boolean {
+    return !!this.weapon("melee")?.twoHanded;
+  }
+
   /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
   useItem(uid: number): boolean {
     const item = this.inventory.get(uid);
     if (this.over || !item) return false;
     const def = ITEMS[item.defId] as ItemDef;
+    // Une torche se tient d'une main : impossible avec une arme à deux mains (Thomas, 2026-11-11).
+    if (def.lightTurns && this.twoHanded()) return false;
     if (def.kind !== "use" || this.tooLow(def) || def.throwRange) return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
@@ -2234,7 +2250,10 @@ export class Game {
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
-      const loot = rollLoot(this.rng, this.depth);
+      // Coffre de la forge : une arme ; de l'alchimiste : une potion (Thomas). Ailleurs, un objet au hasard.
+      const theme = this.themeAt(x, y);
+      const pool = theme === "forge" ? lootPool(this.depth, (k) => k === "melee" || k === "ranged") : theme === "alchimiste" ? lootPool(this.depth, (_, id) => id.startsWith("potion_")) : [];
+      const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
       const drops = this.spillLoot(x, y, gold, loot);
       this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
     }
@@ -2266,6 +2285,20 @@ export class Game {
       this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
       return [goldAt, itemAt];
     }
+  }
+
+  /** Ce avec quoi on peut faire quelque chose dans cette salle : coffre, fontaine, sarcophage fermé, objet au sol. */
+  interactiveIn(room: { x: number; y: number; w: number; h: number }): Point[] {
+    const out: Point[] = [];
+    const inside = (p: Point) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const t = this.map.get(x, y);
+        if (t === Tile.Chest || t === Tile.Fountain || this.maidenAt(x, y)) out.push({ x, y });
+      }
+    }
+    for (const g of this.ground) if (inside(g) && !out.some((p) => p.x === g.x && p.y === g.y)) out.push({ x: g.x, y: g.y });
+    return out;
   }
 
   /** Sarcophage à pointes encore fermé sur cette case ? */

@@ -149,7 +149,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture";
+export type FloorStyle = "kitchen" | "torture" | "forge";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -170,6 +170,14 @@ function tortureFloor(px: number, py: number): RGB {
   const c = floorB(px, py);
   let out: RGB = [c[0] * 0.62, c[1] * 0.55, c[2] * 0.6];
   if (fbm(px, py, 14, 970, 2) < 0.3) out = [out[0] * 0.6 + 74 * 0.4, out[1] * 0.6 + 26 * 0.4, out[2] * 0.6 + 28 * 0.4];
+  return out;
+}
+
+/** Dalles de la forge : le sol B noirci de suie (planche art/forge_v1.png). */
+function forgeFloor(px: number, py: number): RGB {
+  const c = floorB(px, py);
+  let out: RGB = [c[0] * 0.6, c[1] * 0.58, c[2] * 0.62];
+  if (fbm(px, py, 12, 990, 2) < 0.35) out = scale(out, 0.7);
   return out;
 }
 
@@ -201,7 +209,7 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : floorB(px, py);
+      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

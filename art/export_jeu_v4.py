@@ -12,6 +12,7 @@ from trainards_v3 import barrel_v3, crate_v3, crate_stack_v3, cobweb
 from pieges_v3 import spikes, pit, needle, gas
 import cuisine_v2 as cu
 import salles_v1 as sa
+import forge_alchimie_v1 as fa
 from pix import hexrgb
 
 
@@ -99,7 +100,7 @@ if __name__ == "__main__":
     runner = sa.runner(1, 3).img()
     write("src/render/sprites/salles.ts", "SALLES",
           "Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce »). Les noms finissant par 0, 1, 2 sont les images d'une animation.",
-          {"shelf2": cu.shelf2().img(), "counter": cu.counter().img(), "grainSack": cu.grain_sack().img(),
+          {"shelf2": cu.shelf2().img(), **{f"basket{n}": cu.fruit_basket(n).img() for n in range(4)}, "counter": cu.counter().img(), "grainSack": cu.grain_sack().img(),
            **{f"ham{i}": cu.wall_hook(i).img() for i in range(3)}, **{f"barrique{i}": cu.barrique(i).img() for i in range(3)},
            "gutterH": flat(gutter_h), "drain": flat(drain), "bloodGutterV": flat(blood_gutter_v), "bloodDrain": flat(lambda p: drain(p, True)),
            "pew": sa.pew().img(), "pewBroken": sa.pew(True).img(), "altar": sa.altar().img(), "candelBare": sa.candelabrum(0, 0).img(),
@@ -108,3 +109,14 @@ if __name__ == "__main__":
            "vitrail0": sa.stained_glass(0).img(), "vitrail1": sa.stained_glass(1).img(),
            "rackTable": sa.rack_table().img(), "toolRack": sa.tool_rack().img(), "wallBoard": sa.wall_board().img(),
            "ropeA": sa.rope_cluster(0).img(), "ropeB": sa.rope_cluster(1).img(), "ropeC": sa.rope_cluster(2).img(), "maiden": sa.maiden("closed").img(), "maidenOpen": sa.maiden("open").img()})
+    write("src/render/sprites/atelier.ts", "ATELIERS",
+          "Forge v1 et alchimiste v1 (planches validées le 2026-11-11 : « Ok »). Les noms finissant par 0, 1, 2 sont les images d'une animation.",
+          {"anvil": fa.anvil().img(), "armorStand": fa.armor_stand().img(), "armorStandB": fa.armor_stand(1).img(),
+           "coalS": fa.coal(0).img(), "coalM": fa.coal(1).img(), "coalL": fa.coal(2).img(),
+           **{f"forge{i}": fa.forge(i).img() for i in range(3)}, "rustySword": fa.rusty_sword().img(),
+           "weaponRack": fa.weapon_rack().img(), "toolShelf": fa.tool_shelf().img(), "workbench": fa.workbench().img(),
+           "grindstone": fa.grindstone().img(),
+           **{f"cauldron{i}": fa.cauldron(i).img() for i in range(3)}, "glassShelf": fa.glass_shelf().img(),
+           "stuffedBear": fa.stuffed_bear().img(), "herbs": fa.herbs().img(), "pottedPlant": fa.potted_plant().img(),
+           "bookcase": fa.bookcase_front().img(), "bookcaseL": fa.bookcase_side("right").img(), "bookcaseR": fa.bookcase_side("left").img(),
+           "grimoire0": fa.grimoire_stand(0).img(), "grimoire1": fa.grimoire_stand(1).img(), "grimoire2": fa.grimoire_stand(0).img()})

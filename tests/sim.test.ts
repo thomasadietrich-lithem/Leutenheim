@@ -1593,7 +1593,11 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
   const game = new Game(1, undefined, undefined, undefined, true);
   // Chaque salle, l'escalier et les deux portes verrouillées sont atteignables depuis le départ.
   const dist = distanceField(game.map, game.hero);
-  for (const r of game.rooms) assert.notEqual(dist[game.map.index(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2))], -1, `salle (${r.x},${r.y}) inaccessible`);
+  for (const r of game.rooms) {
+    let ok = false;
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (dist[game.map.index(x, y)] >= 0) ok = true;
+    assert.ok(ok, `salle (${r.x},${r.y}) inaccessible`);
+  }
   for (let y = 0; y < game.map.height; y++) {
     for (let x = 0; x < game.map.width; x++) {
       if (game.map.get(x, y) !== Tile.DoorLocked) continue;
@@ -1608,8 +1612,8 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
   // Les nouveaux objets sont dans la salle de départ, au plus près du héros.
   const start = game.rooms[0];
   for (const id of ["pomme", "torche", "fleche_poison", "epee_longue", "lance", "cimeterre", "armure_cloutee"]) {
-    const g = game.ground.find((it) => it.item === id);
-    assert.ok(g && g.x >= start.x && g.x < start.x + start.w && g.y >= start.y && g.y < start.y + start.h, `${id} hors de la salle de départ`);
+    const inStart = game.ground.some((g) => g.item === id && g.x >= start.x && g.x < start.x + start.w && g.y >= start.y && g.y < start.y + start.h);
+    assert.ok(inStart, `${id} hors de la salle de départ`);
   }
   assert.ok(game.traps().length >= 2);
   assert.ok(game.ground.some((g) => g.item === "clef"));
@@ -2189,7 +2193,7 @@ test("salles à thème dans le donjon : 0 à 2 par étage, de thèmes différent
     // Un coffre se compte comme une case où l'on marche : il ne change rien.
     assert.equal(after, before - blocked, `graine ${seed} : un meuble coupe un passage (${chests} coffres)`);
   }
-  for (const id of ["dortoir", "cuisine", "priere", "torture"]) assert.ok((counts[id] ?? 0) >= 8, `${id} : ${counts[id] ?? 0}`);
+  for (const id of ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste"]) assert.ok((counts[id] ?? 0) >= 4, `${id} : ${counts[id] ?? 0}`);
 });
 
 test("tapis : il étouffe les pas, et brûle tout entier", () => {
@@ -2637,4 +2641,31 @@ test("fin de partie : on sait de quoi le héros est mort ; portes et coffres br�
   g2.wait();
   g2.tick();
   assert.equal(g2.map.get(12, 6), Tile.Floor, "la porte a brûlé");
+});
+
+test("forge, alchimiste, panier de pommes ; la fouille montre ce qui est interactif ; deux mains et torche", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const kinds = new Set(game.furnitureList().map((f) => f.kind));
+  for (const k of ["forge", "anvil", "workbench", "grindstone", "cauldron", "grimoire", "stuffedBear", "bookcase", "basket"]) assert.ok(kinds.has(k), `${k} manque`);
+  assert.ok(kinds.has("bookcaseL") || kinds.has("bookcaseR"), "une bibliothèque de profil");
+  const basket = game.furnitureList().find((f) => f.kind === "basket")!;
+  const apples = game.ground.filter((g) => g.x === basket.x && g.y === basket.y && g.item === "pomme").reduce((n, g) => n + g.count, 0);
+  assert.ok(apples >= 2 && apples <= 3, `pommes : ${apples}`);
+  assert.equal(game.floorStyle(45, 5), "forge");
+  const kitchen = game.rooms[6];
+  assert.ok(game.interactiveIn(kitchen).some((p) => p.x === basket.x && p.y === basket.y), "le panier brille à la fouille");
+  // Arme à deux mains : pas de torche.
+  game.inventory.add("epee_longue", 1);
+  game.inventory.add("torche", 1);
+  const sword = game.inventory.items.find((i) => i.defId === "epee_longue")!;
+  assert.ok(game.equip(sword.uid));
+  const torch = game.inventory.items.find((i) => i.defId === "torche")!;
+  assert.equal(game.useItem(torch.uid), false);
+  // Dans le donjon, forge et alchimiste apparaissent aussi.
+  const seen = new Set<string>();
+  for (let seed = 1; seed <= 150; seed++) {
+    const floor = generateFloor(seed, DEFAULT_FLOOR);
+    for (const t of furnishFloor(floor, seed).themes) seen.add(t.id);
+  }
+  assert.ok(seen.has("forge") && seen.has("alchimiste"), [...seen].join(","));
 });

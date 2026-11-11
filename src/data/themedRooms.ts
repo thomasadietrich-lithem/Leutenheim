@@ -14,6 +14,26 @@ export interface ThemedRoomDef {
 }
 
 export const THEMED_ROOMS: ThemedRoomDef[] = [
+  // Forge v1 et alchimiste v1 (planches validées le 2026-11-11 : « Ok ») ; butins des caches (C).
+  {
+    id: "forge",
+    name: "Forge",
+    loot: [
+      { item: "or", min: 8, max: 16, weight: 3 },
+      { item: "fleche", min: 3, max: 6, weight: 2 },
+      { item: "couteau_boucher", min: 1, max: 1, weight: 1, minDepth: 2 },
+    ],
+  },
+  {
+    id: "alchimiste",
+    name: "Alchimiste",
+    loot: [
+      { item: "or", min: 8, max: 16, weight: 2 },
+      { item: "potion_poison", min: 1, max: 1, weight: 2 },
+      { item: "potion_feu", min: 1, max: 1, weight: 2 },
+      { item: "potion_vitesse", min: 1, max: 1, weight: 1 },
+    ],
+  },
   // Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce ») ; butins (C).
   {
     id: "cuisine",
@@ -85,6 +105,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   counter: { blocks: true, w: 2, h: 1, burns: true },
   barrique: { blocks: true, w: 2, h: 1, burns: true },
   grainSack: { blocks: true, w: 1, h: 1, burns: true },
+  // Panier à fruits (Thomas, 2026-11-11) : ne bloque pas ; ses 2 à 3 pommes se ramassent (le dessin suit leur nombre).
+  basket: { blocks: false, w: 1, h: 1, burns: true },
   gutterH: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   drain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   // SALLE DE PRIÈRE v1 : bancs (2 cases), autel (3 cases, le pupitre au milieu), candélabres (0 à 3 bougies), tapis de
@@ -113,6 +135,32 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   maidenOpen: { blocks: true, w: 1, h: 1, burns: false },
   bloodGutterV: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   bloodDrain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  // FORGE v1 : enclume, armure rouillée sur support (2 dessins), charbon (3 tailles), forge et soufflet (2 cases, braises
+  // animées), épée rouillée au sol, râtelier d'armes, étagère murale à outils, établi (2 cases), meule à aiguiser.
+  anvil: { blocks: true, w: 1, h: 1, burns: false },
+  armorStand: { blocks: true, w: 1, h: 1, burns: true },
+  armorStandB: { blocks: true, w: 1, h: 1, burns: true },
+  coalS: { blocks: false, w: 1, h: 1, burns: true },
+  coalM: { blocks: true, w: 1, h: 1, burns: true },
+  coalL: { blocks: true, w: 1, h: 1, burns: true },
+  forge: { blocks: true, w: 2, h: 1, burns: false },
+  rustySword: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  weaponRack: { blocks: true, w: 1, h: 1, burns: true },
+  toolShelf: { blocks: true, w: 1, h: 1, burns: true },
+  workbench: { blocks: true, w: 2, h: 1, burns: true },
+  grindstone: { blocks: true, w: 1, h: 1, burns: true },
+  // ALCHIMISTE v1 : chaudron sur le feu (animé), étagère de verrerie, ours empaillé, herbes qui sèchent (mur du fond),
+  // plante en pot, bibliothèque de face (2 cases, mur du fond) ou de profil (2 cases de haut, mur de gauche / de droite),
+  // grimoire sur pied (lueur animée).
+  cauldron: { blocks: true, w: 1, h: 1, burns: false },
+  glassShelf: { blocks: true, w: 1, h: 1, burns: true },
+  stuffedBear: { blocks: true, w: 1, h: 1, burns: true },
+  herbs: { blocks: true, w: 1, h: 1, burns: true },
+  pottedPlant: { blocks: true, w: 1, h: 1, burns: true },
+  bookcase: { blocks: true, w: 2, h: 1, burns: true },
+  bookcaseL: { blocks: true, w: 1, h: 2, burns: true },
+  bookcaseR: { blocks: true, w: 1, h: 2, burns: true },
+  grimoire: { blocks: true, w: 1, h: 1, burns: true },
 };
 
 /** Meuble peint avec le sol (tapis, toile, rigole) : il prend exactement la lumière de sa case. */

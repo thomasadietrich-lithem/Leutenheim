@@ -2106,6 +2106,26 @@
 
   // src/data/themedRooms.ts
   var THEMED_ROOMS = [
+    // Forge v1 et alchimiste v1 (planches validées le 2026-11-11 : « Ok ») ; butins des caches (C).
+    {
+      id: "forge",
+      name: "Forge",
+      loot: [
+        { item: "or", min: 8, max: 16, weight: 3 },
+        { item: "fleche", min: 3, max: 6, weight: 2 },
+        { item: "couteau_boucher", min: 1, max: 1, weight: 1, minDepth: 2 }
+      ]
+    },
+    {
+      id: "alchimiste",
+      name: "Alchimiste",
+      loot: [
+        { item: "or", min: 8, max: 16, weight: 2 },
+        { item: "potion_poison", min: 1, max: 1, weight: 2 },
+        { item: "potion_feu", min: 1, max: 1, weight: 2 },
+        { item: "potion_vitesse", min: 1, max: 1, weight: 1 }
+      ]
+    },
     // Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce ») ; butins (C).
     {
       id: "cuisine",
@@ -2173,6 +2193,8 @@
     counter: { blocks: true, w: 2, h: 1, burns: true },
     barrique: { blocks: true, w: 2, h: 1, burns: true },
     grainSack: { blocks: true, w: 1, h: 1, burns: true },
+    // Panier à fruits (Thomas, 2026-11-11) : ne bloque pas ; ses 2 à 3 pommes se ramassent (le dessin suit leur nombre).
+    basket: { blocks: false, w: 1, h: 1, burns: true },
     gutterH: { blocks: false, w: 1, h: 1, burns: false, flat: true },
     drain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
     // SALLE DE PRIÈRE v1 : bancs (2 cases), autel (3 cases, le pupitre au milieu), candélabres (0 à 3 bougies), tapis de
@@ -2200,7 +2222,33 @@
     maiden: { blocks: true, w: 1, h: 1, burns: false },
     maidenOpen: { blocks: true, w: 1, h: 1, burns: false },
     bloodGutterV: { blocks: false, w: 1, h: 1, burns: false, flat: true },
-    bloodDrain: { blocks: false, w: 1, h: 1, burns: false, flat: true }
+    bloodDrain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    // FORGE v1 : enclume, armure rouillée sur support (2 dessins), charbon (3 tailles), forge et soufflet (2 cases, braises
+    // animées), épée rouillée au sol, râtelier d'armes, étagère murale à outils, établi (2 cases), meule à aiguiser.
+    anvil: { blocks: true, w: 1, h: 1, burns: false },
+    armorStand: { blocks: true, w: 1, h: 1, burns: true },
+    armorStandB: { blocks: true, w: 1, h: 1, burns: true },
+    coalS: { blocks: false, w: 1, h: 1, burns: true },
+    coalM: { blocks: true, w: 1, h: 1, burns: true },
+    coalL: { blocks: true, w: 1, h: 1, burns: true },
+    forge: { blocks: true, w: 2, h: 1, burns: false },
+    rustySword: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    weaponRack: { blocks: true, w: 1, h: 1, burns: true },
+    toolShelf: { blocks: true, w: 1, h: 1, burns: true },
+    workbench: { blocks: true, w: 2, h: 1, burns: true },
+    grindstone: { blocks: true, w: 1, h: 1, burns: true },
+    // ALCHIMISTE v1 : chaudron sur le feu (animé), étagère de verrerie, ours empaillé, herbes qui sèchent (mur du fond),
+    // plante en pot, bibliothèque de face (2 cases, mur du fond) ou de profil (2 cases de haut, mur de gauche / de droite),
+    // grimoire sur pied (lueur animée).
+    cauldron: { blocks: true, w: 1, h: 1, burns: false },
+    glassShelf: { blocks: true, w: 1, h: 1, burns: true },
+    stuffedBear: { blocks: true, w: 1, h: 1, burns: true },
+    herbs: { blocks: true, w: 1, h: 1, burns: true },
+    pottedPlant: { blocks: true, w: 1, h: 1, burns: true },
+    bookcase: { blocks: true, w: 2, h: 1, burns: true },
+    bookcaseL: { blocks: true, w: 1, h: 2, burns: true },
+    bookcaseR: { blocks: true, w: 1, h: 2, burns: true },
+    grimoire: { blocks: true, w: 1, h: 1, burns: true }
   };
   function isFlat(kind) {
     return !!FURNITURE_KINDS[kind]?.flat;
@@ -2351,7 +2399,7 @@
     const rng = new Rng(seed ^ 1867128211);
     const furniture = [];
     const themes = [];
-    const pool = ["dortoir", "cuisine", "priere", "torture"];
+    const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste"];
     for (const chance of RULES.themedRoomChances) {
       if (!rng.chance(chance)) break;
       const id = pool.splice(rng.int(0, pool.length - 1), 1)[0];
@@ -2369,7 +2417,7 @@
     if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 1046183193), furniture, special);
     return { furniture, themes };
   }
-  var MIN_SIZE = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5] };
+  var MIN_SIZE = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6] };
   function fits(id, room) {
     return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
   }
@@ -2377,7 +2425,9 @@
     dortoir: furnishDortoir,
     cuisine: furnishKitchen,
     priere: furnishChapel,
-    torture: furnishTorture
+    torture: furnishTorture,
+    forge: furnishForge,
+    alchimiste: furnishAlchemist
   };
   function roomPlacer(floor, room) {
     const { map } = floor;
@@ -2478,6 +2528,11 @@
       if (x !== room.x && x !== room.x + room.w - 1) continue;
       const kind = ["barrel", "crate", "crateStack", "grainSack"][rng.int(0, 3)];
       if (P.tryPlace({ x, y, kind })) put++;
+    }
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y + 2, gy - 1);
+      if (P.tryPlace({ x, y, kind: "basket", count: rng.int(2, 3) })) break;
     }
     out.push(...P.placed);
     return true;
@@ -2647,12 +2702,109 @@
       }
     });
   }
+  function scatter(P, rng, kinds, count, zone) {
+    let put = 0;
+    for (let attempt = 0; attempt < count * 25 && put < count; attempt++) {
+      const p = zone();
+      if (P.tryPlace({ ...p, kind: kinds[rng.int(0, kinds.length - 1)] })) put++;
+    }
+    return put;
+  }
+  function edgeChests(P, floor, room, rng, count) {
+    let put = 0;
+    for (let attempt = 0; attempt < 40 && put < count; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y + 2, room.y + room.h - 1);
+      const edge = x === room.x || x === room.x + room.w - 1 || y === room.y + room.h - 1;
+      if (!edge || besideOpening(floor, room, x, y)) continue;
+      if (P.chest(x, y)) put++;
+    }
+  }
+  function furnishForge(floor, room, rng, out) {
+    const P = roomPlacer(floor, room);
+    if (!P.allFloor()) return false;
+    const back = [
+      "forge",
+      ...Array(rng.int(0, 3)).fill("toolShelf"),
+      ...Array(rng.int(0, 2)).fill("weaponRack"),
+      ...Array.from({ length: rng.int(0, 2) }, () => rng.chance(0.5) ? "armorStand" : "armorStandB")
+    ];
+    P.alongBackWall(shuffle(rng, back));
+    if (!P.placed.some((f) => f.kind === "forge")) {
+      P.undo();
+      return false;
+    }
+    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+    const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
+    const edge = () => {
+      const side = rng.chance(0.5);
+      return side ? { x: rng.chance(0.5) ? room.x : room.x + room.w - 1, y: rng.int(room.y + 2, room.y + room.h - 1) } : { x: rng.int(room.x, room.x + room.w - 1), y: room.y + room.h - 1 };
+    };
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const p = inner();
+      if (!P.tryPlace({ x: Math.min(p.x, room.x + room.w - 3), y: p.y, kind: "workbench" })) continue;
+      const seats = rng.int(0, 2);
+      let n = 0;
+      for (const s of [{ x: p.x - 1, y: p.y, kind: "chairR" }, { x: Math.min(p.x, room.x + room.w - 3) + 2, y: p.y, kind: "chairL" }]) {
+        if (n < seats && P.tryPlace(s)) n++;
+      }
+      break;
+    }
+    scatter(P, rng, ["anvil"], rng.int(1, 2), inner);
+    scatter(P, rng, ["grindstone"], 1, inner);
+    scatter(P, rng, ["coalS", "coalM", "coalL"], rng.int(1, 2), edge);
+    scatter(P, rng, ["barrel"], rng.int(0, 3), edge);
+    scatter(P, rng, ["rustySword"], 1, inner);
+    edgeChests(P, floor, room, rng, rng.int(0, 2));
+    out.push(...P.placed);
+    return true;
+  }
+  function furnishAlchemist(floor, room, rng, out) {
+    const P = roomPlacer(floor, room);
+    if (!P.allFloor()) return false;
+    const books = rng.int(1, 3);
+    const front = rng.int(0, Math.min(1, books));
+    const back = [...Array(front).fill("bookcase"), ...Array(rng.int(0, 3)).fill("glassShelf"), ...Array(rng.int(0, 2)).fill("herbs")];
+    P.alongBackWall(shuffle(rng, back));
+    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+    let sides = books - P.placed.filter((f) => f.kind === "bookcase").length;
+    for (let attempt = 0; attempt < 30 && sides > 0; attempt++) {
+      const left = rng.chance(0.5);
+      const y = rng.int(room.y + 2, room.y + room.h - 2);
+      if (P.tryPlace({ x: left ? room.x : room.x + room.w - 1, y, kind: left ? "bookcaseL" : "bookcaseR" })) sides--;
+    }
+    if (!P.placed.some((f) => f.kind.startsWith("bookcase"))) {
+      P.undo();
+      return false;
+    }
+    const hy = room.y + Math.floor(room.h / 2);
+    for (const side of rng.chance(0.5) ? [-1, 1] : [1, -1]) {
+      const wx = side < 0 ? room.x - 1 : room.x + room.w;
+      const ok = [-1, 0, 1].every((d) => floor.map.get(wx, hy + d) === Tile.Wall) && !floor.torches.some((t) => t.x === wx && t.y === hy);
+      if (!ok) continue;
+      floor.torches = floor.torches.filter((t) => !(t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h));
+      floor.torches.push({ x: wx, y: hy, radius: 5, faceX: -side, faceY: 0, hearth: true, lit: true });
+      break;
+    }
+    const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
+    const corner = () => {
+      const cs = [{ x: room.x, y: room.y + 2 }, { x: room.x + room.w - 1, y: room.y + 2 }, { x: room.x, y: room.y + room.h - 1 }, { x: room.x + room.w - 1, y: room.y + room.h - 1 }];
+      return cs[rng.int(0, 3)];
+    };
+    scatter(P, rng, ["cauldron"], 1, inner);
+    scatter(P, rng, ["grimoire"], 1, inner);
+    scatter(P, rng, ["stuffedBear"], 1, corner);
+    scatter(P, rng, ["pottedPlant"], 1, corner);
+    edgeChests(P, floor, room, rng, rng.int(1, 2));
+    out.push(...P.placed);
+    return true;
+  }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 10;
-  var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28 };
+  var SANDBOX_LAYOUT = 11;
+  var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
-    const map = new GameMap(40, 32);
+    const map = new GameMap(52, 32);
     const carve = (r) => {
       for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
     };
@@ -2682,7 +2834,8 @@
       // Une torche sur le mur de droite de la cuisine, de la salle de prière et de la salle de torture.
       { x: 38, y: 5, radius: 6, faceX: -1, faceY: 0 },
       { x: 38, y: 16, radius: 6, faceX: -1, faceY: 0 },
-      { x: 38, y: 26, radius: 6, faceX: -1, faceY: 0 }
+      { x: 38, y: 26, radius: 6, faceX: -1, faceY: 0 },
+      { x: 50, y: 5, radius: 6, faceX: -1, faceY: 0 }
     ];
     const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
     const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
@@ -2700,18 +2853,29 @@
     const torture = { x: 29, y: 23, w: 9, h: 6 };
     for (const r of [kitchen, chapel, torture]) carve(r);
     for (const y of [6, 16, 25]) for (let x = 26; x <= 28; x++) map.set(x, y, Tile.Floor);
-    const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture];
+    const forgeRoom = { x: 41, y: 3, w: 9, h: 6 };
+    const alchemy = { x: 41, y: 12, w: 9, h: 8 };
+    for (const r of [forgeRoom, alchemy]) carve(r);
+    for (let x = 38; x <= 40; x++) {
+      map.set(x, 7, Tile.Floor);
+      map.set(x, 13, Tile.Floor);
+    }
+    const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture, forgeRoom, alchemy];
     const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
     const furniture = [];
     furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
     furnishKitchen(floorPlan, kitchen, new Rng(seeds.kitchen), furniture);
     furnishChapel(floorPlan, chapel, new Rng(seeds.chapel), furniture);
     furnishTorture(floorPlan, torture, new Rng(seeds.torture), furniture);
+    furnishForge(floorPlan, forgeRoom, new Rng(seeds.forge), furniture);
+    furnishAlchemist(floorPlan, alchemy, new Rng(seeds.alchemist), furniture);
     const themes = [
       { room: 4, id: "dortoir" },
       { room: 6, id: "cuisine" },
       { room: 7, id: "priere" },
-      { room: 8, id: "torture" }
+      { room: 8, id: "torture" },
+      { room: 9, id: "forge" },
+      { room: 10, id: "alchimiste" }
     ];
     furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });
     for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }]) {
@@ -3342,6 +3506,9 @@
       this.shotTarget = null;
       this.pendingStairs = null;
       this.clearDoorOrders();
+      if (fresh) {
+        for (const f of state.furniture) if (f.kind === "basket" && f.count) state.ground.push({ x: f.x, y: f.y, item: "pomme", count: f.count });
+      }
       if (fresh && sandboxFloor) {
         this.populateSandbox(state, sandboxFloor);
       } else if (fresh) {
@@ -3657,12 +3824,16 @@
     }
     /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
     floorStyle(x, y) {
+      const id = this.themeAt(x, y);
+      return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : void 0;
+    }
+    /** Thème de la salle qui contient cette case (null hors des salles à thème). */
+    themeAt(x, y) {
       for (const t of this.current.themes) {
-        if (t.id !== "cuisine" && t.id !== "torture") continue;
         const r = this.rooms[t.room];
-        if (r && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t.id === "cuisine" ? "kitchen" : "torture";
+        if (r && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t.id;
       }
-      return void 0;
+      return null;
     }
     /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
     roomElements(room) {
@@ -3876,6 +4047,7 @@
       const kind = ITEMS[item.defId].kind;
       if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem") return false;
       if (this.tooLow(ITEMS[item.defId])) return false;
+      if (ITEMS[item.defId].twoHanded && this.torchTurns > 0) return false;
       const previous = this.equipment[kind];
       const from = { x: item.x, y: item.y };
       this.inventory.removeItem(uid);
@@ -3946,11 +4118,16 @@
       const dropped = (this.ground ?? []).filter((g) => g.item === "torche").map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
       this.light = computeLight(this.map, [...this.torches, ...carried, ...dropped]);
     }
+    /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
+    twoHanded() {
+      return !!this.weapon("melee")?.twoHanded;
+    }
     /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
     useItem(uid) {
       const item = this.inventory.get(uid);
       if (this.over || !item) return false;
       const def = ITEMS[item.defId];
+      if (def.lightTurns && this.twoHanded()) return false;
       if (def.kind !== "use" || this.tooLow(def) || def.throwRange) return false;
       if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
       this.wait();
@@ -5099,7 +5276,9 @@
       } else if (t === Tile.Chest) {
         this.map.set(x, y, Tile.ChestOpen);
         const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
-        const loot = rollLoot(this.rng, this.depth);
+        const theme = this.themeAt(x, y);
+        const pool = theme === "forge" ? lootPool(this.depth, (k) => k === "melee" || k === "ranged") : theme === "alchimiste" ? lootPool(this.depth, (_, id) => id.startsWith("potion_")) : [];
+        const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
         const drops = this.spillLoot(x, y, gold, loot);
         this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
       }
@@ -5123,6 +5302,19 @@
         this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
         return [goldAt, itemAt];
       }
+    }
+    /** Ce avec quoi on peut faire quelque chose dans cette salle : coffre, fontaine, sarcophage fermé, objet au sol. */
+    interactiveIn(room) {
+      const out = [];
+      const inside = (p) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h;
+      for (let y = room.y; y < room.y + room.h; y++) {
+        for (let x = room.x; x < room.x + room.w; x++) {
+          const t = this.map.get(x, y);
+          if (t === Tile.Chest || t === Tile.Fountain || this.maidenAt(x, y)) out.push({ x, y });
+        }
+      }
+      for (const g of this.ground) if (inside(g) && !out.some((p) => p.x === g.x && p.y === g.y)) out.push({ x: g.x, y: g.y });
+      return out;
     }
     /** Sarcophage à pointes encore fermé sur cette case ? */
     maidenAt(x, y) {
@@ -9300,7 +9492,7 @@
 
   // src/render/sprites/salles.ts
   var SALLES = {
-    shelf2: { palette: { "a": "#8a6238", "b": "#56381c", "c": "#120d08", "d": "#342010", "e": "#765c38", "f": "#763e28", "g": "#e2dcc8", "h": "#6e9678", "i": "#a45c3c", "j": "#f4f7ff", "k": "#aad2b4", "l": "#d6c4a0", "m": "#e2965a", "n": "#c3cbe0", "o": "#b86834", "p": "#704c28", "q": "#6e1428", "r": "#a0283e", "s": "#c4a670", "t": "#a48454", "u": "#debe70", "v": "#8a90a8", "w": "#5a5f74", "x": "#1c1622" }, rows: [
+    shelf2: { palette: { "a": "#8a6238", "b": "#56381c", "c": "#120d08", "d": "#342010", "e": "#765c38", "f": "#763e28", "g": "#e2dcc8", "h": "#78aabe", "i": "#a45c3c", "j": "#f4f7ff", "k": "#c8ebf5", "l": "#d6c4a0", "m": "#e2965a", "n": "#c3cbe0", "o": "#b86834", "p": "#704c28", "q": "#6e1428", "r": "#a0283e", "s": "#c4a670", "t": "#a48454", "u": "#debe70", "v": "#8a90a8", "w": "#5a5f74", "x": "#1c1622" }, rows: [
       "abc...........cddc...........cbb",
       "abc...........cddc.....c.....cbb",
       "abcccc.....ccccddc....cec....cbb",
@@ -9335,6 +9527,70 @@
       "abcccccccccccccddcccccccccccccbb",
       "cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxc",
       "cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxc"
+    ] },
+    basket0: { palette: { "a": "#120d08", "b": "#765c38", "c": "#c4a670", "d": "#1c1622" }, rows: [
+      ".......a......",
+      "......aba.....",
+      ".....ababa....",
+      "....aba.aba...",
+      "...aba...aba..",
+      ".aabaaaaaaaba.",
+      "abbbbbbbbbbbba",
+      "acbccbccbccbca",
+      "abccbccbccbcca",
+      "accbccbccbccba",
+      "acbccbccbccbca",
+      ".accbccbccbca.",
+      ".adddddddddda.",
+      ".adddddddddda."
+    ] },
+    basket1: { palette: { "a": "#120d08", "b": "#765c38", "c": "#342010", "d": "#b0282c", "e": "#e66e64", "f": "#c4a670", "g": "#1c1622" }, rows: [
+      ".......a......",
+      "......aba.....",
+      ".....cbaba....",
+      "....dda.aba...",
+      "...dedd..aba..",
+      ".aaddddaaaaba.",
+      "abbddddbbbbbba",
+      "afbffbffbffbfa",
+      "abffbffbffbffa",
+      "affbffbffbffba",
+      "afbffbffbffbfa",
+      ".affbffbffbfa.",
+      ".agggggggggga.",
+      ".agggggggggga."
+    ] },
+    basket2: { palette: { "a": "#120d08", "b": "#765c38", "c": "#342010", "d": "#b0282c", "e": "#e66e64", "f": "#c4a670", "g": "#1c1622" }, rows: [
+      ".......a......",
+      "......aba.....",
+      ".....cbabc....",
+      "....dda.dda...",
+      "...dedddedda..",
+      ".aaddddddddba.",
+      "abbddddddddbba",
+      "afbffbffbffbfa",
+      "abffbffbffbffa",
+      "affbffbffbffba",
+      "afbffbffbffbfa",
+      ".affbffbffbfa.",
+      ".agggggggggga.",
+      ".agggggggggga."
+    ] },
+    basket3: { palette: { "a": "#342010", "b": "#b0282c", "c": "#120d08", "d": "#e66e64", "e": "#765c38", "f": "#c4a670", "g": "#1c1622" }, rows: [
+      ".......a......",
+      "......bbc.....",
+      ".....bdbba....",
+      "....bbbbbbc...",
+      "...bdbbbbbbc..",
+      ".ccbbbbbbbbec.",
+      "ceebbbbbbbbeec",
+      "cfeffeffeffefc",
+      "ceffeffeffeffc",
+      "cffeffeffeffec",
+      "cfeffeffeffefc",
+      ".cffeffeffefc.",
+      ".cggggggggggc.",
+      ".cggggggggggc."
     ] },
     counter: { palette: { "a": "#120d08", "b": "#342010", "c": "#8a6238", "d": "#704c28", "e": "#8a90a8", "f": "#d6c4a0", "g": "#80181e", "h": "#964646", "i": "#56381c", "j": "#520e14", "k": "#5a5f74", "l": "#682c32", "m": "#1c1622" }, rows: [
       "...............aba..............",
@@ -10074,7 +10330,7 @@
       "..addbbeeeeeca..",
       "..addbbbeeeeca.."
     ] },
-    vitrail0: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#1e1a22", "d": "#be323c", "e": "#e6be46", "f": "#3c5abe", "g": "#46965a", "h": "#08060c" }, rows: [
+    vitrail0: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#1e1a22", "d": "#c83c3c", "e": "#e6be46", "f": "#3c5abe", "g": "#46965a", "h": "#08060c" }, rows: [
       "...aaaaaaaa...",
       "..abbcddebba..",
       ".abccccccccba.",
@@ -10094,7 +10350,7 @@
       "bcggfcffdcddeb",
       "bbbbbbbbbbbbbb"
     ] },
-    vitrail1: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#1e1a22", "d": "#be323c", "e": "#e6be46", "f": "#3c5abe", "g": "#46965a", "h": "#08060c" }, rows: [
+    vitrail1: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#1e1a22", "d": "#c83c3c", "e": "#e6be46", "f": "#3c5abe", "g": "#46965a", "h": "#08060c" }, rows: [
       "...aaaaaaaa...",
       "..abbcddebba..",
       ".abccccccccba.",
@@ -10338,6 +10594,767 @@
     ] }
   };
 
+  // src/render/sprites/atelier.ts
+  var ATELIERS = {
+    anvil: { palette: { "a": "#120d08", "b": "#8a90a8", "c": "#5a5f74", "d": "#343846", "e": "#8a6238", "f": "#56381c", "g": "#342010", "h": "#1c1622" }, rows: [
+      "................",
+      "................",
+      "aaaaaaaaaaaaaa..",
+      "bbbbbbbbbbbbbba.",
+      "cccccccccccccca.",
+      "aacccccccccccca.",
+      "..aaaddddddaaa..",
+      "....adddddda....",
+      "...acccccccca...",
+      "...aeeeeeeeea...",
+      "...affffffffa...",
+      "...affffffffa...",
+      "...acccccccca...",
+      "...affffffffa...",
+      "...afggggggfa...",
+      "..aaffffffffaa..",
+      ".ahhhhhhhhhhhha.",
+      ".ahhhhhhhhhhhha."
+    ] },
+    armorStand: { palette: { "a": "#120d08", "b": "#a0603c", "c": "#7a4228", "d": "#1c181e", "e": "#56381c", "f": "#522c1c", "g": "#342010", "h": "#1c1622" }, rows: [
+      "................",
+      ".....aaaaaa.....",
+      "....abbbbbba....",
+      "....acccccca....",
+      "....acccccca....",
+      "....acddddca....",
+      "....acccccca....",
+      "....acccccca....",
+      "....acccccca....",
+      ".....aaeeaa.....",
+      "..aaaaaeeaaaaa..",
+      ".afffbbbbbbfffa.",
+      ".afffcccccffffa.",
+      ".afffbbcccffffa.",
+      ".afffbbcccffffa.",
+      "..aacbfcccffaa..",
+      "...acbbcccffa...",
+      "...acbbccfffa...",
+      "...acbbcccffa...",
+      "...acfccccffa...",
+      "...acccccccca...",
+      "....acccccca....",
+      "....affffffa....",
+      "....affffffa....",
+      "....affffffa....",
+      "....aaaeeaaa....",
+      "...agggggggga...",
+      "...agggggggga...",
+      "..ahhhhhhhhhha..",
+      "..ahhhhhhhhhha.."
+    ] },
+    armorStandB: { palette: { "a": "#120d08", "b": "#a0603c", "c": "#7a4228", "d": "#1c181e", "e": "#56381c", "f": "#522c1c", "g": "#5a5f74", "h": "#342010", "i": "#1c1622" }, rows: [
+      "................",
+      ".....aaaaaa.....",
+      "....abbbbbba....",
+      "....acccccca....",
+      "....acccccca....",
+      "....acddddca....",
+      "....acccccca....",
+      "....acccccca....",
+      "....acccccca....",
+      ".....aaeeaa.....",
+      "..aaaaaeeaaaaa..",
+      ".afffbbbbbbfffa.",
+      ".afffcccccffffa.",
+      ".afffbbcccffffa.",
+      ".afffbbcccgfffa.",
+      "..aacbgcccffaa..",
+      "...acbbcccffa...",
+      "...acbbccgffa...",
+      "...acbbcccffa...",
+      "...acgccccffa...",
+      "...acccccccca...",
+      "....acccccca....",
+      "....affffffa....",
+      "....affffffa....",
+      "....affffffa....",
+      "....aaaeeaaa....",
+      "...ahhhhhhhha...",
+      "...ahhhhhhhha...",
+      "..aiiiiiiiiiia..",
+      "..aiiiiiiiiiia.."
+    ] },
+    coalS: { palette: { "a": "#120d08", "b": "#1c181e", "c": "#3a343c" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abccccca....",
+      "...abccbbccba...",
+      "...acbbcbbbba...",
+      "..abbbbbbccbca..",
+      "..acbbbbbbbbba..",
+      "...aaaaaaaaaa..."
+    ] },
+    coalM: { palette: { "a": "#120d08", "b": "#1c181e", "c": "#3a343c" }, rows: [
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abbcbbba....",
+      "...abbcbccbba...",
+      "..abbcbbbbbcba..",
+      ".abbcbbcbbcbcba.",
+      ".abbbcbcbbcbbba.",
+      "abbcbccbbcbbbbba",
+      "abbbbbbcccbbbcba",
+      "abbbbbbbbcbcbbba",
+      ".aaaaaaaaaaaaaa."
+    ] },
+    coalL: { palette: { "a": "#120d08", "b": "#1c181e", "c": "#3a343c" }, rows: [
+      ".....aaaaaa.....",
+      "....abbbbbca....",
+      "...abccbbbbba...",
+      "..abbbcbbbcbba..",
+      ".abbbbbcbbcbcba.",
+      ".abbbbbccbbbbba.",
+      "abbbcbbbbccbcbba",
+      "abbbcbccbcbbbbba",
+      "bbcbbbcccbbccbbb",
+      "bcbbbbccbcbbcbbb",
+      "cbbbccbbbbcbbcbb",
+      "cbcbbbbbbbbbbcbc",
+      "aaaaaaaaaaaaaaaa"
+    ] },
+    forge0: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#6e7594", "d": "#4e5570", "e": "#ff8a2a", "f": "#1c181e", "g": "#ff7828", "h": "#ffbe5a", "i": "#704c28", "j": "#6e4622", "k": "#4c2e16", "l": "#5a5f74", "m": "#56381c", "n": "#1c1622" }, rows: [
+      ".....abbbbbbbbbbbbbbbbbbbba.....",
+      ".....abbbbbbbbbbbbbbbbbbbba.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....accddddddddddddddddcca.....",
+      "....aaccddddddddddddddddccaa....",
+      "...abbbbbbbbbbbbbbbbbbbbbbbba...",
+      "...abbbbbbbbbeeeeeebbbbbbbbba...",
+      "...accccccccceeeeeeccccccccca...",
+      "...accccffffffffffffffffcccca...",
+      "...accccffffffggffffffffcccca...",
+      "...accccffffggggffhhffffcccca...",
+      "...accccfhhfggffffhhfggfcciiiiii",
+      "...accccfhhffffeeffffggfcciiiiii",
+      "...accccfffeeffeehhfffffccjjjjjj",
+      "...accccfffeeffffhhfffffccjkkkkj",
+      "...accccffffffffffffffffllljjjjj",
+      "...acccccccccccccccccccclllkkkkj",
+      "...accccccccccccccccccccccjjjjjj",
+      "...accccccccccccccccccccccjjjjjj",
+      "...accccccccccccccccccccccmmmmmm",
+      "...accccccccccccccccccccccmmmmmm",
+      "...acccccccccccccccccccccccca...",
+      "...acccccccccccccccccccccccca...",
+      "...adddddddddddddddddddddddda...",
+      ".aaaddddddddddddddddddddddddaaa.",
+      "annnnnnnnnnnnnnnnnnnnnnnnnnnnnna",
+      "annnnnnnnnnnnnnnnnnnnnnnnnnnnnna"
+    ] },
+    forge1: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#6e7594", "d": "#4e5570", "e": "#ffb040", "f": "#1c181e", "g": "#ff8a2a", "h": "#ff7828", "i": "#704c28", "j": "#ffbe5a", "k": "#6e4622", "l": "#4c2e16", "m": "#5a5f74", "n": "#56381c", "o": "#1c1622" }, rows: [
+      ".....abbbbbbbbbbbbbbbbbbbba.....",
+      ".....abbbbbbbbbbbbbbbbbbbba.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....accddddddddddddddddcca.....",
+      "....aaccddddddddddddddddccaa....",
+      "...abbbbbbbbbbbbbbbbbbbbbbbba...",
+      "...abbbbbbbbbeeeeeebbbbbbbbba...",
+      "...accccccccceeeeeeccccccccca...",
+      "...accccffffffffffffffffcccca...",
+      "...accccffffffggffffffffcccca...",
+      "...accccffffggggffhhffffcccca...",
+      "...accccfhhfggffffhhfggfcciiiiii",
+      "...accccfhhffffjjffffggfcciiiiii",
+      "...accccfffjjffjjhhfffffcckkkkkk",
+      "...accccfffjjffffhhfffffcckllllk",
+      "...accccffffffffffffffffmmmkkkkk",
+      "...accccccccccccccccccccmmmllllk",
+      "...acccccccccccccccccccccckkkkkk",
+      "...acccccccccccccccccccccckkkkkk",
+      "...accccccccccccccccccccccnnnnnn",
+      "...accccccccccccccccccccccnnnnnn",
+      "...acccccccccccccccccccccccca...",
+      "...acccccccccccccccccccccccca...",
+      "...adddddddddddddddddddddddda...",
+      ".aaaddddddddddddddddddddddddaaa.",
+      "aooooooooooooooooooooooooooooooa",
+      "aooooooooooooooooooooooooooooooa"
+    ] },
+    forge2: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#6e7594", "d": "#4e5570", "e": "#ff8a2a", "f": "#1c181e", "g": "#ffbe5a", "h": "#704c28", "i": "#ff7828", "j": "#6e4622", "k": "#4c2e16", "l": "#5a5f74", "m": "#56381c", "n": "#1c1622" }, rows: [
+      ".....abbbbbbbbbbbbbbbbbbbba.....",
+      ".....abbbbbbbbbbbbbbbbbbbba.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....acccccccccccccccccccca.....",
+      ".....accddddddddddddddddcca.....",
+      "....aaccddddddddddddddddccaa....",
+      "...abbbbbbbbbbbbbbbbbbbbbbbba...",
+      "...abbbbbbbbbeeeeeebbbbbbbbba...",
+      "...accccccccceeeeeeccccccccca...",
+      "...accccffffffffffffffffcccca...",
+      "...accccffffffggffffffffcccca...",
+      "...accccffffggggffeeffffcccca...",
+      "...accccfeefggffffeefggfcchhhhhh",
+      "...accccfeeffffiiffffggfcchhhhhh",
+      "...accccfffiiffiieefffffccjjjjjj",
+      "...accccfffiiffffeefffffccjkkkkj",
+      "...accccffffffffffffffffllljjjjj",
+      "...acccccccccccccccccccclllkkkkj",
+      "...accccccccccccccccccccccjjjjjj",
+      "...accccccccccccccccccccccjjjjjj",
+      "...accccccccccccccccccccccmmmmmm",
+      "...accccccccccccccccccccccmmmmmm",
+      "...acccccccccccccccccccccccca...",
+      "...acccccccccccccccccccccccca...",
+      "...adddddddddddddddddddddddda...",
+      ".aaaddddddddddddddddddddddddaaa.",
+      "annnnnnnnnnnnnnnnnnnnnnnnnnnnnna",
+      "annnnnnnnnnnnnnnnnnnnnnnnnnnnnna"
+    ] },
+    rustySword: { palette: { "a": "#120d08", "b": "#7a4228", "c": "#a0603c", "d": "#522c1c", "e": "#1c181e", "f": "#342010", "g": "#6e4622", "h": "#1c1622" }, rows: [
+      "................",
+      ".............aa.",
+      "............abca",
+      "...........adca.",
+      "..........abca..",
+      ".........abca...",
+      "........aeca....",
+      ".......abca.....",
+      "......abca......",
+      ".....adca.......",
+      "..a.abca........",
+      ".adabca.........",
+      "afdffa..........",
+      "ggdaaaaaaaaaaa..",
+      "gghhhhhhhhhhhha.",
+      "aaaaaaaaaaaaaa.."
+    ] },
+    weaponRack: { palette: { "a": "#120d08", "b": "#56381c", "c": "#7a4228", "d": "#a0603c", "e": "#704c28", "f": "#522c1c", "g": "#342010", "h": "#6e4622", "i": "#1c1622" }, rows: [
+      "................",
+      "aa............aa",
+      "bba....aa....abb",
+      "bbaaaaacdaaaaabb",
+      "eeeeeeecdeeeeeee",
+      "eeeeeeecdeeeeeee",
+      "bbcccaacdadffabb",
+      "bbcccaacdafffabb",
+      "bbcccaacdafffabb",
+      "bbcccaacdafffabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbaga.acdaagaabb",
+      "bbagaaffffagaabb",
+      "bbagaaahhaagaabb",
+      "eeegeeehheegeeee",
+      "eeegeeehheegeeee",
+      "bbaaaaaaaaaaaabb",
+      "bba..........abb",
+      "bba..........abb",
+      "bbaaaaaaaaaaaabb",
+      "aiiiiiiiiiiiiiia",
+      "aiiiiiiiiiiiiiia"
+    ] },
+    toolShelf: { palette: { "a": "#120d08", "b": "#8a90a8", "c": "#56381c", "d": "#5a5f74", "e": "#8a6238", "f": "#704c28", "g": "#342010", "h": "#7a4228" }, rows: [
+      "..aba...aca.....",
+      ".addda.aacaaa...",
+      ".adddaabbbbbba..",
+      "aadddaabbbbbbaaa",
+      "eeeeeeeeeeeeeeee",
+      "ffffffffffffffff",
+      "aggadaaabaahagga",
+      "aggada.abaahagga",
+      "aggada.abaahagga",
+      ".aaada.abaahaaa.",
+      "...ada.abaaha...",
+      "...ada.abaaha...",
+      "...ada.abaaha...",
+      "...adaababaha...",
+      "...ada.a.aaha...",
+      "..adada...aha...",
+      "...a.a...ahaha..",
+      "..........a.a...",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    workbench: { palette: { "a": "#120d08", "b": "#8a90a8", "c": "#5a5f74", "d": "#8a6238", "e": "#704c28", "f": "#342010", "g": "#7a4228", "h": "#343846", "i": "#56381c", "j": "#1c1622" }, rows: [
+      "..abbbbbba......................",
+      "..acccccca......................",
+      "aaaccccccaaaaaaaaaaaaaaaaaaaaaaa",
+      "dddccccccddddddddddddddddddddddd",
+      "eeecccccceeeeeeeeeeefffegggggeee",
+      "eeeeehheeeeeeebbbbbbfffegggggeee",
+      "eiiiihhiiiiiiibbbbbbbbiigggggiie",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "eeeeeeeeeeeedeeedeeeeeeeeedeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "ifffiiiiiiiiiiiiiiiiiiiiiiiifffi",
+      "ifffiiiiiiiiiiiiiiiiiiiiiiiifffi",
+      "ifffiiiiiiiiiiiiiiiiiiiiiiiifffi",
+      "ifffiiiiiiiiiiiiiiiiiiiiiiiifffi",
+      "ifffiiiiiiiiiiiiiiiiiiiiiiiifffi",
+      "ffffffffffffffffffffffffffffffff",
+      "afffaaaaaaaaaaaaaaaaaaaaaaaafffa",
+      "afffa......................afffa",
+      "afffaaaaaaaaaaaaaaaaaaaaaaaafffa",
+      "ajjjjjjjjjjjjjjjjjjjjjjjjjjjjjja",
+      "ajjjjjjjjjjjjjjjjjjjjjjjjjjjjjja"
+    ] },
+    grindstone: { palette: { "a": "#120d08", "b": "#68645c", "c": "#969288", "d": "#56381c", "e": "#5a5f74", "f": "#78aabe", "g": "#342010", "h": "#1c1622" }, rows: [
+      ".......aaa......",
+      ".....aabbbaa....",
+      "....abbcbcbbaa..",
+      "....abcbcccbada.",
+      "...abcbccccbbda.",
+      "...acbccccbccda.",
+      "..abbcceeeeeeda.",
+      "..abccceeccccba.",
+      "..abcccbccccbba.",
+      "...accbccccbca..",
+      "...abbccccbcba..",
+      "..aaabcccbcbaa..",
+      ".adddbbcbcbbdda.",
+      ".adffffffffffda.",
+      ".adffffffffffda.",
+      ".aggaaaaaaaagga.",
+      ".agga......agga.",
+      ".agga......agga.",
+      ".agga......agga.",
+      ".aggaaaaaaaagga.",
+      "ahhhhhhhhhhhhhha",
+      "ahhhhhhhhhhhhhha"
+    ] },
+    cauldron0: { palette: { "a": "rgba(190,240,160,0.51)", "b": "#120d08", "c": "#aae678", "d": "#5ab450", "e": "#8a90a8", "f": "#5a5f74", "g": "#3a343c", "h": "#1c181e", "i": "#ff8a2a", "j": "#ffe08a", "k": "#1c1622" }, rows: [
+      "...........a......",
+      "......a...........",
+      "..................",
+      "...........b......",
+      ".....b....bcb.....",
+      "..bbbcbbbbbdbbbb..",
+      ".bdccdcdddddddddb.",
+      "beddddddddddddddeb",
+      "bffffffffffffffffb",
+      ".bbbgghhhhhhhhbbb.",
+      "..bggghhhhhhhhhb..",
+      ".bgggghhhhhhhhhhb.",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      ".bgggghhhhhhhhhhb.",
+      "..bggghhhhhhhhhb..",
+      "...bgghhhhhhhhb...",
+      "....bghhhhhhhb....",
+      "....biihhhhiib....",
+      "....biibiibiib....",
+      "....bijbijbijb....",
+      "..bbbiibbbbiibbb..",
+      ".bkkkkkkkkkkkkkkb.",
+      ".bkkkkkkkkkkkkkkb."
+    ] },
+    cauldron1: { palette: { "a": "rgba(190,240,160,0.51)", "b": "#120d08", "c": "#aae678", "d": "#5ab450", "e": "#8a90a8", "f": "#5a5f74", "g": "#3a343c", "h": "#1c181e", "i": "#ff8a2a", "j": "#ffe08a", "k": "#1c1622" }, rows: [
+      ".......a..........",
+      "..................",
+      "............a.....",
+      "........b.........",
+      ".......bcb...b....",
+      "..bbbbbbdbbbbcbb..",
+      ".bdccccdddddddddb.",
+      "beddddddddddddddeb",
+      "bffffffffffffffffb",
+      ".bbbgghhhhhhhhbbb.",
+      "..bggghhhhhhhhhb..",
+      ".bgggghhhhhhhhhhb.",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      ".bgggghhhhhhhhhhb.",
+      "..bggghhhhhhhhhb..",
+      "...bgghhhhhhhhb...",
+      "....bghhhhhhhb....",
+      "....biihhhhiib....",
+      "....biibiibiib....",
+      "....bijbijbijb....",
+      "..bbbbbbiibbbbbb..",
+      ".bkkkkkkkkkkkkkkb.",
+      ".bkkkkkkkkkkkkkkb."
+    ] },
+    cauldron2: { palette: { "a": "rgba(190,240,160,0.51)", "b": "#120d08", "c": "#aae678", "d": "#5ab450", "e": "#8a90a8", "f": "#5a5f74", "g": "#3a343c", "h": "#1c181e", "i": "#ff8a2a", "j": "#ffe08a", "k": "#1c1622" }, rows: [
+      "..................",
+      "..........a.......",
+      ".....a............",
+      "....b.............",
+      "...bcb....b.......",
+      "..bbdbbbbbcbbbbb..",
+      ".bdccccdddddddddb.",
+      "beddddddddddddddeb",
+      "bffffffffffffffffb",
+      ".bbbgghhhhhhhhbbb.",
+      "..bggghhhhhhhhhb..",
+      ".bgggghhhhhhhhhhb.",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      "bggggghhhhhhhhhhhb",
+      ".bgggghhhhhhhhhhb.",
+      "..bggghhhhhhhhhb..",
+      "...bgghhhhhhhhb...",
+      "....bghhhhhhhb....",
+      "....biihhhhiib....",
+      "....biibiibiib....",
+      "....bijbijbijb....",
+      "..bbbiibbbbiibbb..",
+      ".bkkkkkkkkkkkkkkb.",
+      ".bkkkkkkkkkkkkkkb."
+    ] },
+    glassShelf: { palette: { "a": "#56381c", "b": "#120d08", "c": "#c8ebf5", "d": "#78aabe", "e": "#aa5abe", "f": "#c83c3c", "g": "#8a6238", "h": "#704c28", "i": "#763e28", "j": "#5ab450", "k": "#a45c3c", "l": "#506432", "m": "#789646", "n": "#1c1622" }, rows: [
+      "aab..........baa",
+      "aab....b.....baa",
+      "aab...bcb....baa",
+      "aabbbbdddb...baa",
+      "aabccbdddb...baa",
+      "aabeebdddbbbbbaa",
+      "aabeebdddbfffbaa",
+      "aabeebdddbfffbaa",
+      "aabeebdddbfffbaa",
+      "gggggggggggggggg",
+      "hhhhhhhhhhhhhhhh",
+      "aabbbbbbbbbbbbaa",
+      "aabbccb......baa",
+      "aabddddb.bbbbbaa",
+      "aabddddbbiiiibaa",
+      "aabdjjdbbkkkkbaa",
+      "aabdjjdbbkkkkbaa",
+      "aabdjjdbbkkkkbaa",
+      "aabddddbbkkkkbaa",
+      "gggggggggggggggg",
+      "hhhhhhhhhhhhhhhh",
+      "aabbbbbbbbbbbbaa",
+      "aabbcb.......baa",
+      "aabdddb.bbbbbbaa",
+      "aabdddbblllllbaa",
+      "aabdddbbmmmmmbaa",
+      "aabdddbbmmmmmbaa",
+      "aabbbbbbbbbbbbaa",
+      "bnnnnnnnnnnnnnnb",
+      "bnnnnnnnnnnnnnnb"
+    ] },
+    stuffedBear: { palette: { "a": "#120d08", "b": "#402a1a", "c": "#624228", "d": "#c8ebf5", "e": "#865e3c", "f": "#1c181e", "g": "#dcd2be", "h": "#56381c", "i": "#1c1622" }, rows: [
+      "....................",
+      "......aaaaaaaa......",
+      ".....abbccccbba.....",
+      ".....abbccccbba.....",
+      "....accdccccdcba....",
+      "....acccccccccba....",
+      "....accceeeeccba....",
+      "....accceffeccba....",
+      "....accceeeecbba....",
+      "....accccggccbba....",
+      "a..aaccccccccbbaa..a",
+      "gaaccccccccccbbbbaag",
+      "gbbbcccccccccbbbbbbg",
+      "bbbbeeeecccccbbbbbbb",
+      "bbbbeeeecccccbbbbbbb",
+      "bbbbeeeecccccbbbbbbb",
+      "bbbbeeeecccccbbbbbbb",
+      "bbbbeeeecccccbbbbbbb",
+      "bbbbeeeecccccbbbbbbb",
+      "aaaeeeeecccccbbbbaaa",
+      "..aeeeeecccccbbbba..",
+      "..aeeeeecccccbbbba..",
+      "..aeeeeecccccbbbba..",
+      "..aeeeeecccccbbbba..",
+      "..aeeeeecccccbbbba..",
+      "..aeeeeecccccbbbba..",
+      "..aeebbbbccbbbbbba..",
+      "..aeebbbbccbbbbbba..",
+      "..aeeeeecccccbbbba..",
+      "..ahhhhhhhhhhhhhha..",
+      "..ahhhhhhhhhhhhhha..",
+      "..ahhhhhhhhhhhhhha..",
+      ".aiiiiiiiiiiiiiiiia.",
+      ".aiiiiiiiiiiiiiiiia."
+    ] },
+    herbs: { palette: { "a": "#120d08", "b": "#6e4822", "c": "#789646", "d": "#46823c", "e": "#506432", "f": "#285628" }, rows: [
+      "aaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbb",
+      "aabaaabaaabaabaa",
+      ".aba.aba.abaaba.",
+      "acccadddaeeefffa",
+      "acccadddaeeefffa",
+      "acccadddaeeefffa",
+      "acccadddaeeefffa",
+      "acccadddaeeefffa",
+      "acccadddaeeefffa",
+      "acccaadaaeeefffa",
+      "accca.a.aeeeafa.",
+      ".aca....aeeeaa..",
+      "..a......aea....",
+      "..........a.....",
+      "................"
+    ] },
+    pottedPlant: { palette: { "a": "#120d08", "b": "#78b45a", "c": "#46823c", "d": "#285628", "e": "#a45c3c", "f": "#1c1622" }, rows: [
+      "...abbbba.....",
+      "...accccaaaa..",
+      "...accccbbbba.",
+      ".aaaaadccccca.",
+      "abbbbbdccccca.",
+      "acccccdaaaaaa.",
+      "acccccdabbbbba",
+      ".abbbbdaccccca",
+      ".accccdaccccca",
+      ".accccdaaaaaa.",
+      "..aaaadaaaaa..",
+      ".aeeeeeeeeeea.",
+      ".aeeeeeeeeeea.",
+      "..aeeeeeeeea..",
+      "..aeeeeeeeea..",
+      "..aeeeeeeeea..",
+      "..aeeeeeeeea..",
+      "..aeeeeeeeea..",
+      ".affffffffffa.",
+      ".affffffffffa."
+    ] },
+    bookcase: { palette: { "a": "#8a6238", "b": "#56381c", "c": "#342010", "d": "#e8debe", "e": "#8c2828", "f": "#aa8c3c", "g": "#326e3c", "h": "#324682", "i": "#704c28", "j": "#120d08", "k": "#1c1622" }, rows: [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbcccccccccccccbbcccccccccccccbb",
+      "bbcccdccccdecccbbdcccdccdfcdfdbb",
+      "bbcccccccceecccbbccccgccffcffcbb",
+      "bbdddccdcdeededbbccdegcdffdffcbb",
+      "bbhgcccccheeeefbbcceegccffhffcbb",
+      "bbhgcccccheeeefbbcceegccffhffcbb",
+      "bbhgcccccheeeefbbcceegccffhffcbb",
+      "bbhgcccccheeeefbbcceegccffhffcbb",
+      "bbcccccccccccccbbcccccccccccccbb",
+      "bbiiiiiiiiiiiiibbiiiiiiiiiiiiibb",
+      "bbcccccccccccccbbcccccccccccccbb",
+      "bbcccdfccccccdebbcdccccccccccdbb",
+      "bbddcffcccccceebbfecccccdccdccbb",
+      "bbcccffdfddedeebbfedhdgdccccccbb",
+      "bbcccffffeeegeebbfehhggcccccccbb",
+      "bbcccffffeeegeebbfehhggcccccccbb",
+      "bbcccffffeeegeebbfehhggcccccccbb",
+      "bbcccffffeeegeebbfehhggcccccccbb",
+      "bbcccccccccccccbbcccccccccccccbb",
+      "bbiiiiiiiiiiiiibbiiiiiiiiiiiiibb",
+      "bbcccccccccccccbbcccccccccccccbb",
+      "bbdcddcccccccdfbbgcccdfdhcccccbb",
+      "bbedhgcccccccffbbgcccffhhcdccdbb",
+      "bbehhgdcddfdcffbbgddcffhhcfdcgbb",
+      "bbehhggcgffccffbbgeccffhhcfccgbb",
+      "bbehhggcgffccffbbgeccffhhcfccgbb",
+      "bbehhggcgffccffbbgeccffhhcfccgbb",
+      "bbehhggcgffccffbbgeccffhhcfccgbb",
+      "bbcccccccccccccbbcccccccccccccbb",
+      "bbiiiiiiiiiiiiibbiiiiiiiiiiiiibb",
+      "cccccccccccccccccccccccccccccccc",
+      "cccccccccccccccccccccccccccccccc",
+      "jkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkj",
+      "jkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkj"
+    ] },
+    bookcaseL: { palette: { "a": "#8a6238", "b": "#120d08", "c": "#56381c", "d": "#342010", "e": "#8c2828", "f": "#326e3c", "g": "#324682", "h": "#704c28", "i": "#aa8c3c", "j": "#1c1622" }, rows: [
+      "aaaaaaaaab......",
+      "aaaaaaaaab......",
+      "cdcccccccb......",
+      "cdcccccccbbbbbb.",
+      "cdcccccccddddddb",
+      "cdcccccccddddddb",
+      "cdcccccccddeefgb",
+      "cdcccccccfeeefgb",
+      "cdcccccccfeeefgb",
+      "cdcccccccfeeefgb",
+      "cdcccccccfeeefgb",
+      "cdcccccccfeeefgb",
+      "cdccccccchhhhhhb",
+      "cdcccccccddddddb",
+      "cdcccccccddddddb",
+      "cdcccccccgdddddb",
+      "cdcccccccggefieb",
+      "cdcccccccggefieb",
+      "cdcccccccggefieb",
+      "cdcccccccggefieb",
+      "cdcccccccggefieb",
+      "cdccccccchhhhhhb",
+      "cdcccccccddddddb",
+      "cdcccccccddddddb",
+      "cdcccccccddiggdb",
+      "cdcccccccgeiggib",
+      "cdcccccccgeiggib",
+      "cdcccccccgeiggib",
+      "cdcccccccgeiggib",
+      "cdcccccccgeiggib",
+      "cdccccccchhhhhhb",
+      "cdcccccccddddddb",
+      "cdcccccccddddddb",
+      "cdcccccccdidfgdb",
+      "cdcccccccfiffgib",
+      "cdcccccccfiffgib",
+      "cdcccccccfiffgib",
+      "cdcccccccfiffgib",
+      "cdcccccccfiffgib",
+      "cdccccccchhhhhhb",
+      "cccccccccddddddb",
+      "cccccccccddddddb",
+      "bjjjjjjjjjjjjjjb",
+      "bjjjjjjjjjjjjjjb"
+    ] },
+    bookcaseR: { palette: { "a": "#120d08", "b": "#8a6238", "c": "#56381c", "d": "#342010", "e": "#324682", "f": "#326e3c", "g": "#8c2828", "h": "#704c28", "i": "#aa8c3c", "j": "#1c1622" }, rows: [
+      "......abbbbbbbbb",
+      "......abbbbbbbbb",
+      "......acccccccdc",
+      ".aaaaaacccccccdc",
+      "addddddcccccccdc",
+      "addddddcccccccdc",
+      "aefggddcccccccdc",
+      "aefgggfcccccccdc",
+      "aefgggfcccccccdc",
+      "aefgggfcccccccdc",
+      "aefgggfcccccccdc",
+      "aefgggfcccccccdc",
+      "ahhhhhhcccccccdc",
+      "addddddcccccccdc",
+      "addddddcccccccdc",
+      "adddddecccccccdc",
+      "agifgeecccccccdc",
+      "agifgeecccccccdc",
+      "agifgeecccccccdc",
+      "agifgeecccccccdc",
+      "agifgeecccccccdc",
+      "ahhhhhhcccccccdc",
+      "addddddcccccccdc",
+      "addddddcccccccdc",
+      "adeeiddcccccccdc",
+      "aieeigecccccccdc",
+      "aieeigecccccccdc",
+      "aieeigecccccccdc",
+      "aieeigecccccccdc",
+      "aieeigecccccccdc",
+      "ahhhhhhcccccccdc",
+      "addddddcccccccdc",
+      "addddddcccccccdc",
+      "adefdidcccccccdc",
+      "aieffifcccccccdc",
+      "aieffifcccccccdc",
+      "aieffifcccccccdc",
+      "aieffifcccccccdc",
+      "aieffifcccccccdc",
+      "ahhhhhhcccccccdc",
+      "addddddccccccccc",
+      "addddddccccccccc",
+      "ajjjjjjjjjjjjjja",
+      "ajjjjjjjjjjjjjja"
+    ] },
+    grimoire0: { palette: { "a": "#96c8ff", "b": "#120d08", "c": "#e8debe", "d": "#8c2828", "e": "#3c2828", "f": "#704c28", "g": "#56381c", "h": "#342010", "i": "#1c1622" }, rows: [
+      "..............",
+      ".........a....",
+      "....a.........",
+      ".bbbbbbbbbbbb.",
+      "bcccccddcccccb",
+      "bceeecddceeecb",
+      "bceeecddcccccb",
+      "bcccccddcccccb",
+      ".bffffffffffb.",
+      ".bffffffffffb.",
+      ".bffffffffffb.",
+      "..bbbbggbbbb..",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      "...bbbggbbb...",
+      "..bhhhhhhhhb..",
+      "..bhhhhhhhhb..",
+      ".biiiiiiiiiib.",
+      ".biiiiiiiiiib."
+    ] },
+    grimoire1: { palette: { "a": "#96c8ff", "b": "#120d08", "c": "#e8debe", "d": "#8c2828", "e": "#3c2828", "f": "#704c28", "g": "#56381c", "h": "#342010", "i": "#1c1622" }, rows: [
+      "..............",
+      ".....a........",
+      "........a.....",
+      ".bbbbbbbbbbbb.",
+      "bcccccddcccccb",
+      "bceeecddceeecb",
+      "bceeecddcccccb",
+      "bcccccddcccccb",
+      ".bffffffffffb.",
+      ".bffffffffffb.",
+      ".bffffffffffb.",
+      "..bbbbggbbbb..",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      "...bbbggbbb...",
+      "..bhhhhhhhhb..",
+      "..bhhhhhhhhb..",
+      ".biiiiiiiiiib.",
+      ".biiiiiiiiiib."
+    ] },
+    grimoire2: { palette: { "a": "#96c8ff", "b": "#120d08", "c": "#e8debe", "d": "#8c2828", "e": "#3c2828", "f": "#704c28", "g": "#56381c", "h": "#342010", "i": "#1c1622" }, rows: [
+      "..............",
+      ".........a....",
+      "....a.........",
+      ".bbbbbbbbbbbb.",
+      "bcccccddcccccb",
+      "bceeecddceeecb",
+      "bceeecddcccccb",
+      "bcccccddcccccb",
+      ".bffffffffffb.",
+      ".bffffffffffb.",
+      ".bffffffffffb.",
+      "..bbbbggbbbb..",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      ".....bggb.....",
+      "...bbbggbbb...",
+      "..bhhhhhhhhb..",
+      "..bhhhhhhhhb..",
+      ".biiiiiiiiiib.",
+      ".biiiiiiiiiib."
+    ] }
+  };
+
   // src/render/motifs.ts
   var hypot = Math.hypot;
   var MOTIFS = {
@@ -10525,6 +11542,12 @@
     if (fbm(px, py, 14, 970, 2) < 0.3) out = [out[0] * 0.6 + 74 * 0.4, out[1] * 0.6 + 26 * 0.4, out[2] * 0.6 + 28 * 0.4];
     return out;
   }
+  function forgeFloor(px, py) {
+    const c = floorB(px, py);
+    let out = [c[0] * 0.6, c[1] * 0.58, c[2] * 0.62];
+    if (fbm(px, py, 12, 990, 2) < 0.35) out = scale(out, 0.7);
+    return out;
+  }
   var canvases = /* @__PURE__ */ new Map();
   function groundImage(map, x, y, motifs = [], style) {
     const gravel = around(map, x, y, Tile.Gravel);
@@ -10548,7 +11571,7 @@
       for (let i = 0; i < T; i++) {
         const px = ox + i;
         const py = oy + j;
-        let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : floorB(px, py);
+        let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : floorB(px, py);
         if (motif) c = engrave(motif, px, py, c);
         if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
         pixels.push(c);
@@ -10671,7 +11694,7 @@
       for (const f of game2.furnitureList()) {
         if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
           if (f.x !== x || f.y !== y) continue;
-          const web = TRAINARDS[f.kind] ?? SALLES[f.kind];
+          const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind];
           if (!web) continue;
           const smooth2 = ctx.imageSmoothingEnabled;
           ctx.imageSmoothingEnabled = false;
@@ -10970,6 +11993,7 @@
   };
 
   // src/render/renderer.ts
+  var SALLES2 = { ...SALLES, ...ATELIERS };
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
   var MAX_COLUMNS = 28;
@@ -11408,12 +12432,13 @@
     originY() {
       return this.snap(this.height / 2 - (this.camY + 0.5) * this.tile);
     }
-    scanRoom(room, from, found) {
+    scanRoom(room, from, found, interactive = []) {
       const cells = [];
       for (let y = room.y; y < room.y + room.h; y++) {
         for (let x = room.x; x < room.x + room.w; x++) cells.push({ x, y, d: Math.hypot(x - from.x, y - from.y) });
       }
-      this.scan = { cells, age: 0, found };
+      const glow = interactive.map((p) => ({ ...p, d: Math.hypot(p.x - from.x, p.y - from.y) }));
+      this.scan = { cells, age: 0, found, glow };
     }
     /** Centre d'une case de la carte, en pixels dans le canvas. */
     tileCenter(x, y) {
@@ -11593,6 +12618,7 @@
       }
       for (const g of game2.ground) {
         if (!game2.isExplored(g.x, g.y)) continue;
+        if (g.item === "pomme" && game2.furnitureAt(g.x, g.y)?.kind === "basket") continue;
         const gx = ox + g.x * tile;
         const gy = oy + g.y * tile;
         if (g.item === "clef") {
@@ -11749,6 +12775,19 @@
           ctx.fillStyle = `rgba(255,224,130,${(0.35 * (1 - behind / 2.5)).toFixed(2)})`;
           ctx.fillRect(Math.round(ox + c.x * tile), Math.round(oy + c.y * tile), Math.round(tile), Math.round(tile));
         }
+        for (const g of this.scan.glow) {
+          const t = front - g.d;
+          if (t < 0) continue;
+          const fade = Math.max(0, 1 - Math.max(0, this.scan.age - (g.d * 70 + 1800)) / 600);
+          const pulse2 = 0.5 + 0.5 * Math.sin(this.scan.age / 140);
+          const gx = Math.round(ox + g.x * tile);
+          const gy = Math.round(oy + g.y * tile);
+          ctx.fillStyle = `rgba(255,224,130,${(fade * (0.12 + 0.14 * pulse2)).toFixed(3)})`;
+          ctx.fillRect(gx, gy, Math.round(tile), Math.round(tile));
+          ctx.strokeStyle = `rgba(255,215,94,${(fade * (0.5 + 0.4 * pulse2)).toFixed(3)})`;
+          ctx.lineWidth = Math.max(2, tile * 0.06);
+          ctx.strokeRect(gx + 2, gy + 2, Math.round(tile) - 4, Math.round(tile) - 4);
+        }
         const maxD = Math.max(...this.scan.cells.map((c) => c.d), 0);
         const sparkle = this.scan.age - maxD * 70;
         if (sparkle > 0) {
@@ -11761,7 +12800,7 @@
             ctx.fillRect(Math.round(cx - tile * 0.05), Math.round(cy - r), Math.max(2, Math.round(tile * 0.1)), Math.round(2 * r));
           }
         }
-        if (sparkle > 1600) this.scan = null;
+        if (sparkle > 2400) this.scan = null;
       }
       const rest = Math.max(game2.restProgress(), searching);
       if (rest > 0) {
@@ -11925,9 +12964,10 @@
           dark = (1 - brightness) * 0.55;
           warm = lit * flicker * 0.2;
         }
-        const animated = f.kind.startsWith("table") || !DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`];
-        const name = animated ? `${f.kind}${visible ? (frame2 + f.x) % 3 : 0}` : f.kind;
-        const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name];
+        const animated = f.kind.startsWith("table") || !DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES2[f.kind] && !!SALLES2[`${f.kind}0`];
+        const apples = f.kind === "basket" ? game2.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
+        const name = f.kind === "basket" ? `basket${Math.min(3, apples)}` : animated ? `${f.kind}${visible ? (frame2 + f.x) % 3 : 0}` : f.kind;
+        const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES2[name];
         if (!art) continue;
         const w = art.rows[0].length;
         const h = art.rows.length;
@@ -11936,9 +12976,9 @@
         if (def.wall) {
           px = f.x * 16 + 1;
           py = f.y * 16 - 1;
-        } else if (SALLES[name]) {
+        } else if (SALLES2[name]) {
           px = (f.x + def.w / 2) * 16 - w / 2;
-          py = (f.y + def.h) * 16 - h;
+          py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
         } else {
           const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
           px = f.x * 16 + off[0];
@@ -12216,9 +13256,9 @@
   }
   var KEYBOARD_STEP_MS = 140;
   var COMBAT_STEP_MS = 170;
-  var ROLL_MS = 420;
-  var HOLD_HERO_MS = 240;
-  var HOLD_FOE_MS = 520;
+  var ROLL_MS = 200;
+  var HOLD_HERO_MS = 160;
+  var HOLD_FOE_MS = 360;
   var DIE_CLEAR_MS = 900;
   var LOG_LINES = 3;
   var OPTIONS_KEY = "leutenheim.options";
@@ -12361,7 +13401,7 @@
     shownHp = game.hero.hp;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
-      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, escalier, puis la SALLE DE PRI\xC8RE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
+      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, escalier, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
@@ -12414,6 +13454,9 @@
     sfx.play("dice");
     if (mode !== "normal") sfx.play(mode);
     if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
+    if (e.type === "attack" && !e.ranged) {
+      renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
+    }
     if (e.type === "attack") {
       if (mode !== "normal") {
         const good = mode === "advantage" !== foe;
@@ -12440,7 +13483,6 @@
       const r = e.result;
       const foe = e.attacker.kind === "monster";
       if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunit\xE9 !", "#ffd75e");
-      if (!e.ranged) renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
       const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : void 0;
       landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
       renderer.addFloatingText(
@@ -12591,7 +13633,7 @@
       if (e.phase === "interrupted") renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
     } else if (e.type === "searched") {
       landDie(e.d20, e.success ? "hit" : "miss", false);
-      renderer.scanRoom(e.room, game.hero, e.found);
+      renderer.scanRoom(e.room, game.hero, e.found, game.interactiveIn(e.room));
       for (const f of e.found) renderer.addFloatingText(f.x, f.y, "Trouv\xE9 !", "#fff3a0");
       if (e.found.length > 0) sfx.play("advantage");
     } else if (e.type === "rest") {
@@ -13141,12 +14183,18 @@
       bagOpen = false;
       $("bag").hidden = true;
     } else if (chosen && chosenDef?.kind === "use") {
-      if (!game.useItem(chosen.uid)) logLines.push("Vous \xEAtes d\xE9j\xE0 en pleine sant\xE9.");
+      if (!game.useItem(chosen.uid)) {
+        logLines.push(chosenDef.lightTurns && game.twoHanded() ? "Votre arme se tient \xE0 deux mains : pas de main libre pour la torche." : "Vous \xEAtes d\xE9j\xE0 en pleine sant\xE9.");
+      }
       bagOpen = false;
       $("bag").hidden = true;
     } else if (selected && "uid" in selected) {
       const bagSwap = chosenDef?.kind === "bag";
-      if (!game.equip(selected.uid)) logLines.push(bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour \xE9changer.");
+      if (!game.equip(selected.uid)) {
+        logLines.push(
+          chosenDef?.twoHanded && game.torchTurns > 0 ? "Une arme \xE0 deux mains ? Votre torche br\xFBle encore dans l'autre main." : bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour \xE9changer."
+        );
+      }
     } else if (selected && "slot" in selected) {
       if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
     }

@@ -25,9 +25,11 @@ const KEYBOARD_STEP_MS = 140;
 /** En présence de monstres, on ne descend pas sous cette durée, pour pouvoir suivre le combat. */
 const COMBAT_STEP_MS = 170;
 /** Mise en scène d'un jet : le dé roule, puis le résultat reste affiché un instant. */
-const ROLL_MS = 420;
-const HOLD_HERO_MS = 240;
-const HOLD_FOE_MS = 520; // un peu plus long pour les attaques ennemies, pour avoir le temps de les lire
+// Thomas (2026-11-11) : « un temps mort entre le coup et le dommage » : le dé roule moins longtemps, et le coup part
+// dès que le dé se lance (les dégâts tombent quand la lame arrive).
+const ROLL_MS = 200;
+const HOLD_HERO_MS = 160;
+const HOLD_FOE_MS = 360; // un peu plus long pour les attaques ennemies, pour avoir le temps de les lire
 /** Le dé se vide ce délai après le dernier résultat affiché. */
 const DIE_CLEAR_MS = 900;
 const LOG_LINES = 3;
@@ -220,7 +222,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE. Au sud-est : Kobolds à pousser, piège à gaz, escalier, puis la SALLE DE PRIÈRE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
+        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds à pousser, piège à gaz, escalier, puis la SALLE DE PRIÈRE et l'ALCHIMISTE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -294,6 +296,10 @@ function startRoll(e: GameEvent): void {
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
   if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
+  // Corps à corps : l'élan et la lame partent tout de suite, pendant que le dé roule.
+  if (e.type === "attack" && !e.ranged) {
+    renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
+  }
   if (e.type === "attack") {
     if (mode !== "normal") {
       // Avantage au joueur ou contre lui : on l'annonce au-dessus de celui qui en profite ou en pâtit.
@@ -325,7 +331,6 @@ function reveal(e: GameEvent): void {
     const r = e.result;
     const foe = e.attacker.kind === "monster";
     if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunité !", "#ffd75e");
-    if (!e.ranged) renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, foe ? "#ff8a7a" : "#f4f6ff");
     const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
     renderer.addFloatingText(
@@ -482,7 +487,7 @@ function reveal(e: GameEvent): void {
     if (e.phase === "interrupted") renderer.addFloatingText(game.hero.x, game.hero.y, "!", "#ff6b7a");
   } else if (e.type === "searched") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
-    renderer.scanRoom(e.room, game.hero, e.found);
+    renderer.scanRoom(e.room, game.hero, e.found, game.interactiveIn(e.room));
     for (const f of e.found) renderer.addFloatingText(f.x, f.y, "Trouvé !", "#fff3a0");
     if (e.found.length > 0) sfx.play("advantage");
   } else if (e.type === "rest") {
@@ -1108,12 +1113,22 @@ button("bag-equip", () => {
     $("bag").hidden = true;
   } else if (chosen && chosenDef?.kind === "use") {
     // Utiliser prend un tour : on referme le sac pour le laisser passer.
-    if (!game.useItem(chosen.uid)) logLines.push("Vous êtes déjà en pleine santé.");
+    if (!game.useItem(chosen.uid)) {
+      logLines.push(chosenDef.lightTurns && game.twoHanded() ? "Votre arme se tient à deux mains : pas de main libre pour la torche." : "Vous êtes déjà en pleine santé.");
+    }
     bagOpen = false;
     $("bag").hidden = true;
   } else if (selected && "uid" in selected) {
     const bagSwap = chosenDef?.kind === "bag";
-    if (!game.equip(selected.uid)) logLines.push(bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour échanger.");
+    if (!game.equip(selected.uid)) {
+      logLines.push(
+        chosenDef?.twoHanded && game.torchTurns > 0
+          ? "Une arme à deux mains ? Votre torche brûle encore dans l'autre main."
+          : bagSwap
+            ? "Ce sac est trop petit pour tout ce que vous portez."
+            : "Pas assez de place dans le sac pour échanger.",
+      );
+    }
   } else if (selected && "slot" in selected) {
     if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
   }

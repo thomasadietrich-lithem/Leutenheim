@@ -258,7 +258,7 @@ export function guaranteedLoot(runSeed: number, depth: number): { item: ItemId; 
 }
 
 /** Les objets des tables de butin (peu communs et rares compris) d'une sorte donnée, permis à cet étage. */
-function lootPool(depth: number, keep: (kind: string, id: string) => boolean): ItemId[] {
+export function lootPool(depth: number, keep: (kind: string, id: string) => boolean): ItemId[] {
   const ids: ItemId[] = [];
   for (const rarity of ["common", "uncommon", "rare"] as Rarity[]) {
     for (const l of LOOT[rarity]) {

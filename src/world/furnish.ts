@@ -12,6 +12,8 @@ export interface Furniture {
   x: number;
   y: number;
   kind: string;
+  /** Panier à fruits : nombre de pommes posées dedans à la création de l'étage. */
+  count?: number;
 }
 
 /** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */
@@ -197,7 +199,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1): { furniture
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
-  const pool = ["dortoir", "cuisine", "priere", "torture"];
+  const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste"];
   for (const chance of RULES.themedRoomChances) {
     if (!rng.chance(chance)) break;
     const id = pool.splice(rng.int(0, pool.length - 1), 1)[0];
@@ -219,7 +221,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1): { furniture
 }
 
 /** Taille minimale de chaque salle à thème. */
-const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5] };
+const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6] };
 function fits(id: string, room: Room): boolean {
   return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
 }
@@ -230,6 +232,8 @@ const FURNISHERS: Record<string, Furnisher> = {
   cuisine: furnishKitchen,
   priere: furnishChapel,
   torture: furnishTorture,
+  forge: furnishForge,
+  alchimiste: furnishAlchemist,
 };
 
 /**
@@ -349,6 +353,12 @@ export function furnishKitchen(floor: Floor, room: Room, rng: Rng, out: Furnitur
     if (x !== room.x && x !== room.x + room.w - 1) continue;
     const kind = (["barrel", "crate", "crateStack", "grainSack"] as const)[rng.int(0, 3)];
     if (P.tryPlace({ x, y, kind })) put++;
+  }
+  // Un panier à fruits avec 2 à 3 pommes (Thomas), sur une case libre au bord de la salle.
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const x = rng.int(room.x, room.x + room.w - 1);
+    const y = rng.int(room.y + 2, gy - 1);
+    if (P.tryPlace({ x, y, kind: "basket", count: rng.int(2, 3) })) break;
   }
   out.push(...P.placed);
   return true;
@@ -553,4 +563,124 @@ export function placeWebs(floor: Floor, rng: Rng, furniture: Furniture[], specia
       wanted--;
     }
   });
+}
+
+/** Pose de 0 à `max` meubles de cette sorte sur des cases au hasard d'une zone de la salle ; rend le nombre posé. */
+function scatter(P: ReturnType<typeof roomPlacer>, rng: Rng, kinds: string[], count: number, zone: () => Point): number {
+  let put = 0;
+  for (let attempt = 0; attempt < count * 25 && put < count; attempt++) {
+    const p = zone();
+    if (P.tryPlace({ ...p, kind: kinds[rng.int(0, kinds.length - 1)] })) put++;
+  }
+  return put;
+}
+
+/** Des coffres contre un mur de côté ou du bas, loin des ouvertures. */
+function edgeChests(P: ReturnType<typeof roomPlacer>, floor: Floor, room: Room, rng: Rng, count: number): void {
+  let put = 0;
+  for (let attempt = 0; attempt < 40 && put < count; attempt++) {
+    const x = rng.int(room.x, room.x + room.w - 1);
+    const y = rng.int(room.y + 2, room.y + room.h - 1);
+    const edge = x === room.x || x === room.x + room.w - 1 || y === room.y + room.h - 1;
+    if (!edge || besideOpening(floor, room, x, y)) continue;
+    if (P.chest(x, y)) put++;
+  }
+}
+
+/**
+ * FORGE v1 (planche art/forge_v1.png) : le long du mur du fond, la forge et son soufflet (2 cases), 0 à 3 étagères à
+ * outils, 0 à 2 râteliers d'armes et 0 à 2 armures rouillées ; la rangée devant reste libre ; 1 à 2 enclumes, un établi
+ * (2 cases) et 0 à 2 chaises, une meule ; 1 à 2 tas de charbon et 0 à 3 tonneaux contre les murs ; une épée rouillée au
+ * sol ; 0 à 2 coffres (une arme dedans). Dalles noircies de suie (voir `Game.floorStyle`).
+ */
+export function furnishForge(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  const back = [
+    "forge",
+    ...Array(rng.int(0, 3)).fill("toolShelf"),
+    ...Array(rng.int(0, 2)).fill("weaponRack"),
+    ...Array.from({ length: rng.int(0, 2) }, () => (rng.chance(0.5) ? "armorStand" : "armorStandB")),
+  ];
+  P.alongBackWall(shuffle(rng, back));
+  if (!P.placed.some((f) => f.kind === "forge")) {
+    P.undo();
+    return false;
+  }
+  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+  const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
+  const edge = () => {
+    const side = rng.chance(0.5);
+    return side
+      ? { x: rng.chance(0.5) ? room.x : room.x + room.w - 1, y: rng.int(room.y + 2, room.y + room.h - 1) }
+      : { x: rng.int(room.x, room.x + room.w - 1), y: room.y + room.h - 1 };
+  };
+  // L'établi, et 0 à 2 chaises à côté.
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const p = inner();
+    if (!P.tryPlace({ x: Math.min(p.x, room.x + room.w - 3), y: p.y, kind: "workbench" })) continue;
+    const seats = rng.int(0, 2);
+    let n = 0;
+    for (const s of [{ x: p.x - 1, y: p.y, kind: "chairR" }, { x: Math.min(p.x, room.x + room.w - 3) + 2, y: p.y, kind: "chairL" }]) {
+      if (n < seats && P.tryPlace(s)) n++;
+    }
+    break;
+  }
+  scatter(P, rng, ["anvil"], rng.int(1, 2), inner);
+  scatter(P, rng, ["grindstone"], 1, inner);
+  scatter(P, rng, ["coalS", "coalM", "coalL"], rng.int(1, 2), edge);
+  scatter(P, rng, ["barrel"], rng.int(0, 3), edge);
+  scatter(P, rng, ["rustySword"], 1, inner);
+  edgeChests(P, floor, room, rng, rng.int(0, 2));
+  out.push(...P.placed);
+  return true;
+}
+
+/**
+ * ALCHIMISTE v1 (planche art/alchimiste_v1.png) : 1 à 3 bibliothèques de 2 cases, de face contre le mur du fond ou de
+ * profil contre un mur de côté ; 0 à 3 étagères de verrerie et 0 à 2 bouquets d'herbes contre le mur du fond ; une
+ * cheminée ; le chaudron sur son feu et le grimoire sur pied au milieu ; l'ours empaillé dans un coin ; une plante en
+ * pot ; 1 à 2 coffres (une potion dedans).
+ */
+export function furnishAlchemist(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  const books = rng.int(1, 3);
+  const front = rng.int(0, Math.min(1, books));
+  const back = [...Array(front).fill("bookcase"), ...Array(rng.int(0, 3)).fill("glassShelf"), ...Array(rng.int(0, 2)).fill("herbs")];
+  P.alongBackWall(shuffle(rng, back));
+  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+  // Bibliothèques de profil contre les murs de côté (2 cases de haut).
+  let sides = books - P.placed.filter((f) => f.kind === "bookcase").length;
+  for (let attempt = 0; attempt < 30 && sides > 0; attempt++) {
+    const left = rng.chance(0.5);
+    const y = rng.int(room.y + 2, room.y + room.h - 2);
+    if (P.tryPlace({ x: left ? room.x : room.x + room.w - 1, y, kind: left ? "bookcaseL" : "bookcaseR" })) sides--;
+  }
+  if (!P.placed.some((f) => f.kind.startsWith("bookcase"))) {
+    P.undo();
+    return false;
+  }
+  // Cheminée au milieu d'un mur de côté (comme au dortoir).
+  const hy = room.y + Math.floor(room.h / 2);
+  for (const side of rng.chance(0.5) ? [-1, 1] : [1, -1]) {
+    const wx = side < 0 ? room.x - 1 : room.x + room.w;
+    const ok = [-1, 0, 1].every((d) => floor.map.get(wx, hy + d) === Tile.Wall) && !floor.torches.some((t) => t.x === wx && t.y === hy);
+    if (!ok) continue;
+    floor.torches = floor.torches.filter((t) => !(t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h));
+    floor.torches.push({ x: wx, y: hy, radius: 5, faceX: -side, faceY: 0, hearth: true, lit: true });
+    break;
+  }
+  const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
+  const corner = () => {
+    const cs = [{ x: room.x, y: room.y + 2 }, { x: room.x + room.w - 1, y: room.y + 2 }, { x: room.x, y: room.y + room.h - 1 }, { x: room.x + room.w - 1, y: room.y + room.h - 1 }];
+    return cs[rng.int(0, 3)];
+  };
+  scatter(P, rng, ["cauldron"], 1, inner);
+  scatter(P, rng, ["grimoire"], 1, inner);
+  scatter(P, rng, ["stuffedBear"], 1, corner);
+  scatter(P, rng, ["pottedPlant"], 1, corner);
+  edgeChests(P, floor, room, rng, rng.int(1, 2));
+  out.push(...P.placed);
+  return true;
 }

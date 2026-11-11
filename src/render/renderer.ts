@@ -12,7 +12,11 @@ import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
 import { ARAIGNEE } from "./sprites/araignee";
 import { PIEGES } from "./sprites/pieges";
-import { SALLES } from "./sprites/salles";
+import { SALLES as SALLES_V1 } from "./sprites/salles";
+import { ATELIERS } from "./sprites/atelier";
+
+/** Dessins des salles à thème récentes (cuisine, prière, torture, forge, alchimiste). */
+const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS };
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { furnitureCells } from "../world/furnish";
 import { COLORS, TilePainter } from "./tiles";
@@ -556,14 +560,17 @@ export class Renderer {
   }
 
   /** Fouille : une vague dorée balaie les cases de la salle depuis le héros, puis les trouvailles scintillent. */
-  private scan: { cells: { x: number; y: number; d: number }[]; age: number; found: Point[] } | null = null;
+  private scan: { cells: { x: number; y: number; d: number }[]; age: number; found: Point[]; glow: { x: number; y: number; d: number }[] } | null = null;
 
-  scanRoom(room: { x: number; y: number; w: number; h: number }, from: Point, found: Point[]): void {
+  scanRoom(room: { x: number; y: number; w: number; h: number }, from: Point, found: Point[], interactive: Point[] = []): void {
     const cells: { x: number; y: number; d: number }[] = [];
     for (let y = room.y; y < room.y + room.h; y++) {
       for (let x = room.x; x < room.x + room.w; x++) cells.push({ x, y, d: Math.hypot(x - from.x, y - from.y) });
     }
-    this.scan = { cells, age: 0, found };
+    // Les éléments avec lesquels on peut faire quelque chose (coffre, sarcophage, objet au sol, fontaine…) brillent quand
+    // la vague les atteint (Thomas, 2026-11-11).
+    const glow = interactive.map((p) => ({ ...p, d: Math.hypot(p.x - from.x, p.y - from.y) }));
+    this.scan = { cells, age: 0, found, glow };
   }
 
   /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
@@ -797,6 +804,8 @@ export class Renderer {
     }
     for (const g of game.ground) {
       if (!game.isExplored(g.x, g.y)) continue;
+      // Les pommes d'un panier sont dessinées dans le panier.
+      if (g.item === "pomme" && game.furnitureAt(g.x, g.y)?.kind === "basket") continue;
       const gx = ox + g.x * tile;
       const gy = oy + g.y * tile;
       if (g.item === "clef") {
@@ -976,6 +985,19 @@ export class Renderer {
         ctx.fillStyle = `rgba(255,224,130,${(0.35 * (1 - behind / 2.5)).toFixed(2)})`;
         ctx.fillRect(Math.round(ox + c.x * tile), Math.round(oy + c.y * tile), Math.round(tile), Math.round(tile));
       }
+      for (const g of this.scan.glow) {
+        const t = front - g.d;
+        if (t < 0) continue;
+        const fade = Math.max(0, 1 - Math.max(0, this.scan.age - (g.d * 70 + 1800)) / 600);
+        const pulse = 0.5 + 0.5 * Math.sin(this.scan.age / 140);
+        const gx = Math.round(ox + g.x * tile);
+        const gy = Math.round(oy + g.y * tile);
+        ctx.fillStyle = `rgba(255,224,130,${(fade * (0.12 + 0.14 * pulse)).toFixed(3)})`;
+        ctx.fillRect(gx, gy, Math.round(tile), Math.round(tile));
+        ctx.strokeStyle = `rgba(255,215,94,${(fade * (0.5 + 0.4 * pulse)).toFixed(3)})`;
+        ctx.lineWidth = Math.max(2, tile * 0.06);
+        ctx.strokeRect(gx + 2, gy + 2, Math.round(tile) - 4, Math.round(tile) - 4);
+      }
       const maxD = Math.max(...this.scan.cells.map((c) => c.d), 0);
       const sparkle = this.scan.age - maxD * 70;
       if (sparkle > 0) {
@@ -989,7 +1011,7 @@ export class Renderer {
           ctx.fillRect(Math.round(cx - tile * 0.05), Math.round(cy - r), Math.max(2, Math.round(tile * 0.1)), Math.round(2 * r));
         }
       }
-      if (sparkle > 1600) this.scan = null;
+      if (sparkle > 2400) this.scan = null;
     }
     const rest = Math.max(game.restProgress(), searching);
     if (rest > 0) {
@@ -1174,7 +1196,9 @@ export class Renderer {
       }
       // Meubles animés (bougie de la table, jambon qui se balance, robinet qui goutte, corde, candélabre) : 3 images.
       const animated = f.kind.startsWith("table") || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
-      const name = animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
+      // Panier à fruits : son dessin montre les pommes qui restent dedans (0 à 3).
+      const apples = f.kind === "basket" ? game.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
+      const name = f.kind === "basket" ? `basket${Math.min(3, apples)}` : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
       const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name];
       if (!art) continue;
       const w = art.rows[0].length;
@@ -1189,7 +1213,8 @@ export class Renderer {
       } else if (SALLES[name]) {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
-        py = (f.y + def.h) * 16 - h;
+        // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
+        py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
       } else {
         const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
         px = f.x * 16 + off[0];

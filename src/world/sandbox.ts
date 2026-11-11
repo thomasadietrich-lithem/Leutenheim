@@ -1,6 +1,6 @@
 import { ItemId } from "../data/items";
 import { Rng } from "../core/rng";
-import { furnishChapel, furnishDortoir, furnishKitchen, furnishTorture, Furniture, RoomTheme } from "./furnish";
+import { furnishAlchemist, furnishChapel, furnishDortoir, furnishForge, furnishKitchen, furnishTorture, Furniture, RoomTheme } from "./furnish";
 import { Motif } from "./grounds";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
@@ -36,13 +36,13 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 10;
+export const SANDBOX_LAYOUT = 11;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
-export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28 };
+export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
 
 export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
-  const map = new GameMap(40, 32);
+  const map = new GameMap(52, 32);
   const carve = (r: Room) => {
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
   };
@@ -79,6 +79,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     { x: 38, y: 5, radius: 6, faceX: -1, faceY: 0 },
     { x: 38, y: 16, radius: 6, faceX: -1, faceY: 0 },
     { x: 38, y: 26, radius: 6, faceX: -1, faceY: 0 },
+    { x: 50, y: 5, radius: 6, faceX: -1, faceY: 0 },
   ];
   const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
   const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
@@ -103,7 +104,15 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   const torture: Room = { x: 29, y: 23, w: 9, h: 6 };
   for (const r of [kitchen, chapel, torture]) carve(r);
   for (const y of [6, 16, 25]) for (let x = 26; x <= 28; x++) map.set(x, y, Tile.Floor);
-  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture];
+  // Plus à l'est encore (2026-11-11) : la FORGE (par la cuisine) et l'ALCHIMISTE (par la salle de prière).
+  const forgeRoom: Room = { x: 41, y: 3, w: 9, h: 6 };
+  const alchemy: Room = { x: 41, y: 12, w: 9, h: 8 };
+  for (const r of [forgeRoom, alchemy]) carve(r);
+  for (let x = 38; x <= 40; x++) {
+    map.set(x, 7, Tile.Floor);
+    map.set(x, 13, Tile.Floor);
+  }
+  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture, forgeRoom, alchemy];
   const floorPlan: Floor = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
   const furniture: Furniture[] = [];
   furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
@@ -112,11 +121,15 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   furnishKitchen(floorPlan, kitchen, new Rng(seeds.kitchen), furniture);
   furnishChapel(floorPlan, chapel, new Rng(seeds.chapel), furniture);
   furnishTorture(floorPlan, torture, new Rng(seeds.torture), furniture);
+  furnishForge(floorPlan, forgeRoom, new Rng(seeds.forge), furniture);
+  furnishAlchemist(floorPlan, alchemy, new Rng(seeds.alchemist), furniture);
   const themes: RoomTheme[] = [
     { room: 4, id: "dortoir" },
     { room: 6, id: "cuisine" },
     { room: 7, id: "priere" },
     { room: 8, id: "torture" },
+    { room: 9, id: "forge" },
+    { room: 10, id: "alchimiste" },
   ];
   // Toiles de l'antre, et des trainards (tonneau, caisses) contre le mur gauche de la salle des colonnes.
   furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });

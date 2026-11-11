@@ -102,6 +102,25 @@ def grain_sack():
     return s
 
 
+def fruit_basket(apples=3):
+    """Panier à fruits en osier posé au sol (Thomas, 2026-11-11 : « panier à fruits dans la cuisine avec 2 à 3 pommes,
+    ramassables ») : tressage clair et foncé, anse en arceau ; 0 à 3 pommes rouges dedans (elles se ramassent)."""
+    s = Sprite(14, 14)
+    s.r(2, 12, 10, 2, "shadow")
+    for y in range(6, 12):
+        for x in range(1 + (y > 10), 13 - (y > 10)):
+            s.p(x, y, "jute_l" if (x + y) % 3 else "jute_d")
+    s.r(1, 6, 12, 1, "jute_d")
+    for i in range(9):  # anse
+        x = 2 + i
+        y = 1 + round(abs(i - 4) * 0.9)
+        s.p(x + 1, y, "jute_d")
+    s.done()
+    for i, (x, y) in enumerate(((3, 3), (7, 3), (5, 1))[:apples]):
+        s.r(x, y + 1, 4, 3, (176, 40, 44, 255)).r(x + 1, y, 2, 1, (176, 40, 44, 255)).p(x + 1, y + 1, (230, 110, 100, 255)).p(x + 2, y - 1, "oak_d")
+    return s
+
+
 def barrique(phase=0):
     """Barrique de vin couchée sur son chevalet (2 cases) : fond rond cerclé de fer vu de face, douelles, robinet de laiton
     en bas du fond ; une goutte de vin tombe (phase 0, 1, 2) dans une petite flaque."""
@@ -167,6 +186,7 @@ if __name__ == "__main__":
     put(barrel_v3(), 6, 6, ox=1)
     put(crate_v3(), 8, 6, ox=1)
     put(grain_sack(), 7, 6, ox=1)
+    put(fruit_basket(3), 2, 6, ox=1)
     put(chair("right"), 4, 4, ox=2, oy=-1)
     put(table_v3(0, True), 5, 4, ox=1, oy=-1)
     planche("CUISINE v2 — à valider (9 × 6 cases)", room, [
@@ -174,5 +194,6 @@ if __name__ == "__main__":
         ("jambon au crochet (mur du fond) : il se balance", [wall_hook(i).img() for i in range(3)]),
         ("barrique de vin : le robinet goutte", [barrique(i).img() for i in range(3)]),
         ("sac de céréales", [grain_sack().img()]),
+        ("panier à fruits : 3, 2, 1, 0 pomme", [fruit_basket(n).img() for n in (3, 2, 1, 0)]),
         ("tonneau, caisses (déjà validés)", [barrel_v3().img(), crate_v3().img(), crate_stack_v3().img()]),
     ], "art/cuisine_v2.png", note="Jambons : seulement contre le mur du fond. Le sac de céréales traîne aussi dans le donjon, avec tonneaux et caisses.")

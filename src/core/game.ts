@@ -175,7 +175,9 @@ export class Game {
   private enterFloor(depth: number, via: "down" | "up"): void {
     if (this.current) {
       // On range l'étage qu'on quitte.
-      this.current.monsters = this.monsters;
+      // Combats coupés : les monstres mis de côté restent sur leur étage.
+      this.current.monsters = this.peaceful ? [...this.monsters, ...this.peacefulStash] : this.monsters;
+      this.peacefulStash = [];
       this.current.ground = this.ground;
       this.current.debris = this.debris;
     }
@@ -267,6 +269,8 @@ export class Game {
       m.fromX = m.x;
       m.fromY = m.y;
     }
+    // Combats coupés (salle d'essai) : les monstres de ce nouvel étage sont mis de côté eux aussi.
+    if (this.peaceful) this.peacefulStash = this.monsters.splice(0);
     this.updateVision();
   }
 
@@ -322,7 +326,7 @@ export class Game {
    */
   private respawn(): void {
     const state = this.current;
-    if (this.turn < state.nextRespawn) return;
+    if (this.turn < state.nextRespawn || this.peaceful) return;
     // Agité, puis alerte : les promeneurs arrivent un peu plus vite, et un peu plus nombreux (en douceur, Thomas 2026-11-11).
     const stage = Math.min(state.alarmStage, 2);
     state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
@@ -551,7 +555,7 @@ export class Game {
   /** Toute la partie sous forme de simples données, à écrire sur l'appareil. */
   snapshot(): SaveData {
     // L'étage courant travaille sur des copies vivantes : on les range d'abord dans son état.
-    this.current.monsters = this.monsters;
+    this.current.monsters = this.peaceful ? [...this.monsters, ...this.peacefulStash] : this.monsters;
     this.current.ground = this.ground;
     this.current.debris = this.debris;
     const floors: SavedFloor[] = [...this.floors.entries()].map(([depth, f]) => ({
@@ -921,7 +925,7 @@ export class Game {
 
   /** Place un point dans une caractéristique (ne prend pas de tour). */
   allocate(stat: StatId): boolean {
-    if (this.points <= 0 || this.over) return false;
+    if (this.points <= 0 || this.over || this.inCombat()) return false;
     this.points--;
     this.alloc[stat]++;
     if (stat === "vie") {
@@ -1947,6 +1951,38 @@ export class Game {
   }
 
   /** Un ennemi alerté est-il au contact du héros ? */
+  /** En plein combat : un monstre qui traque le héros est en vue. On ne place pas de points à ce moment-là (Thomas). */
+  inCombat(): boolean {
+    return this.monsters.some((m) => m.alerted && this.isVisible(m.x, m.y));
+  }
+
+  /** Le bruit d'un combat réveille les dormeurs proches : ils se lèvent et viennent (Thomas). */
+  private wakeNear(at: Point): void {
+    for (const m of this.monsters) {
+      if (!m.asleep || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
+      m.asleep = false;
+      if (!this.peaceful) m.alerted = true;
+    }
+  }
+
+  /**
+   * Salle d'essai, « Combats : non » : les monstres sont mis de côté (ils disparaissent de l'étage), et reviennent à leur
+   * place quand on rétablit les combats (Thomas). Pas de renforts tant que les combats sont coupés.
+   */
+  setPeaceful(on: boolean): void {
+    if (on === this.peaceful) return;
+    this.peaceful = on;
+    if (on) {
+      this.peacefulStash = this.monsters.splice(0);
+    } else {
+      for (const m of this.peacefulStash) {
+        if (!this.actorAt(m.x, m.y)) this.monsters.push(m);
+      }
+      this.peacefulStash = [];
+    }
+  }
+  private peacefulStash: Actor[] = [];
+
   /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
   isWatched(): boolean {
     return this.monsters.some(
@@ -2006,9 +2042,19 @@ export class Game {
       const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
       const loot = rollLoot(this.rng, this.depth);
       // Ce que contient le coffre tombe à côté (Thomas) : l'or sur une case voisine, l'objet sur une autre.
-      const around = [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]
-        .map(([dx, dy]) => ({ x: x + dx, y: y + dy }))
-        .filter((p) => this.map.isWalkable(p.x, p.y) && this.map.get(p.x, p.y) !== Tile.ChestOpen && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y));
+      // Jamais sur un décor (meuble, tapis, chaise, cendres, autre coffre, eau, escalier, porte) : seulement du sol nu
+      // (Thomas) ; à défaut, une case plus loin ; à défaut, sur la case du coffre.
+      const bare = (p: Point) =>
+        (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) &&
+        !this.furnitureAt(p.x, p.y) &&
+        !(p.x === this.hero.x && p.y === this.hero.y) &&
+        !this.isTrap(p.x, p.y);
+      const ring = (r: number) => {
+        const out: Point[] = [];
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) out.push({ x: x + dx, y: y + dy });
+        return out.filter(bare);
+      };
+      const around = ring(1).length > 0 ? ring(1) : ring(2);
       const free = around.filter((p) => !this.ground.some((g) => g.x === p.x && g.y === p.y));
       const spots = free.length > 0 ? free : around.length > 0 ? around : [{ x, y }];
       const goldAt = spots[this.rng.int(0, spots.length - 1)];
@@ -2103,6 +2149,7 @@ export class Game {
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
     if (result.damage > 0) this.bleed(monster, this.hero);
     this.raiseAlarm(RULES.alarmCombat, monster);
+    this.wakeNear(monster);
     // Arme enduite de poison (potion) : le coup qui porte empoisonne.
     if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
       this.weaponPoison--;
@@ -2305,6 +2352,7 @@ export class Game {
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
         if (result.damage > 0) this.bleed(this.hero, m);
         this.raiseAlarm(RULES.alarmCombat, this.hero);
+        this.wakeNear(this.hero);
         this.hurtHero(result.damage);
         continue;
       }

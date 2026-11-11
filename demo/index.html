@@ -1215,6 +1215,8 @@
     /** Un pas sur le gravier : les monstres à tant de cases ou moins l'entendent (réveillés, ils foncent), +1 d'alerte. */
     gravelRadius: 5,
     gravelAlarm: 1,
+    /** Le bruit d'un combat réveille les dormeurs à tant de cases ou moins. */
+    combatWakeRadius: 4,
     /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
     gravelDetour: 6,
     /** Dortoir des Schrats (2026-11-11) : chance qu'un étage en ait un (au plus un), dans une salle d'au moins 6 × 5. */
@@ -2560,6 +2562,7 @@
       this.deepest = 0;
       /** Meubles en feu : tours restants avant qu'il n'en reste qu'un tas de cendres. */
       this.furnitureFire = /* @__PURE__ */ new Map();
+      this.peacefulStash = [];
       const maxHp = heroClass.hp + race.hpBonus;
       this.hero = {
         id: 0,
@@ -2594,7 +2597,8 @@
      */
     enterFloor(depth, via) {
       if (this.current) {
-        this.current.monsters = this.monsters;
+        this.current.monsters = this.peaceful ? [...this.monsters, ...this.peacefulStash] : this.monsters;
+        this.peacefulStash = [];
         this.current.ground = this.ground;
         this.current.debris = this.debris;
       }
@@ -2679,6 +2683,7 @@
         m.fromX = m.x;
         m.fromY = m.y;
       }
+      if (this.peaceful) this.peacefulStash = this.monsters.splice(0);
       this.updateVision();
     }
     spawnMonsters(rooms) {
@@ -2729,7 +2734,7 @@
      */
     respawn() {
       const state = this.current;
-      if (this.turn < state.nextRespawn) return;
+      if (this.turn < state.nextRespawn || this.peaceful) return;
       const stage = Math.min(state.alarmStage, 2);
       state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
       const cap = state.population + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
@@ -2922,7 +2927,7 @@
     // ---------- Sauvegarde ----------
     /** Toute la partie sous forme de simples données, à écrire sur l'appareil. */
     snapshot() {
-      this.current.monsters = this.monsters;
+      this.current.monsters = this.peaceful ? [...this.monsters, ...this.peacefulStash] : this.monsters;
       this.current.ground = this.ground;
       this.current.debris = this.debris;
       const floors = [...this.floors.entries()].map(([depth, f]) => ({
@@ -3257,7 +3262,7 @@
     }
     /** Place un point dans une caractéristique (ne prend pas de tour). */
     allocate(stat) {
-      if (this.points <= 0 || this.over) return false;
+      if (this.points <= 0 || this.over || this.inCombat()) return false;
       this.points--;
       this.alloc[stat]++;
       if (stat === "vie") {
@@ -4178,6 +4183,34 @@
       return this.setDestination(target.x, target.y);
     }
     /** Un ennemi alerté est-il au contact du héros ? */
+    /** En plein combat : un monstre qui traque le héros est en vue. On ne place pas de points à ce moment-là (Thomas). */
+    inCombat() {
+      return this.monsters.some((m) => m.alerted && this.isVisible(m.x, m.y));
+    }
+    /** Le bruit d'un combat réveille les dormeurs proches : ils se lèvent et viennent (Thomas). */
+    wakeNear(at) {
+      for (const m of this.monsters) {
+        if (!m.asleep || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
+        m.asleep = false;
+        if (!this.peaceful) m.alerted = true;
+      }
+    }
+    /**
+     * Salle d'essai, « Combats : non » : les monstres sont mis de côté (ils disparaissent de l'étage), et reviennent à leur
+     * place quand on rétablit les combats (Thomas). Pas de renforts tant que les combats sont coupés.
+     */
+    setPeaceful(on) {
+      if (on === this.peaceful) return;
+      this.peaceful = on;
+      if (on) {
+        this.peacefulStash = this.monsters.splice(0);
+      } else {
+        for (const m of this.peacefulStash) {
+          if (!this.actorAt(m.x, m.y)) this.monsters.push(m);
+        }
+        this.peacefulStash = [];
+      }
+    }
     /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
     isWatched() {
       return this.monsters.some(
@@ -4230,7 +4263,13 @@
         this.map.set(x, y, Tile.ChestOpen);
         const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
         const loot = rollLoot(this.rng, this.depth);
-        const around2 = [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: x + dx, y: y + dy })).filter((p) => this.map.isWalkable(p.x, p.y) && this.map.get(p.x, p.y) !== Tile.ChestOpen && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y));
+        const bare = (p) => (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y);
+        const ring = (r) => {
+          const out = [];
+          for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) out.push({ x: x + dx, y: y + dy });
+          return out.filter(bare);
+        };
+        const around2 = ring(1).length > 0 ? ring(1) : ring(2);
         const free = around2.filter((p) => !this.ground.some((g) => g.x === p.x && g.y === p.y));
         const spots = free.length > 0 ? free : around2.length > 0 ? around2 : [{ x, y }];
         const goldAt = spots[this.rng.int(0, spots.length - 1)];
@@ -4313,6 +4352,7 @@
       this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
       if (result.damage > 0) this.bleed(monster, this.hero);
       this.raiseAlarm(RULES.alarmCombat, monster);
+      this.wakeNear(monster);
       if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
         this.weaponPoison--;
         monster.poison = { damage: 1, turns: 4 };
@@ -4478,6 +4518,7 @@
           this.events.push({ type: "attack", attacker: m, target: this.hero, result });
           if (result.damage > 0) this.bleed(this.hero, m);
           this.raiseAlarm(RULES.alarmCombat, this.hero);
+          this.wakeNear(this.hero);
           this.hurtHero(result.damage);
           continue;
         }
@@ -8346,6 +8387,7 @@
       this.corpses = [];
       this.heroDown = false;
       this.spriteCache = /* @__PURE__ */ new Map();
+      this.smoke = [];
       /** Fouille : une vague dorée balaie les cases de la salle depuis le héros, puis les trouvailles scintillent. */
       this.scan = null;
       /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
@@ -8505,6 +8547,28 @@
       ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
+    }
+    /** Fumée des feux : des volutes grises qui montent, grossissent et s'effacent (en cases, depuis le haut de la flamme). */
+    drawSmoke(game2, ox, oy, dt) {
+      const { ctx, tile } = this;
+      for (const f of game2.fires) {
+        if (!game2.isVisible(f.x, f.y)) continue;
+        if (Math.random() < dt / 260) {
+          this.smoke.push({ x: f.x + 0.3 + Math.random() * 0.4, y: f.y + 0.15, age: 0, life: 1400 + Math.random() * 900, drift: (Math.random() - 0.5) * 0.35, size: 0.16 + Math.random() * 0.1 });
+        }
+      }
+      if (this.smoke.length > 160) this.smoke.splice(0, this.smoke.length - 160);
+      this.smoke = this.smoke.filter((p) => (p.age += dt) < p.life);
+      for (const p of this.smoke) {
+        const t = p.age / p.life;
+        const x = ox + (p.x + p.drift * t) * tile;
+        const y = oy + (p.y - 1.3 * t) * tile;
+        const r = tile * (p.size + 0.28 * t);
+        ctx.fillStyle = `rgba(70,66,74,${(0.32 * (1 - t) * Math.min(1, t * 6)).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
     drawFlames(gx, gy, seed, alpha) {
@@ -8879,10 +8943,6 @@
         ctx.globalAlpha = 1;
         ctx.imageSmoothingEnabled = smooth;
       }
-      for (const f of game2.fires) {
-        if (!game2.isVisible(f.x, f.y)) continue;
-        this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
-      }
       for (const g of game2.ground) {
         if (!game2.isExplored(g.x, g.y)) continue;
         const gx = ox + g.x * tile;
@@ -8993,6 +9053,11 @@
       }
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
+      for (const f of game2.fires) {
+        if (!game2.isVisible(f.x, f.y)) continue;
+        this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
+      }
+      this.drawSmoke(game2, ox, oy, dt);
       const searching = game2.searchProgress();
       if (searching > 0) {
         const s = Math.round(tile * 0.55);
@@ -10479,7 +10544,7 @@
     who.append(head, document.createTextNode(`${game.heroClass.name} \xB7 Niv ${game.level}`));
     $("char-who").replaceChildren(who);
     $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
-    $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} \xE0 attribuer` : "";
+    $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} \xE0 attribuer${game.inCombat() ? " (pas en combat)" : ""}` : "";
     const row = (name, value, stat, wide = false) => {
       const node = el("div", `r${wide ? " wide" : ""}`);
       node.append(el("span", "", name), el("b", "", value));
@@ -10487,9 +10552,13 @@
         const plus = el("button", "", "+");
         plus.type = "button";
         plus.setAttribute("aria-label", `Un point en ${name}`);
+        if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
         plus.addEventListener("click", () => {
           sfx.play("click");
-          game.allocate(stat);
+          if (!game.allocate(stat) && game.inCombat()) {
+            logLines.push("Pas pendant un combat : \xE9loignez-vous d'abord des ennemis.");
+            renderLog();
+          }
           renderHeroScreen();
         });
         node.append(plus);
@@ -10783,9 +10852,9 @@
     renderLog();
   });
   button("peace", () => {
-    game.peaceful = !game.peaceful;
+    game.setPeaceful(!game.peaceful);
     $("peace").textContent = game.peaceful ? "Combats : non" : "Combats : oui";
-    logLines.push(game.peaceful ? "Combats coup\xE9s : les monstres vous ignorent." : "Combats r\xE9tablis.");
+    logLines.push(game.peaceful ? "Combats coup\xE9s : les monstres sont retir\xE9s." : "Combats r\xE9tablis : les monstres reviennent.");
     renderLog();
   });
   button("alarm-up", () => {

@@ -60,6 +60,8 @@ export const RULES = {
   /** Un pas sur le gravier : les monstres à tant de cases ou moins l'entendent (réveillés, ils foncent), +1 d'alerte. */
   gravelRadius: 5,
   gravelAlarm: 1,
+  /** Le bruit d'un combat réveille les dormeurs à tant de cases ou moins. */
+  combatWakeRadius: 4,
   /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
   gravelDetour: 6,
   /** Dortoir des Schrats (2026-11-11) : chance qu'un étage en ait un (au plus un), dans une salle d'au moins 6 × 5. */

@@ -1224,7 +1224,8 @@ function renderCharacter(): void {
   who.append(head, document.createTextNode(`${game.heroClass.name} · Niv ${game.level}`));
   $("char-who").replaceChildren(who);
   $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
-  $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} à attribuer` : "";
+  $("char-points").textContent =
+    game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} à attribuer${game.inCombat() ? " (pas en combat)" : ""}` : "";
 
   // Caractéristiques sur deux colonnes (l'écran tient sans défiler).
   const row = (name: string, value: string, stat?: StatId, wide = false) => {
@@ -1234,9 +1235,14 @@ function renderCharacter(): void {
       const plus = el("button", "", "+") as HTMLButtonElement;
       plus.type = "button";
       plus.setAttribute("aria-label", `Un point en ${name}`);
+      // En combat, les « + » sont grisés (Thomas : on n'augmente pas ses caractéristiques en plein combat).
+      if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
       plus.addEventListener("click", () => {
         sfx.play("click");
-        game.allocate(stat);
+        if (!game.allocate(stat) && game.inCombat()) {
+          logLines.push("Pas pendant un combat : éloignez-vous d'abord des ennemis.");
+          renderLog();
+        }
         renderHeroScreen();
       });
       node.append(plus);
@@ -1579,9 +1585,9 @@ button("wake-all", () => {
 });
 // Salle d'essai : couper ou rétablir les combats (Thomas) — les monstres ne remarquent plus le héros.
 button("peace", () => {
-  game.peaceful = !game.peaceful;
+  game.setPeaceful(!game.peaceful);
   $("peace").textContent = game.peaceful ? "Combats : non" : "Combats : oui";
-  logLines.push(game.peaceful ? "Combats coupés : les monstres vous ignorent." : "Combats rétablis.");
+  logLines.push(game.peaceful ? "Combats coupés : les monstres sont retirés." : "Combats rétablis : les monstres reviennent.");
   renderLog();
 });
 button("alarm-up", () => {

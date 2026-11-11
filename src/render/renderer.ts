@@ -283,6 +283,31 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  private smoke: { x: number; y: number; age: number; life: number; drift: number; size: number }[] = [];
+
+  /** Fumée des feux : des volutes grises qui montent, grossissent et s'effacent (en cases, depuis le haut de la flamme). */
+  private drawSmoke(game: Game, ox: number, oy: number, dt: number): void {
+    const { ctx, tile } = this;
+    for (const f of game.fires) {
+      if (!game.isVisible(f.x, f.y)) continue;
+      if (Math.random() < dt / 260) {
+        this.smoke.push({ x: f.x + 0.3 + Math.random() * 0.4, y: f.y + 0.15, age: 0, life: 1400 + Math.random() * 900, drift: (Math.random() - 0.5) * 0.35, size: 0.16 + Math.random() * 0.1 });
+      }
+    }
+    if (this.smoke.length > 160) this.smoke.splice(0, this.smoke.length - 160);
+    this.smoke = this.smoke.filter((p) => (p.age += dt) < p.life);
+    for (const p of this.smoke) {
+      const t = p.age / p.life;
+      const x = ox + (p.x + p.drift * t) * tile;
+      const y = oy + (p.y - 1.3 * t) * tile;
+      const r = tile * (p.size + 0.28 * t);
+      ctx.fillStyle = `rgba(70,66,74,${(0.32 * (1 - t) * Math.min(1, t * 6)).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
   private drawFlames(gx: number, gy: number, seed: number, alpha: number): void {
     const { ctx, tile } = this;
@@ -719,11 +744,6 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
-    // Cases en feu (potion de feu) : trois images de flammes qui alternent (planche art/objets_v3.png).
-    for (const f of game.fires) {
-      if (!game.isVisible(f.x, f.y)) continue;
-      this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
-    }
     for (const g of game.ground) {
       if (!game.isExplored(g.x, g.y)) continue;
       const gx = ox + g.x * tile;
@@ -850,6 +870,13 @@ export class Renderer {
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.
     if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
+    // Cases en feu (potion de feu, meubles) : trois images de flammes qui alternent (planche art/objets_v3.png),
+    // dessinées DEVANT les personnages (Thomas : le feu ne passe pas derrière), puis la fumée qui monte.
+    for (const f of game.fires) {
+      if (!game.isVisible(f.x, f.y)) continue;
+      this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
+    }
+    this.drawSmoke(game, ox, oy, dt);
     // Repos en cours : petite jauge au-dessus du héros.
     // Fouille en cours : la loupe oscille au-dessus de la tête du héros, comme s'il examinait le sol.
     const searching = game.searchProgress();

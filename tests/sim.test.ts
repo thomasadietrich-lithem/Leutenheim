@@ -261,7 +261,7 @@ function playRun(seed: number, maxTurns: number): Game {
     // Comme la boucle d'affichage après chaque pas, mais ce joueur-ci ne remonte jamais.
     if (game.pendingStairs === "down" && game.takeStairs()) continue;
     // Comme un joueur prudent : chaque point gagné va en Vie.
-    while (game.points > 0) game.allocate("vie");
+    while (game.points > 0 && game.allocate("vie"));
     const foes = game.visibleMonsters();
     if (foes.length > 0) {
       const d = (m: { x: number; y: number }) => Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y));
@@ -2336,4 +2336,45 @@ test("dortoir : 0 à 2 coffres ; se cacher contre un meuble ; combats coupés en
   game.wait();
   game.tick();
   assert.ok(game.monsters.every((m) => !m.alerted), "personne ne vous remarque");
+});
+
+test("combat : le bruit réveille les dormeurs proches ; pas de points à placer en plein combat", () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed);
+    if (game.monsters.length < 2) continue;
+    const [foe, sleeper] = game.monsters;
+    game.monsters.splice(2);
+    const h = game.hero;
+    const side = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor);
+    const far = [[3, 0], [-3, 0], [0, 3], [0, -3], [2, 2], [-2, -2]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor && (!side || p.x !== side.x || p.y !== side.y));
+    if (!side || !far) continue;
+    Object.assign(foe, { x: side.x, y: side.y, hp: 50, maxHp: 50, alerted: true, asleep: false });
+    Object.assign(sleeper, { x: far.x, y: far.y, asleep: true, alerted: false });
+    game.points = 1;
+    game.wait();
+    game.tick();
+    assert.equal(game.inCombat(), true);
+    assert.equal(game.allocate("vie"), false, "pas en plein combat");
+    assert.ok(game.setDestination(foe.x, foe.y));
+    game.tick();
+    assert.equal(sleeper.asleep, false, "le combat l'a réveillé");
+    return;
+  }
+  assert.fail("aucune graine utilisable");
+});
+
+test("coffre : ce qu'il contient ne tombe jamais sur un décor", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  const r = game.rooms[4];
+  let chest: { x: number; y: number } | null = null;
+  for (let y = r.y; y < r.y + r.h && !chest; y++) for (let x = r.x; x < r.x + r.w; x++) if (game.map.get(x, y) === Tile.Chest) chest = { x, y };
+  if (!chest) return; // pas de coffre dans ce dortoir
+  const from = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: chest!.x + dx, y: chest!.y + dy })).find((p) => game.map.isWalkable(p.x, p.y))!;
+  Object.assign(game.hero, { x: from.x, y: from.y });
+  game.moveBy(chest.x - from.x, chest.y - from.y);
+  game.tick();
+  const e = game.events.find((ev) => ev.type === "chest");
+  assert.ok(e && e.type === "chest");
+  for (const d of e.drops) assert.equal(game.furnitureAt(d.x, d.y), null, `objet sur un décor en ${d.x},${d.y}`);
 });

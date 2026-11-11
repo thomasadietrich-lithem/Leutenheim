@@ -339,6 +339,7 @@
       <div id="bag-info"></div>
       <div class="bag-buttons">
         <button id="bag-equip" type="button" hidden></button>
+        <button id="bag-drop" type="button" hidden>Jeter</button>
       </div>
     </section>
     <section id="pane-char" hidden>
@@ -1041,7 +1042,10 @@
   var STAT_LABELS = {
     vie: { name: "Vie", hint: "+4 PV max" },
     force: { name: "Force", hint: "pousser, d\xE9g\xE2ts au contact" },
-    agilite: { name: "Agilit\xE9", hint: "se d\xE9gager, tir \xE0 l'arc" }
+    agilite: { name: "Agilit\xE9", hint: "se d\xE9gager, tir \xE0 l'arc" },
+    // Thomas, 2026-11-11 : viendront les quêtes et les conditions d'objet ; la magie dépendra de l'Intelligence.
+    intelligence: { name: "Intelligence", hint: "magie (\xE0 venir)" },
+    charisme: { name: "Charisme", hint: "qu\xEAtes, marchands (\xE0 venir)" }
   };
 
   // src/data/monsters.ts
@@ -2149,7 +2153,7 @@
       /** Points gagnés aux niveaux, pas encore placés. */
       this.points = 0;
       /** Points placés dans chaque caractéristique. */
-      this.alloc = { vie: 0, force: 0, agilite: 0 };
+      this.alloc = { vie: 0, force: 0, agilite: 0, intelligence: 0, charisme: 0 };
       /** Voie choisie (définitive) et compétences secondaires prises. */
       this.voie = null;
       this.skills = [];
@@ -2566,7 +2570,7 @@
       game2.xp = saved.xp;
       game2.level = saved.level;
       game2.points = saved.points;
-      game2.alloc = saved.alloc;
+      game2.alloc = { intelligence: 0, charisme: 0, ...saved.alloc };
       game2.voie = saved.voie;
       game2.skills = saved.skills;
       game2.floorPerks = saved.floorPerks;
@@ -2728,8 +2732,8 @@
       if (def.potion === "youth") {
         this.hero.maxHp -= this.alloc.vie * RULES.hpPerVie;
         this.hero.hp = Math.min(this.hero.hp, this.hero.maxHp);
-        this.points += this.alloc.vie + this.alloc.force + this.alloc.agilite + 1;
-        this.alloc = { vie: 0, force: 0, agilite: 0 };
+        this.points += Object.values(this.alloc).reduce((a, b) => a + b, 0) + 1;
+        this.alloc = { vie: 0, force: 0, agilite: 0, intelligence: 0, charisme: 0 };
         this.refreshStats();
         this.events.push({ type: "potion", potion: "youth", points: this.points });
       } else if (def.potion === "poison") {
@@ -2745,6 +2749,15 @@
         this.events.push({ type: "used", item: item.defId });
         this.reveal();
       }
+    }
+    /** Jeter un objet du sac : il tombe aux pieds du héros (sans prendre de tour). Le sac porté ne se jette pas. */
+    dropFromBag(uid) {
+      const item = this.inventory.get(uid);
+      if (!item || this.over) return false;
+      this.inventory.removeItem(uid);
+      this.dropItem(this.hero.x, this.hero.y, item.defId, item.count);
+      this.events.push({ type: "dropped", item: item.defId, count: item.count });
+      return true;
     }
     /** Les munitions de l'arc présentes dans le sac, ordinaires d'abord. */
     ammoKinds() {
@@ -2898,7 +2911,10 @@
       const item = this.inventory.get(order.uid);
       if (!item || !this.inventory.take(item.defId, 1)) return;
       this.reveal();
-      const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      const cross = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+      const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+      const extra = splash[this.rng.int(0, splash.length - 1)];
+      const cells = [...cross, extra].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
       for (const c of cells) {
         const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
         if (old) old.turns = RULES.fireTurns;
@@ -6984,7 +7000,7 @@
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.save();
-      ctx.translate(gx + tile / 2, gy + tile / 2);
+      ctx.translate(this.snap(gx + tile / 2), this.snap(gy + tile / 2));
       const long = h > w;
       if (long) ctx.rotate(Math.PI / 4);
       const scale = tile * (long ? 1.05 : 0.8) / Math.max(w, h);
@@ -7234,7 +7250,9 @@
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
         ctx.globalAlpha = game2.isVisible(p.x, p.y) ? 1 : 0.45;
-        ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), Math.round(ox + p.x * tile), Math.round(oy + p.y * tile), Math.round(tile), Math.round(tile));
+        const rx = this.snap(ox + p.x * tile);
+        const ry = this.snap(oy + p.y * tile);
+        ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), rx, ry, this.snap(ox + (p.x + 1) * tile) - rx, this.snap(oy + (p.y + 1) * tile) - ry);
         ctx.globalAlpha = 1;
         ctx.imageSmoothingEnabled = smooth;
       }
@@ -7589,7 +7607,9 @@
         return null;
       case "pickup": {
         const found = ITEMS[e.item];
-        return found.kind === "gold" ? `Bourse : or \xD7${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`;
+        if (found.kind === "gold") return `Bourse : or \xD7${e.count}`;
+        if (found.kind === "gem") return `Pierre pr\xE9cieuse : +${(found.value ?? 0) * e.count} or.`;
+        return `Vous ramassez : ${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`;
       }
       case "levelup":
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
@@ -7638,6 +7658,8 @@
         return e.actor.kind === "hero" ? `Vous br\xFBlez : ${e.damage} d\xE9g\xE2ts.` : `${e.actor.name} br\xFBle : ${e.damage} d\xE9g\xE2ts.`;
       case "potion":
         return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+      case "dropped":
+        return `Vous jetez : ${ITEMS[e.item].name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`;
       case "slowed":
         return `${e.actor.name} est ralenti.`;
       case "torchOut":
@@ -7950,6 +7972,7 @@
       const found = ITEMS[e.item];
       sfx.play("pickup");
       if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or \xD7${e.count}`, "#f0c850");
+      else if (found.kind === "gem") renderer.addFloatingText(game.hero.x, game.hero.y, `+${(found.value ?? 0) * e.count} or`, "#f0c850");
       else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}`, "#fff3c8");
     } else if (e.type === "xp") {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
@@ -8466,6 +8489,7 @@
       selected = null;
       info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner. Dans le sac, touchez ensuite une case libre pour le d\xE9placer."));
       action.hidden = true;
+      $("bag-drop").hidden = true;
       return;
     }
     const def = ITEMS[item.defId];
@@ -8482,7 +8506,8 @@
     info.replaceChildren(card);
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
-    action.textContent = selectedSlot ? "Retirer" : def.throwRange ? "Lancer" : def.kind === "use" ? "Utiliser" : "\xC9quiper";
+    action.textContent = selectedSlot ? "Retirer" : def.throwRange ? "Lancer" : def.kind === "use" ? "Consommer" : "\xC9quiper";
+    $("bag-drop").hidden = selectedSlot !== null;
   }
   $("bag-grid").addEventListener("click", (e) => {
     const grid = $("bag-grid");
@@ -8495,6 +8520,17 @@
     if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
     else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
     sfx.play("click");
+    renderHeroScreen();
+  });
+  button("bag-drop", () => {
+    if (selected && "uid" in selected) {
+      if (game.dropFromBag(selected.uid)) {
+        collectEvents();
+        aimShown = "";
+      }
+    }
+    selected = null;
+    renderLog();
     renderHeroScreen();
   });
   button("bag-equip", () => {
@@ -8527,7 +8563,7 @@
     bagOpen = true;
     selected = null;
     pickedChoice = null;
-    heroTab = game.hasPendingChoice() ? "char" : "inv";
+    heroTab = "inv";
     $("bag").hidden = false;
     renderHeroScreen();
   });
@@ -8592,10 +8628,12 @@
       row(STAT_LABELS.vie.name, STAT_LABELS.vie.hint, `${game.hero.hp}/${game.hero.maxHp}`, "vie"),
       row(STAT_LABELS.force.name, STAT_LABELS.force.hint, signedBonus(game.pushBonus()), "force"),
       row(STAT_LABELS.agilite.name, STAT_LABELS.agilite.hint, signedBonus(game.disengageBonus()), "agilite"),
+      row(STAT_LABELS.intelligence.name, STAT_LABELS.intelligence.hint, signedBonus(game.alloc.intelligence), "intelligence"),
+      row(STAT_LABELS.charisme.name, STAT_LABELS.charisme.hint, signedBonus(game.alloc.charisme), "charisme"),
       el("div", "char-sep"),
-      row("Fouille", "\xE0 part : ne prend pas de points", signedBonus(c.searchBonus)),
+      row("Fouille", "", signedBonus(c.searchBonus)),
       row("Discr\xE9tion", "", signedBonus(c.stealthBonus)),
-      row("CA", "", String(game.hero.armorClass)),
+      row("Classe d'armure", "", String(game.hero.armorClass)),
       row("Attaque", "", signedBonus(game.hero.attackBonus))
     );
     const cards = [];
@@ -8966,10 +9004,11 @@
       logLines.push("Ennemi au contact : vous reprenez votre arme de corps \xE0 corps.");
       renderLog();
     }
-    const aimKey = `${bow?.id}|${game.arrows()}`;
+    const ammo = game.currentAmmo();
+    const aimKey = `${bow?.id}|${ammo}|${game.arrows()}`;
     if (aimKey !== aimShown) {
       aimShown = aimKey;
-      aim.replaceChildren(uiIcon("arrow"), document.createTextNode(`\xD7${game.arrows()}`));
+      aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(`\xD7${game.arrows()}`));
     }
     aim.classList.toggle("active", aimMode);
     requestAnimationFrame(frame);

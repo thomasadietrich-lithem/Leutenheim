@@ -66,7 +66,7 @@ export class Game {
   /** Points gagnés aux niveaux, pas encore placés. */
   points = 0;
   /** Points placés dans chaque caractéristique. */
-  alloc: Record<StatId, number> = { vie: 0, force: 0, agilite: 0 };
+  alloc: Record<StatId, number> = { vie: 0, force: 0, agilite: 0, intelligence: 0, charisme: 0 };
   /** Voie choisie (définitive) et compétences secondaires prises. */
   voie: PathId | null = null;
   skills: SkillId[] = [];
@@ -526,7 +526,7 @@ export class Game {
     game.xp = saved.xp;
     game.level = saved.level;
     game.points = saved.points;
-    game.alloc = saved.alloc;
+    game.alloc = { intelligence: 0, charisme: 0, ...saved.alloc };
     game.voie = saved.voie as PathId | null;
     game.skills = saved.skills as SkillId[];
     game.floorPerks = saved.floorPerks;
@@ -714,8 +714,8 @@ export class Game {
       // Jouvence : tous les points placés reviennent, plus un ; la voie ne change pas.
       this.hero.maxHp -= this.alloc.vie * RULES.hpPerVie;
       this.hero.hp = Math.min(this.hero.hp, this.hero.maxHp);
-      this.points += this.alloc.vie + this.alloc.force + this.alloc.agilite + 1;
-      this.alloc = { vie: 0, force: 0, agilite: 0 };
+      this.points += Object.values(this.alloc).reduce((a, b) => a + b, 0) + 1;
+      this.alloc = { vie: 0, force: 0, agilite: 0, intelligence: 0, charisme: 0 };
       this.refreshStats();
       this.events.push({ type: "potion", potion: "youth", points: this.points });
     } else if (def.potion === "poison") {
@@ -733,6 +733,16 @@ export class Game {
       // On ne se cache pas une torche à la main.
       this.reveal();
     }
+  }
+
+  /** Jeter un objet du sac : il tombe aux pieds du héros (sans prendre de tour). Le sac porté ne se jette pas. */
+  dropFromBag(uid: number): boolean {
+    const item = this.inventory.get(uid);
+    if (!item || this.over) return false;
+    this.inventory.removeItem(uid);
+    this.dropItem(this.hero.x, this.hero.y, item.defId, item.count);
+    this.events.push({ type: "dropped", item: item.defId, count: item.count });
+    return true;
   }
 
   /** Les munitions de l'arc présentes dans le sac, ordinaires d'abord. */
@@ -905,7 +915,11 @@ export class Game {
     const item = this.inventory.get(order.uid);
     if (!item || !this.inventory.take(item.defId, 1)) return;
     this.reveal();
-    const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
+    // La croix, plus une éclaboussure au hasard sur une case voisine de la croix (Thomas).
+    const cross = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+    const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    const extra = splash[this.rng.int(0, splash.length - 1)];
+    const cells = [...cross, extra]
       .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
       .filter((c) => this.map.isWalkable(c.x, c.y));
     for (const c of cells) {

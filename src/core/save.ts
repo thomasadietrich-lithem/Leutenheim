@@ -56,7 +56,7 @@ export interface SaveData {
   level: number;
   /** Version 2 (2026-11-11) : points, voie, compétences, potions, feu, taille du sac. */
   points: number;
-  alloc: { vie: number; force: number; agilite: number };
+  alloc: { vie: number; force: number; agilite: number; intelligence?: number; charisme?: number };
   voie: string | null;
   skills: string[];
   floorPerks: Record<number, { secondWind: boolean; doubleStrikes: number; lastStand: boolean }>;

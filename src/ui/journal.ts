@@ -57,7 +57,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return null;
     case "pickup": {
       const found = ITEMS[e.item];
-      return found.kind === "gold" ? `Bourse : or ×${e.count}` : `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
+      if (found.kind === "gold") return `Bourse : or ×${e.count}`;
+      // Une pierre précieuse : on dit sa valeur, pas son nom (Thomas).
+      if (found.kind === "gem") return `Pierre précieuse : +${(found.value ?? 0) * e.count} or.`;
+      return `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
     }
     case "levelup":
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
@@ -122,6 +125,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
           : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "dropped":
+      return `Vous jetez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
     case "slowed":
       return `${e.actor.name} est ralenti.`;
     case "torchOut":

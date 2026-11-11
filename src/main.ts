@@ -357,6 +357,7 @@ function reveal(e: GameEvent): void {
     sfx.play("pickup");
     // Ce qu'on ramasse s'affiche au-dessus de la tête du héros (demande de Thomas).
     if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or ×${e.count}`, "#f0c850");
+    else if (found.kind === "gem") renderer.addFloatingText(game.hero.x, game.hero.y, `+${(found.value ?? 0) * e.count} or`, "#f0c850");
     else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` ×${e.count}` : ""}`, "#fff3c8");
     // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
   } else if (e.type === "xp") {
@@ -936,6 +937,7 @@ function renderBag(): void {
     selected = null;
     info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner. Dans le sac, touchez ensuite une case libre pour le déplacer."));
     action.hidden = true;
+    $("bag-drop").hidden = true;
     return;
   }
   const def: ItemDef = ITEMS[item.defId];
@@ -954,7 +956,9 @@ function renderBag(): void {
   const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
   // Le sac porté ne s'enlève pas : on le remplace par un autre.
   action.hidden = (!wearable && def.kind !== "use") || selectedSlot === "bag";
-  action.textContent = selectedSlot ? "Retirer" : def.throwRange ? "Lancer" : def.kind === "use" ? "Utiliser" : "Équiper";
+  action.textContent = selectedSlot ? "Retirer" : def.throwRange ? "Lancer" : def.kind === "use" ? "Consommer" : "Équiper";
+  // Jeter : tout objet du sac (pas ce qu'on porte).
+  $("bag-drop").hidden = selectedSlot !== null;
 }
 
 $("bag-grid").addEventListener("click", (e) => {
@@ -968,6 +972,17 @@ $("bag-grid").addEventListener("click", (e) => {
   if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
   else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
   sfx.play("click");
+  renderHeroScreen();
+});
+button("bag-drop", () => {
+  if (selected && "uid" in selected) {
+    if (game.dropFromBag(selected.uid)) {
+      collectEvents();
+      aimShown = "";
+    }
+  }
+  selected = null;
+  renderLog();
   renderHeroScreen();
 });
 button("bag-equip", () => {
@@ -1002,8 +1017,8 @@ button("open-bag", () => {
   bagOpen = true;
   selected = null;
   pickedChoice = null;
-  // S'il y a un point ou une compétence à choisir, on ouvre directement l'onglet Personnage.
-  heroTab = game.hasPendingChoice() ? "char" : "inv";
+  // Par défaut, l'inventaire (Thomas) ; le « ! » de l'onglet Personnage signale ce qui attend.
+  heroTab = "inv";
   $("bag").hidden = false;
   renderHeroScreen();
 });
@@ -1075,10 +1090,12 @@ function renderCharacter(): void {
     row(STAT_LABELS.vie.name, STAT_LABELS.vie.hint, `${game.hero.hp}/${game.hero.maxHp}`, "vie"),
     row(STAT_LABELS.force.name, STAT_LABELS.force.hint, signedBonus(game.pushBonus()), "force"),
     row(STAT_LABELS.agilite.name, STAT_LABELS.agilite.hint, signedBonus(game.disengageBonus()), "agilite"),
+    row(STAT_LABELS.intelligence.name, STAT_LABELS.intelligence.hint, signedBonus(game.alloc.intelligence), "intelligence"),
+    row(STAT_LABELS.charisme.name, STAT_LABELS.charisme.hint, signedBonus(game.alloc.charisme), "charisme"),
     el("div", "char-sep"),
-    row("Fouille", "à part : ne prend pas de points", signedBonus(c.searchBonus)),
+    row("Fouille", "", signedBonus(c.searchBonus)),
     row("Discrétion", "", signedBonus(c.stealthBonus)),
-    row("CA", "", String(game.hero.armorClass)),
+    row("Classe d'armure", "", String(game.hero.armorClass)),
     row("Attaque", "", signedBonus(game.hero.attackBonus)),
   );
 
@@ -1514,10 +1531,12 @@ function frame(now: number): void {
     renderLog();
   }
   // Le bouton : le pictogramme de l'arc et le nombre de flèches. Il s'allume quand l'arc est bandé.
-  const aimKey = `${bow?.id}|${game.arrows()}`;
+  // Le dessin suit la munition choisie (flèche ordinaire ou empoisonnée, demande de Thomas).
+  const ammo = game.currentAmmo();
+  const aimKey = `${bow?.id}|${ammo}|${game.arrows()}`;
   if (aimKey !== aimShown) {
     aimShown = aimKey;
-    aim.replaceChildren(uiIcon("arrow"), document.createTextNode(`×${game.arrows()}`));
+    aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(`×${game.arrows()}`));
   }
   aim.classList.toggle("active", aimMode);
   requestAnimationFrame(frame);

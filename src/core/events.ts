@@ -58,6 +58,7 @@ export type GameEvent =
   | { type: "burn"; actor: Actor; damage: number }
   | { type: "potion"; potion: "youth" | "poison" | "haste"; points?: number }
   | { type: "slowed"; actor: Actor }
+  | { type: "dropped"; item: ItemId; count: number }
   | { type: "poisoned"; actor: Actor }
   | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number }

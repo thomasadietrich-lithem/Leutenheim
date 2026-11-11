@@ -285,7 +285,7 @@ export class Renderer {
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.save();
-    ctx.translate(gx + tile / 2, gy + tile / 2);
+    ctx.translate(this.snap(gx + tile / 2), this.snap(gy + tile / 2));
     const long = h > w;
     if (long) ctx.rotate(Math.PI / 4);
     const scale = (tile * (long ? 1.05 : 0.8)) / Math.max(w, h);
@@ -589,7 +589,10 @@ export class Renderer {
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.globalAlpha = game.isVisible(p.x, p.y) ? 1 : 0.45;
-      ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), Math.round(ox + p.x * tile), Math.round(oy + p.y * tile), Math.round(tile), Math.round(tile));
+      // Calé sur les mêmes pixels entiers que la case (sinon le piège « gigote » d'un pixel en glissant, comme les cases avant).
+      const rx = this.snap(ox + p.x * tile);
+      const ry = this.snap(oy + p.y * tile);
+      ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), rx, ry, this.snap(ox + (p.x + 1) * tile) - rx, this.snap(oy + (p.y + 1) * tile) - ry);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }

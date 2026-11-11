@@ -67,9 +67,12 @@ export const PATH_LEVEL = 2;
 export const SECONDARY_LEVELS = [4, 6, 8];
 
 /** Caractéristiques où placer les points gagnés à chaque niveau (la fouille est à part). */
-export type StatId = "vie" | "force" | "agilite";
+export type StatId = "vie" | "force" | "agilite" | "intelligence" | "charisme";
 export const STAT_LABELS: Record<StatId, { name: string; hint: string }> = {
   vie: { name: "Vie", hint: "+4 PV max" },
   force: { name: "Force", hint: "pousser, dégâts au contact" },
   agilite: { name: "Agilité", hint: "se dégager, tir à l'arc" },
+  // Thomas, 2026-11-11 : viendront les quêtes et les conditions d'objet ; la magie dépendra de l'Intelligence.
+  intelligence: { name: "Intelligence", hint: "magie (à venir)" },
+  charisme: { name: "Charisme", hint: "quêtes, marchands (à venir)" },
 };

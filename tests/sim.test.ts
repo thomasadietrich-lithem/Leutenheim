@@ -2052,3 +2052,14 @@ test("sauvegarde v2 : points, voie, compétences, sac et feu sont repris", () =>
   assert.deepEqual([copy.inventory.cols, copy.inventory.rows], [7, 5]);
   assert.equal(copy.fires.length, 1);
 });
+
+test("jeter un objet : il tombe aux pieds du héros ; Intelligence et Charisme prennent des points", () => {
+  const game = new Game(7);
+  game.inventory.add("pomme", 2);
+  assert.ok(game.dropFromBag(bagUid(game, "pomme")));
+  assert.equal(game.inventory.count("pomme"), 0);
+  assert.ok(game.ground.some((g) => g.item === "pomme" && g.count === 2 && g.x === game.hero.x && g.y === game.hero.y));
+  game.levelUpNow();
+  assert.ok(game.allocate("intelligence"));
+  assert.equal(game.alloc.intelligence, 1);
+});

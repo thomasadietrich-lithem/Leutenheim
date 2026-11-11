@@ -1562,3 +1562,25 @@ test("pousser : réussi, le monstre recule et est sonné ; contre un mur, il enc
   assert.ok(moved > 0, "jamais vu un monstre reculer");
   assert.ok(slammed > 0, "jamais vu un monstre heurter un mur");
 });
+
+test("salle d'essai : tout est accessible depuis le départ, et chaque nouveauté y est", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  // Chaque salle, l'escalier et les deux portes verrouillées sont atteignables depuis le départ.
+  const dist = distanceField(game.map, game.hero);
+  for (const r of game.rooms) assert.notEqual(dist[game.map.index(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2))], -1, `salle (${r.x},${r.y}) inaccessible`);
+  for (let y = 0; y < game.map.height; y++) {
+    for (let x = 0; x < game.map.width; x++) {
+      if (game.map.get(x, y) !== Tile.DoorLocked) continue;
+      assert.notEqual(dist[game.map.index(x, y - 1)], -1, `porte verrouillée (${x},${y}) inaccessible`);
+    }
+  }
+  assert.equal(game.monsters.length, 3);
+  assert.ok(game.traps().length >= 2);
+  assert.ok(game.ground.some((g) => g.item === "clef"));
+  assert.ok(game.torches.some((t) => t.hearth));
+  assert.ok(game.roomElements(game.rooms[1]) >= 2, "la salle des colonnes doit avoir colonnes et cheminée");
+  // Le joueur peut rejoindre l'escalier.
+  let stairs = { x: -1, y: -1 };
+  for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.StairsDown) stairs = { x, y };
+  assert.ok(game.setDestination(stairs.x, stairs.y, true));
+});

@@ -130,9 +130,9 @@ let stepMs = 125;
 let stepping = false;
 let stepTime = 0;
 
-function newRun(): void {
+function newRun(sandbox = false): void {
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
-  game = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass);
+  game = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox);
   aimMode = false;
   doorWasPending = false;
   foundOpen = false;
@@ -144,7 +144,12 @@ function newRun(): void {
   cue = null;
   ghosts = [];
   shownHp = game.hero.hp;
-  logLines = [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
+  logLines = sandbox
+    ? [
+        "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
+        "À l'est : colonnes, cheminée, cache à fouiller, piège. Au sud-est : Schrats à pousser, piège, escalier. Au sud : fontaine et coffre (clef au sol).",
+      ]
+    : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
   renderLog();
   clearDie();
   over.hidden = true;
@@ -1127,6 +1132,12 @@ button("detail-close", () => {
 });
 button("new-start", () => {
   newRun();
+  started = true;
+  showScreen(null);
+});
+// Salle d'essai : un étage fixe qui rassemble les derniers éléments créés (Humain Guerrier).
+button("menu-sandbox", () => {
+  newRun(true);
   started = true;
   showScreen(null);
 });

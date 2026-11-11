@@ -8,6 +8,7 @@ import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
+import { buildSandbox, SandboxFloor } from "../world/sandbox";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, findPath } from "../world/pathfinding";
 import { AttackResult, rollAttack } from "./combat";
@@ -204,6 +205,8 @@ export class Game {
     readonly race: RaceDef = RACES.humain,
     readonly heroClass: ClassDef = CLASSES.guerrier,
     private readonly floorConfig: FloorConfig = DEFAULT_FLOOR,
+    /** Salle d'essai : le premier étage est le plan fixe de `src/world/sandbox.ts` au lieu d'un étage tiré au hasard. */
+    readonly sandbox = false,
   ) {
     const maxHp = heroClass.hp + race.hpBonus;
     this.hero = {
@@ -248,9 +251,11 @@ export class Game {
     }
     let state = this.floors.get(depth);
     const fresh = !state;
+    let sandboxFloor: SandboxFloor | null = null;
     if (!state) {
       const seed = floorSeed(this.runSeed, depth);
-      const floor = generateFloor(seed, this.floorConfig);
+      if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
+      const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
       state = {
@@ -309,7 +314,9 @@ export class Game {
     this.pendingStairs = null;
     this.clearDoorOrders();
     this.light = computeLight(this.map, this.torches);
-    if (fresh) {
+    if (fresh && sandboxFloor) {
+      this.populateSandbox(state, sandboxFloor);
+    } else if (fresh) {
       this.spawnMonsters(state.rooms);
       state.population = Math.max(1, this.monsters.length);
       state.nextRespawn = this.turn + RULES.respawnTurns;
@@ -503,6 +510,16 @@ export class Game {
   /** La salle où se tient le héros (son numéro), ou -1 dans un couloir. */
   roomIndexAt(p: Point): number {
     return this.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+  }
+
+  /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
+  private populateSandbox(state: FloorState, plan: SandboxFloor): void {
+    for (const m of plan.monsters) this.monsters.push(this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep));
+    state.population = this.monsters.length;
+    state.nextRespawn = this.turn + RULES.respawnTurns;
+    for (const g of plan.ground) this.ground.push({ ...g });
+    for (const s of plan.secrets) state.secrets.push({ ...s, found: false });
+    for (const t of plan.traps) state.traps.push({ ...t });
   }
 
   private placeKey(rooms: Room[]): void {

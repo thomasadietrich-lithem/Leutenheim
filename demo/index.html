@@ -284,6 +284,7 @@
       <p>Démo de travail</p>
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
+      <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
@@ -1426,6 +1427,61 @@
     return cells;
   }
 
+  // src/world/sandbox.ts
+  function buildSandbox() {
+    const map = new GameMap(32, 24);
+    const carve = (r) => {
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
+    };
+    const start = { x: 3, y: 3, w: 9, h: 7 };
+    const pillars = { x: 17, y: 3, w: 9, h: 7 };
+    const combat = { x: 17, y: 14, w: 9, h: 6 };
+    const fountainRoom = { x: 3, y: 14, w: 3, h: 3 };
+    const chestRoom = { x: 9, y: 14, w: 3, h: 3 };
+    for (const r of [start, pillars, combat, fountainRoom, chestRoom]) carve(r);
+    for (let x = 12; x <= 16; x++) map.set(x, 6, Tile.Floor);
+    map.set(12, 6, Tile.DoorClosed);
+    for (let y = 10; y <= 13; y++) map.set(21, y, Tile.Floor);
+    for (let y = 10; y <= 12; y++) map.set(4, y, Tile.Floor);
+    for (let y = 10; y <= 12; y++) map.set(10, y, Tile.Floor);
+    map.set(4, 13, Tile.DoorLocked);
+    map.set(10, 13, Tile.DoorLocked);
+    for (const p of [{ x: 18, y: 4 }, { x: 24, y: 4 }, { x: 18, y: 8 }, { x: 24, y: 8 }]) map.set(p.x, p.y, Tile.Pillar);
+    map.set(4, 15, Tile.Fountain);
+    map.set(10, 15, Tile.Chest);
+    const stairs = { x: 24, y: 18 };
+    map.set(stairs.x, stairs.y, Tile.StairsDown);
+    const torches = [
+      { x: 7, y: 2, radius: 6, faceX: 0, faceY: 1 },
+      { x: 21, y: 2, radius: 5, faceX: 0, faceY: 1, hearth: true, lit: true }
+    ];
+    const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
+    const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
+    return {
+      map,
+      rooms: [start, pillars, combat],
+      start: { x: 7, y: 6 },
+      stairs,
+      torches,
+      specials: [
+        { room: fountainRoom, kind: fontaine },
+        { room: chestRoom, kind: tresor }
+      ],
+      traps: [{ x: 21, y: 6 }, { x: 21, y: 17 }],
+      secrets: [{ x: 22, y: 8, room: 1, item: "or", count: 12 }],
+      ground: [
+        { x: 5, y: 5, item: "clef", count: 1 },
+        { x: 9, y: 8, item: "fleche", count: 3 },
+        { x: 9, y: 4, item: "or", count: 5 }
+      ],
+      monsters: [
+        { x: 24, y: 6, asleep: true },
+        { x: 25, y: 16, asleep: false },
+        { x: 18, y: 18, asleep: true }
+      ]
+    };
+  }
+
   // src/core/combat.ts
   function rollAttack(rng, attacker, defender, mode = "normal") {
     const rolls = [rng.int(1, 20)];
@@ -1449,11 +1505,12 @@
 
   // src/core/game.ts
   var Game = class {
-    constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR) {
+    constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR, sandbox = false) {
       this.runSeed = runSeed;
       this.race = race;
       this.heroClass = heroClass;
       this.floorConfig = floorConfig;
+      this.sandbox = sandbox;
       this.depth = 0;
       this.turn = 0;
       this.over = false;
@@ -1550,9 +1607,11 @@
       }
       let state = this.floors.get(depth);
       const fresh = !state;
+      let sandboxFloor = null;
       if (!state) {
         const seed = floorSeed(this.runSeed, depth);
-        const floor = generateFloor(seed, this.floorConfig);
+        if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
+        const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
         state = {
           map: floor.map,
@@ -1610,7 +1669,9 @@
       this.pendingStairs = null;
       this.clearDoorOrders();
       this.light = computeLight(this.map, this.torches);
-      if (fresh) {
+      if (fresh && sandboxFloor) {
+        this.populateSandbox(state, sandboxFloor);
+      } else if (fresh) {
         this.spawnMonsters(state.rooms);
         state.population = Math.max(1, this.monsters.length);
         state.nextRespawn = this.turn + RULES.respawnTurns;
@@ -1785,6 +1846,15 @@
     /** La salle où se tient le héros (son numéro), ou -1 dans un couloir. */
     roomIndexAt(p) {
       return this.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+    }
+    /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
+    populateSandbox(state, plan) {
+      for (const m of plan.monsters) this.monsters.push(this.newMonster(MONSTERS.schrat, m.x, m.y, m.asleep));
+      state.population = this.monsters.length;
+      state.nextRespawn = this.turn + RULES.respawnTurns;
+      for (const g of plan.ground) this.ground.push({ ...g });
+      for (const s of plan.secrets) state.secrets.push({ ...s, found: false });
+      for (const t of plan.traps) state.traps.push({ ...t });
     }
     placeKey(rooms) {
       if (!this.rng.chance(RULES.keyChance)) return;
@@ -5402,8 +5472,8 @@
   var stepMs = 125;
   var stepping = false;
   var stepTime = 0;
-  function newRun() {
-    game = new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass);
+  function newRun(sandbox = false) {
+    game = new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass, void 0, sandbox);
     aimMode = false;
     doorWasPending = false;
     foundOpen = false;
@@ -5415,7 +5485,10 @@
     cue = null;
     ghosts = [];
     shownHp = game.hero.hp;
-    logLines = [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
+    logLines = sandbox ? [
+      "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
+      "\xC0 l'est : colonnes, chemin\xE9e, cache \xE0 fouiller, pi\xE8ge. Au sud-est : Schrats \xE0 pousser, pi\xE8ge, escalier. Au sud : fontaine et coffre (clef au sol)."
+    ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`];
     renderLog();
     clearDie();
     over.hidden = true;
@@ -6255,6 +6328,11 @@
   });
   button("new-start", () => {
     newRun();
+    started = true;
+    showScreen(null);
+  });
+  button("menu-sandbox", () => {
+    newRun(true);
     started = true;
     showScreen(null);
   });

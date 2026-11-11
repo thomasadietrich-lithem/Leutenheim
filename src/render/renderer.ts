@@ -661,7 +661,7 @@ export class Renderer {
       }
     }
 
-    this.drawFurniture(game, ox, oy, flicker);
+    this.drawFurniture(game, ox, oy, flicker, "early");
 
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
@@ -870,6 +870,8 @@ export class Renderer {
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.
     if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
+    // Meubles qui cachent un personnage placé derrière eux (sur une rangée au-dessus) : dessinés après lui (Thomas).
+    this.drawFurniture(game, ox, oy, flicker, "late");
     // Cases en feu (potion de feu, meubles) : trois images de flammes qui alternent (planche art/objets_v3.png),
     // dessinées DEVANT les personnages (Thomas : le feu ne passe pas derrière), puis la fumée qui monte.
     for (const f of game.fires) {
@@ -1056,7 +1058,7 @@ export class Renderer {
    * après les cases, du fond vers l'avant (le tapis d'abord), avec la même ombre et la même lueur que leurs cases.
    * La bougie de la table vacille (3 images).
    */
-  private drawFurniture(game: Game, ox: number, oy: number, flicker: number): void {
+  private drawFurniture(game: Game, ox: number, oy: number, flicker: number, phase: "early" | "late"): void {
     const list = [...game.furnitureList()].sort((a, b) => {
       const ra = a.kind.startsWith("rug") ? 0 : 1;
       const rb = b.kind.startsWith("rug") ? 0 : 1;
@@ -1067,10 +1069,19 @@ export class Renderer {
     const u = tile / 16;
     const hero = game.hero;
     const frame = Math.floor(performance.now() / 160) % 3;
+    // Personnages à l'écran (héros et monstres vus), avec la case d'où ils viennent pendant un pas.
+    const actors = [hero, ...game.monsters.filter((m) => game.isVisible(m.x, m.y))];
     for (const f of list) {
       const def = FURNITURE_KINDS[f.kind];
       // Le tapis est dessiné avec le sol (dans la case), pour prendre exactement sa lumière (Thomas : il clignotait).
       if (!def || f.kind.startsWith("rug")) continue;
+      // Un meuble passe DEVANT un personnage qui se tient derrière lui (Thomas) : sur une rangée au-dessus de sa rangée
+      // du bas, dans la hauteur du dessin (2 rangées au plus), et dans sa largeur (à une case près).
+      const bottom = f.y + def.h - 1;
+      const behind = actors.some(
+        (a) => [a.y, a.fromY].some((ay) => ay < bottom && ay >= bottom - 2) && [a.x, a.fromX].some((ax) => ax >= f.x - 1 && ax <= f.x + def.w),
+      );
+      if ((phase === "late") !== behind) continue;
       const cells = furnitureCells(f);
       if (!cells.some((c) => game.isExplored(c.x, c.y))) continue;
       const visible = cells.some((c) => game.isVisible(c.x, c.y));

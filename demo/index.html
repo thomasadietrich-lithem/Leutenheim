@@ -9022,7 +9022,7 @@
           }
         }
       }
-      this.drawFurniture(game2, ox, oy, flicker);
+      this.drawFurniture(game2, ox, oy, flicker, "early");
       for (const torch of game2.torches) {
         if (!game2.isExplored(torch.x, torch.y)) continue;
         if (torch.hearth) {
@@ -9199,6 +9199,7 @@
       }
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
+      this.drawFurniture(game2, ox, oy, flicker, "late");
       for (const f of game2.fires) {
         if (!game2.isVisible(f.x, f.y)) continue;
         this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
@@ -9364,7 +9365,7 @@
      * après les cases, du fond vers l'avant (le tapis d'abord), avec la même ombre et la même lueur que leurs cases.
      * La bougie de la table vacille (3 images).
      */
-    drawFurniture(game2, ox, oy, flicker) {
+    drawFurniture(game2, ox, oy, flicker, phase) {
       const list = [...game2.furnitureList()].sort((a, b) => {
         const ra = a.kind.startsWith("rug") ? 0 : 1;
         const rb = b.kind.startsWith("rug") ? 0 : 1;
@@ -9375,9 +9376,15 @@
       const u = tile / 16;
       const hero = game2.hero;
       const frame2 = Math.floor(performance.now() / 160) % 3;
+      const actors = [hero, ...game2.monsters.filter((m) => game2.isVisible(m.x, m.y))];
       for (const f of list) {
         const def = FURNITURE_KINDS[f.kind];
         if (!def || f.kind.startsWith("rug")) continue;
+        const bottom = f.y + def.h - 1;
+        const behind = actors.some(
+          (a) => [a.y, a.fromY].some((ay) => ay < bottom && ay >= bottom - 2) && [a.x, a.fromX].some((ax) => ax >= f.x - 1 && ax <= f.x + def.w)
+        );
+        if (phase === "late" !== behind) continue;
         const cells = furnitureCells(f);
         if (!cells.some((c) => game2.isExplored(c.x, c.y))) continue;
         const visible = cells.some((c) => game2.isVisible(c.x, c.y));

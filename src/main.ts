@@ -222,7 +222,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds à pousser, piège à gaz, escalier, puis la SALLE DE PRIÈRE et l'ALCHIMISTE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
+        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds à pousser, piège à gaz, L'ESCALIER QUI MÈNE AU BOSS (la Tisseuse, un plan différent à chaque partie), puis la SALLE DE PRIÈRE et l'ALCHIMISTE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -521,7 +521,7 @@ function showDeath(): void {
   if (!game.sandbox) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date });
+    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills });
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
     const best = loadRecords().slice(0, 3);

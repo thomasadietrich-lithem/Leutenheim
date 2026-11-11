@@ -93,6 +93,26 @@ export const RULES = {
   asleepHearing: 3,
   /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
   websFromDepth: 3,
+  // ---- Étage du boss de la section 1 : la Tisseuse (src/world/bossFloor.ts, src/core/boss.ts ; valeurs C) ----
+  /** Étages des boss (un par section, le dernier de la section). */
+  bossDepths: [5],
+  /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
+  bossBitesBeforeRetreat: 2,
+  bossRetreatDamage: 10,
+  /** Un cocon mangé lui rend tant de PV ; elle reste tant de tours tapie avant de revenir. */
+  bossCocoonHeal: 6,
+  bossLurkTurns: 2,
+  /** Sur sa toile, tant de cases par tour (1 ailleurs). Ce qu'elle sent : le héros sur une toile, ou à cette distance. */
+  bossWebSteps: 2,
+  bossSenseRange: 2,
+  /** Grande toile effondrée (amarres coupées, ou brûlée) : elle tombe sur le dos, sonnée tant de tours. */
+  bossFallTurns: 3,
+  /** Un leurre (flèche plantée dans une toile) l'attire tant de tours. */
+  bossLureTurns: 10,
+  /** Le feu lui fait tant de fois plus mal. */
+  bossFireFactor: 2,
+  /** Une nappe de toile brûle tant de tours, et enflamme ses voisines au tour suivant. */
+  webFireTurns: 2,
   webRoomChance: 0.35,
   webCorners: [1, 2] as [number, number],
   /** Entrer dans une toile : d20 + bonus de force contre cette difficulté, sinon englué un tour. La toile se déchire. */
@@ -122,11 +142,12 @@ export const RULES = {
   /**
    * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
    * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
-   * grandit lui-même de `xpStepGrowth`. Avec 5 / 5 / 2 : 5, 10, 17, 26, 37, 50, 65… (2026-11-11 : un peu moins, pour que le niveau suive l'étage)
+   * grandit lui-même de `xpStepGrowth`. Avec 5 / 2 / 1 : 5, 7, 10, 14, 19, 25, 32… soit 5, 12, 22, 36, 55 au total
+   * (Thomas, 2026-11-11 : « à peu près un niveau par étage » ; mesuré : on arrive à l'étage N vers le niveau N).
    */
   xpFirst: 5,
-  xpStep: 5,
-  xpStepGrowth: 2,
+  xpStep: 2,
+  xpStepGrowth: 1,
   /** Points de vie gagnés à chaque niveau. */
   hpPerLevel: 3,
   /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */

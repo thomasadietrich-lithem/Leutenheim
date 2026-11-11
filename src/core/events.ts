@@ -40,6 +40,18 @@ export type GameEvent =
   | { type: "furnitureFire"; x: number; y: number; kind: string }
   | { type: "web"; escaped: boolean; roll: number; bonus: number }
   | { type: "webbed"; by: Actor }
+  /** Nichée : une nappe de toile (ou la grande toile) ralentit le héros. */
+  | { type: "webSlow"; hub: boolean }
+  /** Nichée : un cocon ou un sac d'œufs crevé, une amarre tranchée (il en reste `left`). */
+  | { type: "breakWeb"; kind: "cocoon" | "eggs" | "anchor"; left: number; x: number; y: number }
+  /** La Tisseuse : réveil, recul, repas, éclosion, leurre, chute, mort… */
+  | {
+      type: "boss";
+      what: "awake" | "retreatCocoon" | "retreatHub" | "retreatRing" | "eat" | "hatch" | "hatchNone" | "lured" | "fallen" | "hubDown" | "rise" | "dead";
+      x: number;
+      y: number;
+      amount?: number;
+    }
   | { type: "stuck" }
   | {
       type: "maiden";

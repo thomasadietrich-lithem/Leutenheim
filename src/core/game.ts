@@ -11,6 +11,8 @@ import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
+import { BossFloor, buildBossFloor } from "../world/bossFloor";
+import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells } from "../world/furnish";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
@@ -188,18 +190,22 @@ export class Game {
     if (!state) {
       const seed = floorSeed(this.runSeed, depth);
       if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
-      const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
+      // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
+      const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? buildBossFloor(seed) : null;
+      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
       // Salles de fouille : à la main en salle d'essai ; dans le donjon, seulement quand le mobilier sera validé.
       const furnished = sandboxFloor
         ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes }
-        : RULES.themedRoomsInDungeon
+        : bossFloor
+          ? { furniture: bossFloor.furniture, themes: [] }
+          : RULES.themedRoomsInDungeon
           ? furnishFloor(floor, seed, depth)
           : { furniture: [], themes: [] };
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
-      if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
-      const motifs = sandboxFloor ? sandboxFloor.motifs : placeMotifs(floor, seed);
+      if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
+      const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
       state = {
         map: floor.map,
         start: floor.start,
@@ -225,7 +231,9 @@ export class Game {
         furniture: furnished.furniture,
         themes: furnished.themes,
         motifs,
+        boss: bossFloor?.boss,
       };
+      if (bossFloor) for (const sec of bossFloor.secrets) state.secrets.push({ ...sec, found: false });
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -262,6 +270,12 @@ export class Game {
     if (fresh) for (const f of state.furniture) if (f.kind === "basket" && f.count) state.ground.push({ x: f.x, y: f.y, item: "pomme", count: f.count });
     if (fresh && sandboxFloor) {
       this.populateSandbox(state, sandboxFloor);
+    } else if (fresh && state.boss) {
+      // La nichée : la Tisseuse seule, au centre de sa grande toile ; ni renforts, ni clef, ni pièges, ni butin au sol.
+      const queen = this.newMonster(MONSTERS.tisseuse, state.boss.spawn.x, state.boss.spawn.y, false);
+      queen.boss = { phase: "lurk", bites: 0, hpMark: queen.hp, lurk: 0, fallen: 0, hatched: false, hubUp: true, engaged: false };
+      this.monsters.push(queen);
+      state.population = 0;
     } else if (fresh) {
       this.spawnMonsters(state.rooms);
       state.population = Math.max(1, this.monsters.length);
@@ -333,7 +347,318 @@ export class Game {
       asleep,
       // Regard de départ : une des quatre directions, d'après son numéro (sans toucher au hasard du jeu).
       facing: (["down", "left", "right", "up"] as const)[this.nextId % 4],
+      ...((def.size ?? 1) > 1 ? { size: def.size } : {}),
     };
+  }
+
+  /** Étage d'un boss ? (le dernier de chaque section ; en salle d'essai, l'étage 2, sous l'escalier). */
+  isBossDepth(depth: number): boolean {
+    return this.sandbox ? depth === 2 : (RULES.bossDepths as readonly number[]).includes(depth);
+  }
+
+  /** Le boss de l'étage, s'il vit encore. */
+  bossActor(): Actor | undefined {
+    return this.monsters.find((m) => !!m.boss);
+  }
+
+  // ---------- La Tisseuse (boss de la section 1, planche art/boss_v2.png) ----------
+
+  /** Combats de boss gagnés dans cette partie (pour les records). */
+  bossKills = 0;
+  /** Cocon, sac d'œufs ou amarre à crever : le héros s'en approche, puis frappe. */
+  private breakTarget: Point | null = null;
+
+  /** Une case de toile qui colle (nappe ou grande toile de la nichée) ? */
+  stickyAt(x: number, y: number): boolean {
+    return this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind.startsWith("webN") || f.kind.startsWith("webHub")));
+  }
+
+  /** Cocon, sac d'œufs ou amarre (sur sa colonne) sur cette case : ça se crève d'un coup. */
+  breakableAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.x === x && f.y === y && (f.kind.startsWith("cocoon") || f.kind === "eggSac" || f.kind === "anchor")) ?? null;
+  }
+
+  private approachBreakable(x: number, y: number, ignoreFog: boolean): boolean {
+    const known = ignoreFog ? undefined : (cx: number, cy: number) => this.isKnown(cx, cy);
+    let best: Point[] | null = null;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx === this.hero.x && ny === this.hero.y) best = [];
+        if (best && best.length === 0) break;
+        if (!this.map.isWalkable(nx, ny) || this.monsterAt(nx, ny)) continue;
+        const path = this.heroPath({ x: nx, y: ny }, known);
+        if (path && (!best || path.length < best.length)) best = path;
+      }
+    }
+    if (!best) return false;
+    this.clearDoorOrders();
+    this.targetId = null;
+    this.waiting = false;
+    this.picking = false;
+    this.resting = 0;
+    this.searching = 0;
+    this.hideOrder = false;
+    this.jumpTarget = null;
+    this.pushTargetId = null;
+    this.useOrder = null;
+    this.throwOrder = null;
+    this.skillOrder = null;
+    this.shotTarget = null;
+    this.path = best;
+    this.breakTarget = { x, y };
+    return true;
+  }
+
+  /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
+  private resolveBreak(at: Point): void {
+    const f = this.breakableAt(at.x, at.y);
+    if (!f) return;
+    this.reveal();
+    this.current.furniture = this.current.furniture.filter((o) => o !== f);
+    if (f.kind !== "anchor") this.map.set(f.x, f.y, Tile.Floor);
+    else this.map.touch(f.x, f.y);
+    const left = this.current.furniture.filter((o) => o.kind === "anchor").length;
+    this.events.push({ type: "breakWeb", kind: f.kind.startsWith("cocoon") ? "cocoon" : f.kind === "eggSac" ? "eggs" : "anchor", left, x: f.x, y: f.y });
+    // Dans un cocon, il reste parfois quelques pièces de la victime.
+    if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
+    const queen = this.bossActor();
+    if (queen?.boss) queen.boss.target = { x: this.hero.x, y: this.hero.y };
+    if (f.kind === "anchor") this.checkHub();
+  }
+
+  /** Leurre : une flèche plantée dans une toile la fait vibrer ; la Tisseuse y accourt (si elle ne sent pas le héros). */
+  private lureBoss(p: Point): void {
+    const queen = this.bossActor();
+    if (!queen?.boss || !this.stickyAt(p.x, p.y)) return;
+    queen.boss.lure = { x: p.x, y: p.y, turns: RULES.bossLureTurns };
+    if (queen.boss.phase === "lurk") this.bossAdvance(queen);
+    this.events.push({ type: "boss", what: "lured", x: p.x, y: p.y });
+  }
+
+  /**
+   * La grande toile tient tant qu'il reste une amarre et qu'elle n'a pas brûlé à moitié. Quand elle s'effondre, la
+   * Tisseuse, si elle s'y tenait, tombe sur le dos : sonnée plusieurs tours, on la frappe avec avantage. Elle n'a
+   * plus de refuge.
+   */
+  private checkHub(): void {
+    const queen = this.bossActor();
+    const st = queen?.boss;
+    if (!queen || !st || !st.hubUp || !this.current.boss) return;
+    const anchors = this.current.furniture.filter((f) => f.kind === "anchor").length;
+    const cells = this.current.furniture.filter((f) => f.kind.startsWith("webHub"));
+    if (anchors > 0 && cells.length > 4) return;
+    st.hubUp = false;
+    for (const c of cells) this.map.touch(c.x, c.y);
+    this.current.furniture = this.current.furniture.filter((f) => !f.kind.startsWith("webHub"));
+    const hub = this.current.boss.hub;
+    const onHub = cellsOf(queen).some((c) => c.x >= hub.x && c.x < hub.x + 3 && c.y >= hub.y && c.y < hub.y + 3);
+    if (onHub) {
+      st.fallen = RULES.bossFallTurns;
+      st.phase = "lurk";
+      st.lurk = 0;
+      st.dest = undefined;
+    }
+    this.events.push({ type: "boss", what: onHub ? "fallen" : "hubDown", x: queen.x, y: queen.y });
+  }
+
+  /** La Tisseuse est morte : la toile qui scellait l'escalier tombe. */
+  private bossDefeated(): void {
+    const layout = this.current.boss;
+    this.bossKills++;
+    if (!layout) return;
+    this.current.furniture = this.current.furniture.filter((f) => f.kind !== "sealedStairs");
+    this.map.set(layout.seal.x, layout.seal.y, Tile.StairsDown);
+    this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y });
+  }
+
+  /** Cases où la Tisseuse peut poser une patte : pas de mur, de meuble, d'autre personnage ni de flammes. */
+  private bossFree(m: Actor): (x: number, y: number) => boolean {
+    return (x, y) =>
+      this.map.isWalkable(x, y) && !this.isBurning(x, y) && !(x === this.hero.x && y === this.hero.y) && !this.monsters.some((o) => o !== m && occupies(o, x, y));
+  }
+
+  private bossMove(m: Actor, step: Point): void {
+    this.faceToward(m, step);
+    m.x = step.x;
+    m.y = step.y;
+  }
+
+  private bossAdvance(m: Actor): void {
+    const st = m.boss!;
+    st.phase = "advance";
+    st.bites = 0;
+    st.hpMark = m.hp;
+    st.dest = undefined;
+  }
+
+  /**
+   * Elle recule (Thomas : « la faire avancer et reculer ») : vers un cocon pour le manger (+PV) s'il en reste, sinon
+   * dans sa grande toile si elle tient, sinon (ou parfois) par une brèche dans l'anneau, pour ressortir ailleurs.
+   */
+  private bossRetreat(m: Actor): void {
+    const st = m.boss!;
+    const layout = this.current.boss!;
+    const cocoons = this.current.furniture.filter((f) => f.kind.startsWith("cocoon"));
+    st.phase = "retreat";
+    st.bites = 0;
+    let what: "cocoon" | "hub" | "ring" = "ring";
+    if (cocoons.length > 0 && this.rng.chance(0.65)) {
+      const c = cocoons.reduce((a, b) => (gapBetween(m, b) < gapBetween(m, a) ? b : a));
+      st.dest = { x: c.x, y: c.y, eat: { x: c.x, y: c.y } };
+      what = "cocoon";
+    } else if (st.hubUp && this.rng.chance(0.6)) {
+      st.dest = { ...layout.spawn };
+      what = "hub";
+    } else {
+      // Une place dans l'anneau, juste derrière la brèche la plus éloignée du héros.
+      const free = this.bossFree(m);
+      const lair = layout.lair;
+      let best: Point | null = null;
+      let bestD = -1;
+      for (const b of layout.breaches) {
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const x = b.x + dx;
+            const y = b.y + dy;
+            const out = x + 1 < lair.x || x >= lair.x + lair.w || y + 1 < lair.y || y >= lair.y + lair.h;
+            if (!out || !free(x, y) || !free(x + 1, y) || !free(x, y + 1) || !free(x + 1, y + 1)) continue;
+            const d = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
+            if (d > bestD) {
+              bestD = d;
+              best = { x, y };
+            }
+          }
+        }
+      }
+      st.dest = best ?? { ...layout.spawn };
+    }
+    this.events.push({ type: "boss", what: what === "cocoon" ? "retreatCocoon" : what === "hub" ? "retreatHub" : "retreatRing", x: m.x, y: m.y });
+  }
+
+  /** Le tour de la Tisseuse. */
+  private bossAct(m: Actor): void {
+    const st = m.boss!;
+    if (this.peaceful) return;
+    if (st.fallen > 0) {
+      st.fallen--;
+      if (st.fallen === 0) {
+        this.events.push({ type: "boss", what: "rise", x: m.x, y: m.y });
+        this.bossAdvance(m);
+      }
+      return;
+    }
+    if (m.stunned) {
+      m.stunned--;
+      return;
+    }
+    const hero = this.hero;
+    // Ce qu'elle sent : le héros qui marche sur sa toile (les vibrations), ou tout près d'elle. Sinon, un leurre.
+    const sensed = this.stickyAt(hero.x, hero.y) || gapBetween(m, hero) <= RULES.bossSenseRange || (st.engaged && this.hidden === false && gapBetween(m, hero) <= 1);
+    if (sensed) {
+      st.target = { x: hero.x, y: hero.y };
+      st.lure = undefined;
+      if (!st.engaged) {
+        st.engaged = true;
+        m.alerted = true;
+        m.asleep = false;
+        this.events.push({ type: "boss", what: "awake", x: m.x, y: m.y });
+        this.bossAdvance(m);
+      }
+    } else if (st.lure) {
+      st.target = { x: st.lure.x, y: st.lure.y };
+      if (--st.lure.turns <= 0) st.lure = undefined;
+    }
+    m.alerted = st.engaged;
+    // À mi-vie, les sacs d'œufs qui restent éclosent : une araignée par sac. Elle recule.
+    if (!st.hatched && m.hp * 2 <= m.maxHp) {
+      st.hatched = true;
+      const sacs = this.current.furniture.filter((f) => f.kind === "eggSac");
+      for (const sac of sacs) {
+        this.current.furniture = this.current.furniture.filter((o) => o !== sac);
+        this.map.set(sac.x, sac.y, Tile.Floor);
+        const young = this.newMonster(MONSTERS.araignee, sac.x, sac.y, false);
+        young.alerted = true;
+        young.fromX = young.x;
+        young.fromY = young.y;
+        this.monsters.push(young);
+      }
+      this.events.push({ type: "boss", what: sacs.length > 0 ? "hatch" : "hatchNone", x: m.x, y: m.y });
+      this.bossRetreat(m);
+    }
+    if (st.phase === "advance" && (st.bites >= RULES.bossBitesBeforeRetreat || st.hpMark - m.hp >= RULES.bossRetreatDamage)) this.bossRetreat(m);
+    const free = this.bossFree(m);
+    const onWeb = () => cellsOf(m).some((c) => this.stickyAt(c.x, c.y));
+
+    if (st.phase === "lurk") {
+      if (st.engaged && gapBetween(m, hero) === 1) this.bossAdvance(m);
+      else if (st.lurk > 0) {
+        st.lurk--;
+        return;
+      } else if (st.engaged && st.target) this.bossAdvance(m);
+      else return;
+    }
+
+    if (st.phase === "advance") {
+      if (gapBetween(m, hero) === 1) {
+        this.faceToward(m, hero);
+        const result = rollAttack(this.rng, m, hero);
+        st.bites++;
+        this.events.push({ type: "attack", attacker: m, target: hero, result });
+        if (result.damage > 0) {
+          this.bleed(hero, m);
+          const venom = MONSTERS.tisseuse.poisonBite;
+          if (this.rng.chance(venom.chance)) this.poisonActor(hero, { damage: venom.damage, turns: venom.turns });
+        }
+        this.hurtHero(result.damage, this.killerName(m));
+        return;
+      }
+      if (!st.target) return;
+      const steps = onWeb() ? RULES.bossWebSteps : 1;
+      for (let i = 0; i < steps && gapBetween(m, hero) !== 1; i++) {
+        const step = bigStep(this.map, m, free, null, st.target);
+        if (!step) break;
+        this.bossMove(m, step);
+      }
+      if (!sensed && st.target && gapBetween(m, st.target) <= 1 && !st.lure) st.target = undefined;
+      return;
+    }
+
+    // Elle recule : vite, deux cases par tour.
+    const dest = st.dest;
+    if (!dest) {
+      st.phase = "lurk";
+      st.lurk = RULES.bossLurkTurns;
+      return;
+    }
+    let arrived = false;
+    for (let i = 0; i < RULES.bossWebSteps; i++) {
+      arrived = dest.eat ? gapBetween(m, dest.eat) === 1 : m.x === dest.x && m.y === dest.y;
+      if (arrived) break;
+      const step = dest.eat ? bigStep(this.map, m, free, null, dest.eat) : bigStep(this.map, m, free, dest, null);
+      if (!step) {
+        arrived = true;
+        break;
+      }
+      this.bossMove(m, step);
+    }
+    arrived = arrived || (dest.eat ? gapBetween(m, dest.eat) === 1 : m.x === dest.x && m.y === dest.y);
+    if (!arrived) return;
+    if (dest.eat) {
+      const cocoon = this.current.furniture.find((f) => f.x === dest.eat!.x && f.y === dest.eat!.y && f.kind.startsWith("cocoon"));
+      if (cocoon && gapBetween(m, cocoon) === 1) {
+        this.current.furniture = this.current.furniture.filter((o) => o !== cocoon);
+        this.map.set(cocoon.x, cocoon.y, Tile.Floor);
+        const healed = Math.min(RULES.bossCocoonHeal, m.maxHp - m.hp);
+        m.hp += healed;
+        this.events.push({ type: "boss", what: "eat", x: cocoon.x, y: cocoon.y, amount: healed });
+      }
+    }
+    st.dest = undefined;
+    st.phase = "lurk";
+    st.lurk = RULES.bossLurkTurns;
   }
 
   /**
@@ -342,7 +667,7 @@ export class Game {
    */
   private respawn(): void {
     const state = this.current;
-    if (this.turn < state.nextRespawn || this.peaceful) return;
+    if (this.turn < state.nextRespawn || this.peaceful || state.boss) return;
     // Agité, puis alerte : les promeneurs arrivent un peu plus vite, et un peu plus nombreux (en douceur, Thomas 2026-11-11).
     const stage = Math.min(state.alarmStage, 2);
     state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
@@ -375,7 +700,8 @@ export class Game {
   /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
   raiseAlarm(points: number, at?: Point): void {
     const state = this.current;
-    if (points <= 0 || this.over) return;
+    // La nichée du boss : l'alerte n'y monte pas (il n'y a personne d'autre à prévenir).
+    if (points <= 0 || this.over || state.boss) return;
     // Un bruit localisé se voit à l'écran (des ondes qui partent de l'endroit).
     if (at) this.events.push({ type: "noise", x: at.x, y: at.y, points });
     state.alarm = Math.min(100, state.alarm + points);
@@ -438,7 +764,17 @@ export class Game {
    * (au plus `gravelDetour` pas de plus). On peut toujours y marcher exprès (case d'arrivée sur le gravier).
    */
   private heroPath(to: Point, known?: (x: number, y: number) => boolean): Point[] | null {
-    const plain = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+    const plain0 = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+    // Nichée : le héros suit les sentiers sans toile quand le détour reste court (chaque toile coûte un tour).
+    let plain = plain0;
+    if (plain0 && this.current.boss) {
+      const sticky = (x: number, y: number) => this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind.startsWith("webN") || f.kind.startsWith("webHub")));
+      const webs = plain0.filter((p) => sticky(p.x, p.y)).length;
+      if (webs > 0) {
+        const clean = findPath(this.map, this.hero, to, this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (!sticky(x, y) || (x === to.x && y === to.y))));
+        if (clean && clean.length <= plain0.length + webs) plain = clean;
+      }
+    }
     if (!plain || !plain.some((p) => this.map.get(p.x, p.y) === Tile.Gravel)) return plain;
     const quiet = findPath(
       this.map,
@@ -457,6 +793,17 @@ export class Game {
   private enterWeb(): void {
     const web = this.current.furniture.find((f) => f.kind.startsWith("web") && f.x === this.hero.x && f.y === this.hero.y);
     if (!web) return;
+    // Nichée de la Tisseuse (Thomas : « quand on marche sur une toile on est ralenti ») : une nappe coûte un tour de plus
+    // et se déchire au passage ; la grande toile ralentit aussi mais tient (il faut couper ses amarres ou la brûler).
+    if (web.kind.startsWith("webN") || web.kind.startsWith("webHub")) {
+      this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+      if (web.kind.startsWith("webN")) {
+        this.current.furniture = this.current.furniture.filter((o) => o !== web);
+        this.map.touch(web.x, web.y);
+      }
+      this.events.push({ type: "webSlow", hub: web.kind.startsWith("webHub") });
+      return;
+    }
     const roll = this.rng.int(1, 20);
     const escaped = roll + this.pushBonus() >= RULES.webEscapeDc;
     if (!escaped) this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
@@ -522,6 +869,7 @@ export class Game {
 
   /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
   private killerName(m: Actor): string {
+    if (m.boss) return m.name;
     return `${m.defId === "araignee" ? "une" : "un"} ${m.name}`;
   }
 
@@ -557,7 +905,8 @@ export class Game {
 
   /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
   pushTargets(): Actor[] {
-    return this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+    // La Tisseuse est bien trop lourde pour être poussée.
+    return this.visibleMonsters().filter((m) => !m.boss && this.inReach(this.hero, m));
   }
 
   pushRefusal(): "none" | null {
@@ -697,6 +1046,7 @@ export class Game {
       furniture: f.furniture,
       themes: f.themes,
       motifs: f.motifs,
+      boss: f.boss,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -729,6 +1079,7 @@ export class Game {
       clock: this.clock,
       ammoChoice: this.ammoChoice,
       heroMisses: this.heroMisses,
+      bossKills: this.bossKills,
       hidden: this.hidden,
       nextId: this.nextId,
       lastFoeId: this.lastFoeId,
@@ -775,6 +1126,7 @@ export class Game {
         furniture: f.furniture ?? [],
         themes: f.themes ?? [],
         motifs: f.motifs ?? [],
+        boss: f.boss,
       });
     }
     game.turn = saved.turn;
@@ -797,6 +1149,7 @@ export class Game {
     game.clock = saved.clock ?? 0;
     game.ammoChoice = ((saved.ammoChoice ?? "fleche") in ITEMS ? saved.ammoChoice : "fleche") as ItemId;
     game.heroMisses = saved.heroMisses;
+    game.bossKills = saved.bossKills ?? 0;
     game.nextId = saved.nextId;
     game.lastFoeId = saved.lastFoeId;
     game.failedDoorAttempts = new Set(saved.failedDoorAttempts);
@@ -818,7 +1171,7 @@ export class Game {
   // ---------- Consultation ----------
 
   monsterAt(x: number, y: number): Actor | undefined {
-    return this.monsters.find((m) => m.x === x && m.y === y);
+    return this.monsters.find((m) => occupies(m, x, y));
   }
 
   private actorAt(x: number, y: number): Actor | undefined {
@@ -848,7 +1201,13 @@ export class Game {
   }
 
   visibleMonsters(): Actor[] {
-    return this.monsters.filter((m) => this.isVisible(m.x, m.y));
+    return this.monsters.filter((m) => this.actorVisible(m));
+  }
+
+  /** On voit au moins une des cases du personnage (la Tisseuse en couvre quatre). */
+  actorVisible(m: Actor): boolean {
+    if (sizeOf(m) === 1) return this.isVisible(m.x, m.y);
+    return cellsOf(m).some((c) => this.isVisible(c.x, c.y));
   }
 
   // ---------- Équipement ----------
@@ -1271,8 +1630,13 @@ export class Game {
       this.current.furniture = this.current.furniture.filter((o) => o !== w);
       this.current.furniture.push({ x: w.x, y: w.y, kind: "ashes1" });
       this.map.touch(w.x, w.y);
-      this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: w.kind });
+      // Nappes et grande toile (nichée) : la flamme court de toile en toile, une case par tour.
+      const sheet = w.kind.startsWith("webN") || w.kind.startsWith("webHub");
+      if (sheet && !this.fires.some((f) => f.x === w.x && f.y === w.y)) this.fires.push({ x: w.x, y: w.y, turns: RULES.webFireTurns });
+      // Pas une ligne de journal par nappe : une seule quand le feu prend dans la toile.
+      if (!sheet || !this.events.some((e) => e.type === "furnitureFire" && e.kind === "webN")) this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: sheet ? "webN" : w.kind });
     }
+    if (webs.some((w) => w.kind.startsWith("webHub"))) this.checkHub();
     let spread = true;
     while (spread) {
       spread = false;
@@ -1318,14 +1682,14 @@ export class Game {
   private burn(): void {
     // Ceux qui ont quitté les flammes brûlent encore un peu (les flammes les suivent).
     for (const a of [this.hero, ...this.monsters]) {
-      if (!a.burning || this.over || this.isBurning(a.x, a.y)) continue;
+      if (!a.burning || this.over || cellsOf(a).some((c) => this.isBurning(c.x, c.y))) continue;
       // Dans une flaque, on s'éteint.
       if (this.map.get(a.x, a.y) === Tile.Water) {
         a.burning = 0;
         continue;
       }
       a.burning--;
-      const damage = rollDice(this.rng, RULES.fireDamage);
+      const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss ? RULES.bossFireFactor : 1);
       this.events.push({ type: "burn", actor: a, damage });
       if (a === this.hero) this.hurtHero(damage, "les flammes");
       else {
@@ -1336,11 +1700,15 @@ export class Game {
     this.igniteFurniture();
     this.burnFurniture();
     if (this.fires.length === 0) return;
+    let burnedBoss = false;
     for (const f of this.fires) {
       for (const a of [this.hero, ...this.monsters]) {
-        if (a.x !== f.x || a.y !== f.y || this.over) continue;
+        if (!occupies(a, f.x, f.y) || this.over || !this.monsters.concat(this.hero).includes(a)) continue;
+        // Un grand monstre sur plusieurs cases en feu ne brûle qu'une fois par tour.
+        if (a.boss && burnedBoss) continue;
+        if (a.boss) burnedBoss = true;
         a.burning = RULES.burnAfter;
-        const damage = rollDice(this.rng, RULES.fireDamage);
+        const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss ? RULES.bossFireFactor : 1);
         this.events.push({ type: "burn", actor: a, damage });
         if (a === this.hero) this.hurtHero(damage, "les flammes");
         else {
@@ -1466,6 +1834,8 @@ export class Game {
     if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
       return this.approachLockedDoor(x, y, ignoreFog);
     }
+    // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
+    if (this.breakableAt(x, y) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     const seen = this.monsterAt(x, y);
     const monster = seen && this.isVisible(x, y) ? seen : undefined;
     // Vers un monstre en vue, on trouve toujours un chemin ; sinon on ne passe que par les cases déjà vues.
@@ -1473,6 +1843,7 @@ export class Game {
     const path = this.heroPath({ x, y }, known);
     if (!path) return false;
     this.clearDoorOrders();
+    this.breakTarget = null;
     this.targetId = monster ? monster.id : null;
     this.path = path;
     this.waiting = false;
@@ -1798,6 +2169,11 @@ export class Game {
     } else if (this.doorAction && this.pendingDoor) {
       this.resolveDoor(this.doorAction, this.pendingDoor);
       this.doorAction = null;
+    } else if (this.breakTarget && this.path.length === 0) {
+      const at = this.breakTarget;
+      this.breakTarget = null;
+      if (Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) === 1) this.resolveBreak(at);
+      else return false;
     } else if (this.picking) {
       // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.
       this.picking = this.pickUpOne();
@@ -2073,7 +2449,9 @@ export class Game {
    * Vrai si `a` peut frapper `b` : case voisine. En diagonale, on peut frapper par-delà un coin de mur,
    * mais pas à travers deux murs qui se touchent par le coin.
    */
-  private inReach(a: Point, b: Point): boolean {
+  private inReach(a: Point & { size?: number }, b: Point & { size?: number }): boolean {
+    // Un grand monstre (2 × 2) touche tout ce qui borde son carré.
+    if (sizeOf(a) > 1 || sizeOf(b) > 1) return gapBetween(a, b) === 1;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return false;
@@ -2131,6 +2509,8 @@ export class Game {
   heroHasAdvantageOn(monster: Actor): boolean {
     // Jamais deux avantages de suite sur la même cible (Thomas) : après un coup avec avantage, elle se reprend.
     if (this.hero.lastAdvantageOn === monster.id) return false;
+    // La Tisseuse renversée sur le dos : on la frappe avec avantage.
+    if (monster.boss && monster.boss.fallen > 0) return true;
     if (!monster.alerted) return true;
     // Un avantage à la fois : le monstre semé en passant une porte s'attend à l'embuscade.
     if (monster.wary) return false;
@@ -2249,10 +2629,13 @@ export class Game {
       this.events.push({ type: "fountain", healed });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
-      const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+      const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss ? 2 : 1);
       // Coffre de la forge : une arme ; de l'alchimiste : une potion (Thomas). Ailleurs, un objet au hasard.
       const theme = this.themeAt(x, y);
       const pool = theme === "forge" ? lootPool(this.depth, (k) => k === "melee" || k === "ranged") : theme === "alchimiste" ? lootPool(this.depth, (_, id) => id.startsWith("potion_")) : [];
+      // Coffre du boss : un objet RARE à coup sûr, et plus d'or.
+      const bossChest = this.current.boss && this.current.boss.chest.x === x && this.current.boss.chest.y === y;
+      if (bossChest) pool.push(...lootPool(this.depth, () => true, "rare"));
       const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
       const drops = this.spillLoot(x, y, gold, loot);
       this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
@@ -2448,6 +2831,7 @@ export class Game {
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
     if (def) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+    if (monster.boss) this.bossDefeated();
   }
 
   /**
@@ -2538,6 +2922,8 @@ export class Game {
     else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
     if (victim) this.removeIfDead(victim);
+    // Leurre : une flèche qui se plante dans une toile la fait vibrer ; la Tisseuse y accourt.
+    else this.lureBoss(landing);
   }
 
   private dropItem(x: number, y: number, item: ItemId, count: number, angle?: number): void {
@@ -2582,6 +2968,11 @@ export class Game {
   private monstersAct(): void {
     for (const m of [...this.monsters]) {
       if (this.over) return;
+      if (!this.monsters.includes(m)) continue;
+      if (m.boss) {
+        this.bossAct(m);
+        continue;
+      }
       if (m.stunned) {
         // Sonné par une poussée : il perd ce tour.
         m.stunned--;

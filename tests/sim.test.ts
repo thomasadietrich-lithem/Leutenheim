@@ -280,15 +280,21 @@ function playRun(seed: number, maxTurns: number): Game {
           if (game.map.get(x, y) === Tile.StairsDown) stairs = { x, y };
         }
       }
-      assert.ok(game.setDestination(stairs.x, stairs.y, true));
+      // Étage du boss : l'escalier est scellé tant qu'elle vit ; il va la chercher.
+      const queen = game.bossActor();
+      if (stairs.x < 0 && queen) {
+        if (!game.setDestination(queen.x, queen.y, true)) game.wait();
+      } else assert.ok(game.setDestination(stairs.x, stairs.y, true));
     }
     assert.ok(game.tick(), `graine ${seed} : le héros est bloqué`);
     // Invariants : chacun sur une case libre et distincte, PV cohérents.
     const cells = new Set<number>();
     for (const a of [game.hero, ...game.monsters]) {
-      assert.ok(game.map.isWalkable(a.x, a.y));
-      assert.ok(!cells.has(game.map.index(a.x, a.y)), `graine ${seed} : deux acteurs sur la même case`);
-      cells.add(game.map.index(a.x, a.y));
+      for (const c of cellsOf(a)) {
+        assert.ok(game.map.isWalkable(c.x, c.y));
+        assert.ok(!cells.has(game.map.index(c.x, c.y)), `graine ${seed} : deux acteurs sur la même case`);
+        cells.add(game.map.index(c.x, c.y));
+      }
       assert.ok(a.hp <= a.maxHp && (a.kind === "hero" ? a.hp >= 0 : a.hp > 0));
     }
     assert.equal(game.over, game.hero.hp === 0);
@@ -870,10 +876,10 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
   assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
   const total = gains.reduce((a, b) => a + b, 0);
-  // Niveau 2 à 5 points, niveau 3 à 15 (5 + 10) : trois victoires mènent au niveau 2, parfois au 3.
-  const level = total >= 15 ? 3 : 2;
-  const left = total - (level === 3 ? 15 : 5);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, level === 3 ? 17 : 10, maxHp]);
+  // Niveau 2 à 5 points, niveau 3 à 12 (5 + 7) : trois victoires mènent au niveau 2, souvent au 3.
+  const level = total >= 12 ? 3 : 2;
+  const left = total - (level === 3 ? 12 : 5);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, level === 3 ? 10 : 7, maxHp]);
   assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
   assert.equal(game.points, level - 1);
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
@@ -1872,13 +1878,13 @@ test("butin : rareté selon la section, tas d'or selon la section, jamais dans l
   }
 });
 
-test("expérience : chaque niveau demande un peu plus que le précédent (5, 10, 17, 26, 37)", () => {
+test("expérience : chaque niveau demande un peu plus que le précédent (5, 7, 10, 14, 19)", () => {
   const game = new Game(1);
   const needs = [1, 2, 3, 4, 5].map((level) => {
     game.level = level;
     return game.xpToNext();
   });
-  assert.deepEqual(needs, [5, 10, 17, 26, 37]);
+  assert.deepEqual(needs, [5, 7, 10, 14, 19]);
 });
 
 test("salle d'essai : les Schrats en ronde restent dans leur salle ; « Réveiller » les lance sur le héros", () => {
@@ -2668,4 +2674,197 @@ test("forge, alchimiste, panier de pommes ; la fouille montre ce qui est interac
     for (const t of furnishFloor(floor, seed).themes) seen.add(t.id);
   }
   assert.ok(seen.has("forge") && seen.has("alchimiste"), [...seen].join(","));
+});
+
+// ---------- Étage du boss : la Tisseuse (2026-11-11) ----------
+import { buildBossFloor } from "../src/world/bossFloor";
+import { bigStep, cellsOf, gapBetween } from "../src/core/boss";
+
+test("nichée de la Tisseuse : 300 plans variés, tout accessible, sentiers sans toile, la reine passe partout", () => {
+  const sizes = new Set<string>();
+  const flips = new Set<string>();
+  for (let seed = 1; seed <= 300; seed++) {
+    const f = buildBossFloor(seed);
+    const { map, boss } = f;
+    sizes.add(`${boss.lair.w}x${boss.lair.h}`);
+    flips.add(`${boss.chest.x > f.start.x}|${f.torches[0].faceY}`);
+    // Tout le sol est accessible depuis l'arrivée (l'escalier scellé, un meuble, s'ouvrira).
+    const dist = distanceField(map, f.start);
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++)
+        if (map.isWalkable(x, y)) assert.notEqual(dist[map.index(x, y)], -1, `graine ${seed} : (${x},${y}) inaccessible`);
+    assert.equal(map.get(boss.chest.x, boss.chest.y), Tile.Chest, `graine ${seed} : coffre`);
+    assert.ok(f.furniture.some((o) => o.kind === "sealedStairs" && o.x === boss.seal.x && o.y === boss.seal.y));
+    assert.equal(f.furniture.filter((o) => o.kind === "anchor").length, 4);
+    for (const p of boss.pillars) assert.equal(map.get(p.x, p.y), Tile.Pillar, `graine ${seed} : amarre sans colonne`);
+    assert.equal(f.furniture.filter((o) => o.kind.startsWith("webHub")).length, 9);
+    assert.ok(boss.breaches.length >= 4 && boss.breaches.length <= 6, `graine ${seed} : ${boss.breaches.length} brèches`);
+    assert.ok(f.furniture.filter((o) => o.kind.startsWith("cocoon")).length >= 3, `graine ${seed} : cocons`);
+    // Beaucoup de toile dans la nichée, mais pas partout.
+    const lairCells: { x: number; y: number }[] = [];
+    for (let y = boss.lair.y; y < boss.lair.y + boss.lair.h; y++) for (let x = boss.lair.x; x < boss.lair.x + boss.lair.w; x++) if (map.get(x, y) === Tile.Floor) lairCells.push({ x, y });
+    const webbed = new Set(f.furniture.filter((o) => o.kind.startsWith("webN") || o.kind.startsWith("webHub")).map((o) => `${o.x},${o.y}`));
+    const share = lairCells.filter((c) => webbed.has(`${c.x},${c.y}`)).length / lairCells.length;
+    assert.ok(share > 0.25 && share < 0.75, `graine ${seed} : toile ${share.toFixed(2)}`);
+    // Un sentier sans toile mène de l'arrivée jusqu'au bord de la grande toile.
+    const clean = (x: number, y: number) => !webbed.has(`${x},${y}`);
+    const hubEdge = [];
+    for (let dy = -1; dy <= 3; dy++) for (let dx = -1; dx <= 3; dx++) hubEdge.push({ x: boss.hub.x + dx, y: boss.hub.y + dy });
+    const cleanDist = distanceField(map, f.start, clean);
+    assert.ok(hubEdge.some((c) => map.isWalkable(c.x, c.y) && cleanDist[map.index(c.x, c.y)] !== -1), `graine ${seed} : pas de sentier sans toile jusqu'à la grande toile`);
+    // La reine (2 × 2) va de sa toile jusqu'à l'anneau et jusqu'au coffre.
+    const free = (x: number, y: number) => map.isWalkable(x, y);
+    let q = { ...boss.spawn, size: 2 };
+    for (let i = 0; i < 200; i++) {
+      const step = bigStep(map, q, free, null, boss.chest);
+      if (!step) break;
+      q = { ...step, size: 2 };
+    }
+    assert.equal(gapBetween(q, boss.chest), 1, `graine ${seed} : la reine ne rejoint pas l'alcôve`);
+    assert.ok(cellsOf({ ...boss.spawn, size: 2 }).every((c) => map.isWalkable(c.x, c.y)));
+  }
+  assert.ok(sizes.size >= 10, `${sizes.size} tailles différentes`);
+  assert.ok(flips.size >= 4, "plans retournés");
+});
+
+/** Partie de la salle d'essai, descendue à l'étage du boss (l'escalier de la salle de combat y mène). */
+function bossGame(seed = 1): Game {
+  const game = new Game(seed, undefined, undefined, undefined, true);
+  game.hero.x = 24;
+  game.hero.y = 18;
+  (game as unknown as { pendingStairs: string }).pendingStairs = "down";
+  game.takeStairs();
+  return game;
+}
+
+test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, feu, leurre, mort et escalier", () => {
+  const game = bossGame();
+  const layout = (game as unknown as { current: { boss: { spawn: { x: number; y: number }; hub: { x: number; y: number }; seal: { x: number; y: number }; pillars: { x: number; y: number }[] } } }).current.boss;
+  const queen = game.bossActor()!;
+  assert.ok(queen && queen.size === 2 && queen.hp === 36);
+  assert.equal(game.monsters.length, 1, "seule dans la nichée");
+  assert.equal(game.map.get(layout.seal.x, layout.seal.y), Tile.Furniture, "escalier scellé");
+  // Elle ne sent pas le héros dans l'antichambre.
+  for (let i = 0; i < 5; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.equal(queen.boss!.engaged, false);
+  // Le héros se place au contact, sur le bord gauche de son carré : elle le sent et mord.
+  game.hero.hp = game.hero.maxHp = 400;
+  game.hero.x = queen.x - 1;
+  game.hero.y = queen.y;
+  for (let i = 0; i < 3; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(queen.boss!.engaged, "réveillée");
+  assert.ok(game.hero.hp < 400 || queen.boss!.bites > 0 || queen.boss!.phase !== "advance", "elle a mordu");
+  // Après deux morsures, elle recule.
+  for (let i = 0; i < 6 && queen.boss!.phase === "advance"; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.notEqual(queen.boss!.phase, "advance", "elle recule après deux morsures");
+  // Un cocon mangé lui rend des PV.
+  queen.hp = 30;
+  const cocoon = game.furnitureList().find((f) => f.kind.startsWith("cocoon"))!;
+  queen.boss!.phase = "retreat";
+  queen.boss!.dest = { x: cocoon.x, y: cocoon.y, eat: { x: cocoon.x, y: cocoon.y } };
+  game.hero.x = layout.seal.x - 1;
+  game.hero.y = layout.seal.y;
+  for (let i = 0; i < 60 && queen.boss!.phase === "retreat"; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(queen.hp > 30, `elle a mangé (${queen.hp} PV)`);
+  assert.ok(!game.furnitureList().includes(cocoon), "le cocon a disparu");
+  // Les amarres tranchées pendant qu'elle est sur sa toile : elle tombe sur le dos.
+  queen.x = layout.spawn.x;
+  queen.y = layout.spawn.y;
+  queen.boss!.phase = "lurk";
+  queen.boss!.lurk = 50;
+  for (const p of layout.pillars) {
+    const spot = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: p.x + dx, y: p.y + dy })).find((c) => game.map.isWalkable(c.x, c.y) && !game.monsterAt(c.x, c.y))!;
+    game.hero.x = spot.x;
+    game.hero.y = spot.y;
+    game.path = [];
+    assert.ok(game.setDestination(p.x, p.y, true), "on vise l'amarre");
+    for (let i = 0; i < 3 && game.furnitureList().some((f) => f.kind === "anchor" && f.x === p.x && f.y === p.y); i++) game.tick();
+  }
+  assert.equal(game.furnitureList().filter((f) => f.kind === "anchor").length, 0, "toutes les amarres tranchées");
+  assert.equal(game.furnitureList().filter((f) => f.kind.startsWith("webHub")).length, 0, "la grande toile est tombée");
+  assert.ok(queen.boss!.fallen > 0 || (queen.boss!.phase as string) === "advance", "renversée");
+  assert.ok(game.heroHasAdvantageOn(queen) || queen.boss!.fallen === 0);
+  // Le feu lui fait deux fois plus mal.
+  const before = queen.hp;
+  queen.boss!.fallen = 5;
+  game.hero.x = layout.seal.x - 1;
+  game.hero.y = layout.seal.y;
+  game.fires.push({ x: queen.x, y: queen.y, turns: 3 });
+  game.wait();
+  game.tick();
+  assert.ok(before - queen.hp >= 2, `brûlée : ${before - queen.hp}`);
+  // Morte : l'escalier s'ouvre, le boss compte pour les records.
+  queen.hp = 1;
+  game.hero.x = queen.x - 1;
+  game.hero.y = queen.y;
+  game.fires = [];
+  for (let i = 0; i < 40 && game.bossActor(); i++) {
+    queen.hp = Math.min(queen.hp, 1);
+    game.setDestination(queen.x, queen.y);
+    game.tick();
+  }
+  assert.equal(game.bossActor(), undefined, "vaincue");
+  assert.equal(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier est ouvert");
+  assert.equal(game.bossKills, 1);
+  // Sauvegarde et reprise gardent la nichée.
+  const again = Game.restore(game.snapshot());
+  assert.ok(again && again.map.get(layout.seal.x, layout.seal.y) === Tile.StairsDown);
+});
+
+test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèche dans la toile l'attire, les œufs éclosent", () => {
+  const game = bossGame(3);
+  const queen = game.bossActor()!;
+  const web = game.furnitureList().find((f) => f.kind.startsWith("webN") && Math.max(Math.abs(f.x - queen.x), Math.abs(f.y - queen.y)) > 4)!;
+  // Marcher sur une nappe : un tour de plus (englué) et elle se déchire.
+  game.hero.x = web.x;
+  game.hero.y = web.y;
+  (game as unknown as { enterWeb(): void }).enterWeb();
+  assert.equal(game.hero.stuck, 1);
+  assert.ok(!game.furnitureList().includes(web), "déchirée en passant");
+  // Le feu se propage de nappe en nappe.
+  const webs = game.furnitureList().filter((f) => f.kind.startsWith("webN"));
+  const seedWeb = webs.find((w) => webs.some((o) => o !== w && Math.max(Math.abs(o.x - w.x), Math.abs(o.y - w.y)) === 1))!;
+  game.hero.x = 2;
+  game.hero.y = game.rooms[0].y + 1;
+  game.hero.stuck = 0;
+  game.fires.push({ x: seedWeb.x, y: seedWeb.y, turns: 2 });
+  const count0 = game.furnitureList().filter((f) => f.kind.startsWith("webN")).length;
+  for (let i = 0; i < 4; i++) {
+    game.wait();
+    game.tick();
+  }
+  const count1 = game.furnitureList().filter((f) => f.kind.startsWith("webN")).length;
+  assert.ok(count0 - count1 >= 3, `le feu a couru : ${count0 - count1} nappes brûlées`);
+  // Leurre : une flèche plantée dans une toile.
+  const g2 = bossGame(5);
+  const q2 = g2.bossActor()!;
+  const lair = (g2 as unknown as { current: { boss: { lair: { x: number; y: number; w: number; h: number } } } }).current.boss.lair;
+  const inLair = (f: { x: number; y: number }) => f.x > lair.x && f.x < lair.x + lair.w - 1 && f.y > lair.y && f.y < lair.y + lair.h - 1;
+  const far = g2.furnitureList().find((f) => f.kind.startsWith("webN") && inLair(f) && gapBetween(q2, f) >= 4)!;
+  (g2 as unknown as { lureBoss(p: { x: number; y: number }): void }).lureBoss(far);
+  assert.ok(q2.boss!.lure, "leurrée");
+  for (let i = 0; i < 15 && gapBetween(q2, far) > 1; i++) {
+    g2.wait();
+    g2.tick();
+  }
+  assert.equal(gapBetween(q2, far), 1, "elle accourt à la toile qui vibre");
+  // À mi-vie, les sacs d'œufs éclosent.
+  const sacs = g2.furnitureList().filter((f) => f.kind === "eggSac").length;
+  q2.hp = 15;
+  g2.wait();
+  g2.tick();
+  assert.equal(g2.monsters.filter((m) => m.defId === "araignee").length, sacs, "une araignée par sac");
+  assert.ok(q2.boss!.hatched);
 });

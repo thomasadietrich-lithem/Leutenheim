@@ -7,6 +7,7 @@ import { TRAINARDS } from "./sprites/trainards";
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { SALLES } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
+import { BOSS } from "./sprites/boss";
 
 /**
  * Dessin des cases de la carte (sol, murs en briques, colonnes, portes, escaliers, coffres, fontaine), sans ombre
@@ -83,7 +84,7 @@ export class TilePainter {
       if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
         // Une case : toile d'araignée, rigole, évacuation, morceau de tapis de velours.
         if (f.x !== x || f.y !== y) continue;
-        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind];
+        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind];
         if (!web) continue;
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;

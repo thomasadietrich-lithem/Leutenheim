@@ -1,5 +1,6 @@
 import { Furniture, RoomTheme } from "../world/furnish";
 import { Motif } from "../world/grounds";
+import type { BossLayout } from "../world/bossFloor";
 import { Actor } from "../entities/actor";
 import { BagItem } from "../items/inventory";
 import { Slot } from "../data/items";
@@ -44,6 +45,8 @@ export interface SavedFloor {
   furniture?: Furniture[];
   themes?: RoomTheme[];
   motifs?: Motif[];
+  /** Étage du boss (facultatif). */
+  boss?: BossLayout;
 }
 
 export interface SaveData {
@@ -80,6 +83,8 @@ export interface SaveData {
   sandboxLayout?: number;
   clock?: number;
   ammoChoice?: string;
+  /** Boss vaincus (facultatif, ajouté avec la Tisseuse). */
+  bossKills?: number;
   heroMisses: number;
   hidden: boolean;
   nextId: number;

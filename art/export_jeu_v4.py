@@ -13,6 +13,7 @@ from pieges_v3 import spikes, pit, needle, gas
 import cuisine_v2 as cu
 import salles_v1 as sa
 import forge_alchimie_v1 as fa
+from boss_v2 import export_sprites as boss_sprites
 from pix import hexrgb
 
 
@@ -120,3 +121,6 @@ if __name__ == "__main__":
            "stuffedBear": fa.stuffed_bear().img(), "herbs": fa.herbs().img(), "pottedPlant": fa.potted_plant().img(),
            "bookcase": fa.bookcase_front().img(), "bookcaseL": fa.bookcase_side("right").img(), "bookcaseR": fa.bookcase_side("left").img(),
            "grimoire0": fa.grimoire_stand(0).img(), "grimoire1": fa.grimoire_stand(1).img(), "grimoire2": fa.grimoire_stand(0).img()})
+    write("src/render/sprites/boss.ts", "BOSS",
+          "Étage du boss de la section 1, la Tisseuse (planche art/boss_v2.png) : la Tisseuse, nappes de toile, grande toile (9 cases), cocons, sac d'œufs, amarre, escalier scellé, restes d'aventurier.",
+          boss_sprites())

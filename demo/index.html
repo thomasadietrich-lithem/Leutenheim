@@ -467,7 +467,7 @@
     return list.indexOf(record) + 1;
   }
   function recordLine(r, rank) {
-    return `${rank}. \xC9tage ${r.deepest} \xB7 Niv ${r.level} \xB7 ${r.gold} or \u2014 ${r.cause} (${r.date})`;
+    return `${rank}. \xC9tage ${r.deepest} \xB7 Niv ${r.level} \xB7 ${r.gold} or${r.bosses ? " \xB7 Boss vaincu" : ""} \u2014 ${r.cause} (${r.date})`;
   }
 
   // src/render/sprites/decor.ts
@@ -1221,6 +1221,29 @@
       blood: "green",
       chaseSteps: 2,
       webBite: 1 / 3
+    },
+    // BOSS DE LA SECTION 1 (étage 5 ; planche art/boss_v2.png, Thomas : « implémente », 2026-11-11). Valeurs (C).
+    tisseuse: {
+      id: "tisseuse",
+      name: "la Tisseuse",
+      family: "araign\xE9es",
+      description: "Reine des araign\xE9es, grosse comme un chariot, l'abdomen marqu\xE9 d'un cr\xE2ne. Elle sent chaque vibration de sa toile, avance pour mordre puis recule dans l'ombre.",
+      // Rééquilibrée le 2026-11-11 (proposée à 45 PV, +5, 2d6 : un héros niveau 5 qui fonce perdait toujours).
+      hp: 36,
+      armorClass: 13,
+      attackBonus: 4,
+      damage: { count: 1, sides: 8, bonus: 1 },
+      vision: 2,
+      xpMin: 30,
+      xpMax: 30,
+      goldChance: 0,
+      goldMax: 0,
+      noticeChance: 1,
+      color: "#d8d2c0",
+      blood: "green",
+      poisonBite: { chance: 1 / 4, damage: 1, turns: 3 },
+      size: 2,
+      boss: true
     }
   };
   function spawnsForDepth(depth) {
@@ -1229,9 +1252,12 @@
       // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
       sleepChance: Math.max(0.2, 0.65 - (depth - 1) * 0.1),
       entries: [
-        { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) },
+        // Meutes de Kobolds : 1 aux étages 1-2, 2 aux étages 3-4, 3 à l'étage 5… (2026-11-11 : un cran plus doux qu'avant,
+        // la chute de l'étage 3 à l'étage 4 était trop raide).
+        { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor((depth - 1) / 2), 4) },
         // Les araignées arrivent à l'étage 3, avec les toiles (Thomas) ; elles chassent seules ou à deux.
-        ...depth >= 3 ? [{ monster: "araignee", weight: 0.25, packMin: 1, packMax: 2 }] : []
+        // (2026-11-11) : seules aux étages 3-4, jusqu'à deux ensuite.
+        ...depth >= 3 ? [{ monster: "araignee", weight: 0.25, packMin: 1, packMax: depth >= 5 ? 2 : 1 }] : []
       ]
     };
   }
@@ -1373,6 +1399,26 @@
     asleepHearing: 3,
     /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
     websFromDepth: 3,
+    // ---- Étage du boss de la section 1 : la Tisseuse (src/world/bossFloor.ts, src/core/boss.ts ; valeurs C) ----
+    /** Étages des boss (un par section, le dernier de la section). */
+    bossDepths: [5],
+    /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
+    bossBitesBeforeRetreat: 2,
+    bossRetreatDamage: 10,
+    /** Un cocon mangé lui rend tant de PV ; elle reste tant de tours tapie avant de revenir. */
+    bossCocoonHeal: 6,
+    bossLurkTurns: 2,
+    /** Sur sa toile, tant de cases par tour (1 ailleurs). Ce qu'elle sent : le héros sur une toile, ou à cette distance. */
+    bossWebSteps: 2,
+    bossSenseRange: 2,
+    /** Grande toile effondrée (amarres coupées, ou brûlée) : elle tombe sur le dos, sonnée tant de tours. */
+    bossFallTurns: 3,
+    /** Un leurre (flèche plantée dans une toile) l'attire tant de tours. */
+    bossLureTurns: 10,
+    /** Le feu lui fait tant de fois plus mal. */
+    bossFireFactor: 2,
+    /** Une nappe de toile brûle tant de tours, et enflamme ses voisines au tour suivant. */
+    webFireTurns: 2,
     webRoomChance: 0.35,
     webCorners: [1, 2],
     /** Entrer dans une toile : d20 + bonus de force contre cette difficulté, sinon englué un tour. La toile se déchire. */
@@ -1402,11 +1448,12 @@
     /**
      * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « une croissance ; au début on passe
      * rapidement »). Niveau 1 → 2 : `xpFirst` ; chaque niveau demande `xpStep` de plus que le précédent, et ce supplément
-     * grandit lui-même de `xpStepGrowth`. Avec 5 / 5 / 2 : 5, 10, 17, 26, 37, 50, 65… (2026-11-11 : un peu moins, pour que le niveau suive l'étage)
+     * grandit lui-même de `xpStepGrowth`. Avec 5 / 2 / 1 : 5, 7, 10, 14, 19, 25, 32… soit 5, 12, 22, 36, 55 au total
+     * (Thomas, 2026-11-11 : « à peu près un niveau par étage » ; mesuré : on arrive à l'étage N vers le niveau N).
      */
     xpFirst: 5,
-    xpStep: 5,
-    xpStepGrowth: 2,
+    xpStep: 2,
+    xpStepGrowth: 1,
     /** Points de vie gagnés à chaque niveau. */
     hpPerLevel: 3,
     /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */
@@ -2248,7 +2295,19 @@
     bookcase: { blocks: true, w: 2, h: 1, burns: true },
     bookcaseL: { blocks: true, w: 1, h: 2, burns: true },
     bookcaseR: { blocks: true, w: 1, h: 2, burns: true },
-    grimoire: { blocks: true, w: 1, h: 1, burns: true }
+    grimoire: { blocks: true, w: 1, h: 1, burns: true },
+    // ÉTAGE DU BOSS (la Tisseuse, planche art/boss_v2.png) : nappes de toile (6 dessins, elles ralentissent et brûlent de
+    // proche en proche), grande toile centrale (9 cases), cocons (sa nourriture) et sacs d'œufs (ils éclosent), à crever d'un
+    // coup ; amarres nouées aux colonnes, à couper ; escalier scellé par la toile ; restes d'aventurier (2 cases, plats).
+    ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((i) => [`webN${i}`, { blocks: false, w: 1, h: 1, burns: true, flat: true }])),
+    ...Object.fromEntries([0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => [`webHub${i}`, { blocks: false, w: 1, h: 1, burns: true, flat: true }])),
+    cocoonA: { blocks: true, w: 1, h: 1, burns: true },
+    cocoonB: { blocks: true, w: 1, h: 1, burns: true },
+    eggSac: { blocks: true, w: 1, h: 1, burns: true },
+    anchor: { blocks: false, w: 1, h: 1, burns: false },
+    sealedStairs: { blocks: true, w: 1, h: 1, burns: false },
+    bonesA: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true }
   };
   function isFlat(kind) {
     return !!FURNITURE_KINDS[kind]?.flat;
@@ -2956,6 +3015,297 @@
     };
   }
 
+  // src/world/bossFloor.ts
+  function buildBossFloor(seed) {
+    const rng = new Rng(seed ^ 2063949329);
+    const NW = rng.int(18, 22);
+    const NH = rng.int(12, 15);
+    const corr = rng.int(2, 4);
+    const H = NH + 8;
+    const ring = { x: 1 + 5 + corr, y: 1, w: NW + 6, h: NH + 6 };
+    const lair = { x: ring.x + 3, y: ring.y + 3, w: NW, h: NH };
+    const W = ring.x + ring.w + 4;
+    const map = new GameMap(W, H);
+    const fill = (r, t) => {
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, t);
+    };
+    const cy = rng.int(lair.y + 2, lair.y + NH - 4);
+    const ante = { x: 1, y: Math.max(1, Math.min(H - 6, cy - 2)), w: 5, h: 5 };
+    fill(ante, Tile.Floor);
+    fill({ x: 6, y: cy, w: corr, h: 1 }, Tile.Floor);
+    fill(ring, Tile.Floor);
+    fill({ x: ring.x + 2, y: ring.y + 2, w: NW + 2, h: NH + 2 }, Tile.Wall);
+    fill(lair, Tile.Floor);
+    const breaches = [];
+    const wallX0 = ring.x + 2;
+    const wallX1 = ring.x + ring.w - 3;
+    const wallY0 = ring.y + 2;
+    const wallY1 = ring.y + ring.h - 3;
+    const sideY = () => rng.int(lair.y + 1, lair.y + NH - 3);
+    breaches.push({ x: wallX0, y: Math.max(lair.y, Math.min(lair.y + NH - 2, cy + (rng.chance(0.5) ? -3 : 2))) });
+    breaches.push({ x: wallX1, y: sideY() });
+    const extra = rng.int(2, 4);
+    const along = [];
+    for (let i = 0; i < extra; i++) {
+      for (let tries = 0; tries < 20; tries++) {
+        const x = rng.int(lair.x + 1, lair.x + NW - 3);
+        if (along.some((a) => Math.abs(a - x) < 5)) continue;
+        along.push(x);
+        breaches.push({ x, y: i % 2 === 0 ? wallY0 : wallY1 });
+        break;
+      }
+    }
+    for (const b of breaches) {
+      const vertical = b.x === wallX0 || b.x === wallX1;
+      for (let k = 0; k < 2; k++) map.set(b.x + (vertical ? 0 : k), b.y + (vertical ? k : 0), Tile.Floor);
+    }
+    const ay = rng.int(ring.y + 2, ring.y + ring.h - 3);
+    const chest = { x: ring.x + ring.w, y: ay };
+    const seal = { x: ring.x + ring.w + 1, y: ay };
+    map.set(chest.x, chest.y, Tile.Chest);
+    map.set(seal.x, seal.y, Tile.Furniture);
+    const hub = {
+      x: lair.x + Math.floor(NW / 2) - 1 + rng.int(-2, 2),
+      y: lair.y + Math.floor(NH / 2) - 1 + rng.int(-1, 1)
+    };
+    const px = rng.int(4, 6);
+    const py = rng.int(3, 4);
+    const pillars = [
+      { x: hub.x + 1 - px, y: hub.y + 1 - py },
+      { x: hub.x + 1 + px, y: hub.y + 1 - py },
+      { x: hub.x + 1 - px, y: hub.y + 1 + py },
+      { x: hub.x + 1 + px, y: hub.y + 1 + py }
+    ].map((p) => ({ x: Math.max(lair.x + 2, Math.min(lair.x + NW - 3, p.x)), y: Math.max(lair.y + 2, Math.min(lair.y + NH - 3, p.y)) }));
+    for (const p of pillars) map.set(p.x, p.y, Tile.Pillar);
+    const furniture = [];
+    const taken = /* @__PURE__ */ new Set();
+    const take = (x, y) => taken.add(map.index(x, y));
+    const isTaken = (x, y) => taken.has(map.index(x, y));
+    for (let i = 0; i < 9; i++) {
+      const x = hub.x + i % 3;
+      const y = hub.y + Math.floor(i / 3);
+      furniture.push({ x, y, kind: `webHub${i}` });
+      take(x, y);
+    }
+    for (const p of pillars) furniture.push({ x: p.x, y: p.y, kind: "anchor" });
+    furniture.push({ x: seal.x, y: seal.y, kind: "sealedStairs" });
+    const clear = /* @__PURE__ */ new Set();
+    const trail = (from, to) => {
+      let { x, y } = from;
+      for (let guard = 0; guard < 200 && (x !== to.x || y !== to.y); guard++) {
+        clear.add(map.index(x, y));
+        const dx = Math.sign(to.x - x);
+        const dy = Math.sign(to.y - y);
+        const r = rng.next();
+        let nx = x;
+        let ny = y;
+        const horizontal = dx !== 0 && (dy === 0 || r < 0.5);
+        if (horizontal) nx += dx;
+        else ny += dy;
+        if (r > 0.85) {
+          if (horizontal) ny += rng.chance(0.5) ? 1 : -1;
+          else nx += rng.chance(0.5) ? 1 : -1;
+        }
+        if (nx < lair.x || nx >= lair.x + NW || ny < lair.y || ny >= lair.y + NH || map.get(nx, ny) === Tile.Pillar) {
+          nx = x + dx;
+          ny = y + (dx === 0 ? dy : 0);
+        }
+        x = nx;
+        y = ny;
+      }
+      clear.add(map.index(x, y));
+    };
+    const inside = (b) => {
+      if (b.x === wallX0) return { x: lair.x, y: b.y };
+      if (b.x === wallX1) return { x: lair.x + NW - 1, y: b.y };
+      if (b.y === wallY0) return { x: b.x, y: lair.y };
+      return { x: b.x, y: lair.y + NH - 1 };
+    };
+    const hubSide = { x: hub.x - 1, y: hub.y + 1 };
+    for (let y = Math.min(cy, breaches[0].y); y <= Math.max(cy, breaches[0].y + 1); y++) clear.add(map.index(ring.x, y)).add(map.index(ring.x + 1, y));
+    for (let k = 0; k < 2; k++) clear.add(map.index(breaches[0].x, breaches[0].y + k));
+    trail(inside(breaches[0]), hubSide);
+    trail(inside(breaches[1]), { x: hub.x + 3, y: hub.y + 1 });
+    const order = breaches.slice(2);
+    for (let i = 0; i < order.length; i++) trail(inside(order[i]), i % 2 === 0 ? hubSide : inside(breaches[(i + 1) % breaches.length]));
+    const ringClearSide = rng.int(0, 3);
+    const nearBreach = (x, y) => breaches.some((b) => Math.abs(b.x - x) <= 3 && Math.abs(b.y - y) <= 3);
+    const wallCells = [];
+    for (let x = lair.x; x < lair.x + NW; x++) wallCells.push({ x, y: lair.y }, { x, y: lair.y + NH - 1 });
+    for (let y = lair.y + 1; y < lair.y + NH - 1; y++) wallCells.push({ x: lair.x, y }, { x: lair.x + NW - 1, y });
+    const cocoons = rng.int(4, 6);
+    for (let n = 0, tries = 0; n < cocoons && tries < 200; tries++) {
+      const c = wallCells[rng.int(0, wallCells.length - 1)];
+      if (nearBreach(c.x, c.y) || isTaken(c.x, c.y) || clear.has(map.index(c.x, c.y))) continue;
+      if (furniture.some((f) => f.kind.startsWith("cocoon") && Math.abs(f.x - c.x) + Math.abs(f.y - c.y) < 4)) continue;
+      furniture.push({ x: c.x, y: c.y, kind: rng.chance(0.5) ? "cocoonA" : "cocoonB" });
+      map.set(c.x, c.y, Tile.Furniture);
+      take(c.x, c.y);
+      n++;
+    }
+    for (let n = 0, tries = 0; n < 2 && tries < 200; tries++) {
+      const x = hub.x + 1 + rng.int(-5, 5);
+      const y = hub.y + 1 + rng.int(-4, 4);
+      const d = Math.max(Math.abs(x - hub.x - 1), Math.abs(y - hub.y - 1));
+      if (d < 3 || x <= lair.x || y <= lair.y || x >= lair.x + NW - 1 || y >= lair.y + NH - 1) continue;
+      if (map.get(x, y) !== Tile.Floor || isTaken(x, y) || clear.has(map.index(x, y))) continue;
+      if (pillars.some((p) => Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1)) continue;
+      if (furniture.some((f) => f.kind === "eggSac" && Math.abs(f.x - x) + Math.abs(f.y - y) < 5)) continue;
+      furniture.push({ x, y, kind: "eggSac" });
+      map.set(x, y, Tile.Furniture);
+      take(x, y);
+      n++;
+    }
+    const secrets = [];
+    const loot = [
+      { item: "or", count: rng.int(12, 24) },
+      rng.chance(0.5) ? { item: "potion_feu", count: 1 } : { item: "fleche", count: rng.int(4, 6) }
+    ];
+    for (let n = 0, tries = 0; n < 2 && tries < 300; tries++) {
+      const x = rng.int(lair.x + 1, lair.x + NW - 3);
+      const y = rng.int(lair.y + 1, lair.y + NH - 2);
+      if (map.get(x, y) !== Tile.Floor || map.get(x + 1, y) !== Tile.Floor || isTaken(x, y) || isTaken(x + 1, y)) continue;
+      if (Math.abs(x - hub.x - 1) < 4 && Math.abs(y - hub.y - 1) < 3) continue;
+      if (furniture.some((f) => f.kind === "bonesA" && Math.abs(f.x - x) + Math.abs(f.y - y) < 6)) continue;
+      furniture.push({ x, y, kind: "bonesA" }, { x: x + 1, y, kind: "bonesB" });
+      take(x, y);
+      take(x + 1, y);
+      secrets.push({ x, y, room: 1, ...loot[n] });
+      n++;
+    }
+    const density = 0.5 + rng.next() * 0.15;
+    const noise2 = (x, y, s) => {
+      let h = Math.imul(x * 374761393 + y * 668265263 + (seed ^ s), 1274126177);
+      h ^= h >>> 13;
+      h = Math.imul(h, 1103515245);
+      return ((h ^ h >>> 16) >>> 0) / 4294967296;
+    };
+    const inLair = (x, y) => x >= lair.x && x < lair.x + NW && y >= lair.y && y < lair.y + NH;
+    const inRing = (x, y) => x >= ring.x && x < ring.x + ring.w && y >= ring.y && y < ring.y + ring.h && !inLair(x, y);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (map.get(x, y) !== Tile.Floor || isTaken(x, y) || clear.has(map.index(x, y))) continue;
+        let p;
+        if (inLair(x, y)) p = density;
+        else if (inRing(x, y)) {
+          const outer = [y === ring.y, x === ring.x + ring.w - 1, y === ring.y + ring.h - 1, x === ring.x][ringClearSide];
+          p = outer ? 0 : 0.32;
+        } else continue;
+        const v = noise2(x >> 1, y >> 1, 81) * 0.6 + noise2(x, y, 119) * 0.4;
+        if (v < p) furniture.push({ x, y, kind: `webN${Math.floor(noise2(x, y, 153) * 6)}` });
+      }
+    }
+    const torches = [{ x: ante.x + 2, y: ante.y - 1, radius: 6, faceX: 0, faceY: 1 }];
+    const floor = {
+      map,
+      rooms: [ante, lair],
+      start: { x: ante.x + 1, y: ante.y + 2 },
+      stairs: seal,
+      torches,
+      specials: [],
+      furniture,
+      secrets,
+      boss: { spawn: { x: hub.x + 1, y: hub.y }, hub, pillars, breaches, chest, seal, lair }
+    };
+    return mirror(floor, rng.chance(0.5), rng.chance(0.5));
+  }
+  function mirror(f, flipX, flipY) {
+    if (!flipX && !flipY) return f;
+    const W = f.map.width;
+    const H = f.map.height;
+    const mx = (x, w = 1) => flipX ? W - x - w : x;
+    const my = (y, h = 1) => flipY ? H - y - h : y;
+    const p = (q, w = 1, h = 1) => ({ x: mx(q.x, w), y: my(q.y, h) });
+    const r = (q) => ({ ...p(q, q.w, q.h), w: q.w, h: q.h });
+    const map = new GameMap(W, H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) map.set(mx(x), my(y), f.map.get(x, y));
+    const hub = p(f.boss.hub, 3, 3);
+    const furniture = f.furniture.map((o) => {
+      if (o.kind.startsWith("webHub")) {
+        const i = Number(o.kind.slice(6));
+        return { ...o, x: hub.x + i % 3, y: hub.y + Math.floor(i / 3) };
+      }
+      if (flipX && (o.kind === "bonesA" || o.kind === "bonesB")) return { ...o, x: mx(o.x), kind: o.kind === "bonesA" ? "bonesB" : "bonesA", y: my(o.y) };
+      return { ...o, ...p(o) };
+    });
+    const secrets = f.secrets.map((s) => ({ ...s, ...p(s, 2, 1) }));
+    return {
+      ...f,
+      map,
+      rooms: f.rooms.map(r),
+      start: p(f.start),
+      stairs: p(f.stairs),
+      torches: f.torches.map((t) => ({ ...t, ...p(t), faceX: flipX ? -t.faceX : t.faceX, faceY: flipY ? -t.faceY : t.faceY })),
+      furniture,
+      secrets,
+      boss: {
+        spawn: p(f.boss.spawn, 2, 2),
+        hub,
+        pillars: f.boss.pillars.map((q) => p(q)),
+        breaches: f.boss.breaches.map((q) => p(q)),
+        chest: p(f.boss.chest),
+        seal: p(f.boss.seal),
+        lair: r(f.boss.lair)
+      }
+    };
+  }
+
+  // src/core/boss.ts
+  function sizeOf(a) {
+    return a.size ?? 1;
+  }
+  function occupies(a, x, y) {
+    const s = sizeOf(a);
+    return x >= a.x && x < a.x + s && y >= a.y && y < a.y + s;
+  }
+  function cellsOf(a) {
+    const s = sizeOf(a);
+    const out = [];
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) out.push({ x: a.x + dx, y: a.y + dy });
+    return out;
+  }
+  function gapBetween(a, b) {
+    const dx = Math.max(0, b.x - (a.x + sizeOf(a) - 1), a.x - (b.x + sizeOf(b) - 1));
+    const dy = Math.max(0, b.y - (a.y + sizeOf(a) - 1), a.y - (b.y + sizeOf(b) - 1));
+    return Math.max(dx, dy);
+  }
+  function bigStep(map, m, free, goal, touch) {
+    const s = sizeOf(m);
+    const fits2 = (x, y) => {
+      for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!free(x + dx, y + dy)) return false;
+      return true;
+    };
+    const done = (x, y) => touch ? gapBetween({ x, y, size: s }, { x: touch.x, y: touch.y }) === 1 : goal !== null && x === goal.x && y === goal.y;
+    if (done(m.x, m.y)) return null;
+    const W = map.width;
+    const prev = new Int32Array(W * map.height).fill(-1);
+    const start = m.y * W + m.x;
+    prev[start] = start;
+    const queue2 = [start];
+    const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+    for (let head = 0; head < queue2.length && head < 4e3; head++) {
+      const cur = queue2[head];
+      const cx = cur % W;
+      const cy = (cur - cx) / W;
+      for (const [dx, dy] of dirs) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (!map.inBounds(nx, ny) || !map.inBounds(nx + s - 1, ny + s - 1)) continue;
+        const ni = ny * W + nx;
+        if (prev[ni] !== -1 || !fits2(nx, ny)) continue;
+        if (dx !== 0 && dy !== 0 && !fits2(cx + dx, cy) && !fits2(cx, cy + dy)) continue;
+        prev[ni] = cur;
+        if (done(nx, ny)) {
+          let k = ni;
+          while (prev[k] !== start) k = prev[k];
+          return { x: k % W, y: Math.floor(k / W) };
+        }
+        queue2.push(ni);
+      }
+    }
+    return null;
+  }
+
   // src/data/motifs.ts
   var MOTIF_SIZE = { rosace: 2, boussole: 2, runes: 2, croix: 1, spirale: 1 };
   var MOTIF_KINDS = Object.keys(MOTIF_SIZE);
@@ -3111,10 +3461,10 @@
   var SECTION_GUARANTEES = [
     { what: "pomme", count: 1, floors: [1, 1] },
     // Thomas : 10 flèches dans la première section, en un lot ou en trois (tiré au début de la partie).
-    { what: "fleches", count: 1, floors: [1, 5] },
-    { what: "equipment", count: 2, floors: [1, 5] },
-    { what: "gem", count: 1, floors: [1, 5] },
-    { what: "potion", count: 1, floors: [1, 5] }
+    { what: "fleches", count: 1, floors: [1, 4] },
+    { what: "equipment", count: 2, floors: [1, 4] },
+    { what: "gem", count: 1, floors: [1, 4] },
+    { what: "potion", count: 1, floors: [1, 4] }
   ];
 
   // src/core/floor.ts
@@ -3255,9 +3605,10 @@
     }
     return out;
   }
-  function lootPool(depth, keep) {
+  function lootPool(depth, keep, only) {
     const ids = [];
     for (const rarity of ["common", "uncommon", "rare"]) {
+      if (only && rarity !== only) continue;
       for (const l of LOOT[rarity]) {
         if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item)) continue;
         if (keep(ITEMS[l.item].kind, l.item)) ids.push(l.item);
@@ -3390,6 +3741,11 @@
       this.pendingStairs = null;
       /** Étage le plus profond atteint dans cette partie. */
       this.deepest = 0;
+      // ---------- La Tisseuse (boss de la section 1, planche art/boss_v2.png) ----------
+      /** Combats de boss gagnés dans cette partie (pour les records). */
+      this.bossKills = 0;
+      /** Cocon, sac d'œufs ou amarre à crever : le héros s'en approche, puis frappe. */
+      this.breakTarget = null;
       /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
       this.gas = [];
       /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
@@ -3443,11 +3799,12 @@
       if (!state) {
         const seed = floorSeed(this.runSeed, depth);
         if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
-        const floor = sandboxFloor ?? generateFloor(seed, this.floorConfig);
+        const bossFloor = !sandboxFloor && this.isBossDepth(depth) ? buildBossFloor(seed) : null;
+        const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
-        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth) : { furniture: [], themes: [] };
-        if (!sandboxFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
-        const motifs = sandboxFloor ? sandboxFloor.motifs : placeMotifs(floor, seed);
+        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : bossFloor ? { furniture: bossFloor.furniture, themes: [] } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth) : { furniture: [], themes: [] };
+        if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
+        const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
         state = {
           map: floor.map,
           start: floor.start,
@@ -3473,8 +3830,10 @@
           searched: /* @__PURE__ */ new Set(),
           furniture: furnished.furniture,
           themes: furnished.themes,
-          motifs
+          motifs,
+          boss: bossFloor?.boss
         };
+        if (bossFloor) for (const sec of bossFloor.secrets) state.secrets.push({ ...sec, found: false });
         this.floors.set(depth, state);
       }
       this.useFloor(state, depth);
@@ -3511,6 +3870,11 @@
       }
       if (fresh && sandboxFloor) {
         this.populateSandbox(state, sandboxFloor);
+      } else if (fresh && state.boss) {
+        const queen = this.newMonster(MONSTERS.tisseuse, state.boss.spawn.x, state.boss.spawn.y, false);
+        queen.boss = { phase: "lurk", bites: 0, hpMark: queen.hp, lurk: 0, fallen: 0, hatched: false, hubUp: true, engaged: false };
+        this.monsters.push(queen);
+        state.population = 0;
       } else if (fresh) {
         this.spawnMonsters(state.rooms);
         state.population = Math.max(1, this.monsters.length);
@@ -3574,8 +3938,289 @@
         alerted: false,
         asleep,
         // Regard de départ : une des quatre directions, d'après son numéro (sans toucher au hasard du jeu).
-        facing: ["down", "left", "right", "up"][this.nextId % 4]
+        facing: ["down", "left", "right", "up"][this.nextId % 4],
+        ...(def.size ?? 1) > 1 ? { size: def.size } : {}
       };
+    }
+    /** Étage d'un boss ? (le dernier de chaque section ; en salle d'essai, l'étage 2, sous l'escalier). */
+    isBossDepth(depth) {
+      return this.sandbox ? depth === 2 : RULES.bossDepths.includes(depth);
+    }
+    /** Le boss de l'étage, s'il vit encore. */
+    bossActor() {
+      return this.monsters.find((m) => !!m.boss);
+    }
+    /** Une case de toile qui colle (nappe ou grande toile de la nichée) ? */
+    stickyAt(x, y) {
+      return this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind.startsWith("webN") || f.kind.startsWith("webHub")));
+    }
+    /** Cocon, sac d'œufs ou amarre (sur sa colonne) sur cette case : ça se crève d'un coup. */
+    breakableAt(x, y) {
+      return this.current.furniture.find((f) => f.x === x && f.y === y && (f.kind.startsWith("cocoon") || f.kind === "eggSac" || f.kind === "anchor")) ?? null;
+    }
+    approachBreakable(x, y, ignoreFog) {
+      const known = ignoreFog ? void 0 : (cx, cy) => this.isKnown(cx, cy);
+      let best = null;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx === this.hero.x && ny === this.hero.y) best = [];
+          if (best && best.length === 0) break;
+          if (!this.map.isWalkable(nx, ny) || this.monsterAt(nx, ny)) continue;
+          const path = this.heroPath({ x: nx, y: ny }, known);
+          if (path && (!best || path.length < best.length)) best = path;
+        }
+      }
+      if (!best) return false;
+      this.clearDoorOrders();
+      this.targetId = null;
+      this.waiting = false;
+      this.picking = false;
+      this.resting = 0;
+      this.searching = 0;
+      this.hideOrder = false;
+      this.jumpTarget = null;
+      this.pushTargetId = null;
+      this.useOrder = null;
+      this.throwOrder = null;
+      this.skillOrder = null;
+      this.shotTarget = null;
+      this.path = best;
+      this.breakTarget = { x, y };
+      return true;
+    }
+    /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
+    resolveBreak(at) {
+      const f = this.breakableAt(at.x, at.y);
+      if (!f) return;
+      this.reveal();
+      this.current.furniture = this.current.furniture.filter((o) => o !== f);
+      if (f.kind !== "anchor") this.map.set(f.x, f.y, Tile.Floor);
+      else this.map.touch(f.x, f.y);
+      const left = this.current.furniture.filter((o) => o.kind === "anchor").length;
+      this.events.push({ type: "breakWeb", kind: f.kind.startsWith("cocoon") ? "cocoon" : f.kind === "eggSac" ? "eggs" : "anchor", left, x: f.x, y: f.y });
+      if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
+      const queen = this.bossActor();
+      if (queen?.boss) queen.boss.target = { x: this.hero.x, y: this.hero.y };
+      if (f.kind === "anchor") this.checkHub();
+    }
+    /** Leurre : une flèche plantée dans une toile la fait vibrer ; la Tisseuse y accourt (si elle ne sent pas le héros). */
+    lureBoss(p) {
+      const queen = this.bossActor();
+      if (!queen?.boss || !this.stickyAt(p.x, p.y)) return;
+      queen.boss.lure = { x: p.x, y: p.y, turns: RULES.bossLureTurns };
+      if (queen.boss.phase === "lurk") this.bossAdvance(queen);
+      this.events.push({ type: "boss", what: "lured", x: p.x, y: p.y });
+    }
+    /**
+     * La grande toile tient tant qu'il reste une amarre et qu'elle n'a pas brûlé à moitié. Quand elle s'effondre, la
+     * Tisseuse, si elle s'y tenait, tombe sur le dos : sonnée plusieurs tours, on la frappe avec avantage. Elle n'a
+     * plus de refuge.
+     */
+    checkHub() {
+      const queen = this.bossActor();
+      const st = queen?.boss;
+      if (!queen || !st || !st.hubUp || !this.current.boss) return;
+      const anchors = this.current.furniture.filter((f) => f.kind === "anchor").length;
+      const cells = this.current.furniture.filter((f) => f.kind.startsWith("webHub"));
+      if (anchors > 0 && cells.length > 4) return;
+      st.hubUp = false;
+      for (const c of cells) this.map.touch(c.x, c.y);
+      this.current.furniture = this.current.furniture.filter((f) => !f.kind.startsWith("webHub"));
+      const hub = this.current.boss.hub;
+      const onHub = cellsOf(queen).some((c) => c.x >= hub.x && c.x < hub.x + 3 && c.y >= hub.y && c.y < hub.y + 3);
+      if (onHub) {
+        st.fallen = RULES.bossFallTurns;
+        st.phase = "lurk";
+        st.lurk = 0;
+        st.dest = void 0;
+      }
+      this.events.push({ type: "boss", what: onHub ? "fallen" : "hubDown", x: queen.x, y: queen.y });
+    }
+    /** La Tisseuse est morte : la toile qui scellait l'escalier tombe. */
+    bossDefeated() {
+      const layout = this.current.boss;
+      this.bossKills++;
+      if (!layout) return;
+      this.current.furniture = this.current.furniture.filter((f) => f.kind !== "sealedStairs");
+      this.map.set(layout.seal.x, layout.seal.y, Tile.StairsDown);
+      this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y });
+    }
+    /** Cases où la Tisseuse peut poser une patte : pas de mur, de meuble, d'autre personnage ni de flammes. */
+    bossFree(m) {
+      return (x, y) => this.map.isWalkable(x, y) && !this.isBurning(x, y) && !(x === this.hero.x && y === this.hero.y) && !this.monsters.some((o) => o !== m && occupies(o, x, y));
+    }
+    bossMove(m, step) {
+      this.faceToward(m, step);
+      m.x = step.x;
+      m.y = step.y;
+    }
+    bossAdvance(m) {
+      const st = m.boss;
+      st.phase = "advance";
+      st.bites = 0;
+      st.hpMark = m.hp;
+      st.dest = void 0;
+    }
+    /**
+     * Elle recule (Thomas : « la faire avancer et reculer ») : vers un cocon pour le manger (+PV) s'il en reste, sinon
+     * dans sa grande toile si elle tient, sinon (ou parfois) par une brèche dans l'anneau, pour ressortir ailleurs.
+     */
+    bossRetreat(m) {
+      const st = m.boss;
+      const layout = this.current.boss;
+      const cocoons = this.current.furniture.filter((f) => f.kind.startsWith("cocoon"));
+      st.phase = "retreat";
+      st.bites = 0;
+      let what = "ring";
+      if (cocoons.length > 0 && this.rng.chance(0.65)) {
+        const c = cocoons.reduce((a, b) => gapBetween(m, b) < gapBetween(m, a) ? b : a);
+        st.dest = { x: c.x, y: c.y, eat: { x: c.x, y: c.y } };
+        what = "cocoon";
+      } else if (st.hubUp && this.rng.chance(0.6)) {
+        st.dest = { ...layout.spawn };
+        what = "hub";
+      } else {
+        const free = this.bossFree(m);
+        const lair = layout.lair;
+        let best = null;
+        let bestD = -1;
+        for (const b of layout.breaches) {
+          for (let dy = -3; dy <= 3; dy++) {
+            for (let dx = -3; dx <= 3; dx++) {
+              const x = b.x + dx;
+              const y = b.y + dy;
+              const out = x + 1 < lair.x || x >= lair.x + lair.w || y + 1 < lair.y || y >= lair.y + lair.h;
+              if (!out || !free(x, y) || !free(x + 1, y) || !free(x, y + 1) || !free(x + 1, y + 1)) continue;
+              const d = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
+              if (d > bestD) {
+                bestD = d;
+                best = { x, y };
+              }
+            }
+          }
+        }
+        st.dest = best ?? { ...layout.spawn };
+      }
+      this.events.push({ type: "boss", what: what === "cocoon" ? "retreatCocoon" : what === "hub" ? "retreatHub" : "retreatRing", x: m.x, y: m.y });
+    }
+    /** Le tour de la Tisseuse. */
+    bossAct(m) {
+      const st = m.boss;
+      if (this.peaceful) return;
+      if (st.fallen > 0) {
+        st.fallen--;
+        if (st.fallen === 0) {
+          this.events.push({ type: "boss", what: "rise", x: m.x, y: m.y });
+          this.bossAdvance(m);
+        }
+        return;
+      }
+      if (m.stunned) {
+        m.stunned--;
+        return;
+      }
+      const hero = this.hero;
+      const sensed = this.stickyAt(hero.x, hero.y) || gapBetween(m, hero) <= RULES.bossSenseRange || st.engaged && this.hidden === false && gapBetween(m, hero) <= 1;
+      if (sensed) {
+        st.target = { x: hero.x, y: hero.y };
+        st.lure = void 0;
+        if (!st.engaged) {
+          st.engaged = true;
+          m.alerted = true;
+          m.asleep = false;
+          this.events.push({ type: "boss", what: "awake", x: m.x, y: m.y });
+          this.bossAdvance(m);
+        }
+      } else if (st.lure) {
+        st.target = { x: st.lure.x, y: st.lure.y };
+        if (--st.lure.turns <= 0) st.lure = void 0;
+      }
+      m.alerted = st.engaged;
+      if (!st.hatched && m.hp * 2 <= m.maxHp) {
+        st.hatched = true;
+        const sacs = this.current.furniture.filter((f) => f.kind === "eggSac");
+        for (const sac of sacs) {
+          this.current.furniture = this.current.furniture.filter((o) => o !== sac);
+          this.map.set(sac.x, sac.y, Tile.Floor);
+          const young = this.newMonster(MONSTERS.araignee, sac.x, sac.y, false);
+          young.alerted = true;
+          young.fromX = young.x;
+          young.fromY = young.y;
+          this.monsters.push(young);
+        }
+        this.events.push({ type: "boss", what: sacs.length > 0 ? "hatch" : "hatchNone", x: m.x, y: m.y });
+        this.bossRetreat(m);
+      }
+      if (st.phase === "advance" && (st.bites >= RULES.bossBitesBeforeRetreat || st.hpMark - m.hp >= RULES.bossRetreatDamage)) this.bossRetreat(m);
+      const free = this.bossFree(m);
+      const onWeb = () => cellsOf(m).some((c) => this.stickyAt(c.x, c.y));
+      if (st.phase === "lurk") {
+        if (st.engaged && gapBetween(m, hero) === 1) this.bossAdvance(m);
+        else if (st.lurk > 0) {
+          st.lurk--;
+          return;
+        } else if (st.engaged && st.target) this.bossAdvance(m);
+        else return;
+      }
+      if (st.phase === "advance") {
+        if (gapBetween(m, hero) === 1) {
+          this.faceToward(m, hero);
+          const result = rollAttack(this.rng, m, hero);
+          st.bites++;
+          this.events.push({ type: "attack", attacker: m, target: hero, result });
+          if (result.damage > 0) {
+            this.bleed(hero, m);
+            const venom = MONSTERS.tisseuse.poisonBite;
+            if (this.rng.chance(venom.chance)) this.poisonActor(hero, { damage: venom.damage, turns: venom.turns });
+          }
+          this.hurtHero(result.damage, this.killerName(m));
+          return;
+        }
+        if (!st.target) return;
+        const steps = onWeb() ? RULES.bossWebSteps : 1;
+        for (let i = 0; i < steps && gapBetween(m, hero) !== 1; i++) {
+          const step = bigStep(this.map, m, free, null, st.target);
+          if (!step) break;
+          this.bossMove(m, step);
+        }
+        if (!sensed && st.target && gapBetween(m, st.target) <= 1 && !st.lure) st.target = void 0;
+        return;
+      }
+      const dest = st.dest;
+      if (!dest) {
+        st.phase = "lurk";
+        st.lurk = RULES.bossLurkTurns;
+        return;
+      }
+      let arrived = false;
+      for (let i = 0; i < RULES.bossWebSteps; i++) {
+        arrived = dest.eat ? gapBetween(m, dest.eat) === 1 : m.x === dest.x && m.y === dest.y;
+        if (arrived) break;
+        const step = dest.eat ? bigStep(this.map, m, free, null, dest.eat) : bigStep(this.map, m, free, dest, null);
+        if (!step) {
+          arrived = true;
+          break;
+        }
+        this.bossMove(m, step);
+      }
+      arrived = arrived || (dest.eat ? gapBetween(m, dest.eat) === 1 : m.x === dest.x && m.y === dest.y);
+      if (!arrived) return;
+      if (dest.eat) {
+        const cocoon = this.current.furniture.find((f) => f.x === dest.eat.x && f.y === dest.eat.y && f.kind.startsWith("cocoon"));
+        if (cocoon && gapBetween(m, cocoon) === 1) {
+          this.current.furniture = this.current.furniture.filter((o) => o !== cocoon);
+          this.map.set(cocoon.x, cocoon.y, Tile.Floor);
+          const healed = Math.min(RULES.bossCocoonHeal, m.maxHp - m.hp);
+          m.hp += healed;
+          this.events.push({ type: "boss", what: "eat", x: cocoon.x, y: cocoon.y, amount: healed });
+        }
+      }
+      st.dest = void 0;
+      st.phase = "lurk";
+      st.lurk = RULES.bossLurkTurns;
     }
     /**
      * Repeuplement : de temps en temps, si l'étage a perdu des monstres, un promeneur arrive dans une salle
@@ -3583,7 +4228,7 @@
      */
     respawn() {
       const state = this.current;
-      if (this.turn < state.nextRespawn || this.peaceful) return;
+      if (this.turn < state.nextRespawn || this.peaceful || state.boss) return;
       const stage = Math.min(state.alarmStage, 2);
       state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
       const cap = state.population + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
@@ -3609,7 +4254,7 @@
     /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
     raiseAlarm(points, at) {
       const state = this.current;
-      if (points <= 0 || this.over) return;
+      if (points <= 0 || this.over || state.boss) return;
       if (at) this.events.push({ type: "noise", x: at.x, y: at.y, points });
       state.alarm = Math.min(100, state.alarm + points);
       while (state.alarmStage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[state.alarmStage]) {
@@ -3663,7 +4308,16 @@
      * (au plus `gravelDetour` pas de plus). On peut toujours y marcher exprès (case d'arrivée sur le gravier).
      */
     heroPath(to, known) {
-      const plain = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+      const plain0 = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+      let plain = plain0;
+      if (plain0 && this.current.boss) {
+        const sticky = (x, y) => this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind.startsWith("webN") || f.kind.startsWith("webHub")));
+        const webs = plain0.filter((p) => sticky(p.x, p.y)).length;
+        if (webs > 0) {
+          const clean = findPath(this.map, this.hero, to, this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (!sticky(x, y) || x === to.x && y === to.y)));
+          if (clean && clean.length <= plain0.length + webs) plain = clean;
+        }
+      }
       if (!plain || !plain.some((p) => this.map.get(p.x, p.y) === Tile.Gravel)) return plain;
       const quiet = findPath(
         this.map,
@@ -3681,6 +4335,15 @@
     enterWeb() {
       const web = this.current.furniture.find((f) => f.kind.startsWith("web") && f.x === this.hero.x && f.y === this.hero.y);
       if (!web) return;
+      if (web.kind.startsWith("webN") || web.kind.startsWith("webHub")) {
+        this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+        if (web.kind.startsWith("webN")) {
+          this.current.furniture = this.current.furniture.filter((o) => o !== web);
+          this.map.touch(web.x, web.y);
+        }
+        this.events.push({ type: "webSlow", hub: web.kind.startsWith("webHub") });
+        return;
+      }
       const roll2 = this.rng.int(1, 20);
       const escaped = roll2 + this.pushBonus() >= RULES.webEscapeDc;
       if (!escaped) this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
@@ -3743,6 +4406,7 @@
     }
     /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
     killerName(m) {
+      if (m.boss) return m.name;
       return `${m.defId === "araignee" ? "une" : "un"} ${m.name}`;
     }
     /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
@@ -3770,7 +4434,7 @@
     }
     /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
     pushTargets() {
-      return this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+      return this.visibleMonsters().filter((m) => !m.boss && this.inReach(this.hero, m));
     }
     pushRefusal() {
       return this.pushTargets().length === 0 ? "none" : null;
@@ -3889,7 +4553,8 @@
         searched: [...f.searched],
         furniture: f.furniture,
         themes: f.themes,
-        motifs: f.motifs
+        motifs: f.motifs,
+        boss: f.boss
       }));
       return clone({
         version: SAVE_VERSION,
@@ -3923,6 +4588,7 @@
         clock: this.clock,
         ammoChoice: this.ammoChoice,
         heroMisses: this.heroMisses,
+        bossKills: this.bossKills,
         hidden: this.hidden,
         nextId: this.nextId,
         lastFoeId: this.lastFoeId,
@@ -3967,7 +4633,8 @@
           searched: new Set(f.searched),
           furniture: f.furniture ?? [],
           themes: f.themes ?? [],
-          motifs: f.motifs ?? []
+          motifs: f.motifs ?? [],
+          boss: f.boss
         });
       }
       game2.turn = saved.turn;
@@ -3990,6 +4657,7 @@
       game2.clock = saved.clock ?? 0;
       game2.ammoChoice = (saved.ammoChoice ?? "fleche") in ITEMS ? saved.ammoChoice : "fleche";
       game2.heroMisses = saved.heroMisses;
+      game2.bossKills = saved.bossKills ?? 0;
       game2.nextId = saved.nextId;
       game2.lastFoeId = saved.lastFoeId;
       game2.failedDoorAttempts = new Set(saved.failedDoorAttempts);
@@ -4009,7 +4677,7 @@
     }
     // ---------- Consultation ----------
     monsterAt(x, y) {
-      return this.monsters.find((m) => m.x === x && m.y === y);
+      return this.monsters.find((m) => occupies(m, x, y));
     }
     actorAt(x, y) {
       return this.hero.x === x && this.hero.y === y ? this.hero : this.monsterAt(x, y);
@@ -4032,7 +4700,12 @@
       return this.light[this.map.index(this.hero.x, this.hero.y)] > 0.15;
     }
     visibleMonsters() {
-      return this.monsters.filter((m) => this.isVisible(m.x, m.y));
+      return this.monsters.filter((m) => this.actorVisible(m));
+    }
+    /** On voit au moins une des cases du personnage (la Tisseuse en couvre quatre). */
+    actorVisible(m) {
+      if (sizeOf(m) === 1) return this.isVisible(m.x, m.y);
+      return cellsOf(m).some((c) => this.isVisible(c.x, c.y));
     }
     // ---------- Équipement ----------
     /** L'arme de mêlée ou à distance en main, s'il y en a une. */
@@ -4398,8 +5071,11 @@
         this.current.furniture = this.current.furniture.filter((o) => o !== w);
         this.current.furniture.push({ x: w.x, y: w.y, kind: "ashes1" });
         this.map.touch(w.x, w.y);
-        this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: w.kind });
+        const sheet = w.kind.startsWith("webN") || w.kind.startsWith("webHub");
+        if (sheet && !this.fires.some((f) => f.x === w.x && f.y === w.y)) this.fires.push({ x: w.x, y: w.y, turns: RULES.webFireTurns });
+        if (!sheet || !this.events.some((e) => e.type === "furnitureFire" && e.kind === "webN")) this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: sheet ? "webN" : w.kind });
       }
+      if (webs.some((w) => w.kind.startsWith("webHub"))) this.checkHub();
       let spread = true;
       while (spread) {
         spread = false;
@@ -4441,13 +5117,13 @@
     /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
     burn() {
       for (const a of [this.hero, ...this.monsters]) {
-        if (!a.burning || this.over || this.isBurning(a.x, a.y)) continue;
+        if (!a.burning || this.over || cellsOf(a).some((c) => this.isBurning(c.x, c.y))) continue;
         if (this.map.get(a.x, a.y) === Tile.Water) {
           a.burning = 0;
           continue;
         }
         a.burning--;
-        const damage = rollDice(this.rng, RULES.fireDamage);
+        const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss ? RULES.bossFireFactor : 1);
         this.events.push({ type: "burn", actor: a, damage });
         if (a === this.hero) this.hurtHero(damage, "les flammes");
         else {
@@ -4458,11 +5134,14 @@
       this.igniteFurniture();
       this.burnFurniture();
       if (this.fires.length === 0) return;
+      let burnedBoss = false;
       for (const f of this.fires) {
         for (const a of [this.hero, ...this.monsters]) {
-          if (a.x !== f.x || a.y !== f.y || this.over) continue;
+          if (!occupies(a, f.x, f.y) || this.over || !this.monsters.concat(this.hero).includes(a)) continue;
+          if (a.boss && burnedBoss) continue;
+          if (a.boss) burnedBoss = true;
           a.burning = RULES.burnAfter;
-          const damage = rollDice(this.rng, RULES.fireDamage);
+          const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss ? RULES.bossFireFactor : 1);
           this.events.push({ type: "burn", actor: a, damage });
           if (a === this.hero) this.hurtHero(damage, "les flammes");
           else {
@@ -4573,12 +5252,14 @@
       if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
         return this.approachLockedDoor(x, y, ignoreFog);
       }
+      if (this.breakableAt(x, y) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
       const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isKnown(cx, cy);
       const path = this.heroPath({ x, y }, known);
       if (!path) return false;
       this.clearDoorOrders();
+      this.breakTarget = null;
       this.targetId = monster ? monster.id : null;
       this.path = path;
       this.waiting = false;
@@ -4869,6 +5550,11 @@
       } else if (this.doorAction && this.pendingDoor) {
         this.resolveDoor(this.doorAction, this.pendingDoor);
         this.doorAction = null;
+      } else if (this.breakTarget && this.path.length === 0) {
+        const at = this.breakTarget;
+        this.breakTarget = null;
+        if (Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) === 1) this.resolveBreak(at);
+        else return false;
       } else if (this.picking) {
         this.picking = this.pickUpOne();
       } else if (this.throwOrder) {
@@ -5120,6 +5806,7 @@
      * mais pas à travers deux murs qui se touchent par le coin.
      */
     inReach(a, b) {
+      if (sizeOf(a) > 1 || sizeOf(b) > 1) return gapBetween(a, b) === 1;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return false;
@@ -5171,6 +5858,7 @@
     /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
     heroHasAdvantageOn(monster) {
       if (this.hero.lastAdvantageOn === monster.id) return false;
+      if (monster.boss && monster.boss.fallen > 0) return true;
       if (!monster.alerted) return true;
       if (monster.wary) return false;
       return this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
@@ -5275,9 +5963,11 @@
         this.events.push({ type: "fountain", healed });
       } else if (t === Tile.Chest) {
         this.map.set(x, y, Tile.ChestOpen);
-        const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+        const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss ? 2 : 1);
         const theme = this.themeAt(x, y);
         const pool = theme === "forge" ? lootPool(this.depth, (k) => k === "melee" || k === "ranged") : theme === "alchimiste" ? lootPool(this.depth, (_, id) => id.startsWith("potion_")) : [];
+        const bossChest = this.current.boss && this.current.boss.chest.x === x && this.current.boss.chest.y === y;
+        if (bossChest) pool.push(...lootPool(this.depth, () => true, "rare"));
         const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
         const drops = this.spillLoot(x, y, gold, loot);
         this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
@@ -5445,6 +6135,7 @@
       const def = MONSTERS[monster.defId];
       if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
       if (def) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+      if (monster.boss) this.bossDefeated();
     }
     /**
      * Tir à l'arc vers une case. La flèche file en ligne droite : elle s'arrête sur le premier monstre rencontré
@@ -5520,6 +6211,7 @@
       else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
       this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
       if (victim) this.removeIfDead(victim);
+      else this.lureBoss(landing);
     }
     dropItem(x, y, item, count, angle) {
       const pile = angle === void 0 ? this.ground.find((g) => g.x === x && g.y === y && g.item === item && g.angle === void 0) : void 0;
@@ -5557,6 +6249,11 @@
     monstersAct() {
       for (const m of [...this.monsters]) {
         if (this.over) return;
+        if (!this.monsters.includes(m)) continue;
+        if (m.boss) {
+          this.bossAct(m);
+          continue;
+        }
         if (m.stunned) {
           m.stunned--;
           continue;
@@ -11355,6 +12052,660 @@
     ] }
   };
 
+  // src/render/sprites/boss.ts
+  var BOSS = {
+    tisseuse_idle0: { palette: { "a": "#120d08", "b": "#34283e", "c": "#766486", "d": "#ccc4b0", "e": "#18121e", "f": "#8c8068", "g": "#544462", "h": "#e63232", "i": "#ffaa96", "j": "#dcd6c4", "k": "#1c1622" }, rows: [
+      "................aaaaaaaa................",
+      "..............aabbbbbbbbaa..............",
+      ".........a...abbbbbbbbbbbba...a.........",
+      "........aca.abbbbbbbbbbbbbba.aca........",
+      ".......abcbabbbbbddddddbbbbbabcba.......",
+      ".......ababbbbbbddddddddbbbbbbaba.......",
+      "......abbaabbbbdeeddddeedbbbbaabba......",
+      ".....abba.abbbbdeeddddeedbbbba.abba.....",
+      ".....abacaabbbddddddddddddbbbaacaba.....",
+      "....abbbcbabbbbddddeeddddbbbbabcbbba....",
+      "....abbbabbbbbbddddddddddbbbbbbabbba....",
+      "...abbba.abbbbbbdffffffdbbbbbba.abbba...",
+      "..abbbbaa.abbbbbbedededbbbbbba.aabbbba..",
+      "..abbbaaca.aabbbbbbbbbbbbbbaa.acaabbba..",
+      ".abbbaabcba..abbbbbbbbbbbba..abcbaabbba.",
+      ".abbaabbabbaaaggggggggggggaaabbabbaabba.",
+      "abba.aba.abbbgccccccccccccgbbba.aba.abba",
+      "aba.abba.aabaggggggggggggggabaa.abba.aba",
+      "bbaabba.acaabgggghghhghggggbaaca.abbaabb",
+      "baabba.abcbaaggiggggggggiggaabcba.abbaab",
+      "aabba..ababbaggggghgghgggggabbaba..abbaa",
+      "abba..abbaabbggggggggggggggbbaabba..abba",
+      "aba..abba..abggggggggggggggba..abba..aba",
+      "bba..aba....agggggggggggggga....aba..abb",
+      "ba..abba....agggggggggggggga....abba..ab",
+      "a...aba.....agggggggggggggga.....aba...a",
+      "...abba......aaajjaaaajjaaa......abba...",
+      "..abba.........ajja..ajja.........abba..",
+      "..aba..........ajja..ajja..........aba..",
+      ".abbaaaaaaaaaaaajfaaaafjaaaaaaaaaaaabba.",
+      ".abakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaba.",
+      "..aakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaa..",
+      "...akkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkka...",
+      "....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...."
+    ] },
+    tisseuse_idle1: { palette: { "a": "#120d08", "b": "#34283e", "c": "#766486", "d": "#ccc4b0", "e": "#18121e", "f": "#8c8068", "g": "#544462", "h": "#e63232", "i": "#ffaa96", "j": "#dcd6c4", "k": "#1c1622" }, rows: [
+      "........................................",
+      "................aaaaaaaa................",
+      "..............aabbbbbbbbaa..............",
+      ".........a...abbbbbbbbbbbba...a.........",
+      "........aca.abbbbbbbbbbbbbba.aca........",
+      ".......abcbabbbbbddddddbbbbbabcba.......",
+      ".......ababbbbbbddddddddbbbbbbaba.......",
+      "......abbaabbbbdeeddddeedbbbbaabba......",
+      ".....abba.abbbbdeeddddeedbbbba.abba.....",
+      ".....abacaabbbddddddddddddbbbaacaba.....",
+      "....abbbcbabbbbddddeeddddbbbbabcbbba....",
+      "....abbbabbbbbbddddddddddbbbbbbabbba....",
+      "...abbba.abbbbbbdffffffdbbbbbba.abbba...",
+      "..abbbbaa.abbbbbbedededbbbbbba.aabbbba..",
+      "..abbbaaca.aabbbbbbbbbbbbbbaa.acaabbba..",
+      ".abbbaabcba..abbbbbbbbbbbba..abcbaabbba.",
+      ".abbaabbabbaaaggggggggggggaaabbabbaabba.",
+      "abba.aba.abbbgccccccccccccgbbba.aba.abba",
+      "aba.abba.aabaggggggggggggggabaa.abba.aba",
+      "bbaabba.acaabgggghghhghggggbaaca.abbaabb",
+      "baabba.abcbaaggiggggggggiggaabcba.abbaab",
+      "aabba..ababbaggggghgghgggggabbaba..abbaa",
+      "abba..abbaabbggggggggggggggbbaabba..abba",
+      "aba..abba..abggggggggggggggba..abba..aba",
+      "bba..aba....agggggggggggggga....aba..abb",
+      "ba..abba....agggggggggggggga....abba..ab",
+      "a...aba.....agggggggggggggga.....aba...a",
+      "...abba......aaajjaaaajjaaa......abba...",
+      "..abba.........ajja..ajja.........abba..",
+      "..aba..........ajja..ajja..........aba..",
+      ".abbaaaaaaaaaaaajfaaaafjaaaaaaaaaaaabba.",
+      ".abakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaba.",
+      "..aakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaa..",
+      "...akkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkka..."
+    ] },
+    tisseuse_walk0: { palette: { "a": "#120d08", "b": "#34283e", "c": "#766486", "d": "#ccc4b0", "e": "#18121e", "f": "#8c8068", "g": "#544462", "h": "#e63232", "i": "#ffaa96", "j": "#dcd6c4", "k": "#1c1622" }, rows: [
+      "..............aabbbbbbbbaa..............",
+      ".........a...abbbbbbbbbbbba...a.........",
+      "........aca.abbbbbbbbbbbbbba.aca........",
+      ".......abcbabbbbbddddddbbbbbabcba.......",
+      ".......ababbbbbbddddddddbbbbbbaba.......",
+      "......abbaabbbbdeeddddeedbbbbaabba......",
+      ".....abba.abbbbdeeddddeedbbbba.abba.....",
+      ".....abacaabbbddddddddddddbbbaacaba.....",
+      "....abbbcbabbbbddddeeddddbbbbabcbbba....",
+      "....abbbabbbbbbddddddddddbbbbbbabbba....",
+      "...abbba.abbbbbbdffffffdbbbbbba.abbba...",
+      "..abbbbaa.abbbbbbedededbbbbbba.aabbbba..",
+      "..abbbaaca.aabbbbbbbbbbbbbbaa.acaabbba..",
+      ".abbbaabcba..abbbbbbbbbbbba..abcbaabbba.",
+      ".abbaabbabbaaaggggggggggggaaabbabbaabba.",
+      "abba.aba.abbbgccccccccccccgbbba.aba.abba",
+      "aba.abba.aabaggggggggggggggabaa.abba.aba",
+      "bbaabba.acaabgggghghhghggggbaaca.abbaabb",
+      "baabba.abcbaaggiggggggggiggaabcba.abbaab",
+      "aabba..ababbaggggghgghgggggabbaba..abbaa",
+      "abba..abbaabbggggggggggggggbbaabba..abba",
+      "aba..abba..abggggggggggggggba..abba..aba",
+      "bba..aba....agggggggggggggga....aba..abb",
+      "ba..abba....agggggggggggggga....abba..ab",
+      "a...aba.....agggggggggggggga.....aba...a",
+      "...abba......aaajjaaaajjaaa......abba...",
+      "..abba.........ajja..ajja.........abba..",
+      "..aba..........ajja..ajja..........aba..",
+      ".abbaaaaaaaaaaaajfaaaafjaaaaaaaaaaaabba.",
+      ".abakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaba.",
+      "..aakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaa..",
+      "...akkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkka...",
+      "....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa....",
+      "........................................"
+    ] },
+    tisseuse_walk1: { palette: { "a": "#120d08", "b": "#34283e", "c": "#766486", "d": "#ccc4b0", "e": "#18121e", "f": "#8c8068", "g": "#544462", "h": "#e63232", "i": "#ffaa96", "j": "#dcd6c4", "k": "#1c1622" }, rows: [
+      "........................................",
+      "................aaaaaaaa................",
+      "..............aabbbbbbbbaa..............",
+      ".........a...abbbbbbbbbbbba...a.........",
+      "........aca.abbbbbbbbbbbbbba.aca........",
+      ".......abcbabbbbbddddddbbbbbabcba.......",
+      ".......ababbbbbbddddddddbbbbbbaba.......",
+      "......abbaabbbbdeeddddeedbbbbaabba......",
+      ".....abba.abbbbdeeddddeedbbbba.abba.....",
+      ".....abacaabbbddddddddddddbbbaacaba.....",
+      "....abbbcbabbbbddddeeddddbbbbabcbbba....",
+      "....abbbabbbbbbddddddddddbbbbbbabbba....",
+      "...abbba.abbbbbbdffffffdbbbbbba.abbba...",
+      "..abbbbaa.abbbbbbedededbbbbbba.aabbbba..",
+      "..abbbaaca.aabbbbbbbbbbbbbbaa.acaabbba..",
+      ".abbbaabcba..abbbbbbbbbbbba..abcbaabbba.",
+      ".abbaabbabbaaaggggggggggggaaabbabbaabba.",
+      "abba.aba.abbbgccccccccccccgbbba.aba.abba",
+      "aba.abba.aabaggggggggggggggabaa.abba.aba",
+      "bbaabba.acaabgggghghhghggggbaaca.abbaabb",
+      "baabba.abcbaaggiggggggggiggaabcba.abbaab",
+      "aabba..ababbaggggghgghgggggabbaba..abbaa",
+      "abba..abbaabbggggggggggggggbbaabba..abba",
+      "aba..abba..abggggggggggggggba..abba..aba",
+      "bba..aba....agggggggggggggga....aba..abb",
+      "ba..abba....agggggggggggggga....abba..ab",
+      "a...aba.....agggggggggggggga.....aba...a",
+      "...abba......aaajjaaaajjaaa......abba...",
+      "..abba.........ajja..ajja.........abba..",
+      "..aba..........ajja..ajja..........aba..",
+      ".abbaaaaaaaaaaaajfaaaafjaaaaaaaaaaaabba.",
+      ".abakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaba.",
+      "..aakkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaa..",
+      "...akkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkka..."
+    ] },
+    tisseuse_bite: { palette: { "a": "#120d08", "b": "#34283e", "c": "#766486", "d": "#ccc4b0", "e": "#18121e", "f": "#8c8068", "g": "#544462", "h": "#e63232", "i": "#ffaa96", "j": "#dcd6c4", "k": "#ece2c4", "l": "#1c1622" }, rows: [
+      "................aaaaaaaa................",
+      "..............aabbbbbbbbaa..............",
+      ".........a...abbbbbbbbbbbba...a.........",
+      "........aca.abbbbbbbbbbbbbba.aca........",
+      ".......abcbabbbbbddddddbbbbbabcba.......",
+      ".......ababbbbbbddddddddbbbbbbaba.......",
+      "......abbaabbbbdeeddddeedbbbbaabba......",
+      ".....abba.abbbbdeeddddeedbbbba.abba.....",
+      ".....abacaabbbddddddddddddbbbaacaba.....",
+      "....abbbcbabbbbddddeeddddbbbbabcbbba....",
+      "....abbbabbbbbbddddddddddbbbbbbabbba....",
+      "...abbba.abbbbbbdffffffdbbbbbba.abbba...",
+      "..abbbbaa.abbbbbbedededbbbbbba.aabbbba..",
+      "..abbbaaca.aabbbbbbbbbbbbbbaa.acaabbba..",
+      ".abbbaabcba..abbbbbbbbbbbba..abcbaabbba.",
+      ".abbaabbabbaaaggggggggggggaaabbabbaabba.",
+      "abba.aba.abbbgccccccccccccgbbba.aba.abba",
+      "aba.abba.aabaggggggggggggggabaa.abba.aba",
+      "bbaabba.acaabgggghghhghggggbaaca.abbaabb",
+      "baabba.abcbaaggiggggggggiggaabcba.abbaab",
+      "aabba..ababbaggggghgghgggggabbaba..abbaa",
+      "abba..abbaabbggggggggggggggbbaabba..abba",
+      "aba..abba..abggggggggggggggba..abba..aba",
+      "bba..aba....agggggggggggggga....aba..abb",
+      "ba..abba....agggggggggggggga....abba..ab",
+      "a...aba.....agggggggggggggga.....aba...a",
+      "...abba......aaajjaaaajjaaa......abba...",
+      "..abba.........kkka..akkk.........abba..",
+      "..aba..........kkka..akkk..........aba..",
+      ".abbaaaaaaaaaaakkkaaaakkkaaaaaaaaaaabba.",
+      ".aballlllllllllkkkllllkkklllllllllllaba.",
+      "..aalllllllllllkkkllllkkklllllllllllaa..",
+      "...alllllllllllkkkllllkkkllllllllllla...",
+      "....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...."
+    ] },
+    tisseuse_fallen: { palette: { "a": "#120d08", "b": "#1c1622", "c": "#34283e", "d": "#dcd6c4", "e": "#8c8068", "f": "#544462", "g": "#e63232", "h": "#766486", "i": "#ffaa96", "j": "#18121e", "k": "#ccc4b0" }, rows: [
+      "....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa....",
+      "...abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba...",
+      "..aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaa..",
+      ".acabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaca.",
+      ".accaaaaaaaaaaaadeaaaaedaaaaaaaaaaaacca.",
+      "..aca..........adda..adda..........aca..",
+      "..acca.........adda..adda.........acca..",
+      "...acca......aaaddaaaaddaaa......acca...",
+      "a...aca.....affffffffffffffa.....aca...a",
+      "ca..acca....affffffffffffffa....acca..ac",
+      "cca..aca....affffffffffffffa....aca..acc",
+      "aca..acca..acffffffffffffffca..acca..aca",
+      "acca..accaaccffffffffffffffccaacca..acca",
+      "aacca..acaccafffffgffgfffffaccaca..accaa",
+      "caacca.achcaaffiffffffffiffaachca.accaac",
+      "ccaacca.ahaacffffgfggfgffffcaaha.accaacc",
+      "aca.acca.aacaffffffffffffffacaa.acca.aca",
+      "acca.aca.acccfhhhhhhhhhhhhfccca.aca.acca",
+      ".accaaccaccaaaffffffffffffaaaccaccaacca.",
+      ".acccaachca..acccccccccccca..achcaaccca.",
+      "..acccaaha.aaccccccccccccccaa.ahaaccca..",
+      "..accccaa.accccccjkjkjkcccccca.aacccca..",
+      "...accca.acccccckeeeeeekcccccca.accca...",
+      "....acccacccccckkkkkkkkkkccccccaccca....",
+      "....accchcacccckkkkjjkkkkccccachccca....",
+      ".....acahaaccckkkkkkkkkkkkcccaahaca.....",
+      ".....acca.acccckjjkkkkjjkcccca.acca.....",
+      "......accaacccckjjkkkkjjkccccaacca......",
+      ".......acacccccckkkkkkkkccccccaca.......",
+      ".......achcaccccckkkkkkcccccachca.......",
+      "........aha.acccccccccccccca.aha........",
+      ".........a...acccccccccccca...a.........",
+      "..............aaccccccccaa..............",
+      "................aaaaaaaa................"
+    ] },
+    tisseuse_dead: { palette: { "a": "#0c0905", "b": "#130f17", "c": "#241c2b", "d": "#9a9589", "e": "#625948", "f": "#3a2f44", "g": "#a12323", "h": "#52465d", "i": "#b27669", "j": "#100c15", "k": "#8e897b" }, rows: [
+      "....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa....",
+      "...abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba...",
+      "..aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaa..",
+      ".acabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaca.",
+      ".accaaaaaaaaaaaadeaaaaedaaaaaaaaaaaacca.",
+      "..aca..........adda..adda..........aca..",
+      "..acca.........adda..adda.........acca..",
+      "...acca......aaaddaaaaddaaa......acca...",
+      "a...aca.....affffffffffffffa.....aca...a",
+      "ca..acca....affffffffffffffa....acca..ac",
+      "cca..aca....affffffffffffffa....aca..acc",
+      "aca..acca..acffffffffffffffca..acca..aca",
+      "acca..accaaccffffffffffffffccaacca..acca",
+      "aacca..acaccafffffgffgfffffaccaca..accaa",
+      "caacca.achcaaffiffffffffiffaachca.accaac",
+      "ccaacca.ahaacffffgfggfgffffcaaha.accaacc",
+      "aca.acca.aacaffffffffffffffacaa.acca.aca",
+      "acca.aca.acccfhhhhhhhhhhhhfccca.aca.acca",
+      ".accaaccaccaaaffffffffffffaaaccaccaacca.",
+      ".acccaachca..acccccccccccca..achcaaccca.",
+      "..acccaaha.aaccccccccccccccaa.ahaaccca..",
+      "..accccaa.accccccjkjkjkcccccca.aacccca..",
+      "...accca.acccccckeeeeeekcccccca.accca...",
+      "....acccacccccckkkkkkkkkkccccccaccca....",
+      "....accchcacccckkkkjjkkkkccccachccca....",
+      ".....acahaaccckkkkkkkkkkkkcccaahaca.....",
+      ".....acca.acccckjjkkkkjjkcccca.acca.....",
+      "......accaacccckjjkkkkjjkccccaacca......",
+      ".......acacccccckkkkkkkkccccccaca.......",
+      ".......achcaccccckkkkkkcccccachca.......",
+      "........aha.acccccccccccccca.aha........",
+      ".........a...acccccccccccca...a.........",
+      "..............aaccccccccaa..............",
+      "................aaaaaaaa................"
+    ] },
+    webN0: { palette: { "a": "rgba(226,222,214,0.47)", "b": "rgba(240,238,230,0.35)" }, rows: [
+      "........a.......",
+      "........a.......",
+      "........bab.b...",
+      ".......b.a...b..",
+      "......b..bbb..ba",
+      "........bbabba..",
+      "......b.baaab.b.",
+      "...aaaaabb.bb...",
+      "aaa...b..bbb..b.",
+      ".......ba....b..",
+      "........b.b.b...",
+      ".......a........",
+      ".......a........",
+      "......a.........",
+      "......a.........",
+      ".....a.........."
+    ] },
+    webN1: { palette: { "a": "rgba(226,222,214,0.47)", "b": "rgba(240,238,230,0.35)" }, rows: [
+      "...a............",
+      "...a............",
+      "....a...........",
+      "....a...........",
+      ".....a.........a",
+      "a....b.b.b...aa.",
+      ".aa.b.a...baa...",
+      "...ba.bbb.ab....",
+      ".....bbabb......",
+      "...b.b.a.b.b....",
+      ".....bbabb......",
+      "...b..bbb..b....",
+      "....b...a.b.....",
+      ".....b.bab......",
+      "........a.......",
+      "........a......."
+    ] },
+    webN2: { palette: { "a": "rgba(226,222,214,0.47)", "b": "rgba(240,238,230,0.35)" }, rows: [
+      "........a.......",
+      "........a.......",
+      "........bab.b...",
+      ".......b.a...b..",
+      "......b..bbb..ba",
+      "........bbabba..",
+      "......b.baaab.b.",
+      "........bbabb...",
+      ".....aba.bbb..b.",
+      "....a..b..a..b..",
+      ".aaa....b.b.b...",
+      "a..........a....",
+      "...........a....",
+      "...........a....",
+      "...........a....",
+      "...........a...."
+    ] },
+    webN3: { palette: { "a": "rgba(226,222,214,0.47)", "b": "rgba(240,238,230,0.35)" }, rows: [
+      "........a.......",
+      "........a.......",
+      "........a.......",
+      ".......a........",
+      ".......a........",
+      ".......a.......a",
+      "....b.bab....aa.",
+      "a..b...a.b.aa...",
+      ".aba.bbb.ab.....",
+      "....bbabb.......",
+      "..b.baa.b.b.....",
+      "....bbabb.......",
+      "..b..bbb..b.....",
+      "...b.a...b......",
+      "....bab.b.......",
+      ".....a.........."
+    ] },
+    webN4: { palette: { "a": "rgba(226,222,214,0.47)", "b": "rgba(240,238,230,0.35)" }, rows: [
+      "...a............",
+      "....a...........",
+      ".....a..........",
+      "......ab.b.b...a",
+      "......b.....baa.",
+      ".....b.abbb.ab..",
+      ".......bb.bb....",
+      ".....b.baa.b.b..",
+      ".....aabb.bb....",
+      "..aaab.abbb..b..",
+      "aa....b.....b...",
+      "......ab.b.b....",
+      ".....a..........",
+      "....a...........",
+      "...a............",
+      "..a............."
+    ] },
+    webN5: { palette: { "a": "rgba(226,222,214,0.47)", "b": "rgba(240,238,230,0.35)" }, rows: [
+      "...a............",
+      "...b.b.b........",
+      "..b.a...b.......",
+      "ab..bbb..b......",
+      "..abbabb........",
+      ".b.baaababaaaaaa",
+      "...bbabb........",
+      ".b..bbb..b......",
+      "..b...a.b.......",
+      "...b.bab........",
+      "......a.........",
+      ".......a........",
+      ".......a........",
+      ".......a........",
+      "........a.......",
+      "........a......."
+    ] },
+    webHub0: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "................",
+      "................",
+      "................",
+      "...............a",
+      "............baa.",
+      "............ab..",
+      "..........aa.b.a",
+      ".........a...aa.",
+      "........a...aab.",
+      ".......a...a...b",
+      "......a...a....a",
+      ".....aa..aa..aa.",
+      ".....a..a...a...",
+      "....ab..a...a...",
+      "....a.ba..aa..aa",
+      "...a..aabba...a."
+    ] },
+    webHub1: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "................",
+      "................",
+      "..aaaaaaaaaaaaa.",
+      "aa.............a",
+      ".......b........",
+      "..aaaaaaaaaaaa..",
+      "aa.....b......aa",
+      "................",
+      "..aaaaaaaaaaaa..",
+      "aa............aa",
+      ".......b........",
+      "b..aaaaaaaaaa.bb",
+      ".aa....b.....aa.",
+      "ab............ba",
+      "..baaaaaaaaa.b..",
+      "..aa........aa.."
+    ] },
+    webHub2: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "................",
+      "................",
+      "................",
+      "aa..............",
+      ".aa.............",
+      "..baa...........",
+      "a.b..a..........",
+      ".a....a.........",
+      "b.aa...a........",
+      "b...a...a.......",
+      "aa...a...a......",
+      ".a....a...a.....",
+      "..aa...a..ab....",
+      "a...a..a.bba....",
+      "a...a..ba..a....",
+      ".aa..ab..a..a..."
+    ] },
+    webHub3: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "...a..a..abb.a..",
+      "...a..a..a.ba...",
+      "..a..a...a..abba",
+      "..a..a..a..a...a",
+      "..a..a..a..a..a.",
+      "..a..a..a..a..a.",
+      "..a..a..a..a..a.",
+      "..a..a..a..a..a.",
+      "..a.bab.a.bab.a.",
+      "..a..a..a..a..a.",
+      "..a..a..a..a..a.",
+      "..a..a..a..a..a.",
+      "..a..a..a..a..ab",
+      "..a..a..a...a.ba",
+      "..aa..a..a.bab..",
+      "...a..a..aab.a.."
+    ] },
+    webHub4: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      ".a.b....b...b.aa",
+      "a..bbaaaaaabb..a",
+      "...aa...b.baa...",
+      "b.a..b....b..abb",
+      ".ba..aaaaaa..ab.",
+      ".a.ba.b..baab.a.",
+      ".a..abb.bbba..a.",
+      ".a..a...........",
+      "bab.a.b..bbaa.a.",
+      ".a..abb.b.ba..a.",
+      ".abba.b.bbabbba.",
+      ".ba..aaaaaa..ab.",
+      "bba..b..b.b..abb",
+      "...aa.....baa...",
+      "a...baaaaaabb..a",
+      ".a.b........b.a."
+    ] },
+    webHub5: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "..a.b.a..a..a...",
+      "..ba..a..a...a..",
+      "ab.a...a..a..a..",
+      "a...a..a..a..a..",
+      ".a..a..a..a..a..",
+      ".a..a..a..a..a..",
+      ".a..a..a..a..a..",
+      "................",
+      "baa.a.baa.a.baa.",
+      ".a..a..a..a..a..",
+      ".a..a..a..a..a..",
+      ".a..a..a..a..a..",
+      "a...a..a..a..a..",
+      "ab.a..a...a..a..",
+      "..bab.a..a..a...",
+      "..a.b.a..a..a..."
+    ] },
+    webHub6: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "...a..a.bba..aa.",
+      "....a..a...a...a",
+      "....abbaa..a....",
+      ".....a...a..aa..",
+      ".....a...a...a..",
+      "......a...aa..aa",
+      ".......a...a...b",
+      "........a...aa.b",
+      ".........a....aa",
+      "..........a...b.",
+      "...........aab..",
+      ".............a..",
+      "..............aa",
+      "................",
+      "................",
+      "................"
+    ] },
+    webHub7: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "..a.....b...aa..",
+      "..baaaaaaaaa.b..",
+      "a.b.....b.....ba",
+      ".aa..........aa.",
+      "bb.aaaaaaaaaa.bb",
+      "b..............a",
+      "aaa.....b....aa.",
+      "...aaaaaaaaaaa..",
+      "........b.......",
+      "aa............aa",
+      ".aaaaaaaaaaaaa..",
+      "................",
+      "a.......b......a",
+      ".aaaaaaaaaaaaaa.",
+      "........b.......",
+      "................"
+    ] },
+    webHub8: { palette: { "a": "rgba(200,198,190,0.43)", "b": "rgba(220,218,210,0.59)" }, rows: [
+      "..a..abba...a...",
+      "aa..a...a..a....",
+      "...aa..a.bba....",
+      "...a...a..a.....",
+      ".aa...a...a.....",
+      "a....a...a......",
+      "b..aa...a.......",
+      "b.aa...a........",
+      "aa....aa........",
+      "..b.aa..........",
+      "..ba............",
+      ".aaa............",
+      "a...............",
+      "................",
+      "................",
+      "................"
+    ] },
+    cocoonA: { palette: { "a": "#120d08", "b": "#e2ded6", "c": "#a8a096", "d": "#f6f4ec", "e": "#1c1622" }, rows: [
+      "..............",
+      "......aa......",
+      ".....abba.....",
+      "...aabbbbaa...",
+      "..acccccccca..",
+      "..addbbbbbca..",
+      "..addbbbbbca..",
+      ".adccccccccca.",
+      ".adddbbbbbcca.",
+      ".adddbbbbbcca.",
+      ".adccccccccca.",
+      ".adddbbbbbcca.",
+      "..addbbbbbca..",
+      "..acccccccca..",
+      "...aabbbbaa...",
+      "..aaaabbaaaa.c",
+      "caeeeeeeeeeea.",
+      ".aeeeeeeeeeea."
+    ] },
+    cocoonB: { palette: { "a": "#120d08", "b": "#e2ded6", "c": "#a8a096", "d": "#f6f4ec", "e": "#1c1622" }, rows: [
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "......aa......",
+      ".....abba.....",
+      "...aabbbbaa...",
+      "..acccccccca..",
+      "..addbbbbbca..",
+      ".adddbbbbbcca.",
+      ".adccccccccca.",
+      ".adddbbbbbcca.",
+      ".adddbbbbbcca.",
+      "..acccccccca..",
+      "...adbbbbba...",
+      "..aaaabbaaaa.c",
+      "caeeeeeeeeeea.",
+      ".aeeeeeeeeeea."
+    ] },
+    eggSac: { palette: { "a": "#120d08", "b": "#f6f4ec", "c": "#c6beaa", "d": "#a8a096", "e": "#1c1622" }, rows: [
+      "................",
+      "................",
+      "......aaaa......",
+      ".....abccda.....",
+      "....abbccdda....",
+      "...aabbccddaa...",
+      "..abcbbccddcda..",
+      "..abccbccdccda..",
+      ".abbccccccccdda.",
+      "..abccbcccdcda..",
+      "..abccbcccdcda..",
+      "..aaacbcccdaaa..",
+      ".aeeeeeccceeeea.",
+      ".aeeeeeeeeeeeea."
+    ] },
+    anchor: { palette: { "a": "#120d08", "b": "#e2ded6", "c": "#a8a096", "d": "#f6f4ec" }, rows: [
+      "................",
+      "................",
+      ".aaaaaaaaaaaaaa.",
+      "abbbbbbbbbbbbbba",
+      "acccccccccccccca",
+      ".aaaaaaaaaaaaada",
+      ".aaaaaaaaaaaaaad",
+      "abbbbbbbbbbbbbba",
+      "acccccccccccccca",
+      "daaaaaaaaaaaaaa.",
+      "aaaaaaaaaaaaaaa.",
+      "abbbbbbbbbbbbbba",
+      "acccccccccccccca",
+      ".aaaaaaaaaaaaaa.",
+      "................",
+      "................"
+    ] },
+    sealedStairs: { palette: { "a": "#e2ded6", "b": "#141018", "c": "#a8a096", "d": "#f6f4ec", "e": "#464a60" }, rows: [
+      "abbbbbbbcbbbbbba",
+      "babbbbbbcbbbbbab",
+      "bbabbbdbdbdbbabb",
+      "bbbabdbbcbbdabbb",
+      "beeedeeeceeadeeb",
+      "beedeadddddeedeb",
+      "bbdbbbdbcaddbbdb",
+      "bbbbbdbacbbdbbbb",
+      "ccdccdcacccdccdc",
+      "beeeedaecaedeeeb",
+      "bbdbbddbcbddbbdb",
+      "bbbdabbddddabdbb",
+      "beeadeeeceeedeeb",
+      "beaeedeeceedeaeb",
+      "babbbbdbdbdbbbab",
+      "abbbbbbbcbbbbbba"
+    ] },
+    bonesA: { palette: { "a": "#120d08", "b": "#aa9e84", "c": "#e2d8be", "d": "#8c8068" }, rows: [
+      "..........abaaaa",
+      ".....aaaa..abbbb",
+      "....acdcca..aaaa",
+      "...acccdcca.a...",
+      "...acddcdcaacaa.",
+      "...acddcdcaacaca",
+      "...accccccaacaca",
+      "...accccccabcbca",
+      "....abbbba.acaca",
+      "....aaaaaa.acaca",
+      "...abaaaabaacaca",
+      "....abbbba..a.a.",
+      ".....aaaa.....a.",
+      ".............ada",
+      "..............a.",
+      "................"
+    ] },
+    bonesB: { palette: { "a": "#120d08", "b": "#aa9e84", "c": "#e2d8be", "d": "#8c8068" }, rows: [
+      "................",
+      "a...............",
+      "................",
+      "..a.............",
+      ".aba.......a....",
+      "aabaaaaaaaaca...",
+      "bababcbccccca...",
+      "aababbbaaaaa....",
+      "bbbbbbba........",
+      "aaaabbba........",
+      "ca..aaa.aaa.....",
+      "a......abbba....",
+      ".a....aaaaa.....",
+      "adaa.abba.......",
+      ".aada.aa........",
+      "...a............"
+    ] }
+  };
+
   // src/render/motifs.ts
   var hypot = Math.hypot;
   var MOTIFS = {
@@ -11694,7 +13045,7 @@
       for (const f of game2.furnitureList()) {
         if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
           if (f.x !== x || f.y !== y) continue;
-          const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind];
+          const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind];
           if (!web) continue;
           const smooth2 = ctx.imageSmoothingEnabled;
           ctx.imageSmoothingEnabled = false;
@@ -11993,7 +13344,7 @@
   };
 
   // src/render/renderer.ts
-  var SALLES2 = { ...SALLES, ...ATELIERS };
+  var SALLES2 = { ...SALLES, ...ATELIERS, ...BOSS };
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
   var MAX_COLUMNS = 28;
@@ -12310,6 +13661,75 @@
       if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
       this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
     }
+    /** La Tisseuse (planche art/boss_v2.png) : repos, marche, morsure ; renversée sur le dos quand sa grande toile tombe. */
+    drawQueen(m, cx, cy, progress, advantage) {
+      const { ctx, tile } = this;
+      const moving = progress < 1 && (m.x !== m.fromX || m.y !== m.fromY);
+      const slash = this.slashes.find((sl) => sl.attackerId === m.id);
+      const fallen = (m.boss?.fallen ?? 0) > 0;
+      const name = fallen ? "fallen" : slash ? "bite" : moving ? progress < 0.5 ? "walk0" : "walk1" : `idle${Math.floor(Math.abs(this.time) / 520) % 2}`;
+      if (advantage) {
+        ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+        ctx.lineWidth = Math.max(2, tile * 0.08);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + tile * 0.75, tile * 0.95, tile * 0.3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      const art = BOSS[`tisseuse_${name}`];
+      const facing = m.facing ?? "down";
+      this.drawBig(art.rows, art.palette, cx, cy, facing === "left");
+      if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+        ctx.fillStyle = "rgba(255,255,255,0.18)";
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, tile * 0.9, tile * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    /** Un grand dessin (40 × 34 : 2 cases et demie de large) centré sur (cx, cy), pieds en bas du carré de 2 × 2. */
+    drawBig(rows, palette, cx, cy, mirror2) {
+      const { ctx, tile } = this;
+      const u = tile / 16;
+      const w = rows[0].length * u;
+      const h = rows.length * u;
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.translate(Math.round(cx), 0);
+      if (mirror2) ctx.scale(-1, 1);
+      ctx.drawImage(this.sprite(rows, palette), Math.round(-w / 2), Math.round(cy + tile - h), Math.round(w), Math.round(h));
+      ctx.restore();
+      ctx.imageSmoothingEnabled = smooth;
+    }
+    /** Barre de vie du boss, en haut de la carte, tant que le combat est engagé (Thomas). */
+    drawBossBar(game2) {
+      const queen = game2.bossActor();
+      if (!queen?.boss?.engaged) return;
+      const { ctx } = this;
+      const W = this.width;
+      const scale2 = 1;
+      const bw = Math.min(W * 0.7, 300 * scale2);
+      const bh = Math.round(8 * scale2);
+      const x = Math.round((W - bw) / 2);
+      const y = Math.round(28 * scale2);
+      ctx.save();
+      ctx.font = `${Math.round(16 * scale2)}px "VT323", "Courier New", monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillStyle = "#000000";
+      ctx.fillText("LA TISSEUSE", W / 2 + scale2, y - 2 * scale2 + scale2);
+      ctx.fillStyle = "#ffe6aa";
+      ctx.fillText("LA TISSEUSE", W / 2, y - 2 * scale2);
+      ctx.fillStyle = "#1a1210";
+      ctx.fillRect(x - scale2, y - scale2, bw + 2 * scale2, bh + 2 * scale2);
+      ctx.fillStyle = "#4a1a14";
+      ctx.fillRect(x, y, bw, bh);
+      ctx.fillStyle = "#c8302a";
+      ctx.fillRect(x, y, Math.round(bw * Math.max(0, queen.hp / queen.maxHp)), bh);
+      ctx.strokeStyle = "#d6aa54";
+      ctx.lineWidth = scale2;
+      ctx.strokeRect(x - scale2 / 2, y - scale2 / 2, bw + scale2, bh + scale2);
+      ctx.restore();
+    }
     drawGaze(cx, cy, facing, alerted, vision) {
       const { ctx, tile } = this;
       const angle = facing === "right" ? 0 : facing === "down" ? Math.PI / 2 : facing === "left" ? Math.PI : -Math.PI / 2;
@@ -12337,7 +13757,7 @@
       }
       ctx.restore();
     }
-    drawMonsterSprite(rows, cx, cy, mirror, shadow, palette = SCHRAT_PALETTE) {
+    drawMonsterSprite(rows, cx, cy, mirror2, shadow, palette = SCHRAT_PALETTE) {
       const { ctx, tile } = this;
       if (shadow) {
         ctx.fillStyle = "rgba(10,8,16,0.45)";
@@ -12352,7 +13772,7 @@
       ctx.imageSmoothingEnabled = false;
       ctx.save();
       ctx.translate(Math.round(cx), 0);
-      if (mirror) ctx.scale(-1, 1);
+      if (mirror2) ctx.scale(-1, 1);
       ctx.drawImage(this.sprite(rows, palette), -width / 2, top, width, size);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
@@ -12644,6 +14064,12 @@
       for (const c of this.corpses) {
         if (!game2.isVisible(c.actor.x, c.actor.y)) continue;
         ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
+        if (c.actor.boss) {
+          const art = BOSS.tisseuse_dead;
+          this.drawBig(art.rows, art.palette, ox + (c.actor.x + 1) * tile, oy + (c.actor.y + 1) * tile, false);
+          ctx.globalAlpha = 1;
+          continue;
+        }
         const spider = c.actor.defId === "araignee";
         this.drawMonsterSprite(
           spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
@@ -12662,6 +14088,13 @@
         const cx = ox + (p.x + 0.5) * tile;
         const cy = oy + (p.y + 0.5) * tile;
         const r = tile * 0.36;
+        if (m.boss) {
+          this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game2.heroHasAdvantageOn(m));
+          const burning = !!m.burning || cellsOf(m).some((c) => game2.isBurning(c.x, c.y));
+          if (m.burning && !burning) this.drawFlames(ox + p.x * tile + tile / 2, oy + p.y * tile + tile / 2, m.id, 1.2);
+          this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
+          continue;
+        }
         if (m.defId === "schrat" || m.defId === "araignee") {
           const advantage = game2.heroHasAdvantageOn(m);
           if (advantage) {
@@ -12898,6 +14331,7 @@
         ctx.fillText(f.text, fx, fy);
       }
       ctx.globalAlpha = 1;
+      this.drawBossBar(game2);
     }
     /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
     drawCell(game2, t, x, y, rx, ry, rw, rh) {
@@ -13126,7 +14560,7 @@
       case "levelup":
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
       case "death":
-        return e.actor.kind === "hero" ? null : `${e.actor.name} est vaincu.`;
+        return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
       case "bagFull":
         return "Le sac est plein : l'objet reste au sol.";
       case "stairs":
@@ -13136,10 +14570,11 @@
       case "revealed":
         return "Vous sortez de l'ombre.";
       case "furnitureFire": {
+        if (e.kind === "webN") return "Le feu prend dans la toile et court de fil en fil !";
         if (e.kind.startsWith("web")) return "Une toile d'araign\xE9e s'embrase et dispara\xEEt.";
         if (e.kind === "door") return "Une porte de bois flambe et s'effondre en cendres.";
         if (e.kind === "chest") return "Un coffre br\xFBle : son contenu roule \xE0 c\xF4t\xE9.";
-        const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : e.kind === "barrel" ? "Un tonneau" : e.kind.startsWith("crate") ? "Une caisse" : "Une chaise";
+        const name = e.kind.startsWith("bunk") ? "Un lit" : e.kind.startsWith("table") ? "La table" : e.kind.startsWith("rug") ? "Le tapis" : e.kind === "barrel" ? "Un tonneau" : e.kind.startsWith("crate") ? "Une caisse" : e.kind.startsWith("cocoon") ? "Un cocon" : e.kind === "eggSac" ? "Un sac d'\u0153ufs" : "Une chaise";
         return `${name} prend feu !`;
       }
       case "web":
@@ -13148,6 +14583,40 @@
         return `La morsure de ${e.by.name.toLowerCase() === "araign\xE9e" ? "l'araign\xE9e" : e.by.name} vous englue : votre prochain pas servira \xE0 vous d\xE9gager.`;
       case "stuck":
         return "Vous vous d\xE9p\xEAtrez des fils collants.";
+      case "webSlow":
+        return e.hub ? "La grande toile vous colle aux pieds : un tour de plus." : "Vous d\xE9chirez la toile qui vous colle aux pieds : un tour de plus.";
+      case "breakWeb":
+        if (e.kind === "cocoon") return "Vous crevez un cocon : elle ne s'en nourrira pas.";
+        if (e.kind === "eggs") return "Vous \xE9crasez un sac d'\u0153ufs.";
+        return e.left > 0 ? `Vous tranchez une amarre de la grande toile (encore ${e.left}). La toile vibre\u2026` : "Vous tranchez la derni\xE8re amarre !";
+      case "boss":
+        switch (e.what) {
+          case "awake":
+            return "La Tisseuse sent vos pas sur sa toile. Elle approche !";
+          case "retreatCocoon":
+            return "La Tisseuse recule vers un cocon pour s'en nourrir.";
+          case "retreatHub":
+            return "La Tisseuse remonte dans sa grande toile.";
+          case "retreatRing":
+            return "La Tisseuse file par une br\xE8che et dispara\xEEt dans les couloirs\u2026";
+          case "eat":
+            return `La Tisseuse d\xE9vore un cocon : elle reprend ${e.amount ?? 0} PV.`;
+          case "hatch":
+            return "Bless\xE9e, la Tisseuse fait \xE9clore ses \u0153ufs : des araign\xE9es en sortent !";
+          case "hatchNone":
+            return "Bless\xE9e, la Tisseuse cherche ses \u0153ufs\u2026 il n'en reste plus.";
+          case "lured":
+            return "La fl\xE8che fait vibrer la toile. La Tisseuse s'y pr\xE9cipite.";
+          case "fallen":
+            return "La grande toile s'effondre : la Tisseuse tombe sur le dos, sonn\xE9e !";
+          case "hubDown":
+            return "La grande toile s'effondre : la Tisseuse n'a plus de refuge.";
+          case "rise":
+            return "La Tisseuse se remet sur ses pattes.";
+          case "dead":
+            return "La Tisseuse est morte. La toile qui scellait l'escalier tombe.";
+        }
+        return null;
       case "gravel":
         return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
       case "jump":
@@ -13401,7 +14870,7 @@
     shownHp = game.hero.hp;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
-      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, escalier, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
+      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, L'ESCALIER QUI M\xC8NE AU BOSS (la Tisseuse, un plan diff\xE9rent \xE0 chaque partie), puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
@@ -13662,7 +15131,7 @@
     if (!game.sandbox) {
       const d = /* @__PURE__ */ new Date();
       const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-      const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date });
+      const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills });
       if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
       else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
       const best = loadRecords().slice(0, 3);

@@ -75,7 +75,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "levelup":
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
-      return e.actor.kind === "hero" ? null : `${e.actor.name} est vaincu.`;
+      return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
     case "bagFull":
       return "Le sac est plein : l'objet reste au sol.";
     case "stairs":
@@ -87,6 +87,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "revealed":
       return "Vous sortez de l'ombre.";
     case "furnitureFire": {
+      if (e.kind === "webN") return "Le feu prend dans la toile et court de fil en fil !";
       if (e.kind.startsWith("web")) return "Une toile d'araignée s'embrase et disparaît.";
       if (e.kind === "door") return "Une porte de bois flambe et s'effondre en cendres.";
       if (e.kind === "chest") return "Un coffre brûle : son contenu roule à côté.";
@@ -100,7 +101,11 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
               ? "Un tonneau"
               : e.kind.startsWith("crate")
                 ? "Une caisse"
-                : "Une chaise";
+                : e.kind.startsWith("cocoon")
+                  ? "Un cocon"
+                  : e.kind === "eggSac"
+                    ? "Un sac d'œufs"
+                    : "Une chaise";
       return `${name} prend feu !`;
     }
     case "web":
@@ -109,6 +114,40 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `La morsure de ${e.by.name.toLowerCase() === "araignée" ? "l'araignée" : e.by.name} vous englue : votre prochain pas servira à vous dégager.`;
     case "stuck":
       return "Vous vous dépêtrez des fils collants.";
+    case "webSlow":
+      return e.hub ? "La grande toile vous colle aux pieds : un tour de plus." : "Vous déchirez la toile qui vous colle aux pieds : un tour de plus.";
+    case "breakWeb":
+      if (e.kind === "cocoon") return "Vous crevez un cocon : elle ne s'en nourrira pas.";
+      if (e.kind === "eggs") return "Vous écrasez un sac d'œufs.";
+      return e.left > 0 ? `Vous tranchez une amarre de la grande toile (encore ${e.left}). La toile vibre…` : "Vous tranchez la dernière amarre !";
+    case "boss":
+      switch (e.what) {
+        case "awake":
+          return "La Tisseuse sent vos pas sur sa toile. Elle approche !";
+        case "retreatCocoon":
+          return "La Tisseuse recule vers un cocon pour s'en nourrir.";
+        case "retreatHub":
+          return "La Tisseuse remonte dans sa grande toile.";
+        case "retreatRing":
+          return "La Tisseuse file par une brèche et disparaît dans les couloirs…";
+        case "eat":
+          return `La Tisseuse dévore un cocon : elle reprend ${e.amount ?? 0} PV.`;
+        case "hatch":
+          return "Blessée, la Tisseuse fait éclore ses œufs : des araignées en sortent !";
+        case "hatchNone":
+          return "Blessée, la Tisseuse cherche ses œufs… il n'en reste plus.";
+        case "lured":
+          return "La flèche fait vibrer la toile. La Tisseuse s'y précipite.";
+        case "fallen":
+          return "La grande toile s'effondre : la Tisseuse tombe sur le dos, sonnée !";
+        case "hubDown":
+          return "La grande toile s'effondre : la Tisseuse n'a plus de refuge.";
+        case "rise":
+          return "La Tisseuse se remet sur ses pattes.";
+        case "dead":
+          return "La Tisseuse est morte. La toile qui scellait l'escalier tombe.";
+      }
+      return null;
     case "gravel":
       return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":

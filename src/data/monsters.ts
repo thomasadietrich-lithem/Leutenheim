@@ -26,6 +26,12 @@ export interface MonsterDef {
   chaseSteps?: number;
   /** Chance qu'une morsure qui porte englue le héros (il perd son prochain déplacement). */
   webBite?: number;
+  /** Morsure qui empoisonne parfois : chance, PV perdus par tour, nombre de tours. */
+  poisonBite?: { chance: number; damage: number; turns: number };
+  /** Taille en cases (2 : elle occupe un carré de 2 × 2 ; sa case `x, y` est celle du haut à gauche). */
+  size?: number;
+  /** Boss : ne se pousse pas, ne se repeuple pas ; son comportement est à part (`src/core/boss.ts`). */
+  boss?: boolean;
 }
 
 export const MONSTERS = {
@@ -68,6 +74,29 @@ export const MONSTERS = {
     chaseSteps: 2,
     webBite: 1 / 3,
   },
+  // BOSS DE LA SECTION 1 (étage 5 ; planche art/boss_v2.png, Thomas : « implémente », 2026-11-11). Valeurs (C).
+  tisseuse: {
+    id: "tisseuse",
+    name: "la Tisseuse",
+    family: "araignées",
+    description: "Reine des araignées, grosse comme un chariot, l'abdomen marqué d'un crâne. Elle sent chaque vibration de sa toile, avance pour mordre puis recule dans l'ombre.",
+    // Rééquilibrée le 2026-11-11 (proposée à 45 PV, +5, 2d6 : un héros niveau 5 qui fonce perdait toujours).
+    hp: 36,
+    armorClass: 13,
+    attackBonus: 4,
+    damage: { count: 1, sides: 8, bonus: 1 },
+    vision: 2,
+    xpMin: 30,
+    xpMax: 30,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 1,
+    color: "#d8d2c0",
+    blood: "green",
+    poisonBite: { chance: 1 / 4, damage: 1, turns: 3 },
+    size: 2,
+    boss: true,
+  },
 } satisfies Record<string, MonsterDef>;
 
 export type MonsterId = keyof typeof MONSTERS;
@@ -95,9 +124,12 @@ export function spawnsForDepth(depth: number): FloorSpawns {
     // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
     sleepChance: Math.max(0.2, 0.65 - (depth - 1) * 0.1),
     entries: [
-      { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor(depth / 2), 4) },
+      // Meutes de Kobolds : 1 aux étages 1-2, 2 aux étages 3-4, 3 à l'étage 5… (2026-11-11 : un cran plus doux qu'avant,
+      // la chute de l'étage 3 à l'étage 4 était trop raide).
+      { monster: "schrat", weight: 1, packMin: 1, packMax: Math.min(1 + Math.floor((depth - 1) / 2), 4) },
       // Les araignées arrivent à l'étage 3, avec les toiles (Thomas) ; elles chassent seules ou à deux.
-      ...(depth >= 3 ? [{ monster: "araignee" as const, weight: 0.25, packMin: 1, packMax: 2 }] : []),
+      // (2026-11-11) : seules aux étages 3-4, jusqu'à deux ensuite.
+      ...(depth >= 3 ? [{ monster: "araignee" as const, weight: 0.25, packMin: 1, packMax: depth >= 5 ? 2 : 1 }] : []),
     ],
   };
 }

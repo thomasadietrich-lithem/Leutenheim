@@ -59,6 +59,52 @@ def anchor():
     return s
 
 
+def anchor_bands():
+    """Amarre posée SUR la colonne du jeu (le dessin de la colonne est celui des cases) : bandes de soie nouées."""
+    s = Sprite(16, 16)
+    for y in (3, 7, 11):
+        s.r(1, y, 14, 2, "silk")
+        s.r(1, y + 1, 14, 1, "silk_d")
+    s.p(14, 5, "silk_l").p(15, 6, "silk_l").p(0, 9, "silk_l")
+    return s.done()
+
+
+def giant_frames():
+    """Images de la Tisseuse pour le jeu : repos (respire), marche, morsure, renversée (sur le dos, sonnée), morte."""
+    base = giant().img()
+    W, H = base.size
+    def shift(im, dy):
+        out = Image.new("RGBA", (W, H))
+        out.alpha_composite(im, (0, dy))
+        return out
+    bite = base.copy()
+    d = ImageDraw.Draw(bite)
+    d.rectangle([15, 27, 17, 32], fill=(236, 226, 196, 255))
+    d.rectangle([22, 27, 24, 32], fill=(236, 226, 196, 255))
+    flipped = base.transpose(Image.FLIP_TOP_BOTTOM)
+    dead = Image.eval(flipped, lambda v: v)
+    a = np.array(dead).astype(float)
+    a[..., :3] *= 0.7
+    dead = Image.fromarray(a.astype("uint8"), "RGBA")
+    return {"idle0": base, "idle1": shift(base, 1), "walk0": shift(base, -1), "walk1": shift(base, 1), "bite": bite,
+            "fallen": flipped, "dead": dead}
+
+
+def export_sprites():
+    """Dessins de l'étage du boss pour le jeu (noms = genres de meubles, et images de la Tisseuse)."""
+    hub = web_hub().img()
+    bones = skeleton().img()
+    pad = Image.new("RGBA", (32, 16))
+    pad.alpha_composite(bones, (3, 0))
+    sprites = {f"tisseuse_{k}": v for k, v in giant_frames().items()}
+    sprites.update({f"webN{i}": web_cell(s).img() for i, s in enumerate((5, 38, 71, 13, 52, 90))})
+    sprites.update({f"webHub{i}": hub.crop(((i % 3) * 16, (i // 3) * 16, (i % 3) * 16 + 16, (i // 3) * 16 + 16)) for i in range(9)})
+    sprites.update({"cocoonA": cocoon(True).img(), "cocoonB": cocoon(False).img(), "eggSac": egg_sac().img(),
+                    "anchor": anchor_bands().img(), "sealedStairs": sealed_stairs().img(),
+                    "bonesA": pad.crop((0, 0, 16, 16)), "bonesB": pad.crop((16, 0, 32, 16))})
+    return sprites
+
+
 if __name__ == "__main__":
     IW, IH = 35, 20
     W, H = (IW + 2) * T, (IH + 2) * T

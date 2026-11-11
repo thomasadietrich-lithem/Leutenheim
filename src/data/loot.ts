@@ -54,8 +54,8 @@ export function goldRange(depth: number, size: "small" | "medium" | "large"): [n
 export const SECTION_GUARANTEES: { what: "pomme" | "equipment" | "gem" | "potion" | "fleches"; count: number; floors: [number, number] }[] = [
   { what: "pomme", count: 1, floors: [1, 1] },
   // Thomas : 10 flèches dans la première section, en un lot ou en trois (tiré au début de la partie).
-  { what: "fleches", count: 1, floors: [1, 5] },
-  { what: "equipment", count: 2, floors: [1, 5] },
-  { what: "gem", count: 1, floors: [1, 5] },
-  { what: "potion", count: 1, floors: [1, 5] },
+  { what: "fleches", count: 1, floors: [1, 4] },
+  { what: "equipment", count: 2, floors: [1, 4] },
+  { what: "gem", count: 1, floors: [1, 4] },
+  { what: "potion", count: 1, floors: [1, 4] },
 ];

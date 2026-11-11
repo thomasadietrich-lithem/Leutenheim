@@ -11,6 +11,8 @@ export interface RunRecord {
   hero: string;
   /** Date de la partie (jj/mm/aaaa). */
   date: string;
+  /** Boss vaincus pendant la partie (la Tisseuse…). */
+  bosses?: number;
 }
 
 const KEY = "leutenheim.records";
@@ -40,5 +42,5 @@ export function addRecord(record: RunRecord): number {
 
 /** Une ligne lisible : « 1. Étage 5 · Niv 4 · 32 or — un Kobold (11/11/2026) ». */
 export function recordLine(r: RunRecord, rank: number): string {
-  return `${rank}. Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or — ${r.cause} (${r.date})`;
+  return `${rank}. Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or${r.bosses ? " · Boss vaincu" : ""} — ${r.cause} (${r.date})`;
 }

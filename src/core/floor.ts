@@ -6,6 +6,7 @@ import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
 import { Furniture, furnitureCells, RoomTheme } from "../world/furnish";
 import { Motif } from "../world/grounds";
+import type { BossLayout } from "../world/bossFloor";
 import { THEMED_ROOMS } from "../data/themedRooms";
 import { GameMap, Point, Tile } from "../world/map";
 import { Rng } from "./rng";
@@ -49,6 +50,8 @@ export interface FloorState {
   themes: RoomTheme[];
   /** Motifs gravés au sol (décor). */
   motifs: Motif[];
+  /** Étage du boss : le plan de la nichée (grande toile, colonnes, brèches, coffre, escalier scellé). */
+  boss?: BossLayout;
 }
 
 /** Un piège : sa case, sa sorte (pointes par défaut, pour les anciennes sauvegardes), et la fosse déjà effondrée. */
@@ -258,9 +261,10 @@ export function guaranteedLoot(runSeed: number, depth: number): { item: ItemId; 
 }
 
 /** Les objets des tables de butin (peu communs et rares compris) d'une sorte donnée, permis à cet étage. */
-export function lootPool(depth: number, keep: (kind: string, id: string) => boolean): ItemId[] {
+export function lootPool(depth: number, keep: (kind: string, id: string) => boolean, only?: Rarity): ItemId[] {
   const ids: ItemId[] = [];
   for (const rarity of ["common", "uncommon", "rare"] as Rarity[]) {
+    if (only && rarity !== only) continue;
     for (const l of LOOT[rarity]) {
       if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item)) continue;
       if (keep(ITEMS[l.item].kind, l.item)) ids.push(l.item);

@@ -161,6 +161,18 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   bookcaseL: { blocks: true, w: 1, h: 2, burns: true },
   bookcaseR: { blocks: true, w: 1, h: 2, burns: true },
   grimoire: { blocks: true, w: 1, h: 1, burns: true },
+  // ÉTAGE DU BOSS (la Tisseuse, planche art/boss_v2.png) : nappes de toile (6 dessins, elles ralentissent et brûlent de
+  // proche en proche), grande toile centrale (9 cases), cocons (sa nourriture) et sacs d'œufs (ils éclosent), à crever d'un
+  // coup ; amarres nouées aux colonnes, à couper ; escalier scellé par la toile ; restes d'aventurier (2 cases, plats).
+  ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((i) => [`webN${i}`, { blocks: false, w: 1, h: 1, burns: true, flat: true }])),
+  ...Object.fromEntries([0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => [`webHub${i}`, { blocks: false, w: 1, h: 1, burns: true, flat: true }])),
+  cocoonA: { blocks: true, w: 1, h: 1, burns: true },
+  cocoonB: { blocks: true, w: 1, h: 1, burns: true },
+  eggSac: { blocks: true, w: 1, h: 1, burns: true },
+  anchor: { blocks: false, w: 1, h: 1, burns: false },
+  sealedStairs: { blocks: true, w: 1, h: 1, burns: false },
+  bonesA: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true },
 };
 
 /** Meuble peint avec le sol (tapis, toile, rigole) : il prend exactement la lumière de sa case. */

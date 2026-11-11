@@ -43,4 +43,31 @@ export interface Actor {
   patrol?: { x: number; y: number; w: number; h: number };
   /** Destination de promenade d'un monstre qui se balade. */
   goal?: { x: number; y: number };
+  /** Taille en cases (2 : un carré de 2 × 2 dont `x, y` est la case du haut à gauche). 1 par défaut. */
+  size?: number;
+  /** Boss : où il en est de son combat (avance, recule, tapi…), voir `src/core/boss.ts`. */
+  boss?: BossState;
+}
+
+/** État de combat de la Tisseuse (sauvegardé avec elle). */
+export interface BossState {
+  /** AVANCE vers le héros pour mordre, RECULE (vers un cocon, sa grande toile ou l'anneau), ou reste TAPIE quelques tours. */
+  phase: "advance" | "retreat" | "lurk";
+  /** Morsures depuis qu'elle s'est avancée, et ses PV à ce moment-là. */
+  bites: number;
+  hpMark: number;
+  /** Où elle va (case du haut à gauche), et pour quoi faire en arrivant. */
+  dest?: { x: number; y: number; eat?: { x: number; y: number } };
+  /** Tours qu'elle reste encore tapie. */
+  lurk: number;
+  /** Dernière case où elle a senti le héros. */
+  target?: { x: number; y: number };
+  /** Leurre : une flèche plantée dans une toile l'attire ici, encore tant de tours. */
+  lure?: { x: number; y: number; turns: number };
+  /** Renversée sur le dos (grande toile effondrée) : sonnée encore tant de tours. */
+  fallen: number;
+  /** Les œufs ont éclos (à mi-vie), la grande toile tient encore, le combat est engagé. */
+  hatched: boolean;
+  hubUp: boolean;
+  engaged: boolean;
 }

@@ -14,11 +14,13 @@ import { ARAIGNEE } from "./sprites/araignee";
 import { PIEGES } from "./sprites/pieges";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
+import { BOSS } from "./sprites/boss";
 
 /** Dessins des salles à thème récentes (cuisine, prière, torture, forge, alchimiste). */
-const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS };
+const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS, ...BOSS };
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { furnitureCells } from "../world/furnish";
+import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
@@ -412,6 +414,79 @@ export class Renderer {
     if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
     // Le profil « touché » regarde à droite : on le retourne s'il regarde à gauche, comme les autres profils.
     this.drawMonsterSprite(rows, cx, cy, facing === "left", true);
+  }
+
+  /** La Tisseuse (planche art/boss_v2.png) : repos, marche, morsure ; renversée sur le dos quand sa grande toile tombe. */
+  private drawQueen(m: Actor, cx: number, cy: number, progress: number, advantage: boolean): void {
+    const { ctx, tile } = this;
+    const moving = progress < 1 && (m.x !== m.fromX || m.y !== m.fromY);
+    const slash = this.slashes.find((sl) => sl.attackerId === m.id);
+    const fallen = (m.boss?.fallen ?? 0) > 0;
+    const name = fallen ? "fallen" : slash ? "bite" : moving ? (progress < 0.5 ? "walk0" : "walk1") : `idle${Math.floor(Math.abs(this.time) / 520) % 2}`;
+    if (advantage) {
+      ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, tile * 0.08);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + tile * 0.75, tile * 0.95, tile * 0.3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const art = BOSS[`tisseuse_${name}`];
+    const facing = m.facing ?? "down";
+    this.drawBig(art.rows, art.palette, cx, cy, facing === "left");
+    // Touchée : un bref voile blanc.
+    if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, tile * 0.9, tile * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** Un grand dessin (40 × 34 : 2 cases et demie de large) centré sur (cx, cy), pieds en bas du carré de 2 × 2. */
+  private drawBig(rows: readonly string[], palette: Record<string, string>, cx: number, cy: number, mirror: boolean): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const w = rows[0].length * u;
+    const h = rows.length * u;
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(Math.round(cx), 0);
+    if (mirror) ctx.scale(-1, 1);
+    ctx.drawImage(this.sprite(rows, palette), Math.round(-w / 2), Math.round(cy + tile - h), Math.round(w), Math.round(h));
+    ctx.restore();
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /** Barre de vie du boss, en haut de la carte, tant que le combat est engagé (Thomas). */
+  private drawBossBar(game: Game): void {
+    const queen = game.bossActor();
+    if (!queen?.boss?.engaged) return;
+    const { ctx } = this;
+    const W = this.width;
+    const scale = 1;
+    const bw = Math.min(W * 0.7, 300 * scale);
+    const bh = Math.round(8 * scale);
+    const x = Math.round((W - bw) / 2);
+    const y = Math.round(28 * scale);
+    ctx.save();
+    ctx.font = `${Math.round(16 * scale)}px "VT323", "Courier New", monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "#000000";
+    ctx.fillText("LA TISSEUSE", W / 2 + scale, y - 2 * scale + scale);
+    ctx.fillStyle = "#ffe6aa";
+    ctx.fillText("LA TISSEUSE", W / 2, y - 2 * scale);
+    ctx.fillStyle = "#1a1210";
+    ctx.fillRect(x - scale, y - scale, bw + 2 * scale, bh + 2 * scale);
+    ctx.fillStyle = "#4a1a14";
+    ctx.fillRect(x, y, bw, bh);
+    ctx.fillStyle = "#c8302a";
+    ctx.fillRect(x, y, Math.round(bw * Math.max(0, queen.hp / queen.maxHp)), bh);
+    ctx.strokeStyle = "#d6aa54";
+    ctx.lineWidth = scale;
+    ctx.strokeRect(x - scale / 2, y - scale / 2, bw + scale, bh + scale);
+    ctx.restore();
   }
 
   private drawGaze(cx: number, cy: number, facing: Facing, alerted: boolean, vision: number): void {
@@ -835,6 +910,12 @@ export class Renderer {
     for (const c of this.corpses) {
       if (!game.isVisible(c.actor.x, c.actor.y)) continue;
       ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
+      if (c.actor.boss) {
+        const art = BOSS.tisseuse_dead;
+        this.drawBig(art.rows, art.palette, ox + (c.actor.x + 1) * tile, oy + (c.actor.y + 1) * tile, false);
+        ctx.globalAlpha = 1;
+        continue;
+      }
       const spider = c.actor.defId === "araignee";
       this.drawMonsterSprite(
         spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
@@ -854,6 +935,14 @@ export class Renderer {
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
       const r = tile * 0.36;
+      if (m.boss) {
+        // La Tisseuse : 2 × 2 cases ; son dessin est centré sur son carré.
+        this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game.heroHasAdvantageOn(m));
+        const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
+        if (m.burning && !burning) this.drawFlames(ox + p.x * tile + tile / 2, oy + p.y * tile + tile / 2, m.id, 1.2);
+        this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
+        continue;
+      }
       if (m.defId === "schrat" || m.defId === "araignee") {
         const advantage = game.heroHasAdvantageOn(m);
         if (advantage) {
@@ -1120,6 +1209,7 @@ export class Renderer {
       ctx.fillText(f.text, fx, fy);
     }
     ctx.globalAlpha = 1;
+    this.drawBossBar(game);
   }
 
   /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */

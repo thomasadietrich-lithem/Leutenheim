@@ -6,7 +6,7 @@ import { Slot } from "../data/items";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
 import { Point } from "../world/map";
-import { BloodStain, Debris, GroundItem, Secret } from "./floor";
+import { BloodStain, Debris, GroundItem, Secret, Trap } from "./floor";
 
 /**
  * Sauvegarde d'une partie : de simples données (texte JSON), écrites sur l'appareil à chaque tour.
@@ -39,7 +39,7 @@ export interface SavedFloor {
   alarmStage?: number;
   rested: boolean;
   secrets: Secret[];
-  traps: Point[];
+  traps: Trap[];
   searched: number[];
   furniture?: Furniture[];
   themes?: RoomTheme[];
@@ -71,6 +71,8 @@ export interface SaveData {
   weaponPoison: number;
   hasteTurns: number;
   fires: { x: number; y: number; turns: number }[];
+  /** Nuages de gaz empoisonné (absent des sauvegardes d'avant les pièges v3). */
+  gas?: { x: number; y: number; turns: number }[];
   bagSize: { cols: number; rows: number };
   /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
   torchTurns?: number;

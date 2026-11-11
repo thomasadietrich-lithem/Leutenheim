@@ -3,6 +3,7 @@ import { Actor } from "../entities/actor";
 import { ItemId } from "../data/items";
 import { Point } from "../world/map";
 import { Room } from "../world/generator";
+import { TrapKind } from "../data/traps";
 import { PathId } from "../data/skills";
 
 /** Ce qui s'est passé pendant un tour, dans l'ordre : l'affichage les lit, les met en scène, puis vide la liste. */
@@ -40,6 +41,21 @@ export type GameEvent =
   | { type: "web"; escaped: boolean; roll: number; bonus: number }
   | { type: "webbed"; by: Actor }
   | { type: "stuck" }
+  | {
+      type: "maiden";
+      action: "pick" | "break" | "key";
+      x: number;
+      y: number;
+      d20: number;
+      bonus: number;
+      total: number;
+      success: boolean;
+      damage: number;
+      gold: number;
+      item: ItemId;
+      count: number;
+      drops: Point[];
+    }
   /** Le héros marche sur du gravier : ça crisse ; `alerted` monstres l'ont entendu. */
   | { type: "gravel"; x: number; y: number; alerted: number }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
@@ -47,7 +63,7 @@ export type GameEvent =
   /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */
   | { type: "push"; target: Actor; d20: number; bonus: number; total: number; success: boolean; moved: boolean; slam: number }
   /** Quelqu'un a marché sur un piège. */
-  | { type: "trap"; x: number; y: number; victim: Actor; damage: number }
+  | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */
   | { type: "search"; phase: "start" | "interrupted" }
   | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; room: Room }

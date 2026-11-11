@@ -220,7 +220,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Schrat qui fait sa ronde, cache à fouiller, piège. Au sud-est : Schrats à pousser, escalier. Au sud-ouest : un Schrat en ronde. Au sud : fontaine et coffre (clef au sol). Bouton « Réveiller » : tous les monstres foncent sur vous.",
+        "Ici : les nouveaux objets (vous êtes niveau 4). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE. Au sud-est : Kobolds à pousser, piège à gaz, escalier, puis la SALLE DE PRIÈRE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -252,8 +252,14 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" }> =>
-  e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || (e.type === "door" && e.action !== "key");
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" }> =>
+  e.type === "attack" ||
+  e.type === "hide" ||
+  e.type === "jump" ||
+  e.type === "searched" ||
+  e.type === "push" ||
+  e.type === "maiden" ||
+  (e.type === "door" && e.action !== "key");
 const byFoe = (e: GameEvent): boolean => e.type === "attack" && e.attacker.kind === "monster";
 
 /** Flèches déjà parties à l'écran (pour ne pas les faire voler deux fois). */
@@ -354,6 +360,20 @@ function reveal(e: GameEvent): void {
         sfx.play(e.success ? "unlock" : "click");
       }
     }
+  } else if (e.type === "maiden") {
+    // Sarcophage à pointes : désamorcé ou forcé ; raté, une pointe jaillit (le héros saigne), il s'ouvre quand même.
+    landDie(e.d20, e.success ? "hit" : "miss", false);
+    renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
+    if (e.damage > 0) {
+      renderer.addFloatingText(game.hero.x, game.hero.y, `Pointe ! −${e.damage}`, "#ff6b7a");
+      renderer.heroHurt();
+      pulse(hpBar, "hit");
+      shownHp = game.hero.hp;
+      sfx.play("hurt");
+    } else {
+      renderer.addFloatingText(e.x, e.y, e.action === "pick" ? "Désamorcé" : "CRAC !", "#ffd75e");
+      sfx.play(e.action === "pick" ? "unlock" : "break");
+    }
   } else if (e.type === "arrow") {
     if (!launched.has(e)) sfx.play("bow");
     launchArrow(e);
@@ -413,7 +433,11 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "potion") {
     sfx.play("heal");
   } else if (e.type === "poison") {
-    renderer.monsterHurt(e.actor.id);
+    if (e.actor.kind === "hero") {
+      renderer.heroHurt();
+      pulse(hpBar, "hit");
+      shownHp = game.hero.hp;
+    } else renderer.monsterHurt(e.actor.id);
     renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
   } else if (e.type === "used") {
     sfx.play(e.healed !== undefined ? "heal" : "pickup");
@@ -444,8 +468,10 @@ function reveal(e: GameEvent): void {
     sfx.play(!e.success ? "miss" : e.slam > 0 ? "thud" : "hit");
   } else if (e.type === "trap") {
     const hero = e.victim.kind === "hero";
-    renderer.addFloatingText(e.x, e.y, `Piège ! −${e.damage}`, "#ff6b7a");
-    sfx.play(hero ? "hurt" : "hit");
+    renderer.trapSprung(e.x, e.y);
+    const label = e.kind === "gas" ? "Gaz !" : e.kind === "pit" ? `Fosse ! −${e.damage}` : e.kind === "needle" ? `Aiguille ! −${e.damage}` : `Piège ! −${e.damage}`;
+    renderer.addFloatingText(e.x, e.y, label, e.kind === "gas" || e.kind === "needle" ? "#9fe060" : "#ff6b7a");
+    sfx.play(e.damage === 0 ? "gravel" : hero ? "hurt" : "hit");
     if (hero) {
       renderer.heroHurt();
       pulse(hpBar, "hit");
@@ -1127,6 +1153,8 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   const list: { id: keyof typeof STATUS_ICONS; name: string; detail: string }[] = [];
   if (game.hidden) list.push({ id: "cache", name: "Caché", detail: "Les monstres ne vous remarquent qu'au contact. Votre première attaque a l'avantage." });
   if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 dégâts par tour. Sortez des flammes !" });
+  if (game.hero.poison) list.push({ id: "poison", name: "Empoisonné", detail: `Vous perdez ${game.hero.poison.damage} PV par tour. Encore ${game.hero.poison.turns} tours.` });
+  if (game.hero.stuck) list.push({ id: "ralenti", name: "Englué", detail: "Votre prochain pas servira à vous dégager. Vous pouvez encore frapper." });
   if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
@@ -1692,6 +1720,12 @@ function frame(now: number): void {
   doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
   $("door-key").hidden = !doorOptions.includes("key");
   $("door-pick").hidden = !doorOptions.includes("pick");
+  // Devant un sarcophage à pointes, les deux mêmes boutons : désamorcer (agilité) ou forcer (force).
+  const maiden = game.pendingDoor !== null && game.maidenAt(game.pendingDoor.x, game.pendingDoor.y) !== null;
+  const pickText = maiden ? "Désamorcer" : "Crocheter";
+  const breakText = maiden ? "Forcer" : "Enfoncer";
+  if ($("door-pick").textContent !== pickText) $("door-pick").textContent = pickText;
+  if ($("door-break").textContent !== breakText) $("door-break").textContent = breakText;
   $("door-break").hidden = !doorOptions.includes("break");
   // En arrivant devant une porte verrouillée, le héros bute dessus.
   if (game.pendingDoor && !doorWasPending && !game.usingKey()) {

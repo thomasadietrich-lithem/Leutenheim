@@ -2153,6 +2153,7 @@ test("dortoir de la salle d'essai : lits contre le mur du haut, table, chaises, 
   assert.ok(list.some((f) => f.kind.startsWith("chair") && f.kind !== "chairFallen"));
   assert.ok(list.some((f) => f.kind.startsWith("rug")));
   for (const f of list) {
+    if (FURNITURE_KINDS[f.kind].wall) continue; // vitrail : dans le mur
     for (const c of furnitureCells(f)) {
       const blocks = FURNITURE_KINDS[f.kind].blocks;
       assert.equal(game.map.isWalkable(c.x, c.y), !blocks, `${f.kind} en ${c.x},${c.y}`);
@@ -2172,19 +2173,23 @@ test("dortoir de la salle d'essai : lits contre le mur du haut, table, chaises, 
   }
 });
 
-test("dortoir dans le donjon : au plus un par étage, jamais de passage coupé", () => {
-  let dortoirs = 0;
-  for (let seed = 1; seed <= 60; seed++) {
+test("salles à thème dans le donjon : 0 à 2 par étage, de thèmes différents, jamais de passage coupé", () => {
+  const counts: Record<string, number> = {};
+  for (let seed = 1; seed <= 120; seed++) {
     const floor = generateFloor(seed, DEFAULT_FLOOR);
     const before = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
+    const chestsBefore = floor.map.tiles.filter((t) => t === Tile.Chest).length;
     const { furniture, themes } = furnishFloor(floor, seed);
-    assert.ok(themes.length <= 1);
-    dortoirs += themes.length;
+    assert.ok(themes.length <= 2);
+    assert.equal(new Set(themes.map((t) => t.id)).size, themes.length, "deux fois le même thème");
+    for (const t of themes) counts[t.id] = (counts[t.id] ?? 0) + 1;
+    const chests = floor.map.tiles.filter((t) => t === Tile.Chest).length - chestsBefore;
     const blocked = furniture.filter((f) => FURNITURE_KINDS[f.kind].blocks).reduce((n, f) => n + furnitureCells(f).length, 0);
     const after = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
-    assert.equal(after, before - blocked, `graine ${seed} : un meuble coupe un passage`);
+    // Un coffre se compte comme une case où l'on marche : il ne change rien.
+    assert.equal(after, before - blocked, `graine ${seed} : un meuble coupe un passage (${chests} coffres)`);
   }
-  assert.ok(dortoirs >= 10, `dortoirs : ${dortoirs}`);
+  for (const id of ["dortoir", "cuisine", "priere", "torture"]) assert.ok((counts[id] ?? 0) >= 8, `${id} : ${counts[id] ?? 0}`);
 });
 
 test("tapis : il étouffe les pas, et brûle tout entier", () => {
@@ -2332,9 +2337,10 @@ test("dortoir : 0 à 2 coffres ; se cacher contre un meuble ; combats coupés en
   for (let seed = 1; seed <= 60; seed++) {
     const floor = generateFloor(seed, DEFAULT_FLOOR);
     const before = floor.map.tiles.filter((t) => t === Tile.Chest).length;
-    furnishFloor(floor, seed);
+    const { themes } = furnishFloor(floor, seed);
     const after = floor.map.tiles.filter((t) => t === Tile.Chest).length;
-    assert.ok(after - before <= 2);
+    // Dortoir : 0 à 2 coffres ; salle de prière : 1 (derrière le pupitre).
+    assert.ok(after - before <= 2 + (themes.some((t) => t.id === "priere") ? 1 : 0));
     chests += after - before;
   }
   assert.ok(chests > 0, "des coffres dans les dortoirs");
@@ -2500,4 +2506,90 @@ test("feu : une toile d'araignée flambe et laisse de la cendre ; tonneaux et ca
   game.tick();
   assert.ok(!game.furnitureList().includes(web), "la toile a brûlé");
   assert.ok(game.furnitureList().some((f) => f.kind === "ashes1" && f.x === web.x && f.y === web.y), "il en reste de la cendre");
+});
+
+test("salle d'essai : cuisine, salle de prière et salle de torture, avec tous leurs meubles", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const kinds = new Set(game.furnitureList().map((f) => f.kind));
+  for (const k of ["shelf2", "counter", "ham", "barrique", "drain", "altar", "pew", "pewBroken", "runnerA", "vitrail0", "rackTable", "toolRack", "maiden", "bloodDrain"]) {
+    assert.ok(kinds.has(k), `${k} manque`);
+  }
+  assert.equal(game.floorStyle(33, 5), "kitchen");
+  assert.equal(game.floorStyle(33, 25), "torture");
+  assert.equal(game.floorStyle(5, 5), undefined);
+  // Toutes les salles restent accessibles, coffre de la salle de prière compris.
+  const dist = distanceField(game.map, game.hero);
+  for (const r of game.rooms) {
+    let ok = false;
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (dist[game.map.index(x, y)] >= 0) ok = true;
+    assert.ok(ok, `salle (${r.x},${r.y}) inaccessible`);
+  }
+  const chest = { x: 33, y: 12 };
+  assert.equal(game.map.get(chest.x, chest.y), Tile.Chest);
+  assert.notEqual(dist[game.map.index(chest.x, chest.y)], -1, "coffre derrière l'autel inaccessible");
+});
+
+test("sarcophage à pointes : désamorcer ou forcer ; raté, une pointe (1d4) ; il s'ouvre et lâche son butin", () => {
+  let hurt = 0;
+  let clean = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const game = new Game(seed, undefined, undefined, undefined, true);
+    game.setPeaceful(true);
+    const maiden = game.furnitureList().find((f) => f.kind === "maiden")!;
+    const side = game.map.isWalkable(maiden.x + 1, maiden.y) ? 1 : -1;
+    Object.assign(game.hero, { x: maiden.x + side, y: maiden.y, fromX: maiden.x + side, fromY: maiden.y });
+    assert.ok(game.setDestination(maiden.x, maiden.y, true));
+    assert.deepEqual(game.doorOptions(), ["pick", "break"]);
+    const groundBefore = game.ground.length;
+    const hp = game.hero.hp;
+    assert.ok(game.actOnDoor(seed % 2 ? "pick" : "break"));
+    game.tick();
+    assert.equal(maiden.kind, "maidenOpen");
+    assert.equal(game.ground.length, groundBefore + 2, "or et objet à côté");
+    const ev = game.events.find((e) => e.type === "maiden");
+    assert.ok(ev && ev.type === "maiden");
+    if (ev.success) clean++;
+    else {
+      hurt++;
+      assert.ok(hp - game.hero.hp >= 1 && hp - game.hero.hp <= 4);
+    }
+  }
+  assert.ok(hurt > 0 && clean > 0, `raté ${hurt}, réussi ${clean}`);
+});
+
+test("pièges v3 : pointes, fosse (on en remonte), aiguille et gaz empoisonnés", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  const kinds = game.traps().map((t) => t.kind);
+  assert.deepEqual([...kinds].sort(), ["gas", "needle", "pit", "spikes"]);
+  const walkOn = (kind: string) => {
+    const t = game.traps().find((q) => q.kind === kind)!;
+    Object.assign(game.hero, { x: t.x - 1, y: t.y, fromX: t.x - 1, fromY: t.y, hp: game.hero.maxHp, poison: undefined, stuck: undefined });
+    assert.ok(game.moveBy(1, 0));
+    game.tick();
+    assert.deepEqual([game.hero.x, game.hero.y], [t.x, t.y]);
+    return t;
+  };
+  walkOn("needle");
+  assert.ok(game.hero.poison, "aiguille : empoisonné");
+  const before = game.hero.hp;
+  game.wait();
+  game.tick();
+  assert.ok(game.hero.hp < before, "le poison ronge le héros");
+  const pit = walkOn("pit");
+  assert.ok(pit.sprung, "la fosse reste effondrée");
+  assert.equal(game.hero.stuck, 1);
+  walkOn("gas");
+  assert.ok(game.gas.length >= 4, "nuage sur la case et ses voisines");
+  assert.ok(game.hero.poison);
+  for (let i = 0; i < 4; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.equal(game.gas.length, 0, "le gaz se dissipe");
+  // Dans le donjon : pas de poison avant l'étage 2, pas de gaz avant l'étage 3.
+  for (let seed = 1; seed <= 40; seed++) {
+    const g = new Game(seed);
+    assert.ok(g.traps().every((t) => t.kind === "spikes" || t.kind === "pit"));
+  }
 });

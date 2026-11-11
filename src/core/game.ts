@@ -3,6 +3,7 @@ import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
 import { PATH_LEVEL, PathId, PATHS, SECONDARY_LEVELS, SkillId, StatId } from "../data/skills";
 import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
+import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
@@ -19,7 +20,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, Debris, FloorState, GroundItem, guaranteedLoot, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, Debris, FloorState, GroundItem, Trap, guaranteedLoot, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -229,6 +230,7 @@ export class Game {
     }
     this.useFloor(state, depth);
     this.fires = [];
+    this.gas = [];
     this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
@@ -264,7 +266,7 @@ export class Game {
       state.nextRespawn = this.turn + RULES.respawnTurns;
       placeKey(state, this.rng, this.hero);
       placeSecrets(state, depth, floorSeed(this.runSeed, depth));
-      placeTraps(state, floorSeed(this.runSeed, depth));
+      placeTraps(state, floorSeed(this.runSeed, depth), depth);
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
       placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
@@ -415,7 +417,7 @@ export class Game {
   }
 
   /** Les pièges de l'étage. */
-  traps(): readonly Point[] {
+  traps(): readonly Trap[] {
     return this.current.traps;
   }
 
@@ -426,7 +428,7 @@ export class Game {
   /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
   private avoidTraps(to: Point, base?: (x: number, y: number) => boolean, from: Point = this.hero): (x: number, y: number) => boolean {
     // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
-    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!this.isTrap(x, y) && !this.isBurning(x, y)));
+    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!this.isTrap(x, y) && !this.isBurning(x, y) && !this.isGassed(x, y)));
   }
 
   /**
@@ -479,17 +481,71 @@ export class Game {
   }
 
   /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
+  /**
+   * Un piège se déclenche sous ce personnage (pièges v3) : pointes (dégâts), fosse (dégâts, puis un tour à en remonter ;
+   * elle reste effondrée), aiguille empoisonnée (une piqûre et du poison), gaz (un nuage empoisonné sur la case et ses
+   * quatre voisines). Il reste armé.
+   */
   private springTrap(actor: Actor): void {
-    if (!this.isTrap(actor.x, actor.y)) return;
-    const damage = rollDice(this.rng, RULES.trapDamage);
-    this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
-    this.bleed(actor, actor);
-    if (actor.kind === "hero") {
-      this.hurtHero(damage);
-    } else {
-      actor.hp = Math.max(0, actor.hp - damage);
-      this.removeIfDead(actor);
+    const trap = this.current.traps.find((t) => t.x === actor.x && t.y === actor.y);
+    if (!trap) return;
+    const kind = trap.kind ?? "spikes";
+    const def = TRAPS[kind];
+    const damage = def.damage ? rollDice(this.rng, def.damage) : 0;
+    this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage, kind });
+    if (kind === "pit") trap.sprung = true;
+    if (def.stuck) actor.stuck = Math.max(actor.stuck ?? 0, def.stuck);
+    if (def.poison && kind === "needle") this.poisonActor(actor, def.poison);
+    if (def.gasTurns) {
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = trap.x + dx;
+        const y = trap.y + dy;
+        if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.Furniture) continue;
+        const old = this.gas.find((g) => g.x === x && g.y === y);
+        if (old) old.turns = Math.max(old.turns, def.gasTurns);
+        else this.gas.push({ x, y, turns: def.gasTurns });
+      }
+      this.gasPoison();
     }
+    if (damage > 0) {
+      this.bleed(actor, actor);
+      if (actor.kind === "hero") {
+        this.hurtHero(damage);
+      } else {
+        actor.hp = Math.max(0, actor.hp - damage);
+        this.removeIfDead(actor);
+      }
+    }
+  }
+
+  /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
+  private poisonActor(actor: Actor, poison: { damage: number; turns: number }): void {
+    actor.poison = { ...poison };
+    this.events.push({ type: "poisoned", actor });
+  }
+
+  /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
+  gas: { x: number; y: number; turns: number }[] = [];
+
+  isGassed(x: number, y: number): boolean {
+    return this.gas.some((g) => g.x === x && g.y === y);
+  }
+
+  /** Qui se tient dans le gaz est empoisonné (s'il ne l'est pas déjà plus longtemps). */
+  private gasPoison(): void {
+    const poison = TRAPS.gas.poison!;
+    for (const a of [this.hero, ...this.monsters]) {
+      if (!this.isGassed(a.x, a.y) || (a.poison && a.poison.turns >= poison.turns)) continue;
+      this.poisonActor(a, poison);
+    }
+  }
+
+  /** Fin de tour : le gaz empoisonne, puis se dissipe. */
+  private gasTick(): void {
+    if (this.gas.length === 0) return;
+    this.gasPoison();
+    for (const g of this.gas) g.turns--;
+    this.gas = this.gas.filter((g) => g.turns > 0);
   }
 
   /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
@@ -558,6 +614,16 @@ export class Game {
   /** Le thème de la salle (salle de fouille), ou `null`. */
   roomTheme(index: number): string | null {
     return this.current.themes.find((t) => t.room === index)?.id ?? null;
+  }
+
+  /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
+  floorStyle(x: number, y: number): "kitchen" | "torture" | undefined {
+    for (const t of this.current.themes) {
+      if (t.id !== "cuisine" && t.id !== "torture") continue;
+      const r = this.rooms[t.room];
+      if (r && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t.id === "cuisine" ? "kitchen" : "torture";
+    }
+    return undefined;
   }
 
   /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
@@ -644,6 +710,7 @@ export class Game {
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
       fires: this.fires,
+      gas: this.gas,
       bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
       torchTurns: this.torchTurns,
       sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : undefined,
@@ -725,6 +792,7 @@ export class Game {
     game.useFloor(game.floors.get(saved.depth)!, saved.depth);
     game.deepest = saved.deepest;
     game.fires = saved.fires;
+    game.gas = saved.gas ?? [];
     game.refreshStats();
     game.hidden = saved.hidden;
     for (const a of [game.hero, ...game.monsters]) {
@@ -1169,7 +1237,8 @@ export class Game {
         if (def.blocks) this.map.set(c.x, c.y, Tile.Floor);
         else this.map.touch(c.x, c.y);
       }
-      if (!f.kind.startsWith("rug")) this.current.furniture.push({ x: f.x, y: f.y, kind: def.w >= 2 ? "ashes2" : "ashes1" });
+      // Les meubles plats (tapis, tapis de velours) brûlent et disparaissent ; les autres laissent des cendres.
+      if (!def.flat) this.current.furniture.push({ x: f.x, y: f.y, kind: def.w >= 2 ? "ashes2" : "ashes1" });
       else for (let dy = -1; dy <= def.h; dy++) for (let dx = -1; dx <= def.w; dx++) this.map.touch(f.x + dx, f.y + dy);
     }
   }
@@ -1322,7 +1391,8 @@ export class Game {
       if (!this.pickUp()) this.wait();
       return true;
     }
-    if (this.map.get(x, y) === Tile.DoorLocked && (ignoreFog || this.isExplored(x, y))) {
+    // Porte verrouillée, ou sarcophage à pointes fermé : on va devant, puis on choisit quoi en faire.
+    if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
       return this.approachLockedDoor(x, y, ignoreFog);
     }
     const seen = this.monsterAt(x, y);
@@ -1385,6 +1455,7 @@ export class Game {
 
   /** Devant une porte verrouillée, la clef de l'étage sert d'elle-même : ce sera l'action du prochain tour. */
   private useKeyIfAny(): void {
+    if (this.pendingDoor && this.maidenAt(this.pendingDoor.x, this.pendingDoor.y)) return;
     if (this.inventory.count("clef", this.depth) > 0) this.doorAction = "key";
   }
 
@@ -1417,6 +1488,8 @@ export class Game {
   doorOptions(): DoorAction[] {
     const door = this.pendingDoor;
     if (!door) return [];
+    // Sarcophage : désamorcer (« pick ») ou forcer (« break »), toujours possibles ; la clef n'y sert à rien.
+    if (this.maidenAt(door.x, door.y)) return ["pick", "break"];
     const options: DoorAction[] = [];
     // Une clef n'ouvre que les portes de l'étage où on l'a trouvée.
     if (this.inventory.count("clef", this.depth) > 0) options.push("key");
@@ -1444,7 +1517,7 @@ export class Game {
   /** Déplacement ou attaque d'une case (clavier). */
   moveBy(dx: number, dy: number): boolean {
     if (this.over) return false;
-    if ((dx === 0 || dy === 0) && this.map.get(this.hero.x + dx, this.hero.y + dy) === Tile.DoorLocked) {
+    if ((dx === 0 || dy === 0) && (this.map.get(this.hero.x + dx, this.hero.y + dy) === Tile.DoorLocked || this.maidenAt(this.hero.x + dx, this.hero.y + dy))) {
       return this.approachLockedDoor(this.hero.x + dx, this.hero.y + dy, false);
     }
     if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
@@ -1779,11 +1852,13 @@ export class Game {
       rounds = 0;
       this.clock += 1;
     }
+    this.heroPoisonTick();
     for (let r = 0; r < rounds && !this.over; r++) {
       this.poisonTick();
       this.monstersAct();
     }
     this.burn();
+    this.gasTick();
     if (this.hasteTurns > 0) this.hasteTurns--;
     if (resting) this.afterRestTurn();
     if (wasSearching) this.afterSearchTurn();
@@ -1952,6 +2027,16 @@ export class Game {
   }
 
   /** Le poison ronge les monstres empoisonnés, au début de leur tour. */
+  /** Le héros empoisonné (aiguille, gaz) perd ses PV une fois par tour, quelle que soit la vitesse de son arme. */
+  private heroPoisonTick(): void {
+    if (!this.hero.poison || this.over) return;
+    const damage = this.hero.poison.damage;
+    this.hero.poison.turns--;
+    if (this.hero.poison.turns <= 0) this.hero.poison = undefined;
+    this.events.push({ type: "poison", actor: this.hero, damage });
+    this.hurtHero(damage);
+  }
+
   private poisonTick(): void {
     for (const m of [...this.monsters]) {
       if (!m.poison) continue;
@@ -2095,6 +2180,14 @@ export class Game {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
       const loot = rollLoot(this.rng, this.depth);
+      const drops = this.spillLoot(x, y, gold, loot);
+      this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
+    }
+  }
+
+  /** Le contenu d'un coffre (ou d'un sarcophage) tombe à côté : renvoie les cases de l'or et de l'objet. */
+  private spillLoot(x: number, y: number, gold: number, loot: { item: ItemId; count: number }): Point[] {
+    {
       // Ce que contient le coffre tombe à côté (Thomas) : l'or sur une case voisine, l'objet sur une autre.
       // Jamais sur un décor (meuble, tapis, chaise, cendres, autre coffre, eau, escalier, porte) : seulement du sol nu
       // (Thomas) ; à défaut, une case plus loin ; à défaut, sur la case du coffre.
@@ -2116,11 +2209,47 @@ export class Game {
       const itemAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : goldAt;
       this.dropItem(goldAt.x, goldAt.y, "or", gold);
       this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
-      this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops: [goldAt, itemAt] });
+      return [goldAt, itemAt];
+    }
+  }
+
+  /** Sarcophage à pointes encore fermé sur cette case ? */
+  maidenAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind === "maiden" && f.x === x && f.y === y) ?? null;
+  }
+
+  /**
+   * Sarcophage à pointes (salle de torture) : DÉSAMORCER (d20 + agilité) ou FORCER (d20 + force, bruyant) contre
+   * `maidenDc`. Réussi : il s'ouvre sans mal. Raté : une pointe jaillit (1d4), mais il s'ouvre quand même. Dedans, un
+   * squelette, de l'or et un objet, qui tombent à côté.
+   */
+  private resolveMaiden(action: DoorAction, at: Point): void {
+    const maiden = this.maidenAt(at.x, at.y);
+    this.pendingDoor = null;
+    if (!maiden) return;
+    const bonus = action === "pick" ? this.disengageBonus() : this.pushBonus();
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.maidenDc);
+    const damage = success ? 0 : rollDice(this.rng, RULES.maidenSpike);
+    maiden.kind = "maidenOpen";
+    this.map.touch(at.x, at.y);
+    if (action === "break") {
+      this.reveal();
+      this.raiseAlarm(RULES.alarmMaiden, at);
+    }
+    const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+    const loot = rollLoot(this.rng, this.depth);
+    const drops = this.spillLoot(at.x, at.y, gold, loot);
+    this.events.push({ type: "maiden", action, x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
+    if (damage > 0) {
+      this.bleed(this.hero, this.hero);
+      this.hurtHero(damage);
     }
   }
 
   private resolveDoor(action: DoorAction, door: Point): void {
+    if (this.maidenAt(door.x, door.y)) return this.resolveMaiden(action, door);
     if (action === "key") {
       // La clef ouvre sans jet, sans alerter personne (juste le bruit de la serrure) ; elle est consommée.
       if (!this.inventory.take("clef", 1, this.depth)) return;

@@ -31,9 +31,9 @@ export interface MonsterDef {
 export const MONSTERS = {
   schrat: {
     id: "schrat",
-    name: "Schrat",
-    family: "schrats",
-    description: "Petit pillard écailleux des premières galeries. Il dort volontiers, mais une fois réveillé il ne lâche plus sa proie.",
+    name: "Kobold",
+    family: "kobolds",
+    description: "Petit pillard écailleux à cornes des premières galeries. Il dort volontiers, mais une fois réveillé il ne lâche plus sa proie.",
     hp: 7,
     armorClass: 12,
     attackBonus: 2,

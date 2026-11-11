@@ -14,6 +14,34 @@ export interface ThemedRoomDef {
 }
 
 export const THEMED_ROOMS: ThemedRoomDef[] = [
+  // Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce ») ; butins (C).
+  {
+    id: "cuisine",
+    name: "Cuisine",
+    loot: [
+      { item: "pomme", min: 2, max: 4, weight: 3 },
+      { item: "or", min: 6, max: 12, weight: 2 },
+      { item: "potion_vitesse", min: 1, max: 1, weight: 1 },
+    ],
+  },
+  {
+    id: "priere",
+    name: "Salle de prière",
+    loot: [
+      { item: "or", min: 10, max: 18, weight: 3 },
+      { item: "amethyste", min: 1, max: 1, weight: 2 },
+      { item: "potion_jouvence", min: 1, max: 1, weight: 1, minDepth: 3 },
+    ],
+  },
+  {
+    id: "torture",
+    name: "Salle de torture",
+    loot: [
+      { item: "or", min: 8, max: 16, weight: 3 },
+      { item: "potion_poison", min: 1, max: 1, weight: 2 },
+      { item: "fleche_poison", min: 2, max: 4, weight: 1 },
+    ],
+  },
   {
     id: "dortoir",
     name: "Dortoir",
@@ -29,7 +57,7 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
  * Meubles : ceux qui bloquent leur(s) case(s), leur taille en cases, s'ils brûlent. Les chaises debout, le tapis et les
  * cendres ne bloquent pas. Un meuble qui brûle met le feu à ses voisins (à une case) et laisse un tas de cendres.
  */
-export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: number; burns: boolean }> = {
+export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: number; burns: boolean; flat?: boolean; wall?: boolean }> = {
   bunkA: { blocks: true, w: 2, h: 1, burns: true },
   bunkB: { blocks: true, w: 2, h: 1, burns: true },
   table: { blocks: true, w: 2, h: 1, burns: true },
@@ -37,8 +65,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   chairR: { blocks: false, w: 1, h: 1, burns: true },
   chairL: { blocks: false, w: 1, h: 1, burns: true },
   chairFallen: { blocks: true, w: 1, h: 1, burns: true },
-  rug: { blocks: false, w: 3, h: 2, burns: true },
-  rugB: { blocks: false, w: 3, h: 2, burns: true },
+  rug: { blocks: false, w: 3, h: 2, burns: true, flat: true },
+  rugB: { blocks: false, w: 3, h: 2, burns: true, flat: true },
   ashes1: { blocks: false, w: 1, h: 1, burns: false },
   ashes2: { blocks: false, w: 2, h: 1, burns: false },
   // Trainards (planche art/trainards_v3.png, validée) : tonneau, caisse, deux caisses empilées. On se cache derrière.
@@ -46,8 +74,46 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   crate: { blocks: true, w: 1, h: 1, burns: true },
   crateStack: { blocks: true, w: 1, h: 1, burns: true },
   // Toiles d'araignée (dès l'étage 3), dans un coin de salle sans torche : TL = coin en haut à gauche, etc. Elles collent.
-  webTL: { blocks: false, w: 1, h: 1, burns: true },
-  webTR: { blocks: false, w: 1, h: 1, burns: true },
-  webBL: { blocks: false, w: 1, h: 1, burns: true },
-  webBR: { blocks: false, w: 1, h: 1, burns: true },
+  webTL: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  webTR: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  webBL: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  webBR: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  // CUISINE v2 : étagère de 2 cases et jambon au crochet (contre le mur du fond), plan de travail, barrique sur chevalet,
+  // sac de céréales ; rigole et évacuation peintes dans le carrelage.
+  shelf2: { blocks: true, w: 2, h: 1, burns: true },
+  ham: { blocks: true, w: 1, h: 1, burns: false },
+  counter: { blocks: true, w: 2, h: 1, burns: true },
+  barrique: { blocks: true, w: 2, h: 1, burns: true },
+  grainSack: { blocks: true, w: 1, h: 1, burns: true },
+  gutterH: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  drain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  // SALLE DE PRIÈRE v1 : bancs (2 cases), autel (3 cases, le pupitre au milieu), candélabres (0 à 3 bougies), tapis de
+  // velours sur l'allée (3 morceaux), vitraux dans le mur du fond (sur la case de mur).
+  pew: { blocks: true, w: 2, h: 1, burns: true },
+  pewBroken: { blocks: true, w: 2, h: 1, burns: true },
+  altar: { blocks: true, w: 3, h: 1, burns: false },
+  candelBare: { blocks: true, w: 1, h: 1, burns: false },
+  candelA: { blocks: true, w: 1, h: 1, burns: false },
+  candelB: { blocks: true, w: 1, h: 1, burns: false },
+  candelC: { blocks: true, w: 1, h: 1, burns: false },
+  runnerA: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  vitrail1: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // SALLE DE TORTURE v1 : table à chaînes (2 cases), râtelier, planche au mur, corde à crochet (mur du fond),
+  // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille.
+  rackTable: { blocks: true, w: 2, h: 1, burns: true },
+  toolRack: { blocks: true, w: 1, h: 1, burns: true },
+  wallBoard: { blocks: true, w: 1, h: 1, burns: true },
+  rope: { blocks: true, w: 1, h: 1, burns: true },
+  maiden: { blocks: true, w: 1, h: 1, burns: false },
+  maidenOpen: { blocks: true, w: 1, h: 1, burns: false },
+  bloodGutterV: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  bloodDrain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
 };
+
+/** Meuble peint avec le sol (tapis, toile, rigole) : il prend exactement la lumière de sa case. */
+export function isFlat(kind: string): boolean {
+  return !!FURNITURE_KINDS[kind]?.flat;
+}

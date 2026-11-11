@@ -122,8 +122,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             : `${name} est bloqué, mais sonné.`;
       return `Vous poussez ${name} : ${roll(e.d20, e.bonus, e.total)} — ${outcome}`;
     }
-    case "trap":
-      return e.victim.kind === "hero" ? `Vous marchez sur un piège : ${e.damage} dégâts.` : `${e.victim.name} tombe sur un piège : ${e.damage} dégâts.`;
+    case "trap": {
+      const hero = e.victim.kind === "hero";
+      const who = hero ? "Vous" : e.victim.name;
+      if (e.kind === "pit") return hero ? `La dalle cède : vous tombez dans une fosse (${e.damage} dégâts) et devez en remonter.` : `${who} tombe dans une fosse : ${e.damage} dégâts.`;
+      if (e.kind === "needle") return hero ? `Une aiguille empoisonnée vous pique (${e.damage} dégât).` : `${who} marche sur une aiguille empoisonnée.`;
+      if (e.kind === "gas") return hero ? "Pschhh… un gaz vert s'échappe de la grille !" : `${who} libère un nuage de gaz vert.`;
+      return hero ? `Vous marchez sur un piège à pointes : ${e.damage} dégâts.` : `${who} tombe sur un piège à pointes : ${e.damage} dégâts.`;
+    }
     case "search":
       return e.phase === "start" ? "Vous fouillez la salle…" : "Fouille interrompue : un ennemi approche !";
     case "searched": {
@@ -138,6 +144,11 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           : `Vous vous êtes reposé : +${e.healed} PV.`;
     case "fountain":
       return e.healed > 0 ? `Vous buvez à la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez à la fontaine. Elle se tarit.";
+    case "maiden": {
+      const how = e.action === "pick" ? "Vous désamorcez le sarcophage" : "Vous forcez le sarcophage";
+      const outcome = e.success ? "réussi, il s'ouvre sans mal." : `raté, une pointe jaillit : ${e.damage} dégâts. Il s'ouvre quand même.`;
+      return `${how} : ${roll(e.d20, e.bonus, e.total)} — ${outcome} Un squelette y est pris ; ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombent à côté.`;
+    }
     case "chest":
       return `Le coffre s'ouvre : ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombent à côté.`;
     case "used":
@@ -172,9 +183,11 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "torchOut":
       return "Votre torche s'éteint.";
     case "poisoned":
-      return `${e.actor.name} est empoisonné.`;
+      return e.actor.kind === "hero" ? "Vous êtes empoisonné !" : `${e.actor.name} est empoisonné.`;
     case "poison":
-      return `Le poison ronge ${e.actor.name} : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
+      return e.actor.kind === "hero"
+        ? `Le poison vous ronge : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`
+        : `Le poison ronge ${e.actor.name} : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
     default:
       return null;
   }

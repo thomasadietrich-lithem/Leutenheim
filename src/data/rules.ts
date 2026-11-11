@@ -75,6 +75,8 @@ export const RULES = {
   chairsMin: 1,
   chairsMax: 3,
   fallenChairChance: 0.5,
+  /** Salles à thème par étage : chance d'en avoir une, puis (si oui) une deuxième, d'un autre thème (C). */
+  themedRoomChances: [0.7, 0.35] as number[],
   /** Coffres du dortoir (0 à 2) et chance qu'une pomme soit dans l'assiette de la table. */
   dortoirChests: [0, 2] as [number, number],
   tableAppleChance: 0.5,
@@ -103,9 +105,12 @@ export const RULES = {
   pushDc: 10,
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
   pushSlamDamage: { count: 1, sides: 6, bonus: 0 },
-  /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ) en ait un, et dégâts à qui marche dessus. */
+  /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ et salles à thème) en ait un. Sortes et effets : `src/data/traps.ts`. */
   trapRoomChance: 0.15,
-  trapDamage: { count: 1, sides: 4, bonus: 1 },
+  /** Sarcophage à pointes (salle de torture) : difficulté pour désamorcer (agilité) ou forcer (force), pointe si raté, bruit si forcé. */
+  maidenDc: 11,
+  maidenSpike: { count: 1, sides: 4, bonus: 0 },
+  alarmMaiden: 5,
   /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
   restTurns: 20,
   /** Part des points de vie manquants rendue par un repos mené à son terme. */

@@ -1,7 +1,7 @@
 """Exporte vers le jeu les dessins validés le 2026-11-11 : l'araignée (art/araignee_v1.png), la toile d'araignée et
 les trainards (tonneau, caisse, caisses empilées ; art/trainards_v3.png). Lancer depuis la racine du dépôt :
     python3 art/export_jeu_v4.py
-Écrit src/render/sprites/araignee.ts et src/render/sprites/trainards.ts (lignes de lettres + une palette par dessin).
+Écrit src/render/sprites/araignee.ts, trainards.ts et pieges.ts (pièges v3, validés « Ok fonce ») (lignes de lettres + une palette par dessin).
 """
 import os, sys, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -9,6 +9,42 @@ import numpy as np
 from PIL import Image
 from araignee_v1 import spider
 from trainards_v3 import barrel_v3, crate_v3, crate_stack_v3, cobweb
+from pieges_v3 import spikes, pit, needle, gas
+import cuisine_v2 as cu
+import salles_v1 as sa
+from pix import hexrgb
+
+
+def flat(draw):
+    """Petit dessin plat de 16 × 16 (rigole, évacuation) peint avec le sol."""
+    a = np.zeros((16, 16, 4), np.uint8)
+    def px(x, y, c):
+        if 0 <= x < 16 and 0 <= y < 16:
+            a[y, x] = hexrgb(c) + (255,)
+    draw(px)
+    return Image.fromarray(a, "RGBA")
+
+
+def gutter_h(px):
+    for x in range(16):
+        px(x, 7, "#a8a6b2"); px(x, 8, "#2a2632"); px(x, 9, "#3a2228")
+
+
+def drain(px, red=False):
+    for y in range(16):
+        for x in range(16):
+            d = ((x - 8) / 5.2) ** 2 + ((y - 8) / 4.2) ** 2
+            if d <= 0.62:
+                px(x, y, ("#3a0e12" if red else "#141018") if x % 2 else "#5a5f74")
+            elif d <= 1.0:
+                px(x, y, "#8a90a8" if y < 8 else "#4e5570")
+
+
+def blood_gutter_v(px):
+    for y in range(16):
+        px(7, y, "#7a7488"); px(8, y, "#5a1418"); px(9, y, "#5a1418")
+        if y % 5 == 0:
+            px(8, y, "#8a2228")
 
 LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
@@ -55,3 +91,20 @@ if __name__ == "__main__":
           {"barrel": barrel_v3().img(), "crate": crate_v3().img(), "crateStack": crate_stack_v3().img(),
            "webTL": web, "webTR": web.transpose(Image.FLIP_LEFT_RIGHT), "webBL": web.transpose(Image.FLIP_TOP_BOTTOM),
            "webBR": web.transpose(Image.ROTATE_180)})
+    write("src/render/sprites/pieges.ts", "PIEGES",
+          "Pièges v3 (art/pieges_v3.png, validée le 2026-11-11) : armé / déclenché ; 18 pixels de large (1 de débord de chaque côté), le gaz a 6 pixels de vapeur au-dessus.",
+          {"spikes": spikes().img(), "spikesSprung": spikes("sprung").img(), "pit": pit().img(), "pitSprung": pit("sprung").img(),
+           "needle": needle().img(), "needleSprung": needle("sprung").img(),
+           "gas0": gas("armed", 0).img(), "gas1": gas("armed", 1).img(), "gas2": gas("armed", 2).img(), "gasSprung": gas("sprung").img()})
+    runner = sa.runner(1, 3).img()
+    write("src/render/sprites/salles.ts", "SALLES",
+          "Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce »). Les noms finissant par 0, 1, 2 sont les images d'une animation.",
+          {"shelf2": cu.shelf2().img(), "counter": cu.counter().img(), "grainSack": cu.grain_sack().img(),
+           **{f"ham{i}": cu.wall_hook(i).img() for i in range(3)}, **{f"barrique{i}": cu.barrique(i).img() for i in range(3)},
+           "gutterH": flat(gutter_h), "drain": flat(drain), "bloodGutterV": flat(blood_gutter_v), "bloodDrain": flat(lambda p: drain(p, True)),
+           "pew": sa.pew().img(), "pewBroken": sa.pew(True).img(), "altar": sa.altar().img(), "candelBare": sa.candelabrum(0, 0).img(),
+           **{f"candel{n}{i}": sa.candelabrum("ABC".index(n) + 1, i).img() for n in "ABC" for i in range(3)},
+           "runnerA": runner.crop((0, 0, 16, 16)), "runnerB": runner.crop((0, 16, 16, 32)), "runnerC": runner.crop((0, 32, 16, 48)),
+           "vitrail0": sa.stained_glass(0).img(), "vitrail1": sa.stained_glass(1).img(),
+           "rackTable": sa.rack_table().img(), "toolRack": sa.tool_rack().img(), "wallBoard": sa.wall_board().img(),
+           **{f"rope{i}": sa.rope_hook(i).img() for i in range(3)}, "maiden": sa.maiden("closed").img(), "maidenOpen": sa.maiden("open").img()})

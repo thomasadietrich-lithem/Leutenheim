@@ -8,11 +8,12 @@ import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
-import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
 import { ARAIGNEE } from "./sprites/araignee";
-import { FURNITURE_KINDS } from "../data/themedRooms";
+import { PIEGES } from "./sprites/pieges";
+import { SALLES } from "./sprites/salles";
+import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { furnitureCells } from "../world/furnish";
 import { COLORS, TilePainter } from "./tiles";
 
@@ -193,6 +194,13 @@ export class Renderer {
   }
 
   /** Le héros vient d'être blessé. */
+  /** Moment où chaque piège (par case « x,y ») s'est déclenché : il se montre « déclenché » un instant. */
+  private trapFlash = new Map<string, number>();
+
+  trapSprung(x: number, y: number): void {
+    this.trapFlash.set(`${x},${y}`, performance.now());
+  }
+
   heroHurt(): void {
     this.hurtAge = 0;
   }
@@ -755,9 +763,29 @@ export class Renderer {
       ctx.imageSmoothingEnabled = false;
       ctx.globalAlpha = game.isVisible(p.x, p.y) ? 1 : 0.45;
       // Calé sur les mêmes pixels entiers que la case (sinon le piège « gigote » d'un pixel en glissant, comme les cases avant).
-      const rx = this.snap(ox + p.x * tile);
-      const ry = this.snap(oy + p.y * tile);
-      ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), rx, ry, this.snap(ox + (p.x + 1) * tile) - rx, this.snap(oy + (p.y + 1) * tile) - ry);
+      // Pièges v3 (planche art/pieges_v3.png) : la dalle trahit le piège ; il se montre « déclenché » un instant quand il
+      // part (la fosse reste effondrée) ; le gaz bouillonne sous sa grille (3 images).
+      const kind = p.kind ?? "spikes";
+      const flash = (this.trapFlash.get(`${p.x},${p.y}`) ?? -Infinity) > performance.now() - 700;
+      const name =
+        kind === "gas"
+          ? flash
+            ? "gasSprung"
+            : `gas${Math.floor(this.time / 260 + p.x) % 3}`
+          : kind === "pit"
+            ? p.sprung
+              ? "pitSprung"
+              : "pit"
+            : flash
+              ? `${kind}Sprung`
+              : kind;
+      const art = PIEGES[name];
+      const u = tile / 16;
+      const w = art.rows[0].length;
+      const h = art.rows.length;
+      const rx = this.snap(ox + p.x * tile - u);
+      const ry = this.snap(oy + (p.y + 1) * tile + u - h * u);
+      ctx.drawImage(this.sprite(art.rows, art.palette), rx, ry, this.snap(rx + w * u) - rx, this.snap(ry + h * u) - ry);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
@@ -904,6 +932,21 @@ export class Renderer {
       this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
     }
     this.drawSmoke(game, ox, oy, dt);
+    // Gaz empoisonné (piège à gaz) : des volutes vertes, translucides, qui ondulent sur leurs cases.
+    for (const g of game.gas) {
+      if (!game.isVisible(g.x, g.y)) continue;
+      for (let i = 0; i < 4; i++) {
+        const t = this.time / 700 + i * 1.7 + g.x * 0.9 + g.y * 1.3;
+        const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.22) * tile;
+        const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.18) * tile;
+        const r = tile * (0.32 + 0.08 * Math.sin(t * 0.8));
+        const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+        grad.addColorStop(0, `rgba(150,220,110,${0.22 * Math.min(1, g.turns / 2)})`);
+        grad.addColorStop(1, "rgba(150,220,110,0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
+      }
+    }
     // Repos en cours : petite jauge au-dessus du héros.
     // Fouille en cours : la loupe oscille au-dessus de la tête du héros, comme s'il examinait le sol.
     const searching = game.searchProgress();
@@ -1085,8 +1128,8 @@ export class Renderer {
    */
   private drawFurniture(game: Game, ox: number, oy: number, flicker: number, phase: "early" | "late"): void {
     const list = [...game.furnitureList()].sort((a, b) => {
-      const ra = a.kind.startsWith("rug") ? 0 : 1;
-      const rb = b.kind.startsWith("rug") ? 0 : 1;
+      const ra = isFlat(a.kind) ? 0 : 1;
+      const rb = isFlat(b.kind) ? 0 : 1;
       return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
     });
     if (list.length === 0) return;
@@ -1099,7 +1142,7 @@ export class Renderer {
     for (const f of list) {
       const def = FURNITURE_KINDS[f.kind];
       // Le tapis est dessiné avec le sol (dans la case), pour prendre exactement sa lumière (Thomas : il clignotait).
-      if (!def || f.kind.startsWith("rug") || f.kind.startsWith("web")) continue;
+      if (!def || def.flat) continue;
       // Un meuble passe DEVANT un personnage qui se tient derrière lui (Thomas) : sur une rangée au-dessus de sa rangée
       // du bas, dans la hauteur du dessin (2 rangées au plus), et dans sa largeur (à une case près).
       const bottom = f.y + def.h - 1;
@@ -1123,17 +1166,24 @@ export class Renderer {
         dark = (1 - brightness) * 0.55;
         warm = lit * flicker * 0.2;
       }
-      const name = f.kind.startsWith("table") ? `${f.kind}${visible ? frame : 0}` : f.kind;
-      const art = DORTOIR[name] ?? TRAINARDS[name];
+      // Meubles animés (bougie de la table, jambon qui se balance, robinet qui goutte, corde, candélabre) : 3 images.
+      const animated = f.kind.startsWith("table") || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
+      const name = animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name];
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
       // Place du dessin (en pixels du dessin, 16 par case) : bas du dessin = bas de l'emprise, sauf le tapis, centré.
       let px: number;
       let py: number;
-      if (f.kind.startsWith("rug")) {
+      if (def.wall) {
+        // Vitrail : dans la case de mur du fond, un pixel de débord.
+        px = f.x * 16 + 1;
+        py = f.y * 16 - 1;
+      } else if (SALLES[name]) {
+        // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
-        py = (f.y + def.h / 2) * 16 - h / 2;
+        py = (f.y + def.h) * 16 - h;
       } else {
         const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
         px = f.x * 16 + off[0];

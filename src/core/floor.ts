@@ -9,6 +9,7 @@ import { Motif } from "../world/grounds";
 import { THEMED_ROOMS } from "../data/themedRooms";
 import { GameMap, Point, Tile } from "../world/map";
 import { Rng } from "./rng";
+import { TRAPS, TrapKind } from "../data/traps";
 
 /**
  * Un étage et ce qu'on y pose en le créant (clef, caches, pièges). Les monstres sont créés par la partie (`game.ts`),
@@ -42,12 +43,18 @@ export interface FloorState {
   secrets: Secret[];
   searched: Set<number>;
   /** Pièges de l'étage (visibles pour l'instant) : ils restent armés. */
-  traps: Point[];
+  traps: Trap[];
   /** Meubles des salles de fouille, et thème de ces salles. */
   furniture: Furniture[];
   themes: RoomTheme[];
   /** Motifs gravés au sol (décor). */
   motifs: Motif[];
+}
+
+/** Un piège : sa case, sa sorte (pointes par défaut, pour les anciennes sauvegardes), et la fosse déjà effondrée. */
+export interface Trap extends Point {
+  kind?: TrapKind;
+  sprung?: boolean;
 }
 
 /** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */
@@ -156,8 +163,11 @@ export function placeSecrets(state: FloorState, depth: number, seed: number): vo
 }
 
 /** Pose les pièges : au plus un par salle, jamais dans la salle de départ, toujours au milieu du sol. Hasard à part. */
-export function placeTraps(state: FloorState, seed: number): void {
+export function placeTraps(state: FloorState, seed: number, depth = 1): void {
   const rng = new Rng(seed ^ 0x51ed2701);
+  // La sorte de chaque piège se tire à part : les cases des pièges ne changent pas.
+  const kindRng = new Rng(seed ^ 0x7a3c19e5);
+  const kinds = (Object.keys(TRAPS) as TrapKind[]).filter((k) => TRAPS[k].minDepth <= depth);
   state.rooms.forEach((room, index) => {
     if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
     // Pas de piège dans une salle à thème (Thomas, 2026-11-11). Le tirage a eu lieu : le hasard des autres salles ne change pas.
@@ -170,7 +180,9 @@ export function placeTraps(state: FloorState, seed: number): void {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (state.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
       if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
       if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
-      state.traps.push({ x, y });
+      let pick = kindRng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
+      const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? "spikes";
+      state.traps.push({ x, y, kind });
       return;
     }
   });

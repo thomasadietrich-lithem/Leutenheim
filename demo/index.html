@@ -1093,9 +1093,9 @@
   var MONSTERS = {
     schrat: {
       id: "schrat",
-      name: "Schrat",
-      family: "schrats",
-      description: "Petit pillard \xE9cailleux des premi\xE8res galeries. Il dort volontiers, mais une fois r\xE9veill\xE9 il ne l\xE2che plus sa proie.",
+      name: "Kobold",
+      family: "kobolds",
+      description: "Petit pillard \xE9cailleux \xE0 cornes des premi\xE8res galeries. Il dort volontiers, mais une fois r\xE9veill\xE9 il ne l\xE2che plus sa proie.",
       hp: 7,
       armorClass: 12,
       attackBonus: 2,
@@ -1143,6 +1143,14 @@
       ]
     };
   }
+
+  // src/data/traps.ts
+  var TRAPS = {
+    spikes: { name: "pi\xE8ge \xE0 pointes", minDepth: 1, weight: 4, damage: { count: 1, sides: 4, bonus: 1 } },
+    pit: { name: "fosse", minDepth: 1, weight: 2, damage: { count: 1, sides: 6, bonus: 0 }, stuck: 1 },
+    needle: { name: "aiguille empoisonn\xE9e", minDepth: 2, weight: 2, damage: { count: 1, sides: 1, bonus: 0 }, poison: { damage: 1, turns: 4 } },
+    gas: { name: "gaz empoisonn\xE9", minDepth: 3, weight: 1, gasTurns: 3, poison: { damage: 1, turns: 3 } }
+  };
 
   // src/data/races.ts
   var RACES = {
@@ -1255,6 +1263,8 @@
     chairsMin: 1,
     chairsMax: 3,
     fallenChairChance: 0.5,
+    /** Salles à thème par étage : chance d'en avoir une, puis (si oui) une deuxième, d'un autre thème (C). */
+    themedRoomChances: [0.7, 0.35],
     /** Coffres du dortoir (0 à 2) et chance qu'une pomme soit dans l'assiette de la table. */
     dortoirChests: [0, 2],
     tableAppleChance: 0.5,
@@ -1283,9 +1293,12 @@
     pushDc: 10,
     /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
     pushSlamDamage: { count: 1, sides: 6, bonus: 0 },
-    /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ) en ait un, et dégâts à qui marche dessus. */
+    /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ et salles à thème) en ait un. Sortes et effets : `src/data/traps.ts`. */
     trapRoomChance: 0.15,
-    trapDamage: { count: 1, sides: 4, bonus: 1 },
+    /** Sarcophage à pointes (salle de torture) : difficulté pour désamorcer (agilité) ou forcer (force), pointe si raté, bruit si forcé. */
+    maidenDc: 11,
+    maidenSpike: { count: 1, sides: 4, bonus: 0 },
+    alarmMaiden: 5,
     /** Repos (roue d'actions) : nombre de tours passés sur place, une seule fois par étage. */
     restTurns: 20,
     /** Part des points de vie manquants rendue par un repos mené à son terme. */
@@ -2001,6 +2014,34 @@
 
   // src/data/themedRooms.ts
   var THEMED_ROOMS = [
+    // Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce ») ; butins (C).
+    {
+      id: "cuisine",
+      name: "Cuisine",
+      loot: [
+        { item: "pomme", min: 2, max: 4, weight: 3 },
+        { item: "or", min: 6, max: 12, weight: 2 },
+        { item: "potion_vitesse", min: 1, max: 1, weight: 1 }
+      ]
+    },
+    {
+      id: "priere",
+      name: "Salle de pri\xE8re",
+      loot: [
+        { item: "or", min: 10, max: 18, weight: 3 },
+        { item: "amethyste", min: 1, max: 1, weight: 2 },
+        { item: "potion_jouvence", min: 1, max: 1, weight: 1, minDepth: 3 }
+      ]
+    },
+    {
+      id: "torture",
+      name: "Salle de torture",
+      loot: [
+        { item: "or", min: 8, max: 16, weight: 3 },
+        { item: "potion_poison", min: 1, max: 1, weight: 2 },
+        { item: "fleche_poison", min: 2, max: 4, weight: 1 }
+      ]
+    },
     {
       id: "dortoir",
       name: "Dortoir",
@@ -2020,8 +2061,8 @@
     chairR: { blocks: false, w: 1, h: 1, burns: true },
     chairL: { blocks: false, w: 1, h: 1, burns: true },
     chairFallen: { blocks: true, w: 1, h: 1, burns: true },
-    rug: { blocks: false, w: 3, h: 2, burns: true },
-    rugB: { blocks: false, w: 3, h: 2, burns: true },
+    rug: { blocks: false, w: 3, h: 2, burns: true, flat: true },
+    rugB: { blocks: false, w: 3, h: 2, burns: true, flat: true },
     ashes1: { blocks: false, w: 1, h: 1, burns: false },
     ashes2: { blocks: false, w: 2, h: 1, burns: false },
     // Trainards (planche art/trainards_v3.png, validée) : tonneau, caisse, deux caisses empilées. On se cache derrière.
@@ -2029,11 +2070,47 @@
     crate: { blocks: true, w: 1, h: 1, burns: true },
     crateStack: { blocks: true, w: 1, h: 1, burns: true },
     // Toiles d'araignée (dès l'étage 3), dans un coin de salle sans torche : TL = coin en haut à gauche, etc. Elles collent.
-    webTL: { blocks: false, w: 1, h: 1, burns: true },
-    webTR: { blocks: false, w: 1, h: 1, burns: true },
-    webBL: { blocks: false, w: 1, h: 1, burns: true },
-    webBR: { blocks: false, w: 1, h: 1, burns: true }
+    webTL: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    webTR: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    webBL: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    webBR: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    // CUISINE v2 : étagère de 2 cases et jambon au crochet (contre le mur du fond), plan de travail, barrique sur chevalet,
+    // sac de céréales ; rigole et évacuation peintes dans le carrelage.
+    shelf2: { blocks: true, w: 2, h: 1, burns: true },
+    ham: { blocks: true, w: 1, h: 1, burns: false },
+    counter: { blocks: true, w: 2, h: 1, burns: true },
+    barrique: { blocks: true, w: 2, h: 1, burns: true },
+    grainSack: { blocks: true, w: 1, h: 1, burns: true },
+    gutterH: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    drain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    // SALLE DE PRIÈRE v1 : bancs (2 cases), autel (3 cases, le pupitre au milieu), candélabres (0 à 3 bougies), tapis de
+    // velours sur l'allée (3 morceaux), vitraux dans le mur du fond (sur la case de mur).
+    pew: { blocks: true, w: 2, h: 1, burns: true },
+    pewBroken: { blocks: true, w: 2, h: 1, burns: true },
+    altar: { blocks: true, w: 3, h: 1, burns: false },
+    candelBare: { blocks: true, w: 1, h: 1, burns: false },
+    candelA: { blocks: true, w: 1, h: 1, burns: false },
+    candelB: { blocks: true, w: 1, h: 1, burns: false },
+    candelC: { blocks: true, w: 1, h: 1, burns: false },
+    runnerA: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+    vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+    vitrail1: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+    // SALLE DE TORTURE v1 : table à chaînes (2 cases), râtelier, planche au mur, corde à crochet (mur du fond),
+    // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille.
+    rackTable: { blocks: true, w: 2, h: 1, burns: true },
+    toolRack: { blocks: true, w: 1, h: 1, burns: true },
+    wallBoard: { blocks: true, w: 1, h: 1, burns: true },
+    rope: { blocks: true, w: 1, h: 1, burns: true },
+    maiden: { blocks: true, w: 1, h: 1, burns: false },
+    maidenOpen: { blocks: true, w: 1, h: 1, burns: false },
+    bloodGutterV: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+    bloodDrain: { blocks: false, w: 1, h: 1, burns: false, flat: true }
   };
+  function isFlat(kind) {
+    return !!FURNITURE_KINDS[kind]?.flat;
+  }
 
   // src/world/furnish.ts
   function reachable(map, from) {
@@ -2180,12 +2257,15 @@
     const rng = new Rng(seed ^ 1867128211);
     const furniture = [];
     const themes = [];
-    if (rng.chance(RULES.dortoirChance)) {
-      const candidates = floor.rooms.map((room, index) => ({ room, index })).filter(({ room, index }) => index > 0 && room.w >= 6 && room.h >= 5);
+    const pool = ["dortoir", "cuisine", "priere", "torture"];
+    for (const chance of RULES.themedRoomChances) {
+      if (!rng.chance(chance)) break;
+      const id = pool.splice(rng.int(0, pool.length - 1), 1)[0];
+      const candidates = floor.rooms.map((room, index) => ({ room, index })).filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && fits(id, room));
       while (candidates.length > 0) {
         const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
-        if (furnishDortoir(floor, room, rng, furniture)) {
-          themes.push({ room: index, id: "dortoir" });
+        if (FURNISHERS[id](floor, room, rng, furniture)) {
+          themes.push({ room: index, id });
           break;
         }
       }
@@ -2194,6 +2274,215 @@
     placeClutter(floor, new Rng(seed ^ 473587319), furniture, special);
     if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 1046183193), furniture, special);
     return { furniture, themes };
+  }
+  var MIN_SIZE = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5] };
+  function fits(id, room) {
+    return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
+  }
+  var FURNISHERS = {
+    dortoir: furnishDortoir,
+    cuisine: furnishKitchen,
+    priere: furnishChapel,
+    torture: furnishTorture
+  };
+  function roomPlacer(floor, room) {
+    const { map } = floor;
+    const inside = (x, y) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+    const special = (x, y) => x === floor.start.x && y === floor.start.y || x === floor.stairs.x && y === floor.stairs.y;
+    const used = /* @__PURE__ */ new Set();
+    const key = (x, y) => `${x},${y}`;
+    let before = reachable(map, floor.start);
+    const placed = [];
+    const chests = [];
+    const free = (x, y) => inside(x, y) && !used.has(key(x, y)) && !special(x, y) && map.get(x, y) === Tile.Floor;
+    const tryPlace = (f) => {
+      const kind = FURNITURE_KINDS[f.kind];
+      const cells = furnitureCells(f);
+      if (cells.some((c) => !free(c.x, c.y))) return false;
+      if (kind.blocks) {
+        if (cells.some((c) => besideOpening(floor, room, c.x, c.y))) return false;
+        for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
+        const after = reachable(map, floor.start);
+        if (after !== before - cells.length) {
+          for (const c of cells) map.set(c.x, c.y, Tile.Floor);
+          return false;
+        }
+        before = after;
+      }
+      for (const c of cells) used.add(key(c.x, c.y));
+      placed.push(f);
+      return true;
+    };
+    const reserve = (x, y) => used.add(key(x, y));
+    const chest = (x, y) => {
+      if (!free(x, y)) return false;
+      map.set(x, y, Tile.Chest);
+      used.add(key(x, y));
+      chests.push({ x, y });
+      return true;
+    };
+    const undo = () => {
+      for (const f of placed) if (FURNITURE_KINDS[f.kind].blocks) for (const c of furnitureCells(f)) map.set(c.x, c.y, Tile.Floor);
+      for (const c of chests) map.set(c.x, c.y, Tile.Floor);
+      placed.length = 0;
+    };
+    const allFloor = () => {
+      for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (map.get(x, y) !== Tile.Floor) return false;
+      return true;
+    };
+    const alongBackWall = (kinds) => {
+      let x = room.x;
+      for (const kind of kinds) {
+        const w = FURNITURE_KINDS[kind].w;
+        while (x + w <= room.x + room.w) {
+          const torch = [...Array(w).keys()].some((i) => underTorch(floor, x + i, room.y));
+          if (!torch && tryPlace({ x, y: room.y, kind })) {
+            x += w;
+            break;
+          }
+          x++;
+        }
+      }
+    };
+    return { tryPlace, reserve, chest, undo, allFloor, alongBackWall, placed, free, inside };
+  }
+  function shuffle(rng, list) {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = rng.int(0, i);
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  }
+  function furnishKitchen(floor, room, rng, out) {
+    const P = roomPlacer(floor, room);
+    if (!P.allFloor()) return false;
+    const back = ["counter", ...Array(rng.int(1, 2)).fill("shelf2"), ...Array(rng.int(0, 2)).fill("ham")];
+    P.alongBackWall(shuffle(rng, back));
+    if (!P.placed.some((f) => f.kind === "counter") || !P.placed.some((f) => f.kind === "shelf2")) {
+      P.undo();
+      return false;
+    }
+    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+    const gy = room.y + room.h - 1;
+    const leftDrain = rng.chance(0.5);
+    const len = rng.int(3, room.w - 1);
+    for (let i = 0; i < len; i++) {
+      const x = leftDrain ? room.x + i : room.x + room.w - 1 - i;
+      P.tryPlace({ x, y: gy, kind: i === 0 ? "drain" : "gutterH" });
+    }
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const left = rng.chance(0.5);
+      const y = rng.int(room.y + 2, gy - 1);
+      if (P.tryPlace({ x: left ? room.x : room.x + room.w - 2, y, kind: "barrique" })) break;
+    }
+    placeTableWithChairs(P, room, rng);
+    const wanted = rng.int(1, 3);
+    let put = 0;
+    for (let attempt = 0; attempt < 30 && put < wanted; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y + 2, gy - 1);
+      if (x !== room.x && x !== room.x + room.w - 1) continue;
+      const kind = ["barrel", "crate", "crateStack", "grainSack"][rng.int(0, 3)];
+      if (P.tryPlace({ x, y, kind })) put++;
+    }
+    out.push(...P.placed);
+    return true;
+  }
+  function placeTableWithChairs(P, room, rng) {
+    const spots = [];
+    for (let y = room.y + 2; y < room.y + room.h - 1; y++) for (let x = room.x + 1; x + 2 < room.x + room.w; x++) spots.push({ x, y });
+    while (spots.length > 0) {
+      const p = spots.splice(rng.int(0, spots.length - 1), 1)[0];
+      const table = { x: p.x, y: p.y, kind: rng.chance(RULES.tableAppleChance) ? "tableApple" : "table" };
+      if (!P.tryPlace(table)) continue;
+      const wantChairs = rng.int(RULES.chairsMin, RULES.chairsMax);
+      let chairs = 0;
+      for (const s of [
+        { x: table.x - 1, y: table.y, kind: "chairR" },
+        { x: table.x + 2, y: table.y, kind: "chairL" },
+        { x: table.x, y: table.y + 1, kind: "chairR" }
+      ]) {
+        if (chairs < wantChairs && P.tryPlace(s)) chairs++;
+      }
+      return;
+    }
+  }
+  function furnishChapel(floor, room, rng, out) {
+    const P = roomPlacer(floor, room);
+    if (!P.allFloor()) return false;
+    const ax = room.x + Math.floor(room.w / 2);
+    if (!P.tryPlace({ x: ax - 1, y: room.y + 2, kind: "altar" })) return false;
+    P.chest(ax, room.y);
+    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+    for (let y = room.y + 3; y < room.y + room.h; y++) P.tryPlace({ x: ax, y, kind: ["runnerA", "runnerB", "runnerC"][(y - room.y) % 3] });
+    const rows = [];
+    for (let y = room.y + 4; y < room.y + room.h - 1; y += 2) rows.push(y);
+    const slots = shuffle(rng, rows.flatMap((y) => [{ x: ax - 2, y }, { x: ax + 1, y }]));
+    const wanted = rng.int(2, 6);
+    let broken = rng.int(0, 3);
+    let pews = 0;
+    for (const s of slots) {
+      if (pews >= wanted) break;
+      const kind = broken > 0 && rng.chance(0.4) ? "pewBroken" : "pew";
+      if (P.tryPlace({ ...s, kind })) {
+        pews++;
+        if (kind === "pewBroken") broken--;
+      }
+    }
+    if (pews < 2) {
+      P.undo();
+      floor.map.set(ax, room.y, Tile.Floor);
+      return false;
+    }
+    const candles = rng.int(0, 2);
+    const spots = shuffle(rng, [{ x: ax - 2, y: room.y + 2 }, { x: ax + 2, y: room.y + 2 }, { x: room.x, y: room.y }, { x: room.x + room.w - 1, y: room.y }]);
+    let lit = 0;
+    for (const s of spots) {
+      if (lit >= candles) break;
+      if (underTorch(floor, s.x, s.y)) continue;
+      if (P.tryPlace({ ...s, kind: ["candelBare", "candelA", "candelB", "candelC"][rng.int(0, 3)] })) lit++;
+    }
+    for (const [i, x] of [room.x + 1, room.x + room.w - 2].entries()) {
+      const wy = room.y - 1;
+      if (floor.map.get(x, wy) !== Tile.Wall || floor.torches.some((t) => t.x === x && t.y === wy)) continue;
+      P.placed.push({ x, y: wy, kind: `vitrail${i}` });
+    }
+    out.push(...P.placed);
+    return true;
+  }
+  function furnishTorture(floor, room, rng, out) {
+    const P = roomPlacer(floor, room);
+    if (!P.allFloor()) return false;
+    const back = [...Array(rng.int(1, 2)).fill("toolRack"), ...Array(rng.int(0, 1)).fill("wallBoard"), ...Array(rng.int(0, 2)).fill("rope")];
+    P.alongBackWall(shuffle(rng, back));
+    if (!P.placed.some((f) => f.kind === "toolRack")) {
+      P.undo();
+      return false;
+    }
+    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+    const spots = [];
+    for (let y = room.y + 2; y < room.y + room.h - 2; y++) for (let x = room.x + 1; x + 2 < room.x + room.w; x++) spots.push({ x, y });
+    let table = null;
+    while (spots.length > 0 && !table) {
+      const p = spots.splice(rng.int(0, spots.length - 1), 1)[0];
+      const f = { x: p.x, y: p.y, kind: "rackTable" };
+      if (P.tryPlace(f)) table = f;
+    }
+    if (!table) {
+      P.undo();
+      return false;
+    }
+    const gx = table.x + rng.int(0, 1);
+    for (let y = table.y + 1; y < room.y + room.h; y++) P.tryPlace({ x: gx, y, kind: y === room.y + room.h - 1 ? "bloodDrain" : "bloodGutterV" });
+    const maidens = rng.int(0, 2);
+    let put = 0;
+    for (let attempt = 0; attempt < 20 && put < maidens; attempt++) {
+      const x = rng.chance(0.5) ? room.x : room.x + room.w - 1;
+      const y = rng.int(room.y + 2, room.y + room.h - 1);
+      if (P.tryPlace({ x, y, kind: "maiden" })) put++;
+    }
+    out.push(...P.placed);
+    return true;
   }
   function freeCell(floor, furniture, x, y) {
     if (floor.map.get(x, y) !== Tile.Floor) return false;
@@ -2258,9 +2547,10 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 8;
-  function buildSandbox() {
-    const map = new GameMap(32, 32);
+  var SANDBOX_LAYOUT = 9;
+  var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28 };
+  function buildSandbox(seeds = SANDBOX_SEEDS) {
+    const map = new GameMap(40, 32);
     const carve = (r) => {
       for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
     };
@@ -2286,7 +2576,11 @@
     map.set(stairs.x, stairs.y, Tile.StairsDown);
     const torches = [
       { x: 7, y: 2, radius: 6, faceX: 0, faceY: 1 },
-      { x: 21, y: 2, radius: 5, faceX: 0, faceY: 1, hearth: true, lit: true }
+      { x: 21, y: 2, radius: 5, faceX: 0, faceY: 1, hearth: true, lit: true },
+      // Une torche sur le mur de droite de la cuisine, de la salle de prière et de la salle de torture.
+      { x: 38, y: 5, radius: 6, faceX: -1, faceY: 0 },
+      { x: 38, y: 16, radius: 6, faceX: -1, faceY: 0 },
+      { x: 38, y: 26, radius: 6, faceX: -1, faceY: 0 }
     ];
     const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
     const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
@@ -2299,11 +2593,24 @@
     const den = { x: 17, y: 23, w: 9, h: 6 };
     carve(den);
     for (let y = 20; y <= 22; y++) map.set(21, y, Tile.Floor);
-    const rooms = [start, pillars, combat, patrolRoom, dortoir, den];
+    const kitchen = { x: 29, y: 3, w: 9, h: 6 };
+    const chapel = { x: 29, y: 12, w: 9, h: 8 };
+    const torture = { x: 29, y: 23, w: 9, h: 6 };
+    for (const r of [kitchen, chapel, torture]) carve(r);
+    for (const y of [6, 16, 25]) for (let x = 26; x <= 28; x++) map.set(x, y, Tile.Floor);
+    const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture];
     const floorPlan = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
     const furniture = [];
     furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
-    const themes = [{ room: 4, id: "dortoir" }];
+    furnishKitchen(floorPlan, kitchen, new Rng(seeds.kitchen), furniture);
+    furnishChapel(floorPlan, chapel, new Rng(seeds.chapel), furniture);
+    furnishTorture(floorPlan, torture, new Rng(seeds.torture), furniture);
+    const themes = [
+      { room: 4, id: "dortoir" },
+      { room: 6, id: "cuisine" },
+      { room: 7, id: "priere" },
+      { room: 8, id: "torture" }
+    ];
     furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });
     for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }]) {
       furniture.push(f);
@@ -2333,7 +2640,13 @@
         { room: fountainRoom, kind: fontaine },
         { room: chestRoom, kind: tresor }
       ],
-      traps: [{ x: 21, y: 6 }, { x: 21, y: 17 }],
+      // Les quatre pièges v3 : pointes (colonnes), gaz (salle de combat), fosse (salle de ronde), aiguille (antre).
+      traps: [
+        { x: 21, y: 6, kind: "spikes" },
+        { x: 21, y: 17, kind: "gas" },
+        { x: 9, y: 20, kind: "pit" },
+        { x: 22, y: 25, kind: "needle" }
+      ],
       secrets,
       ground: [
         { x: 5, y: 5, item: "clef", count: 1 },
@@ -2588,8 +2901,10 @@
       }
     });
   }
-  function placeTraps(state, seed) {
+  function placeTraps(state, seed, depth = 1) {
     const rng = new Rng(seed ^ 1374496513);
+    const kindRng = new Rng(seed ^ 2050759141);
+    const kinds = Object.keys(TRAPS).filter((k) => TRAPS[k].minDepth <= depth);
     state.rooms.forEach((room, index) => {
       if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
       if (state.themes.some((t) => t.room === index)) return;
@@ -2600,7 +2915,9 @@
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (state.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
         if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
         if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
-        state.traps.push({ x, y });
+        let pick = kindRng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
+        const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? "spikes";
+        state.traps.push({ x, y, kind });
         return;
       }
     });
@@ -2794,6 +3111,8 @@
       this.pendingStairs = null;
       /** Étage le plus profond atteint dans cette partie. */
       this.deepest = 0;
+      /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
+      this.gas = [];
       /** Meubles en feu : tours restants avant qu'il n'en reste qu'un tas de cendres. */
       this.furnitureFire = /* @__PURE__ */ new Map();
       this.peacefulStash = [];
@@ -2878,6 +3197,7 @@
       }
       this.useFloor(state, depth);
       this.fires = [];
+      this.gas = [];
       this.furnitureFire.clear();
       const arrival = via === "down" ? state.start : state.stairs;
       this.hero.x = this.hero.fromX = arrival.x;
@@ -2912,7 +3232,7 @@
         state.nextRespawn = this.turn + RULES.respawnTurns;
         placeKey(state, this.rng, this.hero);
         placeSecrets(state, depth, floorSeed(this.runSeed, depth));
-        placeTraps(state, floorSeed(this.runSeed, depth));
+        placeTraps(state, floorSeed(this.runSeed, depth), depth);
         if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
         placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
       }
@@ -3051,7 +3371,7 @@
     }
     /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
     avoidTraps(to, base, from = this.hero) {
-      return (x, y) => (!base || base(x, y)) && (x === to.x && y === to.y || x === from.x && y === from.y || !this.isTrap(x, y) && !this.isBurning(x, y));
+      return (x, y) => (!base || base(x, y)) && (x === to.x && y === to.y || x === from.x && y === from.y || !this.isTrap(x, y) && !this.isBurning(x, y) && !this.isGassed(x, y));
     }
     /**
      * Chemin du héros : il évite les pièges et le feu ; il contourne aussi le gravier quand le détour est court
@@ -3100,17 +3420,64 @@
       this.raiseAlarm(RULES.gravelAlarm, this.hero);
     }
     /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
+    /**
+     * Un piège se déclenche sous ce personnage (pièges v3) : pointes (dégâts), fosse (dégâts, puis un tour à en remonter ;
+     * elle reste effondrée), aiguille empoisonnée (une piqûre et du poison), gaz (un nuage empoisonné sur la case et ses
+     * quatre voisines). Il reste armé.
+     */
     springTrap(actor) {
-      if (!this.isTrap(actor.x, actor.y)) return;
-      const damage = rollDice(this.rng, RULES.trapDamage);
-      this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage });
-      this.bleed(actor, actor);
-      if (actor.kind === "hero") {
-        this.hurtHero(damage);
-      } else {
-        actor.hp = Math.max(0, actor.hp - damage);
-        this.removeIfDead(actor);
+      const trap = this.current.traps.find((t) => t.x === actor.x && t.y === actor.y);
+      if (!trap) return;
+      const kind = trap.kind ?? "spikes";
+      const def = TRAPS[kind];
+      const damage = def.damage ? rollDice(this.rng, def.damage) : 0;
+      this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage, kind });
+      if (kind === "pit") trap.sprung = true;
+      if (def.stuck) actor.stuck = Math.max(actor.stuck ?? 0, def.stuck);
+      if (def.poison && kind === "needle") this.poisonActor(actor, def.poison);
+      if (def.gasTurns) {
+        for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const x = trap.x + dx;
+          const y = trap.y + dy;
+          if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.Furniture) continue;
+          const old = this.gas.find((g) => g.x === x && g.y === y);
+          if (old) old.turns = Math.max(old.turns, def.gasTurns);
+          else this.gas.push({ x, y, turns: def.gasTurns });
+        }
+        this.gasPoison();
       }
+      if (damage > 0) {
+        this.bleed(actor, actor);
+        if (actor.kind === "hero") {
+          this.hurtHero(damage);
+        } else {
+          actor.hp = Math.max(0, actor.hp - damage);
+          this.removeIfDead(actor);
+        }
+      }
+    }
+    /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
+    poisonActor(actor, poison) {
+      actor.poison = { ...poison };
+      this.events.push({ type: "poisoned", actor });
+    }
+    isGassed(x, y) {
+      return this.gas.some((g) => g.x === x && g.y === y);
+    }
+    /** Qui se tient dans le gaz est empoisonné (s'il ne l'est pas déjà plus longtemps). */
+    gasPoison() {
+      const poison = TRAPS.gas.poison;
+      for (const a of [this.hero, ...this.monsters]) {
+        if (!this.isGassed(a.x, a.y) || a.poison && a.poison.turns >= poison.turns) continue;
+        this.poisonActor(a, poison);
+      }
+    }
+    /** Fin de tour : le gaz empoisonne, puis se dissipe. */
+    gasTick() {
+      if (this.gas.length === 0) return;
+      this.gasPoison();
+      for (const g of this.gas) g.turns--;
+      this.gas = this.gas.filter((g) => g.turns > 0);
     }
     /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
     pushTargets() {
@@ -3165,6 +3532,15 @@
     /** Le thème de la salle (salle de fouille), ou `null`. */
     roomTheme(index) {
       return this.current.themes.find((t) => t.room === index)?.id ?? null;
+    }
+    /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
+    floorStyle(x, y) {
+      for (const t of this.current.themes) {
+        if (t.id !== "cuisine" && t.id !== "torture") continue;
+        const r = this.rooms[t.room];
+        if (r && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t.id === "cuisine" ? "kitchen" : "torture";
+      }
+      return void 0;
     }
     /** Éléments d'une salle (colonnes, cheminée) : plus il y en a, plus elle a de chances de cacher quelque chose. */
     roomElements(room) {
@@ -3247,6 +3623,7 @@
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
         fires: this.fires,
+        gas: this.gas,
         bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
         torchTurns: this.torchTurns,
         sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : void 0,
@@ -3327,6 +3704,7 @@
       game2.useFloor(game2.floors.get(saved.depth), saved.depth);
       game2.deepest = saved.deepest;
       game2.fires = saved.fires;
+      game2.gas = saved.gas ?? [];
       game2.refreshStats();
       game2.hidden = saved.hidden;
       for (const a of [game2.hero, ...game2.monsters]) {
@@ -3714,7 +4092,7 @@
           if (def.blocks) this.map.set(c.x, c.y, Tile.Floor);
           else this.map.touch(c.x, c.y);
         }
-        if (!f.kind.startsWith("rug")) this.current.furniture.push({ x: f.x, y: f.y, kind: def.w >= 2 ? "ashes2" : "ashes1" });
+        if (!def.flat) this.current.furniture.push({ x: f.x, y: f.y, kind: def.w >= 2 ? "ashes2" : "ashes1" });
         else for (let dy = -1; dy <= def.h; dy++) for (let dx = -1; dx <= def.w; dx++) this.map.touch(f.x + dx, f.y + dy);
       }
     }
@@ -3850,7 +4228,7 @@
         if (!this.pickUp()) this.wait();
         return true;
       }
-      if (this.map.get(x, y) === Tile.DoorLocked && (ignoreFog || this.isExplored(x, y))) {
+      if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
         return this.approachLockedDoor(x, y, ignoreFog);
       }
       const seen = this.monsterAt(x, y);
@@ -3910,6 +4288,7 @@
     }
     /** Devant une porte verrouillée, la clef de l'étage sert d'elle-même : ce sera l'action du prochain tour. */
     useKeyIfAny() {
+      if (this.pendingDoor && this.maidenAt(this.pendingDoor.x, this.pendingDoor.y)) return;
       if (this.inventory.count("clef", this.depth) > 0) this.doorAction = "key";
     }
     /** Vrai quand le héros s'apprête à ouvrir avec sa clef la porte devant lui (rien à choisir). */
@@ -3937,6 +4316,7 @@
     doorOptions() {
       const door = this.pendingDoor;
       if (!door) return [];
+      if (this.maidenAt(door.x, door.y)) return ["pick", "break"];
       const options2 = [];
       if (this.inventory.count("clef", this.depth) > 0) options2.push("key");
       if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "pick"))) options2.push("pick");
@@ -3960,7 +4340,7 @@
     /** Déplacement ou attaque d'une case (clavier). */
     moveBy(dx, dy) {
       if (this.over) return false;
-      if ((dx === 0 || dy === 0) && this.map.get(this.hero.x + dx, this.hero.y + dy) === Tile.DoorLocked) {
+      if ((dx === 0 || dy === 0) && (this.map.get(this.hero.x + dx, this.hero.y + dy) === Tile.DoorLocked || this.maidenAt(this.hero.x + dx, this.hero.y + dy))) {
         return this.approachLockedDoor(this.hero.x + dx, this.hero.y + dy, false);
       }
       if (!canStep(this.map, this.hero.x, this.hero.y, dx, dy)) return false;
@@ -4256,11 +4636,13 @@
         rounds = 0;
         this.clock += 1;
       }
+      this.heroPoisonTick();
       for (let r = 0; r < rounds && !this.over; r++) {
         this.poisonTick();
         this.monstersAct();
       }
       this.burn();
+      this.gasTick();
       if (this.hasteTurns > 0) this.hasteTurns--;
       if (resting) this.afterRestTurn();
       if (wasSearching) this.afterSearchTurn();
@@ -4418,6 +4800,15 @@
       return this.isVisible(m.x, m.y);
     }
     /** Le poison ronge les monstres empoisonnés, au début de leur tour. */
+    /** Le héros empoisonné (aiguille, gaz) perd ses PV une fois par tour, quelle que soit la vitesse de son arme. */
+    heroPoisonTick() {
+      if (!this.hero.poison || this.over) return;
+      const damage = this.hero.poison.damage;
+      this.hero.poison.turns--;
+      if (this.hero.poison.turns <= 0) this.hero.poison = void 0;
+      this.events.push({ type: "poison", actor: this.hero, damage });
+      this.hurtHero(damage);
+    }
     poisonTick() {
       for (const m of [...this.monsters]) {
         if (!m.poison) continue;
@@ -4544,6 +4935,13 @@
         this.map.set(x, y, Tile.ChestOpen);
         const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
         const loot = rollLoot(this.rng, this.depth);
+        const drops = this.spillLoot(x, y, gold, loot);
+        this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
+      }
+    }
+    /** Le contenu d'un coffre (ou d'un sarcophage) tombe à côté : renvoie les cases de l'or et de l'objet. */
+    spillLoot(x, y, gold, loot) {
+      {
         const bare = (p) => (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y);
         const ring = (r) => {
           const out = [];
@@ -4558,10 +4956,44 @@
         const itemAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : goldAt;
         this.dropItem(goldAt.x, goldAt.y, "or", gold);
         this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
-        this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops: [goldAt, itemAt] });
+        return [goldAt, itemAt];
+      }
+    }
+    /** Sarcophage à pointes encore fermé sur cette case ? */
+    maidenAt(x, y) {
+      return this.current.furniture.find((f) => f.kind === "maiden" && f.x === x && f.y === y) ?? null;
+    }
+    /**
+     * Sarcophage à pointes (salle de torture) : DÉSAMORCER (d20 + agilité) ou FORCER (d20 + force, bruyant) contre
+     * `maidenDc`. Réussi : il s'ouvre sans mal. Raté : une pointe jaillit (1d4), mais il s'ouvre quand même. Dedans, un
+     * squelette, de l'or et un objet, qui tombent à côté.
+     */
+    resolveMaiden(action, at) {
+      const maiden = this.maidenAt(at.x, at.y);
+      this.pendingDoor = null;
+      if (!maiden) return;
+      const bonus = action === "pick" ? this.disengageBonus() : this.pushBonus();
+      const d20 = this.rng.int(1, 20);
+      const total = d20 + bonus;
+      const success = d20 === 20 || d20 !== 1 && total >= RULES.maidenDc;
+      const damage = success ? 0 : rollDice(this.rng, RULES.maidenSpike);
+      maiden.kind = "maidenOpen";
+      this.map.touch(at.x, at.y);
+      if (action === "break") {
+        this.reveal();
+        this.raiseAlarm(RULES.alarmMaiden, at);
+      }
+      const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+      const loot = rollLoot(this.rng, this.depth);
+      const drops = this.spillLoot(at.x, at.y, gold, loot);
+      this.events.push({ type: "maiden", action, x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
+      if (damage > 0) {
+        this.bleed(this.hero, this.hero);
+        this.hurtHero(damage);
       }
     }
     resolveDoor(action, door) {
+      if (this.maidenAt(door.x, door.y)) return this.resolveMaiden(action, door);
       if (action === "key") {
         if (!this.inventory.take("clef", 1, this.depth)) return;
         this.map.set(door.x, door.y, Tile.DoorOpen);
@@ -8402,6 +8834,1292 @@
     ] }
   };
 
+  // src/render/sprites/pieges.ts
+  var PIEGES = {
+    spikes: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#82889e", "f": "#08060c" }, rows: [
+      "aaa...aaa...aaa...",
+      "aaaaaabbbaaaaaa...",
+      "aabbbbbcdbbbbbba..",
+      ".abefcddffbbdbdaa.",
+      ".abfadbdfadddffaa.",
+      ".abdcbddddddbfaaa.",
+      ".abbdddbbdddddda..",
+      ".abbddddddddbdda..",
+      ".abbbefbddffddda..",
+      "..abbfadbdfadddda.",
+      "..abdbbddbdbdddba.",
+      "..abddddddddddbda.",
+      ".abffddbefddffbda.",
+      ".abfaddbfabdfadda.",
+      ".abdbddbdbdddddda.",
+      ".abbbbaaabddddddda",
+      ".aaaaaaaaaaadbddda",
+      "............aaaaaa"
+    ] },
+    spikesSprung: { palette: { "a": "#0e0a12", "b": "#dce2f0", "c": "#82889e", "d": "#423e52", "e": "#781c22", "f": "#76728a", "g": "#5c586e", "h": "#08060c" }, rows: [
+      "aaabc.aabc..aba...",
+      "aaabcaddecaaabc...",
+      "aadbcddfecdddbca..",
+      ".adbcfggbcddgbcaa.",
+      ".adhhbdghhbggbcaa.",
+      ".adgfbcgggbcdhhaa.",
+      ".addgbcddgecggga..",
+      ".addgbcgggecdgga..",
+      ".adbdbcdbgbcbgga..",
+      "..abchhgbchhbcgga.",
+      "..abcddgbcgdbcgda.",
+      "..abcgggbcggbcdga.",
+      ".adbcggdbcggbcdga.",
+      ".adhhggdhhdghhgga.",
+      ".adgdggdgdgggggga.",
+      ".addddaaadggggggga",
+      ".aaaaaaaaaaagdggga",
+      "............aaaaaa"
+    ] },
+    pit: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#08060c" }, rows: [
+      "...aaa............",
+      ".aabbbaaaaaaaaaaa.",
+      ".abccdbbbbbbaaaba.",
+      ".abbddbbbdbbadda..",
+      ".abbbcddbddaddda..",
+      ".abcaadddddaddda..",
+      ".abcdadbdddaddddaa",
+      ".abdddaaddaddbdbaa",
+      ".abdddddeedddddbaa",
+      "aabbddddeeadddddda",
+      "aabbddaadadaaaadda",
+      "aabbdaaddabddddaaa",
+      ".abaaddddabddddba.",
+      ".abdddbbdaddbddda.",
+      ".abddddddadddddda.",
+      "abbaaaddbaddaaadba",
+      "abb...ddddddaaadda",
+      "aaa...aaaaaa...aaa"
+    ] },
+    pitSprung: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#08060c" }, rows: [
+      "...aaa............",
+      ".aabbbaaaaaaaaaaa.",
+      ".abccdbbbbbbaaaba.",
+      ".abbddbbbdbbddda..",
+      ".abcccdbbbbbddda..",
+      ".abcbbbbbbbbbdda..",
+      ".abcdbbbbbbbbbddaa",
+      ".abdeeeeeeeeeeeeaa",
+      ".abeeeeeeeeeeeeeaa",
+      "aabeeeeeeeeeeeeeda",
+      "aabeeeeeeeeeeeeeda",
+      "aabeeeeeeeeeeeeeba",
+      ".abeeeeeeeeeeeeea.",
+      ".abdeeeeeeeeeecca.",
+      ".abddeeeeeeeeedda.",
+      "abbaaccdeeedaaadba",
+      "abb...ddddddaaadda",
+      "aaa...aaaaaa...aaa"
+    ] },
+    needle: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#5c586e", "e": "#5a5f74", "f": "#f0f4ff", "g": "#82889e", "h": "#60aa3c", "i": "#346428" }, rows: [
+      "aaa......aaaaaaaaa",
+      "abbaaaaaaaaabbbbba",
+      "abcbbbbbbbbbddddba",
+      "abccdcbbbddbddbaa.",
+      "abcdbddddddddddaa.",
+      "abcccdbdeeedbddaa.",
+      "abccdbeebbbeeddda.",
+      "abcddeebbbbbeedda.",
+      "abdbdebbbfbbbedba.",
+      ".abddebbbgbbbebaa.",
+      ".abbdebbhbbbbedaa.",
+      ".abddeibbbbbiebaa.",
+      ".aaddieibbbieddda.",
+      ".aaddddbeeiddddda.",
+      ".aaddddddddddbbba.",
+      ".abddddddaaadbddda",
+      ".aabbbaaaaaaaaadda",
+      "...aaa.........aaa"
+    ] },
+    needleSprung: { palette: { "a": "#0e0a12", "b": "#423e52", "c": "#76728a", "d": "#aae66e", "e": "#5c586e", "f": "#60aa3c", "g": "#f0f4ff", "h": "#5a5f74", "i": "#82889e", "j": "#346428" }, rows: [
+      "aaa......aaaaaaaaa",
+      "abbaaaaaaaaabbbbba",
+      "abcbbbbbdbbbdeeeba",
+      "abccecdbfeebfebaa.",
+      "abcebefeegeeeeeaa.",
+      "abcccebehghebedaa.",
+      "abccdbhhbgbdhefea.",
+      "abcefhhbbgbfhheea.",
+      "abebehbbbgbbbheba.",
+      ".abeehbbbibbbhbaa.",
+      ".abbehbbbbbbbheaa.",
+      ".abeehjbbbbbjhbaa.",
+      ".aaeejhjbbbjheeea.",
+      ".aaeeeebhhjeeeeea.",
+      ".aaeeeeeeeeeebbba.",
+      ".abeeeeeeaaaebeeea",
+      ".aabbbaaaaaaaaaeea",
+      "...aaa.........aaa"
+    ] },
+    gas0: { palette: { "a": "rgba(190,240,150,0.35)", "b": "#0e0a12", "c": "rgba(150,220,110,0.47)", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c" }, rows: [
+      "..................",
+      "..................",
+      "..................",
+      "..................",
+      "..................",
+      "..........a.......",
+      "...bbb...cbb...bbb",
+      "...bbbbbbbbba..bbb",
+      "..bdddbbbdddcbbdbb",
+      "..bedeffadddfffbb.",
+      "..bfeefcddfffdfbb.",
+      "..beeffgggggfffbb.",
+      "bdeddfghhijhgdfb..",
+      "bdfdfgihhihhigfb..",
+      "bdfdghihjihhihgb..",
+      ".bdfihijhihjihifb.",
+      ".bdfihihhijhihifb.",
+      ".bdffiihhihhiidfb.",
+      ".bdfffihjihhifffb.",
+      ".bdffffiiiiiffffb.",
+      ".bdffddffdffffffb.",
+      "bbdbbbbbbffdfffb..",
+      "bbb...bbbbbbbbb...",
+      "bbb..............."
+    ] },
+    gas1: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "#0e0a12", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#5a5f74", "j": "#60aa3c" }, rows: [
+      "..................",
+      "..................",
+      "..................",
+      "..................",
+      "..........a.......",
+      "..........b.......",
+      "...ccc...ccca..ccc",
+      "...ccccccccb...ccc",
+      "..cdddccadddcccdcc",
+      "..cedeffbdddfffcc.",
+      "..cfeeffddfffdfcc.",
+      "..ceeffgggggfffcc.",
+      "cdeddfghhihhgdfc..",
+      "cdfdfgihjihhigfc..",
+      "cdfdghijhihjihgc..",
+      ".cdfihihhijhihifc.",
+      ".cdfijihhihhijifc.",
+      ".cdffiihjihhiidfc.",
+      ".cdfffijhihjifffc.",
+      ".cdffffiiiiiffffc.",
+      ".cdffddffdffffffc.",
+      "ccdccccccffdfffc..",
+      "ccc...ccccccccc...",
+      "ccc..............."
+    ] },
+    gas2: { palette: { "a": "rgba(190,240,150,0.35)", "b": "rgba(150,220,110,0.47)", "c": "#0e0a12", "d": "#423e52", "e": "#76728a", "f": "#5c586e", "g": "#8a90a8", "h": "#346428", "i": "#60aa3c", "j": "#5a5f74" }, rows: [
+      "..................",
+      "..................",
+      "..................",
+      "..........a.......",
+      ".........b........",
+      "............a.....",
+      "...ccc...cccb..ccc",
+      "...cccccaccc...ccc",
+      "..cdddcbcdddcccdcc",
+      "..cedefffdddfffcc.",
+      "..cfeeffddfffdfcc.",
+      "..ceeffgggggfffcc.",
+      "cdeddfghijhhgdfc..",
+      "cdfdfgjihjhijgfc..",
+      "cdfdghjhhjihjhgc..",
+      ".cdfjijhhjhhjijfc.",
+      ".cdfjhjhijhhjhjfc.",
+      ".cdffjjihjhijjdfc.",
+      ".cdfffjhhjihjfffc.",
+      ".cdffffjjjjjffffc.",
+      ".cdffddffdffffffc.",
+      "ccdccccccffdfffc..",
+      "ccc...ccccccccc...",
+      "ccc..............."
+    ] },
+    gasSprung: { palette: { "a": "rgba(150,220,110,0.38)", "b": "rgba(150,220,110,0.50)", "c": "rgba(61,83,50,0.81)", "d": "rgba(88,125,68,0.71)", "e": "#0e0a12", "f": "rgba(112,148,97,0.71)", "g": "rgba(95,117,91,0.81)", "h": "rgba(135,172,122,0.71)", "i": "rgba(123,160,110,0.71)", "j": "rgba(144,185,136,0.71)", "k": "rgba(105,166,78,0.71)", "l": "rgba(123,163,112,0.71)", "m": "rgba(125,197,87,0.71)", "n": "rgba(112,134,110,0.81)", "o": "rgba(111,138,113,0.81)", "p": "rgba(86,142,64,0.81)", "q": "#423e52", "r": "#5c586e" }, rows: [
+      "......aaaa........",
+      ".....aaaaa........",
+      "....aaaaaaaaaa....",
+      "....abaaaabbba....",
+      "....aaaaaabbaaaaaa",
+      "...aababbbbbaaaaaa",
+      ".aacddbbbdddbbacce",
+      "aaacddddddddbbaccc",
+      ".acfffdddfffdddgdd",
+      ".achfhiiifffiiicdb",
+      "abdihhiiffiiifiddb",
+      "abdhhiijjjjjiiiddb",
+      "cghffijkklmkjfidba",
+      "egifijlkklkkljidba",
+      "cfnfjklkmlkklkjdaa",
+      "acgioklmklkmlklica",
+      "acfilklkklmklklica",
+      ".cgiilokklkkllfnc.",
+      ".egniilkmlpplinne.",
+      ".eqnninllloonnnre.",
+      ".eqnnggnngnnnnnne.",
+      "eeqecccccnngrrre..",
+      "eee...eeeeeeeee...",
+      "eee..............."
+    ] }
+  };
+
+  // src/render/sprites/salles.ts
+  var SALLES = {
+    shelf2: { palette: { "a": "#8a6238", "b": "#56381c", "c": "#120d08", "d": "#342010", "e": "#765c38", "f": "#763e28", "g": "#e2dcc8", "h": "#6e9678", "i": "#a45c3c", "j": "#f4f7ff", "k": "#aad2b4", "l": "#d6c4a0", "m": "#e2965a", "n": "#c3cbe0", "o": "#b86834", "p": "#704c28", "q": "#6e1428", "r": "#a0283e", "s": "#c4a670", "t": "#a48454", "u": "#debe70", "v": "#8a90a8", "w": "#5a5f74", "x": "#1c1622" }, rows: [
+      "abc...........cddc...........cbb",
+      "abc...........cddc.....c.....cbb",
+      "abcccc.....ccccddc....cec....cbb",
+      "abcdddcccccffffddc...cgggcccccbb",
+      "abchhhcdddciiiiddcccccgggcjjjcbb",
+      "abckhhchhhciliiddcmmmmcgggnnncbb",
+      "abchhhckhhciiiiddcoooocgggnnncbb",
+      "abchhhchhhciiiiddcoooogggcnnncbb",
+      "abchhhchhhciiiiddcoooogggcnnncbb",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pppppppppppppppppppppppppppppppp",
+      "abcccccccccccccddcccccccccccccbb",
+      "abcdcdcdc.....cddc...........cbb",
+      "abcqqqqqqc....cddccccccc.....cbb",
+      "abcrqrqrqc.ccccddcmmmmmmc..cccbb",
+      "abcqqqqqqcciiicddcooooooccchhcbb",
+      "abcqqqqqqcfffffddcoooooodddhhcbb",
+      "abcqqqqqqciiiiiddcooooooccchhcbb",
+      "abcqqqqqqciiiiiddcooooooccchhcbb",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pppppppppppppppppppppppppppppppp",
+      "abcccccccccccccddcccccccccccccbb",
+      "abcceeeec..ccccddc...........cbb",
+      "abcstttttcctttcddc...........cbb",
+      "abcstuuttceeeeeddc...........cbb",
+      "abcstttttceeueeddc.cccccccccccbb",
+      "abcstttttceeeeeddccvvvvvvvdddcbb",
+      "abcstttttceeeeeddccwwwwwwwdddcbb",
+      "abcstttttceeeeeddcccccccccccccbb",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pppppppppppppppppppppppppppppppp",
+      "abcccccccccccccddcccccccccccccbb",
+      "cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxc",
+      "cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxc"
+    ] },
+    counter: { palette: { "a": "#120d08", "b": "#342010", "c": "#8a6238", "d": "#704c28", "e": "#8a90a8", "f": "#d6c4a0", "g": "#80181e", "h": "#964646", "i": "#56381c", "j": "#520e14", "k": "#5a5f74", "l": "#682c32", "m": "#1c1622" }, rows: [
+      "...............aba..............",
+      "aaaaaaaaaaaaaaaabaaaaaaaaaaaaaaa",
+      "ccccccccccccccccbccccccccccccccc",
+      "dddddddddddddddeeeedddfffffffddd",
+      "ddddddgggggggggeeeedddhhhhhhhddd",
+      "diiiigggjjjjgggkkkkiiihhhhhhhiid",
+      "dddddgggjjjjggggddgggghlllllhddd",
+      "ddddddgggggggggdddgggghhhhhhhddd",
+      "diiiiiiiiiiiiiiiiiiiiiiiiiiiiiid",
+      "dddddddddddddddddddddddddddddddd",
+      "dddddddddddddddddddddddddddddddd",
+      "ibbiiiigiigiigiiiiigiiiiiiiiibbi",
+      "ibbiiiigiigiigiiiiigiiiiiiiiibbi",
+      "ibbiiiigiigiigiiiiiiiiiiiiiiibbi",
+      "ibbiiiigiiiiigiiiiiiiiiiiiiiibbi",
+      "ibbiiiigiiiiigiiiiiiiiiiiiiiibbi",
+      "ibbiiiiiiiiiigiiiiiiiiiiiiiiibbi",
+      "ibbiiiiiiiiiiiiiiiiiiiiiiiiiibbi",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "abbaaaaaaaaaaaaaaaaaaaaaaaaaabba",
+      "ammmmmmmmmmmmmmmmmmmmmmmmmmmmmma",
+      "ammmmmmmmmmmmmmmmmmmmmmmmmmmmmma"
+    ] },
+    grainSack: { palette: { "a": "#120d08", "b": "#a48454", "c": "#c4a670", "d": "#6e4822", "e": "#765c38", "f": "#debe70", "g": "#1c1622" }, rows: [
+      "....abcccba....",
+      "....abbbbba....",
+      "...aabbbbbaa...",
+      "..abdddddddea..",
+      ".abbccbbbbbeea.",
+      ".accbbbbbbbeea.",
+      "abbcbbbbbbbeeea",
+      "accbeeeeeeeeeea",
+      "abcccbbbbbbeeea",
+      "acbcbcbbbbbeeea",
+      "abccbbbbbbbeeea",
+      "abceeeeeeeeeeea",
+      ".abbbcbbbbbeea.",
+      ".accbbbbbbbeea.",
+      "..accbbbbbbea..",
+      ".aacccbbbbbeaa.",
+      "afgccbbbbbbegfa",
+      "aggfggggggfgfga"
+    ] },
+    ham0: { palette: { "a": "#120d08", "b": "#8a90a8", "c": "#5a5f74", "d": "#b4bacc", "e": "#e2d8be", "f": "#aa9e84", "g": "#6e4822", "h": "#d6c4a0", "i": "#d46e60", "j": "#b24840", "k": "#7c2c2c" }, rows: [
+      ".abbbbbbbbbbbba.",
+      ".acdccccccccdca.",
+      "..aaaaabaaaaaa..",
+      "......aba.......",
+      "......aba.......",
+      ".......aba......",
+      ".......aca......",
+      "......aeeea.....",
+      "......aeefa.....",
+      ".......aeea.....",
+      "......agggga....",
+      "....aaaaeeaaaa..",
+      "...ahiiijjjkkha.",
+      "...ahiiijjjkkha.",
+      "..ahiiijjjjkkhha",
+      "..ahiiijjjjkkkha",
+      ".ahiiiijjjjkkkha",
+      ".ahiiiijjjjkkkha",
+      ".ahiiiijjjjkkha.",
+      "..ahiiijjjjkkha.",
+      "..ahiiijjjjkha..",
+      "..ahiiijjjkkha..",
+      "...ahiijjjkha...",
+      "...ahhijjkha....",
+      "....ahijjha.....",
+      "...aiihiiiaa....",
+      "..ahiiiihikha...",
+      "...ahiijjkha....",
+      "....aaaaaaa.....",
+      "................"
+    ] },
+    ham1: { palette: { "a": "#120d08", "b": "#8a90a8", "c": "#5a5f74", "d": "#b4bacc", "e": "#e2d8be", "f": "#aa9e84", "g": "#6e4822", "h": "#d6c4a0", "i": "#d46e60", "j": "#b24840", "k": "#7c2c2c" }, rows: [
+      ".abbbbbbbbbbbba.",
+      ".acdccccccccdca.",
+      "..aaaaabaaaaaa..",
+      "......aba.......",
+      "......aba.......",
+      ".......aba......",
+      ".......aca......",
+      "......aeeea.....",
+      "......aeefa.....",
+      ".......aeea.....",
+      "......agggga....",
+      "....aaaaeeaaaa..",
+      "...ahiiijjjkkha.",
+      "...ahiiijjjkkha.",
+      "..ahiiiijjjjkkha",
+      "..ahiiijjjjjkkha",
+      "..ahiiijjjjjkkha",
+      "..ahiiijjjjjkkha",
+      "..ahiiijjjjjkkha",
+      "..ahiiiijjjjkkha",
+      "...ahiiijjjkkha.",
+      "...ahiiijjjkkha.",
+      "....ahiijjjkha..",
+      ".....ahijjjha...",
+      ".....ahijjkha...",
+      "....aiihiiiaaa..",
+      "...ahiiiihikkha.",
+      "....aahijjjhaa..",
+      "......aaaaaa....",
+      "................"
+    ] },
+    ham2: { palette: { "a": "#120d08", "b": "#8a90a8", "c": "#5a5f74", "d": "#b4bacc", "e": "#e2d8be", "f": "#aa9e84", "g": "#6e4822", "h": "#d6c4a0", "i": "#d46e60", "j": "#b24840", "k": "#7c2c2c" }, rows: [
+      ".abbbbbbbbbbbba.",
+      ".acdccccccccdca.",
+      "..aaaaabaaaaaa..",
+      "......aba.......",
+      "......aba.......",
+      ".......aba......",
+      ".......aca......",
+      "......aeeea.....",
+      "......aeefa.....",
+      ".......aeea.....",
+      "......agggga....",
+      "....aaaaeeaaaa..",
+      "...ahiiijjjkkha.",
+      "...ahiiijjjjkha.",
+      "..ahhiiijjjjkkha",
+      "..ahiiiijjjjkkha",
+      "..ahiiiijjjjkkkh",
+      "..ahiiiijjjjkkkh",
+      "...ahiiijjjjkkkh",
+      "...ahiiijjjjkkha",
+      "....ahiiijjjkkha",
+      "....ahiiijjjkkha",
+      ".....ahiijjjkha.",
+      "......ahijjjhha.",
+      ".......ahijkha..",
+      "......aiihiiiaa.",
+      ".....ahiiiihikha",
+      "......ahiijjkha.",
+      ".......aaaaaaa..",
+      "................"
+    ] },
+    barrique0: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#56381c", "d": "#704c28", "e": "#8a90a8", "f": "#8a6238", "g": "#342010", "h": "#ffe08a", "i": "#c8a046", "j": "#8c6828", "k": "#a0283e", "l": "#1c1622", "m": "#6e1428" }, rows: [
+      "....aaabaaa.....................",
+      "...abbbbbbbaaaaaaaaaaaaaaaaaaaa.",
+      "..abbcccccbbddebdddddddddebdddda",
+      ".abbdddddddbbdebdddddddddebdddda",
+      ".abdddddddddbfebfffffffffebffffa",
+      "abdddddddddddbebgggggggggebgggfa",
+      "abcccccccccccbebfffffffffebffffa",
+      "abcccccccccccbebfffffffffebffffa",
+      "abcgggggggggcbebdddddddddebdddda",
+      "abdddddddddddbebgggggggggebgggda",
+      "abdddddddddddbebdddddddddebdddda",
+      "abdddddddddddbebdddddddddebdddda",
+      "abcccccccccccbebgggggggggebgggca",
+      ".abccchiicccbcebcccccccccebcccca",
+      ".abbcciiiccbbcebcccccccccebcccca",
+      ".afbbddjddbbccebcccccccccebcccca",
+      ".addbbbjbbbddddddddddddddddddda.",
+      "..aaacahaaagaaaaaaaacaaaaagaaa..",
+      ".....ack.aga........aca.aga.....",
+      "......acaga..........acaga......",
+      ".......aca............aca.......",
+      "......agaca..........agaca......",
+      ".....aga.aca........aga.aca.....",
+      "..aaagaaaaacaaaaaaaagaaaaacaaa..",
+      ".almmmmmmmmmcllllllglllllllclla.",
+      ".allmmmmmmmllllllllllllllllllla."
+    ] },
+    barrique1: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#56381c", "d": "#704c28", "e": "#8a90a8", "f": "#8a6238", "g": "#342010", "h": "#ffe08a", "i": "#c8a046", "j": "#8c6828", "k": "#a0283e", "l": "#1c1622", "m": "#6e1428" }, rows: [
+      "....aaabaaa.....................",
+      "...abbbbbbbaaaaaaaaaaaaaaaaaaaa.",
+      "..abbcccccbbddebdddddddddebdddda",
+      ".abbdddddddbbdebdddddddddebdddda",
+      ".abdddddddddbfebfffffffffebffffa",
+      "abdddddddddddbebgggggggggebgggfa",
+      "abcccccccccccbebfffffffffebffffa",
+      "abcccccccccccbebfffffffffebffffa",
+      "abcgggggggggcbebdddddddddebdddda",
+      "abdddddddddddbebgggggggggebgggda",
+      "abdddddddddddbebdddddddddebdddda",
+      "abdddddddddddbebdddddddddebdddda",
+      "abcccccccccccbebgggggggggebgggca",
+      ".abccchiicccbcebcccccccccebcccca",
+      ".abbcciiiccbbcebcccccccccebcccca",
+      ".afbbddjddbbccebcccccccccebcccca",
+      ".addbbbjbbbddddddddddddddddddda.",
+      "..aaacabaaagaaaaaaaacaaaaagaaa..",
+      ".....aca.aga........aca.aga.....",
+      "......akaga..........acaga......",
+      ".......kca............aca.......",
+      "......agaca..........agaca......",
+      ".....aga.aca........aga.aca.....",
+      "..aaagaaaaacaaaaaaaagaaaaacaaa..",
+      ".almmmmmmmmmcllllllglllllllclla.",
+      ".allmmmmmmmllllllllllllllllllla."
+    ] },
+    barrique2: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#56381c", "d": "#704c28", "e": "#8a90a8", "f": "#8a6238", "g": "#342010", "h": "#ffe08a", "i": "#c8a046", "j": "#8c6828", "k": "#a0283e", "l": "#1c1622", "m": "#6e1428" }, rows: [
+      "....aaabaaa.....................",
+      "...abbbbbbbaaaaaaaaaaaaaaaaaaaa.",
+      "..abbcccccbbddebdddddddddebdddda",
+      ".abbdddddddbbdebdddddddddebdddda",
+      ".abdddddddddbfebfffffffffebffffa",
+      "abdddddddddddbebgggggggggebgggfa",
+      "abcccccccccccbebfffffffffebffffa",
+      "abcccccccccccbebfffffffffebffffa",
+      "abcgggggggggcbebdddddddddebdddda",
+      "abdddddddddddbebgggggggggebgggda",
+      "abdddddddddddbebdddddddddebdddda",
+      "abdddddddddddbebdddddddddebdddda",
+      "abcccccccccccbebgggggggggebgggca",
+      ".abccchiicccbcebcccccccccebcccca",
+      ".abbcciiiccbbcebcccccccccebcccca",
+      ".afbbddjddbbccebcccccccccebcccca",
+      ".addbbbjbbbddddddddddddddddddda.",
+      "..aaacabaaagaaaaaaaacaaaaagaaa..",
+      ".....aca.aga........aca.aga.....",
+      "......acaga..........acaga......",
+      ".......aca............aca.......",
+      "......akaca..........agaca......",
+      ".....agk.aca........aga.aca.....",
+      "..aaagaaaaacaaaaaaaagaaaaacaaa..",
+      ".almmmmmmmmmcllllllglllllllclla.",
+      ".allkkkkkkkllllllllllllllllllla."
+    ] },
+    gutterH: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "aaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbb",
+      "cccccccccccccccc",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    drain: { palette: { "a": "#8a90a8", "b": "#141018", "c": "#5a5f74", "d": "#4e5570" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".......aaa......",
+      ".....aabcbaa....",
+      "....abcbcbcba...",
+      "...aabcbcbcbaa..",
+      "...dcbcbcbcbcd..",
+      "...ddbcbcbcbdd..",
+      "....dbcbcbcbd...",
+      ".....ddbcbdd....",
+      ".......ddd......",
+      "................",
+      "................",
+      "................"
+    ] },
+    bloodGutterV: { palette: { "a": "#7a7488", "b": "#8a2228", "c": "#5a1418" }, rows: [
+      ".......abc......",
+      ".......acc......",
+      ".......acc......",
+      ".......acc......",
+      ".......acc......",
+      ".......abc......",
+      ".......acc......",
+      ".......acc......",
+      ".......acc......",
+      ".......acc......",
+      ".......abc......",
+      ".......acc......",
+      ".......acc......",
+      ".......acc......",
+      ".......acc......",
+      ".......abc......"
+    ] },
+    bloodDrain: { palette: { "a": "#8a90a8", "b": "#3a0e12", "c": "#5a5f74", "d": "#4e5570" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".......aaa......",
+      ".....aabcbaa....",
+      "....abcbcbcba...",
+      "...aabcbcbcbaa..",
+      "...dcbcbcbcbcd..",
+      "...ddbcbcbcbdd..",
+      "....dbcbcbcbd...",
+      ".....ddbcbdd....",
+      ".......ddd......",
+      "................",
+      "................",
+      "................"
+    ] },
+    pew: { palette: { "a": "#120d08", "b": "#8a6238", "c": "#704c28", "d": "#342010", "e": "#56381c", "f": "#1c1622" }, rows: [
+      "................................",
+      ".aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
+      "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbba",
+      "acccccccccccccccccccccccccccccca",
+      "bdcccccccccccccbdcccccccccccccbd",
+      "ddbbbbbbbbbbbbbddbbbbbbbbbbbbbdd",
+      "ddeeeeeeeeeeeeeddeeeeeeeeeeeeedd",
+      "ddeeeeeeeeeeeeeddeeeeeeeeeeeeedd",
+      "dddddddddddddddddddddddddddddddd",
+      "ddeeeeeeeeeeeeeddeeeeeeeeeeeeedd",
+      "ddeeeeeeeeeeeeeddeeeeeeeeeeeeedd",
+      "dddddddddddddddddddddddddddddddd",
+      "ddeeeeeeeeeeeeeddeeeeeeeeeeeeedd",
+      "ddeeeeeeeeeeeeeddeeeeeeeeeeeeedd",
+      "ddaaaaaaaaaaaaaddaaaaaaaaaaaaadd",
+      "ddaaaaaaaaaaaaaddaaaaaaaaaaaaadd",
+      "affffffffffffffffffffffffffffffa",
+      "affffffffffffffffffffffffffffffa"
+    ] },
+    pewBroken: { palette: { "a": "#120d08", "b": "#8a6238", "c": "#704c28", "d": "#342010", "e": "#56381c", "f": "#1c1622" }, rows: [
+      "................................",
+      ".aaaaaaaaaaaaaa.................",
+      "abbbbbbbbbbbbbba................",
+      "acccccccccccccca................",
+      "ddccccccccccccddaa..............",
+      "ddbbbbbbbbbbbbddada.............",
+      "ddeeeeeeeeeeeeddaa..............",
+      "ddeeeeeeeeeeeeddda..............",
+      "ddddddddddddddddadaaaaaa........",
+      "ddeeeeeeeeeeeeddaaaccccca.aaaa..",
+      "ddeeeeeeeeeeeedddaacccccaaeeeea.",
+      "ddddddddddddddddadaaaaaa.aeeeea.",
+      "ddeeeeeeeeeeeeddacccccaaaaaaaa..",
+      "ddeeeeeeeeeeeedddeeeeecccccaaaa.",
+      "ddaaaaaaaaaaaaddadddddeeeeecccca",
+      "ddaaaaaaaaaaaaddaaaaaadddddeeeea",
+      "affffffffffffffffffffffffffdddda",
+      "affffffffffffffffffffffffffffffa"
+    ] },
+    altar: { palette: { "a": "#120d08", "b": "#961822", "c": "#e8debe", "d": "#b4a682", "e": "#3c2828", "f": "#600e18", "g": "#56381c", "h": "#a4abc8", "i": "#6e7594", "j": "#aa9c80", "k": "#342010", "l": "#dcd2ba", "m": "#461614", "n": "#4e5570", "o": "#1c1622" }, rows: [
+      "..........aaaaaaaaaaaba.........",
+      ".........acccccddccccca.........",
+      ".........aceeecddceeeca.........",
+      ".........aceeecddceeeca.........",
+      ".........aceeecddceeeca.........",
+      ".........affffffffffffa.........",
+      "..........aaaggggggaaa..........",
+      "............agggggga............",
+      "............agggggga............",
+      "aaaaaaaaaaaaaggggggaaaaaaaaaaaaa",
+      "hhhhhhhhhhhhhgggggghhhhhhhhhhhhh",
+      "hhhhhhhhhhhhhgggggghhhhhhhhhhhhh",
+      "ijjjjjjjjjjjjjjkkjjjjjjjjjjjjjji",
+      "illlllllllllllllllllllmmllllllli",
+      "illlllllllllllllllllllmmllllllli",
+      "illlllllllllllllllllllllllllllli",
+      "illlllllllllllllllllllllllllllli",
+      "illillmmmillillillillillillillii",
+      "illillmmmillillillillillillillii",
+      "iiiiiimmmiiiiiiiiiiiiiiiiiiiiiii",
+      "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+      "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "aooooooooooooooooooooooooooooooa",
+      "aooooooooooooooooooooooooooooooa"
+    ] },
+    candelBare: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#1c1622" }, rows: [
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "......aa......",
+      ".aa..abba..aa.",
+      "abba.abba.abba",
+      "abbaaabbaaabba",
+      "acccccccccccca",
+      "abbbbbbbbbbbba",
+      ".aaaaacbaaaaa.",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      ".....acba.....",
+      "....aacbaa....",
+      "...abbbbbba...",
+      "...abbbbbba...",
+      "..adddddddda..",
+      "..adddddddda.."
+    ] },
+    candelA0: { palette: { "a": "#ff8a2a", "b": "#ffb040", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "..............",
+      ".a............",
+      ".ab...........",
+      ".c............",
+      ".dd...........",
+      ".dd...........",
+      ".dd...ee......",
+      ".dd..effe..ee.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelA1: { palette: { "a": "#ff8a2a", "b": "#ffb040", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "..............",
+      ".a............",
+      ".b............",
+      ".c............",
+      ".dd...........",
+      ".dd...........",
+      ".dd...ee......",
+      ".dd..effe..ee.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelA2: { palette: { "a": "#ff8a2a", "b": "#ffb040", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "..............",
+      "..a...........",
+      "..b...........",
+      "..c...........",
+      ".dd...........",
+      ".dd...........",
+      ".dd...ee......",
+      ".dd..effe..ee.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelB0: { palette: { "a": "#ffb040", "b": "#ff8a2a", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "......a.......",
+      ".b....c.......",
+      ".ba...dd......",
+      ".c....dd......",
+      ".dd...dd......",
+      ".dd...dd......",
+      ".dd...dd......",
+      ".dd..edde..ee.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelB1: { palette: { "a": "#ffb040", "b": "#ff8a2a", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      ".......a......",
+      ".b.....c......",
+      ".a....dd......",
+      ".c....dd......",
+      ".dd...dd......",
+      ".dd...dd......",
+      ".dd...dd......",
+      ".dd..edde..ee.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelB2: { palette: { "a": "#ff8a2a", "b": "#ffb040", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "......ab......",
+      "..a...c.......",
+      "..b...dd......",
+      "..c...dd......",
+      ".dd...dd......",
+      ".dd...dd......",
+      ".dd...dd......",
+      ".dd..edde..ee.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelC0: { palette: { "a": "#ffb040", "b": "#ff8a2a", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "......a.......",
+      ".b....c.....b.",
+      ".ba...dd....a.",
+      ".c....dd....c.",
+      ".dd...dd...dd.",
+      ".dd...dd...dd.",
+      ".dd...dd...dd.",
+      ".dd..edde..dd.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelC1: { palette: { "a": "#ffb040", "b": "#ff8a2a", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      ".......a......",
+      ".b.....c...b..",
+      ".a....dd...ba.",
+      ".c....dd...c..",
+      ".dd...dd...dd.",
+      ".dd...dd...dd.",
+      ".dd...dd...dd.",
+      ".dd..edde..dd.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    candelC2: { palette: { "a": "#ff8a2a", "b": "#ffb040", "c": "#ffe08a", "d": "#ece4c8", "e": "#120d08", "f": "#5a5f74", "g": "#8a90a8", "h": "#1c1622" }, rows: [
+      "......ab......",
+      "..a...c....a..",
+      "..b...dd...b..",
+      "..c...dd...c..",
+      ".dd...dd...dd.",
+      ".dd...dd...dd.",
+      ".dd...dd...dd.",
+      ".dd..edde..dd.",
+      "effe.effe.effe",
+      "effeeeffeeeffe",
+      "egggggggggggge",
+      "effffffffffffe",
+      ".eeeeegfeeeee.",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      ".....egfe.....",
+      "....eegfee....",
+      "...effffffe...",
+      "...effffffe...",
+      "..ehhhhhhhhe..",
+      "..ehhhhhhhhe.."
+    ] },
+    runnerA: { palette: { "a": "#c4343c", "b": "#961822", "c": "#600e18", "d": "#d6aa54" }, rows: [
+      "...aabbbbbbccd..",
+      "..aaabbbbbbccd..",
+      "..daabbbbbbccd..",
+      "..daabbbbbbccd..",
+      "..daabbbbbbccd..",
+      "..daabbbbbbccd..",
+      "...aabbbbbbccc..",
+      "..daabbbbbbccc..",
+      "..daabbbbbbccd..",
+      "..daabbbbbbccd..",
+      "..daab.bbbbccd..",
+      "..daab.....ccd..",
+      "..daa.......cd..",
+      "..daa.......cd..",
+      "..daab......cd..",
+      "..daab.....ccd.."
+    ] },
+    runnerB: { palette: { "a": "#d6aa54", "b": "#c4343c", "c": "#961822", "d": "#600e18" }, rows: [
+      "..abbc......dd..",
+      "..abbc.....ddd..",
+      "...bbcccc.cdda..",
+      "..abbccccccdda..",
+      "..bbbccccccddd..",
+      "...bbccccccddd..",
+      "..abbccccccddd..",
+      "..abbccccccddd..",
+      "..bbbccccccddd..",
+      "..bbbccccccddd..",
+      "..bbbccccccdda..",
+      "...bbccccccdda..",
+      "..bbbccccccddd..",
+      "..bbbccccccddd..",
+      "...b...ccccddd..",
+      "..bb...ccccddd.."
+    ] },
+    runnerC: { palette: { "a": "#d6aa54", "b": "#961822", "c": "#600e18", "d": "#c4343c", "e": "#461614" }, rows: [
+      "..a.....bbbcca..",
+      "..a.....bbbcca..",
+      "..a.....bbbccc..",
+      "..ad....bbbccc..",
+      "..edd..bbbbcca..",
+      "..eddbbbbbbcca..",
+      "..eddbbbbbbcca..",
+      "..dddbbbbbbcca..",
+      "..addbbbbbbcca..",
+      "..addbbbbbbcca..",
+      "..addbbbbbbcca..",
+      "..addbbbeeecca..",
+      "..dddbbeeeeeca..",
+      "..dddbbeeeeeea..",
+      "..addbbeeeeeca..",
+      "..addbbbeeeeca.."
+    ] },
+    vitrail0: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#1e1a22", "d": "#be323c", "e": "#e6be46", "f": "#3c5abe", "g": "#46965a", "h": "#08060c" }, rows: [
+      "...aaaaaaaa...",
+      "..abbcddebba..",
+      ".abccccccccba.",
+      "abffdcddeceeba",
+      "abffdcddeceeba",
+      "acddeceegcggfa",
+      "bcddeceegcggfb",
+      "bcchhhcccccccb",
+      "bcdhhhhegcggfb",
+      "bchhhheegcggfb",
+      "bchhhhhgfcffdb",
+      "bceegcggfcffdb",
+      "bccccccccccccb",
+      "bceegcgghhhfdb",
+      "bceegcgghhhfdb",
+      "bcggfcffhhddeb",
+      "bcggfcffdcddeb",
+      "bbbbbbbbbbbbbb"
+    ] },
+    vitrail1: { palette: { "a": "#120d08", "b": "#a4abc8", "c": "#1e1a22", "d": "#be323c", "e": "#e6be46", "f": "#3c5abe", "g": "#46965a", "h": "#08060c" }, rows: [
+      "...aaaaaaaa...",
+      "..abbcddebba..",
+      ".abccccccccba.",
+      "abffdcddeceeba",
+      "abffdcddeceeba",
+      "acddeceegcggfa",
+      "bcddeceegcggfb",
+      "bccccccccccccb",
+      "bcddeceehhhgfb",
+      "bcddecehhhhhfb",
+      "bceegcgghhhfdb",
+      "bceegcggfchfdb",
+      "bccccccccccccb",
+      "bceehhggfcffdb",
+      "bceehhhgfcffdb",
+      "bcgghhhfdcddeb",
+      "bcggfcffdcddeb",
+      "bbbbbbbbbbbbbb"
+    ] },
+    rackTable: { palette: { "a": "#120d08", "b": "#8a6238", "c": "#704c28", "d": "#5a5f74", "e": "#8a90a8", "f": "#80181e", "g": "#56381c", "h": "#520e14", "i": "#342010", "j": "#1c1622" }, rows: [
+      "................................",
+      "................................",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "ccdedccccccccccccccccccccccdedcc",
+      "ccdddccccffffffffffffccccccdddcc",
+      "eggggggggffhhhhhhffffgfffgggggge",
+      "dccccccffffhhhhhhffffcfffccccccd",
+      "eccccccffffffffffffffcccccccccce",
+      "dgdedggggggggggggggggggggggdedgd",
+      "ecdddccccccccccccccccccccccdddce",
+      "dccccccccccccccccccccccccccccccd",
+      "eiiiggggggfgggfgggfgggggggggiiie",
+      "diiiggggggfgggfgggfgggggggggiiid",
+      "eiiiggggggfgggfgggggggggggggiiie",
+      "diiiggggggfgggfgggggggggggggiiid",
+      "giiiggggggggggfgggggggggggggiiig",
+      "iiiiiiiiiiiiiifiiiiiiiiiiiiiiiii",
+      "aiiiaaaaaaaaaaaaaaaaaaaaaaaaiiia",
+      "aiiiaaaaaaaaaaaaaaaaaaaaaaaaiiia",
+      "ajjjjjjjjjjjjjjjjjjjjjjjjjjjjjja",
+      "ajjjjjjjjjjjjjjjjjjjjjjjjjjjjjja"
+    ] },
+    toolRack: { palette: { "a": "#120d08", "b": "#56381c", "c": "#8a6238", "d": "#704c28", "e": "#7a4228", "f": "#a0603c", "g": "#5a5f74", "h": "#522c1c", "i": "#80181e", "j": "#342010", "k": "#1c1622" }, rows: [
+      "................",
+      "aaaaaaaaaaaaaaaa",
+      "bbccccccccccccbb",
+      "bbddddddddddddbb",
+      "bbaeaaefaagaeabb",
+      "bbaeaaefhagaeabb",
+      "bbaeaaefaagaeabb",
+      "bbaeaaefhaghhhbb",
+      "bbaeaaefaaghhhbb",
+      "bbaeaaefhagaaabb",
+      "bbaiaaefaagaiabb",
+      "bbaeaaefhagagabb",
+      "bbaeaaiiaagggabb",
+      "bbaeaaiihaaaaabb",
+      "bbaeaaiia....abb",
+      "bbhhhaefha...abb",
+      "bbhihaefa....abb",
+      "bbhhhjjjja...abb",
+      "bbaaajjjja...abb",
+      "bba..aaaa....abb",
+      "bba..........abb",
+      "bbaaaaaaaaaaaabb",
+      "dddddddddddddddd",
+      "dddddddddddddddd",
+      "bbiiiaaaaaaaaabb",
+      "bbaaaaaaaaaaaabb",
+      "akkkkkkkkkkkkkka",
+      "akkkkkkkkkkkkkka"
+    ] },
+    wallBoard: { palette: { "a": "#120d08", "b": "#704c28", "c": "#8a6238", "d": "#56381c", "e": "#342010", "f": "#522c1c", "g": "#5a5f74", "h": "#80181e", "i": "#520e14", "j": "#1c1622" }, rows: [
+      ".abccccccccccca.",
+      ".abdddedddeddda.",
+      ".abdddedddeddda.",
+      ".abdddedddeddda.",
+      ".abdddedddeddda.",
+      "affggffffffggffa",
+      "affggffffffggffa",
+      ".abdddedddeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddeihdeddda.",
+      ".abdddeihdeddda.",
+      ".abdddeihdeddda.",
+      ".abdddeihdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      ".abdddehhdeddda.",
+      "affggffffffggffa",
+      "affggffffffggffa",
+      ".abdddhhhheddda.",
+      ".abdddhhhheddda.",
+      ".abdddhhhheddda.",
+      ".abdddedddeddda.",
+      ".ajjjjjjjjjjjja.",
+      ".ajjjjjjjjjjjja."
+    ] },
+    rope0: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
+      "..abccccba..",
+      "..abbbbbba..",
+      "...aaadaa...",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      "....aea.....",
+      "....ada.....",
+      "....ada.....",
+      "....aea.....",
+      "....ada.....",
+      "....ada.....",
+      "....aea.....",
+      "....ada.....",
+      "....aca.....",
+      "....aca.....",
+      "...aaca.....",
+      "..afaaa.....",
+      "..acaaba....",
+      "..abbba.....",
+      "...aaa......",
+      "............"
+    ] },
+    rope1: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
+      "..abccccba..",
+      "..abbbbbba..",
+      "...aaadaa...",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....aca....",
+      ".....aca....",
+      "....aaca....",
+      "...afaaa....",
+      "...acaaba...",
+      "...abbba....",
+      "....aaa.....",
+      "............"
+    ] },
+    rope2: { palette: { "a": "#120d08", "b": "#5a5f74", "c": "#8a90a8", "d": "#aa8c5a", "e": "#78603c", "f": "#80181e" }, rows: [
+      "..abccccba..",
+      "..abbbbbba..",
+      "...aaadaa...",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      ".....aea....",
+      ".....ada....",
+      ".....ada....",
+      "......aea...",
+      "......ada...",
+      "......ada...",
+      "......aea...",
+      "......ada...",
+      "......ada...",
+      "......aea...",
+      "......ada...",
+      "......aca...",
+      "......aca...",
+      ".....aaca...",
+      "....afaaa...",
+      "....acaaba..",
+      "....abbba...",
+      ".....aaa....",
+      "............"
+    ] },
+    maiden: { palette: { "a": "#120d08", "b": "#a0603c", "c": "#7a4228", "d": "#522c1c", "e": "#08060c", "f": "#b4bacc", "g": "#5a5f74", "h": "#1c1622" }, rows: [
+      "...abbcccccccda...",
+      "...abbcccccccda...",
+      "..abbbcccccccdda..",
+      "..abbbccddcccdda..",
+      ".abbbbccddcccddda.",
+      ".abbbbccddcccddda.",
+      "abbbbbbbbbbbbdddda",
+      "abbbbbbbbbbbbdddda",
+      "abbbbbebbbbebdddda",
+      "abbbbbbbbbbbbdddda",
+      "abbbbbbddddbbdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbfgggcddcgggfdda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbfgggcddcgggfdda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbfgggcddcgggfdda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      "abbbbbccddcccdddda",
+      ".ahhhhhhhhhhhhhha.",
+      ".ahhhhhhhhhhhhhha."
+    ] },
+    maidenOpen: { palette: { "a": "#120d08", "b": "#a0603c", "c": "#7a4228", "d": "#522c1c", "e": "#08060c", "f": "#8a90a8", "g": "#e2d8be", "h": "#aa9e84", "i": "#1c1622" }, rows: [
+      "...abbcccccccda...",
+      "...abbcccccccda...",
+      "..abbbcccccccdda..",
+      "..abbeeeeeeeedda..",
+      ".abbbeeeeeeeeddda.",
+      ".abffeeggggeeedda.",
+      "abbbeeegeegeeeddda",
+      "abbbeeeggggeeffdda",
+      "abbeeeeggggeeeedda",
+      "abbffeeehheeeeedda",
+      "abbeeeeeheeeeeedda",
+      "abbeehgghgggeffdda",
+      "abbeeheeheeeeeedda",
+      "abbffhgghgggeeedda",
+      "abbeeheeheeeeeedda",
+      "abbeehgghgggeffdda",
+      "abbeeheeheeeeeedda",
+      "abbffeeeheeeeeedda",
+      "abbeeeeeheeeeeedda",
+      "abbeeeeggggeeffdda",
+      "abbeeeeggggeeeedda",
+      "abbffeeheegeeeedda",
+      "abbeeeeheegeeeedda",
+      "abbeeeeheegeeffdda",
+      "abbeeeeheegeeeedda",
+      "abbffeeheegeeeedda",
+      "abbeeeeeeeeeeeedda",
+      "abbbbbcccccccffdda",
+      ".aiiiiiiiiiiiiiia.",
+      ".aiiiiiiiiiiiiiia."
+    ] }
+  };
+
   // src/render/motifs.ts
   var hypot = Math.hypot;
   var MOTIFS = {
@@ -8570,12 +10288,31 @@
     if (k === 1) return GROOVE;
     return hash2(px, py, 78) > 0.75 ? INLAY_HI : INLAY;
   }
+  function kitchenTiles(px, py) {
+    const cell = 8;
+    const cx = Math.floor(px / cell);
+    const cy = Math.floor(py / cell);
+    const lx = px % cell;
+    const ly = py % cell;
+    if (lx === 0 || ly === 0) return hex("#4e4c58");
+    if (hash2(cx, cy, 602) < 0.14 && Math.abs(lx - ly * (0.4 + hash2(cx, cy, 603))) < 0.6 && lx > 1) return hex("#46444e");
+    let c = scale(hex("#7a7886"), 0.92 + 0.12 * hash2(cx, cy, 601));
+    if (lx === 1 || ly === 1) c = scale(c, 1.08);
+    if (fbm(px, py, 20, 604, 2) < 0.38) c = scale(c, 0.82);
+    return scale(c, 0.78);
+  }
+  function tortureFloor(px, py) {
+    const c = floorB(px, py);
+    let out = [c[0] * 0.62, c[1] * 0.55, c[2] * 0.6];
+    if (fbm(px, py, 14, 970, 2) < 0.3) out = [out[0] * 0.6 + 74 * 0.4, out[1] * 0.6 + 26 * 0.4, out[2] * 0.6 + 28 * 0.4];
+    return out;
+  }
   var canvases = /* @__PURE__ */ new Map();
-  function groundImage(map, x, y, motifs = []) {
+  function groundImage(map, x, y, motifs = [], style) {
     const gravel = around(map, x, y, Tile.Gravel);
     const water = around(map, x, y, Tile.Water);
     const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
-    const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}`;
+    const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}`;
     const cached = canvases.get(key);
     if (cached) return cached;
     const canvas2 = document.createElement("canvas");
@@ -8593,7 +10330,7 @@
       for (let i = 0; i < T; i++) {
         const px = ox + i;
         const py = oy + j;
-        let c = floorB(px, py);
+        let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : floorB(px, py);
         if (motif) c = engrave(motif, px, py, c);
         if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
         pixels.push(c);
@@ -8714,9 +10451,10 @@
       const { ctx, tile } = this;
       const u = tile / 16;
       for (const f of game2.furnitureList()) {
-        if (f.kind.startsWith("web")) {
+        if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
           if (f.x !== x || f.y !== y) continue;
-          const web = TRAINARDS[f.kind];
+          const web = TRAINARDS[f.kind] ?? SALLES[f.kind];
+          if (!web) continue;
           const smooth2 = ctx.imageSmoothingEnabled;
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(this.sprite(web.rows, web.palette), sx, sy, 16 * u, 16 * u);
@@ -8745,7 +10483,7 @@
       const { ctx, tile } = this;
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(groundImage(game2.map, x, y, game2.motifs()), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.drawImage(groundImage(game2.map, x, y, game2.motifs(), game2.floorStyle(x, y)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
       ctx.imageSmoothingEnabled = smooth;
     }
     /**
@@ -9061,6 +10799,9 @@
       this.corpses = [];
       this.heroDown = false;
       this.spriteCache = /* @__PURE__ */ new Map();
+      /** Le héros vient d'être blessé. */
+      /** Moment où chaque piège (par case « x,y ») s'est déclenché : il se montre « déclenché » un instant. */
+      this.trapFlash = /* @__PURE__ */ new Map();
       this.smoke = [];
       /** Fouille : une vague dorée balaie les cases de la salle depuis le héros, puis les trouvailles scintillent. */
       this.scan = null;
@@ -9140,7 +10881,9 @@
       this.face(dx, dy);
       this.bowAge = 0;
     }
-    /** Le héros vient d'être blessé. */
+    trapSprung(x, y) {
+      this.trapFlash.set(`${x},${y}`, performance.now());
+    }
     heroHurt() {
       this.hurtAge = 0;
     }
@@ -9614,9 +11357,16 @@
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
         ctx.globalAlpha = game2.isVisible(p.x, p.y) ? 1 : 0.45;
-        const rx = this.snap(ox + p.x * tile);
-        const ry = this.snap(oy + p.y * tile);
-        ctx.drawImage(this.sprite(DECOR.trap, DECOR_PALETTE), rx, ry, this.snap(ox + (p.x + 1) * tile) - rx, this.snap(oy + (p.y + 1) * tile) - ry);
+        const kind = p.kind ?? "spikes";
+        const flash = (this.trapFlash.get(`${p.x},${p.y}`) ?? -Infinity) > performance.now() - 700;
+        const name = kind === "gas" ? flash ? "gasSprung" : `gas${Math.floor(this.time / 260 + p.x) % 3}` : kind === "pit" ? p.sprung ? "pitSprung" : "pit" : flash ? `${kind}Sprung` : kind;
+        const art = PIEGES[name];
+        const u = tile / 16;
+        const w = art.rows[0].length;
+        const h = art.rows.length;
+        const rx = this.snap(ox + p.x * tile - u);
+        const ry = this.snap(oy + (p.y + 1) * tile + u - h * u);
+        ctx.drawImage(this.sprite(art.rows, art.palette), rx, ry, this.snap(rx + w * u) - rx, this.snap(ry + h * u) - ry);
         ctx.globalAlpha = 1;
         ctx.imageSmoothingEnabled = smooth;
       }
@@ -9744,6 +11494,20 @@
         this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
       }
       this.drawSmoke(game2, ox, oy, dt);
+      for (const g of game2.gas) {
+        if (!game2.isVisible(g.x, g.y)) continue;
+        for (let i = 0; i < 4; i++) {
+          const t = this.time / 700 + i * 1.7 + g.x * 0.9 + g.y * 1.3;
+          const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.22) * tile;
+          const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.18) * tile;
+          const r = tile * (0.32 + 0.08 * Math.sin(t * 0.8));
+          const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+          grad.addColorStop(0, `rgba(150,220,110,${0.22 * Math.min(1, g.turns / 2)})`);
+          grad.addColorStop(1, "rgba(150,220,110,0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
+        }
+      }
       const searching = game2.searchProgress();
       if (searching > 0) {
         const s = Math.round(tile * 0.55);
@@ -9906,8 +11670,8 @@
      */
     drawFurniture(game2, ox, oy, flicker, phase) {
       const list = [...game2.furnitureList()].sort((a, b) => {
-        const ra = a.kind.startsWith("rug") ? 0 : 1;
-        const rb = b.kind.startsWith("rug") ? 0 : 1;
+        const ra = isFlat(a.kind) ? 0 : 1;
+        const rb = isFlat(b.kind) ? 0 : 1;
         return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
       });
       if (list.length === 0) return;
@@ -9918,7 +11682,7 @@
       const actors = [hero, ...game2.monsters.filter((m) => game2.isVisible(m.x, m.y))];
       for (const f of list) {
         const def = FURNITURE_KINDS[f.kind];
-        if (!def || f.kind.startsWith("rug") || f.kind.startsWith("web")) continue;
+        if (!def || def.flat) continue;
         const bottom = f.y + def.h - 1;
         const behind = actors.some(
           (a) => [a.y, a.fromY].some((ay) => ay < bottom && ay >= bottom - 2) && [a.x, a.fromX].some((ax) => ax >= f.x - 1 && ax <= f.x + def.w)
@@ -9940,16 +11704,20 @@
           dark = (1 - brightness) * 0.55;
           warm = lit * flicker * 0.2;
         }
-        const name = f.kind.startsWith("table") ? `${f.kind}${visible ? frame2 : 0}` : f.kind;
-        const art = DORTOIR[name] ?? TRAINARDS[name];
+        const animated = f.kind.startsWith("table") || !DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`];
+        const name = animated ? `${f.kind}${visible ? (frame2 + f.x) % 3 : 0}` : f.kind;
+        const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name];
         if (!art) continue;
         const w = art.rows[0].length;
         const h = art.rows.length;
         let px;
         let py;
-        if (f.kind.startsWith("rug")) {
+        if (def.wall) {
+          px = f.x * 16 + 1;
+          py = f.y * 16 - 1;
+        } else if (SALLES[name]) {
           px = (f.x + def.w / 2) * 16 - w / 2;
-          py = (f.y + def.h / 2) * 16 - h / 2;
+          py = (f.y + def.h) * 16 - h;
         } else {
           const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
           px = f.x * 16 + off[0];
@@ -10126,8 +11894,14 @@
         const outcome = !e.success ? `${name} ne bouge pas.` : e.slam > 0 ? `${name} heurte le mur : ${e.slam} d\xE9g\xE2ts, il est sonn\xE9.` : e.moved ? `${name} recule, sonn\xE9.` : `${name} est bloqu\xE9, mais sonn\xE9.`;
         return `Vous poussez ${name} : ${roll(e.d20, e.bonus, e.total)} \u2014 ${outcome}`;
       }
-      case "trap":
-        return e.victim.kind === "hero" ? `Vous marchez sur un pi\xE8ge : ${e.damage} d\xE9g\xE2ts.` : `${e.victim.name} tombe sur un pi\xE8ge : ${e.damage} d\xE9g\xE2ts.`;
+      case "trap": {
+        const hero = e.victim.kind === "hero";
+        const who = hero ? "Vous" : e.victim.name;
+        if (e.kind === "pit") return hero ? `La dalle c\xE8de : vous tombez dans une fosse (${e.damage} d\xE9g\xE2ts) et devez en remonter.` : `${who} tombe dans une fosse : ${e.damage} d\xE9g\xE2ts.`;
+        if (e.kind === "needle") return hero ? `Une aiguille empoisonn\xE9e vous pique (${e.damage} d\xE9g\xE2t).` : `${who} marche sur une aiguille empoisonn\xE9e.`;
+        if (e.kind === "gas") return hero ? "Pschhh\u2026 un gaz vert s'\xE9chappe de la grille !" : `${who} lib\xE8re un nuage de gaz vert.`;
+        return hero ? `Vous marchez sur un pi\xE8ge \xE0 pointes : ${e.damage} d\xE9g\xE2ts.` : `${who} tombe sur un pi\xE8ge \xE0 pointes : ${e.damage} d\xE9g\xE2ts.`;
+      }
       case "search":
         return e.phase === "start" ? "Vous fouillez la salle\u2026" : "Fouille interrompue : un ennemi approche !";
       case "searched": {
@@ -10138,6 +11912,11 @@
         return e.phase === "start" ? "Vous vous installez pour vous reposer\u2026" : e.phase === "interrupted" ? "Repos interrompu : un ennemi approche !" : `Vous vous \xEAtes repos\xE9 : +${e.healed} PV.`;
       case "fountain":
         return e.healed > 0 ? `Vous buvez \xE0 la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez \xE0 la fontaine. Elle se tarit.";
+      case "maiden": {
+        const how = e.action === "pick" ? "Vous d\xE9samorcez le sarcophage" : "Vous forcez le sarcophage";
+        const outcome = e.success ? "r\xE9ussi, il s'ouvre sans mal." : `rat\xE9, une pointe jaillit : ${e.damage} d\xE9g\xE2ts. Il s'ouvre quand m\xEAme.`;
+        return `${how} : ${roll(e.d20, e.bonus, e.total)} \u2014 ${outcome} Un squelette y est pris ; ${e.gold} pi\xE8ces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombent \xE0 c\xF4t\xE9.`;
+      }
       case "chest":
         return `Le coffre s'ouvre : ${e.gold} pi\xE8ces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombent \xE0 c\xF4t\xE9.`;
       case "used":
@@ -10168,9 +11947,9 @@
       case "torchOut":
         return "Votre torche s'\xE9teint.";
       case "poisoned":
-        return `${e.actor.name} est empoisonn\xE9.`;
+        return e.actor.kind === "hero" ? "Vous \xEAtes empoisonn\xE9 !" : `${e.actor.name} est empoisonn\xE9.`;
       case "poison":
-        return `Le poison ronge ${e.actor.name} : ${e.damage} d\xE9g\xE2t${e.damage > 1 ? "s" : ""}.`;
+        return e.actor.kind === "hero" ? `Le poison vous ronge : ${e.damage} d\xE9g\xE2t${e.damage > 1 ? "s" : ""}.` : `Le poison ronge ${e.actor.name} : ${e.damage} d\xE9g\xE2t${e.damage > 1 ? "s" : ""}.`;
       default:
         return null;
     }
@@ -10360,7 +12139,7 @@
     shownHp = game.hero.hp;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
-      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Schrat qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge. Au sud-est : Schrats \xE0 pousser, escalier. Au sud-ouest : un Schrat en ronde. Au sud : fontaine et coffre (clef au sol). Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
+      "Ici : les nouveaux objets (vous \xEAtes niveau 4). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, escalier, puis la SALLE DE PRI\xC8RE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
@@ -10385,7 +12164,7 @@
       })
     );
   }
-  var isRoll = (e) => e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "door" && e.action !== "key";
+  var isRoll = (e) => e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "maiden" || e.type === "door" && e.action !== "key";
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   var launched = /* @__PURE__ */ new WeakSet();
   function launchArrow(e) {
@@ -10473,6 +12252,19 @@
           sfx.play(e.success ? "unlock" : "click");
         }
       }
+    } else if (e.type === "maiden") {
+      landDie(e.d20, e.success ? "hit" : "miss", false);
+      renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
+      if (e.damage > 0) {
+        renderer.addFloatingText(game.hero.x, game.hero.y, `Pointe ! \u2212${e.damage}`, "#ff6b7a");
+        renderer.heroHurt();
+        pulse(hpBar, "hit");
+        shownHp = game.hero.hp;
+        sfx.play("hurt");
+      } else {
+        renderer.addFloatingText(e.x, e.y, e.action === "pick" ? "D\xE9samorc\xE9" : "CRAC !", "#ffd75e");
+        sfx.play(e.action === "pick" ? "unlock" : "break");
+      }
     } else if (e.type === "arrow") {
       if (!launched.has(e)) sfx.play("bow");
       launchArrow(e);
@@ -10528,7 +12320,11 @@
     } else if (e.type === "potion") {
       sfx.play("heal");
     } else if (e.type === "poison") {
-      renderer.monsterHurt(e.actor.id);
+      if (e.actor.kind === "hero") {
+        renderer.heroHurt();
+        pulse(hpBar, "hit");
+        shownHp = game.hero.hp;
+      } else renderer.monsterHurt(e.actor.id);
       renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
     } else if (e.type === "used") {
       sfx.play(e.healed !== void 0 ? "heal" : "pickup");
@@ -10559,8 +12355,10 @@
       sfx.play(!e.success ? "miss" : e.slam > 0 ? "thud" : "hit");
     } else if (e.type === "trap") {
       const hero = e.victim.kind === "hero";
-      renderer.addFloatingText(e.x, e.y, `Pi\xE8ge ! \u2212${e.damage}`, "#ff6b7a");
-      sfx.play(hero ? "hurt" : "hit");
+      renderer.trapSprung(e.x, e.y);
+      const label = e.kind === "gas" ? "Gaz !" : e.kind === "pit" ? `Fosse ! \u2212${e.damage}` : e.kind === "needle" ? `Aiguille ! \u2212${e.damage}` : `Pi\xE8ge ! \u2212${e.damage}`;
+      renderer.addFloatingText(e.x, e.y, label, e.kind === "gas" || e.kind === "needle" ? "#9fe060" : "#ff6b7a");
+      sfx.play(e.damage === 0 ? "gravel" : hero ? "hurt" : "hit");
       if (hero) {
         renderer.heroHurt();
         pulse(hpBar, "hit");
@@ -11165,6 +12963,8 @@
     const list = [];
     if (game.hidden) list.push({ id: "cache", name: "Cach\xE9", detail: "Les monstres ne vous remarquent qu'au contact. Votre premi\xE8re attaque a l'avantage." });
     if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 d\xE9g\xE2ts par tour. Sortez des flammes !" });
+    if (game.hero.poison) list.push({ id: "poison", name: "Empoisonn\xE9", detail: `Vous perdez ${game.hero.poison.damage} PV par tour. Encore ${game.hero.poison.turns} tours.` });
+    if (game.hero.stuck) list.push({ id: "ralenti", name: "Englu\xE9", detail: "Votre prochain pas servira \xE0 vous d\xE9gager. Vous pouvez encore frapper." });
     if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allum\xE9e", detail: `Vous \xE9clairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
     if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonn\xE9e", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
     if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Acc\xE9l\xE9r\xE9", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
@@ -11652,6 +13452,11 @@
     doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
     $("door-key").hidden = !doorOptions.includes("key");
     $("door-pick").hidden = !doorOptions.includes("pick");
+    const maiden = game.pendingDoor !== null && game.maidenAt(game.pendingDoor.x, game.pendingDoor.y) !== null;
+    const pickText = maiden ? "D\xE9samorcer" : "Crocheter";
+    const breakText = maiden ? "Forcer" : "Enfoncer";
+    if ($("door-pick").textContent !== pickText) $("door-pick").textContent = pickText;
+    if ($("door-break").textContent !== breakText) $("door-break").textContent = breakText;
     $("door-break").hidden = !doorOptions.includes("break");
     if (game.pendingDoor && !doorWasPending && !game.usingKey()) {
       renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);

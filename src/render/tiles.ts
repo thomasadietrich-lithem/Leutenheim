@@ -4,7 +4,8 @@ import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { groundImage } from "./ground";
 import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
-import { FURNITURE_KINDS } from "../data/themedRooms";
+import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
+import { SALLES } from "./sprites/salles";
 
 /**
  * Dessin des cases de la carte (sol, murs en briques, colonnes, portes, escaliers, coffres, fontaine), sans ombre
@@ -78,9 +79,11 @@ export class TilePainter {
     const { ctx, tile } = this;
     const u = tile / 16;
     for (const f of game.furnitureList()) {
-      if (f.kind.startsWith("web")) {
+      if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
+        // Une case : toile d'araignée, rigole, évacuation, morceau de tapis de velours.
         if (f.x !== x || f.y !== y) continue;
-        const web = TRAINARDS[f.kind];
+        const web = TRAINARDS[f.kind] ?? SALLES[f.kind];
+        if (!web) continue;
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(this.sprite(web.rows, web.palette), sx, sy, 16 * u, 16 * u);
@@ -110,7 +113,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(groundImage(game.map, x, y, game.motifs()), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
   }
 

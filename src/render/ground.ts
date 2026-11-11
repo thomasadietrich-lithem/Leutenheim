@@ -145,17 +145,45 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
   return hash2(px, py, 78) > 0.75 ? INLAY_HI : INLAY;
 }
 
+/**
+ * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
+ * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
+ */
+export type FloorStyle = "kitchen" | "torture";
+
+function kitchenTiles(px: number, py: number): RGB {
+  const cell = 8;
+  const cx = Math.floor(px / cell);
+  const cy = Math.floor(py / cell);
+  const lx = px % cell;
+  const ly = py % cell;
+  if (lx === 0 || ly === 0) return hex("#4e4c58");
+  if (hash2(cx, cy, 602) < 0.14 && Math.abs(lx - ly * (0.4 + hash2(cx, cy, 603))) < 0.6 && lx > 1) return hex("#46444e");
+  let c = scale(hex("#7a7886"), 0.92 + 0.12 * hash2(cx, cy, 601));
+  if (lx === 1 || ly === 1) c = scale(c, 1.08);
+  if (fbm(px, py, 20, 604, 2) < 0.38) c = scale(c, 0.82);
+  // Un peu plus sombre que la planche : la salle est éclairée comme le reste du donjon.
+  return scale(c, 0.78);
+}
+
+function tortureFloor(px: number, py: number): RGB {
+  const c = floorB(px, py);
+  let out: RGB = [c[0] * 0.62, c[1] * 0.55, c[2] * 0.6];
+  if (fbm(px, py, 14, 970, 2) < 0.3) out = [out[0] * 0.6 + 74 * 0.4, out[1] * 0.6 + 26 * 0.4, out[2] * 0.6 + 28 * 0.4];
+  return out;
+}
+
 const canvases = new Map<string, HTMLCanvasElement>();
 
 /**
  * L'image 16 × 16 du sol d'une case (sol B, plus le gravier et l'eau qui la touchent). Gardée en mémoire : le sol ne
  * change jamais. Sert à toute case où l'on marche (et sous les meubles, les colonnes, les escaliers).
  */
-export function groundImage(map: GameMap, x: number, y: number, motifs: readonly Motif[] = []): HTMLCanvasElement {
+export function groundImage(map: GameMap, x: number, y: number, motifs: readonly Motif[] = [], style?: FloorStyle): HTMLCanvasElement {
   const gravel = around(map, x, y, Tile.Gravel);
   const water = around(map, x, y, Tile.Water);
   const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
-  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}`;
+  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
@@ -173,7 +201,7 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = floorB(px, py);
+      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

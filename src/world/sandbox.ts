@@ -1,11 +1,12 @@
 import { ItemId } from "../data/items";
 import { Rng } from "../core/rng";
-import { furnishDortoir, Furniture, RoomTheme } from "./furnish";
+import { furnishChapel, furnishDortoir, furnishKitchen, furnishTorture, Furniture, RoomTheme } from "./furnish";
 import { Motif } from "./grounds";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
 import { SPECIAL_ROOMS } from "../data/specialRooms";
-import { GameMap, Point, Tile } from "./map";
+import type { Trap } from "../core/floor";
+import { GameMap, Tile } from "./map";
 
 /**
  * Salle d'essai : un étage dessiné à la main, toujours le même, qui rassemble les derniers éléments créés
@@ -21,7 +22,7 @@ import { GameMap, Point, Tile } from "./map";
  *   avec une cache au pied d'un lit.
  */
 export interface SandboxFloor extends Floor {
-  traps: Point[];
+  traps: Trap[];
   /** Caches à fouiller : leur salle (numéro dans `rooms`), ce qu'elles contiennent. */
   secrets: { x: number; y: number; room: number; item: ItemId; count: number }[];
   furniture: Furniture[];
@@ -35,10 +36,13 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 8;
+export const SANDBOX_LAYOUT = 9;
 
-export function buildSandbox(): SandboxFloor {
-  const map = new GameMap(32, 32);
+/** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
+export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28 };
+
+export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
+  const map = new GameMap(40, 32);
   const carve = (r: Room) => {
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
   };
@@ -71,6 +75,10 @@ export function buildSandbox(): SandboxFloor {
   const torches: LightSource[] = [
     { x: 7, y: 2, radius: 6, faceX: 0, faceY: 1 },
     { x: 21, y: 2, radius: 5, faceX: 0, faceY: 1, hearth: true, lit: true },
+    // Une torche sur le mur de droite de la cuisine, de la salle de prière et de la salle de torture.
+    { x: 38, y: 5, radius: 6, faceX: -1, faceY: 0 },
+    { x: 38, y: 16, radius: 6, faceX: -1, faceY: 0 },
+    { x: 38, y: 26, radius: 6, faceX: -1, faceY: 0 },
   ];
   const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
   const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
@@ -88,11 +96,28 @@ export function buildSandbox(): SandboxFloor {
   const den: Room = { x: 17, y: 23, w: 9, h: 6 };
   carve(den);
   for (let y = 20; y <= 22; y++) map.set(21, y, Tile.Floor);
-  const rooms = [start, pillars, combat, patrolRoom, dortoir, den];
+  // Nouvelles salles à thème (2026-11-11), à l'est : CUISINE (par la salle des colonnes), SALLE DE PRIÈRE (par la salle
+  // de combat), SALLE DE TORTURE (par l'antre de l'araignée).
+  const kitchen: Room = { x: 29, y: 3, w: 9, h: 6 };
+  const chapel: Room = { x: 29, y: 12, w: 9, h: 8 };
+  const torture: Room = { x: 29, y: 23, w: 9, h: 6 };
+  for (const r of [kitchen, chapel, torture]) carve(r);
+  for (const y of [6, 16, 25]) for (let x = 26; x <= 28; x++) map.set(x, y, Tile.Floor);
+  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture];
   const floorPlan: Floor = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
   const furniture: Furniture[] = [];
   furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
-  const themes: RoomTheme[] = [{ room: 4, id: "dortoir" }];
+  // Graines choisies pour que chaque salle montre tout : deux jambons, une barrique ; bancs cassés, candélabres ; deux
+  // sarcophages, cordes.
+  furnishKitchen(floorPlan, kitchen, new Rng(seeds.kitchen), furniture);
+  furnishChapel(floorPlan, chapel, new Rng(seeds.chapel), furniture);
+  furnishTorture(floorPlan, torture, new Rng(seeds.torture), furniture);
+  const themes: RoomTheme[] = [
+    { room: 4, id: "dortoir" },
+    { room: 6, id: "cuisine" },
+    { room: 7, id: "priere" },
+    { room: 8, id: "torture" },
+  ];
   // Toiles de l'antre, et des trainards (tonneau, caisses) contre le mur gauche de la salle des colonnes.
   furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });
   for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }]) {
@@ -125,7 +150,13 @@ export function buildSandbox(): SandboxFloor {
       { room: fountainRoom, kind: fontaine },
       { room: chestRoom, kind: tresor },
     ],
-    traps: [{ x: 21, y: 6 }, { x: 21, y: 17 }],
+    // Les quatre pièges v3 : pointes (colonnes), gaz (salle de combat), fosse (salle de ronde), aiguille (antre).
+    traps: [
+      { x: 21, y: 6, kind: "spikes" },
+      { x: 21, y: 17, kind: "gas" },
+      { x: 9, y: 20, kind: "pit" },
+      { x: 22, y: 25, kind: "needle" },
+    ],
     secrets,
     ground: [
       { x: 5, y: 5, item: "clef", count: 1 },

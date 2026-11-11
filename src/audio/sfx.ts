@@ -1,5 +1,6 @@
 /** Sons synthétisés (aucun fichier audio) : de simples bips et souffles, faciles à remplacer plus tard. */
 export type SoundName =
+  | "bell"
   | "step"
   | "dice"
   | "hit"
@@ -226,6 +227,10 @@ export class Sfx {
           break;
         case "heal":
           [523, 659, 784].forEach((f, i) => this.tone(f, f, 0.18, "sine", 0.12, i * 0.08));
+          break;
+        case "bell": // le tocsin : une cloche grave et lointaine, avec ses harmoniques qui s'éteignent lentement
+          for (const [f, v, d] of [[220, 0.16, 2.2], [440, 0.07, 1.6], [587, 0.05, 1.2], [880, 0.03, 0.8]] as const) this.tone(f, f * 0.995, d, "sine", v);
+          this.noise(0.05, 0.06, 1200);
           break;
         case "click":
           this.tone(700, 700, 0.03, "square", 0.05);

@@ -30,6 +30,9 @@ export interface FloorState {
   /** Repeuplement : nombre de monstres à l'origine, et tour du prochain renfort possible. */
   population: number;
   nextRespawn: number;
+  /** Tocsin : alerte de l'étage (0 à 100) et palier atteint (0 calme, 1 agité, 2 alerte, 3 hallali). */
+  alarm: number;
+  alarmStage: number;
   /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
   rested: boolean;
   /** Caches de l'étage (butin enfoui dans une salle) et salles déjà fouillées (une fouille par salle). */

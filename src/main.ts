@@ -377,6 +377,10 @@ function reveal(e: GameEvent): void {
       renderer.monsterDies(e.actor);
       sfx.play("kill");
     }
+  } else if (e.type === "alarm") {
+    // Le tocsin sonne une fois par palier atteint (une, deux, trois fois).
+    for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
+    renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Tocsin !", "Hallali !"][e.stage] ?? "", "#ff8a7a");
   } else if (e.type === "fire") {
     renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
     sfx.play("break");
@@ -1494,6 +1498,10 @@ button("wake-all", () => {
   game.wakeAll();
   logLines.push("Tous les monstres se réveillent et foncent sur vous !");
   renderLog();
+});
+button("alarm-up", () => {
+  game.raiseAlarm(25);
+  collectEvents();
 });
 button("level-up", () => {
   game.levelUpNow();

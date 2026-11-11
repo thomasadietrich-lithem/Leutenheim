@@ -197,6 +197,8 @@ export class Game {
         seenMonsters: new Set<number>(),
         population: 0,
         nextRespawn: 0,
+        alarm: 0,
+        alarmStage: 0,
         rested: false,
         secrets: [],
         traps: [],
@@ -303,8 +305,11 @@ export class Game {
   private respawn(): void {
     const state = this.current;
     if (this.turn < state.nextRespawn) return;
-    state.nextRespawn = this.turn + RULES.respawnTurns;
-    if (this.monsters.length >= state.population || this.rooms.length === 0) return;
+    // Tocsin « agité » et plus : les promeneurs arrivent deux fois plus vite, et plus nombreux.
+    const agitated = state.alarmStage >= 1;
+    state.nextRespawn = this.turn + (agitated ? RULES.agitatedRespawnTurns : RULES.respawnTurns);
+    const cap = state.population + (agitated ? RULES.agitatedExtraPopulation : 0);
+    if (this.monsters.length >= cap || this.rooms.length === 0) return;
     const spawns = spawnsForDepth(this.depth);
     let pick = this.rng.next() * spawns.entries.reduce((sum, e) => sum + e.weight, 0);
     const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
@@ -321,6 +326,56 @@ export class Game {
 
 
 
+
+  // ---------- Tocsin ----------
+
+  /** Alerte de l'étage courant (0 à 100) et palier (0 calme, 1 agité, 2 alerte, 3 hallali). */
+  alarm(): { level: number; stage: number } {
+    return { level: this.current.alarm, stage: this.current.alarmStage };
+  }
+
+  /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
+  raiseAlarm(points: number): void {
+    const state = this.current;
+    if (points <= 0 || this.over) return;
+    state.alarm = Math.min(100, state.alarm + points);
+    while (state.alarmStage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[state.alarmStage]) {
+      state.alarmStage++;
+      this.events.push({ type: "alarm", stage: state.alarmStage });
+      if (state.alarmStage === 1) state.nextRespawn = Math.min(state.nextRespawn, this.turn + 1);
+      if (state.alarmStage === 2) this.sendTrackers(RULES.trackersAlert);
+      if (state.alarmStage === 3) {
+        // Hallali : de nouveaux traqueurs, et tout l'étage sait où est le héros.
+        this.sendTrackers(RULES.trackersHallali);
+        for (const m of this.monsters) {
+          m.alerted = true;
+          m.asleep = false;
+          m.patrol = undefined;
+        }
+        this.reveal();
+      }
+    }
+  }
+
+  /** Des traqueurs arrivent par l'entrée de l'étage (hors de vue) et foncent sur le héros. */
+  private sendTrackers(count: number): void {
+    const spawns = spawnsForDepth(this.depth);
+    const def = MONSTERS[spawns.entries[0].monster];
+    const origin = this.current.start;
+    for (let i = 0; i < count; i++) {
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const r = Math.min(6, 1 + Math.floor(attempt / 8));
+        const x = attempt < 50 ? origin.x + this.rng.int(-r, r) : this.rng.int(0, this.map.width - 1);
+        const y = attempt < 50 ? origin.y + this.rng.int(-r, r) : this.rng.int(0, this.map.height - 1);
+        const far = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) >= 4;
+        if (this.map.get(x, y) !== Tile.Floor || this.actorAt(x, y) || this.isVisible(x, y) || !far) continue;
+        const m = this.newMonster(def, x, y, false);
+        m.alerted = true;
+        this.monsters.push(m);
+        break;
+      }
+    }
+  }
 
   /** Les pièges de l'étage. */
   traps(): readonly Point[] {
@@ -444,6 +499,8 @@ export class Game {
       seenMonsters: [...f.seenMonsters],
       population: f.population,
       nextRespawn: f.nextRespawn,
+      alarm: f.alarm,
+      alarmStage: f.alarmStage,
       rested: f.rested,
       secrets: f.secrets,
       traps: f.traps,
@@ -516,6 +573,8 @@ export class Game {
         seenMonsters: new Set(f.seenMonsters),
         population: f.population,
         nextRespawn: f.nextRespawn,
+        alarm: f.alarm ?? 0,
+        alarmStage: f.alarmStage ?? 0,
         rested: f.rested,
         secrets: f.secrets,
         traps: f.traps,
@@ -1488,6 +1547,8 @@ export class Game {
     }
 
     this.turn++;
+    // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
+    if (this.turn % RULES.alarmTurnsPerPoint === 0) this.raiseAlarm(1);
     this.respawn();
     if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
     if (this.torchTurns > 0) {
@@ -1811,6 +1872,7 @@ export class Game {
     let alerted = 0;
     if (action === "break") {
       this.reveal();
+      this.raiseAlarm(RULES.alarmBreak);
       // Le vacarme alerte les monstres proches, que la porte cède ou non.
       for (const m of this.monsters) {
         const d = Math.max(Math.abs(m.x - door.x), Math.abs(m.y - door.y));
@@ -1866,6 +1928,7 @@ export class Game {
     monster.hp -= result.damage;
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
     if (result.damage > 0) this.bleed(monster, this.hero);
+    this.raiseAlarm(RULES.alarmCombat);
     // Arme enduite de poison (potion) : le coup qui porte empoisonne.
     if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
       this.weaponPoison--;
@@ -2048,6 +2111,7 @@ export class Game {
           m.alerted = true;
           m.asleep = false;
           this.events.push({ type: "noticed", actor: m });
+          this.raiseAlarm(RULES.alarmNoticed);
           this.reveal();
         } else if (!m.asleep) {
           this.wander(m);
@@ -2063,6 +2127,7 @@ export class Game {
         m.wary = false;
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
         if (result.damage > 0) this.bleed(this.hero, m);
+        this.raiseAlarm(RULES.alarmCombat);
         this.hurtHero(result.damage);
         continue;
       }

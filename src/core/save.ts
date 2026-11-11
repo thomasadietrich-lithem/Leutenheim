@@ -33,6 +33,8 @@ export interface SavedFloor {
   seenMonsters: number[];
   population: number;
   nextRespawn: number;
+  alarm?: number;
+  alarmStage?: number;
   rested: boolean;
   secrets: Secret[];
   traps: Point[];

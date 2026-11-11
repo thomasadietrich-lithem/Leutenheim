@@ -125,6 +125,13 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
           : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "alarm":
+      return [
+        "",
+        "Au loin, une cloche sonne. Le donjon s'agite.",
+        "Le tocsin résonne : des traqueurs sont lâchés sur votre piste !",
+        "Hallali ! Tout l'étage sait où vous êtes.",
+      ][e.stage] ?? null;
     case "dropped":
       return `Vous jetez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
     case "slowed":

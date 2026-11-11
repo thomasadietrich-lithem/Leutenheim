@@ -995,7 +995,10 @@ test("repeuplement : un étage vidé retrouve des promeneurs, sans dépasser sa 
   for (let t = 0; t < RULES.respawnTurns * (original + 3); t++) {
     game.wait();
     game.tick();
-    assert.ok(game.monsters.length <= original, "jamais plus de monstres qu'à l'origine");
+    // Hors tocsin, jamais plus qu'à l'origine ; tocsin « agité » : 2 de plus ; ensuite viennent les traqueurs.
+    if (game.alarm().stage >= 2) break;
+    const cap = original + (game.alarm().stage >= 1 ? RULES.agitatedExtraPopulation : 0);
+    assert.ok(game.monsters.length <= cap, "jamais plus de monstres que permis");
   }
 });
 
@@ -2088,4 +2091,38 @@ test("sang : un coup qui porte laisse une tache (verte pour un Schrat) ; le feu 
     burns += g2.events.filter((e) => e.type === "burn").length;
   }
   assert.equal(burns, 2);
+});
+
+test("Tocsin : l'alerte monte avec le temps et le bruit ; paliers agité, alerte (traqueurs), hallali (tout l'étage)", () => {
+  const game = new Game(7);
+  assert.deepEqual(game.alarm(), { level: 0, stage: 0 });
+  game.monsters.splice(0);
+  for (let t = 0; t < RULES.alarmTurnsPerPoint * 3; t++) {
+    game.wait();
+    game.tick();
+  }
+  assert.equal(game.alarm().level, 3, "un point tous les 8 tours");
+  game.events.length = 0;
+  game.raiseAlarm(22);
+  assert.equal(game.alarm().stage, 1);
+  assert.ok(game.events.some((e) => e.type === "alarm" && e.stage === 1));
+  const before = game.monsters.length;
+  game.raiseAlarm(25);
+  assert.equal(game.alarm().stage, 2);
+  const trackers = game.monsters.length - before;
+  assert.ok(trackers >= 1 && trackers <= RULES.trackersAlert, `traqueurs : ${trackers}`);
+  assert.ok(game.monsters.every((m) => m.alerted), "les traqueurs foncent sur le héros");
+  game.raiseAlarm(100);
+  assert.equal(game.alarm().stage, 3);
+  assert.equal(game.alarm().level, 100);
+  // Chaque étage a son propre tocsin, et il est sauvegardé.
+  const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  assert.equal(copy.alarm().stage, 3);
+});
+
+test("Tocsin : enfoncer une porte fait plus de bruit que la crocheter", () => {
+  const broken = openLockedDoor("break");
+  const picked = openLockedDoor("pick");
+  assert.ok(broken.game.alarm().level >= RULES.alarmBreak, `porte enfoncée : ${broken.game.alarm().level}`);
+  assert.ok(picked.game.alarm().level < RULES.alarmBreak, `porte crochetée : ${picked.game.alarm().level}`);
 });

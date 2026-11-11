@@ -121,6 +121,21 @@ export const RULES = {
   fireTurns: 5,
   /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
   burnAfter: 2,
+  // ---- Tocsin (2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
+  /** L'alerte monte d'un point tous les tant de tours passés sur l'étage. */
+  alarmTurnsPerPoint: 8,
+  /** Bruit : porte enfoncée (réussie ou non), chaque coup échangé, un monstre qui remarque le héros. */
+  alarmBreak: 15,
+  alarmCombat: 1,
+  alarmNoticed: 4,
+  /** Seuils des paliers : agité, alerte, hallali (sur 100). */
+  alarmStages: [25, 50, 75],
+  /** Agité : un promeneur arrive tous les tant de tours, et l'étage peut compter tant de monstres de plus. */
+  agitatedRespawnTurns: 20,
+  agitatedExtraPopulation: 2,
+  /** Alerte et hallali : traqueurs qui arrivent par l'entrée de l'étage et foncent sur le héros. */
+  trackersAlert: 2,
+  trackersHallali: 3,
   /** Taches de sang gardées par étage, au plus. */
   bloodMax: 150,
   fireDamage: { count: 1, sides: 4, bonus: 0 },

@@ -147,7 +147,8 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
   // 5. Salles spéciales : petites salles en cul-de-sac, reliées par un seul couloir, fermées à clé.
   const specials: { room: Room; kind: SpecialRoomDef }[] = [];
   let pickCount = rng.next() * cfg.specialRoomCounts.reduce((sum, c) => sum + c.weight, 0);
-  const wanted = (cfg.specialRoomCounts.find((c) => (pickCount -= c.weight) < 0) ?? cfg.specialRoomCounts[0]).count;
+  // Jamais deux salles spéciales du même type sur un étage : pas plus de salles que de types.
+  const wanted = Math.min(SPECIAL_ROOMS.length, (cfg.specialRoomCounts.find((c) => (pickCount -= c.weight) < 0) ?? cfg.specialRoomCounts[0]).count);
   for (let attempt = 0; attempt < 300 && specials.length < wanted; attempt++) {
     const w = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
     const h = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
@@ -190,8 +191,9 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       continue;
     }
     map.set(door.x, door.y, Tile.DoorLocked);
-    let pickKind = rng.next() * SPECIAL_ROOMS.reduce((sum, k) => sum + k.weight, 0);
-    const kind = SPECIAL_ROOMS.find((k) => (pickKind -= k.weight) < 0) ?? SPECIAL_ROOMS[0];
+    const unused = SPECIAL_ROOMS.filter((k) => !specials.some((sp) => sp.kind.id === k.id));
+    let pickKind = rng.next() * unused.reduce((sum, k) => sum + k.weight, 0);
+    const kind = unused.find((k) => (pickKind -= k.weight) < 0) ?? unused[0];
     map.set(c.x, c.y, kind.feature);
     specials.push({ room, kind });
   }
@@ -266,6 +268,16 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       }
     }
   });
+  // Les portes permettent de passer en diagonale : une fois toutes posées, un détour a pu raccourcir.
+  // On retire celles qu'on pourrait désormais contourner en quelques pas (retirer une porte ne raccourcit aucun autre détour).
+  for (const room of rooms) {
+    for (const c of ringCells(room)) {
+      if (map.get(c.x, c.y) !== Tile.DoorClosed) continue;
+      const around = distanceField(map, { x: c.x + c.nx, y: c.y + c.ny }, (x, y) => x !== c.x || y !== c.y);
+      const detour = around[map.index(c.x - c.nx, c.y - c.ny)];
+      if (detour !== -1 && detour <= cfg.doorDetour) map.set(c.x, c.y, Tile.Floor);
+    }
+  }
 
   return { map, rooms, start, stairs, torches, specials };
 }

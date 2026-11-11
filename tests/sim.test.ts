@@ -21,7 +21,8 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
     const { map, rooms, start, stairs, torches, specials } = generateFloor(seed, DEFAULT_FLOOR);
     assert.ok(rooms.length >= DEFAULT_FLOOR.minRooms, `graine ${seed} : pas assez de salles`);
     // Une à trois salles spéciales, chacune derrière sa porte verrouillée, avec son contenu au centre.
-    assert.ok(specials.length >= 1 && specials.length <= 3, `graine ${seed} : ${specials.length} salles spéciales`);
+    assert.ok(specials.length >= 1 && specials.length <= 2, `graine ${seed} : ${specials.length} salles spéciales`);
+    assert.equal(new Set(specials.map((sp) => sp.kind.id)).size, specials.length, `graine ${seed} : deux salles spéciales identiques`);
     stats.specials[specials.length]++;
     let lockedHere = 0;
     for (const t of map.tiles) if (t === Tile.DoorLocked) lockedHere++;
@@ -109,7 +110,8 @@ test(`${FLOORS} étages : tout est accessible, l'escalier n'est jamais derrière
   );
   assert.ok(stats.doors > FLOORS && stats.pillars > FLOORS);
   assert.ok(mean > 1.35 && mean < 1.65, `moyenne de salles spéciales : ${mean}`);
-  assert.ok(stats.specials[3] > 0 && stats.specials[3] < stats.specials[2] && stats.specials[2] < stats.specials[1]);
+  // Jamais deux salles spéciales du même type : pas plus de salles que de types (2 aujourd'hui).
+  assert.ok(stats.specials[3] === 0 && stats.specials[2] > 0 && stats.specials[2] < stats.specials[1]);
 });
 
 test("lumière : une case éclairée voit une torche ; la lumière ne fait qu'agrandir le champ de vision", () => {
@@ -327,10 +329,13 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
     }
     const foe = game.monsters[0];
     if (game.over || !foe || !foe.alerted) continue;
-    // « Au contact » : case voisine, sans coin de mur entre les deux.
-    const reach = (fx: number, fy: number) =>
-      Math.max(Math.abs(game.hero.x - fx), Math.abs(game.hero.y - fy)) === 1 &&
-      canStep(game.map, fx, fy, game.hero.x - fx, game.hero.y - fy);
+    // « Au contact », comme dans le jeu : case voisine ; en diagonale, il suffit qu'un des deux côtés soit libre.
+    const reach = (fx: number, fy: number) => {
+      const dx = game.hero.x - fx;
+      const dy = game.hero.y - fy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return false;
+      return dx === 0 || dy === 0 || game.map.isWalkable(fx + dx, fy) || game.map.isWalkable(fx, fy + dy);
+    };
     if (!reach(foe.x, foe.y)) continue;
     // Repartir vers la salle de départ : un trajet de plusieurs cases.
     game.events.length = 0;
@@ -341,7 +346,7 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
     if (game.map.isDoor(step.x, step.y) || game.map.isDoor(game.hero.x, game.hero.y)) continue;
     game.tick();
     const stillNear = reach(foe.fromX, foe.fromY);
-    const reactions = game.events.filter((e) => e.type === "attack" && e.opportunity);
+    const reactions = game.events.filter((e) => e.type === "attack" && e.opportunity && e.attacker === foe);
     if (stillNear) {
       assert.equal(reactions.length, 0, `graine ${seed} : attaque d'opportunité sans désengagement`);
       continue;
@@ -1452,4 +1457,27 @@ test("porte verrouillée : la croix referme le choix sans rien tenter ni faire p
     return;
   }
   assert.fail("aucune porte verrouillée trouvée");
+});
+
+test("portes : on peut entrer et sortir en diagonale", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 60 && checked < 30; seed++) {
+    const game = new Game(seed);
+    for (let y = 1; y < game.map.height - 1; y++) {
+      for (let x = 1; x < game.map.width - 1; x++) {
+        if (game.map.get(x, y) !== Tile.DoorClosed) continue;
+        // Porte dans un mur horizontal (murs à gauche et à droite) : de la porte vers une case en diagonale dessous ou dessus.
+        if (game.map.get(x - 1, y) !== Tile.Wall || game.map.get(x + 1, y) !== Tile.Wall) continue;
+        for (const dy of [-1, 1]) {
+          for (const dx of [-1, 1]) {
+            if (!game.map.isWalkable(x + dx, y + dy) || !game.map.isWalkable(x, y + dy)) continue;
+            assert.ok(canStep(game.map, x, y, dx, dy), `graine ${seed} : sortie en diagonale refusée`);
+            assert.ok(canStep(game.map, x + dx, y + dy, -dx, -dy), `graine ${seed} : entrée en diagonale refusée`);
+            checked++;
+          }
+        }
+      }
+    }
+  }
+  assert.ok(checked > 0);
 });

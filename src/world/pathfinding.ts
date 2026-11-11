@@ -12,11 +12,18 @@ const DIRS: readonly Point[] = [
   { x: -1, y: -1 },
 ];
 
-/** Un pas est permis si la case d'arrivée est libre et, en diagonale, si on ne coupe pas un coin de mur. */
+/**
+ * Un pas est permis si la case d'arrivée est libre et, en diagonale, si on ne coupe pas un coin de mur.
+ * Exception : en entrant dans une porte ou en en sortant, on peut prendre la diagonale dès qu'un des deux
+ * côtés est libre (sinon il faudrait toujours faire un pas droit avant de tourner).
+ */
 export function canStep(map: GameMap, x: number, y: number, dx: number, dy: number): boolean {
   if (!map.isWalkable(x + dx, y + dy)) return false;
   if (dx !== 0 && dy !== 0) {
-    return map.isWalkable(x + dx, y) && map.isWalkable(x, y + dy);
+    const sideA = map.isWalkable(x + dx, y);
+    const sideB = map.isWalkable(x, y + dy);
+    if (map.isDoor(x, y) || map.isDoor(x + dx, y + dy)) return sideA || sideB;
+    return sideA && sideB;
   }
   return true;
 }

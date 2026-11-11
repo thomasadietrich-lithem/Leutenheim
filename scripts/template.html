@@ -93,7 +93,10 @@
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 100px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
-  .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
+  /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
+  .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
+  .dice.ready #die-who { color: var(--gold); }
   .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
   .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }

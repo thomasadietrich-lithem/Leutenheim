@@ -6,6 +6,7 @@ import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 import { PALETTE as ICON_PALETTE, uiIconRows } from "../ui/icons";
+import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
 const COLUMNS = 11;
@@ -1126,18 +1127,18 @@ export class Renderer {
   /** Escalier, fontaine et coffre, dessinés par-dessus le sol. */
   private drawFeature(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
-    if (t === Tile.StairsDown) {
-      ctx.fillStyle = COLORS.stairs;
-      for (let i = 0; i < 3; i++) {
-        ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), tile * (0.3 + i * 0.2), tile * 0.14);
-      }
-    } else if (t === Tile.StairsUp) {
-      // Escalier qui remonte : marches claires qui se resserrent vers le haut.
-      ctx.fillStyle = "#b9c0dc";
-      for (let i = 0; i < 3; i++) {
-        const w = tile * (0.7 - i * 0.2);
-        ctx.fillRect(sx + tile * 0.85 - w, sy + tile * (0.64 - i * 0.22), w, tile * 0.14);
-      }
+    // Escaliers et coffres : dessins en pixels validés par Thomas (`src/render/sprites/decor.ts`).
+    const decor =
+      t === Tile.StairsDown ? DECOR.stairsDown
+      : t === Tile.StairsUp ? DECOR.stairsUp
+      : t === Tile.Chest ? DECOR.chest
+      : t === Tile.ChestOpen ? DECOR.chestOpen
+      : null;
+    if (decor) {
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(decor, DECOR_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.imageSmoothingEnabled = smooth;
     } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
       this.drawDoor(game, t, x, y, sx, sy);
     } else if (t === Tile.Fountain || t === Tile.FountainDry) {
@@ -1157,17 +1158,6 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(cx - tile * 0.08, cy - tile * 0.08, tile * 0.08, 0, Math.PI * 2);
         ctx.fill();
-      }
-    } else if (t === Tile.Chest || t === Tile.ChestOpen) {
-      // Coffre : fermé avec sa ferrure dorée, ou ouvert et sombre.
-      ctx.fillStyle = COLORS.doorEdge;
-      ctx.fillRect(sx + tile * 0.18, sy + tile * 0.3, tile * 0.64, tile * 0.46);
-      ctx.fillStyle = t === Tile.Chest ? COLORS.door : "#1c1410";
-      ctx.fillRect(sx + tile * 0.22, sy + tile * 0.34, tile * 0.56, t === Tile.Chest ? tile * 0.38 : tile * 0.2);
-      if (t === Tile.Chest) {
-        ctx.fillStyle = COLORS.lock;
-        ctx.fillRect(sx + tile * 0.18, sy + tile * 0.47, tile * 0.64, tile * 0.06);
-        ctx.fillRect(sx + tile * 0.45, sy + tile * 0.44, tile * 0.1, tile * 0.14);
       }
     }
   }

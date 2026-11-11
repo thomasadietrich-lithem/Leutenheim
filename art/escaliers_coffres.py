@@ -136,3 +136,21 @@ if __name__ == "__main__":
         sheet.paste(current(n, cell // 2), (x + cell // 4, 40 + cell + 125))
         d.text((x + cell / 2, 40 + cell + 125 + cell // 2 + 14), "ACTUEL (agrandi)", fill=(150, 150, 150), font=f, anchor="mm")
     sheet.save("art/escaliers_coffres_v1.png"); print(sheet.size)
+
+
+def export_decor(path="src/render/sprites/decor.ts"):
+    """Écrit les dessins validés (Thomas, 2026-11-11) dans le jeu. Lancer : python3 art/escaliers_coffres.py export"""
+    keys = {"stairs_down": "stairsDown", "stairs_up": "stairsUp", "chest": "chest", "chest_open": "chestOpen"}
+    out = ["// FICHIER GÉNÉRÉ par art/escaliers_coffres.py (export_decor) : ne pas modifier à la main.",
+           "/** Escaliers et coffres en pixels 16×16, validés par Thomas le 2026-11-11 (planche v1). */",
+           "export const DECOR_PALETTE: Record<string, string> = " + str(PAL).replace("'", '"') + ";",
+           "export const DECOR = {"]
+    for n, rows in SPRITES.items():
+        out.append(f"  {keys[n]}: [")
+        out += [f'    "{r}",' for r in rows]
+        out.append("  ],")
+    out.append("} as const;")
+    open(path, "w", encoding="utf8").write("\n".join(out) + "\n")
+
+if __name__ == "__main__" and len(__import__("sys").argv) > 1 and __import__("sys").argv[1] == "export":
+    export_decor()

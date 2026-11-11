@@ -1481,3 +1481,20 @@ test("portes : on peut entrer et sortir en diagonale", () => {
   }
   assert.ok(checked > 0);
 });
+
+test("toucher le dé : frappe l'ennemi au contact, et rien s'il n'y en a pas", () => {
+  assert.equal(new Game(1).strike(), false);
+  for (let seed = 1; seed <= 60; seed++) {
+    const t = threatenedHero(seed);
+    if (!t) continue;
+    t.game.tick(); // mettre à jour la vue
+    if (!t.game.visibleMonsters().includes(t.m) || t.game.over) continue;
+    assert.equal(t.game.meleeTarget(), t.m);
+    t.game.events.length = 0;
+    assert.ok(t.game.strike());
+    t.game.tick();
+    assert.ok(t.game.events.some((e) => e.type === "attack" && e.attacker === t.game.hero && e.target === t.m), `graine ${seed} : pas d'attaque`);
+    return;
+  }
+  assert.fail("aucune situation trouvée");
+});

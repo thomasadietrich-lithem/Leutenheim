@@ -350,8 +350,8 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "hide") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
     const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `− ${-e.bonus}`;
-    logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, les monstres perdent votre trace." : "raté, on pourrait encore vous voir."}`);
-    renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Repéré", e.success ? "#c8c8c8" : "#ff6b7a");
+    logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} — ${e.success ? "réussi, les monstres perdent votre trace." : "raté, vous restez visible."}`);
+    renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
     if (!e.success) sfx.play("miss");
   } else if (e.type === "revealed") {
     logLines.push("Vous sortez de l'ombre.");
@@ -599,6 +599,19 @@ for (const [id, icon, label] of WHEEL) {
 }
 wheel.addEventListener("click", closeWheel);
 button("actions", () => (wheelOpen ? closeWheel() : openWheel()));
+// Toucher le dé : frapper au corps à corps l'ennemi au contact (demande de Thomas).
+const diceBox = die.parentElement!.parentElement!;
+diceBox.addEventListener("click", () => {
+  if (menuOpen || bagOpen || foundOpen || wheelOpen || game.over) return;
+  sfx.unlock();
+  jumpMode = false;
+  aimMode = false;
+  if (game.strike()) stepMs = COMBAT_STEP_MS;
+  else {
+    logLines.push("Aucun ennemi au contact.");
+    renderLog();
+  }
+});
 button("over-new-run", () => showScreen("new"));
 const doorButton = (id: string, action: DoorAction) => button(id, () => game.actOnDoor(action));
 doorButton("door-pick", "pick");
@@ -1113,6 +1126,12 @@ function frame(now: number): void {
   if (!jumpMode || game.disengageRefusal() !== null) {
     jumpMode = false;
     renderer.jumpCells = [];
+  }
+  // Le dé s'entoure d'or quand un ennemi est au contact : le toucher le frappe.
+  diceBox.classList.toggle("ready", !game.over && game.meleeTarget() !== null);
+  if (!cue && queue.length === 0 && die.textContent === "") {
+    const hint = game.meleeTarget() && !game.over ? "Frapper" : "";
+    if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = hint;
   }
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.weapon("ranged")?.range ?? null) : null;

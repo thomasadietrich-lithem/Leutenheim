@@ -93,7 +93,10 @@
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 100px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
-  .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
+  /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
+  .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
+  .dice.ready #die-who { color: var(--gold); }
   .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
   .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
@@ -1465,6 +1468,8 @@
       this.events = [];
       this.nextId = 1;
       this.targetId = null;
+      /** Dernier monstre frappé au corps à corps : c'est lui que vise le dé quand on le touche. */
+      this.lastFoeId = null;
       this.waiting = false;
       /** Attaques du héros manquées d'affilée. */
       this.heroMisses = 0;
@@ -2275,6 +2280,25 @@
       if (monster.wary) return false;
       return this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
     }
+    /**
+     * Le monstre à frapper si l'on touche le dé : celui qu'on frappait déjà s'il est toujours au contact,
+     * sinon un monstre alerté au contact (le plus abîmé d'abord), sinon n'importe quel monstre visible au contact.
+     */
+    meleeTarget() {
+      const near = this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+      if (near.length === 0) return null;
+      const last2 = near.find((m) => m.id === this.lastFoeId);
+      if (last2) return last2;
+      const alerted = near.filter((m) => m.alerted);
+      const pool = alerted.length > 0 ? alerted : near;
+      return pool.reduce((a, b) => b.hp < a.hp ? b : a);
+    }
+    /** Ordre : frapper au corps à corps le monstre désigné par `meleeTarget` (un tour). */
+    strike() {
+      const target = this.over ? null : this.meleeTarget();
+      if (!target) return false;
+      return this.setDestination(target.x, target.y);
+    }
     /** Un ennemi alerté est-il au contact du héros ? */
     isThreatened() {
       return this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
@@ -2376,6 +2400,7 @@
     }
     heroAttacks(monster) {
       this.reveal();
+      this.lastFoeId = monster.id;
       const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };
       const result = rollAttack(this.rng, attacker, monster, this.heroHasAdvantageOn(monster) ? "advantage" : "normal");
       this.noteHeroAttack(result.hit);
@@ -4078,6 +4103,83 @@
     return buildIcon(UI_ICONS[name]);
   }
 
+  // src/render/sprites/decor.ts
+  var DECOR_PALETTE = { "K": "#120d08", "N": "#06050a", "H": "#2a2e40", "C": "#4e5570", "D": "#7f88a6", "c": "#a4abc8", "S": "#c3cbe0", "W": "#f4f7ff", "B": "#9a6a34", "b": "#5a3817", "T": "#b9824a", "t": "#7a5230", "G": "#f0c050", "g": "#a87c1c", "s": "#0c0a12" };
+  var DECOR = {
+    stairsDown: [
+      "KKKKKKKKKKKKKKKK",
+      "KCHNNNNNNNNNNHCK",
+      "KCHNNNNNNNNNNHCK",
+      "KCHHKKKKKKKKHHCK",
+      "KCHHHHHHHHHHHHCK",
+      "KCHKKKKKKKKKKHCK",
+      "KCHCCCCCCCCCCHCK",
+      "KCHCCCCCCCCCCHCK",
+      "KCKKKKKKKKKKKKCK",
+      "KCDDDDDDDDDDDDCK",
+      "KCDDDDDDDDDDDDCK",
+      "KKKKKKKKKKKKKKKK",
+      "KcccccccccccccDK",
+      "KcSSSSSSSSSSScDK",
+      "KDDDDDDDDDDDDDDK",
+      "KKKKKKKKKKKKKKKK"
+    ],
+    stairsUp: [
+      "................",
+      "...KKKKKKKKKK...",
+      "...KWWWWWWWWK...",
+      "...KSSSSSSSSK...",
+      "..KKKKKKKKKKKK..",
+      "..KSSSSSSSSSSK..",
+      "..KccccccccccK..",
+      ".KKKKKKKKKKKKKK.",
+      ".KccccccccccccK.",
+      ".KDDDDDDDDDDDDK.",
+      "KKKKKKKKKKKKKKKK",
+      "KDDDDDDDDDDDDDDK",
+      "KCCCCCCCCCCCCCCK",
+      "KKKKKKKKKKKKKKKK",
+      "................",
+      "................"
+    ],
+    chest: [
+      "................",
+      "................",
+      "...KKKKKKKKKK...",
+      "..KTTSTTTTSTTK..",
+      "..KTBSBBBBSBTK..",
+      "..KBBSBBBBSBBK..",
+      "..KKKKKGGKKKKK..",
+      "..KtBSBGGBSBtK..",
+      "..KBBSBgGBSBBK..",
+      "..KBBSBBBBSBBK..",
+      "..KbbSbbbbSbbK..",
+      "..KKKKKKKKKKKK..",
+      "...ss......ss...",
+      "................",
+      "................",
+      "................"
+    ],
+    chestOpen: [
+      "................",
+      "...KKKKKKKKKK...",
+      "..KbbSbbbbSbbK..",
+      "..KbtSttttStbK..",
+      "..KKKKKKKKKKKK..",
+      "..KNNNNNNNNNNK..",
+      "..KNNNNNNNNNNK..",
+      "..KKKKKKKKKKKK..",
+      "..KtBSBBBBSBtK..",
+      "..KBBSBBBBSBBK..",
+      "..KBBSBBBBSBBK..",
+      "..KbbSbbbbSbbK..",
+      "..KKKKKKKKKKKK..",
+      "...ss......ss...",
+      "................",
+      "................"
+    ]
+  };
+
   // src/render/renderer.ts
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
@@ -5009,17 +5111,12 @@
     /** Escalier, fontaine et coffre, dessinés par-dessus le sol. */
     drawFeature(game2, t, x, y, sx, sy) {
       const { ctx, tile } = this;
-      if (t === Tile.StairsDown) {
-        ctx.fillStyle = COLORS.stairs;
-        for (let i = 0; i < 3; i++) {
-          ctx.fillRect(sx + tile * 0.15, sy + tile * (0.2 + i * 0.22), tile * (0.3 + i * 0.2), tile * 0.14);
-        }
-      } else if (t === Tile.StairsUp) {
-        ctx.fillStyle = "#b9c0dc";
-        for (let i = 0; i < 3; i++) {
-          const w = tile * (0.7 - i * 0.2);
-          ctx.fillRect(sx + tile * 0.85 - w, sy + tile * (0.64 - i * 0.22), w, tile * 0.14);
-        }
+      const decor = t === Tile.StairsDown ? DECOR.stairsDown : t === Tile.StairsUp ? DECOR.stairsUp : t === Tile.Chest ? DECOR.chest : t === Tile.ChestOpen ? DECOR.chestOpen : null;
+      if (decor) {
+        const smooth = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.sprite(decor, DECOR_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+        ctx.imageSmoothingEnabled = smooth;
       } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
         this.drawDoor(game2, t, x, y, sx, sy);
       } else if (t === Tile.Fountain || t === Tile.FountainDry) {
@@ -5038,16 +5135,6 @@
           ctx.beginPath();
           ctx.arc(cx - tile * 0.08, cy - tile * 0.08, tile * 0.08, 0, Math.PI * 2);
           ctx.fill();
-        }
-      } else if (t === Tile.Chest || t === Tile.ChestOpen) {
-        ctx.fillStyle = COLORS.doorEdge;
-        ctx.fillRect(sx + tile * 0.18, sy + tile * 0.3, tile * 0.64, tile * 0.46);
-        ctx.fillStyle = t === Tile.Chest ? COLORS.door : "#1c1410";
-        ctx.fillRect(sx + tile * 0.22, sy + tile * 0.34, tile * 0.56, t === Tile.Chest ? tile * 0.38 : tile * 0.2);
-        if (t === Tile.Chest) {
-          ctx.fillStyle = COLORS.lock;
-          ctx.fillRect(sx + tile * 0.18, sy + tile * 0.47, tile * 0.64, tile * 0.06);
-          ctx.fillRect(sx + tile * 0.45, sy + tile * 0.44, tile * 0.1, tile * 0.14);
         }
       }
     }
@@ -5318,8 +5405,8 @@
     } else if (e.type === "hide") {
       landDie(e.d20, e.success ? "hit" : "miss", false);
       const bonus = e.bonus >= 0 ? `+ ${e.bonus}` : `\u2212 ${-e.bonus}`;
-      logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi, les monstres perdent votre trace." : "rat\xE9, on pourrait encore vous voir."}`);
-      renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Cach\xE9" : "Rep\xE9r\xE9", e.success ? "#c8c8c8" : "#ff6b7a");
+      logLines.push(`Vous vous cachez : ${e.d20} ${bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi, les monstres perdent votre trace." : "rat\xE9, vous restez visible."}`);
+      renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Cach\xE9" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
       if (!e.success) sfx.play("miss");
     } else if (e.type === "revealed") {
       logLines.push("Vous sortez de l'ombre.");
@@ -5542,6 +5629,18 @@
   }
   wheel.addEventListener("click", closeWheel);
   button("actions", () => wheelOpen ? closeWheel() : openWheel());
+  var diceBox = die.parentElement.parentElement;
+  diceBox.addEventListener("click", () => {
+    if (menuOpen || bagOpen || foundOpen || wheelOpen || game.over) return;
+    sfx.unlock();
+    jumpMode = false;
+    aimMode = false;
+    if (game.strike()) stepMs = COMBAT_STEP_MS;
+    else {
+      logLines.push("Aucun ennemi au contact.");
+      renderLog();
+    }
+  });
   button("over-new-run", () => showScreen("new"));
   var doorButton = (id, action) => button(id, () => game.actOnDoor(action));
   doorButton("door-pick", "pick");
@@ -5980,6 +6079,11 @@
     if (!jumpMode || game.disengageRefusal() !== null) {
       jumpMode = false;
       renderer.jumpCells = [];
+    }
+    diceBox.classList.toggle("ready", !game.over && game.meleeTarget() !== null);
+    if (!cue && queue.length === 0 && die.textContent === "") {
+      const hint = game.meleeTarget() && !game.over ? "Frapper" : "";
+      if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = hint;
     }
     if (started) discoverSurroundings();
     const aimRange = aimMode && game.arrows() > 0 ? game.weapon("ranged")?.range ?? null : null;

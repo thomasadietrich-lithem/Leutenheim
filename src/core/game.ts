@@ -159,6 +159,8 @@ export class Game {
   private rng!: Rng;
   private nextId = 1;
   private targetId: number | null = null;
+  /** Dernier monstre frappé au corps à corps : c'est lui que vise le dé quand on le touche. */
+  private lastFoeId: number | null = null;
   private waiting = false;
   /** Attaques du héros manquées d'affilée. */
   heroMisses = 0;
@@ -1072,6 +1074,27 @@ export class Game {
     return this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
   }
 
+  /**
+   * Le monstre à frapper si l'on touche le dé : celui qu'on frappait déjà s'il est toujours au contact,
+   * sinon un monstre alerté au contact (le plus abîmé d'abord), sinon n'importe quel monstre visible au contact.
+   */
+  meleeTarget(): Actor | null {
+    const near = this.visibleMonsters().filter((m) => this.inReach(this.hero, m));
+    if (near.length === 0) return null;
+    const last = near.find((m) => m.id === this.lastFoeId);
+    if (last) return last;
+    const alerted = near.filter((m) => m.alerted);
+    const pool = alerted.length > 0 ? alerted : near;
+    return pool.reduce((a, b) => (b.hp < a.hp ? b : a));
+  }
+
+  /** Ordre : frapper au corps à corps le monstre désigné par `meleeTarget` (un tour). */
+  strike(): boolean {
+    const target = this.over ? null : this.meleeTarget();
+    if (!target) return false;
+    return this.setDestination(target.x, target.y);
+  }
+
   /** Un ennemi alerté est-il au contact du héros ? */
   isThreatened(): boolean {
     return this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
@@ -1185,6 +1208,7 @@ export class Game {
 
   private heroAttacks(monster: Actor): void {
     this.reveal();
+    this.lastFoeId = monster.id;
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
     // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: this.hero.damage };

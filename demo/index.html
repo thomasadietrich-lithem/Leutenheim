@@ -52,6 +52,8 @@
     60% { transform: translateX(-3px); } 80% { transform: translateX(2px); filter: brightness(1.2); } 100% { transform: none; filter: none; } }
   .hp.xp.gain { animation: xpGain 0.5s steps(6); }
   @keyframes xpGain { 0% { filter: brightness(2.6); transform: scaleY(1.7); } 60% { filter: brightness(1.6); transform: scaleY(1.2); } 100% { filter: none; transform: none; } }
+  .hp:not(.xp).gain { animation: hpGain 0.5s steps(6); }
+  @keyframes hpGain { 0% { filter: brightness(1.8); } 100% { filter: none; } }
   .frame.hurt::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 6px rgba(208, 58, 68, 0.85); animation: hurt 0.32s steps(4) forwards; }
   @keyframes hurt { to { opacity: 0; } }
   .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
@@ -78,6 +80,7 @@
   #over .over-title { font-size: 34px; color: #ff6b7a; }
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
+  .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
   #over.over-win { background: #0e1408; border-color: #8a7a2a; }
   #over.over-win .over-title { color: #ffd75e; }
   #over .over-best { color: #ffd75e; font-size: 26px; }
@@ -297,7 +300,11 @@
   .skill-card { position: relative; }
   .skill-card .rank-now { color: #fff3c8; font-size: 15px; }
   .skill-card .rank-next { color: var(--dim); font-size: 13px; }
-  .skill-card .rank-plus { position: absolute; top: 3px; right: 3px; width: 26px; height: 24px; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .skill-card .rank-pips { display: flex; align-items: center; justify-content: center; gap: 3px; margin: 3px 0 2px; min-height: 18px; }
+  .skill-card.main .rank-pips { justify-content: flex-start; }
+  .skill-card .rank-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: block; margin: 0 !important; }
+  .skill-card .rank-plus { width: 18px; height: 18px; padding: 0; margin-left: 4px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .skill-card .rank-plus .plus-icon { width: 8px; height: 8px; margin: 0 !important; }
   #char-note { font-size: 16px; color: #ff8a7a; text-align: center; width: min(100%, 318px); }
   #char-note:empty { display: none; }
   #bag-info .item-card { position: relative; padding-right: 34px; }
@@ -2358,6 +2365,10 @@
     eggSmash: { blocks: false, w: 1, h: 1, burns: false, flat: true },
     bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true }
   };
+  for (const pre of ["gut", "bgut"]) {
+    for (const m of ["NSa", "NSb", "EWa", "EWb", "NE", "NW", "SE", "SW", "N", "E", "S", "W"]) FURNITURE_KINDS[`${pre}_${m}`] = { blocks: false, w: 1, h: 1, burns: false, flat: true };
+    for (const d of "NESW") FURNITURE_KINDS[`${pre}Drain_${d}`] = { blocks: false, w: 1, h: 1, burns: false, flat: true };
+  }
   function isFlat(kind) {
     return !!FURNITURE_KINDS[kind]?.flat;
   }
@@ -2596,7 +2607,46 @@
         }
       }
     };
-    return { tryPlace, reserve, chest, undo, allFloor, alongBackWall, placed, free, inside };
+    const gutter = (rng, prefix, from, to) => {
+      if (!free(from.x, from.y) || !free(to.x, to.y)) return false;
+      const cost = /* @__PURE__ */ new Map();
+      for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) cost.set(key(x, y), 1 + rng.int(0, 4));
+      const dist = /* @__PURE__ */ new Map([[key(from.x, from.y), 0]]);
+      const prev = /* @__PURE__ */ new Map();
+      const open = [from];
+      while (open.length > 0) {
+        open.sort((p2, q) => dist.get(key(p2.x, p2.y)) - dist.get(key(q.x, q.y)));
+        const p = open.shift();
+        if (p.x === to.x && p.y === to.y) break;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const n = { x: p.x + dx, y: p.y + dy };
+          if (!free(n.x, n.y)) continue;
+          const d = dist.get(key(p.x, p.y)) + cost.get(key(n.x, n.y));
+          if (d < (dist.get(key(n.x, n.y)) ?? Infinity)) {
+            dist.set(key(n.x, n.y), d);
+            prev.set(key(n.x, n.y), p);
+            open.push(n);
+          }
+        }
+      }
+      if (!prev.has(key(to.x, to.y)) && !(from.x === to.x && from.y === to.y)) return false;
+      const path = [to];
+      while (path[0].x !== from.x || path[0].y !== from.y) path.unshift(prev.get(key(path[0].x, path[0].y)));
+      const side = (a, b) => b.y < a.y ? "N" : b.y > a.y ? "S" : b.x > a.x ? "E" : "W";
+      path.forEach((p, i) => {
+        const sides = [i > 0 ? side(p, path[i - 1]) : "", i < path.length - 1 ? side(p, path[i + 1]) : ""].filter(Boolean);
+        let kind;
+        if (i === path.length - 1) kind = `${prefix}Drain_${sides[0] ?? "N"}`;
+        else if (sides.length < 2) kind = `${prefix}_${sides[0]}`;
+        else {
+          const m = "NESW".split("").filter((c) => sides.includes(c)).join("");
+          kind = m === "NS" || m === "EW" ? `${prefix}_${m}${rng.chance(0.5) ? "a" : "b"}` : `${prefix}_${m === "ES" ? "SE" : m === "SW" ? "SW" : m === "EW" ? "EW" : m === "NW" ? "NW" : m === "NE" ? "NE" : m}`;
+        }
+        tryPlace({ x: p.x, y: p.y, kind });
+      });
+      return true;
+    };
+    return { tryPlace, reserve, chest, undo, allFloor, alongBackWall, placed, free, inside, gutter };
   }
   function shuffle(rng, list) {
     for (let i = list.length - 1; i > 0; i--) {
@@ -2617,11 +2667,9 @@
     for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
     const gy = room.y + room.h - 1;
     const leftDrain = rng.chance(0.5);
-    const len = rng.int(3, room.w - 1);
-    for (let i = 0; i < len; i++) {
-      const x = leftDrain ? room.x + i : room.x + room.w - 1 - i;
-      P.tryPlace({ x, y: gy, kind: i === 0 ? "drain" : "gutterH" });
-    }
+    const drainAt = { x: leftDrain ? room.x + rng.int(0, 1) : room.x + room.w - 1 - rng.int(0, 1), y: gy };
+    const srcX = leftDrain ? room.x + room.w - 1 - rng.int(1, Math.max(1, Math.floor(room.w / 3))) : room.x + rng.int(1, Math.max(1, Math.floor(room.w / 3)));
+    P.gutter(rng, "gut", { x: srcX, y: room.y + 2 }, drainAt);
     for (let attempt = 0; attempt < 12; attempt++) {
       const left = rng.chance(0.5);
       const y = rng.int(room.y + 2, gy - 1);
@@ -2738,7 +2786,8 @@
       return false;
     }
     const gx = table.x + rng.int(0, 1);
-    for (let y = table.y + 1; y < room.y + room.h; y++) P.tryPlace({ x: gx, y, kind: y === room.y + room.h - 1 ? "bloodDrain" : "bloodGutterV" });
+    const drainX = Math.max(room.x + 1, Math.min(room.x + room.w - 2, gx + rng.int(-3, 3)));
+    if (!P.gutter(rng, "bgut", { x: gx, y: table.y + 1 }, { x: drainX, y: room.y + room.h - 1 })) P.gutter(rng, "bgut", { x: gx, y: table.y + 1 }, { x: gx, y: room.y + room.h - 1 });
     const maidens = rng.int(0, 2);
     let put = 0;
     for (let attempt = 0; attempt < 20 && put < maidens; attempt++) {
@@ -2909,8 +2958,8 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 13;
-  var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 28, forge: 30, alchemist: 28 };
+  var SANDBOX_LAYOUT = 14;
+  var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
     const map = new GameMap(52, 32);
     const carve = (r) => {
@@ -6105,18 +6154,27 @@
     /** Le contenu d'un coffre (ou d'un sarcophage) tombe à côté : renvoie les cases de l'or et de l'objet. */
     spillLoot(x, y, gold, loot) {
       {
-        const bare = (p) => (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y);
-        const ring = (r) => {
+        const hidden = (p) => {
+          const below = this.furnitureAt(p.x, p.y + 1);
+          return below !== null && FURNITURE_KINDS[below.kind]?.blocks || p.x === this.hero.x && p.y + 1 === this.hero.y;
+        };
+        const bare = (p) => (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y) && hasLineOfSight(this.map, { x, y }, p);
+        const ring = (r, strict2) => {
           const out = [];
           for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) out.push({ x: x + dx, y: y + dy });
-          return out.filter(bare);
+          return out.filter((p) => bare(p) && (!strict2 || !hidden(p)));
         };
-        const around2 = ring(1).length > 0 ? ring(1) : ring(2);
+        const near = ring(1, true);
+        const strict = near.length >= 2 ? near : [...near, ...ring(2, true)];
+        const around2 = strict.length >= 2 ? strict : [...strict, ...ring(1, false).filter((p) => !strict.some((q) => q.x === p.x && q.y === p.y))];
+        if (around2.length === 0) around2.push(...ring(2, false));
         const free = around2.filter((p) => !this.ground.some((g) => g.x === p.x && g.y === p.y));
         const spots = free.length > 0 ? free : around2.length > 0 ? around2 : [{ x, y }];
-        const goldAt = spots[this.rng.int(0, spots.length - 1)];
-        const others = spots.filter((p) => p !== goldAt);
-        const itemAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : goldAt;
+        const clear = spots.filter((p) => strict.includes(p));
+        const pickFrom = clear.length > 0 ? clear : spots;
+        const itemAt = pickFrom[this.rng.int(0, pickFrom.length - 1)];
+        const others = spots.filter((p) => p !== itemAt);
+        const goldAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : itemAt;
         this.dropItem(goldAt.x, goldAt.y, "or", gold);
         this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
         return [goldAt, itemAt];
@@ -10838,6 +10896,582 @@
       "................",
       "................"
     ] },
+    gut_NSa: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#4a4a5e", "d": "#3a3440" }, rows: [
+      "......abcdd.....",
+      ".....acbbd......",
+      ".....abbbd......",
+      "....aabbd.......",
+      ".....abbd.......",
+      ".....bbcd.......",
+      ".....cbbd.......",
+      "....abbbd.......",
+      ".....bbbd.......",
+      "....abbbd.......",
+      ".....acbd.......",
+      "....aabbd.......",
+      ".....abbdd......",
+      ".....abbdd......",
+      ".....abcbd......",
+      "......abbdd....."
+    ] },
+    gut_NSb: { palette: { "a": "#a8a6b2", "b": "#4a4a5e", "c": "#2a2632", "d": "#3a3440" }, rows: [
+      "......abcdd.....",
+      "......acccd.....",
+      "......acccd.....",
+      ".......accdd....",
+      "......aabcd.....",
+      ".......accdd....",
+      ".......accdd....",
+      ".......accd.....",
+      ".......acbc.....",
+      ".......accdd....",
+      ".......accd.....",
+      ".......accdd....",
+      ".......accd.....",
+      ".......cbcd.....",
+      "......acccd.....",
+      "......accd......"
+    ] },
+    gut_EWa: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#4a4a5e", "d": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "...a.aa..aa.....",
+      "aaaaaabaaaaaaaaa",
+      "abbcbbbbbbbbcbba",
+      "bcbbbbbbbbcbbbbb",
+      "bbddddddddddddbb",
+      "ddd.........d.dd",
+      "d...............",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gut_EWb: { palette: { "a": "#a8a6b2", "b": "#4a4a5e", "c": "#2a2632", "d": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "aaa.........a..a",
+      "bcaaaaaaaaaaaccc",
+      "cccccccbcccccccc",
+      "ddcccbccccccccdd",
+      "d.ddddcdccdddddd",
+      "....d.ddddd.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gut_NE: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a3440", "d": "#4a4a5e" }, rows: [
+      ".....aabbcc.....",
+      "......abbc......",
+      "......abbc......",
+      "......adbbc.....",
+      ".......abbc.....",
+      ".......abbbaa...",
+      "........cbdbbbaa",
+      ".........cbbbbbb",
+      ".........cccbbbd",
+      "...........ccccc",
+      "..............c.",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gut_NW: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a3440", "d": "#4a4a5e" }, rows: [
+      "......abbc......",
+      ".....aabbc......",
+      ".....abbdc......",
+      ".....adbbc......",
+      "....aabbc.......",
+      ".a.aabbbc.......",
+      "aaabbbbcc.......",
+      "bbbbbbc.........",
+      "bbbbccc.........",
+      "ccccc...........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gut_SE: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#4a4a5e", "d": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "............aaaa",
+      "..........aabbbc",
+      "........aabbbcbb",
+      "........abbcbddd",
+      ".......abcbdddd.",
+      ".......abbdd....",
+      "......abbbd.....",
+      "......abbdd.....",
+      "......abbdd.....",
+      "......abcd......"
+    ] },
+    gut_SW: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#4a4a5e", "d": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "aaa.............",
+      "bbbbaa..........",
+      "bbbcbbd.........",
+      "ddbbbbbdd.......",
+      "..dddbbbdd......",
+      "....dacbdd......",
+      ".....abbbd......",
+      "......bbbd......",
+      ".....aabbd......",
+      "......acbd......"
+    ] },
+    gut_N: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a3440", "d": "#4a4a5e" }, rows: [
+      "......abbc......",
+      ".....aadbc......",
+      "......abbc......",
+      "......bbbc......",
+      ".....abbbc......",
+      ".....abbdac.....",
+      ".....adbbbc.....",
+      "....abbbbbbc....",
+      "....abbbbbbc....",
+      ".....abbbdc.....",
+      ".....ccdbcc.....",
+      "......cc.c......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gutDrain_N: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a3440", "d": "#4a4a5e", "e": "#8a90a8", "f": "#5a5f74", "g": "#4e5570" }, rows: [
+      "......abbcc.....",
+      ".....aabbcc.....",
+      "......abbc......",
+      "......adbc......",
+      ".....eeeeee.....",
+      "....ebfbfbfe....",
+      "...efbfbfbfbe...",
+      "...efbfbfbfbe...",
+      "...gfbfbfbfbg...",
+      "...gfbfbfbfbg...",
+      "....gbfbfbfg....",
+      ".....gggggg.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gut_E: { palette: { "a": "#a8a6b2", "b": "#4a4a5e", "c": "#2a2632", "d": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......aaa.......",
+      ".....aabcaaaaaa.",
+      ".....acccccccaaa",
+      "....acccccccbccc",
+      "....acccccbccccc",
+      ".....accbcdddddd",
+      ".....ddccd......",
+      ".......dd.......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gutDrain_E: { palette: { "a": "#8a90a8", "b": "#2a2632", "c": "#5a5f74", "d": "#a8a6b2", "e": "#4e5570", "f": "#4a4a5e", "g": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abcbcbca..d.",
+      "...acbcbcbcbaddd",
+      "...acbcbcbcbabbb",
+      "...ecbcbcbcbebfb",
+      "...ecbcbcbcbeggg",
+      "....ebcbcbce....",
+      ".....eeeeee.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gut_S: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a3440", "d": "#4a4a5e" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......aaaa......",
+      ".....aabbbc.....",
+      ".....abbbbc.....",
+      "....abbbbbbc....",
+      "....abbbbdbc....",
+      "....aabdbbcc....",
+      ".....ccbbbc.....",
+      "......abbbc.....",
+      "......abbbc.....",
+      "......abdcc.....",
+      "......abbc......",
+      "......abbc......"
+    ] },
+    gutDrain_S: { palette: { "a": "#8a90a8", "b": "#2a2632", "c": "#5a5f74", "d": "#4e5570", "e": "#a8a6b2", "f": "#3a3440", "g": "#4a4a5e" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abcbcbca....",
+      "...acbcbcbcba...",
+      "...acbcbcbcba...",
+      "...dcbcbcbcbd...",
+      "...dcbcbcbcbd...",
+      "....dbcbcbcd....",
+      ".....dddddd.....",
+      "......ebbff.....",
+      ".....eebbff.....",
+      "......ebbff.....",
+      "......ebgf......"
+    ] },
+    gut_W: { palette: { "a": "#a8a6b2", "b": "#2a2632", "c": "#3a3440", "d": "#4a4a5e" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".......a........",
+      ".....aabba......",
+      "aaaaaabbbbcc....",
+      "bdbbbbbbbbdc....",
+      "bbbbbbbbdbbc....",
+      "cccbbbdbbbc.....",
+      ".c.ccccbbc......",
+      "......ccc.......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    gutDrain_W: { palette: { "a": "#8a90a8", "b": "#2a2632", "c": "#5a5f74", "d": "#a8a6b2", "e": "#4e5570", "f": "#3a3440" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abcbcbca....",
+      "dddacbcbcbcba...",
+      "bbbacbcbcbcba...",
+      "bbbecbcbcbcbe...",
+      "fffecbcbcbcbe...",
+      "....ebcbcbce....",
+      ".....eeeeee.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_NSa: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#8a2228", "d": "#2e2228" }, rows: [
+      "......abcdd.....",
+      ".....acbbd......",
+      ".....abbbd......",
+      "....aabbd.......",
+      ".....abbd.......",
+      ".....bbcd.......",
+      ".....cbbd.......",
+      "....abbbd.......",
+      ".....bbbd.......",
+      "....abbbd.......",
+      ".....acbd.......",
+      "....aabbd.......",
+      ".....abbdd......",
+      ".....abbdd......",
+      ".....abcbd......",
+      "......abbdd....."
+    ] },
+    bgut_NSb: { palette: { "a": "#7a7488", "b": "#8a2228", "c": "#5a1418", "d": "#2e2228" }, rows: [
+      "......abcdd.....",
+      "......acccd.....",
+      "......acccd.....",
+      ".......accdd....",
+      "......aabcd.....",
+      ".......accdd....",
+      ".......accdd....",
+      ".......accd.....",
+      ".......acbc.....",
+      ".......accdd....",
+      ".......accd.....",
+      ".......accdd....",
+      ".......accd.....",
+      ".......cbcd.....",
+      "......acccd.....",
+      "......accd......"
+    ] },
+    bgut_EWa: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#8a2228", "d": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "...a.aa..aa.....",
+      "aaaaaabaaaaaaaaa",
+      "abbcbbbbbbbbcbba",
+      "bcbbbbbbbbcbbbbb",
+      "bbddddddddddddbb",
+      "ddd.........d.dd",
+      "d...............",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_EWb: { palette: { "a": "#7a7488", "b": "#8a2228", "c": "#5a1418", "d": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "aaa.........a..a",
+      "bcaaaaaaaaaaaccc",
+      "cccccccbcccccccc",
+      "ddcccbccccccccdd",
+      "d.ddddcdccdddddd",
+      "....d.ddddd.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_NE: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#2e2228", "d": "#8a2228" }, rows: [
+      ".....aabbcc.....",
+      "......abbc......",
+      "......abbc......",
+      "......adbbc.....",
+      ".......abbc.....",
+      ".......abbbaa...",
+      "........cbdbbbaa",
+      ".........cbbbbbb",
+      ".........cccbbbd",
+      "...........ccccc",
+      "..............c.",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_NW: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#2e2228", "d": "#8a2228" }, rows: [
+      "......abbc......",
+      ".....aabbc......",
+      ".....abbdc......",
+      ".....adbbc......",
+      "....aabbc.......",
+      ".a.aabbbc.......",
+      "aaabbbbcc.......",
+      "bbbbbbc.........",
+      "bbbbccc.........",
+      "ccccc...........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_SE: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#8a2228", "d": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "............aaaa",
+      "..........aabbbc",
+      "........aabbbcbb",
+      "........abbcbddd",
+      ".......abcbdddd.",
+      ".......abbdd....",
+      "......abbbd.....",
+      "......abbdd.....",
+      "......abbdd.....",
+      "......abcd......"
+    ] },
+    bgut_SW: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#8a2228", "d": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "aaa.............",
+      "bbbbaa..........",
+      "bbbcbbd.........",
+      "ddbbbbbdd.......",
+      "..dddbbbdd......",
+      "....dacbdd......",
+      ".....abbbd......",
+      "......bbbd......",
+      ".....aabbd......",
+      "......acbd......"
+    ] },
+    bgut_N: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#2e2228", "d": "#8a2228" }, rows: [
+      "......abbc......",
+      ".....aadbc......",
+      "......abbc......",
+      "......bbbc......",
+      ".....abbbc......",
+      ".....abbdac.....",
+      ".....adbbbc.....",
+      "....abbbbbbc....",
+      "....abbbbbbc....",
+      ".....abbbdc.....",
+      ".....ccdbcc.....",
+      "......cc.c......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgutDrain_N: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#2e2228", "d": "#8a2228", "e": "#8a90a8", "f": "#5a5f74", "g": "#4e5570" }, rows: [
+      "......abbcc.....",
+      ".....aabbcc.....",
+      "......abbc......",
+      "......adbc......",
+      ".....eeeeee.....",
+      "....ebfbfbfe....",
+      "...efbfbfbfbe...",
+      "...efbfbfbfbe...",
+      "...gfbfbfbfbg...",
+      "...gfbfbfbfbg...",
+      "....gbfbfbfg....",
+      ".....gggggg.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_E: { palette: { "a": "#7a7488", "b": "#8a2228", "c": "#5a1418", "d": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......aaa.......",
+      ".....aabcaaaaaa.",
+      ".....acccccccaaa",
+      "....acccccccbccc",
+      "....acccccbccccc",
+      ".....accbcdddddd",
+      ".....ddccd......",
+      ".......dd.......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgutDrain_E: { palette: { "a": "#8a90a8", "b": "#5a1418", "c": "#5a5f74", "d": "#7a7488", "e": "#4e5570", "f": "#8a2228", "g": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abcbcbca..d.",
+      "...acbcbcbcbaddd",
+      "...acbcbcbcbabbb",
+      "...ecbcbcbcbebfb",
+      "...ecbcbcbcbeggg",
+      "....ebcbcbce....",
+      ".....eeeeee.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgut_S: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#2e2228", "d": "#8a2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......aaaa......",
+      ".....aabbbc.....",
+      ".....abbbbc.....",
+      "....abbbbbbc....",
+      "....abbbbdbc....",
+      "....aabdbbcc....",
+      ".....ccbbbc.....",
+      "......abbbc.....",
+      "......abbbc.....",
+      "......abdcc.....",
+      "......abbc......",
+      "......abbc......"
+    ] },
+    bgutDrain_S: { palette: { "a": "#8a90a8", "b": "#5a1418", "c": "#5a5f74", "d": "#4e5570", "e": "#7a7488", "f": "#2e2228", "g": "#8a2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abcbcbca....",
+      "...acbcbcbcba...",
+      "...acbcbcbcba...",
+      "...dcbcbcbcbd...",
+      "...dcbcbcbcbd...",
+      "....dbcbcbcd....",
+      ".....dddddd.....",
+      "......ebbff.....",
+      ".....eebbff.....",
+      "......ebbff.....",
+      "......ebgf......"
+    ] },
+    bgut_W: { palette: { "a": "#7a7488", "b": "#5a1418", "c": "#2e2228", "d": "#8a2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".......a........",
+      ".....aabba......",
+      "aaaaaabbbbcc....",
+      "bdbbbbbbbbdc....",
+      "bbbbbbbbdbbc....",
+      "cccbbbdbbbc.....",
+      ".c.ccccbbc......",
+      "......ccc.......",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
+    bgutDrain_W: { palette: { "a": "#8a90a8", "b": "#5a1418", "c": "#5a5f74", "d": "#7a7488", "e": "#4e5570", "f": "#2e2228" }, rows: [
+      "................",
+      "................",
+      "................",
+      "................",
+      ".....aaaaaa.....",
+      "....abcbcbca....",
+      "dddacbcbcbcba...",
+      "bbbacbcbcbcba...",
+      "bbbecbcbcbcbe...",
+      "fffecbcbcbcbe...",
+      "....ebcbcbce....",
+      ".....eeeeee.....",
+      "................",
+      "................",
+      "................",
+      "................"
+    ] },
     pew: { palette: { "a": "#120d08", "b": "#8a6238", "c": "#704c28", "d": "#342010", "e": "#56381c", "f": "#1c1622" }, rows: [
       "................................",
       ".aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
@@ -13646,6 +14280,9 @@
       /** Décalage de la vue par rapport au héros, en cases (quand le joueur a fait glisser la carte). */
       this.panX = 0;
       this.panY = 0;
+      /** Position du héros à l'image précédente (pour que la vue décalée reste posée sur le décor). */
+      this.lastHeroX = null;
+      this.lastHeroY = null;
       this.time = 0;
       this.floats = [];
       /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
@@ -13731,6 +14368,8 @@
     snapTo(game2) {
       this.panX = 0;
       this.panY = 0;
+      this.lastHeroX = null;
+      this.lastHeroY = null;
       this.camX = game2.hero.x;
       this.camY = game2.hero.y;
       this.floats = [];
@@ -14211,6 +14850,17 @@
         return p;
       };
       const hero = shown(game2.hero);
+      const heroMoved = this.lastHeroX !== null && this.lastHeroY !== null && (hero.x !== this.lastHeroX || hero.y !== this.lastHeroY);
+      if (this.isPanned() && heroMoved) {
+        this.panX -= hero.x - this.lastHeroX;
+        this.panY -= hero.y - this.lastHeroY;
+        const halfW = this.width / this.tile / 2 - 2;
+        const halfH = this.height / this.tile / 2 - 2;
+        this.panX = Math.max(-halfW, Math.min(halfW, this.panX));
+        this.panY = Math.max(-halfH, Math.min(halfH, this.panY));
+      }
+      this.lastHeroX = hero.x;
+      this.lastHeroY = hero.y;
       const follow = 1 - Math.exp(-dt / 140);
       this.camX += (hero.x + this.panX - this.camX) * follow;
       this.camY += (hero.y + this.panY - this.camY) * follow;
@@ -15206,6 +15856,7 @@
     cue = null;
     ghosts = [];
     shownHp = game.hero.hp;
+    orbHp = null;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
       "Ici : les nouveaux objets (vous \xEAtes niveau 4) et, dans le coin en bas \xE0 droite, L'ESCALIER DU BOSS : il descend \xE0 l'\xE9tage 2, la nich\xE9e de la Tisseuse (un plan diff\xE9rent \xE0 chaque partie). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, un autre escalier vers le boss, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
@@ -15489,6 +16140,65 @@
     });
     over.append(stay, again);
     over.hidden = false;
+  }
+  var orbHp = null;
+  function hpOrbs() {
+    const before = orbHp;
+    orbHp = shownHp;
+    if (before === null || before === shownHp || !started) return;
+    const delta = shownHp - before;
+    const bar = hpBar.getBoundingClientRect();
+    const max = Math.max(1, game.hero.maxHp);
+    const count = Math.max(2, Math.min(7, Math.abs(delta)));
+    if (delta < 0) {
+      const from = bar.left + bar.width * shownHp / max;
+      const to = bar.left + bar.width * before / max;
+      for (let i = 0; i < count; i++) {
+        const orb = document.createElement("div");
+        orb.className = "hp-orb";
+        const sx = from + (to - from) * Math.random();
+        const sy = bar.top + bar.height * (0.3 + Math.random() * 0.4);
+        orb.style.left = `${sx}px`;
+        orb.style.top = `${sy}px`;
+        document.body.append(orb);
+        const drift = (Math.random() - 0.5) * 36;
+        const fall = 50 + Math.random() * 40;
+        orb.animate(
+          [
+            { transform: "translate(0, 0) scale(1)", opacity: 1 },
+            { transform: `translate(${drift * 0.4}px, -8px) scale(1)`, opacity: 1, offset: 0.15 },
+            { transform: `translate(${drift}px, ${fall}px) scale(0.6)`, opacity: 0 }
+          ],
+          { duration: 700 + Math.random() * 200, delay: i * 40, easing: "cubic-bezier(.4,0,.9,.6)", fill: "forwards" }
+        ).onfinish = () => orb.remove();
+      }
+    } else {
+      const box = canvas.getBoundingClientRect();
+      const c = renderer.tileCenter(game.hero.x, game.hero.y);
+      const end = bar.left + bar.width * shownHp / max;
+      for (let i = 0; i < count; i++) {
+        const orb = document.createElement("div");
+        orb.className = "hp-orb";
+        const sx = box.left + c.x + (Math.random() - 0.5) * 18;
+        const sy = box.top + c.y + (Math.random() - 0.5) * 18;
+        const tx = Math.max(bar.left + 6, end - Math.random() * Math.min(60, bar.width * delta / max + 10));
+        const ty = bar.top + bar.height / 2;
+        orb.style.left = `${sx}px`;
+        orb.style.top = `${sy}px`;
+        document.body.append(orb);
+        orb.animate(
+          [
+            { transform: "translate(0, 0) scale(0.6)", opacity: 0 },
+            { transform: `translate(${(Math.random() - 0.5) * 30}px, -20px) scale(1)`, opacity: 1, offset: 0.25 },
+            { transform: `translate(${tx - sx}px, ${ty - sy}px) scale(0.7)`, opacity: 0.9 }
+          ],
+          { duration: 650, delay: 60 + i * 60, easing: "ease-in", fill: "forwards" }
+        ).onfinish = () => {
+          orb.remove();
+          pulse(hpBar, "gain");
+        };
+      }
+    }
   }
   var lastKill = null;
   function xpOrbs(cell, amount) {
@@ -16305,7 +17015,9 @@
         const body = el("div", "");
         const now = r > 0 ? pw.ranks[r - 1] : "Pas encore pris";
         const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
-        body.append(el("b", "", `${pw.name} ${r}/${MAX_RANK}`), el("div", "rank-now", now), el("div", "rank-next", next));
+        const pips = el("div", "rank-pips");
+        for (let k = 0; k < MAX_RANK; k++) pips.append(rankPip(k < r));
+        body.append(el("b", "", pw.name), pips, el("div", "rank-now", now), el("div", "rank-next", next));
         if (main) {
           const uses = game.voie === "blue" ? ` (${powerCharges()} \xE0 cet \xE9tage)` : ` (${game.perks().doubleStrikes} \xE0 cet \xE9tage)`;
           body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));
@@ -16326,7 +17038,7 @@
             renderLog();
             renderHeroScreen();
           });
-          card.append(plus);
+          pips.append(plus);
         }
         return card;
       };
@@ -16489,6 +17201,27 @@
         `Style \u2014 ${c.trait}`
       ]
     };
+  }
+  function rankPip(filled) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 7 7");
+    svg.classList.add("rank-pip");
+    const rows = ["..OOO..", ".OxxxO.", "OxhxxxO", "OxxxxxO", "OxxxxxO", ".OxxxO.", "..OOO.."];
+    const fill = filled ? { O: "#5a3a0c", x: "#e8b83a", h: "#fff3c8" } : { O: "#8a7450", x: "#120d08", h: "#120d08" };
+    rows.forEach(
+      (row, y) => [...row].forEach((c, x) => {
+        if (c === ".") return;
+        const r = document.createElementNS(ns, "rect");
+        r.setAttribute("x", String(x));
+        r.setAttribute("y", String(y));
+        r.setAttribute("width", "1");
+        r.setAttribute("height", "1");
+        r.setAttribute("fill", fill[c]);
+        svg.append(r);
+      })
+    );
+    return svg;
   }
   function plusIcon() {
     const ns = "http://www.w3.org/2000/svg";
@@ -16665,6 +17398,7 @@
     const floorText = String(game.depth);
     if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
+    hpOrbs();
     renderHere();
     $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
     $("xp-fill").style.width = `${100 * game.xp / game.xpToNext()}%`;

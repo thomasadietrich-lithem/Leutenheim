@@ -52,6 +52,8 @@
     60% { transform: translateX(-3px); } 80% { transform: translateX(2px); filter: brightness(1.2); } 100% { transform: none; filter: none; } }
   .hp.xp.gain { animation: xpGain 0.5s steps(6); }
   @keyframes xpGain { 0% { filter: brightness(2.6); transform: scaleY(1.7); } 60% { filter: brightness(1.6); transform: scaleY(1.2); } 100% { filter: none; transform: none; } }
+  .hp:not(.xp).gain { animation: hpGain 0.5s steps(6); }
+  @keyframes hpGain { 0% { filter: brightness(1.8); } 100% { filter: none; } }
   .frame.hurt::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 6px rgba(208, 58, 68, 0.85); animation: hurt 0.32s steps(4) forwards; }
   @keyframes hurt { to { opacity: 0; } }
   .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
@@ -78,6 +80,7 @@
   #over .over-title { font-size: 34px; color: #ff6b7a; }
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
+  .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
   #over.over-win { background: #0e1408; border-color: #8a7a2a; }
   #over.over-win .over-title { color: #ffd75e; }
   #over .over-best { color: #ffd75e; font-size: 26px; }
@@ -297,7 +300,11 @@
   .skill-card { position: relative; }
   .skill-card .rank-now { color: #fff3c8; font-size: 15px; }
   .skill-card .rank-next { color: var(--dim); font-size: 13px; }
-  .skill-card .rank-plus { position: absolute; top: 3px; right: 3px; width: 26px; height: 24px; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .skill-card .rank-pips { display: flex; align-items: center; justify-content: center; gap: 3px; margin: 3px 0 2px; min-height: 18px; }
+  .skill-card.main .rank-pips { justify-content: flex-start; }
+  .skill-card .rank-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: block; margin: 0 !important; }
+  .skill-card .rank-plus { width: 18px; height: 18px; padding: 0; margin-left: 4px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .skill-card .rank-plus .plus-icon { width: 8px; height: 8px; margin: 0 !important; }
   #char-note { font-size: 16px; color: #ff8a7a; text-align: center; width: min(100%, 318px); }
   #char-note:empty { display: none; }
   #bag-info .item-card { position: relative; padding-right: 34px; }

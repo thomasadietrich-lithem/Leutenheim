@@ -15,6 +15,7 @@ import salles_v1 as sa
 import forge_alchimie_v1 as fa
 from boss_v2 import export_sprites as boss_sprites
 from bibliotheque_profil_v2 import side_a
+from rigoles_v2 import pieces as rigoles
 
 
 def side_a_padded():
@@ -112,7 +113,7 @@ if __name__ == "__main__":
           "Cuisine v2, salle de prière v1, salle de torture v1 (planches validées le 2026-11-11 : « Ok fonce »). Les noms finissant par 0, 1, 2 sont les images d'une animation.",
           {"shelf2": cu.shelf2().img(), **{f"basket{n}": cu.fruit_basket(n).img() for n in range(4)}, "counter": cu.counter().img(), "grainSack": cu.grain_sack().img(),
            **{f"ham{i}": cu.wall_hook(i).img() for i in range(3)}, **{f"barrique{i}": cu.barrique(i).img() for i in range(3)},
-           "gutterH": flat(gutter_h), "drain": flat(drain), "bloodGutterV": flat(blood_gutter_v), "bloodDrain": flat(lambda p: drain(p, True)),
+           "gutterH": flat(gutter_h), "drain": flat(drain), "bloodGutterV": flat(blood_gutter_v), "bloodDrain": flat(lambda p: drain(p, True)), **rigoles(),
            "pew": sa.pew().img(), "pewBroken": sa.pew(True).img(), "altar": sa.altar().img(), "candelBare": sa.candelabrum(0, 0).img(),
            **{f"candel{n}{i}": sa.candelabrum("ABC".index(n) + 1, i).img() for n in "ABC" for i in range(3)},
            "runnerA": runner.crop((0, 0, 16, 16)), "runnerB": runner.crop((0, 16, 16, 32)), "runnerC": runner.crop((0, 32, 16, 48)),

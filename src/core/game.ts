@@ -2749,22 +2749,35 @@ export class Game {
       // Ce que contient le coffre tombe à côté (Thomas) : l'or sur une case voisine, l'objet sur une autre.
       // Jamais sur un décor (meuble, tapis, chaise, cendres, autre coffre, eau, escalier, porte) : seulement du sol nu
       // (Thomas) ; à défaut, une case plus loin ; à défaut, sur la case du coffre.
+      // Visible (Thomas : « sarcophage piqué, 0 drop ») : jamais sur la case juste au-dessus d'un meuble qui bloque (son
+      // dessin déborde dessus et cache l'objet) ni juste au-dessus du héros, ni de l'autre côté d'un mur.
+      const hidden = (p: Point) => {
+        const below = this.furnitureAt(p.x, p.y + 1);
+        return (below !== null && FURNITURE_KINDS[below.kind]?.blocks) || (p.x === this.hero.x && p.y + 1 === this.hero.y);
+      };
       const bare = (p: Point) =>
         (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) &&
         !this.furnitureAt(p.x, p.y) &&
         !(p.x === this.hero.x && p.y === this.hero.y) &&
-        !this.isTrap(p.x, p.y);
-      const ring = (r: number) => {
+        !this.isTrap(p.x, p.y) &&
+        hasLineOfSight(this.map, { x, y }, p);
+      const ring = (r: number, strict: boolean) => {
         const out: Point[] = [];
         for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) out.push({ x: x + dx, y: y + dy });
-        return out.filter(bare);
+        return out.filter((p) => bare(p) && (!strict || !hidden(p)));
       };
-      const around = ring(1).length > 0 ? ring(1) : ring(2);
+      const near = ring(1, true);
+      const strict = near.length >= 2 ? near : [...near, ...ring(2, true)];
+      const around = strict.length >= 2 ? strict : [...strict, ...ring(1, false).filter((p) => !strict.some((q) => q.x === p.x && q.y === p.y))];
+      if (around.length === 0) around.push(...ring(2, false));
       const free = around.filter((p) => !this.ground.some((g) => g.x === p.x && g.y === p.y));
       const spots = free.length > 0 ? free : around.length > 0 ? around : [{ x, y }];
-      const goldAt = spots[this.rng.int(0, spots.length - 1)];
-      const others = spots.filter((p) => p !== goldAt);
-      const itemAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : goldAt;
+      // L'objet d'abord, sur une case bien en vue s'il y en a une ; l'or sur une autre.
+      const clear = spots.filter((p) => strict.includes(p));
+      const pickFrom = clear.length > 0 ? clear : spots;
+      const itemAt = pickFrom[this.rng.int(0, pickFrom.length - 1)];
+      const others = spots.filter((p) => p !== itemAt);
+      const goldAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : itemAt;
       this.dropItem(goldAt.x, goldAt.y, "or", gold);
       this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
       return [goldAt, itemAt];

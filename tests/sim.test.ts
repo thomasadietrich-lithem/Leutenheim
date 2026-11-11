@@ -2514,9 +2514,11 @@ test("feu : une toile d'araignée flambe et laisse de la cendre ; tonneaux et ca
 test("salle d'essai : cuisine, salle de prière et salle de torture, avec tous leurs meubles", () => {
   const game = new Game(1, undefined, undefined, undefined, true);
   const kinds = new Set(game.furnitureList().map((f) => f.kind));
-  for (const k of ["shelf2", "counter", "ham", "barrique", "drain", "altar", "pew", "pewBroken", "runnerA", "vitrail0", "rackTable", "toolRack", "maiden", "bloodDrain"]) {
+  for (const k of ["shelf2", "counter", "ham", "barrique", "altar", "pew", "pewBroken", "runnerA", "vitrail0", "rackTable", "toolRack", "maiden"]) {
     assert.ok(kinds.has(k), `${k} manque`);
   }
+  assert.ok([...kinds].some((k) => k.startsWith("gutDrain_")), "grille de la cuisine manque");
+  assert.ok([...kinds].some((k) => k.startsWith("bgutDrain_")), "grille de la torture manque");
   assert.equal(game.floorStyle(33, 5), "kitchen");
   assert.equal(game.floorStyle(33, 25), "torture");
   assert.equal(game.floorStyle(5, 5), undefined);
@@ -2551,6 +2553,10 @@ test("sarcophage à pointes : désamorcer ou forcer ; raté, une pointe (1d4) ; 
     assert.equal(game.ground.length, groundBefore + 2, "or et objet à côté");
     const ev = game.events.find((e) => e.type === "maiden");
     assert.ok(ev && ev.type === "maiden");
+    // Thomas : « sarcophage piqué, 0 drop » : l'objet ne tombe pas juste au-dessus d'un meuble (caché par son dessin).
+    const item = ev.drops[1];
+    const below = game.furnitureList().find((f) => f.x === item.x && f.y === item.y + 1);
+    assert.ok(!below || !["maiden", "maidenOpen"].includes(below.kind), `objet caché en ${item.x},${item.y}`);
     if (ev.success) clean++;
     else {
       hurt++;
@@ -2919,4 +2925,34 @@ test("agilité : esquive (+1 CA tous les 2 points) ; casques ; le Kobold frondeu
   game.tick();
   const after = Math.max(Math.abs(sling.x - game.hero.x), Math.abs(sling.y - game.hero.y));
   assert.ok(after > before, "il recule");
+});
+
+test("rigoles v2 : chaque morceau se raccorde à ses voisins et la rigole finit dans une grille", () => {
+  let checked = 0;
+  const step: Record<string, [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
+  const opposite: Record<string, string> = { N: "S", S: "N", E: "W", W: "E" };
+  const sidesOf = (kind: string): string[] => {
+    const m = /^b?gut(Drain)?_([NESW]+)[ab]?$/.exec(kind);
+    return m ? m[2].split("") : [];
+  };
+  for (let seed = 1; seed <= 120 && checked < 12; seed++) {
+    const game = new Game(seed);
+    {
+      const gut = game.furnitureList().filter((f) => /^b?gut/.test(f.kind));
+      if (gut.length === 0) continue;
+      checked++;
+      const at = (x: number, y: number) => gut.find((f) => f.x === x && f.y === y);
+      for (const f of gut) {
+        for (const side of sidesOf(f.kind)) {
+          const [dx, dy] = step[side];
+          const n = at(f.x + dx, f.y + dy);
+          assert.ok(n && sidesOf(n.kind).includes(opposite[side]), `rigole coupée en ${f.x},${f.y} (${f.kind} → ${side})`);
+        }
+      }
+      const drains = gut.filter((f) => f.kind.includes("Drain_")).length;
+      const sources = gut.filter((f) => /^b?gut_[NESW]$/.test(f.kind)).length;
+      assert.equal(drains, sources, "autant de grilles que de rigoles");
+    }
+  }
+  assert.ok(checked > 0, "aucune rigole trouvée");
 });

@@ -302,7 +302,51 @@ function roomPlacer(floor: Floor, room: Room) {
       }
     }
   };
-  return { tryPlace, reserve, chest, undo, allFloor, alongBackWall, placed, free, inside };
+  /**
+   * Rigole v2 (Thomas, 2026-11-11 : « moins régulière, et atteindre les évacuations ») : un tracé qui serpente de `from`
+   * jusqu'à la grille `to`, case par case (pas de diagonale), sur des cases libres ; chemin le moins cher avec un coût
+   * tiré au hasard par case, d'où les détours. Chaque case reçoit le morceau qui la relie à ses voisines.
+   */
+  const gutter = (rng: Rng, prefix: "gut" | "bgut", from: Point, to: Point): boolean => {
+    if (!free(from.x, from.y) || !free(to.x, to.y)) return false;
+    const cost = new Map<string, number>();
+    for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) cost.set(key(x, y), 1 + rng.int(0, 4));
+    const dist = new Map<string, number>([[key(from.x, from.y), 0]]);
+    const prev = new Map<string, Point>();
+    const open: Point[] = [from];
+    while (open.length > 0) {
+      open.sort((p, q) => dist.get(key(p.x, p.y))! - dist.get(key(q.x, q.y))!);
+      const p = open.shift()!;
+      if (p.x === to.x && p.y === to.y) break;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const n = { x: p.x + dx, y: p.y + dy };
+        if (!free(n.x, n.y)) continue;
+        const d = dist.get(key(p.x, p.y))! + cost.get(key(n.x, n.y))!;
+        if (d < (dist.get(key(n.x, n.y)) ?? Infinity)) {
+          dist.set(key(n.x, n.y), d);
+          prev.set(key(n.x, n.y), p);
+          open.push(n);
+        }
+      }
+    }
+    if (!prev.has(key(to.x, to.y)) && !(from.x === to.x && from.y === to.y)) return false;
+    const path: Point[] = [to];
+    while (path[0].x !== from.x || path[0].y !== from.y) path.unshift(prev.get(key(path[0].x, path[0].y))!);
+    const side = (a: Point, b: Point) => (b.y < a.y ? "N" : b.y > a.y ? "S" : b.x > a.x ? "E" : "W");
+    path.forEach((p, i) => {
+      const sides = [i > 0 ? side(p, path[i - 1]) : "", i < path.length - 1 ? side(p, path[i + 1]) : ""].filter(Boolean);
+      let kind: string;
+      if (i === path.length - 1) kind = `${prefix}Drain_${sides[0] ?? "N"}`;
+      else if (sides.length < 2) kind = `${prefix}_${sides[0]}`;
+      else {
+        const m = "NESW".split("").filter((c) => sides.includes(c)).join("");
+        kind = m === "NS" || m === "EW" ? `${prefix}_${m}${rng.chance(0.5) ? "a" : "b"}` : `${prefix}_${m === "ES" ? "SE" : m === "SW" ? "SW" : m === "EW" ? "EW" : m === "NW" ? "NW" : m === "NE" ? "NE" : m}`;
+      }
+      tryPlace({ x: p.x, y: p.y, kind });
+    });
+    return true;
+  };
+  return { tryPlace, reserve, chest, undo, allFloor, alongBackWall, placed, free, inside, gutter };
 }
 
 function shuffle<T>(rng: Rng, list: T[]): T[] {
@@ -329,14 +373,13 @@ export function furnishKitchen(floor: Floor, room: Room, rng: Rng, out: Furnitur
     return false;
   }
   for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
-  // Rigole sur la rangée du bas, jusqu'à l'évacuation, d'un côté ou de l'autre.
+  // Rigole (v2) : elle part d'une petite flaque sous le plan de travail et serpente jusqu'à la grille, sur la rangée du
+  // bas, d'un côté ou de l'autre.
   const gy = room.y + room.h - 1;
   const leftDrain = rng.chance(0.5);
-  const len = rng.int(3, room.w - 1);
-  for (let i = 0; i < len; i++) {
-    const x = leftDrain ? room.x + i : room.x + room.w - 1 - i;
-    P.tryPlace({ x, y: gy, kind: i === 0 ? "drain" : "gutterH" });
-  }
+  const drainAt = { x: leftDrain ? room.x + rng.int(0, 1) : room.x + room.w - 1 - rng.int(0, 1), y: gy };
+  const srcX = leftDrain ? room.x + room.w - 1 - rng.int(1, Math.max(1, Math.floor(room.w / 3))) : room.x + rng.int(1, Math.max(1, Math.floor(room.w / 3)));
+  P.gutter(rng, "gut", { x: srcX, y: room.y + 2 }, drainAt);
   // Barrique couchée contre un mur de côté.
   for (let attempt = 0; attempt < 12; attempt++) {
     const left = rng.chance(0.5);
@@ -475,8 +518,10 @@ export function furnishTorture(floor: Floor, room: Room, rng: Rng, out: Furnitur
     P.undo();
     return false;
   }
+  // Rigole de sang (v2) : de sous la table, elle serpente jusqu'à la grille sur la rangée du bas.
   const gx = table.x + rng.int(0, 1);
-  for (let y = table.y + 1; y < room.y + room.h; y++) P.tryPlace({ x: gx, y, kind: y === room.y + room.h - 1 ? "bloodDrain" : "bloodGutterV" });
+  const drainX = Math.max(room.x + 1, Math.min(room.x + room.w - 2, gx + rng.int(-3, 3)));
+  if (!P.gutter(rng, "bgut", { x: gx, y: table.y + 1 }, { x: drainX, y: room.y + room.h - 1 })) P.gutter(rng, "bgut", { x: gx, y: table.y + 1 }, { x: gx, y: room.y + room.h - 1 });
   // Sarcophages contre les murs de côté.
   const maidens = rng.int(0, 2);
   let put = 0;

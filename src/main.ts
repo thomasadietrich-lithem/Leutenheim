@@ -219,6 +219,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   cue = null;
   ghosts = [];
   shownHp = game.hero.hp;
+  orbHp = null;
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
@@ -544,6 +545,71 @@ function showDemoEnd(): void {
   });
   over.append(stay, again);
   over.hidden = false;
+}
+
+/** PV affichés à l'image précédente : une baisse fait tomber des billes rouges de la jauge, une hausse en fait monter du
+ * héros vers la jauge (Thomas, 2026-11-11). null = pas encore de référence (nouvelle partie, reprise). */
+let orbHp: number | null = null;
+
+function hpOrbs(): void {
+  const before = orbHp;
+  orbHp = shownHp;
+  if (before === null || before === shownHp || !started) return;
+  const delta = shownHp - before;
+  const bar = hpBar.getBoundingClientRect();
+  const max = Math.max(1, game.hero.maxHp);
+  const count = Math.max(2, Math.min(7, Math.abs(delta)));
+  if (delta < 0) {
+    // Perte : les billes se détachent du morceau de jauge perdu, tombent en rebondissant un peu et s'effacent.
+    const from = bar.left + (bar.width * shownHp) / max;
+    const to = bar.left + (bar.width * before) / max;
+    for (let i = 0; i < count; i++) {
+      const orb = document.createElement("div");
+      orb.className = "hp-orb";
+      const sx = from + (to - from) * Math.random();
+      const sy = bar.top + bar.height * (0.3 + Math.random() * 0.4);
+      orb.style.left = `${sx}px`;
+      orb.style.top = `${sy}px`;
+      document.body.append(orb);
+      const drift = (Math.random() - 0.5) * 36;
+      const fall = 50 + Math.random() * 40;
+      orb.animate(
+        [
+          { transform: "translate(0, 0) scale(1)", opacity: 1 },
+          { transform: `translate(${drift * 0.4}px, -8px) scale(1)`, opacity: 1, offset: 0.15 },
+          { transform: `translate(${drift}px, ${fall}px) scale(0.6)`, opacity: 0 },
+        ],
+        { duration: 700 + Math.random() * 200, delay: i * 40, easing: "cubic-bezier(.4,0,.9,.6)", fill: "forwards" },
+      ).onfinish = () => orb.remove();
+    }
+  } else {
+    // Soin : les billes partent du héros et remontent se fondre dans la jauge, qui s'allume.
+    const box = canvas.getBoundingClientRect();
+    const c = renderer.tileCenter(game.hero.x, game.hero.y);
+    const end = bar.left + (bar.width * shownHp) / max;
+    for (let i = 0; i < count; i++) {
+      const orb = document.createElement("div");
+      orb.className = "hp-orb";
+      const sx = box.left + c.x + (Math.random() - 0.5) * 18;
+      const sy = box.top + c.y + (Math.random() - 0.5) * 18;
+      const tx = Math.max(bar.left + 6, end - Math.random() * Math.min(60, (bar.width * delta) / max + 10));
+      const ty = bar.top + bar.height / 2;
+      orb.style.left = `${sx}px`;
+      orb.style.top = `${sy}px`;
+      document.body.append(orb);
+      orb.animate(
+        [
+          { transform: "translate(0, 0) scale(0.6)", opacity: 0 },
+          { transform: `translate(${(Math.random() - 0.5) * 30}px, -20px) scale(1)`, opacity: 1, offset: 0.25 },
+          { transform: `translate(${tx - sx}px, ${ty - sy}px) scale(0.7)`, opacity: 0.9 },
+        ],
+        { duration: 650, delay: 60 + i * 60, easing: "ease-in", fill: "forwards" },
+      ).onfinish = () => {
+        orb.remove();
+        pulse(hpBar, "gain");
+      };
+    }
+  }
 }
 
 /** Dernier monstre vaincu (sa case) : c'est de là que partent les billes d'expérience. */
@@ -1470,7 +1536,10 @@ function renderCharacter(): void {
       const body = el("div", "");
       const now = r > 0 ? pw.ranks[r - 1] : "Pas encore pris";
       const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
-      body.append(el("b", "", `${pw.name} ${r}/${MAX_RANK}`), el("div", "rank-now", now), el("div", "rank-next", next));
+      // Nom, puis une rangée : 3 billes de rang (pleines jusqu'au rang atteint) et, à droite, le petit « + ».
+      const pips = el("div", "rank-pips");
+      for (let k = 0; k < MAX_RANK; k++) pips.append(rankPip(k < r));
+      body.append(el("b", "", pw.name), pips, el("div", "rank-now", now), el("div", "rank-next", next));
       if (main) {
         const uses = game.voie === "blue" ? ` (${powerCharges()} à cet étage)` : ` (${game.perks().doubleStrikes} à cet étage)`;
         body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));
@@ -1491,7 +1560,7 @@ function renderCharacter(): void {
           renderLog();
           renderHeroScreen();
         });
-        card.append(plus);
+        pips.append(plus);
       }
       return card;
     };
@@ -1696,6 +1765,30 @@ function classCard(c: ClassDef): Card {
 }
 
 /** Un « + » en pixels, aux deux branches égales (Thomas : celui de la police était plus haut que large). */
+/** Bille de rang (Thomas, 2026-11-11 : « 3 billes vides qui symbolisent les niveaux d'amélioration ») : pleine (or) ou
+ * vide (creux sombre cerclé), dessinée en pixels 7 × 7. */
+function rankPip(filled: boolean): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 7 7");
+  svg.classList.add("rank-pip");
+  const rows = ["..OOO..", ".OxxxO.", "OxhxxxO", "OxxxxxO", "OxxxxxO", ".OxxxO.", "..OOO.."];
+  const fill: Record<string, string> = filled ? { O: "#5a3a0c", x: "#e8b83a", h: "#fff3c8" } : { O: "#8a7450", x: "#120d08", h: "#120d08" };
+  rows.forEach((row, y) =>
+    [...row].forEach((c, x) => {
+      if (c === ".") return;
+      const r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", String(x));
+      r.setAttribute("y", String(y));
+      r.setAttribute("width", "1");
+      r.setAttribute("height", "1");
+      r.setAttribute("fill", fill[c]);
+      svg.append(r);
+    }),
+  );
+  return svg;
+}
+
 function plusIcon(): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
   const cross = document.createElementNS(ns, "svg");
@@ -1891,6 +1984,7 @@ function frame(now: number): void {
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
+  hpOrbs();
   renderHere();
   $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
   $("xp-fill").style.width = `${(100 * game.xp) / game.xpToNext()}%`;

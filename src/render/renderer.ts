@@ -102,6 +102,9 @@ export class Renderer {
   /** Décalage de la vue par rapport au héros, en cases (quand le joueur a fait glisser la carte). */
   private panX = 0;
   private panY = 0;
+  /** Position du héros à l'image précédente (pour que la vue décalée reste posée sur le décor). */
+  private lastHeroX: number | null = null;
+  private lastHeroY: number | null = null;
   private time = 0;
   private floats: FloatingText[] = [];
   /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
@@ -190,6 +193,8 @@ export class Renderer {
   snapTo(game: Game): void {
     this.panX = 0;
     this.panY = 0;
+    this.lastHeroX = null;
+    this.lastHeroY = null;
     this.camX = game.hero.x;
     this.camY = game.hero.y;
     this.floats = [];
@@ -741,6 +746,19 @@ export class Renderer {
       return p;
     };
     const hero = shown(game.hero);
+    // Vue décalée à la main (Thomas : « quand je dézoome pour aller loin, la caméra se recentre toute seule ») : elle
+    // reste posée sur le décor pendant que le héros marche, et ne glisse que pour le garder à l'écran (2 cases de marge).
+    const heroMoved = this.lastHeroX !== null && this.lastHeroY !== null && (hero.x !== this.lastHeroX || hero.y !== this.lastHeroY);
+    if (this.isPanned() && heroMoved) {
+      this.panX -= hero.x - this.lastHeroX!;
+      this.panY -= hero.y - this.lastHeroY!;
+      const halfW = this.width / this.tile / 2 - 2;
+      const halfH = this.height / this.tile / 2 - 2;
+      this.panX = Math.max(-halfW, Math.min(halfW, this.panX));
+      this.panY = Math.max(-halfH, Math.min(halfH, this.panY));
+    }
+    this.lastHeroX = hero.x;
+    this.lastHeroY = hero.y;
     const follow = 1 - Math.exp(-dt / 140);
     this.camX += (hero.x + this.panX - this.camX) * follow;
     this.camY += (hero.y + this.panY - this.camY) * follow;

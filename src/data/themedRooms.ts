@@ -177,6 +177,15 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true },
 };
 
+/** Rigoles v2 (art/rigoles_v2.png ; Thomas : « moins régulières, jusqu'aux évacuations ») : morceaux plats qui se raccordent
+ * par le milieu des bords. `gut_` eau (cuisine), `bgut_` sang (torture) ; suffixe = côtés reliés (N, E, S, W), « a »/« b »
+ * pour les deux variantes des droits ; `gutDrain_X` / `bgutDrain_X` : la grille, la rigole y entrant par le côté X. */
+export const GUTTER_STRAIGHT: Record<string, string[]> = { NS: ["NSa", "NSb"], EW: ["EWa", "EWb"] };
+for (const pre of ["gut", "bgut"]) {
+  for (const m of ["NSa", "NSb", "EWa", "EWb", "NE", "NW", "SE", "SW", "N", "E", "S", "W"]) FURNITURE_KINDS[`${pre}_${m}`] = { blocks: false, w: 1, h: 1, burns: false, flat: true };
+  for (const d of "NESW") FURNITURE_KINDS[`${pre}Drain_${d}`] = { blocks: false, w: 1, h: 1, burns: false, flat: true };
+}
+
 /** Meuble peint avec le sol (tapis, toile, rigole) : il prend exactement la lumière de sa case. */
 export function isFlat(kind: string): boolean {
   return !!FURNITURE_KINDS[kind]?.flat;

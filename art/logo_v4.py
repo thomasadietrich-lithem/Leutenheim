@@ -69,6 +69,17 @@ def b2():
     return img
 
 
+def b2low():
+    """B2 retenu (Thomas, 2026-11-12 : « le B2 en baissant le dé ») : torches croisées, flammes de chaque côté, dé plus bas."""
+    img = Image.new("RGB", (64, 64))
+    bg(img, True)
+    halo(img, 32, 30, 36, (120, 60, 18), 0.55)
+    torch(img, 50, 63, 38, -36)
+    torch(img, 14, 63, 38, 36)
+    die(img, 32, 37, 21)
+    return img
+
+
 def b3():
     """B3 — Deux torches droites de part et d'autre, le dé au milieu, bien grand."""
     img = Image.new("RGB", (64, 64))
@@ -94,7 +105,7 @@ def b4():
     return img
 
 
-VARIANTS = {"B1": b1, "B2": b2, "B3": b3, "B4": b4}
+VARIANTS = {"B1": b1, "B2": b2, "B3": b3, "B4": b4, "B2bas": b2low}
 
 
 def plate():
@@ -109,7 +120,7 @@ def plate():
         "B3": ["Deux torches droites,", "le dé au milieu, bien grand."],
         "B4": ["Torches croisées sur un écu", "de pierre (blason)."],
     }
-    for n, (k, f) in enumerate(VARIANTS.items()):
+    for n, (k, f) in enumerate(list(VARIANTS.items())[:4]):
         x = 20 + n * 300
         dr.text((x, 56), k, font=font, fill=GOLDS[5])
         out.paste(f().resize((256, 256), Image.NEAREST), (x, 88))
@@ -129,5 +140,16 @@ if __name__ == "__main__":
         im = VARIANTS[sys.argv[2]]()
         for size in (192, 512):
             im.resize((size, size), Image.NEAREST).save(f"pwa/icon-{size}.png")
+    elif len(sys.argv) >= 2 and sys.argv[1] == "final":
+        # Le logo retenu, en grand, avec le nom (pour Thomas).
+        out = Image.new("RGB", (900, 560), (13, 10, 8))
+        ic = b2low().resize((384, 384), Image.NEAREST)
+        out.paste(ic, (258, 20))
+        for m, size in enumerate([96, 48]):
+            out.paste(b2low().resize((size, size), Image.LANCZOS), (40 + m * 110, 300))
+        w = wordmark()
+        big = w.resize((w.width * 6, w.height * 6), Image.NEAREST)
+        out.paste(big, ((900 - big.width) // 2, 430), big)
+        out.save("art/logo_final.png")
     else:
         plate()

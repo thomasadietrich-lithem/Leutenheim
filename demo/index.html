@@ -9933,6 +9933,179 @@
     ]
   };
 
+  // src/render/sprites/feu.ts
+  var FIRE_PALETTE = { "o": "#3a0e0a", "d": "#8e1e16", "r": "#d23e1e", "a": "#fa8e2a", "y": "#ffde60", "w": "#fffad6", "b": "#ffbe46", "c": "#fff0a0", "e": "#ff963c", "g": "#ffc85a", "h": "#c85028" };
+  var FIRE_STAGES = [
+    [
+      [
+        ".......o.....w..",
+        "..y...odo.......",
+        ".....oaro.......",
+        ".....oradoy.....",
+        "....odraro......",
+        "...oodryrdo.....",
+        "..odrdryaro.oo..",
+        "..odadayardodro.",
+        "..oryrayyadoado.",
+        ".odryrayyarraro.",
+        ".odayaaywaraaro.",
+        "odryyaaywyaayrdo",
+        "odaywaawwyayyado",
+        "orawwaawwyaywaro",
+        "odawwrawwyrywado",
+        ".orwydrwwadawao."
+      ],
+      [
+        "................",
+        "........aow.....",
+        ".......yodo.o...",
+        ".......oryooro..",
+        "......odaroordo.",
+        ".....odraroorro.",
+        "..o..odaarddrado",
+        ".odoodraarddaado",
+        ".ordodryardraaro",
+        "odrrdrayyarryaro",
+        "odaarrayyarayyrd",
+        "odayarywyarawyrd",
+        "orawyaywwyrywyrd",
+        "drawyaywwyrywyro",
+        "odawwaawwyrywado",
+        ".orwydrwwadawao."
+      ],
+      [
+        "........y.......",
+        ".......odo..y...",
+        "....o..waoa.....",
+        "...odoodado.....",
+        "...oaoodardo....",
+        "..odrooraadro...",
+        ".odrrddraarao...",
+        ".odarddryarado..",
+        "odryadrayarardo.",
+        "odayadrayyaaado.",
+        "orawaraywyaayrdo",
+        "drawaraywyaawado",
+        "drywyraywyayward",
+        "orywyrawwyaywyrd",
+        "odawyrawwyrywado",
+        ".orwydrwwadawao."
+      ]
+    ],
+    [
+      [
+        ".......y........",
+        ".......o...a....",
+        "......oro.......",
+        "...y.odro.......",
+        ".....odado......",
+        ".....oraro......",
+        "....odrardo.....",
+        "....odraaro.....",
+        "...ordryardoo...",
+        "...orrayyadoro..",
+        "..odraayyardao..",
+        "..odaaaywaraado.",
+        ".odryyaywyayado.",
+        ".orawyawwyawyro.",
+        ".odawyawwyawyro.",
+        "..oawarwwadyydo."
+      ],
+      [
+        "................",
+        "................",
+        "........y.......",
+        "........oo......",
+        ".......oddo.....",
+        "......odado.o...",
+        "......oradooro..",
+        ".....odrarodado.",
+        "....odraarddaro.",
+        "...oodryyrdryro.",
+        "..ordrayyadryrdo",
+        ".odarrayyarawado",
+        ".odaarawwarywado",
+        ".orawaawwarywado",
+        ".orawyawwarwwro.",
+        "..oawarwwadyydo."
+      ],
+      [
+        ".........y......",
+        "................",
+        "........o.......",
+        "....y..oro.a....",
+        "......odado.....",
+        ".....oodaro.....",
+        "....odorardo....",
+        "...orddraaddo...",
+        "..odardryarro...",
+        "..oryrrayarado..",
+        ".odayrrawaryro..",
+        ".orayraywyayado.",
+        "odrywaaywyayyrdo",
+        "odrywaawwyaywado",
+        ".orywaawwyrywro.",
+        "..oawarwwadyydo."
+      ]
+    ],
+    [
+      [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "........a.......",
+        ".....oo.........",
+        "....ordo........",
+        "...odaro.oo.....",
+        "...oryadorro....",
+        "..oeawadorwro...",
+        "..hogwrgoewde.h."
+      ],
+      [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        ".............a..",
+        "................",
+        "................",
+        "....oo....o.....",
+        "...orro..oao....",
+        "...oryroorydo...",
+        "..odawagdawro...",
+        "..eohwrhogwdg.e."
+      ],
+      [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        ".....a..........",
+        "................",
+        "................",
+        ".....o..........",
+        "....odo...o.....",
+        "...odydo.oro....",
+        "...oayro.oaro...",
+        "..odawadorwhdo..",
+        "..goewreohwdh.g."
+      ]
+    ]
+  ];
+
   // src/ui/icons.ts
   var PALETTE3 = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
   var ICONS = {
@@ -10958,62 +11131,6 @@
   };
   var HERO_HEAD = ["......OOOO......", ".....OHGGHO.....", "....OHGGHHHO....", "....OHHHHHHO....", "....OHSSSSHO....", "....OSOSSOSUO...", ".....OSssSOUuO..", "....OWWWWWWOO...", "...OwWWWWWWwO..."];
   var HERO_HEAD_PALETTE = { "B": "#966230", "D": "#e2ca8c", "G": "#b0763e", "H": "#804e28", "M": "#e0e6ec", "O": "#18121e", "P": "#4e5474", "Q": "#784a26", "R": "#d64a3e", "S": "#eebe91", "T": "#e8e8dc", "U": "#5496de", "W": "#f2eee2", "b": "#623e1e", "d": "#a8884e", "h": "#523018", "k": "#3c3442", "m": "#848e9c", "p": "#422e1e", "q": "#383c58", "r": "#a02c28", "s": "#c68e64", "u": "#3468b0", "w": "#c4beb0", "x": "#969086" };
-  var FIRE_FRAMES = [
-    [
-      "................",
-      "................",
-      "..Y.............",
-      "........xx......",
-      ".......xxx...Y..",
-      "......xXXx......",
-      "......xXXx......",
-      "......xXXXx.x...",
-      "....xx.XYYx.XX..",
-      "....XXxXYYx.XX..",
-      "...xXXxXYXxxXX..",
-      "...XYxxXYXxXYx..",
-      "...XYxxXYXxXYx..",
-      "...XYxxXYXxXYx..",
-      "...XYXxXYXxXYX..",
-      "...XYXxXYXxXYX.."
-    ],
-    [
-      "................",
-      "................",
-      "................",
-      ".....Y.....Y....",
-      ".......xx.......",
-      ".......xxx......",
-      ".......xXXx.....",
-      "....xx.xXXx.....",
-      "....Xx.XXXx.xx..",
-      "...XXxxXYXxxX...",
-      "...XXxxYYXxXX...",
-      "...XYxxXYXxXYx..",
-      "...XYXxXYXxXYX..",
-      "...xYXxXYXxxYX..",
-      "...XYXxXYXxXYX..",
-      "...XYXxXYXxXYX.."
-    ],
-    [
-      "................",
-      "................",
-      "................",
-      "........x.......",
-      "........xx......",
-      ".......xXXx.....",
-      "....x..xXXx.....",
-      "...xx.xXXX.xx...",
-      "...XX.xYYX.XX...",
-      "...XXxxYYXxXX...",
-      "...xYXxXYXxxXx..",
-      "...xYXxXYXxxYX..",
-      "...xYXxXYXxxYX..",
-      "...XYXxXYXxXYX..",
-      "...XYXxXYXxXYX..",
-      "...XYXxXYXxXYX.."
-    ]
-  ];
   function recolor(set, map) {
     const out = {};
     for (const [k, rows] of Object.entries(set)) out[k] = rows.map((r) => r.replace(/./g, (c) => map[c] ?? c));
@@ -16884,15 +17001,17 @@
       }
     }
     /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
-    drawFlames(gx, gy, seed, alpha) {
+    /** `stage` : âge du feu (0 haut et vif, 1 normal, 2 braises ; Thomas, 2026-11-12 : « feu C et durée de vie »). */
+    drawFlames(gx, gy, seed, alpha, stage = 1) {
       const { ctx, tile } = this;
-      const frame2 = FIRE_FRAMES[(Math.floor(this.time / 130) + seed) % FIRE_FRAMES.length];
+      const frames = FIRE_STAGES[stage];
+      const frame2 = frames[(Math.floor(this.time / 130) + seed) % frames.length];
       const smooth2 = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.globalAlpha = alpha;
       const rx = this.snap(gx);
       const ry = this.snap(gy);
-      ctx.drawImage(this.sprite(frame2, PALETTE3), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
+      ctx.drawImage(this.sprite(frame2, FIRE_PALETTE), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth2;
     }
@@ -17697,7 +17816,8 @@
       this.drawFurniture(game2, ox, oy, flicker, "late");
       for (const f of game2.fires) {
         if (!game2.isVisible(f.x, f.y)) continue;
-        this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
+        const stage = f.turns <= 1 ? 2 : f.turns >= 4 ? 0 : 1;
+        this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95, stage);
       }
       this.drawSmoke(game2, ox, oy, dt);
       this.drawPuffs(ox, oy, dt);

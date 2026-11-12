@@ -133,33 +133,38 @@ def icon(rows):
     return im
 
 
-# Capture de la barre du bas (densité 2) : bouton « actions » à (182.5, 706, 83×48), picto 28 px à (210, 716).
-shot = Image.open(sys.argv[1] if len(sys.argv) > 1 else "/tmp/dbg/bar_full.png").convert("RGB")
-S = 2
-bar = shot.crop((6 * S, 700 * S, 354 * S, 756 * S))
-fill = shot.getpixel((int(200 * S), int(712 * S)))
+def build(ICONS, path, title, capture="/tmp/dbg/bar_full.png"):
+    # Capture de la barre du bas (densité 2) : bouton « actions » à (182.5, 706, 83×48), picto 28 px à (210, 716).
+    shot = Image.open(capture).convert("RGB")
+    S = 2
+    bar = shot.crop((6 * S, 700 * S, 354 * S, 756 * S))
+    fill = shot.getpixel((int(200 * S), int(712 * S)))
 
-W = 760
-cardH = 16 * 6 + 54
-H = 70 + len(ICONS) * (cardH + 14)
-sheet = Image.new("RGB", (W, H), (26, 20, 14))
-d = ImageDraw.Draw(sheet)
-d.text((W // 2, 26), "BOUTON DE LA BARRE D'ACTIONS — 7 pictos", fill=(255, 243, 200), font=font(22), anchor="mm")
-d.text((W // 2, 50), "À gauche : agrandi ×6.  À droite : dans la vraie barre du bas (au milieu).", fill=(200, 190, 170), font=font(14, False), anchor="mm")
-y = 70
-for name, rows in ICONS:
-    im = icon(rows)
-    d.rectangle((14, y, W - 14, y + cardH), fill=(44, 36, 30), outline=(120, 92, 48), width=2)
-    d.text((28, y + 10), name, fill=(240, 192, 80), font=font(18))
-    tile = Image.new("RGBA", (16, 16), fill + (255,))
-    tile.alpha_composite(im)
-    sheet.paste(up(tile, 6).convert("RGB"), (28, y + 40))
-    b = bar.copy()
-    px, py = int((210 - 6) * S), int((716 - 700) * S)
-    ImageDraw.Draw(b).rectangle((px, py, px + 28 * S - 1, py + 28 * S - 1), fill=fill)
-    b.paste(up(im, 28 * S // 16), (px, py), up(im, 28 * S // 16))
-    b = b.resize((b.width * 3 // 4, b.height * 3 // 4), Image.LANCZOS)
-    sheet.paste(b, (28 + 16 * 6 + 24, y + 40 + (16 * 6 - b.height) // 2))
-    y += cardH + 14
-sheet.save("art/pictos_actions_v1.png")
-print("art/pictos_actions_v1.png", sheet.size)
+    W = 760
+    cardH = 16 * 6 + 54
+    H = 70 + len(ICONS) * (cardH + 14)
+    sheet = Image.new("RGB", (W, H), (26, 20, 14))
+    d = ImageDraw.Draw(sheet)
+    d.text((W // 2, 26), title, fill=(255, 243, 200), font=font(22), anchor="mm")
+    d.text((W // 2, 50), "À gauche : agrandi ×6.  À droite : dans la vraie barre du bas (au milieu).", fill=(200, 190, 170), font=font(14, False), anchor="mm")
+    y = 70
+    for name, rows in ICONS:
+        im = icon(rows)
+        d.rectangle((14, y, W - 14, y + cardH), fill=(44, 36, 30), outline=(120, 92, 48), width=2)
+        d.text((28, y + 10), name, fill=(240, 192, 80), font=font(18))
+        tile = Image.new("RGBA", (16, 16), fill + (255,))
+        tile.alpha_composite(im)
+        sheet.paste(up(tile, 6).convert("RGB"), (28, y + 40))
+        b = bar.copy()
+        px, py = int((210 - 6) * S), int((716 - 700) * S)
+        ImageDraw.Draw(b).rectangle((px, py, px + 28 * S - 1, py + 28 * S - 1), fill=fill)
+        b.paste(up(im, 28 * S // 16), (px, py), up(im, 28 * S // 16))
+        b = b.resize((b.width * 3 // 4, b.height * 3 // 4), Image.LANCZOS)
+        sheet.paste(b, (28 + 16 * 6 + 24, y + 40 + (16 * 6 - b.height) // 2))
+        y += cardH + 14
+    sheet.save(path)
+    print(path, sheet.size)
+
+
+if __name__ == "__main__":
+    build(ICONS, "art/pictos_actions_v1.png", "BOUTON DE LA BARRE D'ACTIONS — 7 pictos", sys.argv[1] if len(sys.argv) > 1 else "/tmp/dbg/bar_full.png")

@@ -63,6 +63,20 @@ def tongue(x, y, cx, base, top, width, sway, f):
     return (1 - d) * (1 - 0.55 * t) + 0.25 * (1 - t)
 
 
+def langues_stage(f, stage):
+    """Feu C selon son âge (Thomas, 2026-11-12 : « feu C et durée de vie ») : 0 haut et vif, 1 normal, 2 braises."""
+    if stage == 1:
+        return langues(f)
+    if stage == 0:
+        hs = [(3.8, 3 + 2 * ((f + 1) % 3), 3.6), (8.2, 0.5 + [0, 1.2, 0.5][f], 4.8), (12.4, 2.5 + 2 * ((f + 2) % 3), 3.4)]
+        sparks = [(2 + (5 * f) % 11, 1 + f % 2, YEL), (13 - (3 * f) % 7, f, WHI), (6 + 2 * f, 2 - f % 2, ORA), (10 - f, 3 if f != 2 else 0, YEL)]
+        return render(lambda x, y: max(tongue(x, y, cx, 15.5, top, w, 1.2, f + i) for i, (cx, top, w) in enumerate(hs)), sparks=sparks)
+    hs = [(5.5, 10.5 + [0, 1, 0.5][f], 2.4), (10.5, 11.5 + [1, 0, 0.6][f], 2.0)]
+    glow = [(255, 150, 60), (255, 200, 90), (200, 80, 40)]
+    sparks = [(x, 15, glow[(x + f) % 3]) for x in (2, 4, 7, 9, 12, 14)] + [(3 + f * 4, 14, glow[f % 3]), ((7 + 5 * f) % 13 + 1, 9 - f, ORA)]
+    return render(lambda x, y: max(tongue(x, y, cx, 15.5, top, w, 0.6, f + i) for i, (cx, top, w) in enumerate(hs)), sparks=sparks)
+
+
 def frames_of(fn, n=3):
     return [fn(f) for f in range(n)]
 
@@ -153,32 +167,62 @@ def situation(frames, cells=((0, 1), (1, 1), (2, 1), (1, 0), (3, 1))):
     return up(im, 3)
 
 
-S = 7
-pad = 24
-cardW = max(3 * 16 * S + 2 * 10 + 2 * pad, 470)
-sit_w = 5 * 16 * 3
-cols = 2
-cardH = 16 * S + 2 * 16 * 3 + 110
-W = cols * cardW + (cols + 1) * 20
-rows = math.ceil(len(DESIGNS) / cols)
-H = 70 + rows * (cardH + 20) + 30
-sheet = Image.new("RGB", (W, H), (26, 20, 14))
-d = ImageDraw.Draw(sheet)
-d.text((W // 2, 28), "FLAMMES — 6 propositions (3 images qui alternent)", fill=(255, 243, 200), font=font(22), anchor="mm")
-d.text((W // 2, 52), "En haut : agrandi ×7.   En bas : sur le sol, à la taille du jeu.", fill=(200, 190, 170), font=font(14, False), anchor="mm")
-for i, (name, frames, note) in enumerate(DESIGNS):
-    cx = 20 + (i % cols) * (cardW + 20)
-    cy = 70 + (i // cols) * (cardH + 20)
-    d.rectangle((cx, cy, cx + cardW, cy + cardH), fill=(44, 36, 30), outline=(120, 92, 48), width=2)
-    d.text((cx + 14, cy + 10), name, fill=(240, 192, 80), font=font(18))
-    x = cx + (cardW - (3 * 16 * S + 20)) // 2
-    for fr in frames:
-        bg = Image.new("RGBA", (16, 16), (22, 18, 16, 255))
-        bg.alpha_composite(fr)
-        sheet.paste(up(bg, S).convert("RGB"), (x, cy + 38))
-        x += 16 * S + 10
-    sit = situation(frames)
-    sheet.paste(sit.convert("RGB"), (cx + (cardW - sit.width) // 2, cy + 48 + 16 * S))
-    d.text((cx + 14, cy + cardH - 26), note, fill=(220, 210, 190), font=font(14, False))
-sheet.save("flammes_v1.png")
-print("flammes_v1.png", sheet.size)
+import sys
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    # Écrit src/render/sprites/feu.ts : feu C en trois âges (haut, normal, braises), 3 images chacun.
+    cols = {OUT: "o", DRED: "d", RED: "r", ORA: "a", YEL: "y", WHI: "w", (255, 190, 70): "b", (255, 240, 160): "c",
+            (255, 150, 60): "e", (255, 200, 90): "g", (200, 80, 40): "h"}
+    def rows(im):
+        out = []
+        for y in range(16):
+            line = ""
+            for x in range(16):
+                px = im.getpixel((x, y))
+                line += cols[px[:3]] if px[3] else "."
+            out.append(line)
+        return out
+    pal = {v: "#%02x%02x%02x" % k for k, v in cols.items()}
+    stages = [[rows(langues_stage(f, st)) for f in range(3)] for st in range(3)]
+    import json
+    with open("../src/render/sprites/feu.ts", "w") as fh:
+        fh.write("// FICHIER GÉNÉRÉ par art/flammes_v1.py export : ne pas modifier à la main.\n")
+        fh.write("/** Flammes C (art/flammes_v1.png), par âge du feu : [0] haut et vif, [1] normal, [2] braises ; 3 images chacun. */\n")
+        fh.write("export const FIRE_PALETTE: Record<string, string> = " + json.dumps(pal) + ";\n")
+        fh.write("export const FIRE_STAGES: string[][][] = " + json.dumps(stages, indent=1) + ";\n")
+    print("src/render/sprites/feu.ts")
+    sys.exit(0)
+
+def sheet_main():
+    S = 7
+    pad = 24
+    cardW = max(3 * 16 * S + 2 * 10 + 2 * pad, 470)
+    sit_w = 5 * 16 * 3
+    cols = 2
+    cardH = 16 * S + 2 * 16 * 3 + 110
+    W = cols * cardW + (cols + 1) * 20
+    rows = math.ceil(len(DESIGNS) / cols)
+    H = 70 + rows * (cardH + 20) + 30
+    sheet = Image.new("RGB", (W, H), (26, 20, 14))
+    d = ImageDraw.Draw(sheet)
+    d.text((W // 2, 28), "FLAMMES — 6 propositions (3 images qui alternent)", fill=(255, 243, 200), font=font(22), anchor="mm")
+    d.text((W // 2, 52), "En haut : agrandi ×7.   En bas : sur le sol, à la taille du jeu.", fill=(200, 190, 170), font=font(14, False), anchor="mm")
+    for i, (name, frames, note) in enumerate(DESIGNS):
+        cx = 20 + (i % cols) * (cardW + 20)
+        cy = 70 + (i // cols) * (cardH + 20)
+        d.rectangle((cx, cy, cx + cardW, cy + cardH), fill=(44, 36, 30), outline=(120, 92, 48), width=2)
+        d.text((cx + 14, cy + 10), name, fill=(240, 192, 80), font=font(18))
+        x = cx + (cardW - (3 * 16 * S + 20)) // 2
+        for fr in frames:
+            bg = Image.new("RGBA", (16, 16), (22, 18, 16, 255))
+            bg.alpha_composite(fr)
+            sheet.paste(up(bg, S).convert("RGB"), (x, cy + 38))
+            x += 16 * S + 10
+        sit = situation(frames)
+        sheet.paste(sit.convert("RGB"), (cx + (cardW - sit.width) // 2, cy + 48 + 16 * S))
+        d.text((cx + 14, cy + cardH - 26), note, fill=(220, 210, 190), font=font(14, False))
+    sheet.save("flammes_v1.png")
+    print("flammes_v1.png", sheet.size)
+
+
+if __name__ == "__main__":
+    sheet_main()

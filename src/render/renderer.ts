@@ -32,7 +32,8 @@ const GLUCK_BUBBLE = [
 const GLUCK_BUBBLE_PALETTE: Record<string, string> = { K: "#1a1410", "#": "#f4ecd2", o: "#d8ccae" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
-import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
+import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
+import { BLOOD, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
 import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
@@ -445,15 +446,17 @@ export class Renderer {
   }
 
   /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
-  private drawFlames(gx: number, gy: number, seed: number, alpha: number): void {
+  /** `stage` : âge du feu (0 haut et vif, 1 normal, 2 braises ; Thomas, 2026-11-12 : « feu C et durée de vie »). */
+  private drawFlames(gx: number, gy: number, seed: number, alpha: number, stage = 1): void {
     const { ctx, tile } = this;
-    const frame = FIRE_FRAMES[(Math.floor(this.time / 130) + seed) % FIRE_FRAMES.length];
+    const frames = FIRE_STAGES[stage];
+    const frame = frames[(Math.floor(this.time / 130) + seed) % frames.length];
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = alpha;
     const rx = this.snap(gx);
     const ry = this.snap(gy);
-    ctx.drawImage(this.sprite(frame, ICON_PALETTE), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
+    ctx.drawImage(this.sprite(frame, FIRE_PALETTE), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
     ctx.globalAlpha = 1;
     ctx.imageSmoothingEnabled = smooth;
   }
@@ -1395,7 +1398,9 @@ export class Renderer {
     // dessinées DEVANT les personnages (Thomas : le feu ne passe pas derrière), puis la fumée qui monte.
     for (const f of game.fires) {
       if (!game.isVisible(f.x, f.y)) continue;
-      this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
+      // Haut les deux premiers tours d'un feu de 5, normal ensuite, braises au dernier tour.
+      const stage = f.turns <= 1 ? 2 : f.turns >= 4 ? 0 : 1;
+      this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95, stage);
     }
     this.drawSmoke(game, ox, oy, dt);
     this.drawPuffs(ox, oy, dt);

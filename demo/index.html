@@ -89,9 +89,14 @@
   body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
-  #talk { justify-content: flex-start; overflow-y: auto; text-align: center; }
-  #talk h2 { color: var(--gold); margin: 34px 0 0; }
-  #talk-face svg { width: 96px; height: 96px; display: block; margin: 4px auto; }
+  #talk { justify-content: flex-start; overflow-y: auto; text-align: center; gap: 8px; padding-top: 8px; z-index: 5; }
+  /* Conversation : elle couvre la carte seulement ; le dé et le journal restent dessous (Thomas). */
+  body.talk-open .bar, body.talk-open #here { display: none; }
+  /* La croix reste toujours visible, même quand la conversation défile (Thomas). */
+  #talk-close { position: sticky; top: 0; align-self: flex-end; flex: none; margin: 0 -6px -48px 0; }
+  #talk h2 { color: var(--gold); margin: 4px 0 0; }
+  #talk-face svg { width: 72px; height: 72px; display: block; margin: 0 auto; }
+  .talk-choice.off { color: var(--dim); background: #241c14; }
   #talk-lines { box-sizing: border-box; width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
   .talk-line { box-sizing: border-box; overflow-wrap: anywhere; color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
   .talk-line.me { color: var(--dim); background: transparent; box-shadow: none; font-style: italic; }
@@ -406,6 +411,14 @@
       </div>
       <button id="door-cancel" type="button"></button>
     </div>
+    <div id="talk" class="overlay" hidden>
+      <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
+      <h2>Gluck</h2>
+      <div id="talk-face"></div>
+      <div id="talk-lines"></div>
+      <div id="talk-purse"></div>
+      <div id="talk-choices"></div>
+    </div>
     <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
       <button id="over-new-run" type="button">Nouvelle partie</button>
@@ -441,14 +454,6 @@
     <div id="shop-purse"></div>
     <div id="shop-list"></div>
     <div id="shop-detail"></div>
-  </div>
-  <div id="talk" class="overlay" hidden>
-    <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
-    <h2>Gluck</h2>
-    <div id="talk-face"></div>
-    <div id="talk-lines"></div>
-    <div id="talk-purse"></div>
-    <div id="talk-choices"></div>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>
@@ -871,6 +876,10 @@
           case "gravel":
             for (let i = 0; i < 5; i++) this.noise(0.02 + Math.random() * 0.02, 0.1 + Math.random() * 0.08, 3e3 + Math.random() * 2500, i * (0.025 + Math.random() * 0.03));
             this.noise(0.06, 0.06, 900, 0.01);
+            break;
+          case "puff":
+            this.noise(0.22, 0.07, 1100);
+            this.tone(520, 180, 0.12, "sine", 0.08, 0.02);
             break;
           case "splash":
             this.tone(900 + Math.random() * 300, 380, 0.12, "sine", 0.12);
@@ -6636,19 +6645,24 @@
      */
     bounceFromHero(item, count) {
       const h = this.hero;
-      const free = (x, y) => (this.map.get(x, y) === Tile.Floor || this.map.get(x, y) === Tile.Gravel) && !(x === h.x && y === h.y) && !this.furnitureAt(x, y) && !this.isTrap(x, y) && !this.monsterAt(x, y) && !this.merchantAt(x, y) && !this.ground.some((g) => g.x === x && g.y === y) && hasLineOfSight(this.map, h, { x, y });
-      let at = { x: h.x, y: h.y };
-      search: for (let r = 1; r <= 3; r++) {
-        const ring = [];
-        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) ring.push({ x: h.x + dx, y: h.y + dy });
-        const ok = ring.filter((p) => free(p.x, p.y));
-        if (ok.length > 0) {
-          at = ok[Math.floor(mix(this.turn, ok.length, item.length) * ok.length)];
-          break search;
-        }
-      }
+      const at = this.landingCell(h, item);
       this.dropItem(at.x, at.y, item, count);
       this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
+    }
+    /**
+     * La case libre la plus proche de `o` où poser un objet (sans objet, meuble, piège, monstre ni héros, du même côté des
+     * murs), jusqu'à 3 cases ; à défaut, la case `o` elle-même. `skip` : une case à éviter aussi (celle de Gluck).
+     */
+    landingCell(o, item, skip) {
+      const h = this.hero;
+      const free = (x, y) => (this.map.get(x, y) === Tile.Floor || this.map.get(x, y) === Tile.Gravel) && !(x === h.x && y === h.y) && !(skip && x === skip.x && y === skip.y) && !this.furnitureAt(x, y) && !this.isTrap(x, y) && !this.monsterAt(x, y) && !this.merchantAt(x, y) && !this.ground.some((g) => g.x === x && g.y === y) && hasLineOfSight(this.map, o, { x, y });
+      for (let r = 1; r <= 3; r++) {
+        const ring = [];
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) ring.push({ x: o.x + dx, y: o.y + dy });
+        const ok = ring.filter((p) => free(p.x, p.y));
+        if (ok.length > 0) return ok[Math.floor(mix(this.turn, ok.length, item.length) * ok.length)];
+      }
+      return { x: o.x, y: o.y };
     }
     /** Ce que le Colporteur donne pour cet objet du sac (tout le tas) ; null s'il n'en veut pas. */
     sellPrice(uid) {
@@ -6812,12 +6826,13 @@
           }
         }
       }
+      const noGold = (n) => this.gold < n ? "Pas assez d'or" : void 0;
       if (g.pending === "give") {
-        const has = this.inventory.count("pomme") > 0;
-        return { lines: g.pendingLines ?? [], choices: [...has ? [{ id: "give", label: "Lui donner une pomme" }] : [], { id: "refuse", label: has ? "Refuser" : "Vous n'avez pas de pomme" }] };
+        const off = this.inventory.count("pomme") > 0 ? void 0 : "Faute de pomme";
+        return { lines: g.pendingLines ?? [], choices: [{ id: "give", label: "Lui donner une pomme", off }, { id: "refuse", label: "Refuser" }] };
       }
       if (g.pending === "scam") {
-        return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GLUCK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
+        return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GLUCK.scamPrice} or)`, off: noGold(GLUCK.scamPrice) }, { id: "refuse", label: "Refuser" }] };
       }
       const stage = this.gluckStage();
       const lines = [...g.intro ?? [], ...GLUCK_OPENING[stage](mem.mood)];
@@ -6838,15 +6853,15 @@
         return {
           lines,
           choices: [
-            { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)` },
-            ...g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme", dc: "medium" }],
+            { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)`, off: noGold(this.gluckApplePrice()) },
+            ...g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme", dc: "medium", off: noGold(this.gluckApplePrice()) }],
             { id: "scare", label: "L'intimider", stat: "force", dc: "medium" },
             leave
           ]
         };
       }
       if (stage === 3) {
-        return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
+        return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or`, off: noGold(n) })), { id: "decline", label: "Refuser poliment" }] };
       }
       return { lines, choices: [{ id: "ask", label: "\xAB Et pour moi, un petit quelque chose ? \xBB" }, leave] };
     }
@@ -6856,7 +6871,7 @@
       if (!g || !this.canTalk()) return { lines: [], done: true };
       const mem = this.gluckMemory;
       const choice = this.gluckScene().choices.find((c) => c.id === id);
-      if (!choice) return { lines: [], done: false };
+      if (!choice || choice.off) return { lines: [], done: false };
       let roll2;
       const test = () => {
         const stat = choice.stat;
@@ -6873,7 +6888,14 @@
         g.gone = true;
         g.pending = void 0;
         if (this.sandbox && mem.met < GLUCK.maxEncounters) g.backAt = this.turn + 3;
-        this.events.push({ type: "gluck", what: "leave" });
+        const drops = [];
+        for (let i = 0; i < (g.drops ?? 0); i++) {
+          const at = this.landingCell(g, "pomme", g);
+          this.dropItem(at.x, at.y, "pomme", 1);
+          drops.push({ item: "pomme", x: at.x, y: at.y, count: 1 });
+        }
+        g.drops = 0;
+        this.events.push({ type: "gluck", what: "leave", x: g.x, y: g.y, drops });
         return { lines, roll: roll2, done: true };
       };
       const stay = (lines) => ({ lines, roll: roll2, done: false });
@@ -6884,7 +6906,7 @@
         case "kind":
           if (test()) {
             mood(1);
-            this.giveApples(2);
+            this.gluckDrops(2);
             return end(["\xAB Ah ! Enfin quelqu'un de gentil. Tiens, ma r\xE9serve. \xBB"]);
           }
           g.pending = "give";
@@ -6893,21 +6915,21 @@
         case "give":
           if (!this.inventory.take("pomme", 1)) return end(["\xAB Pas de pomme ? Je m'en doutais. \xBB"]);
           mood(1);
-          this.giveApples(2);
+          this.gluckDrops(2);
           return end(["\xAB Merci ! Deux pour une : c'est \xE7a, l'amiti\xE9. \xBB"]);
         case "refuse":
-          return end([g.pending === "scam" ? "\xAB Tant pis pour toi. \xBB" : "\xAB Je m'en doutais. \xBB", "Gluck dispara\xEEt dans un trou du mur."]);
+          return end([g.pending === "scam" ? "\xAB Tant pis pour toi. \xBB" : "\xAB Je m'en doutais. \xBB", "Pouf ! Gluck dispara\xEEt dans un petit nuage."]);
         case "threaten":
           mood(-1);
           if (test()) {
-            this.giveApples(2);
+            this.gluckDrops(2);
             return end(["\xAB D'accord, d'accord ! Prends-les, mais ne me fais pas mal ! \xBB"]);
           }
-          this.dropItem(g.x, g.y, "pomme", 1);
+          this.gluckDrops(1);
           return end(["\xAB Au secours ! \xBB", "Il d\xE9tale en l\xE2chant une pomme."]);
         case "deal":
           if (test()) {
-            this.giveApples(1);
+            this.gluckDrops(1);
             this.revealStairs();
             return end(["\xAB March\xE9 conclu : une pomme, et un secret. L'escalier qui descend ? C'est par l\xE0. \xBB", "(L'escalier appara\xEEt sur votre carte.)"]);
           }
@@ -6948,19 +6970,19 @@
         case "scare":
           mood(-1);
           if (test()) {
-            this.giveApples(1);
+            this.gluckDrops(1);
             return end(["\xAB Bon, bon\u2026 Tiens. Mais je m'en souviendrai. \xBB"]);
           }
           return end(["\xAB M\xEAme pas peur ! \xBB", "Il file avec son sac."]);
         case "decline":
-          this.giveApples(1);
+          this.gluckDrops(1);
           return end(["\xAB Tant pis. Tiens, une pomme. Pour la pub. \xBB"]);
         case "ask": {
           const gifts = ["apple", "stairs", "sleep"].filter((r) => r !== mem.lastReward);
           const gift = gifts[this.rng.int(0, gifts.length - 1)];
           mem.lastReward = gift;
           if (gift === "apple") {
-            this.giveApples(1);
+            this.gluckDrops(1);
             return end(["\xAB Tiens. Une pomme de ma r\xE9serve secr\xE8te. \xBB"]);
           }
           if (gift === "stairs") {
@@ -6984,6 +7006,11 @@
           return end(["\xAB Excellent choix ! Reviens me voir plus bas : \xE7a va rapporter. \xBB"]);
         }
       }
+    }
+    /** Des pommes que Gluck laissera tomber autour de lui en partant (ses cadeaux ; ce qu'on achète ou vole va au sac). */
+    gluckDrops(n) {
+      const g = this.current.gluck;
+      if (g) g.drops = (g.drops ?? 0) + n;
     }
     /** Des pommes de Gluck : dans le sac, ou au sol à côté si le sac est plein. */
     giveApples(n) {
@@ -15656,6 +15683,8 @@
       /** Moment où chaque piège (par case « x,y ») s'est déclenché : il se montre « déclenché » un instant. */
       this.trapFlash = /* @__PURE__ */ new Map();
       this.smoke = [];
+      /** Petits nuages « Pouf ! » (Gluck qui disparaît) : une case, environ 0,6 s. */
+      this.puffs = [];
       /** Fait voler une flèche d'une case à une autre. */
       /** Objets qui rebondissent du héros vers le sol (sac plein) : un arc, puis un petit rebond. */
       this.hops = [];
@@ -15829,6 +15858,31 @@
       ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth2;
+    }
+    addPuff(x, y) {
+      this.puffs.push({ x, y, age: 0 });
+    }
+    /** Un nuage blanc-gris qui gonfle d'un coup, en boules, puis s'effiloche et s'efface. */
+    drawPuffs(ox, oy, dt) {
+      const { ctx, tile } = this;
+      const LIFE = 650;
+      this.puffs = this.puffs.filter((p) => (p.age += dt) < LIFE);
+      for (const p of this.puffs) {
+        const t = p.age / LIFE;
+        const grow = 1 - Math.pow(1 - Math.min(1, t * 2.2), 3);
+        const alpha = t < 0.35 ? 0.95 : 0.95 * (1 - (t - 0.35) / 0.65);
+        const cx = ox + (p.x + 0.5) * tile;
+        const cy = oy + (p.y + 0.45) * tile - t * tile * 0.25;
+        const blobs = [[0, 0, 0.3], [-0.26, 0.08, 0.2], [0.27, 0.06, 0.21], [-0.13, -0.2, 0.19], [0.15, -0.19, 0.2], [0, 0.2, 0.18]];
+        for (const [layer, color] of [[1.18, `rgba(60,54,70,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(236,232,244,${alpha.toFixed(3)})`]]) {
+          ctx.fillStyle = color;
+          for (const [bx, by, br] of blobs) {
+            ctx.beginPath();
+            ctx.arc(cx + bx * tile * (0.6 + grow * 0.6), cy + by * tile * (0.6 + grow * 0.6), br * tile * grow * layer, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
     }
     /** Fumée des feux : des volutes grises qui montent, grossissent et s'effacent (en cases, depuis le haut de la flamme). */
     drawSmoke(game2, ox, oy, dt) {
@@ -16588,6 +16642,7 @@
         this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
       }
       this.drawSmoke(game2, ox, oy, dt);
+      this.drawPuffs(ox, oy, dt);
       for (const g of game2.gas) {
         if (!game2.isVisible(g.x, g.y)) continue;
         for (let i = 0; i < 4; i++) {
@@ -17349,9 +17404,10 @@
       case "death":
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
       case "gluck":
-        return e.what === "leave" ? "Gluck s'\xE9clipse par un trou du mur." : null;
+        if (e.what !== "leave") return null;
+        return e.drops && e.drops.length > 0 ? "Pouf ! Gluck dispara\xEEt dans un petit nuage. Des pommes roulent par terre." : "Pouf ! Gluck dispara\xEEt dans un petit nuage.";
       case "gluckRoll":
-        return `Jet de ${e.stat.toLowerCase()} : ${e.d20} + ${e.bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi" : "rat\xE9"}.`;
+        return `Jet de ${e.stat.toLowerCase()} : d20 ${e.d20} ${e.bonus < 0 ? "\u2212" : "+"} ${Math.abs(e.bonus)} = ${e.total} \u2014 ${e.success ? "r\xE9ussi" : "rat\xE9"}.`;
       case "counter":
         if (e.what === "count") return e.first ? `Derri\xE8re cette porte, une petite voix compte : \xAB ${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026 \xBB` : null;
         if (e.what === "poke") return `Vous collez l'\u0153il au trou\u2026 un doigt crasseux s'y enfonce tout droit. A\xEFe ! Derri\xE8re, la voix reprend : \xAB ${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026 \xBB`;
@@ -17730,7 +17786,7 @@
       })
     );
   }
-  var isRoll = (e) => e.type === "attack" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "maiden" || e.type === "door" && e.action !== "key";
+  var isRoll = (e) => e.type === "attack" || e.type === "gluckRoll" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "maiden" || e.type === "door" && e.action !== "key";
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   var launched = /* @__PURE__ */ new WeakSet();
   function launchArrow(e) {
@@ -17755,6 +17811,7 @@
     const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
     dieWho.textContent = mode === "advantage" ? `${who} \xB7 avantage` : mode === "disadvantage" ? `${who} \xB7 d\xE9savantage` : who;
     dieWho.className = mode === "normal" ? "" : mode;
+    if (e.type === "gluckRoll") dieWho.textContent = e.stat;
     sfx.play("dice");
     if (mode !== "normal") sfx.play(mode);
     if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
@@ -17825,8 +17882,11 @@
       }
     } else if (e.type === "shop") {
       openShop(e.line);
+    } else if (e.type === "gluckRoll") {
+      landDie(e.d20, e.success ? "hit" : "miss", false);
     } else if (e.type === "gluck") {
       if (e.what === "talk") openTalk();
+      else gluckPouf(e);
     } else if (e.type === "bounce") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
       renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
@@ -18593,13 +18653,27 @@
   button("shop-close", closeShop);
   button("talk-close", closeTalk);
   var talkLast = null;
+  var talkLater = [];
+  var talkSaid = 0;
+  var talkBusy = false;
+  function gluckPouf(e) {
+    if (e.x === void 0 || e.y === void 0) return;
+    renderer.addPuff(e.x, e.y);
+    renderer.addFloatingText(e.x, e.y, "Pouf !", "#e8e2f4");
+    sfx.play("puff");
+    for (const d of e.drops ?? []) renderer.addHop(d.item, e.x, e.y, d.x, d.y);
+  }
   function openTalk() {
     if (!game.canTalk()) return;
     talkOpen = true;
     talkLast = null;
+    talkSaid = 0;
+    talkBusy = false;
+    talkLater = [];
     $("talk").hidden = false;
+    $("talk").scrollTop = 0;
     $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE));
-    document.body.classList.add("shop-open");
+    document.body.classList.add("talk-open");
     renderer.resize();
     sfx.play("click");
     renderTalk();
@@ -18607,8 +18681,10 @@
   function closeTalk() {
     talkOpen = false;
     $("talk").hidden = true;
-    document.body.classList.remove("shop-open");
+    document.body.classList.remove("talk-open");
     renderer.resize();
+    queue.push(...talkLater);
+    talkLater = [];
   }
   function renderTalk() {
     const lines = $("talk-lines");
@@ -18616,15 +18692,29 @@
     lines.replaceChildren();
     choices.replaceChildren();
     const scene = game.gluckScene();
-    const shown = talkLast ? talkLast.lines : scene.lines;
-    if (talkLast?.roll) {
-      const r = talkLast.roll;
-      const sign = r.bonus >= 0 ? "+" : "\u2212";
-      lines.append(el("div", `talk-roll ${r.success ? "ok" : "ko"}`, `${r.stat} : d20 ${r.d20} ${sign} ${Math.abs(r.bonus)} = ${r.total} \u2014 ${r.success ? "r\xE9ussi" : "rat\xE9"}`));
-    }
+    let shown = talkLast ? talkLast.lines : scene.lines;
     const glue = (t) => t.replace(/« /g, "\xAB\xA0").replace(/ ([»!?:;])/g, "\xA0$1");
+    let imposed = null;
+    if (!talkLast) {
+      let seen = 0;
+      const cut = shown.findIndex((l) => l.startsWith("Vous : ") && seen++ === talkSaid);
+      if (cut >= 0) {
+        imposed = shown[cut].slice("Vous : ".length);
+        shown = shown.slice(0, cut);
+      }
+    }
     for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", glue(l)));
-    $("talk-purse").textContent = `Bourse : ${game.gold} or \xB7 Pommes : ${game.inventory.count("pomme")}`;
+    $("talk-purse").textContent = `Bourse : ${game.gold} or`;
+    if (imposed !== null) {
+      const b = el("button", "talk-choice", glue(imposed));
+      b.addEventListener("click", () => {
+        talkSaid++;
+        sfx.play("click");
+        renderTalk();
+      });
+      choices.append(b);
+      return;
+    }
     if (talkLast?.done || !game.gluck()) {
       const b = el("button", "talk-choice", "Continuer");
       b.addEventListener("click", closeTalk);
@@ -18632,13 +18722,28 @@
       return;
     }
     for (const c of scene.choices) {
-      const b = el("button", "talk-choice", c.label);
-      if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
+      const b = el("button", c.off ? "talk-choice off" : "talk-choice", c.label);
+      if (c.off) {
+        b.disabled = true;
+        b.append(el("span", "talk-stat", c.off));
+      } else if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
       b.addEventListener("click", () => {
+        if (talkBusy || c.off) return;
         talkLast = game.gluckChoose(c.id);
+        talkLater.push(...game.events.filter((e) => e.type === "gluck" && e.what === "leave"));
+        game.events = game.events.filter((e) => !(e.type === "gluck" && e.what === "leave"));
         collectEvents();
-        sfx.play(talkLast.roll ? "dice" : "click");
-        renderTalk();
+        if (!talkLast.roll) {
+          sfx.play("click");
+          renderTalk();
+          return;
+        }
+        talkBusy = true;
+        for (const x of choices.querySelectorAll("button")) x.disabled = true;
+        window.setTimeout(() => {
+          talkBusy = false;
+          if (talkOpen) renderTalk();
+        }, ROLL_MS + HOLD_HERO_MS + 120);
       });
       choices.append(b);
     }

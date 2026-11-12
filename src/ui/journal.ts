@@ -83,9 +83,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
     case "gluck":
-      return e.what === "leave" ? "Gluck s'éclipse par un trou du mur." : null;
+      if (e.what !== "leave") return null;
+      return e.drops && e.drops.length > 0 ? "Pouf ! Gluck disparaît dans un petit nuage. Des pommes roulent par terre." : "Pouf ! Gluck disparaît dans un petit nuage.";
     case "gluckRoll":
-      return `Jet de ${e.stat.toLowerCase()} : ${e.d20} + ${e.bonus} = ${e.total} — ${e.success ? "réussi" : "raté"}.`;
+      return `Jet de ${e.stat.toLowerCase()} : d20 ${e.d20} ${e.bonus < 0 ? "−" : "+"} ${Math.abs(e.bonus)} = ${e.total} — ${e.success ? "réussi" : "raté"}.`;
     case "counter":
       if (e.what === "count") return e.first ? `Derrière cette porte, une petite voix compte : « ${e.n}… ${e.n}… ${e.n}… »` : null;
       if (e.what === "poke") return `Vous collez l'œil au trou… un doigt crasseux s'y enfonce tout droit. Aïe ! Derrière, la voix reprend : « ${e.n}… ${e.n}… ${e.n}… »`;

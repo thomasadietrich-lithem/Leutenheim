@@ -89,9 +89,14 @@
   body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
-  #talk { justify-content: flex-start; overflow-y: auto; text-align: center; }
-  #talk h2 { color: var(--gold); margin: 34px 0 0; }
-  #talk-face svg { width: 96px; height: 96px; display: block; margin: 4px auto; }
+  #talk { justify-content: flex-start; overflow-y: auto; text-align: center; gap: 8px; padding-top: 8px; z-index: 5; }
+  /* Conversation : elle couvre la carte seulement ; le dé et le journal restent dessous (Thomas). */
+  body.talk-open .bar, body.talk-open #here { display: none; }
+  /* La croix reste toujours visible, même quand la conversation défile (Thomas). */
+  #talk-close { position: sticky; top: 0; align-self: flex-end; flex: none; margin: 0 -6px -48px 0; }
+  #talk h2 { color: var(--gold); margin: 4px 0 0; }
+  #talk-face svg { width: 72px; height: 72px; display: block; margin: 0 auto; }
+  .talk-choice.off { color: var(--dim); background: #241c14; }
   #talk-lines { box-sizing: border-box; width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
   .talk-line { box-sizing: border-box; overflow-wrap: anywhere; color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
   .talk-line.me { color: var(--dim); background: transparent; box-shadow: none; font-style: italic; }
@@ -406,6 +411,14 @@
       </div>
       <button id="door-cancel" type="button"></button>
     </div>
+    <div id="talk" class="overlay" hidden>
+      <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
+      <h2>Gluck</h2>
+      <div id="talk-face"></div>
+      <div id="talk-lines"></div>
+      <div id="talk-purse"></div>
+      <div id="talk-choices"></div>
+    </div>
     <div id="over" class="overlay" hidden>
       <div id="over-text"></div>
       <button id="over-new-run" type="button">Nouvelle partie</button>
@@ -441,14 +454,6 @@
     <div id="shop-purse"></div>
     <div id="shop-list"></div>
     <div id="shop-detail"></div>
-  </div>
-  <div id="talk" class="overlay" hidden>
-    <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
-    <h2>Gluck</h2>
-    <div id="talk-face"></div>
-    <div id="talk-lines"></div>
-    <div id="talk-purse"></div>
-    <div id="talk-choices"></div>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>

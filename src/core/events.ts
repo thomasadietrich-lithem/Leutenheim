@@ -37,7 +37,8 @@ export type GameEvent =
   | { type: "fountain"; healed: number }
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
-  | { type: "gluck"; what: "talk" | "leave" }
+  /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
+  | { type: "gluck"; what: "talk" | "leave"; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
   /** Un jet de dialogue avec Gluck (d20 + caractéristique). */
   | { type: "gluckRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */

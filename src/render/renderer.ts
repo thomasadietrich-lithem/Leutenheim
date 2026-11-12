@@ -352,6 +352,35 @@ export class Renderer {
   }
 
   private smoke: { x: number; y: number; age: number; life: number; drift: number; size: number }[] = [];
+  /** Petits nuages « Pouf ! » (Gluck qui disparaît) : une case, environ 0,6 s. */
+  private puffs: { x: number; y: number; age: number }[] = [];
+
+  addPuff(x: number, y: number): void {
+    this.puffs.push({ x, y, age: 0 });
+  }
+
+  /** Un nuage blanc-gris qui gonfle d'un coup, en boules, puis s'effiloche et s'efface. */
+  private drawPuffs(ox: number, oy: number, dt: number): void {
+    const { ctx, tile } = this;
+    const LIFE = 650;
+    this.puffs = this.puffs.filter((p) => (p.age += dt) < LIFE);
+    for (const p of this.puffs) {
+      const t = p.age / LIFE;
+      const grow = 1 - Math.pow(1 - Math.min(1, t * 2.2), 3);
+      const alpha = t < 0.35 ? 0.95 : 0.95 * (1 - (t - 0.35) / 0.65);
+      const cx = ox + (p.x + 0.5) * tile;
+      const cy = oy + (p.y + 0.45) * tile - t * tile * 0.25;
+      const blobs = [[0, 0, 0.3], [-0.26, 0.08, 0.2], [0.27, 0.06, 0.21], [-0.13, -0.2, 0.19], [0.15, -0.19, 0.2], [0, 0.2, 0.18]];
+      for (const [layer, color] of [[1.18, `rgba(60,54,70,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(236,232,244,${alpha.toFixed(3)})`]] as const) {
+        ctx.fillStyle = color;
+        for (const [bx, by, br] of blobs) {
+          ctx.beginPath();
+          ctx.arc(cx + bx * tile * (0.6 + grow * 0.6), cy + by * tile * (0.6 + grow * 0.6), br * tile * grow * layer, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
 
   /** Fumée des feux : des volutes grises qui montent, grossissent et s'effacent (en cases, depuis le haut de la flamme). */
   private drawSmoke(game: Game, ox: number, oy: number, dt: number): void {
@@ -1242,6 +1271,7 @@ export class Renderer {
       this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95);
     }
     this.drawSmoke(game, ox, oy, dt);
+    this.drawPuffs(ox, oy, dt);
     // Gaz empoisonné (piège à gaz) : des volutes vertes, translucides, qui ondulent sur leurs cases.
     for (const g of game.gas) {
       if (!game.isVisible(g.x, g.y)) continue;

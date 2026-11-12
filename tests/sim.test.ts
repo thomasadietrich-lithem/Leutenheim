@@ -1045,10 +1045,18 @@ test("quête 01, Gluck : quatre scènes, des pommes, un jet par choix risqué (T
   // Scène 1 : le déserteur. Le menacer (Force, facile) : des pommes, ou une pomme lâchée en fuyant.
   assert.equal(game.gluckStage(), 1);
   assert.deepEqual(game.gluckScene().choices.map((c) => c.id), ["kind", "threaten", "deal", "steal", "leave"]);
-  const apples = game.inventory.count("pomme");
+  const near = (it: { x: number; y: number }) => Math.max(Math.abs(it.x - g.x), Math.abs(it.y - g.y)) <= 3;
+  const before = game.ground.filter((it) => it.item === "pomme" && near(it)).length;
   const r1 = game.gluckChoose("threaten");
   assert.ok(r1.roll && r1.done);
-  assert.ok(game.inventory.count("pomme") > apples || game.ground.some((it) => it.item === "pomme" && it.x === g.x && it.y === g.y));
+  // Il disparaît (« Pouf ! ») et ses pommes tombent par terre AUTOUR de lui, jamais sur sa case ni sous le héros (Thomas).
+  const leave = game.events.find((e) => e.type === "gluck" && e.what === "leave");
+  assert.ok(leave && leave.type === "gluck" && leave.drops && leave.drops.length >= 1);
+  assert.ok(game.ground.filter((it) => it.item === "pomme" && near(it)).length > before);
+  for (const d of leave.drops!) {
+    assert.ok(!(d.x === g.x && d.y === g.y) && !(d.x === game.hero.x && d.y === game.hero.y));
+    assert.ok(game.ground.some((it) => it.x === d.x && it.y === d.y && it.item === "pomme"));
+  }
   assert.equal(game.gluckMemory.met, 1);
   assert.equal(game.gluckMemory.mood, -1);
   assert.equal(game.gluck(), null, "il est parti");
@@ -1061,8 +1069,13 @@ test("quête 01, Gluck : quatre scènes, des pommes, un jet par choix risqué (T
   Object.assign(game.hero, { x: besides[0].x, y: besides[0].y });
   if (!game.canTalk()) Object.assign(game.hero, { x: game.gluck()!.x + 1, y: game.gluck()!.y });
   assert.equal(game.gluckStage(), 2);
+  // Sans or, acheter est grisé (« Pas assez d'or ») et refusé ; le nombre de pommes ne se montre nulle part.
+  game.gold = 3;
+  const buyOff = game.gluckScene().choices.find((c) => c.id === "buy")!;
+  assert.ok(buyOff.off);
+  assert.equal(game.gluckChoose("buy").done, false);
   game.gold = 100;
-  assert.ok(game.gluckScene().choices.some((c) => c.label.includes("12 or")));
+  assert.ok(game.gluckScene().choices.some((c) => c.label.includes("12 or") && !c.off));
   const r2 = game.gluckChoose("buy");
   assert.ok(r2.done && game.gold === 88);
   // Scène 3 : investir 20 or ; scène 4 : le placement revient (×2, ou une pomme d'excuse).
@@ -1089,6 +1102,28 @@ test("quête 01, Gluck : quatre scènes, des pommes, un jet par choix risqué (T
   const r4 = game.gluckChoose("ask");
   assert.ok(r4.done);
   assert.equal(game.gluckMemory.met, 4);
+});
+
+test("Gluck : « donne-moi une pomme d'abord » est grisé faute de pomme, puis possible avec une (Thomas, 2026-11-12)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  game.peaceful = true;
+  const g = game.gluck()!;
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: g.x + dx, y: g.y + dy })).find((p) => game.map.isWalkable(p.x, p.y))!;
+  Object.assign(game.hero, spot);
+  game.gluckScene();
+  g.pending = "give";
+  g.pendingLines = ["« Donne-moi une pomme d'abord. »"];
+  while (game.inventory.count("pomme") > 0) game.inventory.take("pomme", 1);
+  const give = game.gluckScene().choices.find((c) => c.id === "give")!;
+  assert.equal(give.off, "Faute de pomme");
+  assert.equal(game.gluckChoose("give").done, false);
+  game.inventory.add("pomme", 1);
+  assert.ok(!game.gluckScene().choices.find((c) => c.id === "give")!.off);
+  const r = game.gluckChoose("give");
+  assert.ok(r.done);
+  assert.equal(game.inventory.count("pomme"), 0, "la pomme donnée a quitté le sac");
+  assert.equal(game.ground.filter((it) => it.item === "pomme" && Math.max(Math.abs(it.x - g.x), Math.abs(it.y - g.y)) <= 3).length >= 2, true, "il en rend deux, par terre autour de lui");
 });
 
 test("Gluck dans le donjon : parfois aux étages 1 à 4 d'une section, jamais à l'étage du boss", () => {

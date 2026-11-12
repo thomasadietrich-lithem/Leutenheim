@@ -264,8 +264,9 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" }> =>
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "gluckRoll" }> =>
   e.type === "attack" ||
+  e.type === "gluckRoll" ||
   e.type === "hide" ||
   e.type === "jump" ||
   e.type === "searched" ||
@@ -303,6 +304,8 @@ function startRoll(e: GameEvent): void {
   const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
   dieWho.textContent = mode === "advantage" ? `${who} · avantage` : mode === "disadvantage" ? `${who} · désavantage` : who;
   dieWho.className = mode === "normal" ? "" : mode;
+  // Jet de dialogue (Gluck) : on dit quelle caractéristique est jetée.
+  if (e.type === "gluckRoll") dieWho.textContent = e.stat;
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
   if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
@@ -381,8 +384,12 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "shop") {
     openShop(e.line);
+  } else if (e.type === "gluckRoll") {
+    landDie(e.d20, e.success ? "hit" : "miss", false);
   } else if (e.type === "gluck") {
     if (e.what === "talk") openTalk();
+    // Il part : nuage et « Pouf ! » (la conversation est fermée : voir `talkLater`).
+    else gluckPouf(e);
   } else if (e.type === "bounce") {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
     renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
@@ -1247,13 +1254,33 @@ button("talk-close", closeTalk);
 /** Ce qui vient de se dire (le résultat du dernier choix), affiché au-dessus des choix suivants. */
 let talkLast: GluckResult | null = null;
 
+/** Le départ de Gluck (et sa ligne de journal), gardé pour la fermeture de la conversation : on le voit alors partir. */
+let talkLater: GameEvent[] = [];
+/** Combien de répliques imposées du héros (« Vous : … ») le joueur a déjà touchées dans cette scène. */
+let talkSaid = 0;
+/** Un jet est en train de rouler : les réponses attendent que le dé tombe. */
+let talkBusy = false;
+
+function gluckPouf(e: Extract<GameEvent, { type: "gluck" }>): void {
+  if (e.x === undefined || e.y === undefined) return;
+  renderer.addPuff(e.x, e.y);
+  renderer.addFloatingText(e.x, e.y, "Pouf !", "#e8e2f4");
+  sfx.play("puff");
+  for (const d of e.drops ?? []) renderer.addHop(d.item, e.x, e.y, d.x, d.y);
+}
+
 function openTalk(): void {
   if (!game.canTalk()) return;
   talkOpen = true;
   talkLast = null;
+  talkSaid = 0;
+  talkBusy = false;
+  talkLater = [];
   $("talk").hidden = false;
+  $("talk").scrollTop = 0;
   $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE));
-  document.body.classList.add("shop-open");
+  // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
+  document.body.classList.add("talk-open");
   renderer.resize();
   sfx.play("click");
   renderTalk();
@@ -1262,8 +1289,10 @@ function openTalk(): void {
 function closeTalk(): void {
   talkOpen = false;
   $("talk").hidden = true;
-  document.body.classList.remove("shop-open");
+  document.body.classList.remove("talk-open");
   renderer.resize();
+  queue.push(...talkLater);
+  talkLater = [];
 }
 
 function renderTalk(): void {
@@ -1272,16 +1301,32 @@ function renderTalk(): void {
   lines.replaceChildren();
   choices.replaceChildren();
   const scene = game.gluckScene();
-  const shown = talkLast ? talkLast.lines : scene.lines;
-  if (talkLast?.roll) {
-    const r = talkLast.roll;
-    const sign = r.bonus >= 0 ? "+" : "−";
-    lines.append(el("div", `talk-roll ${r.success ? "ok" : "ko"}`, `${r.stat} : d20 ${r.d20} ${sign} ${Math.abs(r.bonus)} = ${r.total} — ${r.success ? "réussi" : "raté"}`));
-  }
+  let shown = talkLast ? talkLast.lines : scene.lines;
   // Espaces insécables autour des guillemets et avant « ! ? : » : jamais un « » » tout seul en bout de ligne.
   const glue = (t: string) => t.replace(/« /g, "«\u00a0").replace(/ ([»!?:;])/g, "\u00a0$1");
+  // Réplique imposée du héros (« Vous : … ») : elle s'affiche comme un bouton, que le joueur touche pour la dire (Thomas).
+  let imposed: string | null = null;
+  if (!talkLast) {
+    let seen = 0;
+    const cut = shown.findIndex((l) => l.startsWith("Vous : ") && seen++ === talkSaid);
+    if (cut >= 0) {
+      imposed = shown[cut].slice("Vous : ".length);
+      shown = shown.slice(0, cut);
+    }
+  }
   for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", glue(l)));
-  $("talk-purse").textContent = `Bourse : ${game.gold} or · Pommes : ${game.inventory.count("pomme")}`;
+  // L'or seulement : le nombre de pommes ne s'affiche pas (Thomas : « ça spoile »).
+  $("talk-purse").textContent = `Bourse : ${game.gold} or`;
+  if (imposed !== null) {
+    const b = el("button", "talk-choice", glue(imposed));
+    b.addEventListener("click", () => {
+      talkSaid++;
+      sfx.play("click");
+      renderTalk();
+    });
+    choices.append(b);
+    return;
+  }
   if (talkLast?.done || !game.gluck()) {
     const b = el("button", "talk-choice", "Continuer");
     b.addEventListener("click", closeTalk);
@@ -1289,13 +1334,30 @@ function renderTalk(): void {
     return;
   }
   for (const c of scene.choices) {
-    const b = el("button", "talk-choice", c.label);
-    if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
+    const b = el("button", c.off ? "talk-choice off" : "talk-choice", c.label) as HTMLButtonElement;
+    if (c.off) {
+      // Réponse impossible : grisée, avec sa raison (Thomas : « faute de pomme »).
+      b.disabled = true;
+      b.append(el("span", "talk-stat", c.off));
+    } else if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
     b.addEventListener("click", () => {
+      if (talkBusy || c.off) return;
       talkLast = game.gluckChoose(c.id);
+      talkLater.push(...game.events.filter((e) => e.type === "gluck" && e.what === "leave"));
+      game.events = game.events.filter((e) => !(e.type === "gluck" && e.what === "leave"));
       collectEvents();
-      sfx.play(talkLast.roll ? "dice" : "click");
-      renderTalk();
+      if (!talkLast.roll) {
+        sfx.play("click");
+        renderTalk();
+        return;
+      }
+      // Le dé roule dans son encart, sous la conversation ; la réponse de Gluck vient quand il est tombé.
+      talkBusy = true;
+      for (const x of choices.querySelectorAll("button")) (x as HTMLButtonElement).disabled = true;
+      window.setTimeout(() => {
+        talkBusy = false;
+        if (talkOpen) renderTalk();
+      }, ROLL_MS + HOLD_HERO_MS + 120);
     });
     choices.append(b);
   }

@@ -76,6 +76,8 @@ export interface GluckSpot {
   haggled?: boolean;
   /** Salle d'essai : il revient quelques tours après être parti, à la rencontre suivante. */
   backAt?: number;
+  /** Les pommes qu'il laisse en partant : elles tombent par terre autour de lui (Thomas, 2026-11-12). */
+  drops?: number;
 }
 
 /**

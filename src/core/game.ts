@@ -2953,27 +2953,34 @@ export class Game {
    */
   private bounceFromHero(item: ItemId, count: number): void {
     const h = this.hero;
+    const at = this.landingCell(h, item);
+    this.dropItem(at.x, at.y, item, count);
+    this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
+  }
+
+  /**
+   * La case libre la plus proche de `o` où poser un objet (sans objet, meuble, piège, monstre ni héros, du même côté des
+   * murs), jusqu'à 3 cases ; à défaut, la case `o` elle-même. `skip` : une case à éviter aussi (celle de Gluck).
+   */
+  private landingCell(o: Point, item: ItemId, skip?: Point): Point {
+    const h = this.hero;
     const free = (x: number, y: number) =>
       (this.map.get(x, y) === Tile.Floor || this.map.get(x, y) === Tile.Gravel) &&
       !(x === h.x && y === h.y) &&
+      !(skip && x === skip.x && y === skip.y) &&
       !this.furnitureAt(x, y) &&
       !this.isTrap(x, y) &&
       !this.monsterAt(x, y) &&
       !this.merchantAt(x, y) &&
       !this.ground.some((g) => g.x === x && g.y === y) &&
-      hasLineOfSight(this.map, h, { x, y });
-    let at: Point = { x: h.x, y: h.y };
-    search: for (let r = 1; r <= 3; r++) {
+      hasLineOfSight(this.map, o, { x, y });
+    for (let r = 1; r <= 3; r++) {
       const ring: Point[] = [];
-      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) ring.push({ x: h.x + dx, y: h.y + dy });
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) ring.push({ x: o.x + dx, y: o.y + dy });
       const ok = ring.filter((p) => free(p.x, p.y));
-      if (ok.length > 0) {
-        at = ok[Math.floor(mix(this.turn, ok.length, item.length) * ok.length)];
-        break search;
-      }
+      if (ok.length > 0) return ok[Math.floor(mix(this.turn, ok.length, item.length) * ok.length)];
     }
-    this.dropItem(at.x, at.y, item, count);
-    this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
+    return { x: o.x, y: o.y };
   }
 
   /** Ce que le Colporteur donne pour cet objet du sac (tout le tas) ; null s'il n'en veut pas. */
@@ -3158,12 +3165,14 @@ export class Game {
         }
       }
     }
+    // Une réponse impossible reste visible, grisée, avec sa raison (Thomas : ne pas montrer le compte de pommes).
+    const noGold = (n: number) => (this.gold < n ? "Pas assez d'or" : undefined);
     if (g.pending === "give") {
-      const has = this.inventory.count("pomme") > 0;
-      return { lines: g.pendingLines ?? [], choices: [...(has ? [{ id: "give", label: "Lui donner une pomme" }] : []), { id: "refuse", label: has ? "Refuser" : "Vous n'avez pas de pomme" }] };
+      const off = this.inventory.count("pomme") > 0 ? undefined : "Faute de pomme";
+      return { lines: g.pendingLines ?? [], choices: [{ id: "give", label: "Lui donner une pomme", off }, { id: "refuse", label: "Refuser" }] };
     }
     if (g.pending === "scam") {
-      return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GLUCK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
+      return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GLUCK.scamPrice} or)`, off: noGold(GLUCK.scamPrice) }, { id: "refuse", label: "Refuser" }] };
     }
     const stage = this.gluckStage();
     const lines = [...(g.intro ?? []), ...GLUCK_OPENING[stage](mem.mood)];
@@ -3184,15 +3193,15 @@ export class Game {
       return {
         lines,
         choices: [
-          { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)` },
-          ...(g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme" as const, dc: "medium" as const }]),
+          { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)`, off: noGold(this.gluckApplePrice()) },
+          ...(g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme" as const, dc: "medium" as const, off: noGold(this.gluckApplePrice()) }]),
           { id: "scare", label: "L'intimider", stat: "force", dc: "medium" },
           leave,
         ],
       };
     }
     if (stage === 3) {
-      return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
+      return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or`, off: noGold(n) })), { id: "decline", label: "Refuser poliment" }] };
     }
     return { lines, choices: [{ id: "ask", label: "« Et pour moi, un petit quelque chose ? »" }, leave] };
   }
@@ -3203,7 +3212,7 @@ export class Game {
     if (!g || !this.canTalk()) return { lines: [], done: true };
     const mem = this.gluckMemory;
     const choice = this.gluckScene().choices.find((c) => c.id === id);
-    if (!choice) return { lines: [], done: false };
+    if (!choice || choice.off) return { lines: [], done: false };
     let roll: GluckResult["roll"];
     const test = (): boolean => {
       const stat = choice.stat!;
@@ -3220,7 +3229,15 @@ export class Game {
       g.gone = true;
       g.pending = undefined;
       if (this.sandbox && mem.met < GLUCK.maxEncounters) g.backAt = this.turn + 3;
-      this.events.push({ type: "gluck", what: "leave" });
+      // « Pouf ! » : ce qu'il laisse tombe par terre autour de lui, une pomme par case (Thomas, 2026-11-12).
+      const drops: { item: ItemId; x: number; y: number; count: number }[] = [];
+      for (let i = 0; i < (g.drops ?? 0); i++) {
+        const at = this.landingCell(g, "pomme", g);
+        this.dropItem(at.x, at.y, "pomme", 1);
+        drops.push({ item: "pomme", x: at.x, y: at.y, count: 1 });
+      }
+      g.drops = 0;
+      this.events.push({ type: "gluck", what: "leave", x: g.x, y: g.y, drops });
       return { lines, roll, done: true };
     };
     const stay = (lines: string[]): GluckResult => ({ lines, roll, done: false });
@@ -3231,7 +3248,7 @@ export class Game {
       case "kind":
         if (test()) {
           mood(1);
-          this.giveApples(2);
+          this.gluckDrops(2);
           return end(["« Ah ! Enfin quelqu'un de gentil. Tiens, ma réserve. »"]);
         }
         g.pending = "give";
@@ -3240,21 +3257,21 @@ export class Game {
       case "give":
         if (!this.inventory.take("pomme", 1)) return end(["« Pas de pomme ? Je m'en doutais. »"]);
         mood(1);
-        this.giveApples(2);
+        this.gluckDrops(2);
         return end(["« Merci ! Deux pour une : c'est ça, l'amitié. »"]);
       case "refuse":
-        return end([g.pending === "scam" ? "« Tant pis pour toi. »" : "« Je m'en doutais. »", "Gluck disparaît dans un trou du mur."]);
+        return end([g.pending === "scam" ? "« Tant pis pour toi. »" : "« Je m'en doutais. »", "Pouf ! Gluck disparaît dans un petit nuage."]);
       case "threaten":
         mood(-1);
         if (test()) {
-          this.giveApples(2);
+          this.gluckDrops(2);
           return end(["« D'accord, d'accord ! Prends-les, mais ne me fais pas mal ! »"]);
         }
-        this.dropItem(g.x, g.y, "pomme", 1);
+        this.gluckDrops(1);
         return end(["« Au secours ! »", "Il détale en lâchant une pomme."]);
       case "deal":
         if (test()) {
-          this.giveApples(1);
+          this.gluckDrops(1);
           this.revealStairs();
           return end(["« Marché conclu : une pomme, et un secret. L'escalier qui descend ? C'est par là. »", "(L'escalier apparaît sur votre carte.)"]);
         }
@@ -3295,19 +3312,19 @@ export class Game {
       case "scare":
         mood(-1);
         if (test()) {
-          this.giveApples(1);
+          this.gluckDrops(1);
           return end(["« Bon, bon… Tiens. Mais je m'en souviendrai. »"]);
         }
         return end(["« Même pas peur ! »", "Il file avec son sac."]);
       case "decline":
-        this.giveApples(1);
+        this.gluckDrops(1);
         return end(["« Tant pis. Tiens, une pomme. Pour la pub. »"]);
       case "ask": {
         const gifts = ["apple", "stairs", "sleep"].filter((r) => r !== mem.lastReward);
         const gift = gifts[this.rng.int(0, gifts.length - 1)];
         mem.lastReward = gift;
         if (gift === "apple") {
-          this.giveApples(1);
+          this.gluckDrops(1);
           return end(["« Tiens. Une pomme de ma réserve secrète. »"]);
         }
         if (gift === "stairs") {
@@ -3331,6 +3348,12 @@ export class Game {
         return end(["« Excellent choix ! Reviens me voir plus bas : ça va rapporter. »"]);
       }
     }
+  }
+
+  /** Des pommes que Gluck laissera tomber autour de lui en partant (ses cadeaux ; ce qu'on achète ou vole va au sac). */
+  private gluckDrops(n: number): void {
+    const g = this.current.gluck;
+    if (g) g.drops = (g.drops ?? 0) + n;
   }
 
   /** Des pommes de Gluck : dans le sac, ou au sol à côté si le sac est plein. */

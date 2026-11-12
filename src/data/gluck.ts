@@ -54,6 +54,8 @@ export interface GluckChoice {
   label: string;
   stat?: StatId;
   dc?: keyof typeof GLUCK.dc;
+  /** Réponse impossible pour l'instant (grisée, Thomas 2026-11-12) : la raison, en deux ou trois mots. */
+  off?: string;
 }
 
 export const STAT_NAMES: Partial<Record<StatId, string>> = { force: "Force", agilite: "Agilité", intelligence: "Intelligence", charisme: "Charisme" };

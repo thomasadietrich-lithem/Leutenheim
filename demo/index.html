@@ -1625,15 +1625,15 @@
     spiderInWebRoomChance: 0.6,
     /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
     clutterPerFloor: [1, 4],
-    /** Cloche d'alarme (Thomas, 2026-11-12) : sur tant d'étages (C) ; la sonner ajoute tant d'alerte (un palier, C). */
-    bellChance: 0.3,
-    /** Porte du Kobold qui compte (Thomas, 2026-11-12) : sur tant d'étages (C) ; il compte tous les tant de tours quand
-     *  le héros est à tant de cases ou moins ; son nombre de départ ; le doigt dans l'œil fait tant de dégâts. */
-    counterDoorChance: 0.25,
-    counterEvery: 3,
+    /** UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur un des étages 1 à `funMaxFloor` de chaque section, tiré au
+     *  début de la partie, la cloche d'alarme OU la porte du Kobold qui compte (une chance sur deux). */
+    funMaxFloor: 3,
+    /** Porte du Kobold qui compte (Thomas, 2026-11-12) : il dit son nombre une fois par tour (« 17… 17… 17… », un à la
+     *  fois) quand le héros est à tant de cases ou moins ; son nombre de départ ; le doigt dans l'œil fait tant de dégâts. */
     counterHearing: 5,
     counterStart: 13,
     counterPoke: 1,
+    /** Cloche d'alarme : la sonner ajoute tant d'alerte (un palier, C). */
     bellAlarm: 25,
     /** Agilité (Thomas, 2026-11-11) : +1 CA d'esquive tous les `agilityPerDodge` points ; un piège sous les pieds du héros
      * s'évite sur d20 + agilité contre `trapDodgeDc` (un 20 l'évite toujours, un 1 jamais). */
@@ -2672,7 +2672,7 @@
     out.push(...placed);
     return true;
   }
-  function furnishFloor(floor, seed, depth = 1) {
+  function furnishFloor(floor, seed, depth = 1, bell = false) {
     const rng = new Rng(seed ^ 1867128211);
     const furniture = [];
     const themes = [];
@@ -2691,7 +2691,7 @@
     }
     const special = new Set(themes.map((t) => t.room));
     placeClutter(floor, new Rng(seed ^ 473587319), furniture, special);
-    placeBell(floor, new Rng(seed ^ 1529945725), furniture, special);
+    if (bell) placeBell(floor, new Rng(seed ^ 1529945725), furniture, special);
     if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 1046183193), furniture, special);
     return { furniture, themes };
   }
@@ -3006,7 +3006,6 @@
     }
   }
   function placeBell(floor, rng, furniture, special) {
-    if (!rng.chance(RULES.bellChance)) return;
     const { map } = floor;
     const before = reachable(map, floor.start);
     const specials = floor.specials ?? [];
@@ -3024,8 +3023,9 @@
         continue;
       }
       furniture.push({ x, y, kind: "bell" });
-      return;
+      return true;
     }
+    return false;
   }
   function placeWebs(floor, rng, furniture, special) {
     floor.rooms.forEach((room, index) => {
@@ -4161,7 +4161,7 @@
         const bossFloor = !sandboxFloor && this.isBossDepth(depth) ? buildBossFloor(seed) : null;
         const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
-        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : bossFloor ? { furniture: bossFloor.furniture, themes: [] } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth) : { furniture: [], themes: [] };
+        const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : bossFloor ? { furniture: bossFloor.furniture, themes: [] } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell") : { furniture: [], themes: [] };
         if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
         const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
         state = {
@@ -4195,7 +4195,13 @@
         if (bossFloor) for (const sec of bossFloor.secrets) state.secrets.push({ ...sec, found: false });
         if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
         else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? void 0;
-        if (!bossFloor) state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? void 0;
+        if (!bossFloor && (sandboxFloor || this.funOf(depth) === "counter")) {
+          state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? void 0;
+          if (!state.counter && !sandboxFloor) {
+            const special = new Set((state.themes ?? []).map((t) => t.room));
+            placeBell(floor, new Rng(seed ^ 1529945725), state.furniture ?? [], special);
+          }
+        }
         this.floors.set(depth, state);
       }
       this.useFloor(state, depth);
@@ -4317,7 +4323,6 @@
         map.set(13, 28, Tile.DoorLocked);
         return { x: 13, y: 28, inside: { x: 13, y: 29 }, n: RULES.counterStart, heard: false, opened: false };
       }
-      if (!rng.chance(RULES.counterDoorChance)) return null;
       const inRoom = (p) => floor.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
       const doors = [];
       for (let y = 1; y < map.height - 1; y++) for (let x = 1; x < map.width - 1; x++) if (map.get(x, y) === Tile.DoorClosed) doors.push({ x, y });
@@ -4334,6 +4339,18 @@
       }
       return null;
     }
+    /**
+     * UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur quel étage de la section, et lequel (cloche ou porte du
+     * compteur). Tiré une fois pour toutes d'après la graine de la partie ; jamais à l'étage du boss, ni en salle d'essai.
+     */
+    funOf(depth) {
+      if (this.sandbox && depth === 1) return null;
+      const section = Math.floor((depth - 1) / RULES.floorsPerSection);
+      const rng = new Rng((this.runSeed ^ Math.imul(section + 1, 2654435761)) >>> 0);
+      const floor = section * RULES.floorsPerSection + rng.int(1, RULES.funMaxFloor);
+      if (floor !== depth) return null;
+      return rng.chance(0.5) ? "bell" : "counter";
+    }
     /** La porte du compteur à cette case (encore fermée), s'il y en a une. */
     counterAt(x, y) {
       const c = this.current.counter;
@@ -4344,7 +4361,7 @@
       const c = this.current.counter;
       if (!c || c.opened) return;
       const d = Math.max(Math.abs(c.x - this.hero.x), Math.abs(c.y - this.hero.y));
-      if (d > RULES.counterHearing || this.turn % RULES.counterEvery !== 0) return;
+      if (d > RULES.counterHearing) return;
       this.events.push({ type: "counter", what: "count", n: c.n, x: c.x, y: c.y, first: !c.heard });
       c.heard = true;
     }
@@ -17394,10 +17411,10 @@
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
     } else if (e.type === "counter") {
-      if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026`, "#c8c0d4");
+      if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}\u2026`, "#c8c0d4");
       else if (e.what === "poke") {
         renderer.addFloatingText(game.hero.x, game.hero.y, "A\xEFe ! L'\u0153il !", "#ff6b7a");
-        renderer.addFloatingText(e.x, e.y, `${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026`, "#c8c0d4");
+        renderer.addFloatingText(e.x, e.y, `${e.n}\u2026`, "#c8c0d4");
         renderer.heroHurt();
         shownHp = game.hero.hp;
         sfx.play("hurt");

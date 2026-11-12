@@ -31,7 +31,7 @@ PLAN = [
 ]
 
 COL = {
-    "mortar": (30, 27, 40), "hi": (176, 180, 208), "sh": (22, 19, 30),
+    "mortar": (66, 62, 78), "hi": (176, 180, 208), "sh": (22, 19, 30),
     "m0": (44, 70, 30), "m1": (74, 112, 40), "m2": (118, 160, 56),
     "f1": (70, 63, 76), "fl": (50, 45, 58), "dust": (86, 76, 72), "f2": (80, 72, 86),
     "wood": (120, 78, 40), "wood2": (86, 54, 26), "iron": (60, 62, 78), "gold": (240, 192, 80), "dark": (12, 10, 16),
@@ -303,7 +303,7 @@ def main():
     out = Image.new("RGB", (Wd, Hd), (26, 22, 30))
     d = ImageDraw.Draw(out)
     y = 14
-    d.text((pad, y), "Murs v3 : sans piliers, assises croisées, extrémités aux portes", font=font, fill=(240, 220, 170))
+    d.text((pad, y), "Murs v3 : joints gris foncé, assises croisées, extrémités", font=font, fill=(240, 220, 170))
     y += 40
     out.paste(big, (pad, y))
     y += big.height + 20

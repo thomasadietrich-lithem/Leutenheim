@@ -960,23 +960,35 @@ test("cloche d'alarme : la sonner fait monter l'alerte d'un palier, et le journa
   assert.ok(game.alarm().level >= before + RULES.bellAlarm);
 });
 
-test("cloche d'alarme : posée de temps en temps, jamais dans le passage", () => {
-  let floors = 0;
-  for (let seed = 1; seed <= 120; seed++) {
+test("un truc fun par section : la cloche ou la porte du compteur, sur un seul étage (1 à 3) de chaque section", () => {
+  let bells = 0;
+  let counters = 0;
+  for (let seed = 1; seed <= 200; seed++) {
     const game = new Game(seed);
-    const bell = game.furnitureList().find((f) => f.kind === "bell");
-    if (!bell) continue;
-    floors++;
-    game.monsters.splice(0);
-    const before = game.alarm().level;
-    assert.ok(game.setDestination(bell.x, bell.y, true), "on peut aller à côté de la cloche");
-    for (let i = 0; i < 200 && !game.events.some((e) => e.type === "bell"); i++) {
-      game.events.length = 0;
-      if (!game.tick()) break;
+    for (const section of [0, 1]) {
+      const funs = [1, 2, 3, 4, 5].map((d) => game.funOf(section * 5 + d)).filter((f) => f !== null);
+      assert.equal(funs.length, 1, "un seul truc fun par section");
+      assert.ok([1, 2, 3].some((d) => game.funOf(section * 5 + d) !== null));
     }
-    assert.ok(game.alarm().level >= before + RULES.bellAlarm, `étage ${seed} : l'alerte monte`);
+    const fun = game.funOf(1);
+    const bell = game.furnitureList().find((f) => f.kind === "bell");
+    const counter = (game as unknown as { current: { counter?: unknown } }).current.counter;
+    if (fun === null) assert.ok(!bell && !counter, "pas de truc fun hors de son étage");
+    if (fun === "counter") assert.ok(counter || bell, "la porte du compteur, ou la cloche à sa place");
+    if (fun === "bell" && bell) {
+      bells++;
+      game.monsters.splice(0);
+      const before = game.alarm().level;
+      assert.ok(game.setDestination(bell.x, bell.y, true), "on peut aller à côté de la cloche");
+      for (let i = 0; i < 200 && !game.events.some((e) => e.type === "bell"); i++) {
+        game.events.length = 0;
+        if (!game.tick()) break;
+      }
+      assert.ok(game.alarm().level >= before + RULES.bellAlarm, `partie ${seed} : l'alerte monte`);
+    }
+    if (counter) counters++;
   }
-  assert.ok(floors > 15 && floors < 70, `cloches sur ${floors} étages sur 120`);
+  assert.ok(bells > 10 && counters > 10, `cloches ${bells}, compteurs ${counters}`);
 });
 
 test("porte du Kobold qui compte : il compte, met le doigt dans l'œil, et sort quand la porte cède (Thomas, 2026-11-12)", () => {

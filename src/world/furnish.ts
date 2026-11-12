@@ -210,7 +210,7 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
  * dans des salles ordinaires assez grandes ; puis des trainards (tonneaux, caisses) dans les salles ordinaires, et dès
  * l'étage 3 des toiles dans les coins des salles sans torche. Hasards à part.
  */
-export function furnishFloor(floor: Floor, seed: number, depth = 1): { furniture: Furniture[]; themes: RoomTheme[] } {
+export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false): { furniture: Furniture[]; themes: RoomTheme[] } {
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
@@ -231,7 +231,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1): { furniture
   }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
-  placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
+  if (bell) placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
   if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
   return { furniture, themes };
 }
@@ -611,11 +611,10 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
 }
 
 /**
- * La cloche d'alarme (Thomas, 2026-11-12), de temps en temps : sur son support de bois, au milieu d'une salle
+ * La cloche d'alarme (Thomas, 2026-11-12), le « truc fun » de certaines sections : sur son support de bois, au milieu d'une salle
  * ordinaire, loin des ouvertures. Elle bloque sa case (rien ne devient inaccessible) et brûle.
  */
-export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
-  if (!rng.chance(RULES.bellChance)) return;
+export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): boolean {
   const { map } = floor;
   const before = reachable(map, floor.start);
   const specials = (floor as Floor & { specials?: { room: Room }[] }).specials ?? [];
@@ -633,8 +632,9 @@ export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], specia
       continue;
     }
     furniture.push({ x, y, kind: "bell" });
-    return;
+    return true;
   }
+  return false;
 }
 
 /**

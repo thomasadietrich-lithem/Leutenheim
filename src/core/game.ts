@@ -13,7 +13,7 @@ import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
-import { furnishFloor, Furniture, furnitureCells, reachable } from "../world/furnish";
+import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
@@ -215,7 +215,7 @@ export class Game {
         : bossFloor
           ? { furniture: bossFloor.furniture, themes: [] }
           : RULES.themedRoomsInDungeon
-          ? furnishFloor(floor, seed, depth)
+          ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell")
           : { furniture: [], themes: [] };
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
       if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
@@ -251,7 +251,14 @@ export class Game {
       // Le Colporteur : dans la salle d'essai, et au 4e étage de chaque section (Thomas, 2026-11-12).
       if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
       else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? undefined;
-      if (!bossFloor) state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? undefined;
+      if (!bossFloor && (sandboxFloor || this.funOf(depth) === "counter")) {
+        state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? undefined;
+        // Pas de porte qui convienne : la cloche prend sa place (il y a toujours un truc fun dans la section).
+        if (!state.counter && !sandboxFloor) {
+          const special = new Set((state.themes ?? []).map((t) => t.room));
+          placeBell(floor, new Rng(seed ^ 0x5b311e7d), state.furniture ?? [], special);
+        }
+      }
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -383,7 +390,6 @@ export class Game {
       map.set(13, 28, Tile.DoorLocked);
       return { x: 13, y: 28, inside: { x: 13, y: 29 }, n: RULES.counterStart, heard: false, opened: false };
     }
-    if (!rng.chance(RULES.counterDoorChance)) return null;
     const inRoom = (p: Point) => floor.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
     const doors: Point[] = [];
     for (let y = 1; y < map.height - 1; y++) for (let x = 1; x < map.width - 1; x++) if (map.get(x, y) === Tile.DoorClosed) doors.push({ x, y });
@@ -401,6 +407,19 @@ export class Game {
     return null;
   }
 
+  /**
+   * UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur quel étage de la section, et lequel (cloche ou porte du
+   * compteur). Tiré une fois pour toutes d'après la graine de la partie ; jamais à l'étage du boss, ni en salle d'essai.
+   */
+  funOf(depth: number): "bell" | "counter" | null {
+    if (this.sandbox && depth === 1) return null;
+    const section = Math.floor((depth - 1) / RULES.floorsPerSection);
+    const rng = new Rng((this.runSeed ^ Math.imul(section + 1, 0x9e3779b1)) >>> 0);
+    const floor = section * RULES.floorsPerSection + rng.int(1, RULES.funMaxFloor);
+    if (floor !== depth) return null;
+    return rng.chance(0.5) ? "bell" : "counter";
+  }
+
   /** La porte du compteur à cette case (encore fermée), s'il y en a une. */
   counterAt(x: number, y: number): CounterDoor | null {
     const c = this.current.counter;
@@ -412,7 +431,7 @@ export class Game {
     const c = this.current.counter;
     if (!c || c.opened) return;
     const d = Math.max(Math.abs(c.x - this.hero.x), Math.abs(c.y - this.hero.y));
-    if (d > RULES.counterHearing || this.turn % RULES.counterEvery !== 0) return;
+    if (d > RULES.counterHearing) return;
     this.events.push({ type: "counter", what: "count", n: c.n, x: c.x, y: c.y, first: !c.heard });
     c.heard = true;
   }

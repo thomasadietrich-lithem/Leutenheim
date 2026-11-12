@@ -481,10 +481,11 @@ function reveal(e: GameEvent): void {
     sfx.play("notice");
   } else if (e.type === "counter") {
     // Le Kobold qui compte derrière sa porte (Thomas, 2026-11-12).
-    if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}… ${e.n}… ${e.n}…`, "#c8c0d4");
+    // Un nombre par tour, toujours le même (Thomas, 2026-11-12 : « 17, 17, 17 plutôt que plusieurs à la fois »).
+    if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}…`, "#c8c0d4");
     else if (e.what === "poke") {
       renderer.addFloatingText(game.hero.x, game.hero.y, "Aïe ! L'œil !", "#ff6b7a");
-      renderer.addFloatingText(e.x, e.y, `${e.n}… ${e.n}… ${e.n}…`, "#c8c0d4");
+      renderer.addFloatingText(e.x, e.y, `${e.n}…`, "#c8c0d4");
       renderer.heroHurt();
       shownHp = game.hero.hp;
       sfx.play("hurt");

@@ -135,15 +135,15 @@ export const RULES = {
   spiderInWebRoomChance: 0.6,
   /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
   clutterPerFloor: [1, 4] as [number, number],
-  /** Cloche d'alarme (Thomas, 2026-11-12) : sur tant d'étages (C) ; la sonner ajoute tant d'alerte (un palier, C). */
-  bellChance: 0.3,
-  /** Porte du Kobold qui compte (Thomas, 2026-11-12) : sur tant d'étages (C) ; il compte tous les tant de tours quand
-   *  le héros est à tant de cases ou moins ; son nombre de départ ; le doigt dans l'œil fait tant de dégâts. */
-  counterDoorChance: 0.25,
-  counterEvery: 3,
+  /** UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur un des étages 1 à `funMaxFloor` de chaque section, tiré au
+   *  début de la partie, la cloche d'alarme OU la porte du Kobold qui compte (une chance sur deux). */
+  funMaxFloor: 3,
+  /** Porte du Kobold qui compte (Thomas, 2026-11-12) : il dit son nombre une fois par tour (« 17… 17… 17… », un à la
+   *  fois) quand le héros est à tant de cases ou moins ; son nombre de départ ; le doigt dans l'œil fait tant de dégâts. */
   counterHearing: 5,
   counterStart: 13,
   counterPoke: 1,
+  /** Cloche d'alarme : la sonner ajoute tant d'alerte (un palier, C). */
   bellAlarm: 25,
   /** Agilité (Thomas, 2026-11-11) : +1 CA d'esquive tous les `agilityPerDodge` points ; un piège sous les pieds du héros
    * s'évite sur d20 + agilité contre `trapDodgeDc` (un 20 l'évite toujours, un 1 jamais). */

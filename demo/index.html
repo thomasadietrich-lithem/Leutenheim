@@ -269,6 +269,9 @@
   .slot-box { position: relative; }
   .bag-item.spent svg { filter: grayscale(1) brightness(0.55); opacity: 0.6; }
   .bag-item.equipped { box-shadow: inset 0 0 0 2px #5fd38d; }
+  .bag-item.quick::before { content: ""; position: absolute; z-index: 1; left: 0; top: 0; border-style: solid; border-width: 12px 12px 0 0; border-color: var(--gold) transparent transparent transparent; }
+  #bag-grid { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  .quick-note { color: var(--gold); margin-top: 3px; }
   .bag-item.selected { background: #3a2c14; box-shadow: inset 0 0 0 2px var(--gold); }
   .bag-count { position: absolute; right: 4px; bottom: 0; font-size: 20px; color: #fff; text-shadow: 2px 2px 0 #000; }
   /* Ce que le héros porte : amulette, heaume et artefact en haut, arme, armure, arc en bas. */
@@ -4417,6 +4420,8 @@
       this.clarityDepth = 0;
       this.curseDepth = 0;
       this.luck = 0;
+      /** Raccourci « Objet » de la barre d'actions : la sorte d'objet choisie (appui long dans le sac, Thomas 2026-11-12). */
+      this.quickItem = null;
       /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
       this.blessTurns = 0;
       /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -5458,6 +5463,7 @@
         soeur: this.soeurMemory,
         blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
         blessTurns: this.blessTurns,
+        quickItem: this.quickItem,
         fires: this.fires,
         gas: this.gas,
         bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
@@ -5552,6 +5558,7 @@
       game2.clarityDepth = saved.blessings?.clarity ?? 0;
       game2.curseDepth = saved.blessings?.curse ?? 0;
       game2.luck = saved.blessings?.luck ?? 0;
+      game2.quickItem = saved.quickItem ?? null;
       game2.inventory.cols = saved.bagSize.cols;
       game2.inventory.rows = saved.bagSize.rows;
       game2.torchTurns = saved.torchTurns ?? 0;
@@ -5706,6 +5713,21 @@
     /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
     twoHanded() {
       return !!this.weapon("melee")?.twoHanded;
+    }
+    /** Peut-on mettre cet objet en raccourci ? Les objets qu'on consomme, boit ou lance (pomme, torche, potions). */
+    canQuick(id) {
+      return ITEMS[id].kind === "use";
+    }
+    /** Choisir le raccourci « Objet » (ou le retirer en rechoisissant le même). Ne prend pas de tour. */
+    setQuickItem(id) {
+      this.quickItem = id && this.canQuick(id) ? id : null;
+    }
+    /** Le tas du sac qui sert au raccourci, s'il en reste. */
+    quickStack() {
+      if (!this.quickItem) return null;
+      const items = this.inventory.items.filter((i) => i.defId === this.quickItem);
+      if (items.length === 0) return null;
+      return { uid: items[0].uid, count: items.reduce((n, i) => n + i.count, 0) };
     }
     /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */
     useItem(uid) {
@@ -8582,10 +8604,10 @@
     let isGesture = false;
     let pinchDistance = 0;
     let pinchCenter = { x: 0, y: 0 };
-    let pressTimer;
-    const cancelPress = () => {
-      if (pressTimer !== void 0) clearTimeout(pressTimer);
-      pressTimer = void 0;
+    let pressTimer2;
+    const cancelPress2 = () => {
+      if (pressTimer2 !== void 0) clearTimeout(pressTimer2);
+      pressTimer2 = void 0;
     };
     const distance = () => {
       const [a, b] = [...pointers.values()];
@@ -8605,15 +8627,15 @@
         isGesture = false;
         downAt = { x: e.clientX, y: e.clientY };
         lastAt = { x: e.clientX, y: e.clientY };
-        cancelPress();
-        pressTimer = setTimeout(() => {
-          pressTimer = void 0;
+        cancelPress2();
+        pressTimer2 = setTimeout(() => {
+          pressTimer2 = void 0;
           if (pointers.size !== 1 || isGesture) return;
           const rect = canvas2.getBoundingClientRect();
           if (handlers.onLongPress(downAt.x - rect.left, downAt.y - rect.top)) isGesture = true;
         }, LONG_PRESS_MS);
       } else if (pointers.size === 2) {
-        cancelPress();
+        cancelPress2();
         isGesture = true;
         pinchDistance = distance();
         pinchCenter = center2();
@@ -8633,7 +8655,7 @@
       } else if (pointers.size === 1) {
         if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_SLOP) {
           isGesture = true;
-          cancelPress();
+          cancelPress2();
         }
         if (isGesture) handlers.onPan(e.clientX - lastAt.x, e.clientY - lastAt.y);
         lastAt = { x: e.clientX, y: e.clientY };
@@ -8641,7 +8663,7 @@
     });
     const release = (e, cancelled) => {
       if (!pointers.delete(e.pointerId)) return;
-      cancelPress();
+      cancelPress2();
       pinchDistance = 0;
       if (pointers.size === 1) {
         const [rest] = [...pointers.values()];
@@ -18718,6 +18740,8 @@
   var wheelOpen = false;
   var jumpMode = false;
   var throwUid = null;
+  var quickNote = "";
+  var LONG_PRESS_MS2 = 450;
   var pushMode = false;
   var seenItems = /* @__PURE__ */ new Set();
   var CODEX_KEY = "leutenheim.codex";
@@ -19455,11 +19479,45 @@
     const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
     shown.forEach(([id]) => {
       const b = $(id);
-      const possible = id === "wheel-rest" ? game.restRefusal() === null : id === "wheel-hide" ? game.hideRefusal() === null : id === "wheel-disengage" ? game.disengageRefusal() === null : id === "wheel-search" ? game.searchRefusal() === null : id === "wheel-push" ? game.pushRefusal() === null : id === "wheel-skill" ? game.skillRefusal() === null : false;
+      const possible = id === "wheel-rest" ? game.restRefusal() === null : id === "wheel-hide" ? game.hideRefusal() === null : id === "wheel-disengage" ? game.disengageRefusal() === null : id === "wheel-search" ? game.searchRefusal() === null : id === "wheel-push" ? game.pushRefusal() === null : id === "wheel-skill" ? game.skillRefusal() === null : id === "wheel-item" ? game.quickStack() !== null : false;
       b.classList.toggle("off", !possible);
     });
+    renderQuickButton();
     wheelOpen = true;
     wheel.hidden = false;
+  }
+  function renderQuickButton() {
+    const b = $("wheel-item");
+    const stack = game.quickStack();
+    if (game.quickItem) {
+      const icon = itemIcon(game.quickItem);
+      icon.classList.add("wheel-quick");
+      b.replaceChildren(icon, el("span", "wheel-label", stack ? `\xD7${stack.count}` : "\xD70"));
+    } else b.replaceChildren(uiIcon("item"), el("span", "wheel-label", "Objet"));
+  }
+  function useQuickItem() {
+    const stack = game.quickStack();
+    if (!game.quickItem) {
+      logLines.push("Aucun raccourci : dans le sac, restez appuy\xE9 sur une pomme, une torche ou une potion.");
+      return;
+    }
+    const def = ITEMS[game.quickItem];
+    if (!stack) {
+      logLines.push(`Plus de ${def.name.toLowerCase()} dans le sac.`);
+      return;
+    }
+    if (game.tooLow(def)) {
+      logLines.push(`Il faut \xEAtre niveau ${def.level} pour cela.`);
+      return;
+    }
+    if (def.potion === "fire") {
+      throwUid = stack.uid;
+      renderer.jumpCells = throwCells(stack.uid);
+      logLines.push("Touchez la case o\xF9 lancer la potion.");
+      return;
+    }
+    if (game.useItem(stack.uid)) stepMs = COMBAT_STEP_MS;
+    else logLines.push(def.lightTurns && game.twoHanded() ? "Votre arme se tient \xE0 deux mains : pas de main libre pour la torche." : "Vous \xEAtes d\xE9j\xE0 en pleine sant\xE9.");
   }
   var WHEEL_SHORT = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "D\xE9gager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-skill": "Voie" };
   for (const [id, icon, label] of WHEEL) {
@@ -19504,6 +19562,8 @@
           renderer.jumpCells = game.jumpCells();
           logLines.push("Touchez la case o\xF9 sauter.");
         }
+      } else if (id === "wheel-item") {
+        useQuickItem();
       } else {
         logLines.push(`${label} : pas encore possible.`);
       }
@@ -19999,7 +20059,7 @@
       ...bag.items.map((item2) => {
         const def2 = bag.def(item2);
         const spent = ITEMS[item2.defId].kind === "key" && item2.floor !== game.depth;
-        const node = itemNode(item2, `bag-item${item2.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}`);
+        const node = itemNode(item2, `bag-item${item2.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}${item2.defId === game.quickItem ? " quick" : ""}`);
         if (game.tooLow(def2)) node.append(el("span", "item-level", `Lv${def2.level}`));
         node.style.left = `${100 * item2.x / bag.cols}%`;
         node.style.top = `${100 * item2.y / bag.rows}%`;
@@ -20013,7 +20073,7 @@
     const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
     if (!item) {
       selected = null;
-      info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner. Dans le sac, touchez ensuite une case libre pour le d\xE9placer."));
+      info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner. Dans le sac, touchez ensuite une case libre pour le d\xE9placer. Restez appuy\xE9 sur une pomme, une torche ou une potion pour en faire le raccourci \xAB\xA0Objet\xA0\xBB de la barre d'actions."));
       action.hidden = true;
       $("bag-drop").hidden = true;
       $("bag-throw").hidden = true;
@@ -20030,6 +20090,9 @@
       renderHeroScreen();
     });
     card.prepend(close);
+    if (quickNote) card.append(el("div", "quick-note", quickNote));
+    else if (!selectedSlot && item.defId === game.quickItem) card.append(el("div", "quick-note", "Raccourci \xAB\xA0Objet\xA0\xBB de la barre d'actions."));
+    quickNote = "";
     info.replaceChildren(card);
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
@@ -20037,7 +20100,56 @@
     $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
     $("bag-drop").hidden = selectedSlot !== null;
   }
+  var pressTimer = null;
+  var pressStart = null;
+  var pressDone = false;
+  function bagCellAt(clientX, clientY) {
+    const rect = $("bag-grid").getBoundingClientRect();
+    const bag = game.inventory;
+    return { x: Math.floor((clientX - rect.left) / rect.width * bag.cols), y: Math.floor((clientY - rect.top) / rect.height * bag.rows) };
+  }
+  function cancelPress() {
+    if (pressTimer !== null) window.clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+  $("bag-grid").addEventListener("pointerdown", (e) => {
+    pressDone = false;
+    cancelPress();
+    const cell = bagCellAt(e.clientX, e.clientY);
+    const hit = game.inventory.at(cell.x, cell.y);
+    if (!hit) return;
+    pressStart = { x: e.clientX, y: e.clientY };
+    pressTimer = window.setTimeout(() => {
+      pressTimer = null;
+      pressDone = true;
+      const def = ITEMS[hit.defId];
+      if (!game.canQuick(hit.defId)) {
+        quickNote = `${def.name} : pas de raccourci (seulement pomme, torche, potions).`;
+        sfx.play("click");
+      } else if (game.quickItem === hit.defId) {
+        game.setQuickItem(null);
+        quickNote = "Raccourci \xAB\xA0Objet\xA0\xBB retir\xE9.";
+        sfx.play("click");
+      } else {
+        game.setQuickItem(hit.defId);
+        quickNote = `Raccourci \xAB\xA0Objet\xA0\xBB : ${def.name.toLowerCase()}.`;
+        sfx.play("pickup");
+        navigator.vibrate?.(30);
+      }
+      selected = { uid: hit.uid };
+      renderHeroScreen();
+    }, LONG_PRESS_MS2);
+  });
+  $("bag-grid").addEventListener("pointermove", (e) => {
+    if (pressStart && Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > 10) cancelPress();
+  });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) $("bag-grid").addEventListener(ev, cancelPress);
+  $("bag-grid").addEventListener("contextmenu", (e) => e.preventDefault());
   $("bag-grid").addEventListener("click", (e) => {
+    if (pressDone) {
+      pressDone = false;
+      return;
+    }
     const grid = $("bag-grid");
     const rect = grid.getBoundingClientRect();
     const bag = game.inventory;

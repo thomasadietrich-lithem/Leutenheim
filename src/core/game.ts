@@ -143,6 +143,8 @@ export class Game {
   clarityDepth = 0;
   curseDepth = 0;
   luck = 0;
+  /** Raccourci « Objet » de la barre d'actions : la sorte d'objet choisie (appui long dans le sac, Thomas 2026-11-12). */
+  quickItem: ItemId | null = null;
   /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
   blessTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -1307,6 +1309,7 @@ export class Game {
       soeur: this.soeurMemory,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
       blessTurns: this.blessTurns,
+      quickItem: this.quickItem,
       fires: this.fires,
       gas: this.gas,
       bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
@@ -1402,6 +1405,7 @@ export class Game {
     game.clarityDepth = saved.blessings?.clarity ?? 0;
     game.curseDepth = saved.blessings?.curse ?? 0;
     game.luck = saved.blessings?.luck ?? 0;
+    game.quickItem = saved.quickItem ?? null;
     game.inventory.cols = saved.bagSize.cols;
     game.inventory.rows = saved.bagSize.rows;
     game.torchTurns = saved.torchTurns ?? 0;
@@ -1596,6 +1600,24 @@ export class Game {
   /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
   twoHanded(): boolean {
     return !!this.weapon("melee")?.twoHanded;
+  }
+
+  /** Peut-on mettre cet objet en raccourci ? Les objets qu'on consomme, boit ou lance (pomme, torche, potions). */
+  canQuick(id: ItemId): boolean {
+    return (ITEMS[id] as ItemDef).kind === "use";
+  }
+
+  /** Choisir le raccourci « Objet » (ou le retirer en rechoisissant le même). Ne prend pas de tour. */
+  setQuickItem(id: ItemId | null): void {
+    this.quickItem = id && this.canQuick(id) ? id : null;
+  }
+
+  /** Le tas du sac qui sert au raccourci, s'il en reste. */
+  quickStack(): { uid: number; count: number } | null {
+    if (!this.quickItem) return null;
+    const items = this.inventory.items.filter((i) => i.defId === this.quickItem);
+    if (items.length === 0) return null;
+    return { uid: items[0].uid, count: items.reduce((n, i) => n + i.count, 0) };
   }
 
   /** Utiliser un objet du sac (pomme, torche) : prend un tour. Renvoie faux si ce n'est pas possible. */

@@ -3605,3 +3605,18 @@ test("sac plein : ce qui ne tient pas rebondit au sol sur une case libre ; le Co
   }
   if (game.isVisible(m.x, m.y)) assert.deepEqual([m.x, m.y], at);
 });
+
+test("raccourci « Objet » : seulement ce qui se consomme, compte le sac, gardé dans la sauvegarde", () => {
+  const game = new Game(5);
+  game.setQuickItem("epee");
+  assert.equal(game.quickItem, null, "une arme ne se met pas en raccourci");
+  game.inventory.add("pomme", 3);
+  game.setQuickItem("pomme");
+  assert.equal(game.quickStack()?.count, 3);
+  const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  assert.equal(copy.quickItem, "pomme");
+  game.hero.hp = 1;
+  assert.ok(game.useItem(game.quickStack()!.uid));
+  game.tick();
+  assert.equal(game.quickStack()?.count, 2);
+});

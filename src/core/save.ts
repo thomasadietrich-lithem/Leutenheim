@@ -3,7 +3,7 @@ import { Motif } from "../world/grounds";
 import type { BossLayout } from "../world/bossFloor";
 import { Actor } from "../entities/actor";
 import { BagItem } from "../items/inventory";
-import { Slot } from "../data/items";
+import { ItemId, Slot } from "../data/items";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
 import { Point } from "../world/map";
@@ -93,6 +93,8 @@ export interface SaveData {
   blessings?: { protect: number; clarity: number; curse: number; luck: number };
   /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
   blessTurns?: number;
+  /** Raccourci « Objet » (absent des anciennes sauvegardes). */
+  quickItem?: ItemId | null;
   fires: { x: number; y: number; turns: number; gen?: number }[];
   /** Nuages de gaz empoisonné (absent des sauvegardes d'avant les pièges v3). */
   gas?: { x: number; y: number; turns: number }[];

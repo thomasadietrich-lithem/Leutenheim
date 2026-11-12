@@ -111,6 +111,10 @@ let wheelOpen = false;
 let jumpMode = false;
 /** Potion de feu sortie du sac : on attend la case où la lancer. */
 let throwUid: number | null = null;
+/** Message d'un appui long dans le sac (raccourci choisi ou retiré), montré une fois sur la fiche. */
+let quickNote = "";
+/** Durée d'un appui long dans le sac. */
+const LONG_PRESS_MS = 450;
 /** Pousser, avec plusieurs ennemis au contact : on attend que le joueur touche celui à pousser. */
 let pushMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
@@ -976,7 +980,7 @@ function openWheel(): void {
   const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
   shown.forEach(([id]) => {
     const b = $(id);
-    // Une action impossible reste visible, grisée ; utiliser un objet n'existe pas encore.
+    // Une action impossible reste visible, grisée ; « Objet » sert le raccourci choisi dans le sac.
     const possible =
       id === "wheel-rest" ? game.restRefusal() === null
       : id === "wheel-hide" ? game.hideRefusal() === null
@@ -984,11 +988,50 @@ function openWheel(): void {
       : id === "wheel-search" ? game.searchRefusal() === null
       : id === "wheel-push" ? game.pushRefusal() === null
       : id === "wheel-skill" ? game.skillRefusal() === null
+      : id === "wheel-item" ? game.quickStack() !== null
       : false;
     b.classList.toggle("off", !possible);
   });
+  renderQuickButton();
   wheelOpen = true;
   wheel.hidden = false;
+}
+
+/** La touche « Objet » montre l'objet choisi en raccourci et combien il en reste ; sinon le picto habituel. */
+function renderQuickButton(): void {
+  const b = $("wheel-item");
+  const stack = game.quickStack();
+  if (game.quickItem) {
+    const icon = itemIcon(game.quickItem);
+    icon.classList.add("wheel-quick");
+    b.replaceChildren(icon, el("span", "wheel-label", stack ? `×${stack.count}` : "×0"));
+  } else b.replaceChildren(uiIcon("item"), el("span", "wheel-label", "Objet"));
+}
+
+/** Utiliser le raccourci « Objet » : boire, manger, allumer, enduire ; la potion de feu se vise ensuite. */
+function useQuickItem(): void {
+  const stack = game.quickStack();
+  if (!game.quickItem) {
+    logLines.push("Aucun raccourci : dans le sac, restez appuyé sur une pomme, une torche ou une potion.");
+    return;
+  }
+  const def = ITEMS[game.quickItem] as ItemDef;
+  if (!stack) {
+    logLines.push(`Plus de ${def.name.toLowerCase()} dans le sac.`);
+    return;
+  }
+  if (game.tooLow(def)) {
+    logLines.push(`Il faut être niveau ${def.level} pour cela.`);
+    return;
+  }
+  if (def.potion === "fire") {
+    throwUid = stack.uid;
+    renderer.jumpCells = throwCells(stack.uid);
+    logLines.push("Touchez la case où lancer la potion.");
+    return;
+  }
+  if (game.useItem(stack.uid)) stepMs = COMBAT_STEP_MS;
+  else logLines.push(def.lightTurns && game.twoHanded() ? "Votre arme se tient à deux mains : pas de main libre pour la torche." : "Vous êtes déjà en pleine santé.");
 }
 
 // Noms courts sous les pictogrammes (barre d'actions, design C).
@@ -1035,6 +1078,8 @@ for (const [id, icon, label] of WHEEL) {
         renderer.jumpCells = game.jumpCells();
         logLines.push("Touchez la case où sauter.");
       }
+    } else if (id === "wheel-item") {
+      useQuickItem();
     } else {
       logLines.push(`${label} : pas encore possible.`);
     }
@@ -1600,7 +1645,7 @@ function renderBag(): void {
       const def = bag.def(item);
       // Une clef d'un autre étage ne sert plus ici : elle reste dans le sac, grisée.
       const spent = ITEMS[item.defId].kind === "key" && item.floor !== game.depth;
-      const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}`);
+      const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}${spent ? " spent" : ""}${item.defId === game.quickItem ? " quick" : ""}`);
       if (game.tooLow(def)) node.append(el("span", "item-level", `Lv${def.level}`));
       node.style.left = `${(100 * item.x) / bag.cols}%`;
       node.style.top = `${(100 * item.y) / bag.rows}%`;
@@ -1615,7 +1660,7 @@ function renderBag(): void {
   const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
   if (!item) {
     selected = null;
-    info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner. Dans le sac, touchez ensuite une case libre pour le déplacer."));
+    info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner. Dans le sac, touchez ensuite une case libre pour le déplacer. Restez appuyé sur une pomme, une torche ou une potion pour en faire le raccourci « Objet » de la barre d'actions."));
     action.hidden = true;
     $("bag-drop").hidden = true;
     $("bag-throw").hidden = true;
@@ -1633,6 +1678,9 @@ function renderBag(): void {
     renderHeroScreen();
   });
   card.prepend(close);
+  if (quickNote) card.append(el("div", "quick-note", quickNote));
+  else if (!selectedSlot && item.defId === game.quickItem) card.append(el("div", "quick-note", "Raccourci « Objet » de la barre d'actions."));
+  quickNote = "";
   info.replaceChildren(card);
   const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
   // Le sac porté ne s'enlève pas : on le remplace par un autre.
@@ -1650,7 +1698,58 @@ function renderBag(): void {
   $("bag-drop").hidden = selectedSlot !== null;
 }
 
+// Appui long sur un objet du sac : il devient le raccourci « Objet » de la barre d'actions (Thomas, 2026-11-12).
+// Rechoisir le même retire le raccourci. Ne prend pas de tour.
+let pressTimer: number | null = null;
+let pressStart: { x: number; y: number } | null = null;
+let pressDone = false;
+function bagCellAt(clientX: number, clientY: number): { x: number; y: number } {
+  const rect = $("bag-grid").getBoundingClientRect();
+  const bag = game.inventory;
+  return { x: Math.floor(((clientX - rect.left) / rect.width) * bag.cols), y: Math.floor(((clientY - rect.top) / rect.height) * bag.rows) };
+}
+function cancelPress(): void {
+  if (pressTimer !== null) window.clearTimeout(pressTimer);
+  pressTimer = null;
+}
+$("bag-grid").addEventListener("pointerdown", (e) => {
+  pressDone = false;
+  cancelPress();
+  const cell = bagCellAt(e.clientX, e.clientY);
+  const hit = game.inventory.at(cell.x, cell.y);
+  if (!hit) return;
+  pressStart = { x: e.clientX, y: e.clientY };
+  pressTimer = window.setTimeout(() => {
+    pressTimer = null;
+    pressDone = true;
+    const def = ITEMS[hit.defId] as ItemDef;
+    if (!game.canQuick(hit.defId)) {
+      quickNote = `${def.name} : pas de raccourci (seulement pomme, torche, potions).`;
+      sfx.play("click");
+    } else if (game.quickItem === hit.defId) {
+      game.setQuickItem(null);
+      quickNote = "Raccourci « Objet » retiré.";
+      sfx.play("click");
+    } else {
+      game.setQuickItem(hit.defId);
+      quickNote = `Raccourci « Objet » : ${def.name.toLowerCase()}.`;
+      sfx.play("pickup");
+      navigator.vibrate?.(30);
+    }
+    selected = { uid: hit.uid };
+    renderHeroScreen();
+  }, LONG_PRESS_MS);
+});
+$("bag-grid").addEventListener("pointermove", (e) => {
+  if (pressStart && Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > 10) cancelPress();
+});
+for (const ev of ["pointerup", "pointercancel", "pointerleave"]) $("bag-grid").addEventListener(ev, cancelPress);
+$("bag-grid").addEventListener("contextmenu", (e) => e.preventDefault());
 $("bag-grid").addEventListener("click", (e) => {
+  if (pressDone) {
+    pressDone = false;
+    return;
+  }
   const grid = $("bag-grid");
   const rect = grid.getBoundingClientRect();
   const bag = game.inventory;

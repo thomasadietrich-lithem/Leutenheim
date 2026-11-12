@@ -61,6 +61,9 @@ import { furnitureCells } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
 
+/** Pincement : la taille des cases est prise quand les doigts ne bougent plus depuis ce temps (ms). */
+const ZOOM_SETTLE_MS = 180;
+
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
 const COLUMNS = 11;
 const MIN_COLUMNS = 6;
@@ -122,8 +125,10 @@ interface FloatingText {
  * chaque image ; à 2, c'est 2,25 fois moins, sans différence visible pour du pixel art.
  */
 export function screenScale(): number {
-  return Math.min(2, window.devicePixelRatio || 1);
+  return Math.min(maxScale, window.devicePixelRatio || 1);
 }
+/** Plafond de finesse : 2 au départ, baissé tout seul si le téléphone peine (voir `Renderer.lowerQuality`). */
+let maxScale = 2;
 
 /** Dessine l'état du jeu sur le Canvas. Design volontairement minimal : des formes colorées. */
 export class Renderer {
@@ -206,11 +211,25 @@ export class Renderer {
     return Math.round(v * dpr) / dpr;
   }
 
+  /**
+   * Le téléphone peine (images trop lentes) : on dessine un peu moins fin (2 → 1,5 → 1). Le pixel art n'en souffre
+   * presque pas ; le texte flottant devient un peu moins net. Renvoie faux si on est déjà au plus bas.
+   */
+  lowerQuality(): boolean {
+    const now = Math.min(maxScale, window.devicePixelRatio || 1);
+    if (now <= 1) return false;
+    maxScale = Math.max(1, now - 0.5);
+    this.resize();
+    return true;
+  }
+
   /** Zoom : facteur > 1 pour agrandir les cases, < 1 pour en voir davantage. */
   zoomBy(factor: number): void {
     this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
-    this.tile = this.snapTile();
+    // La vraie taille des cases attend la fin du geste (voir `draw`).
+    this.zoomAt = performance.now();
   }
+  private zoomAt = 0;
 
   /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
   panBy(dxPixels: number, dyPixels: number): void {
@@ -232,6 +251,14 @@ export class Renderer {
 
   isPanned(): boolean {
     return Math.abs(this.panX) > 0.5 || Math.abs(this.panY) > 0.5;
+  }
+
+  /** Ramène la vue sur le héros tout de suite, sans rien effacer (ouverture de la roue). */
+  recenterNow(game: Game): void {
+    this.panX = 0;
+    this.panY = 0;
+    this.camX = game.hero.x;
+    this.camY = game.hero.y;
   }
 
   /** Recentre immédiatement la vue (nouvel étage). */
@@ -937,7 +964,41 @@ export class Renderer {
    * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
    * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
    */
+  /**
+   * Dessine une image. Pendant un pincement (Thomas, 2026-11-12 : « le zoom / dézoom rame »), la taille des cases ne
+   * change PAS à chaque mouvement des doigts (sinon toutes les cases gardées en mémoire étaient redessinées à chaque
+   * image) : l'image est simplement agrandie ou réduite par la carte graphique ; la vraie taille est prise quand les
+   * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
+   */
   draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null, aimTarget: Actor | null = null): void {
+    const target = this.snapTile();
+    if (target !== this.tile && performance.now() - this.zoomAt > ZOOM_SETTLE_MS) this.tile = target;
+    const zs = target / this.tile;
+    if (Math.abs(zs - 1) < 0.001) {
+      this.drawScene(game, progress, dt, ghosts, aimRange, aimTarget);
+      return;
+    }
+    const { ctx } = this;
+    const W = this.width;
+    const H = this.height;
+    ctx.save();
+    ctx.fillStyle = COLORS.background;
+    ctx.fillRect(0, 0, W, H);
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(zs, zs);
+    ctx.translate(-W / (2 * zs), -H / (2 * zs));
+    this.width = W / zs;
+    this.height = H / zs;
+    try {
+      this.drawScene(game, progress, dt, ghosts, aimRange, aimTarget);
+    } finally {
+      this.width = W;
+      this.height = H;
+      ctx.restore();
+    }
+  }
+
+  private drawScene(game: Game, progress: number, dt: number, ghosts: readonly Actor[], aimRange: number | null, aimTarget: Actor | null): void {
     const { ctx, tile } = this;
     this.time += dt;
     this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);

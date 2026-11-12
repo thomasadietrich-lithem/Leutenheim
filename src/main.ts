@@ -1,6 +1,7 @@
 import { addRecord, loadRecords, recordLine } from "./ui/records";
 import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
+import { Music } from "./audio/music";
 import { diceLabel } from "./core/dice";
 import { expectedDamagePerTurn } from "./core/combat";
 import { DoorAction, Game, GameEvent, GluckResult, NpcId } from "./core/game";
@@ -83,6 +84,9 @@ function saveOptions(): void {
 
 const sfx = new Sfx();
 sfx.enabled = options.sound;
+// Musique « Crypte », en direct : elle suit le niveau d'alerte de l'étage (Thomas, 2026-11-12).
+const music = new Music(() => sfx.context());
+music.enabled = options.music;
 const renderer = new Renderer(canvas);
 
 // ---------- État de l'affichage ----------
@@ -956,7 +960,8 @@ function openWheel(): void {
   jumpMode = false;
   pushMode = false;
   renderer.jumpCells = [];
-  renderer.recenter();
+  // La caméra revient d'abord sur le héros, d'un coup (Thomas, 2026-11-12) : la roue s'ouvre autour de lui, au milieu.
+  renderer.recenterNow(game);
   const frameBox = wheel.parentElement!.getBoundingClientRect();
   const radius = 72;
   // Autour du héros ; si la vue est décalée, la couronne reste entière dans le cadre.
@@ -2377,10 +2382,10 @@ if (!PUBLIC_BUILD) button("menu-sandbox", () => {
 });
 button("settings-music", () => {
   options.music = !options.music;
+  music.enabled = options.music;
   saveOptions();
   sfx.play("click");
   showScreen("settings");
-  $("settings-note").textContent = "Pas encore de musique dans le jeu : le réglage est gardé pour plus tard.";
 });
 button("settings-lang", () => {
   // L'anglais n'est pas encore traduit : le choix est gardé, le jeu reste en français pour l'instant.
@@ -2441,6 +2446,24 @@ function advanceStairs(dt: number): void {
 // ---------- Boucle d'affichage ----------
 
 let last = performance.now();
+/**
+ * Qualité qui s'adapte (Thomas, 2026-11-12 : « la performance semble meilleure, mais pas encore parfaite ») : si les
+ * images arrivent trop lentement (moins de ~45 par seconde en moyenne sur 2 secondes, menus fermés), le jeu se dessine
+ * un peu moins fin. Il ne remonte pas pendant la partie (pas de va-et-vient).
+ */
+let speedSum = 0;
+let speedCount = 0;
+function watchSpeed(dt: number): void {
+  if (menuOpen || document.hidden || dt >= 100) return;
+  speedSum += dt;
+  speedCount++;
+  if (speedSum < 2000) return;
+  const average = speedSum / speedCount;
+  speedSum = 0;
+  speedCount = 0;
+  if (average > 22) renderer.lowerQuality();
+}
+
 function frame(now: number): void {
   // Pas plus de 60 images par seconde (les écrans à 90 ou 120 Hz doublaient le travail pour rien).
   if (now - last < 15) {
@@ -2449,6 +2472,10 @@ function frame(now: number): void {
   }
   const dt = Math.min(now - last, 100);
   last = now;
+  watchSpeed(dt);
+  // Étage du boss : pas d'alerte ; la musique y reste tendue (palier « alerte ») en attendant un thème à elle.
+  music.stage = game.alarmOff() ? 2 : game.alarm().stage;
+  music.update();
 
   advanceCues(dt);
   dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;

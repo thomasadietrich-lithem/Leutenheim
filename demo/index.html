@@ -675,6 +675,10 @@
       this.fireDebt = 0;
       this.fireBedDebt = 0;
     }
+    /** Le contexte audio (partagé avec la musique), une fois débloqué par un geste du joueur. */
+    context() {
+      return this.ctx;
+    }
     /** À appeler depuis un geste du joueur (toucher, clic) : les navigateurs n'autorisent le son qu'ainsi. */
     unlock() {
       try {
@@ -911,6 +915,189 @@
         }
       } catch {
       }
+    }
+  };
+
+  // src/audio/music.ts
+  var PROG = [
+    [50, 53, 57],
+    [46, 50, 53],
+    [48, 52, 55],
+    [45, 49, 52]
+  ];
+  var MELODY = [74, 72, 69, 70, 69, 65, 67, 69, 74, 77, 76, 74, 73, 69, 70, 69];
+  var BPM = [72, 84, 100, 120];
+  var VOLUME = 0.22;
+  var hz = (n) => 440 * 2 ** ((n - 69) / 12);
+  var Music = class {
+    constructor(getContext) {
+      this.getContext = getContext;
+      this.enabled = true;
+      /** Palier voulu (0 calme … 3 traque) ; il prend effet à la mesure suivante. */
+      this.stage = 0;
+      this.out = null;
+      this.wet = null;
+      this.noiseBuf = null;
+      this.nextBar = 0;
+      this.bar = 0;
+      this.playing = false;
+    }
+    /** À appeler à chaque image : prépare les mesures un peu à l'avance ; coupe en douceur si la musique est désactivée. */
+    update() {
+      const ctx = this.getContext();
+      if (!ctx || ctx.state !== "running") return;
+      if (!this.out) this.build(ctx);
+      const out = this.out;
+      const now = ctx.currentTime;
+      if (!this.enabled) {
+        if (this.playing) {
+          out.gain.cancelScheduledValues(now);
+          out.gain.setTargetAtTime(0, now, 0.4);
+          this.playing = false;
+        }
+        return;
+      }
+      if (!this.playing) {
+        this.playing = true;
+        out.gain.cancelScheduledValues(now);
+        out.gain.setTargetAtTime(VOLUME, now, 1.2);
+        this.nextBar = Math.max(this.nextBar, now + 0.1);
+      }
+      while (this.nextBar < now + 0.4) {
+        const length = this.playBar(ctx, this.nextBar, this.stage);
+        this.nextBar += length;
+        this.bar++;
+      }
+    }
+    /** Réverbération de cave (quelques échos filtrés) et sortie. */
+    build(ctx) {
+      this.out = ctx.createGain();
+      this.out.gain.value = 0;
+      this.out.connect(ctx.destination);
+      this.wet = ctx.createGain();
+      this.wet.gain.value = 1;
+      const tone = ctx.createBiquadFilter();
+      tone.type = "lowpass";
+      tone.frequency.value = 2500;
+      this.wet.connect(this.out);
+      for (const [delay, g] of [
+        [0.083, 0.25],
+        [0.137, 0.18],
+        [0.211, 0.12],
+        [0.31, 0.08]
+      ]) {
+        const d = ctx.createDelay(1);
+        d.delayTime.value = delay;
+        const gain = ctx.createGain();
+        gain.gain.value = g;
+        this.wet.connect(d).connect(gain).connect(tone);
+      }
+      tone.connect(this.out);
+      const length = Math.floor(ctx.sampleRate * 0.3);
+      this.noiseBuf = ctx.createBuffer(1, length, ctx.sampleRate);
+      const data = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    /** Une note : oscillateur, enveloppe (attaque, maintien, relâche), filtre éventuel. */
+    note(ctx, t, freq, dur, type, vol, attack = 0.01, release = 0.2, cutoff = 0, detune = 0) {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = freq;
+      osc.detune.value = detune;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + attack);
+      g.gain.setValueAtTime(vol, t + Math.max(attack, dur));
+      g.gain.linearRampToValueAtTime(0, t + dur + release);
+      let node = osc;
+      if (cutoff) {
+        const f = ctx.createBiquadFilter();
+        f.type = "lowpass";
+        f.frequency.value = cutoff;
+        node = node.connect(f);
+      }
+      node.connect(g).connect(this.wet);
+      osc.start(t);
+      osc.stop(t + dur + release + 0.05);
+    }
+    kick(ctx, t, vol) {
+      const osc = ctx.createOscillator();
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(1e-3, t + 0.35);
+      osc.connect(g).connect(this.wet);
+      osc.start(t);
+      osc.stop(t + 0.4);
+    }
+    tick(ctx, t, vol) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuf;
+      const f = ctx.createBiquadFilter();
+      f.type = "highpass";
+      f.frequency.value = 6e3;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(1e-3, t + 0.05);
+      src.connect(f).connect(g).connect(this.wet);
+      src.start(t);
+      src.stop(t + 0.06);
+    }
+    tom(ctx, t, freq, vol) {
+      const osc = ctx.createOscillator();
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.linearRampToValueAtTime(freq * 0.9, t + 0.3);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(1e-3, t + 0.3);
+      osc.connect(g).connect(this.wet);
+      osc.start(t);
+      osc.stop(t + 0.32);
+    }
+    /** Joue une mesure (4 temps) à partir de `t0` ; renvoie sa durée. Mêmes couches que la maquette v3. */
+    playBar(ctx, t0, stage) {
+      const beat = 60 / BPM[stage];
+      const bar = this.bar;
+      const chord = PROG[bar % 4];
+      for (const n of chord) this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.05, 0.6, 0.8, 500 + Math.min(stage, 2) * 400, n % 3 * 4);
+      this.note(ctx, t0, hz(38), 4 * beat, "sine", 0.2, 0.3, 0.5);
+      if (stage <= 1) {
+        const step = stage === 0 ? 2 : 1;
+        for (let k = 0; k < 4 / step; k++) {
+          if (stage === 0 && k % 2) continue;
+          const note = MELODY[(bar * (4 / step) + k) % MELODY.length];
+          this.note(ctx, t0 + k * step * beat, hz(note), step * beat * 0.9, "triangle", 0.1, 5e-3, 0.4);
+        }
+        if (stage === 1) {
+          for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(chord[0] - 12), beat * 0.8, "sawtooth", 0.12, 0.01, 0.1, 700);
+          this.kick(ctx, t0, 0.5);
+          this.kick(ctx, t0 + 2 * beat, 0.5);
+          this.kick(ctx, t0 + 0.35 * beat, 0.2);
+        }
+        return 4 * beat;
+      }
+      if (stage === 3 || bar % 2 === 0) {
+        for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(MELODY[(bar * 4 + k) % MELODY.length]), beat * 0.85, "triangle", 0.1, 5e-3, 0.35);
+      }
+      if (stage === 2) {
+        for (let k = 0; k < 4; k++) {
+          this.note(ctx, t0 + k * beat, hz(chord[0] - 12), beat * 0.8, "sawtooth", 0.11, 0.01, 0.1, 650);
+          this.tick(ctx, t0 + (k + 0.5) * beat, 0.05);
+        }
+        this.kick(ctx, t0, 0.5);
+        this.kick(ctx, t0 + 2 * beat, 0.5);
+        this.kick(ctx, t0 + 2.35 * beat, 0.25);
+        if (bar % 2 === 1) this.note(ctx, t0 + 2.5 * beat, hz(63), beat * 1.5, "triangle", 0.06, 0.05, 0.3);
+      } else {
+        for (let k = 0; k < 8; k++) this.note(ctx, t0 + k * beat / 2, hz(chord[0] - 12), beat * 0.4, "sawtooth", 0.1, 5e-3, 0.05, 600);
+        for (let k = 0; k < 4; k++) {
+          this.kick(ctx, t0 + k * beat, 0.45);
+          this.tick(ctx, t0 + (k + 0.5) * beat, 0.045);
+        }
+        if (bar % 4 === 3) [150, 130, 115, 100].forEach((f, j) => this.tom(ctx, t0 + (3 + j / 4) * beat, f, 0.22));
+      }
+      return 4 * beat;
     }
   };
 
@@ -16320,6 +16507,7 @@
     ])
   );
   var SALLES2 = { ...SALLES, ...ATELIERS, ...BOSS };
+  var ZOOM_SETTLE_MS = 180;
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
   var MAX_COLUMNS = 28;
@@ -16330,8 +16518,9 @@
   var CORPSE_MS = 1400;
   var PROJECTILE_MS = 170;
   function screenScale() {
-    return Math.min(2, window.devicePixelRatio || 1);
+    return Math.min(maxScale, window.devicePixelRatio || 1);
   }
+  var maxScale = 2;
   var Renderer = class {
     constructor(canvas2) {
       this.canvas = canvas2;
@@ -16375,6 +16564,7 @@
       /** Dessins déjà peints, par palette puis par liste de lignes : le Kobold et le frondeur partagent les mêmes lignes avec
        * des couleurs différentes (Thomas : « un Kobold tireur vert » — le cache ne regardait que les lignes). */
       this.spriteCache = /* @__PURE__ */ new WeakMap();
+      this.zoomAt = 0;
       /** Le héros vient d'être blessé. */
       /** Moment où chaque piège (par case « x,y ») s'est déclenché : il se montre « déclenché » un instant. */
       this.trapFlash = /* @__PURE__ */ new Map();
@@ -16422,10 +16612,21 @@
       const dpr = this.dpr();
       return Math.round(v * dpr) / dpr;
     }
+    /**
+     * Le téléphone peine (images trop lentes) : on dessine un peu moins fin (2 → 1,5 → 1). Le pixel art n'en souffre
+     * presque pas ; le texte flottant devient un peu moins net. Renvoie faux si on est déjà au plus bas.
+     */
+    lowerQuality() {
+      const now = Math.min(maxScale, window.devicePixelRatio || 1);
+      if (now <= 1) return false;
+      maxScale = Math.max(1, now - 0.5);
+      this.resize();
+      return true;
+    }
     /** Zoom : facteur > 1 pour agrandir les cases, < 1 pour en voir davantage. */
     zoomBy(factor) {
       this.columns = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, this.columns / factor));
-      this.tile = this.snapTile();
+      this.zoomAt = performance.now();
     }
     /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
     panBy(dxPixels, dyPixels) {
@@ -16444,6 +16645,13 @@
     }
     isPanned() {
       return Math.abs(this.panX) > 0.5 || Math.abs(this.panY) > 0.5;
+    }
+    /** Ramène la vue sur le héros tout de suite, sans rien effacer (ouverture de la roue). */
+    recenterNow(game2) {
+      this.panX = 0;
+      this.panY = 0;
+      this.camX = game2.hero.x;
+      this.camY = game2.hero.y;
     }
     /** Recentre immédiatement la vue (nouvel étage). */
     snapTo(game2) {
@@ -17061,7 +17269,40 @@
      * de sa case de début de tour vers sa case actuelle. `dt` est le temps écoulé en ms.
      * `ghosts` : monstres déjà vaincus dans les règles mais dont la mort n'a pas encore été montrée.
      */
+    /**
+     * Dessine une image. Pendant un pincement (Thomas, 2026-11-12 : « le zoom / dézoom rame »), la taille des cases ne
+     * change PAS à chaque mouvement des doigts (sinon toutes les cases gardées en mémoire étaient redessinées à chaque
+     * image) : l'image est simplement agrandie ou réduite par la carte graphique ; la vraie taille est prise quand les
+     * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
+     */
     draw(game2, progress, dt, ghosts2 = [], aimRange = null, aimTarget2 = null) {
+      const target = this.snapTile();
+      if (target !== this.tile && performance.now() - this.zoomAt > ZOOM_SETTLE_MS) this.tile = target;
+      const zs = target / this.tile;
+      if (Math.abs(zs - 1) < 1e-3) {
+        this.drawScene(game2, progress, dt, ghosts2, aimRange, aimTarget2);
+        return;
+      }
+      const { ctx } = this;
+      const W2 = this.width;
+      const H2 = this.height;
+      ctx.save();
+      ctx.fillStyle = COLORS.background;
+      ctx.fillRect(0, 0, W2, H2);
+      ctx.translate(W2 / 2, H2 / 2);
+      ctx.scale(zs, zs);
+      ctx.translate(-W2 / (2 * zs), -H2 / (2 * zs));
+      this.width = W2 / zs;
+      this.height = H2 / zs;
+      try {
+        this.drawScene(game2, progress, dt, ghosts2, aimRange, aimTarget2);
+      } finally {
+        this.width = W2;
+        this.height = H2;
+        ctx.restore();
+      }
+    }
+    drawScene(game2, progress, dt, ghosts2, aimRange, aimTarget2) {
       const { ctx, tile } = this;
       this.time += dt;
       this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
@@ -18407,6 +18648,8 @@
   }
   var sfx = new Sfx();
   sfx.enabled = options.sound;
+  var music = new Music(() => sfx.context());
+  music.enabled = options.music;
   var renderer = new Renderer(canvas);
   var game;
   var logLines = [];
@@ -19146,7 +19389,7 @@
     jumpMode = false;
     pushMode = false;
     renderer.jumpCells = [];
-    renderer.recenter();
+    renderer.recenterNow(game);
     const frameBox = wheel.parentElement.getBoundingClientRect();
     const radius = 72;
     const hero = renderer.tileCenter(game.hero.x, game.hero.y);
@@ -20388,10 +20631,10 @@
   });
   button("settings-music", () => {
     options.music = !options.music;
+    music.enabled = options.music;
     saveOptions();
     sfx.play("click");
     showScreen("settings");
-    $("settings-note").textContent = "Pas encore de musique dans le jeu : le r\xE9glage est gard\xE9 pour plus tard.";
   });
   button("settings-lang", () => {
     options.lang = options.lang === "fr" ? "en" : "fr";
@@ -20439,6 +20682,18 @@
     }
   }
   var last = performance.now();
+  var speedSum = 0;
+  var speedCount = 0;
+  function watchSpeed(dt) {
+    if (menuOpen || document.hidden || dt >= 100) return;
+    speedSum += dt;
+    speedCount++;
+    if (speedSum < 2e3) return;
+    const average = speedSum / speedCount;
+    speedSum = 0;
+    speedCount = 0;
+    if (average > 22) renderer.lowerQuality();
+  }
   function frame(now) {
     if (now - last < 15) {
       requestAnimationFrame(frame);
@@ -20446,6 +20701,9 @@
     }
     const dt = Math.min(now - last, 100);
     last = now;
+    watchSpeed(dt);
+    music.stage = game.alarmOff() ? 2 : game.alarm().stage;
+    music.update();
     advanceCues(dt);
     dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
     if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();

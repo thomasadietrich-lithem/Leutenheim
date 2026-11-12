@@ -39,6 +39,11 @@ export class Sfx {
   enabled = true;
   private ctx: AudioContext | null = null;
 
+  /** Le contexte audio (partagé avec la musique), une fois débloqué par un geste du joueur. */
+  context(): AudioContext | null {
+    return this.ctx;
+  }
+
   /** À appeler depuis un geste du joueur (toucher, clic) : les navigateurs n'autorisent le son qu'ainsi. */
   unlock(): void {
     try {

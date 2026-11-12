@@ -1336,7 +1336,7 @@ function renderTalk(): void {
   for (const c of scene.choices) {
     const b = el("button", c.off ? "talk-choice off" : "talk-choice", c.label) as HTMLButtonElement;
     if (c.off) {
-      // Réponse impossible : grisée, avec sa raison (Thomas : « faute de pomme »).
+      // Réponse impossible : grisée, avec sa raison (Thomas : « aucune pomme »).
       b.disabled = true;
       b.append(el("span", "talk-stat", c.off));
     } else if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));

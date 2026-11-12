@@ -1116,7 +1116,7 @@ test("Gluck : « donne-moi une pomme d'abord » est grisé faute de pomme, puis 
   g.pendingLines = ["« Donne-moi une pomme d'abord. »"];
   while (game.inventory.count("pomme") > 0) game.inventory.take("pomme", 1);
   const give = game.gluckScene().choices.find((c) => c.id === "give")!;
-  assert.equal(give.off, "Faute de pomme");
+  assert.equal(give.off, "Aucune pomme");
   assert.equal(game.gluckChoose("give").done, false);
   game.inventory.add("pomme", 1);
   assert.ok(!game.gluckScene().choices.find((c) => c.id === "give")!.off);

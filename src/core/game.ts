@@ -3168,7 +3168,7 @@ export class Game {
     // Une réponse impossible reste visible, grisée, avec sa raison (Thomas : ne pas montrer le compte de pommes).
     const noGold = (n: number) => (this.gold < n ? "Pas assez d'or" : undefined);
     if (g.pending === "give") {
-      const off = this.inventory.count("pomme") > 0 ? undefined : "Faute de pomme";
+      const off = this.inventory.count("pomme") > 0 ? undefined : "Aucune pomme";
       return { lines: g.pendingLines ?? [], choices: [{ id: "give", label: "Lui donner une pomme", off }, { id: "refuse", label: "Refuser" }] };
     }
     if (g.pending === "scam") {

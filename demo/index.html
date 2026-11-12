@@ -6828,7 +6828,7 @@
       }
       const noGold = (n) => this.gold < n ? "Pas assez d'or" : void 0;
       if (g.pending === "give") {
-        const off = this.inventory.count("pomme") > 0 ? void 0 : "Faute de pomme";
+        const off = this.inventory.count("pomme") > 0 ? void 0 : "Aucune pomme";
         return { lines: g.pendingLines ?? [], choices: [{ id: "give", label: "Lui donner une pomme", off }, { id: "refuse", label: "Refuser" }] };
       }
       if (g.pending === "scam") {

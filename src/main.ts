@@ -986,20 +986,20 @@ function renderSaves(): void {
   if (!any) list.append(el("p", "", "Aucune sauvegarde."));
 }
 
-/** Le manuel : les caractéristiques, l'avantage et le désavantage (src/data/manual.ts). */
-function renderManual(): void {
-  const list = $("manual-list");
-  list.replaceChildren();
+/** Le manuel (onglet de l'Encyclopédie, Thomas 2026-11-12) : caractéristiques, avantage, opportunité (src/data/manual.ts). */
+function manualNodes(): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
   for (const section of MANUAL) {
-    list.append(el("h3", "", section.title));
-    if (section.intro) list.append(el("p", "manual-intro", section.intro));
+    nodes.push(el("h3", "", section.title));
+    if (section.intro) nodes.push(el("p", "manual-intro", section.intro));
     for (const entry of section.entries) {
       const div = el("div", "manual-entry");
       div.append(el("b", "", entry.title), document.createElement("br"));
       div.append(document.createTextNode(entry.lines.map((l) => tr(l)).join(" ")));
-      list.append(div);
+      nodes.push(div);
     }
   }
+  return nodes;
 }
 
 /** Le bandeau de la tâche de quête, sous les jauges : l'objectif, puis « revenir voir… » (il clignote quand c'est fait). */
@@ -2448,10 +2448,10 @@ button("bag-close", () => {
 
 // ---------- Menus : accueil, nouvelle partie, paramètres ----------
 
-// ---------- Encyclopédie : deux catégories (objets, créatures), seulement ce qu'on a déjà rencontré ----------
+// ---------- Encyclopédie : objets et créatures (seulement ce qu'on a déjà rencontré), et le manuel ----------
 // Les lieux (salles, décor, passages) ne sont plus dans le jeu : ils sont décrits dans `claude/LIEUX.md` du Projet.
 
-type CodexTab = "objets" | "creatures";
+type CodexTab = "objets" | "creatures" | "manuel";
 let codexTab: CodexTab = "objets";
 
 /** Une fiche d'encyclopédie sans objet : un pictogramme de couleur, un nom, un genre, une description. */
@@ -2514,10 +2514,10 @@ function renderCodex(): void {
       const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Créature", m.description));
       section(`Famille : ${family}`, members.length, cards);
     }
-  }
+  } else nodes.push(...manualNodes());
   $("codex-list").replaceChildren(...nodes);
   $("codex-tabs").replaceChildren(
-    ...([["objets", "Objets"], ["creatures", "Créatures"]] as const).map(([tab, label]) => {
+    ...([["objets", "Objets"], ["creatures", "Créatures"], ["manuel", "Manuel"]] as const).map(([tab, label]) => {
       const b = el("button", tab === codexTab ? "active" : "", label) as HTMLButtonElement;
       b.type = "button";
       b.addEventListener("click", () => {
@@ -2540,12 +2540,12 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "records" | "manual" | "saves";
+type Screen = "main" | "new" | "settings" | "codex" | "records" | "saves";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex", "records", "manual", "saves"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "records", "saves"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
@@ -2555,7 +2555,6 @@ function showScreen(screen: Screen | null): void {
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
   if (screen === "records") renderRecords();
-  if (screen === "manual") renderManual();
   if (screen === "saves") renderSaves();
 }
 
@@ -2772,10 +2771,8 @@ button("quest-banner", () => {
     renderLog();
   }
 });
-button("menu-manual", () => showScreen("manual"));
 button("menu-saves", () => showScreen("saves"));
 button("saves-back", () => showScreen("main"));
-button("manual-back", () => showScreen("main"));
 button("records-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));

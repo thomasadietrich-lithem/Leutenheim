@@ -152,12 +152,10 @@
   #over .over-best { color: #ffd75e; font-size: 26px; }
   #over .over-sub { margin-top: 8px; color: #e0c890; }
   .over-record { font-size: 17px; color: #d8cfc0; }
-  #screen-manual { height: 100%; min-height: 0; display: flex; flex-direction: column; }
-  #manual-list { flex: 1; min-height: 0; overflow-y: auto; margin: 6px 0 10px; text-align: left; }
-  #manual-list h3 { margin: 14px 0 4px; }
-  #manual-list .manual-intro { color: var(--dim); font-size: 16px; margin: 0 0 6px; }
-  #manual-list .manual-entry { margin: 6px 0; font-size: 17px; line-height: 1.25; }
-  #manual-list .manual-entry b { color: var(--gold); font-weight: normal; }
+  #codex-list .manual-intro, #codex-list .manual-entry { align-self: stretch; text-align: left; }
+  #codex-list .manual-intro { color: var(--dim); font-size: 16px; margin: 0 0 6px; }
+  #codex-list .manual-entry { margin: 6px 0; font-size: 17px; line-height: 1.25; }
+  #codex-list .manual-entry b { color: var(--gold); font-weight: normal; }
   /* Gestionnaire de sauvegardes (Thomas, 2026-11-12) : une carte par partie, pictos de race et de classe. */
   #saves-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
   .save-card { display: flex; align-items: center; gap: 8px; background: var(--panel); padding: 8px; box-shadow: inset 0 0 0 1px var(--panel-hi); text-align: left; }
@@ -559,7 +557,6 @@
       <button id="menu-saves" type="button">Sauvegardes</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
-      <button id="menu-manual" type="button">Manuel</button>
       <button id="menu-records" type="button">Records</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
@@ -583,11 +580,6 @@
       <h2>Sauvegardes</h2>
       <div id="saves-list"></div>
       <button id="saves-back" type="button" class="ghost">Retour</button>
-    </section>
-    <section id="screen-manual" hidden>
-      <h2>Manuel</h2>
-      <div id="manual-list"></div>
-      <button id="manual-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-records" hidden>
       <h2>Records</h2>

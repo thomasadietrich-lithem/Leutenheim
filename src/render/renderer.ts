@@ -110,6 +110,8 @@ interface Projectile {
   tumble: boolean;
   /** Une pierre de fronde au lieu d'une flèche. */
   stone?: boolean;
+  /** Une javeline (plus épaisse, sans plumes). */
+  javelin?: boolean;
 }
 const PROJECTILE_MS = 170;
 
@@ -912,8 +914,8 @@ export class Renderer {
     }
   }
 
-  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false): void {
-    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone }); // un âge négatif : elle partira après ce délai
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin }); // un âge négatif : elle partira après ce délai
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
@@ -949,6 +951,41 @@ export class Renderer {
       // Pointe affinée (Thomas, 2026-11-12) : plus longue, plus étroite.
       shape(poisoned ? "#b8e05a" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
     }
+    ctx.restore();
+  }
+
+  /**
+   * Une javeline : hampe de bois épaisse, sans plumes, ligature de cuir au milieu, grande pointe d'acier en feuille.
+   * Brisée : la moitié avant (pointe) ou arrière (talon, bout cassé en biseau).
+   */
+  private drawJavelin(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole"): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const L = length;
+    const w = Math.max(2, L * 0.075);
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#120d08";
+    ctx.lineWidth = Math.max(1, L * 0.04);
+    const shape = (color: string, pts: number[][]): void => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fill();
+    };
+    // Hampe : entière, ou un morceau qui finit en éclats de bois.
+    const [x0, x1] = part === "whole" ? [-L * 0.5, L * 0.22] : part === "front" ? [-L * 0.06, L * 0.22] : [-L * 0.5, -L * 0.1];
+    const jag = w * 0.9;
+    if (part === "front") shape("#8a6238", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0 - jag, w / 2], [x0 + jag * 0.3, 0]]);
+    else if (part === "back") shape("#8a6238", [[x0, -w / 2], [x1 + jag, -w / 2], [x1 - jag * 0.3, 0], [x1, w / 2], [x0, w / 2]]);
+    else shape("#8a6238", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
+    // Ligature de cuir (prise en main) sur la partie arrière.
+    if (part !== "front") shape("#5a3817", [[-L * 0.3, -w * 0.7], [-L * 0.2, -w * 0.7], [-L * 0.2, w * 0.7], [-L * 0.3, w * 0.7]]);
+    // Grande pointe d'acier en feuille.
+    if (part !== "back") shape("#d6dce8", [[L * 0.52, 0], [L * 0.34, -w * 1.25], [L * 0.2, -w * 0.6], [L * 0.2, w * 0.6], [L * 0.34, w * 1.25]]);
     ctx.restore();
   }
 
@@ -1225,6 +1262,11 @@ export class Renderer {
       ctx.globalAlpha = Math.max(0, Math.min(1, left / RULES.brokenArrowFadeTurns));
       const cx = ox + (d.x + 0.5) * tile;
       const cy = oy + (d.y + 0.5) * tile;
+      if (d.javelin) {
+        this.drawJavelin(cx + Math.cos(d.angle) * tile * 0.2, cy + Math.sin(d.angle) * tile * 0.2, d.angle + 0.45, tile * 0.95, "front");
+        this.drawJavelin(cx - Math.cos(d.angle) * tile * 0.2, cy - Math.sin(d.angle) * tile * 0.2, d.angle - 0.3, tile * 0.95, "back");
+        continue;
+      }
       this.drawArrow(cx + Math.cos(d.angle) * tile * 0.16, cy + Math.sin(d.angle) * tile * 0.16, d.angle + 0.5, tile * 0.7, "front");
       this.drawArrow(cx - Math.cos(d.angle) * tile * 0.16, cy - Math.sin(d.angle) * tile * 0.16, d.angle - 0.35, tile * 0.7, "back");
     }
@@ -1567,7 +1609,8 @@ export class Renderer {
         ctx.lineTo(px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
         ctx.stroke();
       }
-      this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
+      if (p.javelin) this.drawJavelin(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 1.05);
+      else this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
     }
 
     for (const s of this.slashes) {

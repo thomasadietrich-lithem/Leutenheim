@@ -306,10 +306,10 @@ function launchArrow(e: GameEvent | undefined): void {
   renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
   if (e.via) {
     // Elle heurte l'obstacle, puis retombe en tournoyant.
-    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
-    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true);
+    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y, 0, false, false, !!e.javelin);
+    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true, false, !!e.javelin);
   } else {
-    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 0, false, false, !!e.javelin);
   }
 }
 

@@ -3198,7 +3198,11 @@ export class Game {
       return;
     }
     const near = (p: Point, r: number) => Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= r;
-    const hide = this.monsters.some((mo) => mo.hp > 0 && near(mo, MERCHANT.hideRadius));
+    // Il se cache dès qu'un monstre approche (6 cases), ou qu'un monstre éveillé entre dans sa salle
+    // (Thomas, 2026-11-12 : « le colpo n'est pas devenu invisible » : à 4 cases, il restait visible pendant les combats).
+    const r0 = m.home;
+    const inRoom = (p: Point) => p.x >= r0.x - 1 && p.x <= r0.x + r0.w && p.y >= r0.y - 1 && p.y <= r0.y + r0.h;
+    const hide = this.monsters.some((mo) => mo.hp > 0 && (near(mo, MERCHANT.hideRadius) || (!mo.asleep && inRoom(mo))));
     if (hide !== m.hidden) {
       m.hidden = hide;
       if (this.isVisible(m.x, m.y)) this.events.push({ type: hide ? "merchantHides" : "merchantShows" });
@@ -4411,9 +4415,10 @@ export class Game {
     const end = trail[trail.length - 1];
     const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
     const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
+    const javelin = ammo === "javeline" || undefined;
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, angle);
-    else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
-    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
+    else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept, javelin });
     if (victim) this.removeIfDead(victim);
     // Leurre : une flèche qui se plante dans une toile la fait vibrer ; la Tisseuse y accourt.
     else this.lureBoss(landing);

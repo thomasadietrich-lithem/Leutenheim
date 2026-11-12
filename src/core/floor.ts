@@ -125,6 +125,8 @@ export interface Debris {
   y: number;
   angle: number;
   until: number;
+  /** Une javeline brisée (Thomas, 2026-11-12 : « une javeline brisée, ce n'est pas une flèche brisée »). */
+  javelin?: boolean;
 }
 
 /** Un objet posé au sol. */

@@ -23,6 +23,8 @@ export type GameEvent =
       via?: Point;
       hit: boolean;
       kept: boolean;
+      /** Une javeline plutôt qu'une flèche (dessin en vol et morceaux brisés). */
+      javelin?: boolean;
     }
   | { type: "pickup"; item: ItemId; count: number }
   | { type: "death"; actor: Actor }

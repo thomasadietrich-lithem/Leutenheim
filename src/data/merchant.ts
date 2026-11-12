@@ -10,7 +10,7 @@ export const MERCHANT = {
   /** Au palier d'alerte ALERTE (2) et au-delà, il quitte l'étage pour de bon (Thomas, 2026-11-12). */
   leaveAtAlarmStage: 2,
   /** Un monstre à cette distance (en cases) ou moins : il se cache (presque transparent, on le devine). */
-  hideRadius: 4,
+  hideRadius: 6,
   /** Sa bulle (une pièce d'or) n'apparaît que si le héros est à cette distance ou moins. */
   bubbleRadius: 6,
   /** Il fait un pas tous les N tours (il flâne), et s'arrête quand le héros est à 2 cases ou moins. */

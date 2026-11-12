@@ -4318,7 +4318,7 @@
     /** Au palier d'alerte ALERTE (2) et au-delà, il quitte l'étage pour de bon (Thomas, 2026-11-12). */
     leaveAtAlarmStage: 2,
     /** Un monstre à cette distance (en cases) ou moins : il se cache (presque transparent, on le devine). */
-    hideRadius: 4,
+    hideRadius: 6,
     /** Sa bulle (une pièce d'or) n'apparaît que si le héros est à cette distance ou moins. */
     bubbleRadius: 6,
     /** Il fait un pas tous les N tours (il flâne), et s'arrête quand le héros est à 2 cases ou moins. */
@@ -7156,7 +7156,9 @@
         return;
       }
       const near = (p, r2) => Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= r2;
-      const hide = this.monsters.some((mo) => mo.hp > 0 && near(mo, MERCHANT.hideRadius));
+      const r0 = m.home;
+      const inRoom = (p) => p.x >= r0.x - 1 && p.x <= r0.x + r0.w && p.y >= r0.y - 1 && p.y <= r0.y + r0.h;
+      const hide = this.monsters.some((mo) => mo.hp > 0 && (near(mo, MERCHANT.hideRadius) || !mo.asleep && inRoom(mo)));
       if (hide !== m.hidden) {
         m.hidden = hide;
         if (this.isVisible(m.x, m.y)) this.events.push({ type: hide ? "merchantHides" : "merchantShows" });
@@ -8238,9 +8240,10 @@
       const end = trail[trail.length - 1];
       const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
       const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
+      const javelin = ammo === "javeline" || void 0;
       if (kept) this.dropItem(landing.x, landing.y, ammo, 1, angle);
-      else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns });
-      this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept });
+      else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
+      this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept, javelin });
       if (victim) this.removeIfDead(victim);
       else this.lureBoss(landing);
     }
@@ -17618,8 +17621,8 @@
         });
       }
     }
-    addProjectile(fromX, fromY, x, y, delay = 0, tumble = false, stone = false) {
-      this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone });
+    addProjectile(fromX, fromY, x, y, delay = 0, tumble = false, stone = false, javelin = false) {
+      this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin });
     }
     /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
     drawArrow(cx, cy, angle, length, part = "whole", poisoned = false) {
@@ -17650,6 +17653,37 @@
       if (part !== "back") {
         shape(poisoned ? "#b8e05a" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
       }
+      ctx.restore();
+    }
+    /**
+     * Une javeline : hampe de bois épaisse, sans plumes, ligature de cuir au milieu, grande pointe d'acier en feuille.
+     * Brisée : la moitié avant (pointe) ou arrière (talon, bout cassé en biseau).
+     */
+    drawJavelin(cx, cy, angle, length, part = "whole") {
+      const { ctx } = this;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      const L = length;
+      const w = Math.max(2, L * 0.075);
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#120d08";
+      ctx.lineWidth = Math.max(1, L * 0.04);
+      const shape = (color, pts) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fill();
+      };
+      const [x0, x1] = part === "whole" ? [-L * 0.5, L * 0.22] : part === "front" ? [-L * 0.06, L * 0.22] : [-L * 0.5, -L * 0.1];
+      const jag = w * 0.9;
+      if (part === "front") shape("#8a6238", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0 - jag, w / 2], [x0 + jag * 0.3, 0]]);
+      else if (part === "back") shape("#8a6238", [[x0, -w / 2], [x1 + jag, -w / 2], [x1 - jag * 0.3, 0], [x1, w / 2], [x0, w / 2]]);
+      else shape("#8a6238", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
+      if (part !== "front") shape("#5a3817", [[-L * 0.3, -w * 0.7], [-L * 0.2, -w * 0.7], [-L * 0.2, w * 0.7], [-L * 0.3, w * 0.7]]);
+      if (part !== "back") shape("#d6dce8", [[L * 0.52, 0], [L * 0.34, -w * 1.25], [L * 0.2, -w * 0.6], [L * 0.2, w * 0.6], [L * 0.34, w * 1.25]]);
       ctx.restore();
     }
     // L'origine de la carte tombe toujours sur un pixel réel de l'écran : la grille ne tremble pas quand la vue glisse.
@@ -17877,6 +17911,11 @@
         ctx.globalAlpha = Math.max(0, Math.min(1, left / RULES.brokenArrowFadeTurns));
         const cx = ox + (d.x + 0.5) * tile;
         const cy = oy + (d.y + 0.5) * tile;
+        if (d.javelin) {
+          this.drawJavelin(cx + Math.cos(d.angle) * tile * 0.2, cy + Math.sin(d.angle) * tile * 0.2, d.angle + 0.45, tile * 0.95, "front");
+          this.drawJavelin(cx - Math.cos(d.angle) * tile * 0.2, cy - Math.sin(d.angle) * tile * 0.2, d.angle - 0.3, tile * 0.95, "back");
+          continue;
+        }
         this.drawArrow(cx + Math.cos(d.angle) * tile * 0.16, cy + Math.sin(d.angle) * tile * 0.16, d.angle + 0.5, tile * 0.7, "front");
         this.drawArrow(cx - Math.cos(d.angle) * tile * 0.16, cy - Math.sin(d.angle) * tile * 0.16, d.angle - 0.35, tile * 0.7, "back");
       }
@@ -18164,7 +18203,8 @@
           ctx.lineTo(px - Math.cos(heading) * trail, py - Math.sin(heading) * trail);
           ctx.stroke();
         }
-        this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
+        if (p.javelin) this.drawJavelin(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 1.05);
+        else this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
       }
       for (const s of this.slashes) {
         if (!s.arc) continue;
@@ -19433,10 +19473,10 @@
     const aim = e.via ?? e;
     renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
     if (e.via) {
-      renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y);
-      renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true);
+      renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y, 0, false, false, !!e.javelin);
+      renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true, false, !!e.javelin);
     } else {
-      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y);
+      renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 0, false, false, !!e.javelin);
     }
   }
   function startRoll(e) {

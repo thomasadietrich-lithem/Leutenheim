@@ -1223,6 +1223,22 @@ export const BLOOD = {
   get black() {
     return recolor(this.green, { "4": "0", "5": "9", "6": "k" });
   },
+  // Suie laissée par le feu (Thomas, 2026-11-12) et flaques des potions jetées, de leur couleur.
+  get soot() {
+    return recolor(this.green, { "4": "0", "5": "8", "6": "9" });
+  },
+  get pYouth() {
+    return recolor(this.green, { "4": "f", "5": "G", "6": "Y" });
+  },
+  get pPoison() {
+    return recolor(this.green, { "4": "e", "5": "E", "6": "A" });
+  },
+  get pHaste() {
+    return recolor(this.green, { "4": "i", "5": "I", "6": "V" });
+  },
+  get pFire() {
+    return recolor(this.green, { "4": "x", "5": "O", "6": "X" });
+  },
 };
 
 /** Pictogrammes des statuts (sous les jauges, et en bulle au-dessus des monstres). */
@@ -1732,21 +1748,22 @@ const UI_ICONS = {
     ".KKK........KKK.",
   ],
   /** Ouvrir la roue d'actions. */
+  // Barre d'actions (Thomas, 2026-11-12 : « nouveau picto pour le menu ») : trois cases, loupe, feu, poussée.
   actions: [
-    "......KKKK......",
-    "......KLLK......",
-    "......KLLK......",
-    ".KKKK.KKKK.KKKK.",
-    ".KLLK......KLLK.",
-    ".KLLK.KKKK.KLLK.",
-    ".KKKK.KGGK.KKKK.",
-    "......KGGK......",
-    "......KKKK......",
     "................",
-    "...KKKK..KKKK...",
-    "...KLLK..KLLK...",
-    "...KLLK..KLLK...",
-    "...KKKK..KKKK...",
+    "................",
+    "................",
+    "KKKKKKKKKKKKKKKK",
+    "KnVVnKnnOnKnnnnK",
+    "KVWVVKnOXnKRnnnK",
+    "KVVVVKOXXOKRRnnK",
+    "KnVVnKOXYOKRRRnK",
+    "KnnGnKnOXnKRRnnK",
+    "KnnnGKnnnnKRnnnK",
+    "KKKKKKKKKKKKKKKK",
+    ".KbbbbbbbbbbbbK.",
+    "..KKKKKKKKKKKK..",
+    "................",
     "................",
     "................",
   ],

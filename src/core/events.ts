@@ -120,6 +120,8 @@ export type GameEvent =
   | { type: "skill"; path: PathId; healed: number }
   | { type: "lastStand" }
   | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
+  /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
+  | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number }
   | { type: "burn"; actor: Actor; damage: number }
   | { type: "potion"; potion: "youth" | "poison" | "haste"; points?: number }
   | { type: "slowed"; actor: Actor }

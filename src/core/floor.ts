@@ -128,10 +128,14 @@ export interface Debris {
 }
 
 /** Un objet posé au sol. */
+/** Taches au sol : sang (rouge héros, jaune Kobolds, noir araignées ; vert des anciennes sauvegardes), SUIE du feu,
+ *  flaques de potion (Thomas, 2026-11-12). */
+export type StainColor = "red" | "green" | "yellow" | "black" | "soot" | "pYouth" | "pPoison" | "pHaste" | "pFire";
+
 export interface BloodStain {
   x: number;
   y: number;
-  color: "red" | "green" | "yellow" | "black";
+  color: StainColor;
   shape: 0 | 1 | 2;
   /** Tache au sol : quart de tour et miroir, pour que les giclures varient. */
   turn?: number;

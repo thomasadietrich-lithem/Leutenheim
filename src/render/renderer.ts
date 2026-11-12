@@ -1,3 +1,4 @@
+import type { StainColor } from "../core/floor";
 import { SOEUR_BUBBLE_ICON, SOEUR_PALETTE, SOEUR_SPRITE } from "./sprites/soeur";
 import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
@@ -821,13 +822,14 @@ export class Renderer {
   }
 
   /** Un personnage est touché : quelques gouttes jaillissent et retombent (rouge ; jaune pour un Kobold, noir pour une araignée). */
-  addBloodBurst(x: number, y: number, fromX: number, fromY: number, color: "red" | "green" | "yellow" | "black"): void {
+  addBloodBurst(x: number, y: number, fromX: number, fromY: number, color: StainColor): void {
     const dx = Math.sign(x - fromX) || (Math.random() - 0.5);
     const dy = Math.sign(y - fromY) || (Math.random() - 0.5);
     const shades =
       color === "green" ? ["#4f8e1e", "#8ccc3a", "#2a5a12"]
       : color === "yellow" ? ["#c8a818", "#f0d84a", "#8a7210"]
       : color === "black" ? ["#2a2630", "#5a5466", "#0c0a0e"]
+      : color === "soot" ? ["#2a2630", "#3a3a50", "#0c0a0e"]
       : ["#b0202a", "#e04048", "#7a0e14"];
     for (let i = 0; i < 9; i++) {
       const spread = (Math.random() - 0.5) * 1.6;
@@ -1043,7 +1045,7 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
 
     // Taches de sang de l'étage, par case (dessinées sur la case, sous l'ombre).
-    const stains = new Map<number, { color: "red" | "green" | "yellow" | "black"; shape: 0 | 1 | 2; turn?: number }>();
+    const stains = new Map<number, { color: StainColor; shape: 0 | 1 | 2; turn?: number }>();
     for (const b of game.bloodStains()) stains.set(game.map.index(b.x, b.y), b);
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);

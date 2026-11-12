@@ -13,7 +13,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Cave Roller">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<!-- Police VT323 EMBARQUÉE dans le fichier (licence SIL OFL) : plus de saut de police au démarrage (Thomas, 2026-11-12),
+     et elle marche sans réseau. Remplie par scripts/build.mjs. -->
+<style>/*__FONTS__*/</style>
 <style>
   /* Interface rétro : police à gros pixels, angles droits, cadres biseautés, pas d'arrondis ni de transparences douces. */
   :root {
@@ -149,11 +151,18 @@
   #test-tools button { padding: 4px 8px; font-size: 18px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
   #recenter:active { transform: translateY(1px); }
-  /* Roue d'actions : cinq boutons en couronne autour du héros, le reste de la carte assombri. */
-  #wheel { position: absolute; inset: 0; z-index: 3; background: rgba(8, 6, 12, 0.4); }
-  #wheel button { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px; padding: 6px; display: flex; }
-  #wheel button svg { width: 100%; height: 100%; }
-  #wheel button.off { filter: grayscale(1) brightness(0.6); }
+  /* Actions (design C, Thomas 2026-11-12) : une barre de grandes touches qui monte au-dessus du dé, nom sous chaque
+     pictogramme ; la carte reste visible ; toucher ailleurs referme. */
+  #wheel { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; }
+  #wheel[hidden], #wheel button[hidden] { display: none; }
+  #wheel-bar { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94);
+    box-shadow: inset 0 0 0 2px #6a5a3a, 0 0 0 2px #120d08; }
+  #wheel button { flex: 1 1 0; min-width: 0; height: 74px; padding: 6px 0 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  #wheel button svg { width: 40px; height: 40px; flex: none; }
+  #wheel button .wheel-label { font-size: 16px; text-transform: none; letter-spacing: 0; line-height: 1; color: #f0e6c8; white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
+  #wheel button.off { background: #241c14; }
+  #wheel button.off svg { filter: grayscale(1) brightness(0.6); }
+  #wheel button.off .wheel-label { color: #8a8070; }
   #recenter svg { width: 28px; height: 28px; }
   #door-actions { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; gap: 8px; align-items: stretch; }
   .door-choices { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -403,7 +412,7 @@
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
-    <div id="wheel" hidden>
+    <div id="wheel" hidden><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
       <button id="wheel-disengage" type="button"></button>
@@ -411,7 +420,7 @@
       <button id="wheel-rest" type="button"></button>
       <button id="wheel-hide" type="button"></button>
       <button id="wheel-skill" type="button" hidden></button>
-    </div>
+    </div></div>
     <div id="door-actions" hidden>
       <div class="door-choices">
         <button id="door-peek" type="button" hidden>Regarder par le trou</button>
@@ -484,6 +493,7 @@
       <div id="bag-info"></div>
       <div class="bag-buttons">
         <button id="bag-equip" type="button" hidden></button>
+        <button id="bag-throw" type="button" hidden>Lancer</button>
         <button id="bag-drop" type="button" hidden>Jeter</button>
       </div>
     </section>

@@ -24,7 +24,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, CounterDoor, Debris, FloorState, GluckSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -57,6 +57,9 @@ export interface GluckMemory {
 
 /** Les PNJ de quête : Gluck (quête 01) et Sœur Osseuse (quête 02). */
 export type NpcId = "gluck" | "soeur";
+
+/** La flaque qu'une potion laisse en éclatant : sa couleur. */
+const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire" };
 
 /** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
 export interface SoeurMemory {
@@ -1602,7 +1605,8 @@ export class Game {
     const def = ITEMS[item.defId] as ItemDef;
     // Une torche se tient d'une main : impossible avec une arme à deux mains (Thomas, 2026-11-11).
     if (def.lightTurns && this.twoHanded()) return false;
-    if (def.kind !== "use" || this.tooLow(def) || def.throwRange) return false;
+    // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
+    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -1667,6 +1671,8 @@ export class Game {
         else this.gas.push({ x: at.x, y: at.y, turns: RULES.brokenPoisonGasTurns });
         this.gasPoison();
       }
+      // Une flaque de sa couleur reste au sol (Thomas, 2026-11-12).
+      if (this.map.get(at.x, at.y) !== Tile.Water) this.stain(at.x, at.y, POTION_STAIN[potion] ?? "pYouth");
       this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
       return true;
     }
@@ -1884,11 +1890,28 @@ export class Game {
   private resolveThrow(order: { uid: number; x: number; y: number }): void {
     const item = this.inventory.get(order.uid);
     if (!item || !this.inventory.take(item.defId, 1)) return;
+    const potion = (ITEMS[item.defId] as ItemDef).potion ?? "fire";
     this.reveal();
     // La croix, plus une éclaboussure au hasard sur une case voisine de la croix (Thomas).
     const cross = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
     const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
     const extra = splash[this.rng.int(0, splash.length - 1)];
+    // La flaque de sa couleur, là où la fiole éclate (Thomas, 2026-11-12).
+    if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+    if (potion === "poison") {
+      // Potion de poison lancée (Thomas, 2026-11-12 : « lancer devrait faire quelque chose ») : un nuage vert en croix,
+      // qui empoisonne qui s'y tient (comme le piège à gaz).
+      const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) || this.map.get(c.x, c.y) === Tile.Furniture);
+      for (const c of cells) {
+        const old = this.gas.find((g) => g.x === c.x && g.y === c.y);
+        if (old) old.turns = Math.max(old.turns, RULES.thrownPoisonGasTurns);
+        else this.gas.push({ x: c.x, y: c.y, turns: RULES.thrownPoisonGasTurns });
+      }
+      this.gasPoison();
+      for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
+      return;
+    }
     const cells = [...cross, extra]
       .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
       .filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
@@ -1897,6 +1920,7 @@ export class Game {
       if (old) old.turns = RULES.fireTurns;
       else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
     }
+    this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
     this.events.push({ type: "fire", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
     // Les monstres touchés par l'éclaboussure se réveillent.
     for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
@@ -2050,6 +2074,8 @@ export class Game {
         }
       }
       f.turns--;
+      // Le feu éteint laisse de la SUIE au sol (Thomas, 2026-11-12).
+      if (f.turns <= 0 && this.map.get(f.x, f.y) !== Tile.Water && this.map.isWalkable(f.x, f.y)) this.stain(f.x, f.y, "soot");
     }
     this.fires = this.fires.filter((f) => f.turns > 0);
   }
@@ -2093,7 +2119,7 @@ export class Game {
   }
 
   /** Une tache de sang posée sur une case (cocon ou œufs crevés). */
-  private stain(x: number, y: number, color: "red" | "green" | "yellow" | "black"): void {
+  private stain(x: number, y: number, color: StainColor): void {
     const stains = this.current.blood;
     const same = stains.findIndex((b) => b.x === x && b.y === y);
     if (same >= 0) stains.splice(same, 1);

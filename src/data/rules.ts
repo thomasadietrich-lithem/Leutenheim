@@ -70,6 +70,8 @@ export const RULES = {
   statueAlarm: 5,
   /** Potion de poison jetée (cassée) : un petit nuage sur sa case, tant de tours (C). */
   brokenPoisonGasTurns: 3,
+  /** Potion de poison LANCÉE : un nuage en croix, tant de tours (C). */
+  thrownPoisonGasTurns: 4,
   gravelPatchesMax: 6,
   /** Motifs gravés au sol (rosace, rose des vents, runes, croix, spirale) : de tant à tant par étage (décor). */
   motifsPerFloor: [0, 2] as [number, number],

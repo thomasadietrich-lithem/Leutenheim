@@ -355,7 +355,7 @@ export const ITEMS = {
   sac_voyage: { id: "sac_voyage", name: "Sac d'aventurier", kind: "bag", description: "Un grand sac à dos, couverture roulée dessus. 8 × 6 cases.", w: 2, h: 2, maxStack: 1, rarity: "rare", level: 6, bagCols: 8, bagRows: 6 },
   // ---- Potions ----
   potion_jouvence: { id: "potion_jouvence", name: "Potion de jouvence", kind: "use", description: "Jaune et pétillante. Rend tous vos points à répartir, plus un. La voie choisie, elle, ne change pas.", w: 1, h: 1, maxStack: 3, rarity: "rare", potion: "youth" },
-  potion_poison: { id: "potion_poison", name: "Potion de poison", kind: "use", description: "Enduit votre arme : vos 15 prochains coups qui portent empoisonnent.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "poison" },
+  potion_poison: { id: "potion_poison", name: "Potion de poison", kind: "use", description: "Enduire : vos 15 prochains coups qui portent empoisonnent. Lancer : un nuage empoisonné en croix.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "poison", throwRange: 5 },
   potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps à corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
   potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "À lancer : la case visée et ses quatre voisines brûlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
   robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'étude. Elle ne protège guère.", w: 2, h: 2, maxStack: 1, armorClass: 11 },

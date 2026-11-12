@@ -13,8 +13,9 @@ const PROG = [
 ];
 const MELODY = [74, 72, 69, 70, 69, 65, 67, 69, 74, 77, 76, 74, 73, 69, 70, 69];
 const BPM = [72, 84, 100, 120];
-/** Volume général de la musique (sous les bruitages). */
-const VOLUME = 0.22;
+/** Volume général de la musique (sous les bruitages). Relevé (Thomas : « la musique semble ne pas marcher ») : les
+ *  haut-parleurs de téléphone ne rendent presque pas les graves, d'où aussi le bourdon doublé à l'octave. */
+const VOLUME = 0.5;
 
 const hz = (n: number) => 440 * 2 ** ((n - 69) / 12);
 
@@ -159,13 +160,14 @@ export class Music {
     // Nappe sombre (trois scies filtrées) et bourdon grave de ré : toujours.
     for (const n of chord) this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.05, 0.6, 0.8, 500 + Math.min(stage, 2) * 400, (n % 3) * 4);
     this.note(ctx, t0, hz(38), 4 * beat, "sine", 0.2, 0.3, 0.5);
+    this.note(ctx, t0, hz(50), 4 * beat, "triangle", 0.08, 0.3, 0.5);
     if (stage <= 1) {
       // Calme : une note sur deux temps ; agité : une par temps.
       const step = stage === 0 ? 2 : 1;
       for (let k = 0; k < 4 / step; k++) {
         if (stage === 0 && k % 2) continue;
         const note = MELODY[(bar * (4 / step) + k) % MELODY.length];
-        this.note(ctx, t0 + k * step * beat, hz(note), step * beat * 0.9, "triangle", 0.1, 0.005, 0.4);
+        this.note(ctx, t0 + k * step * beat, hz(note), step * beat * 0.9, "triangle", 0.16, 0.005, 0.4);
       }
       if (stage === 1) {
         for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(chord[0] - 12), beat * 0.8, "sawtooth", 0.12, 0.01, 0.1, 700);
@@ -177,7 +179,7 @@ export class Music {
     }
     // Alerte et traque, allégés (Thomas : « trop dense ») : la mélodie à la noire (une mesure sur deux en alerte).
     if (stage === 3 || bar % 2 === 0) {
-      for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(MELODY[(bar * 4 + k) % MELODY.length]), beat * 0.85, "triangle", 0.1, 0.005, 0.35);
+      for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(MELODY[(bar * 4 + k) % MELODY.length]), beat * 0.85, "triangle", 0.16, 0.005, 0.35);
     }
     if (stage === 2) {
       for (let k = 0; k < 4; k++) {

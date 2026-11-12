@@ -285,6 +285,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         "La cloche sonne encore : alerte.",
         "Traque ! L'étage sait où vous êtes.",
       ][e.stage] ?? null;
+    case "potionThrown":
+      return e.potion === "poison" ? "La fiole éclate : un nuage vert empoisonné se répand." : null;
     case "shatter":
       return e.potion === "fire"
         ? "La fiole se brise sur les dalles : le feu prend !"

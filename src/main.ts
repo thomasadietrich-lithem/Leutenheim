@@ -396,6 +396,13 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "shop") {
     openShop(e.line);
+  } else if (e.type === "potionThrown") {
+    // On voit la fiole voler, puis éclater au sol (Thomas, 2026-11-12).
+    renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
+    window.setTimeout(() => {
+      renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.fire);
+      sfx.play("glass");
+    }, 420);
   } else if (e.type === "shatter") {
     // La fiole vole, se brise : « Cling ! », des éclats de sa couleur.
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
@@ -960,24 +967,15 @@ function openWheel(): void {
   jumpMode = false;
   pushMode = false;
   renderer.jumpCells = [];
-  // La caméra revient d'abord sur le héros, d'un coup (Thomas, 2026-11-12) : la roue s'ouvre autour de lui, au milieu.
+  // La caméra revient d'abord sur le héros, d'un coup (Thomas, 2026-11-12) ; la barre d'actions monte en bas de la carte.
   renderer.recenterNow(game);
-  const frameBox = wheel.parentElement!.getBoundingClientRect();
-  const radius = 72;
-  // Autour du héros ; si la vue est décalée, la couronne reste entière dans le cadre.
-  const hero = renderer.tileCenter(game.hero.x, game.hero.y);
-  const cx = Math.max(radius + 28, Math.min(frameBox.width - radius - 28, hero.x));
-  const cy = Math.max(radius + 28, Math.min(frameBox.height - radius - 28, hero.y));
   // Le pouvoir de la voie (bleue, rouge) a désormais son propre bouton dans la barre du bas (Thomas, 2026-11-11).
   const withSkill = false;
   $("wheel-skill").hidden = !withSkill;
   if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
   const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
-  shown.forEach(([id], i) => {
-    const angle = ((-90 + (i * 360) / shown.length) * Math.PI) / 180;
+  shown.forEach(([id]) => {
     const b = $(id);
-    b.style.left = `${cx + radius * Math.cos(angle)}px`;
-    b.style.top = `${cy + radius * Math.sin(angle)}px`;
     // Une action impossible reste visible, grisée ; utiliser un objet n'existe pas encore.
     const possible =
       id === "wheel-rest" ? game.restRefusal() === null
@@ -993,8 +991,10 @@ function openWheel(): void {
   wheel.hidden = false;
 }
 
+// Noms courts sous les pictogrammes (barre d'actions, design C).
+const WHEEL_SHORT: Record<string, string> = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-skill": "Voie" };
 for (const [id, icon, label] of WHEEL) {
-  $(id).replaceChildren(uiIcon(icon));
+  $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
   $(id).setAttribute("aria-label", label);
   $(id).addEventListener("click", (ev) => {
     ev.stopPropagation();
@@ -1618,6 +1618,7 @@ function renderBag(): void {
     info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner. Dans le sac, touchez ensuite une case libre pour le déplacer."));
     action.hidden = true;
     $("bag-drop").hidden = true;
+    $("bag-throw").hidden = true;
     return;
   }
   const def: ItemDef = ITEMS[item.defId];
@@ -1636,7 +1637,15 @@ function renderBag(): void {
   const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
   // Le sac porté ne s'enlève pas : on le remplace par un autre.
   action.hidden = (!wearable && def.kind !== "use") || selectedSlot === "bag";
-  action.textContent = selectedSlot ? "Retirer" : def.throwRange ? "Lancer" : def.kind === "use" ? "Consommer" : "Équiper";
+  // Potions (Thomas, 2026-11-12) : celle de feu se LANCE, celle de poison s'ENDUIT (et se lance aussi, bouton à part),
+  // les autres se BOIVENT.
+  action.textContent = selectedSlot
+    ? "Retirer"
+    : def.potion === "fire" ? "Lancer"
+    : def.potion === "poison" ? "Enduire"
+    : def.potion ? "Boire"
+    : def.kind === "use" ? "Consommer" : "Équiper";
+  $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
 }
@@ -1654,6 +1663,18 @@ $("bag-grid").addEventListener("click", (e) => {
   sfx.play("click");
   renderHeroScreen();
 });
+// Lancer la potion de poison (son bouton à part ; « Enduire » est l'action principale).
+button("bag-throw", () => {
+  const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
+  if (!chosen) return;
+  throwUid = chosen.uid;
+  renderer.jumpCells = throwCells(chosen.uid);
+  logLines.push("Touchez la case où lancer la potion.");
+  bagOpen = false;
+  $("bag").hidden = true;
+  selected = null;
+  renderLog();
+});
 button("bag-drop", () => {
   if (selected && "uid" in selected) {
     if (game.dropFromBag(selected.uid)) {
@@ -1670,7 +1691,7 @@ button("bag-equip", () => {
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
     logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
-  } else if (chosen && chosenDef?.throwRange) {
+  } else if (chosen && chosenDef?.potion === "fire") {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;
     renderer.jumpCells = throwCells(chosen.uid);

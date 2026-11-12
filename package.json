@@ -8,6 +8,7 @@
     "test": "tsc --noEmit && node scripts/build.mjs --tests && node --test dist/tests.cjs"
   },
   "devDependencies": {
+    "@fontsource/vt323": "^5.3.0",
     "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2"

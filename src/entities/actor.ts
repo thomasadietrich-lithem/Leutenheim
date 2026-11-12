@@ -25,6 +25,8 @@ export interface Actor {
   asleep: boolean;
   /** Le héros vient de lui échapper en passant une porte : il ne se laisse plus surprendre tant qu'il ne l'a pas rattrapé. */
   wary?: boolean;
+  /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */
+  lost?: number;
   /** Numéro de la cible que ce personnage vient de frapper AVEC avantage : jamais deux avantages de suite sur elle. */
   lastAdvantageOn?: number;
   /** Sonné (poussé par le héros) : il perd ce nombre de tours. */

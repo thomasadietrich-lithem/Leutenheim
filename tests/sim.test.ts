@@ -1876,6 +1876,14 @@ test("se cacher : refusé au contact d'un ennemi ; réussi, les monstres perdent
     if (!roll.success) continue;
     assert.ok(game.hidden);
     assert.ok(game.monsters.every((m) => !m.alerted), `graine ${seed} : un monstre garde la trace`);
+    // Ils ont perdu sa trace : quelques tours sur place, sans s'approcher (Thomas, 2026-11-12, les frondeurs).
+    const before = game.monsters.map((m) => ({ m, x: m.x, y: m.y }));
+    for (let i = 0; i < RULES.hideLostTurns - 1; i++) {
+      game.wait();
+      game.tick();
+    }
+    for (const b of before) assert.ok(b.m.x === b.x && b.m.y === b.y, `graine ${seed} : un monstre bouge alors qu'il a perdu la trace`);
+    game.events.length = 0;
     // Caché et immobile, il n'est remarqué que par un monstre à son contact.
     for (let i = 0; i < 30 && game.hidden; i++) {
       game.wait();

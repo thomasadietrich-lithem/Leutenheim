@@ -38,6 +38,7 @@ export const KRIK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#9a
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
+import { tr } from "../i18n/i18n";
 import { BLOOD, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
 import { DORTOIR } from "./sprites/dortoir";
@@ -797,9 +798,9 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     ctx.fillStyle = "#000000";
-    ctx.fillText("LA TISSEUSE", W / 2 + scale, y - 2 * scale + scale);
+    ctx.fillText(tr("LA TISSEUSE"), W / 2 + scale, y - 2 * scale + scale);
     ctx.fillStyle = "#ffe6aa";
-    ctx.fillText("LA TISSEUSE", W / 2, y - 2 * scale);
+    ctx.fillText(tr("LA TISSEUSE"), W / 2, y - 2 * scale);
     ctx.fillStyle = "#1a1210";
     ctx.fillRect(x - scale, y - scale, bw + 2 * scale, bh + 2 * scale);
     ctx.fillStyle = "#4a1a14";
@@ -1688,9 +1689,9 @@ export class Renderer {
       ctx.strokeStyle = "rgba(0,0,0,0.7)";
       const fx = ox + (f.x + 0.5) * tile;
       const fy = oy + (f.y + 0.1 - t * 0.8 - f.slot * 0.42) * tile;
-      ctx.strokeText(f.text, fx, fy);
+      ctx.strokeText(tr(f.text), fx, fy);
       ctx.fillStyle = f.color;
-      ctx.fillText(f.text, fx, fy);
+      ctx.fillText(tr(f.text), fx, fy);
     }
     ctx.globalAlpha = 1;
     this.drawBossBar(game);

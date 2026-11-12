@@ -152,6 +152,12 @@
   #over .over-best { color: #ffd75e; font-size: 26px; }
   #over .over-sub { margin-top: 8px; color: #e0c890; }
   .over-record { font-size: 17px; color: #d8cfc0; }
+  #screen-manual { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+  #manual-list { flex: 1; min-height: 0; overflow-y: auto; margin: 6px 0 10px; text-align: left; }
+  #manual-list h3 { margin: 14px 0 4px; }
+  #manual-list .manual-intro { color: var(--dim); font-size: 16px; margin: 0 0 6px; }
+  #manual-list .manual-entry { margin: 6px 0; font-size: 17px; line-height: 1.25; }
+  #manual-list .manual-entry b { color: var(--gold); font-weight: normal; }
   #records-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
@@ -531,6 +537,7 @@
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
+      <button id="menu-manual" type="button">Manuel</button>
       <button id="menu-records" type="button">Records</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
@@ -549,6 +556,11 @@
       <div id="class-cards" class="cards"></div>
       <button id="new-start" type="button">Commencer</button>
       <button id="new-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-manual" hidden>
+      <h2>Manuel</h2>
+      <div id="manual-list"></div>
+      <button id="manual-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-records" hidden>
       <h2>Records</h2>
@@ -1391,7 +1403,7 @@
       id: "javeline",
       name: "Javelines",
       kind: "ammo",
-      description: "Se lance \xE0 la main, sans arc (choisie dans le carquois). Moins pr\xE9cise qu'une fl\xE8che, elle frappe fort, et se ramasse.",
+      description: "Se lance \xE0 la main, sans arc. Moins pr\xE9cise qu'une fl\xE8che, mais frappe fort ; se ramasse.",
       w: 1,
       h: 2,
       maxStack: 6,
@@ -1817,6 +1829,9 @@
     arrowOvershoot: 4,
     /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
     hideDc: 9,
+    /** Après une cachette réussie, les monstres qui le traquaient restent sur place tant de tours (Thomas, 2026-11-12 :
+     * « les Kobolds archers essayent de s'approcher si on se cache »). */
+    hideLostTurns: 6,
     /** Se dégager (roue d'actions) : le héros saute à tant de cases, en ligne droite… */
     jumpDistance: 2,
     /** …s'il réussit d20 + bonus d'agilité contre cette difficulté ; raté, il reste sur place et le tour est perdu. */
@@ -5404,7 +5419,7 @@
     /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
     killerName(m) {
       if (m.boss) return m.name;
-      return `${m.defId === "araignee" ? "une" : "un"} ${m.name}`;
+      return m.defId === "araignee" ? `une ${m.name}` : `un ${m.name}`;
     }
     /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
     poisonActor(actor, poison) {
@@ -5828,7 +5843,7 @@
     /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
     refreshLight() {
       const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
-      const dropped = (this.ground ?? []).filter((g) => g.item === "torche").map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
+      const dropped = (this.ground ?? []).filter((g) => g.item === "torche" && this.map.get(g.x, g.y) !== Tile.Water).map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
       const fixed = this.torches.map((t) => {
         const fx = t.x + t.faceX;
         const fy = t.y + t.faceY;
@@ -6246,10 +6261,12 @@
     }
     /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
     burn() {
+      this.fires = this.fires.filter((f) => this.map.get(f.x, f.y) !== Tile.Water);
       for (const a of [this.hero, ...this.monsters]) {
         if (!a.burning || this.over || cellsOf(a).some((c) => this.isBurning(c.x, c.y))) continue;
-        if (this.map.get(a.x, a.y) === Tile.Water) {
+        if (cellsOf(a).some((c) => this.map.get(c.x, c.y) === Tile.Water)) {
           a.burning = 0;
+          this.events.push({ type: "doused", actor: a });
           continue;
         }
         a.burning--;
@@ -6328,7 +6345,7 @@
       if (stains.length > RULES.bloodMax) stains.shift();
     }
     isBurning(x, y) {
-      return this.fires.some((f) => f.x === x && f.y === y);
+      return this.map.get(x, y) !== Tile.Water && this.fires.some((f) => f.x === x && f.y === y);
     }
     /** Expérience à réunir pour passer au niveau suivant. */
     xpToNext() {
@@ -6924,6 +6941,8 @@
           m.alerted = false;
           m.asleep = false;
           m.wary = false;
+          m.goal = void 0;
+          m.lost = RULES.hideLostTurns;
         }
       }
       this.events.push({ type: "hide", d20, bonus, total, success });
@@ -8065,7 +8084,7 @@
               "Vous lui montrez : on pointe le doigt ailleurs, on crie \xAB L\xE0-bas ! \xBB, on file.",
               "\xAB L\xE0-bas ! \u2026 \xC7a marche ! M\xEAme sur moi ! \xBB",
               `\xAB Tiens, pour toi : des fioles de fum\xE9e. Vol\xE9es. \xBB`,
-              `(${KRIK.smokeFlasks} fioles de fum\xE9e dans le sac : lanc\xE9e, elle fait perdre votre trace aux monstres tout pr\xE8s.)`
+              `(${KRIK.smokeFlasks} fioles de fum\xE9e dans le sac.)`
             ]);
           }
           this.callFoes(g, "schrat", KRIK.pursuers);
@@ -8560,7 +8579,7 @@
     }
     dropItem(x, y, item, count, angle) {
       const t = this.map.get(x, y);
-      if (t === Tile.StairsDown || t === Tile.StairsUp) {
+      if (t === Tile.StairsDown || t === Tile.StairsUp || item === "torche" && t === Tile.Water) {
         const at = this.landingCell({ x, y }, item);
         if (at.x !== x || at.y !== y) {
           this.events.push({ type: "stairsBounce", item, fromX: x, fromY: y, x: at.x, y: at.y });
@@ -8844,6 +8863,11 @@
     }
     /** Promenade : le monstre va de salle en salle, au hasard. */
     wander(m) {
+      if (m.lost) {
+        m.lost--;
+        if (this.rng.chance(0.5)) this.faceToward(m, { x: m.x + this.rng.int(-1, 1), y: m.y + this.rng.int(-1, 1) });
+        return;
+      }
       if (!m.goal || m.goal.x === m.x && m.goal.y === m.y) {
         if (m.patrol) {
           const r = m.patrol;
@@ -8853,6 +8877,9 @@
           m.goal = { x, y };
         } else {
           const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+          const sling = MONSTERS[m.defId]?.sling;
+          const h = this.hero;
+          if (sling && this.hidden && h.x >= room.x && h.x < room.x + room.w && h.y >= room.y && h.y < room.y + room.h) return;
           m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
         }
       }
@@ -10595,6 +10622,1033 @@
       ]
     ]
   ];
+
+  // src/i18n/en.ts
+  var EN = {
+    "un doigt dans l'\u0153il": "a finger in the eye",
+    "Kobold qui compte": "Counting Kobold",
+    "un pi\xE8ge \xE0 pointes": "a spike trap",
+    "une chute dans une fosse": "a fall into a pit",
+    "une aiguille empoisonn\xE9e": "a poisoned needle",
+    "le gaz": "the gas",
+    "ses blessures": "their wounds",
+    "les flammes": "the flames",
+    "le poison": "the poison",
+    "\xAB Ton investissement ? J'ai tout perdu\u2026 la faute aux rats. Tiens, une pomme pour m'excuser. \xBB": "\u201CYour investment? I lost it all\u2026 the rats' fault. Here, an apple to say sorry.\u201D",
+    "\xAB Ton investissement a rapport\xE9 ! Voil\xE0 {0} pi\xE8ces, et deux pommes. \xBB": "\u201CYour investment paid off! Here are {0} coins, and two apples.\u201D",
+    "Pas assez d'or": "Not enough gold",
+    "Aucune pomme": "No apple",
+    "Lui donner une pomme": "Give him an apple",
+    "Refuser": "Refuse",
+    "Acheter la pomme ({0} or)": "Buy the apple ({0} gold)",
+    "Partir": "Leave",
+    "Lui parler gentiment": "Talk to him kindly",
+    "Le menacer": "Threaten him",
+    "Lui proposer un march\xE9": "Offer him a deal",
+    "Lui voler ses pommes": "Steal his apples",
+    "Acheter une pomme ({0} or)": "Buy an apple ({0} gold)",
+    "Marchander": "Haggle",
+    "Investir {0} or": "Invest {0} gold",
+    "Refuser poliment": "Politely refuse",
+    "\xAB Et pour moi, un petit quelque chose ? \xBB": "\u201CAnd for me, a little something?\u201D",
+    "\xAB Reviens quand tu veux. Avec des pommes. \xBB": "\u201CCome back whenever. With apples.\u201D",
+    "\xAB Ah ! Enfin quelqu'un de gentil. Tiens, ma r\xE9serve. \xBB": "\u201CAh! Finally someone nice. Here, my stash.\u201D",
+    "\xAB Hmm. Prouve-moi ta bonne volont\xE9 : donne-moi une pomme d'abord. \xBB": "\u201CHmm. Prove your good will: give me an apple first.\u201D",
+    "\xAB Pas de pomme ? Je m'en doutais. \xBB": "\u201CNo apple? I knew it.\u201D",
+    "\xAB Merci ! Deux pour une : c'est \xE7a, l'amiti\xE9. \xBB": "\u201CThanks! Two for one: that's friendship.\u201D",
+    "\xAB Tant pis pour toi. \xBB": "\u201CYour loss.\u201D",
+    "\xAB Je m'en doutais. \xBB": "\u201CI knew it.\u201D",
+    "Pouf ! Gluck dispara\xEEt dans un petit nuage.": "Poof! Gluck vanishes in a little cloud.",
+    "\xAB D'accord, d'accord ! Prends-les, mais ne me fais pas mal ! \xBB": "\u201COkay, okay! Take them, just don't hurt me!\u201D",
+    "\xAB Au secours ! \xBB": "\u201CHelp!\u201D",
+    "Il d\xE9tale en l\xE2chant une pomme.": "He scurries off, dropping an apple.",
+    "\xAB March\xE9 conclu : une pomme, et un secret. La statue de pierre, sur cet \xE9tage\u2026 elle sonne creux. Un bon coup, et hop ! \xBB": "\u201CDeal: one apple, and a secret. The stone statue on this floor\u2026 it sounds hollow. One good hit, and presto!\u201D",
+    "(Une fissure appara\xEEt sur la statue. Touchez-la pour la briser.)": "(A crack appears on the statue. Tap it to break it.)",
+    "\xAB March\xE9 conclu : une pomme, et un secret. L'escalier qui descend ? C'est par l\xE0. \xBB": "\u201CDeal: one apple, and a secret. The stairs down? That way.\u201D",
+    "(L'escalier appara\xEEt sur votre carte.)": "(The stairs appear on your map.)",
+    "\xAB Une pomme ? {0} pi\xE8ces. C'est le prix d'une potion de jouvence\u2026 mais en meilleur. \xBB": "\u201CAn apple? {0} coins. That's the price of a youth potion\u2026 but better.\u201D",
+    "\xAB Pas assez d'or ? Dommage. Une autre fois. \xBB": "\u201CNot enough gold? Too bad. Another time.\u201D",
+    "\xAB Un plaisir de faire affaire avec toi ! \xBB": "\u201CA pleasure doing business with you!\u201D",
+    "Vous glissez la main dans son sac\u2026 il ne remarque rien.": "You slip your hand into his bag\u2026 he doesn't notice a thing.",
+    "Gluck s'en va en sifflotant.": "Gluck wanders off, whistling.",
+    "\xAB AU VOLEUR ! FRONDEUR, \xC0 MOI ! \xBB": "\u201CTHIEF! SLINGER, TO ME!\u201D",
+    "Gluck d\xE9tale. Un Kobold frondeur accourt.": "Gluck runs off. A Kobold slinger comes running.",
+    "\xAB Pas d'or, pas de pomme. \xBB": "\u201CNo gold, no apple.\u201D",
+    "\xAB Excellent choix ! Reviens quand tu veux. \xBB": "\u201CExcellent choice! Come back anytime.\u201D",
+    "\xAB Le prix, c'est le prix. \xBB": "\u201CThe price is the price.\u201D",
+    "\xAB Bon, d'accord\u2026 mais tu n'as m\xEAme pas l'or. Culott\xE9. \xBB": "\u201CFine, okay\u2026 but you don't even have the gold. Cheeky.\u201D",
+    "\xAB Bon. Deux pour le prix d'une. Mais ne le dis \xE0 personne. \xBB": "\u201CFine. Two for the price of one. But don't tell anyone.\u201D",
+    "\xAB Bon, bon\u2026 Tiens. Mais je m'en souviendrai. \xBB": "\u201CFine, fine\u2026 Here. But I'll remember this.\u201D",
+    "\xAB M\xEAme pas peur ! \xBB": "\u201CNot scared!\u201D",
+    "Il file avec son sac.": "He runs off with his bag.",
+    "\xAB Tant pis. Tiens, une pomme. Pour la pub. \xBB": "\u201COh well. Here, an apple. For the publicity.\u201D",
+    "\xAB Tiens. Une pomme de ma r\xE9serve secr\xE8te. \xBB": "\u201CHere. An apple from my secret stash.\u201D",
+    "\xAB Un secret, entre nous : la statue de pierre ? Creuse. J'y ai cach\xE9 mes \xE9conomies. Enfin\u2026 mes ANCIENNES \xE9conomies. \xBB": "\u201CA secret, between us: the stone statue? Hollow. I hid my savings in it. Well\u2026 my FORMER savings.\u201D",
+    "\xAB Un secret, entre nous : l'escalier, c'est par l\xE0. \xBB": "\u201CA secret, between us: the stairs are that way.\u201D",
+    "\xAB Un tuyau : j'ai mis de la mousse dodo dans la soupe des Kobolds. Ils font la sieste. \xBB": "\u201CA tip: I put sleepy moss in the Kobolds' soup. They're napping.\u201D",
+    "(Les Kobolds de l'\xE9tage se sont endormis.)": "(The Kobolds on this floor have fallen asleep.)",
+    "\xAB Tu n'as pas cette somme. Reviens plus riche. \xBB": "\u201CYou don't have that much. Come back richer.\u201D",
+    "\xAB Excellent choix ! Reviens me voir plus bas : \xE7a va rapporter. \xBB": "\u201CExcellent choice! Come see me further down: it'll pay off.\u201D",
+    "La consoler": "Comfort her",
+    "Lui dire que la cloche est perdue (fondue pour son m\xE9tal)": "Tell her the bell is gone (melted down for its metal)",
+    "Proposer de punir les Kobolds": "Offer to punish the Kobolds",
+    "Lui fabriquer une cloche de fortune": "Make her a makeshift bell",
+    "Respecter son silence": "Respect her silence",
+    "Lui raconter une histoire dr\xF4le": "Tell her a funny story",
+    "Proposer de maudire les Kobolds": "Offer to curse the Kobolds",
+    "Parler de la cloche": "Talk about the bell",
+    "La mettre en garde": "Warn her",
+    "Demander une donation": "Ask for a donation",
+    "\xAB Une b\xE9n\xE9diction, ma s\u0153ur ? \xBB": "\u201CA blessing, Sister?\u201D",
+    "\xAB Encore un peu de tambour ! \xBB": "\u201CA bit more drum!\u201D",
+    "\xAB Tenez. Une pomme. Elle \xE9tait sur l'autel, mais je ne mange plus. \xBB": "\u201CHere. An apple. It was on the altar, but I no longer eat.\u201D",
+    "\xAB Prenez ceci. La qu\xEAte, c'est fait pour \xE7a. \xBB": "\u201CTake this. That's what the collection plate is for.\u201D",
+    "(Elle laisse quelques pi\xE8ces derri\xE8re elle.)": "(She leaves a few coins behind.)",
+    "\xAB Que la chance vous accompagne. Vous en aurez besoin. \xBB": "\u201CMay luck go with you. You'll need it.\u201D",
+    "(Chance : vos 3 prochains 1 au d\xE9 seront relanc\xE9s.)": "(Luck: your next 3 rolls of 1 will be rerolled.)",
+    "\xAB Allez en paix, mon enfant. \xBB": "\u201CGo in peace, my child.\u201D",
+    "(Protection : +1 classe d'armure pendant 150 tours.)": "(Protection: +1 armor class for 150 turns.)",
+    "\xAB Allez. Et ne courez pas. \xBB": "\u201CGo. And don't run.\u201D",
+    "\xAB \u2026 Merci. Vous \xEAtes moins grossier que vous n'en avez l'air. \xBB": "\u201C\u2026 Thank you. You're less rude than you look.\u201D",
+    "\xAB Vous \xEAtes particuli\xE8rement mauvais en consolation. \xBB": "\u201CYou are remarkably bad at comforting.\u201D",
+    "\xAB Fondue\u2026 Bien. Au moins, c'est clair. \xBB": "\u201CMelted\u2026 Fine. At least it's clear.\u201D",
+    "(Clart\xE9 : le poison vous ronge deux fois moins longtemps, sur cet \xE9tage.)": "(Clarity: poison wears off twice as fast, on this floor.)",
+    "\xAB Je pr\xE9f\xE8re croire qu'ils savent jouer de la musique. \xBB": "\u201CI prefer to believe they can play music.\u201D",
+    "\xAB Oui. OUI. Que leurs \xE9cailles tombent. \xBB": "\u201CYes. YES. May their scales fall off.\u201D",
+    "(Mal\xE9diction des Kobolds : +2 d\xE9g\xE2ts contre eux, sur cet \xE9tage.)": "(Curse of the Kobolds: +2 damage against them, on this floor.)",
+    "\xAB Vous manquez de conviction. \xBB": "\u201CYou lack conviction.\u201D",
+    "Vous assemblez une gamelle, une cuill\xE8re et un bout de ficelle. Ding !": "You put together a mess tin, a spoon and a bit of string. Ding!",
+    "\xAB \u2026 C'est presque joli. \xBB": "\u201C\u2026 It's almost pretty.\u201D",
+    "Vous assemblez une gamelle, une cuill\xE8re et un bout de ficelle. CLONK !": "You put together a mess tin, a spoon and a bit of string. CLONK!",
+    "\xAB Ce n'est pas une cloche. C'est une insulte. \xBB": "\u201CThat is not a bell. That is an insult.\u201D",
+    "Vous ne dites rien. Elle hoche le cr\xE2ne, tr\xE8s digne.": "You say nothing. She nods her skull, very dignified.",
+    "\xAB \u2026 Pfff. Hi. Hi hi. \xBB": "\u201C\u2026 Pfff. Hee. Hee hee.\u201D",
+    "\xAB \u2026 Non. \xBB": "\u201C\u2026 No.\u201D",
+    "\xAB Voil\xE0 enfin une id\xE9e sens\xE9e. \xBB": "\u201CFinally, a sensible idea.\u201D",
+    "\xAB DEHORS ! \xBB": "\u201COUT!\u201D",
+    "Elle vous chasse d'un revers de manche. Elle s'en souviendra.": "She shoos you away with a flick of her sleeve. She'll remember this.",
+    "\xAB Merci. Ils progressent. Hier, l'un d'eux a lu un mot entier. \xBB": "\u201CThank you. They're making progress. Yesterday one of them read a whole word.\u201D",
+    "\xAB Vous avez raison. Mes enfants : allez pr\xEAcher ailleurs. \xBB": "\u201CYou're right. My children: go preach elsewhere.\u201D",
+    "Les deux Kobolds s'en vont, et emm\xE8nent des amis.": "The two Kobolds leave, and take some friends along.",
+    "(Protection et Clart\xE9. Deux Kobolds quittent l'\xE9tage.)": "(Protection and Clarity. Two Kobolds leave the floor.)",
+    "\xAB Vous \xEAtes jaloux de leur foi. \xBB": "\u201CYou're jealous of their faith.\u201D",
+    "\xAB Pour les \u0153uvres. Ne d\xE9pensez pas tout en pommes. \xBB": "\u201CFor good works. Don't spend it all on apples.\u201D",
+    "(Elle laisse une bourse derri\xE8re elle.)": "(She leaves a purse behind.)",
+    "\xAB La qu\xEAte, c'est MOI qui la fais. \xBB": "\u201CThe collecting is MY job.\u201D",
+    "BOUM ! BOUM ! BOUM !": "BOOM! BOOM! BOOM!",
+    "\xAB Magnifique, n'est-ce pas ? \xBB": "\u201CMagnificent, isn't it?\u201D",
+    "(Tout l'\xE9tage a entendu.)": "(The whole floor heard it.)",
+    "Proposer de le prot\xE9ger": "Offer to protect him",
+    "Lui demander ses caches": "Ask about his stashes",
+    "Lui apprendre \xE0 faire diversion": "Teach him to make a diversion",
+    "Acheter un objet ({0} or)": "Buy an item ({0} gold)",
+    "Lui demander de mentir aux monstres pour vous": "Ask him to lie to the monsters for you",
+    "Le d\xE9noncer \xE0 ses anciens camarades": "Turn him in to his old comrades",
+    "Acheter \xE0 prix cass\xE9 ({0} or)": "Buy at a bargain price ({0} gold)",
+    "N\xE9gocier un objet rare ({0} or)": "Haggle for a rare item ({0} gold)",
+    "Investir {0} or dans son commerce": "Invest {0} gold in his business",
+    "\xAB Tu reviendras. C'est vrai, je le sais : je ne peux pas mentir. \xBB": "\u201CYou'll be back. It's true, I know it: I can't lie.\u201D",
+    "\xAB Tu me prot\xE9gerais ? Moi ? \u2026 Tu mens mieux que moi. Mais d'accord. \xBB": "\u201CYou'd protect me? Me? \u2026 You lie better than I do. But fine.\u201D",
+    "\xAB Mes camarades dorment l\xE0, l\xE0 et l\xE0. Le butin, je l'ai cach\xE9 sous ma langue. Non, \xE7a c'est faux. Ah si, c'est vrai. \xBB": "\u201CMy comrades sleep there, there and there. The loot, I hid it under my tongue. No, that's false. Oh wait, it's true.\u201D",
+    "(Les repaires des Kobolds de l'\xE9tage apparaissent sur la carte. Il laisse une pomme.)": "(The Kobolds' lairs on this floor appear on the map. He leaves an apple.)",
+    "\xAB Toi ? Tu ne prot\xE9gerais pas une pomme. \xBB": "\u201CYou? You couldn't protect an apple.\u201D",
+    "\xAB Tiens, prends \xE7a et laisse-moi tranquille. C'est tout ce que je vaux. \xBB": "\u201CHere, take this and leave me alone. It's all I'm worth.\u201D",
+    "(Il laisse quelques pi\xE8ces.)": "(He leaves a few coins.)",
+    "\xAB Ma cache ? Sous le troisi\xE8me tonneau. Pourquoi je te le dis ? \u2026 Je ne peux pas m'en emp\xEAcher. \xBB": "\u201CMy stash? Under the third barrel. Why am I telling you? \u2026 I can't help it.\u201D",
+    "(Il laisse de l'or et un objet derri\xE8re lui.)": "(He leaves gold and an item behind.)",
+    "\xAB La cache de l'escalier. Elle est vide. Je l'ai vid\xE9e hier. \xBB": "\u201CThe stash by the stairs. It's empty. I emptied it yesterday.\u201D",
+    "\xAB Je t'avais dit que j'\xE9tais malade, pas que j'\xE9tais stupide. \xBB": "\u201CI told you I was sick, not stupid.\u201D",
+    "\xAB D'accord, d'accord ! Prends \xE7a ! C'\xE9tait vol\xE9 de toute fa\xE7on. \xBB": "\u201COkay, okay! Take this! It was stolen anyway.\u201D",
+    "(Il l\xE2che une partie de sa marchandise.)": "(He drops some of his goods.)",
+    "\xAB AU SECOURS ! UN AVENTURIER ME MENACE ! \u2026 C'est vrai, en plus. \xBB": "\u201CHELP! AN ADVENTURER IS THREATENING ME! \u2026 It's true, too.\u201D",
+    "(Un Kobold frondeur accourt.)": "(A Kobold slinger comes running.)",
+    "Vous lui montrez : on pointe le doigt ailleurs, on crie \xAB L\xE0-bas ! \xBB, on file.": "You show him: point somewhere else, shout \u201COver there!\u201D, run.",
+    "\xAB L\xE0-bas ! \u2026 \xC7a marche ! M\xEAme sur moi ! \xBB": "\u201COver there! \u2026 It works! Even on me!\u201D",
+    "\xAB Tiens, pour toi : des fioles de fum\xE9e. Vol\xE9es. \xBB": "\u201CHere, for you: smoke flasks. Stolen.\u201D",
+    "({0} fioles de fum\xE9e dans le sac.)": "({0} smoke flasks in your bag.)",
+    "\xAB L\xE0-bas ! \u2026 C'est moi qui ai trahi tout le monde ! \xBB": "\u201COver there! \u2026 I'm the one who betrayed everyone!\u201D",
+    "\xAB Oh non. Je l'ai dit trop fort. \xBB": "\u201COh no. I said that too loud.\u201D",
+    "(Ses anciens camarades accourent.)": "(His old comrades come running.)",
+    "\xAB Un objet magnifique ! \xBB": "\u201CA magnificent item!\u201D",
+    "(C'est une pomme.)": "(It's an apple.)",
+    "\xAB J'ai menti. \xC7a m'avait manqu\xE9. \xBB": "\u201CI lied. I missed that.\u201D",
+    "\xAB Un objet magnifique ! \xBB Pour une fois, c'est vrai.": "\u201CA magnificent item!\u201D For once, it's true.",
+    "Krik file voir ses anciens camarades. \xAB L'aventurier ? Il est parti par l\xE0-bas. Tr\xE8s loin. Il a peur de vous. \xBB": "Krik runs off to see his old comrades. \u201CThe adventurer? He went that way. Very far. He's scared of you.\u201D",
+    "\xAB \u2026 Ils m'ont cru ! \xBB": "\u201C\u2026 They believed me!\u201D",
+    "(Les monstres perdent votre trace ; l'\xE9tage se calme.)": "(The monsters lose your trail; the floor calms down.)",
+    "\xAB H\xC9 ! IL EST L\xC0 ! \xBB crie-t-on. Krik d\xE9tale.": "\u201CHEY! HE'S HERE!\u201D someone shouts. Krik bolts.",
+    "Un Kobold vous jette une bourse : \xAB La prime. Merci, l'humain. \xBB": "A Kobold tosses you a purse: \u201CThe bounty. Thanks, human.\u201D",
+    "(Krik s'en souviendra.)": "(Krik will remember this.)",
+    "\xAB Prix cass\xE9. Comme l'objet. Non : l'objet va bien. Je crois. \xBB": "\u201CBargain price. Like the item. No: the item is fine. I think.\u201D",
+    "\xAB Bon. Pour toi. Je l'ai vendu deux fois d\xE9j\xE0, mais celui-l\xE0 est le vrai. \xBB": "\u201CFine. For you. I've sold it twice already, but this one's the real one.\u201D",
+    "\xAB Celui-l\xE0, je le garde. C'est le seul que je n'ai pas encore vendu. \xBB": "\u201CThat one I'm keeping. It's the only one I haven't sold yet.\u201D",
+    "\xAB Excellent placement. Tu seras rembours\xE9 \xE0 l'\xE9tage suivant. \xBB": "\u201CExcellent investment. You'll be repaid on the next floor.\u201D",
+    "\xAB Je le pense vraiment. Pour l'instant. \xBB": "\u201CI truly mean it. For now.\u201D",
+    "la pointe d'un sarcophage": "a sarcophagus spike",
+    "Encaisse et frappe fort.": "Takes hits and hits hard.",
+    "Bonne armure, et la force d'enfoncer les portes.": "Good armor, and the strength to break doors.",
+    "Assassin": "Assassin",
+    "Frappe par surprise.": "Strikes by surprise.",
+    "Gros d\xE9g\xE2ts sur un ennemi qui ne l'a pas remarqu\xE9 ; croch\xE8te facilement.": "Big damage on an enemy that hasn't noticed them; picks locks easily.",
+    "Magicien": "Wizard",
+    "Sorts \xE0 distance, fragile.": "Ranged spells, fragile.",
+    "Sorts en nombre limit\xE9, recharg\xE9s par le repos.": "Limited spells, recharged by resting.",
+    "Gluck": "Gluck",
+    "\xAB Psst ! Humain ! Par ici ! \xBB": "\u201CPsst! Human! Over here!\u201D",
+    "\xAB Je veux partir. Je d\xE9teste cet endroit. \xBB": "\u201CI want out. I hate this place.\u201D",
+    "Vous : \xAB Tu es un Kobold. \xBB": "You: \u201CYou're a Kobold.\u201D",
+    "\xAB Et alors ? Je peux d\xE9tester mon travail ! J'ai besoin de pommes. Beaucoup de pommes. Les potions, \xE7a br\xFBle la gorge. \xBB": "\u201CSo what? I can hate my job! I need apples. Lots of apples. Potions burn my throat.\u201D",
+    "\xAB Encore toi\u2026 \xBB": "\u201CYou again\u2026\u201D",
+    "\xAB J'ai des pommes. Mais pour toi, c'est plus cher. Paie d'abord. \xBB": "\u201CI have apples. But for you, it's more expensive. Pay first.\u201D",
+    "\xAB H\xE9 ! Mon humain pr\xE9f\xE9r\xE9 ! \xBB": "\u201CHey! My favorite human!\u201D",
+    "\xAB J'ai encore des pommes. Tu as de l'or ? \xBB": "\u201CI still have apples. Got gold?\u201D",
+    "\xAB Les affaires marchent ! Tu veux investir ? \xBB": "\u201CBusiness is booming! Want to invest?\u201D",
+    "Vous : \xAB Dans quoi ? \xBB": "You: \u201CIn what?\u201D",
+    "\xAB Des pommes. \xBB": "\u201CApples.\u201D",
+    "\xAB Finalement, le donjon n'est pas si mal. \xBB": "\u201CThe dungeon's not so bad after all.\u201D",
+    "Vous : \xAB Tu as chang\xE9 d'avis ? \xBB": "You: \u201CYou changed your mind?\u201D",
+    "\xAB Non. J'ai trouv\xE9 une meilleure cachette. \xBB": "\u201CNo. I found a better hiding place.\u201D",
+    "Force": "Strength",
+    "Agilit\xE9": "Agility",
+    "Intelligence": "Intelligence",
+    "Charisme": "Charisma",
+    "Heaume": "Helm",
+    "Armure": "Armor",
+    "Corps \xE0 corps": "Melee",
+    "Distance": "Ranged",
+    "Sac": "Bag",
+    "Commun": "Common",
+    "Peu commun": "Uncommon",
+    "Rare": "Rare",
+    "\xC9p\xE9e courte": "Short sword",
+    "Une lame courte et droite, sans garde ni fioriture. Fiable.": "A short, straight blade, no guard, no frills. Reliable.",
+    "Dague": "Dagger",
+    "Courte et vive, faite pour les coups en tra\xEEtre.": "Short and quick, made for treacherous strikes.",
+    "B\xE2ton": "Staff",
+    "Un b\xE2ton de marche. Mieux que rien.": "A walking stick. Better than nothing.",
+    "Arc court": "Short bow",
+    "Un arc de chasse en bois nu.": "A plain wooden hunting bow.",
+    "Arc puissant": "Longbow",
+    "Un arc recourb\xE9 aux bouts de corne. Il porte loin, et la fl\xE8che part droit.": "A recurved bow with horn tips. It shoots far, and the arrow flies true.",
+    "Fl\xE8ches": "Arrows",
+    "Munitions pour l'arc.": "Ammunition for the bow.",
+    "Javelines": "Javelins",
+    "Se lance \xE0 la main, sans arc. Moins pr\xE9cise qu'une fl\xE8che, mais frappe fort ; se ramasse.": "Thrown by hand, no bow needed. Less accurate than an arrow, but hits hard; can be picked up again.",
+    "Fl\xE8ches empoisonn\xE9es": "Poisoned arrows",
+    "La pointe luit d'un enduit verd\xE2tre. La plaie br\xFBle encore plusieurs tours.": "The tip gleams with a greenish coating. The wound keeps burning for several turns.",
+    "Pomme": "Apple",
+    "Croquante. Rend 5 PV.": "Crunchy. Restores 5 HP.",
+    "Torche": "Torch",
+    "Une fois allum\xE9e, elle \xE9claire autour de vous pendant 100 tours. Mais on vous voit venir.": "Once lit, it lights up your surroundings for 100 turns. But they see you coming.",
+    "\xC9p\xE9e longue": "Longsword",
+    "Lourde et longue, elle se tient \xE0 deux mains. Chaque coup prend du temps, mais il porte, et peut assommer.": "Long and heavy, held in both hands. Each blow takes time, but it lands, and can stun.",
+    "Couteau de boucher": "Butcher's knife",
+    "Une lame large et lourde du bout, faite pour trancher la viande. Vive en main.": "A broad blade, heavy at the tip, made for carving meat. Quick in the hand.",
+    "Lance": "Spear",
+    "Frappe \xE0 deux cases : on touche l'ennemi avant qu'il n'arrive au contact. \xC0 deux mains.": "Strikes two squares away: you hit the enemy before it reaches you. Two-handed.",
+    "Une lame courbe qui danse. Rapide et cruelle.": "A curved, dancing blade. Fast and cruel.",
+    "Cuir clout\xE9": "Studded leather",
+    "Du cuir \xE9pais renforc\xE9 de rivets d'acier. Solide sans faire de bruit.": "Thick leather reinforced with steel rivets. Sturdy and quiet.",
+    "Casque de cuir": "Leather cap",
+    "Une calotte de cuir bouilli, cousue, avec deux prot\xE8ge-oreilles. Mieux que rien.": "A cap of boiled, stitched leather with two ear flaps. Better than nothing.",
+    "Casque de maille": "Mail coif",
+    "Un camail d'anneaux d'acier qui couvre la t\xEAte et la nuque, le visage d\xE9gag\xE9.": "A hood of steel rings covering head and neck, face uncovered.",
+    "Clef": "Key",
+    "Ouvre une salle ferm\xE9e de l'\xE9tage o\xF9 on l'a trouv\xE9e, sans bruit. Ne sert qu'une fois.": "Silently opens a locked room on the floor where it was found. Single use.",
+    "Bourse d'or": "Gold purse",
+    "Un petit sac de cuir ferm\xE9 par une cordelette. Son or rejoint votre bourse d\xE8s que vous marchez dessus.": "A small leather bag tied with a cord. Its gold joins your purse as soon as you step on it.",
+    "Tunique": "Tunic",
+    "Une tunique blanche, serr\xE9e par une ceinture de cuir.": "A white tunic, cinched with a leather belt.",
+    "Harnois": "Plate armor",
+    "Des plaques d'acier qui couvrent tout le corps. Presque rien ne passe, mais on l'entend venir de loin.": "Steel plates covering the whole body. Almost nothing gets through, but they hear you coming from afar.",
+    "Cotte de mailles": "Chain mail",
+    "Des anneaux de fer rivet\xE9s. Lourde et s\xFBre, mais elle cliquette : on se cache moins bien.": "Riveted iron rings. Heavy and safe, but it jingles: harder to hide.",
+    "Armure de cuir": "Leather armor",
+    "Du cuir bouilli, souple et silencieux.": "Boiled leather, supple and silent.",
+    "Am\xE9thyste": "Amethyst",
+    "Une pierre violette, taill\xE9e en brillant.": "A violet stone, brilliant cut.",
+    "Saphir": "Sapphire",
+    "Un bleu profond qui accroche la moindre lueur.": "A deep blue that catches the faintest glimmer.",
+    "\xC9meraude": "Emerald",
+    "Taill\xE9e \xE0 degr\xE9s, d'un vert tr\xE8s pur.": "Step cut, a very pure green.",
+    "Diamant": "Diamond",
+    "Il brille m\xEAme dans le noir. Ou presque.": "It shines even in the dark. Almost.",
+    "Sac en toile": "Canvas bag",
+    "Un sac de toile grossi\xE8re. 6 \xD7 4 cases.": "A bag of coarse canvas. 6 \xD7 4 squares.",
+    "Sac de cuir": "Leather bag",
+    "Un sac \xE0 rabat, solide. 7 \xD7 5 cases.": "A sturdy flap bag. 7 \xD7 5 squares.",
+    "Sac d'aventurier": "Adventurer's pack",
+    "Un grand sac \xE0 dos, couverture roul\xE9e dessus. 8 \xD7 6 cases.": "A big backpack with a bedroll on top. 8 \xD7 6 squares.",
+    "Potion de jouvence": "Youth potion",
+    "Jaune et p\xE9tillante. Rend tous vos points \xE0 r\xE9partir, plus un. La voie choisie, elle, ne change pas.": "Yellow and fizzy. Gives back all your spent points, plus one. Your chosen path stays the same.",
+    "Potion de poison": "Poison potion",
+    "Enduire : vos 15 prochains coups qui portent empoisonnent. Lancer : un nuage empoisonn\xE9 en croix.": "Coat: your next 15 hits poison. Throw: a poison cloud in a cross.",
+    "Potion de vitesse": "Speed potion",
+    "Pendant 4 tours, chaque attaque au corps \xE0 corps frappe deux fois.": "For 4 turns, every melee attack strikes twice.",
+    "Potion de feu": "Fire potion",
+    "\xC0 lancer : la case vis\xE9e et ses quatre voisines br\xFBlent pendant 5 tours.": "To throw: the target square and its four neighbors burn for 5 turns.",
+    "Fiole de fum\xE9e": "Smoke flask",
+    "Robe": "Robe",
+    "Une robe d'\xE9tude. Elle ne prot\xE8ge gu\xE8re.": "A scholar's robe. It barely protects.",
+    "Arme de corps \xE0 corps": "Melee weapon",
+    "Arme \xE0 distance": "Ranged weapon",
+    "Munition": "Ammunition",
+    "Objet utile": "Useful item",
+    "Monnaie": "Currency",
+    "\xC0 utiliser": "Consumable",
+    "Pierre pr\xE9cieuse": "Gemstone",
+    "Krik": "Krik",
+    "\xAB Bonjour aventurier ! \xBB": "\u201CHello, adventurer!\u201D",
+    "Vous : \xAB Tu vends quelque chose ? \xBB": "You: \u201CSelling something?\u201D",
+    "\xAB Oui. Des objets vol\xE9s \xE0 mes camarades. \xBB": "\u201CYes. Things stolen from my comrades.\u201D",
+    "Vous : \xAB Tu es honn\xEAte, au moins. \xBB": "You: \u201CHonest, at least.\u201D",
+    "\xAB Non. Je suis malade. Une exp\xE9rience rat\xE9e, au laboratoire. Depuis, je ne peux plus mentir. \xBB": "\u201CNo. I'm sick. A failed experiment in the lab. Since then, I can't lie.\u201D",
+    "\xAB Mes camarades savent que je les ai trahis. \xBB": "\u201CMy comrades know I betrayed them.\u201D",
+    "Vous : \xAB Pourquoi les avoir trahis ? \xBB": "You: \u201CWhy did you betray them?\u201D",
+    "\xAB Parce que je voulais garder tout le butin. Maintenant, ils veulent me tuer. Tu peux m'aider ? \xBB": "\u201CBecause I wanted to keep all the loot. Now they want to kill me. Can you help me?\u201D",
+    "\xAB Toi ! Tu m'as\u2026 non, je suis ravi de te voir. Vraiment. \xBB": "\u201CYou! You turned me\u2026 no, I'm delighted to see you. Really.\u201D",
+    "\xAB Je vais beaucoup mieux ! \xBB": "\u201CI'm much better!\u201D",
+    "Vous : \xAB Tu mens ? \xBB": "You: \u201CAre you lying?\u201D",
+    "\xAB Non. \xBB": "\u201CNo.\u201D",
+    "Vous : \xAB Donc tu mens. \xBB": "You: \u201CSo you're lying.\u201D",
+    "\xAB \u2026 \xBB": "\u201C\u2026\u201D",
+    "\xAB Ah. Le d\xE9lateur. Les affaires sont les affaires : entre. \xBB": "\u201CAh. The snitch. Business is business: come in.\u201D",
+    "\xAB J'ai fait fortune ! \xBB": "\u201CI made a fortune!\u201D",
+    "Vous : \xAB Comment ? \xBB": "You: \u201CHow?\u201D",
+    "\xAB En vendant les m\xEAmes objets trois fois. \xBB": "\u201CBy selling the same items three times.\u201D",
+    "Pas d'questions, pas d'soucis\u2026": "No questions, no worries\u2026",
+    "Tout est d'origine. Presque.": "All original. Almost.",
+    "Prix d'ami. Enfin\u2026 d'ami.": "Friend's price. Well\u2026 friend's.",
+    "Chut. Les murs ont des oreilles pointues.": "Shh. The walls have pointy ears.",
+    "Kobold": "Kobold",
+    "Petit pillard \xE9cailleux \xE0 cornes des premi\xE8res galeries. Il dort volontiers, mais une fois r\xE9veill\xE9 il ne l\xE2che plus sa proie.": "A small scaly, horned raider of the upper tunnels. Likes to sleep, but once awake it never lets go of its prey.",
+    "Kobold frondeur": "Kobold slinger",
+    "Un Kobold en jaque de cuir, fronde \xE0 la main. Il garde ses distances, tire de loin et recule derri\xE8re les colonnes quand on l'approche.": "A Kobold in a leather jerkin, sling in hand. It keeps its distance, shoots from afar and backs off behind pillars when approached.",
+    "Araign\xE9e": "Spider",
+    "araign\xE9es": "spiders",
+    "Elle guette dans les coins sombres, pr\xE8s de ses toiles. Tr\xE8s vive quand elle fond sur sa proie, et sa morsure colle.": "It lurks in dark corners near its webs. Very fast when it pounces, and its bite sticks.",
+    "la Tisseuse": "the Weaver",
+    "Reine des araign\xE9es, grosse comme un chariot, l'abdomen marqu\xE9 d'un cr\xE2ne. Elle sent chaque vibration de sa toile, avance pour mordre puis recule dans l'ombre.": "Queen of the spiders, big as a cart, a skull marked on her abdomen. She feels every vibration of her web, comes forward to bite, then retreats into the shadows.",
+    "Humain": "Human",
+    "Polyvalent et endurant.": "Versatile and enduring.",
+    "Robuste : 2 points de vie suppl\xE9mentaires.": "Sturdy: 2 extra hit points.",
+    "Petit et chanceux.": "Small and lucky.",
+    "Chanceux : relance tout 1 obtenu au d\xE9 \xE0 20 faces.": "Lucky: rerolls every 1 on the d20.",
+    "Elfe": "Elf",
+    "Une vue per\xE7ante.": "Keen sight.",
+    "Voit plus loin dans le noir et rep\xE8re les pi\xE8ges.": "Sees farther in the dark and spots traps.",
+    "Second souffle": "Second wind",
+    "Une fois par \xE9tage, en un tour : +5 PV. Se renforce.": "Once per floor, in one turn: +5 HP. Gets stronger.",
+    "+5 PV, une fois par \xE9tage": "+5 HP, once per floor",
+    "+8 PV, une fois par \xE9tage": "+8 HP, once per floor",
+    "+12 PV, deux fois par \xE9tage": "+12 HP, twice per floor",
+    "Peau dure": "Thick skin",
+    "+1 \xE0 la classe d'armure": "+1 armor class",
+    "+2 \xE0 la classe d'armure": "+2 armor class",
+    "+3 \xE0 la classe d'armure": "+3 armor class",
+    "R\xE9cup\xE9ration": "Recovery",
+    "Le repos rend 65 % des PV manquants": "Resting restores 65% of missing HP",
+    "Le repos rend 80 % des PV manquants": "Resting restores 80% of missing HP",
+    "Le repos rend tous les PV manquants": "Resting restores all missing HP",
+    "Dernier rempart": "Last stand",
+    "Un coup mortel vous laisse \xE0 1 PV (1 fois par \xE9tage)": "A deadly blow leaves you at 1 HP (once per floor)",
+    "Un coup mortel vous laisse \xE0 5 PV (1 fois par \xE9tage)": "A deadly blow leaves you at 5 HP (once per floor)",
+    "Un coup mortel vous laisse \xE0 5 PV (2 fois par \xE9tage)": "A deadly blow leaves you at 5 HP (twice per floor)",
+    "Double frappe": "Double strike",
+    "Une fois par \xE9tage : deux coups d'\xE9p\xE9e en un seul tour. Se renforce.": "Once per floor: two sword strikes in a single turn. Gets stronger.",
+    "Une fois par \xE9tage": "Once per floor",
+    "Deux fois par \xE9tage": "Twice per floor",
+    "Trois fois par \xE9tage": "Three times per floor",
+    "Coup puissant": "Power strike",
+    "Critique sur 19 ou 20": "Critical on 19 or 20",
+    "Critique sur 18 \xE0 20": "Critical on 18 to 20",
+    "Critique sur 17 \xE0 20": "Critical on 17 to 20",
+    "Encha\xEEnement": "Follow-through",
+    "Tuer rend une double frappe (1 par \xE9tage)": "A kill grants a double strike (1 per floor)",
+    "Tuer rend une double frappe (2 par \xE9tage)": "A kill grants a double strike (2 per floor)",
+    "Tuer rend une double frappe (3 par \xE9tage)": "A kill grants a double strike (3 per floor)",
+    "Rage": "Rage",
+    "+1 d\xE9g\xE2t sous la moiti\xE9 des PV": "+1 damage below half HP",
+    "+2 d\xE9g\xE2ts sous la moiti\xE9 des PV": "+2 damage below half HP",
+    "+3 d\xE9g\xE2ts sous la moiti\xE9 des PV": "+3 damage below half HP",
+    "Vie": "Health",
+    "+4 PV max": "+4 max HP",
+    "pousser, d\xE9g\xE2ts au contact": "shove, melee damage",
+    "esquive, tir, pi\xE8ges, serrures": "dodge, shooting, traps, locks",
+    "magie (\xE0 venir)": "magic (coming soon)",
+    "qu\xEAtes, marchands (\xE0 venir)": "quests, merchants (coming soon)",
+    "S\u0153ur Osseuse": "Sister Bones",
+    "\xAB Halte. On ne court pas dans une chapelle. \xBB": "\u201CHalt. No running in a chapel.\u201D",
+    "Vous : \xAB Vous \xEAtes\u2026 un squelette. \xBB": "You: \u201CYou're\u2026 a skeleton.\u201D",
+    "\xAB Quelle grossi\xE8ret\xE9. \xBB": "\u201CHow rude.\u201D",
+    "Vous : \xAB Pourquoi \xEAtes-vous si f\xE2ch\xE9e ? \xBB": "You: \u201CWhy are you so angry?\u201D",
+    "\xAB Parce que je suis contrari\xE9e. Les Kobolds ont vol\xE9 ma cloche. MA cloche. \xBB": "\u201CBecause I am upset. The Kobolds stole my bell. MY bell.\u201D",
+    "\xAB Vous encore. \xBB": "\u201CYou again.\u201D",
+    "\xAB Je vous pr\xE9viens : NE PARLONS PAS DE LA CLOCHE. \xBB": "\u201CI'm warning you: WE DO NOT TALK ABOUT THE BELL.\u201D",
+    "\xAB Ah. Celui qui parle de cloches. \xBB": "\u201CAh. The one who talks about bells.\u201D",
+    "\xAB Mon enfant ! Venez voir ! \xBB": "\u201CMy child! Come and see!\u201D",
+    "(Deux Kobolds en robe de bure prient \xE0 c\xF4t\xE9 d'elle, tr\xE8s sages.)": "(Two Kobolds in sackcloth robes pray beside her, very well-behaved.)",
+    "\xAB Mes fid\xE8les. Ils ont trouv\xE9 la foi. Ils chantent faux, mais ils chantent. \xBB": "\u201CMy faithful. They have found faith. They sing off-key, but they sing.\u201D",
+    "BOUM ! BOUM !": "BOOM! BOOM!",
+    "\xAB J'ai maintenant un tambour. Il est beaucoup plus bruyant. \xBB": "\u201CI now have a drum. It is much louder.\u201D",
+    "Vous : \xAB Et la cloche ? \xBB": "You: \u201CAnd the bell?\u201D",
+    "\xAB Quelle cloche ? \xBB": "\u201CWhat bell?\u201D",
+    "Salle de l'autel": "Altar room",
+    "Salle au tr\xE9sor": "Treasure room",
+    "Forge": "Forge",
+    "Alchimiste": "Alchemist",
+    "Cuisine": "Kitchen",
+    "Salle de pri\xE8re": "Prayer room",
+    "Salle de torture": "Torture chamber",
+    "Dortoir": "Dormitory",
+    "pi\xE8ge \xE0 pointes": "spike trap",
+    "aiguille empoisonn\xE9e": "poisoned needle",
+    "gaz empoisonn\xE9": "poison gas",
+    "Cave Roller \u2014 d\xE9mo": "Cave Roller \u2014 demo",
+    "Partie reprise : \xE9tage {0}, tour {1}.": "Game resumed: floor {0}, turn {1}.",
+    "Combats : oui": "Combat: on",
+    "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.": "Test room: the latest additions, always in the same place.",
+    "Ici : les nouveaux objets. L'escalier du coin en bas \xE0 droite m\xE8ne au boss. \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous.": "Here: the new items. The stairs in the bottom-right corner lead to the boss. \u201CWake\u201D: every monster rushes at you.",
+    "Vous incarnez un {0}. Touchez un monstre pour l'attaquer.": "You play a {0}. Tap a monster to attack it.",
+    "Graine {0}": "Seed {0}",
+    "Vous": "You",
+    "{0} \xB7 avantage": "{0} \xB7 advantage",
+    "{0} \xB7 d\xE9savantage": "{0} \xB7 disadvantage",
+    "Avantage !": "Advantage!",
+    "D\xE9savantage": "Disadvantage",
+    "Opportunit\xE9 !": "Opening!",
+    "Rat\xE9": "Miss",
+    "CRAC !": "CRACK!",
+    "BOUM": "BOOM",
+    "Cling !": "Clink!",
+    "Chance !": "Lucky!",
+    "BONG": "BONG",
+    "Pschh !": "Pssht!",
+    "+{0} or": "+{0} gold",
+    "Sac plein": "Bag full",
+    "Pfft !": "Pfft!",
+    "Psst !": "Psst!",
+    "Pointe ! \u2212{0}": "Spike! \u2212{0}",
+    "D\xE9samorc\xE9": "Disarmed",
+    "+{0} XP": "+{0} XP",
+    "\xC9vit\xE9 !": "Dodged!",
+    "Le donjon s'agite": "The dungeon stirs",
+    "Alerte !": "Alert!",
+    "Traque !": "Hunted!",
+    "Feu !": "Fire!",
+    "+{0} PV": "+{0} HP",
+    "Dernier rempart !": "Last stand!",
+    "Ralenti": "Slowed",
+    "A\xEFe ! L'\u0153il !": "Ouch! My eye!",
+    "DONG !": "DONG!",
+    "Grr !": "Grr!",
+    "H\xE9 !": "Hey!",
+    "Assomm\xE9 !": "Stunned!",
+    "Projet\xE9 !": "Knocked back!",
+    "Net !": "Clean!",
+    "Cach\xE9": "Hidden",
+    "Visible": "Visible",
+    "Plic": "Plip",
+    "Ploc": "Plop",
+    "Crik": "Creak",
+    "Crak": "Crack",
+    "D\xE9gag\xE9 !": "Free!",
+    "BAM ! \u2212{0}": "BAM! \u2212{0}",
+    "Pouss\xE9 !": "Shoved!",
+    "Gaz !": "Gas!",
+    "Fosse ! \u2212{0}": "Pit! \u2212{0}",
+    "Aiguille ! \u2212{0}": "Needle! \u2212{0}",
+    "Pi\xE8ge ! \u2212{0}": "Trap! \u2212{0}",
+    "Trouv\xE9 !": "Found!",
+    "B\xE9ni !": "Blessed!",
+    "Fin de la d\xE9mo": "End of the demo",
+    "La Tisseuse est vaincue : la premi\xE8re section du donjon est termin\xE9e.": "The Weaver is defeated: the first section of the dungeon is complete.",
+    "Niveau {0} \xB7 {1} pi\xE8ces d'or": "Level {0} \xB7 {1} gold coins",
+    "Merci d'avoir jou\xE9 ! La suite du donjon arrive bient\xF4t.": "Thanks for playing! More of the dungeon is coming soon.",
+    "Continuer \xE0 explorer": "Keep exploring",
+    "Nouvelle partie": "New game",
+    "Niveau {0} : le maximum avant d'avoir vaincu le boss de la section.": "Level {0}: the maximum until you beat this section's boss.",
+    "Vous \xEAtes mort": "You died",
+    "\xC0 l'\xE9tage {0}, tu\xE9 par {1}.": "On floor {0}, killed by {1}.",
+    "Nouveau record !": "New record!",
+    "{0}e meilleure partie": "Best run #{0}",
+    "Aucune partie termin\xE9e pour l'instant.": "No finished runs yet.",
+    "Vous renoncez \xE0 pousser.": "You give up on shoving.",
+    "Vous gardez la potion.": "You keep the potion.",
+    "Vous renoncez \xE0 vous d\xE9gager.": "You give up on breaking free.",
+    "Fouiller": "Search",
+    "Pousser": "Shove",
+    "Se d\xE9gager": "Break free",
+    "Utiliser un objet": "Use an item",
+    "Se reposer": "Rest",
+    "Se cacher": "Hide",
+    "Comp\xE9tence de voie": "Path skill",
+    "Objet": "Item",
+    "Aucun raccourci : dans le sac, restez appuy\xE9 sur une pomme, une torche ou une potion.": "No shortcut: in the bag, press and hold an apple, a torch or a potion.",
+    "Plus de {0} dans le sac.": "No more {0} in the bag.",
+    "Il faut \xEAtre niveau {0} pour cela.": "You must be level {0} for that.",
+    "Touchez la case o\xF9 lancer la potion.": "Tap the square to throw the potion at.",
+    "Votre arme se tient \xE0 deux mains : pas de main libre pour la torche.": "Your weapon is two-handed: no free hand for the torch.",
+    "Vous \xEAtes d\xE9j\xE0 en pleine sant\xE9.": "You are already at full health.",
+    "D\xE9gager": "Break free",
+    "Repos": "Rest",
+    "Cacher": "Hide",
+    "Voie": "Path",
+    "Personne \xE0 pousser : aucun ennemi au contact.": "No one to shove: no enemy next to you.",
+    "Touchez l'ennemi \xE0 pousser.": "Tap the enemy to shove.",
+    "Touchez la case o\xF9 sauter.": "Tap the square to jump to.",
+    "{0} : pas encore possible.": "{0}: not possible yet.",
+    "Aucun ennemi au contact.": "No enemy next to you.",
+    "Aucun arc en main.": "No bow in hand.",
+    "Votre arme se tient \xE0 deux mains : pas de main libre pour tirer ou lancer.": "Your weapon is two-handed: no free hand to shoot or throw.",
+    "Plus de munitions.": "Out of ammunition.",
+    "Impossible de tirer l\xE0.": "Can't shoot there.",
+    "Hors de port\xE9e ({0} cases).": "Out of range ({0} squares).",
+    "Votre {0} se tient \xE0 deux mains : pas de main libre pour tirer ou lancer.": "Your {0} is two-handed: no free hand to shoot or throw.",
+    "Un ennemi est au contact : pas le temps de bander l'arc.": "An enemy is next to you: no time to draw the bow.",
+    "Plus de fl\xE8ches.": "Out of arrows.",
+    "Cible vis\xE9e : touchez encore la fl\xE8che pour tirer, ou une autre case.": "Target locked: tap the arrow again to shoot, or another square.",
+    "Personne \xE0 port\xE9e : touchez une case pour tirer.": "No one in range: tap a square to shoot.",
+    "Au sol": "On the ground",
+    "Ramasser": "Pick up",
+    "Fiche de l'objet": "Item sheet",
+    "Attendre un tour": "Wait one turn",
+    "Actions": "Actions",
+    "Menu": "Menu",
+    "Recentrer la vue": "Recenter view",
+    "Ne rien faire": "Do nothing",
+    "Tirer \xE0 l'arc": "Shoot the bow",
+    "Le h\xE9ros : inventaire et personnage": "The hero: inventory and character",
+    "Le h\xE9ros": "The hero",
+    "\xAB {0} \xBB": "\u201C{0}\u201D",
+    "Bourse : {0} or": "Purse: {0} gold",
+    "Plus rien \xE0 vendre\u2026 mais je rach\xE8te.": "Nothing left to sell\u2026 but I'm buying.",
+    "Acheter ({0} or)": "Buy ({0} gold)",
+    "Pas assez d'or.": "Not enough gold.",
+    "Votre sac est plein.": "Your bag is full.",
+    "Rien qui m'int\xE9resse dans ce sac.": "Nothing in this bag interests me.",
+    "Vendre {0} or": "Sell {0} gold",
+    "Pouf !": "Poof!",
+    "Vous :": "You:",
+    "Continuer": "Continue",
+    "Jet de {0}": "Roll {0}",
+    "{0} d\xE9g\xE2ts par tour": "{0} damage per turn",
+    "m\xEAme CA": "same AC",
+    "{0} CA ({1} % de coups {2} en plus)": "{0} AC ({1} % more hits {2})",
+    "\xE9vit\xE9s": "dodged",
+    "re\xE7us": "taken",
+    "{0} au jet, {1} de port\xE9e": "{0} to hit, {1} range",
+    "Attaque": "Attack",
+    "D\xE9g\xE2ts": "Damage",
+    "Port\xE9e": "Range",
+    "Allonge": "Reach",
+    "Vitesse": "Speed",
+    "Lente": "Slow",
+    "Rapide": "Fast",
+    "Prise": "Grip",
+    "Deux mains (l'arc retourne au sac ; ni javeline, ni torche)": "Two-handed (the bow goes back in the bag; no javelin, no torch)",
+    "Assomme": "Stuns",
+    "sur un {0} ou plus au d\xE9": "on a {0} or higher on the die",
+    "Discr\xE9tion": "Stealth",
+    "\u2212{0} (bruyante)": "\u2212{0} (noisy)",
+    "Poison": "Poison",
+    "{0} / tour, {1} tours": "{0} / turn, {1} turns",
+    "Soin": "Healing",
+    "Lumi\xE8re": "Light",
+    "Niveau": "Level",
+    "(trop bas)": "(too low)",
+    "+{0} CA": "+{0} AC",
+    "Place": "Space",
+    "deux mains": "two-handed",
+    "assomme sur {0}+": "stuns on {0}+",
+    "discr\xE9tion \u2212{0}": "stealth \u2212{0}",
+    "port\xE9e {0}": "range {0}",
+    "{0} \xD7 {1} cases": "{0} \xD7 {1} squares",
+    "Carquois : touchez pour changer de fl\xE8ches": "Quiver: tap to change arrows",
+    "Il faut \xEAtre niveau {0} pour tirer {1}.": "You must be level {0} to shoot {1}.",
+    "Touchez un objet pour le choisir, puis une case libre pour le d\xE9placer. Appui long sur une pomme, une torche ou une potion : raccourci \xAB Objet \xBB.": "Tap an item to pick it, then an empty square to move it. Long press on an apple, a torch or a potion: \u201CItem\u201D shortcut.",
+    "\u2014 \xE9tage {0}{1}": "\u2014 floor {0}{1}",
+    ", ne sert plus ici": ", no use here",
+    "port\xE9": "worn",
+    "Fermer la fiche": "Close the sheet",
+    "Raccourci \xAB\xA0Objet\xA0\xBB de la barre d'actions.": "\u201CItem\u201D shortcut in the action bar.",
+    "Retirer": "Remove",
+    "Lancer": "Throw",
+    "Enduire": "Coat",
+    "Boire": "Drink",
+    "Consommer": "Eat",
+    "\xC9quiper": "Equip",
+    "{0} : pas de raccourci (seulement pomme, torche, potions).": "{0}: no shortcut (only apple, torch, potions).",
+    "Raccourci \xAB\xA0Objet\xA0\xBB retir\xE9.": "\u201CItem\u201D shortcut removed.",
+    "Raccourci \xAB\xA0Objet\xA0\xBB : {0}.": "\u201CItem\u201D shortcut: {0}.",
+    "Arme \xE0 deux mains : votre arc retourne dans le sac.": "Two-handed weapon: your bow goes back in the bag.",
+    "Une arme \xE0 deux mains ? Votre torche br\xFBle encore dans l'autre main.": "A two-handed weapon? Your torch is still burning in your other hand.",
+    "Votre arme se tient \xE0 deux mains : rangez-la d'abord pour prendre un arc.": "Your weapon is two-handed: put it away first to take a bow.",
+    "Ce sac est trop petit pour tout ce que vous portez.": "This bag is too small for everything you carry.",
+    "Pas assez de place dans le sac pour \xE9changer.": "Not enough room in the bag to swap.",
+    "Voie choisie : {0}.": "Path chosen: {0}.",
+    "Les monstres ne vous remarquent qu'au contact. Votre premi\xE8re attaque a l'avantage.": "Monsters only notice you up close. Your first attack has advantage.",
+    "En feu": "On fire",
+    "1d4 d\xE9g\xE2ts par tour. Sortez des flammes !": "1d4 damage per turn. Get out of the flames!",
+    "Empoisonn\xE9": "Poisoned",
+    "Vous perdez {0} PV par tour. Encore {1} tours.": "You lose {0} HP per turn. {1} turns left.",
+    "Englu\xE9": "Stuck",
+    "Votre prochain pas servira \xE0 vous d\xE9gager. Vous pouvez encore frapper.": "Your next step will be spent breaking free. You can still strike.",
+    "Torche allum\xE9e": "Torch lit",
+    "Vous \xE9clairez autour de vous, mais on vous voit venir. Encore {0} tours.": "You light up your surroundings, but they see you coming. {0} turns left.",
+    "Arme empoisonn\xE9e": "Poisoned weapon",
+    "Vos coups qui portent empoisonnent. Encore {0} coups.": "Your hits that land poison. {0} hits left.",
+    "B\xE9ni": "Blessed",
+    "La pomme dor\xE9e de l'autel : +1 \xE0 l'attaque et +1 classe d'armure. Encore {0} tours.": "The altar's golden apple: +1 to attack and +1 armor class. {0} turns left.",
+    "Protection": "Protection",
+    "La b\xE9n\xE9diction de S\u0153ur Osseuse : +1 classe d'armure. Encore {0} tours.": "Sister Bones' blessing: +1 armor class. {0} turns left.",
+    "Clart\xE9": "Clarity",
+    "Le poison vous ronge deux fois moins longtemps, sur cet \xE9tage.": "Poison eats at you half as long, on this floor.",
+    "Mal\xE9diction des Kobolds": "Curse of the Kobolds",
+    "+2 d\xE9g\xE2ts contre les Kobolds, sur cet \xE9tage.": "+2 damage against Kobolds, on this floor.",
+    "Chance": "Luck",
+    "Vos {0} au d\xE9 {1}.": "Your {0} on the die {1}.",
+    "{0} prochains 1": "next {0} rolls of 1",
+    "prochain 1": "next roll of 1",
+    "seront relanc\xE9s": "will be rerolled",
+    "sera relanc\xE9": "will be rerolled",
+    "Acc\xE9l\xE9r\xE9": "Hasted",
+    "Chaque attaque au contact frappe deux fois. Encore {0} tours.": "Every melee attack strikes twice. {0} turns left.",
+    "Pr\xEAt : un coup qui vous tuerait vous laissera \xE0 {0} PV.": "Ready: a blow that would kill you leaves you at {0} HP.",
+    "agit\xE9": "restless",
+    "Le temps et le bruit la font monter.": "Time and noise make it rise.",
+    "Des renforts arrivent.": "Reinforcements are coming.",
+    "Les renforts arrivent plus vite.": "Reinforcements come faster.",
+    "L'\xE9tage sait o\xF9 vous \xEAtes.": "The floor knows where you are.",
+    "Niveau d'alerte": "Alert level",
+    "{0} \xB7 Niv {1}": "{0} \xB7 Lv {1}",
+    "XP {0}/{1}": "XP {0}/{1}",
+    "{0} point{1} \xE0 attribuer{2}": "{0} point{1} to spend{2}",
+    "(pas en combat)": "(not in combat)",
+    "Un point en {0}": "One point in {0}",
+    "Pas pendant un combat : \xE9loignez-vous d'abord des ennemis.": "Not during a fight: get away from enemies first.",
+    "Intellig.": "Intellig.",
+    "Fouille": "Search",
+    "Classe d'armure": "Armor class",
+    "Choix d\xE9finitif": "Final choice",
+    "Voie \xE0 choisir au niveau {0}": "Path to choose at level {0}",
+    "Rang {0} : {1}": "Rank {0}: {1}",
+    "Rang maximal": "Max rank",
+    "({0} \xE0 cet \xE9tage)": "({0} on this floor)",
+    "Pouvoir du bouton{0}": "Button power{0}",
+    "Am\xE9liorer {0}": "Upgrade {0}",
+    "{0} : rang {1}.": "{0}: rank {1}.",
+    "{0} point{1} de voie \xE0 placer{2}": "{0} path point{1} to spend{2}",
+    "Choisir cette voie (d\xE9finitif)": "Choose this path (final)",
+    "Rien de rencontr\xE9 pour l'instant.": "Nothing encountered yet.",
+    "Rien encore.": "Nothing yet.",
+    "Armes de corps \xE0 corps": "Melee weapons",
+    "Armes \xE0 distance et munitions": "Ranged weapons and ammunition",
+    "Armures": "Armor",
+    "Heaumes": "Helms",
+    "Amulettes": "Amulets",
+    "Artefacts": "Artifacts",
+    "Sacs": "Bags",
+    "Potions et vivres": "Potions and food",
+    "Pierres pr\xE9cieuses et or": "Gemstones and gold",
+    "Divers": "Miscellaneous",
+    "\u2014 d\xE9part : {0}": "\u2014 starting: {0}",
+    "Cr\xE9ature": "Creature",
+    "Famille : {0}": "Family: {0}",
+    "Objets": "Items",
+    "Cr\xE9atures": "Creatures",
+    "Bruitages : {0}": "Sound effects: {0}",
+    "Musique : {0}": "Music: {0}",
+    "Langue : {0}": "Language: {0}",
+    "English": "English",
+    "Fran\xE7ais": "Fran\xE7ais",
+    "Vue {0} / {1}": "View {0} / {1}",
+    "Points de vie : {0}": "Hit points: {0}",
+    "Vue dans le noir : {0} cases": "Sight in the dark: {0} squares",
+    "Vue des zones \xE9clair\xE9es : {0} cases": "Sight in lit areas: {0} squares",
+    "Trait \u2014 {0}": "Trait \u2014 {0}",
+    "PV {0} \xB7 CA {1}": "HP {0} \xB7 AC {1}",
+    "Crocheter une serrure : d20 {0}": "Pick a lock: d20 {0}",
+    "Enfoncer une porte : d20 {0}": "Break down a door: d20 {0}",
+    "\xC9quipement de d\xE9part :": "Starting gear:",
+    "\u2022 {0} : classe d'armure {1}": "\u2022 {0}: armor class {1}",
+    "\u2022 {0} \xD7{1}": "\u2022 {0} \xD7{1}",
+    "\u2022 {0} : d20 {1}, d\xE9g\xE2ts {2}{3}": "\u2022 {0}: d20 {1}, damage {2}{3}",
+    ", port\xE9e {0} cases": ", range {0} squares",
+    "Style \u2014 {0}": "Style \u2014 {0}",
+    "\xC9pique": "Epic",
+    "L\xE9gendaire": "Legendary",
+    "D\xE9tail : {0}": "Detail: {0}",
+    "Bient\xF4t": "Soon",
+    "Pas encore jouable : valeurs provisoires.": "Not playable yet: provisional values.",
+    "Tous les monstres se r\xE9veillent et foncent sur vous !": "Every monster wakes up and rushes at you!",
+    "Combats : non": "Combat: off",
+    "Combats coup\xE9s : les monstres sont retir\xE9s.": "Combat off: monsters are removed.",
+    "Combats r\xE9tablis : les monstres reviennent.": "Combat back on: monsters return.",
+    "Dialogues remis \xE0 z\xE9ro : Gluck, S\u0153ur Osseuse et Krik reprennent depuis le d\xE9but.": "Dialogues reset: Gluck, Sister Bones and Krik start over.",
+    "\xC9TAGE {0}": "FLOOR {0}",
+    "Vous d\xE9gringolez l'escalier\u2026 et vous relevez, un peu sonn\xE9, mais entier.": "You tumble down the stairs\u2026 and get up, a little dazed, but in one piece.",
+    "Frapper": "Strike",
+    "PV {0}/{1}": "HP {0}/{1}",
+    "Niv {0} \xB7 MAX": "Lv {0} \xB7 MAX",
+    "Niv {0} \xB7 XP {1}/{2}": "Lv {0} \xB7 XP {1}/{2}",
+    "D\xE9samorcer": "Disarm",
+    "Crocheter": "Pick",
+    "Forcer": "Force",
+    "Enfoncer": "Break",
+    "Ennemi au contact : vous reprenez votre arme de corps \xE0 corps.": "Enemy next to you: you take back your melee weapon.",
+    "LA TISSEUSE": "THE WEAVER",
+    "Vous tirez sur": "You shoot at",
+    "Vous attaquez": "You attack",
+    "Attaque d'opportunit\xE9 de {0}": "Attack of opportunity from {0}",
+    "{0} vous attaque": "{0} attacks you",
+    "{0} d\xE9g\xE2ts": "{0} damage",
+    "{0} : {1}{2} \u2192 {3} d\xE9g\xE2ts": "{0}: {1}{2} \u2192 {3} damage",
+    "coup critique, {0}": "critical hit, {0}",
+    "touch\xE9, {0}": "hit, {0}",
+    "\xE9chec critique": "critical miss",
+    "rat\xE9": "miss",
+    "(avantage : {0})": "(advantage: {0})",
+    "(d\xE9savantage : {0})": "(disadvantage: {0})",
+    "Vous ouvrez la porte avec la clef.": "You open the door with the key.",
+    "Vous crochetez la serrure": "You pick the lock",
+    "Vous enfoncez la porte": "You break down the door",
+    "elle s'ouvre": "it opens",
+    "elle c\xE8de": "it gives way",
+    "elle r\xE9siste": "it holds",
+    "Il vous faudrait une clef.": "You'd need a key.",
+    "La fl\xE8che se brise.": "The arrow breaks.",
+    "La fl\xE8che rebondit et retombe au sol.": "The arrow bounces and falls to the ground.",
+    "La fl\xE8che se plante au sol.": "The arrow sticks in the ground.",
+    "Bourse : or \xD7{0}": "Purse: gold \xD7{0}",
+    "Pierre pr\xE9cieuse : +{0} or.": "Gemstone: +{0} gold.",
+    "Vous ramassez : {0}{1}.": "You pick up: {0}{1}.",
+    "Niveau {0} ! Un point \xE0 attribuer.": "Level {0}! One point to spend.",
+    "Gluck d\xE9tale, la queue en feu : \xAB A\xEFe a\xEFe a\xEFe ! \xBB \u2014": "Gluck bolts, tail on fire: \u201COw ow ow!\u201D \u2014",
+    "\xAB Mes os ! Mon voile ! \xBB S\u0153ur Osseuse s'enfuit en flammes \u2014": "\u201CMy bones! My veil!\u201D Sister Bones flees in flames \u2014",
+    "\xAB Je br\xFBle ! C'est vrai, en plus ! \xBB Krik d\xE9tale \u2014": "\u201CI'm burning! And it's true!\u201D Krik bolts \u2014",
+    "Gluck s'\xE9trangle, tousse et file \u2014": "Gluck chokes, coughs and runs \u2014",
+    "S\u0153ur Osseuse tousse\u2026 sans poumons, mais elle s'en va \u2014": "Sister Bones coughs\u2026 no lungs, but off she goes \u2014",
+    "\xAB C'est du poison ! Je le sais, je l'ai vol\xE9 ! \xBB Krik file \u2014": "\u201CIt's poison! I know, I stole it!\u201D Krik runs \u2014",
+    "{0}Pouf ! {1} dispara\xEEt dans un petit nuage.{2}{3}": "{0}Poof! {1} vanishes in a little cloud.{2}{3}",
+    "Des pommes roulent par terre.": "Apples roll on the ground.",
+    "De l'or tinte sur les dalles.": "Gold jingles on the flagstones.",
+    "Une statue de pierre. Froide, lourde\u2026 et pleine, on dirait.": "A stone statue. Cold, heavy\u2026 and solid, it seems.",
+    "Jet de force : d20 {0} + {1} = {2} \u2014 CRAC ! La statue s'effondre. Quelque chose brille dans les gravats.": "Strength roll: d20 {0} + {1} = {2} \u2014 CRACK! The statue crumbles. Something glints in the rubble.",
+    "Jet de force : d20 {0} + {1} = {2} \u2014 BONG. La statue tient bon.": "Strength roll: d20 {0} + {1} = {2} \u2014 BONG. The statue holds.",
+    "Chance ! Votre 1 est relanc\xE9.": "Lucky! Your 1 is rerolled.",
+    "Jet de {0} : d20 {1} {2} {3} = {4} \u2014 {5}.": "{0} roll: d20 {1} {2} {3} = {4} \u2014 {5}.",
+    "r\xE9ussi": "success",
+    "Derri\xE8re cette porte, une petite voix compte : \xAB {0}\u2026 {1}\u2026 {2}\u2026 \xBB": "Behind this door, a little voice is counting: \u201C{0}\u2026 {1}\u2026 {2}\u2026\u201D",
+    "Vous collez l'\u0153il au trou\u2026 un doigt crasseux s'y enfonce tout droit. A\xEFe ! Derri\xE8re, la voix reprend : \xAB {0}\u2026 {1}\u2026 {2}\u2026 \xBB": "You put your eye to the hole\u2026 a grimy finger pokes straight in. Ouch! Behind it, the voice goes on: \u201C{0}\u2026 {1}\u2026 {2}\u2026\u201D",
+    "Derri\xE8re la porte, un petit Kobold, le doigt encore en l'air, vous regarde : \xAB \u2026{0} ? \xBB": "Behind the door, a little Kobold, finger still raised, looks at you: \u201C\u2026{0}?\u201D",
+    "DONG ! Bravo. Tout l'\xE9tage sait maintenant que vous \xEAtes l\xE0.": "DONG! Well done. The whole floor now knows you're here.",
+    "DONG ! Les Kobolds vous remercient pour l'invitation.": "DONG! The Kobolds thank you for the invitation.",
+    "DONG ! Encore ? Vous cherchez des amis ?": "DONG! Again? Looking for friends?",
+    "DONG ! Discret comme un troupeau de vaches dans un couloir.": "DONG! As stealthy as a herd of cows in a corridor.",
+    "DONG ! Le donjon applaudit votre sens de la discr\xE9tion.": "DONG! The dungeon applauds your sense of discretion.",
+    "DONG ! Quelle id\xE9e lumineuse. Vraiment.": "DONG! What a bright idea. Really.",
+    "DONG ! Quelque part, un Kobold se l\xE8ve en soupirant.": "DONG! Somewhere, a Kobold gets up with a sigh.",
+    "La pierre du frondeur frappe {0}, qui se retourne contre lui !": "The slinger's stone hits {0}, who turns on him!",
+    "{0} et {1} se bloquent le passage\u2026 et en viennent aux mains !": "{0} and {1} block each other's way\u2026 and come to blows!",
+    "Le coup assomme {0} : il perd son prochain tour.": "The blow stuns {0}: it loses its next turn.",
+    "Coup critique : {0} est projet\xE9 en arri\xE8re !": "Critical hit: {0} is knocked back!",
+    "D'un seul coup !": "In one blow!",
+    "Sac plein : {0}{1} tombe par terre.": "Bag full: {0}{1} falls to the ground.",
+    "Le sac est plein : l'objet reste au sol.": "The bag is full: the item stays on the ground.",
+    "Vous descendez \xE0 l'\xE9tage {0}.{1}": "You go down to floor {0}.{1}",
+    "Vous r\xE9cup\xE9rez {0} PV.": "You recover {0} HP.",
+    "Vous remontez \xE0 l'\xE9tage {0}.": "You go back up to floor {0}.",
+    "Vous vous cachez : {0} \u2014 {1}": "You hide: {0} \u2014 {1}",
+    "r\xE9ussi, les monstres perdent votre trace.": "success, the monsters lose your trail.",
+    "rat\xE9, vous restez visible.": "failed, you stay visible.",
+    "Vous sortez de l'ombre.": "You step out of the shadows.",
+    "Le feu prend dans la toile et court de fil en fil !": "The fire catches in the web and runs from strand to strand!",
+    "Une toile d'araign\xE9e s'embrase et dispara\xEEt.": "A spider web flares up and vanishes.",
+    "Une porte de bois flambe et s'effondre en cendres.": "A wooden door blazes and collapses into ashes.",
+    "Un coffre br\xFBle : son contenu roule \xE0 c\xF4t\xE9.": "A chest burns: its contents roll out beside it.",
+    "Un lit": "A bed",
+    "La table": "The table",
+    "Le tapis": "The rug",
+    "Un tonneau": "A barrel",
+    "Une caisse": "A crate",
+    "Un cocon": "A cocoon",
+    "Un sac d'\u0153ufs": "An egg sac",
+    "Une chaise": "A chair",
+    "{0} prend feu !": "{0} catches fire!",
+    "Une toile d'araign\xE9e ! Force : {0} \u2014 {1}": "A spider web! Strength: {0} \u2014 {1}",
+    "vous la d\xE9chirez en passant.": "you tear through it as you pass.",
+    "rat\xE9, vous voil\xE0 englu\xE9 un tour.": "failed, you're stuck for a turn.",
+    "La morsure de {0} vous englue : votre prochain pas servira \xE0 vous d\xE9gager.": "The bite of {0} sticks to you: your next step will be spent breaking free.",
+    "araign\xE9e": "spider",
+    "l'araign\xE9e": "the spider",
+    "Un pi\xE8ge ! Agilit\xE9 : {0} \u2014 vous l'\xE9vitez d'un bond.": "A trap! Agility: {0} \u2014 you leap out of the way.",
+    "Vous vous d\xE9p\xEAtrez des fils collants.": "You untangle yourself from the sticky threads.",
+    "La grande toile vous colle aux pieds : un tour de plus.": "The great web sticks to your feet: one more turn.",
+    "Vous d\xE9chirez la toile qui vous colle aux pieds : un tour de plus.": "You tear the web stuck to your feet: one more turn.",
+    "Vous crevez un cocon : elle ne s'en nourrira pas.": "You burst a cocoon: she won't feed on it.",
+    "Vous \xE9crasez un sac d'\u0153ufs.": "You crush an egg sac.",
+    "Vous tranchez une amarre de la grande toile (encore {0}). La toile vibre\u2026": "You cut a mooring line of the great web ({0} left). The web quivers\u2026",
+    "Vous tranchez la derni\xE8re amarre !": "You cut the last mooring line!",
+    "La Tisseuse sent vos pas sur sa toile. Elle approche !": "The Weaver feels your steps on her web. She's coming!",
+    "La Tisseuse recule vers un cocon pour s'en nourrir.": "The Weaver retreats to a cocoon to feed.",
+    "La Tisseuse remonte dans sa grande toile.": "The Weaver climbs back into her great web.",
+    "La Tisseuse file par une br\xE8che et dispara\xEEt dans les couloirs\u2026": "The Weaver slips through a gap and vanishes into the corridors\u2026",
+    "La Tisseuse d\xE9vore un cocon : elle reprend {0} PV.": "The Weaver devours a cocoon: she regains {0} HP.",
+    "Bless\xE9e, la Tisseuse fait \xE9clore ses \u0153ufs : des araign\xE9es en sortent !": "Wounded, the Weaver hatches her eggs: spiders crawl out!",
+    "Bless\xE9e, la Tisseuse cherche ses \u0153ufs\u2026 il n'en reste plus.": "Wounded, the Weaver looks for her eggs\u2026 none are left.",
+    "La fl\xE8che fait vibrer la toile. La Tisseuse s'y pr\xE9cipite.": "The arrow makes the web quiver. The Weaver rushes to it.",
+    "La grande toile s'effondre : la Tisseuse tombe sur le dos, sonn\xE9e !": "The great web collapses: the Weaver falls on her back, dazed!",
+    "La grande toile s'effondre : la Tisseuse n'a plus de refuge.": "The great web collapses: the Weaver has no refuge left.",
+    "La Tisseuse se remet sur ses pattes.": "The Weaver gets back on her feet.",
+    "La Tisseuse est morte. La toile qui scellait l'escalier tombe.": "The Weaver is dead. The web sealing the stairs falls.",
+    "Plic, ploc : l'eau clapote sous vos pas\u2026 on vous a entendu !": "Splish, splash: the water laps under your feet\u2026 they heard you!",
+    "Le gravier crisse sous vos pas : on vous a entendu !": "The gravel crunches under your feet: they heard you!",
+    "Le gravier crisse sous vos pas.": "The gravel crunches under your feet.",
+    "Vous tentez de vous d\xE9gager : {0} \u2014 {1}": "You try to break free: {0} \u2014 {1}",
+    "r\xE9ussi, d'un bond.": "success, with one leap.",
+    "rat\xE9, vous restez au contact.": "failed, you stay in contact.",
+    "{0} ne bouge pas.": "{0} doesn't budge.",
+    "{0} heurte le mur : {1} d\xE9g\xE2ts, il est sonn\xE9.": "{0} hits the wall: {1} damage, it's dazed.",
+    "{0} recule, sonn\xE9.": "{0} staggers back, dazed.",
+    "{0} est bloqu\xE9, mais sonn\xE9.": "{0} is blocked, but dazed.",
+    "Vous poussez {0} : {1} \u2014 {2}": "You shove {0}: {1} \u2014 {2}",
+    "La dalle c\xE8de : vous tombez dans une fosse ({0} d\xE9g\xE2ts) et devez en remonter.": "The flagstone gives way: you fall into a pit ({0} damage) and must climb out.",
+    "{0} tombe dans une fosse : {1} d\xE9g\xE2ts.": "{0} falls into a pit: {1} damage.",
+    "Une aiguille empoisonn\xE9e vous pique ({0} d\xE9g\xE2t).": "A poisoned needle pricks you ({0} damage).",
+    "{0} marche sur une aiguille empoisonn\xE9e.": "{0} steps on a poisoned needle.",
+    "Pschhh\u2026 un gaz vert s'\xE9chappe de la grille !": "Pssshh\u2026 a green gas escapes from the grate!",
+    "{0} lib\xE8re un nuage de gaz vert.": "{0} releases a cloud of green gas.",
+    "Vous marchez sur un pi\xE8ge \xE0 pointes : {0} d\xE9g\xE2ts.": "You step on a spike trap: {0} damage.",
+    "{0} tombe sur un pi\xE8ge \xE0 pointes : {1} d\xE9g\xE2ts.": "{0} falls on a spike trap: {1} damage.",
+    "Vous fouillez la salle\u2026": "You search the room\u2026",
+    "Fouille interrompue : un ennemi approche !": "Search interrupted: an enemy is coming!",
+    "vous ne trouvez rien.": "you find nothing.",
+    "vous d\xE9couvrez une cache !": "you discover a stash!",
+    "rien n'est cach\xE9 ici.": "nothing is hidden here.",
+    "Vous fouillez la salle : {0} \u2014 {1}": "You search the room: {0} \u2014 {1}",
+    "Vous vous installez pour vous reposer\u2026": "You settle down to rest\u2026",
+    "Repos interrompu : un ennemi approche !": "Rest interrupted: an enemy is coming!",
+    "Vous vous \xEAtes repos\xE9 : +{0} PV.": "You rested: +{0} HP.",
+    "Vous croquez la pomme dor\xE9e de l'autel{0}. Une douce chaleur vous enveloppe : vous \xEAtes b\xE9ni (+1 \xE0 l'attaque, +1 CA).": "You bite into the altar's golden apple{0}. A gentle warmth wraps around you: you are blessed (+1 to attack, +1 AC).",
+    ": +{0} PV": ": +{0} HP",
+    "La b\xE9n\xE9diction de l'autel s'estompe.": "The altar's blessing fades.",
+    "Vous d\xE9samorcez le sarcophage": "You disarm the sarcophagus",
+    "Vous forcez le sarcophage": "You force the sarcophagus",
+    "r\xE9ussi, il s'ouvre sans mal.": "success, it opens easily.",
+    "rat\xE9, une pointe jaillit : {0} d\xE9g\xE2ts. Il s'ouvre quand m\xEAme.": "failed, a spike shoots out: {0} damage. It opens anyway.",
+    "Le Colporteur ouvre son sac.": "The Peddler opens his bag.",
+    "Vous achetez {0}{1} au Colporteur : {2} or.": "You buy {0}{1} from the Peddler: {2} gold.",
+    "Vous vendez {0}{1} au Colporteur : +{2} or.": "You sell {0}{1} to the Peddler: +{2} gold.",
+    "Des pas approchent : le Colporteur se fond dans l'ombre.": "Footsteps approach: the Peddler melts into the shadows.",
+    "Trop de bruit : le Colporteur plie bagage et dispara\xEEt.": "Too much noise: the Peddler packs up and vanishes.",
+    "Quelque part, le Colporteur a pli\xE9 bagage : trop de bruit sur cet \xE9tage.": "Somewhere, the Peddler has packed up: too much noise on this floor.",
+    "Le Colporteur ressort de l'ombre.": "The Peddler steps out of the shadows.",
+    "Le coffre s'ouvre : {0} pi\xE8ces d'or et {1}{2} tombent \xE0 c\xF4t\xE9.": "The chest opens: {0} gold coins and {1}{2} fall out beside it.",
+    "Vous mangez : {0}, +{1} PV.": "You eat: {0}, +{1} HP.",
+    "Vous allumez une torche.": "You light a torch.",
+    "Vous suivez d\xE9sormais la voie : {0}.": "You now follow the path: {0}.",
+    "Second souffle : +{0} PV.": "Second wind: +{0} HP.",
+    "Double frappe !": "Double strike!",
+    "Dernier rempart : vous tenez debout, \xE0 1 PV.": "Last stand: you stay on your feet, at 1 HP.",
+    "Vous lancez la potion : les flammes jaillissent !": "You throw the potion: flames burst out!",
+    "Vous br\xFBlez : {0} d\xE9g\xE2ts.": "You burn: {0} damage.",
+    "{0} br\xFBle : {1} d\xE9g\xE2ts.": "{0} burns: {1} damage.",
+    "Jouvence : vos points vous reviennent ({0} \xE0 attribuer).": "Youth: your points come back ({0} to spend).",
+    "Vous enduisez votre arme de poison (15 coups).": "You coat your weapon with poison (15 hits).",
+    "Vous vous sentez vif : une attaque de plus pendant 4 tours.": "You feel quick: one extra attack for 4 turns.",
+    "Pschh ! L'eau \xE9teint vos flammes.": "Pssht! The water puts out your flames.",
+    "Un petit Kobold coursier vous rattrape : \xAB De la part de Krik. \xBB {0} pi\xE8ces ! Il avait dit vrai.": "A little Kobold courier catches up with you: \u201CFrom Krik.\u201D {0} coins! He told the truth.",
+    "Un petit Kobold coursier vous rattrape : \xAB De la part de Krik : il a tout revendu trois fois. D\xE9sol\xE9. \xBB Votre investissement est perdu.": "A little Kobold courier catches up with you: \u201CFrom Krik: he sold everything three times. Sorry.\u201D Your investment is lost.",
+    "Le donjon se calme.": "The dungeon calms down.",
+    "Le donjon se calme un peu : il n'est plus qu'agit\xE9.": "The dungeon calms down a little: it's only restless now.",
+    "La traque s'essouffle : l'\xE9tage reste en alerte.": "The hunt runs out of steam: the floor stays on alert.",
+    "Une cloche sonne : le donjon s'agite.": "A bell rings: the dungeon stirs.",
+    "La cloche sonne encore : alerte.": "The bell rings again: alert.",
+    "Traque ! L'\xE9tage sait o\xF9 vous \xEAtes.": "Hunted! The floor knows where you are.",
+    "La fiole \xE9clate : un nuage vert empoisonn\xE9 se r\xE9pand.": "The flask bursts: a green poison cloud spreads.",
+    "La fiole se brise sur les dalles : le feu prend !": "The flask shatters on the flagstones: fire catches!",
+    "La fiole se brise sur les dalles : un petit nuage vert s'en \xE9chappe.": "The flask shatters on the flagstones: a little green cloud escapes.",
+    "La fiole se brise sur les dalles. Quel g\xE2chis.": "The flask shatters on the flagstones. What a waste.",
+    "Vous jetez : {0}{1}.": "You throw: {0}{1}.",
+    "{0} est ralenti.": "{0} is slowed.",
+    "Votre torche s'\xE9teint.": "Your torch goes out.",
+    "Vous \xEAtes empoisonn\xE9 !": "You are poisoned!",
+    "{0} est empoisonn\xE9.": "{0} is poisoned.",
+    "Le poison vous ronge : {0} d\xE9g\xE2t{1}.": "The poison eats at you: {0} damage{1}.",
+    "Le poison ronge {0} : {1} d\xE9g\xE2t{2}.": "The poison eats at {0}: {1} damage{2}.",
+    "Votre voie n'a pas de comp\xE9tence \xE0 utiliser ici.": "Your path has no skill to use here.",
+    "Plus d'utilisation \xE0 cet \xE9tage.": "No uses left on this floor.",
+    "Pas maintenant.": "Not now.",
+    "Vous \xEAtes d\xE9j\xE0 cach\xE9.": "You are already hidden.",
+    "Impossible de se cacher : un ennemi est \xE0 votre contact.": "Can't hide: an enemy is next to you.",
+    "Impossible de se cacher : un ennemi vous a en vue.": "Can't hide: an enemy can see you.",
+    "Rien pour vous cacher : il faut une colonne ou un angle de mur.": "Nothing to hide behind: you need a pillar or a wall corner.",
+    "Impossible de se cacher avec une torche allum\xE9e.": "Can't hide with a lit torch.",
+    "Aucun ennemi au contact : rien \xE0 quoi se d\xE9rober.": "No enemy next to you: nothing to escape from.",
+    "Pas la place de sauter : tout est bouch\xE9 autour de vous.": "No room to jump: everything around you is blocked.",
+    "Il n'y a rien \xE0 fouiller ici : placez-vous dans une salle.": "Nothing to search here: stand in a room.",
+    "Vous avez d\xE9j\xE0 fouill\xE9 cette salle.": "You already searched this room.",
+    "Impossible de fouiller : un ennemi est en vue.": "Can't search: an enemy is in sight.",
+    "Vous \xEAtes en pleine forme : inutile de vous reposer.": "You're in top shape: no need to rest.",
+    "Vous vous \xEAtes d\xE9j\xE0 repos\xE9 \xE0 cet \xE9tage.": "You already rested on this floor.",
+    "Impossible de se reposer : un ennemi est en vue.": "Can't rest: an enemy is in sight.",
+    "{0}. \xC9tage {1} \xB7 Niv {2} \xB7 {3} or{4} \u2014 {5} ({6})": "{0}. Floor {1} \xB7 Lv {2} \xB7 {3} gold{4} \u2014 {5} ({6})",
+    "\xB7 Boss vaincu": "\xB7 Boss defeated",
+    "R\xE9veiller": "Wake",
+    "+1 niveau": "+1 level",
+    "+ Alerte": "+ Alert",
+    "\u2212 Alerte": "\u2212 Alert",
+    "Dialogues": "Dialogues",
+    "Regarder par le trou": "Look through the hole",
+    "Utiliser la clef": "Use the key",
+    "Le Colporteur": "The Peddler",
+    "Acheter": "Buy",
+    "Vendre": "Sell",
+    "Trouv\xE9": "Found",
+    "Inventaire": "Inventory",
+    "Personnage": "Character",
+    "\xC9quipement": "Equipment",
+    "Jeter": "Drop",
+    "Pouvoirs": "Powers",
+    "CAVE ROLLER": "CAVE ROLLER",
+    "d\xE9mo": "demo",
+    "Reprendre": "Resume",
+    "Salle d'essai": "Test room",
+    "Encyclop\xE9die": "Encyclopedia",
+    "Records": "Records",
+    "Param\xE8tres": "Settings",
+    "Retour": "Back",
+    "Race": "Race",
+    "Classe": "Class",
+    "Commencer": "Start",
+    "Fermer": "Close",
+    "\xC9tage": "Floor",
+    "{0} est vaincu.": "{0} is defeated.",
+    "{0} est vaincue.": "{0} is defeated.",
+    "oui": "on",
+    "non": "off",
+    "un {0}": "a {0}",
+    "une {0}": "a {0}",
+    "{0} : {1} + {2} = {3}{4} \u2014 {5}": "{0}: {1} + {2} = {3}{4} \u2014 {5}",
+    "+ {0} = {1}{2} \u2014 {3}": "+ {0} = {1}{2} \u2014 {3}",
+    "{0} \xB7 {1}": "{0} \xB7 {1}",
+    "{0} \u2014 {1}": "{0} \u2014 {1}",
+    "{0}, {1}": "{0}, {1}",
+    "{0} et {1}": "{0} and {1}",
+    "PV +{0}": "HP +{0}",
+    "PV {0}": "HP {0}",
+    "CA {0}": "AC {0}",
+    "{0} cases": "{0} squares",
+    "d\xE9part : {0}": "starting: {0}",
+    "Halfelin": "Halfling",
+    "Guerrier": "Warrior",
+    "Humain Guerrier": "Human Warrior",
+    "Humain Assassin": "Human Assassin",
+    "Humain Magicien": "Human Wizard",
+    "Halfelin Guerrier": "Halfling Warrior",
+    "Halfelin Assassin": "Halfling Assassin",
+    "Halfelin Magicien": "Halfling Wizard",
+    "Elfe Guerrier": "Elf Warrior",
+    "Elfe Assassin": "Elf Assassin",
+    "Elfe Magicien": "Elf Wizard",
+    "Amulette": "Amulet",
+    "Artefact": "Artifact",
+    "Cimeterre": "Scimitar",
+    "Caract\xE9ristiques": "Abilities",
+    "\xC0 chaque niveau, un point \xE0 placer dans l'une d'elles (hors combat).": "Each level, one point to put into one of them (out of combat).",
+    "+4 points de vie maximum par point.": "+4 max hit points per point.",
+    "+1 d\xE9g\xE2t au corps \xE0 corps par point.": "+1 melee damage per point.",
+    "Aide \xE0 pousser, \xE0 enfoncer une porte et \xE0 d\xE9chirer une toile.": "Helps shove, break down doors and tear webs.",
+    "+1 au tir par point.": "+1 to shooting per point.",
+    "+1 classe d'armure tous les 2 points.": "+1 armor class every 2 points.",
+    "Aide \xE0 se d\xE9gager, \xE0 crocheter une serrure et \xE0 \xE9viter un pi\xE8ge.": "Helps break free, pick locks and dodge traps.",
+    "La magie. Pas encore en jeu.": "Magic. Not in the game yet.",
+    "Les qu\xEAtes et les marchands. Pas encore en jeu.": "Quests and merchants. Not in the game yet.",
+    "Avantage et d\xE9savantage": "Advantage and disadvantage",
+    "Une action se joue au d20 : le d\xE9, plus un bonus, doit atteindre un seuil.": "Actions are rolled on a d20: the die plus a bonus must reach a target.",
+    "Avantage": "Advantage",
+    "On lance deux d20 et on garde le meilleur.": "Roll two d20 and keep the higher.",
+    "Contre un monstre qui ne vous a pas remarqu\xE9, ou pris dans une porte.": "Against a monster that hasn't noticed you, or one caught in a doorway.",
+    "Jamais deux fois de suite contre la m\xEAme cible.": "Never twice in a row against the same target.",
+    "On lance deux d20 et on garde le pire.": "Roll two d20 and keep the lower.",
+    "Tirer avec un ennemi au contact, ou sur une cible qu'on ne voit pas.": "Shooting with an enemy next to you, or at a target you can't see.",
+    "Une pierre de fronde contre un h\xE9ros abrit\xE9 derri\xE8re une colonne ou un meuble.": "A sling stone against a hero sheltered behind a pillar or furniture.",
+    "Les deux \xE0 la fois": "Both at once",
+    "Ils s'annulent : un seul d20.": "They cancel out: a single d20.",
+    "Manuel": "Manual"
+  };
+
+  // src/i18n/i18n.ts
+  var lang = "fr";
+  var cache = /* @__PURE__ */ new Map();
+  var missing = /* @__PURE__ */ new Set();
+  function setLang(l) {
+    lang = l;
+    cache.clear();
+  }
+  var patterns = null;
+  var GLUE = ["{0} \u2014 {1}", "{0} \xB7 {1}", "{0}, {1}", "{0} et {1}"];
+  function buildPatterns() {
+    const out = [];
+    for (const [fr, en] of Object.entries(EN)) {
+      if (!/\{\d\}/.test(fr)) continue;
+      const parts = fr.split(/(\{\d\})/);
+      const order = [];
+      let src = "^";
+      let prevHole = false;
+      for (const p of parts) {
+        if (p === "") continue;
+        const m = /^\{(\d)\}$/.exec(p);
+        if (m) {
+          order.push(Number(m[1]));
+          src += prevHole ? "((?:[\\s,.;:!?+\u2212\xD7(\\-][\\s\\S]*?)?)" : "([\\s\\S]*?)";
+          prevHole = true;
+        } else {
+          src += p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          prevHole = false;
+        }
+      }
+      src += "$";
+      let to = en;
+      order.forEach((n, i) => to = to.split(`{${n}}`).join(`\0${i}\0`));
+      const bits = parts.filter((p) => p && !/^\{\d\}$/.test(p));
+      const glue = GLUE.indexOf(fr);
+      out.push({ re: new RegExp(src), bits, to, size: glue >= 0 ? -1 - glue : fr.replace(/\{\d\}/g, "").length });
+    }
+    return out.sort((a, b) => b.size - a.size);
+  }
+  function translate(s, depth) {
+    const exact = EN[s];
+    if (exact !== void 0) return exact;
+    const c = s.charAt(0);
+    const flip = (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()) + s.slice(1);
+    const alt = flip !== s ? EN[flip] : void 0;
+    if (alt !== void 0) {
+      const a = alt.charAt(0);
+      return (c === c.toUpperCase() ? a.toUpperCase() : a.toLowerCase()) + alt.slice(1);
+    }
+    if (depth > 3 || !/[A-Za-zÀ-ÿ]/.test(s)) return s;
+    patterns ?? (patterns = buildPatterns());
+    for (const p of patterns) {
+      let at = 0;
+      if (!p.bits.every((b) => (at = s.indexOf(b, at)) >= 0 && (at += b.length) > 0)) continue;
+      const m = p.re.exec(s);
+      if (!m) continue;
+      return p.to.replace(/\u0000(\d+)\u0000/g, (_, i) => tr(m[Number(i) + 1], depth + 1));
+    }
+    missing.add(s);
+    return s;
+  }
+  function tr(s, depth = 0) {
+    if (lang === "fr" || !s) return s;
+    const hit = depth === 0 ? cache.get(s) : void 0;
+    if (hit !== void 0) return hit;
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(s);
+    const out = m[2] ? m[1] + translate(m[2], depth) + m[3] : s;
+    if (depth === 0) cache.set(s, out);
+    return out;
+  }
 
   // src/ui/icons.ts
   var PALETTE3 = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
@@ -17853,9 +18907,9 @@
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       ctx.fillStyle = "#000000";
-      ctx.fillText("LA TISSEUSE", W2 / 2 + scale2, y - 2 * scale2 + scale2);
+      ctx.fillText(tr("LA TISSEUSE"), W2 / 2 + scale2, y - 2 * scale2 + scale2);
       ctx.fillStyle = "#ffe6aa";
-      ctx.fillText("LA TISSEUSE", W2 / 2, y - 2 * scale2);
+      ctx.fillText(tr("LA TISSEUSE"), W2 / 2, y - 2 * scale2);
       ctx.fillStyle = "#1a1210";
       ctx.fillRect(x - scale2, y - scale2, bw + 2 * scale2, bh + 2 * scale2);
       ctx.fillStyle = "#4a1a14";
@@ -18602,9 +19656,9 @@
         ctx.strokeStyle = "rgba(0,0,0,0.7)";
         const fx = ox + (f.x + 0.5) * tile;
         const fy = oy + (f.y + 0.1 - t * 0.8 - f.slot * 0.42) * tile;
-        ctx.strokeText(f.text, fx, fy);
+        ctx.strokeText(tr(f.text), fx, fy);
         ctx.fillStyle = f.color;
-        ctx.fillText(f.text, fx, fy);
+        ctx.fillText(tr(f.text), fx, fy);
       }
       ctx.globalAlpha = 1;
       this.drawBossBar(game2);
@@ -18825,6 +19879,8 @@
         if (c === "U" || c === "u") g[y][x] = ".";
         else if ((c === "M" || c === "m" || c === "b") && x >= 11) g[y][x] = ".";
         else if (c === "Q") g[y][x] = "W";
+        else if (c === "R") g[y][x] = "W";
+        else if (c === "r") g[y][x] = "w";
       }
     const colored = (x, y) => x >= 0 && y >= 0 && x < W2 && y < H2 && g[y][x] !== "." && g[y][x] !== "O";
     for (let y = 0; y < H2; y++)
@@ -19343,6 +20399,54 @@
     }
   };
 
+  // src/data/manual.ts
+  var MANUAL = [
+    {
+      title: "Caract\xE9ristiques",
+      intro: "\xC0 chaque niveau, un point \xE0 placer dans l'une d'elles (hors combat).",
+      entries: [
+        { title: "Vie", lines: ["+4 points de vie maximum par point."] },
+        {
+          title: "Force",
+          lines: ["+1 d\xE9g\xE2t au corps \xE0 corps par point.", "Aide \xE0 pousser, \xE0 enfoncer une porte et \xE0 d\xE9chirer une toile."]
+        },
+        {
+          title: "Agilit\xE9",
+          lines: [
+            "+1 au tir par point.",
+            "+1 classe d'armure tous les 2 points.",
+            "Aide \xE0 se d\xE9gager, \xE0 crocheter une serrure et \xE0 \xE9viter un pi\xE8ge."
+          ]
+        },
+        { title: "Intelligence", lines: ["La magie. Pas encore en jeu."] },
+        { title: "Charisme", lines: ["Les qu\xEAtes et les marchands. Pas encore en jeu."] }
+      ]
+    },
+    {
+      title: "Avantage et d\xE9savantage",
+      intro: "Une action se joue au d20 : le d\xE9, plus un bonus, doit atteindre un seuil.",
+      entries: [
+        {
+          title: "Avantage",
+          lines: [
+            "On lance deux d20 et on garde le meilleur.",
+            "Contre un monstre qui ne vous a pas remarqu\xE9, ou pris dans une porte.",
+            "Jamais deux fois de suite contre la m\xEAme cible."
+          ]
+        },
+        {
+          title: "D\xE9savantage",
+          lines: [
+            "On lance deux d20 et on garde le pire.",
+            "Tirer avec un ennemi au contact, ou sur une cible qu'on ne voit pas.",
+            "Une pierre de fronde contre un h\xE9ros abrit\xE9 derri\xE8re une colonne ou un meuble."
+          ]
+        },
+        { title: "Les deux \xE0 la fois", lines: ["Ils s'annulent : un seul d20."] }
+      ]
+    }
+  ];
+
   // src/ui/pictos.ts
   var PICTOS = {
     humain: { rows: ["FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", "FPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPF", "FPFFFFFFFFFPFFFFFPFFFFFPFFFFFFFFPF", "FPFPPFPPPPFPPPPPFPPPPPFPPPPPFPPFPF", "FPFPFFFFPFFPFFPFFPFFPFFPFFPFFFPFPF", "FPFPFPPFPPPPPFPPPPPFPPPPPFPPPFPFPF", "FPFPFPPPPPPPPPPPPPPPPPPPPPPPPFPFPF", "FPFPPPPFFFFFFFFFFFFFFFFFFFFPFFPFPF", "FPFPFFPFPPPPPPPPPPPPPPPPPPFPPPPFPF", "FPFPFPPFPPPPPPPPPPPPPPPPPPFPPFPFPF", "FPPPPPPFPPPPPPPPPPPPPPPPPPFPPFFFPF", "FPFFFPPFPPFPPPPPFFPPPPPFPPFPPPPPPF", "FPFPFPPFPFLFPPPFLLFPPPFLFPFPPFPFPF", "FPFPPPPFPFLFPPPFLLFPPPFLFPFPFFPFPF", "FPFPFFPFPFLLFPFLLLLFPFLLFPFPPPPFPF", "FPFPFPPFPFLLLFLLLLLLFLLLFPFPPFPFPF", "FPPPPPPFPFLLLLLLLLLLLLLLFPFPPFFFPF", "FPFFFPPFPFLLPLLLLLLLLPLLFPFPPPPPPF", "FPFPFPPFPFLLLLLLPPLLLLLLFPFPPFPFPF", "FPFPPPPFPFFFFFFFFFFFFFFFFPFPFFPFPF", "FPFPFFPFPFPPPPPPPPPPPPPPFPFPPPPFPF", "FPFPFPPFPFFFFFFFFFFFFFFFFPFPPFPFPF", "FPPPPPPFPPPPPPPPPPPPPPPPPPFPPFFFPF", "FPFFFPPFPPPPPPPPPPPPPPPPPPFPPPPPPF", "FPFPFPPFPPPPPPPPPPPPPPPPPPFPPFPFPF", "FPFPPPPFPPPPPPPPPPPPPPPPPPFPFFPFPF", "FPFPFFPFFFFFFFFFFFFFFFFFFFFPPPPFPF", "FPFPFPPPPPPPPPPPPPPPPPPPPPPPPFPFPF", "FPFPFPPPFPPPPPFPPPPPFPPPPPFPPFPFPF", "FPFPFFFPFFPFFPFFPFFPFFPFFPFFFFPFPF", "FPFPPFPPPPPFPPPPPFPPPPPFPPPPFPPFPF", "FPFFFFFFFFPFFFFFPFFFFFPFFFFFFFFFPF", "FPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPF", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"], palette: { "F": "#e27070", "L": "#f3c6c6", "P": "#fbf5e6" } },
@@ -19399,9 +20503,9 @@
         return `Vous ramassez : ${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}.`;
       }
       case "levelup":
-        return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
+        return `Niveau ${e.level} ! Un point \xE0 attribuer.`;
       case "death":
-        return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+        return e.actor.kind === "hero" ? null : e.actor.name.endsWith("e") ? `${capFirst(e.actor.name)} est vaincue.` : `${capFirst(e.actor.name)} est vaincu.`;
       case "npc": {
         if (e.what !== "leave") return null;
         const name = e.who === "gluck" ? "Gluck" : e.who === "soeur" ? "S\u0153ur Osseuse" : "Krik";
@@ -19562,6 +20666,8 @@
         return e.actor.kind === "hero" ? `Vous br\xFBlez : ${e.damage} d\xE9g\xE2ts.` : `${e.actor.name} br\xFBle : ${e.damage} d\xE9g\xE2ts.`;
       case "potion":
         return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+      case "doused":
+        return e.actor.kind === "hero" ? "Pschh ! L'eau \xE9teint vos flammes." : null;
       case "krikReturn":
         return e.amount > 0 ? `Un petit Kobold coursier vous rattrape : \xAB De la part de Krik. \xBB ${e.amount} pi\xE8ces ! Il avait dit vrai.` : "Un petit Kobold coursier vous rattrape : \xAB De la part de Krik : il a tout revendu trois fois. D\xE9sol\xE9. \xBB Votre investissement est perdu.";
       case "alarmDown":
@@ -19603,7 +20709,7 @@
       hidden: "Vous \xEAtes d\xE9j\xE0 cach\xE9.",
       threatened: "Impossible de se cacher : un ennemi est \xE0 votre contact.",
       watched: "Impossible de se cacher : un ennemi vous a en vue.",
-      "no-cover": "Rien pour vous cacher ici : il faut une colonne \xE0 c\xF4t\xE9 de vous, ou un angle de mur.",
+      "no-cover": "Rien pour vous cacher : il faut une colonne ou un angle de mur.",
       torch: "Impossible de se cacher avec une torche allum\xE9e."
     },
     disengage: {
@@ -19621,6 +20727,9 @@
       danger: "Impossible de se reposer : un ennemi est en vue."
     }
   };
+  function capFirst(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
 
   // src/main.ts
   function stepDuration(pathLength) {
@@ -19666,6 +20775,32 @@
     } catch {
     }
   }
+  setLang(options.lang);
+  var frOriginal = /* @__PURE__ */ new WeakMap();
+  var frAttr = /* @__PURE__ */ new WeakMap();
+  function translatePage(root = document.body) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let n = walker.currentNode; n; n = walker.nextNode()) {
+      if (n.nodeType === Node.TEXT_NODE) {
+        const tag = n.parentElement?.tagName;
+        if (tag === "SCRIPT" || tag === "STYLE" || !n.textContent?.trim()) continue;
+        const fr = frOriginal.get(n) ?? n.textContent ?? "";
+        if (!frOriginal.has(n)) frOriginal.set(n, fr);
+        n.textContent = tr(fr);
+      } else if (n instanceof Element) {
+        const saved = frAttr.get(n) ?? {};
+        for (const a of ["aria-label", "title"]) {
+          const v = saved[a] ?? n.getAttribute(a);
+          if (v === null) continue;
+          saved[a] = v;
+          n.setAttribute(a, tr(v));
+        }
+        frAttr.set(n, saved);
+      }
+    }
+    document.title = tr("Cave Roller \u2014 d\xE9mo");
+  }
+  translatePage();
   var sfx = new Sfx();
   sfx.enabled = options.sound;
   var music = new Music(() => sfx.context());
@@ -19770,7 +20905,7 @@
     game = next;
     const sandbox = game.sandbox;
     $("test-tools").hidden = !sandbox;
-    $("peace").textContent = "Combats : oui";
+    $("peace").textContent = tr("Combats : oui");
     aimMode = false;
     doorWasPending = false;
     foundOpen = false;
@@ -19787,27 +20922,27 @@
     alarmBefore = null;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
-      "Ici : les nouveaux objets (vous \xEAtes niveau 4) et, dans le coin en bas \xE0 droite, L'ESCALIER DU BOSS : il descend \xE0 l'\xE9tage 2, la nich\xE9e de la Tisseuse (un plan diff\xE9rent \xE0 chaque partie). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, un autre escalier vers le boss, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
+      "Ici : les nouveaux objets. L'escalier du coin en bas \xE0 droite m\xE8ne au boss. \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
     over.hidden = true;
-    seedLabel.textContent = `Graine ${game.runSeed}`;
+    seedLabel.textContent = tr(`Graine ${game.runSeed}`);
     renderer.snapTo(game);
   }
   function clearDie() {
-    die.textContent = "";
+    die.textContent = tr("");
     die.className = "die";
     die2.hidden = true;
     die.parentElement?.classList.toggle("pair", !die2.hidden);
-    dieWho.textContent = "";
+    dieWho.textContent = tr("");
   }
   function renderLog() {
     logLines = logLines.slice(-LOG_LINES);
     log.replaceChildren(
       ...logLines.map((line) => {
         const p = document.createElement("div");
-        p.textContent = line;
+        p.textContent = tr(line);
         return p;
       })
     );
@@ -19835,9 +20970,9 @@
     die.parentElement?.classList.toggle("pair", !die2.hidden);
     die2.className = `die rolling${foe ? " foe" : ""}`;
     const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
-    dieWho.textContent = mode === "advantage" ? `${who} \xB7 avantage` : mode === "disadvantage" ? `${who} \xB7 d\xE9savantage` : who;
+    dieWho.textContent = tr(mode === "advantage" ? `${who} \xB7 avantage` : mode === "disadvantage" ? `${who} \xB7 d\xE9savantage` : who);
     dieWho.className = mode === "normal" ? "" : mode;
-    if (e.type === "npcRoll") dieWho.textContent = e.stat;
+    if (e.type === "npcRoll") dieWho.textContent = tr(e.stat);
     sfx.play("dice");
     if (mode !== "normal") sfx.play(mode);
     if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
@@ -19940,6 +21075,9 @@
     } else if (e.type === "npc") {
       if (e.what === "talk") openTalk(e.who);
       else gluckPouf(e);
+    } else if (e.type === "doused") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
+      sfx.play("splash");
     } else if (e.type === "krikReturn") {
       if (e.amount > 0) {
         renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} or`, "#f0c850");
@@ -20336,6 +21474,20 @@
     over.append(again);
     over.hidden = false;
   }
+  function renderManual() {
+    const list = $("manual-list");
+    list.replaceChildren();
+    for (const section of MANUAL) {
+      list.append(el("h3", "", section.title));
+      if (section.intro) list.append(el("p", "manual-intro", section.intro));
+      for (const entry of section.entries) {
+        const div = el("div", "manual-entry");
+        div.append(el("b", "", entry.title), document.createElement("br"));
+        div.append(document.createTextNode(entry.lines.map((l) => tr(l)).join(" ")));
+        list.append(div);
+      }
+    }
+  }
   function renderRecords() {
     const list = $("records-list");
     list.replaceChildren();
@@ -20528,7 +21680,7 @@
   var WHEEL_SHORT = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "D\xE9gager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-skill": "Voie" };
   for (const [id, icon, label] of WHEEL) {
     $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
-    $(id).setAttribute("aria-label", label);
+    $(id).setAttribute("aria-label", tr(label));
     $(id).addEventListener("click", (ev) => {
       ev.stopPropagation();
       sfx.unlock();
@@ -20658,7 +21810,7 @@
     hereKey = key;
     const def = ITEMS[top.item];
     $("here-icon").replaceChildren(itemIcon(top.item));
-    $("here-name").textContent = `${def.name}${top.count > 1 ? ` \xD7${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`;
+    $("here-name").textContent = tr(`${def.name}${top.count > 1 ? ` \xD7${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`);
   }
   button("here-take", () => {
     if (game.pickUp()) stepMs = COMBAT_STEP_MS;
@@ -20666,14 +21818,14 @@
   button("here-info", () => {
     const top = game.itemsHere()[0];
     if (!top) return;
-    document.querySelector("#found h2").textContent = "Au sol";
+    document.querySelector("#found h2").textContent = tr("Au sol");
     $("found-card").replaceChildren(itemCard(ITEMS[top.item], top.count));
     $("found").hidden = false;
     foundOpen = true;
   });
   $("here-take").replaceChildren(uiIcon("take"));
-  $("here-take").setAttribute("aria-label", "Ramasser");
-  $("here-info").setAttribute("aria-label", "Fiche de l'objet");
+  $("here-take").setAttribute("aria-label", tr("Ramasser"));
+  $("here-info").setAttribute("aria-label", tr("Fiche de l'objet"));
   for (const [id, icon, label] of [
     ["wait", "wait", "Attendre un tour"],
     ["actions", "actions", "Actions"],
@@ -20682,17 +21834,17 @@
     ["door-cancel", "cancel", "Ne rien faire"]
   ]) {
     $(id).replaceChildren(uiIcon(icon));
-    $(id).setAttribute("aria-label", label);
-    $(id).title = label;
+    $(id).setAttribute("aria-label", tr(label));
+    $(id).title = tr(label);
   }
-  $("aim").setAttribute("aria-label", "Tirer \xE0 l'arc");
+  $("aim").setAttribute("aria-label", tr("Tirer \xE0 l'arc"));
   {
     const bang = el("span", "", "!");
     bang.id = "bag-bang";
     bang.hidden = true;
     $("open-bag").replaceChildren(buildIcon(HERO_HEAD, HERO_HEAD_PALETTE), bang);
-    $("open-bag").setAttribute("aria-label", "Le h\xE9ros : inventaire et personnage");
-    $("open-bag").title = "Le h\xE9ros";
+    $("open-bag").setAttribute("aria-label", tr("Le h\xE9ros : inventaire et personnage"));
+    $("open-bag").title = tr("Le h\xE9ros");
   }
   $("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
   var shopTab = "buy";
@@ -20703,7 +21855,7 @@
     shopTab = "buy";
     shopPick = null;
     shopNote = "";
-    $("shop-line").textContent = `\xAB ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} \xBB`;
+    $("shop-line").textContent = tr(`\xAB ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} \xBB`);
     $("shop").hidden = false;
     document.body.classList.add("shop-open");
     renderer.resize();
@@ -20725,7 +21877,7 @@
     }
     $("shop-tab-buy").classList.toggle("on", shopTab === "buy");
     $("shop-tab-sell").classList.toggle("on", shopTab === "sell");
-    $("shop-purse").textContent = `Bourse : ${game.gold} or`;
+    $("shop-purse").textContent = tr(`Bourse : ${game.gold} or`);
     const list = $("shop-list");
     const detail = $("shop-detail");
     list.replaceChildren();
@@ -20815,7 +21967,7 @@
     talkLater = [];
     $("talk").hidden = false;
     $("talk").scrollTop = 0;
-    $("talk-name").textContent = who === "gluck" ? "Gluck" : who === "soeur" ? "S\u0153ur Osseuse" : "Krik";
+    $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "S\u0153ur Osseuse" : "Krik");
     $("talk-face").replaceChildren(
       who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : who === "soeur" ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE) : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE)
     );
@@ -20850,7 +22002,7 @@
       }
     }
     for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", glue(l)));
-    $("talk-purse").textContent = `Bourse : ${game.gold} or`;
+    $("talk-purse").textContent = tr(`Bourse : ${game.gold} or`);
     if (imposed !== null) {
       const b = el("button", "talk-choice", glue(imposed));
       b.addEventListener("click", () => {
@@ -21023,8 +22175,8 @@
           box.append(ghost);
         }
         node.append(box);
-        node.title = label;
-        node.setAttribute("aria-label", label);
+        node.title = tr(label);
+        node.setAttribute("aria-label", tr(label));
         node.addEventListener("click", () => {
           sfx.play("click");
           selected = worn && selectedSlot !== slot ? { slot } : null;
@@ -21033,7 +22185,7 @@
         return node;
       })
     );
-    $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(String(game.gold)));
+    $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(tr(String(game.gold))));
     const kinds = game.ammoKinds();
     const current = game.currentAmmo();
     const quiver = el("div", "slot slot-quiver");
@@ -21046,7 +22198,7 @@
       qbox.append(ghost);
     }
     quiver.append(qbox);
-    quiver.title = "Carquois : touchez pour changer de fl\xE8ches";
+    quiver.title = tr("Carquois : touchez pour changer de fl\xE8ches");
     quiver.addEventListener("click", () => {
       sfx.play("click");
       const usable = kinds.filter((id) => !game.tooLow(ITEMS[id]));
@@ -21082,7 +22234,7 @@
     const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
     if (!item) {
       selected = null;
-      info.replaceChildren(el("div", "", "Touchez un objet pour le s\xE9lectionner. Dans le sac, touchez ensuite une case libre pour le d\xE9placer. Restez appuy\xE9 sur une pomme, une torche ou une potion pour en faire le raccourci \xAB\xA0Objet\xA0\xBB de la barre d'actions."));
+      info.replaceChildren(el("div", "", "Touchez un objet pour le choisir, puis une case libre pour le d\xE9placer. Appui long sur une pomme, une torche ou une potion : raccourci \xAB Objet \xBB."));
       action.hidden = true;
       $("bag-drop").hidden = true;
       $("bag-throw").hidden = true;
@@ -21093,7 +22245,7 @@
     const card = miniCard(def, item.count, selectedSlot ? "port\xE9" : keyNote.replace(/^ — /, ""));
     const close = el("button", "item-close", "\xD7");
     close.type = "button";
-    close.setAttribute("aria-label", "Fermer la fiche");
+    close.setAttribute("aria-label", tr("Fermer la fiche"));
     close.addEventListener("click", () => {
       selected = null;
       renderHeroScreen();
@@ -21106,6 +22258,7 @@
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
     action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
+    action.textContent = tr(action.textContent ?? "");
     $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
     $("bag-drop").hidden = selectedSlot !== null;
   }
@@ -21246,9 +22399,9 @@
     b.hidden = !withPower;
     if (!withPower || !game.voie) return;
     const name = game.voie === "blue" ? "Second souffle" : "Double frappe";
-    b.setAttribute("aria-label", name);
-    b.title = name;
-    b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(`\xD7${powerCharges()}`));
+    b.setAttribute("aria-label", tr(name));
+    b.title = tr(name);
+    b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(tr(`\xD7${powerCharges()}`)));
     b.classList.toggle("off", !ready);
   }
   button("power", () => {
@@ -21394,7 +22547,7 @@
       ...list.map((st) => {
         const b = el("button", "", "");
         b.type = "button";
-        b.setAttribute("aria-label", st.name);
+        b.setAttribute("aria-label", tr(st.name));
         b.append(buildIcon(STATUS_ICONS[st.id]));
         b.addEventListener("click", (ev) => {
           ev.stopPropagation();
@@ -21417,13 +22570,24 @@
     if (!open) statusOpen = null;
     pop.hidden = !open;
     if (open) {
-      pop.replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
+      pop.replaceChildren(el("b", "", open.name), document.createTextNode(tr(open.detail)));
     }
   }
   $("status-pop").addEventListener("click", () => {
     statusOpen = null;
     statusShown = "";
   });
+  window.addEventListener(
+    "pointerdown",
+    (ev) => {
+      if (statusOpen === null) return;
+      const t = ev.target;
+      if (t && ["status-pop", "alarm-badge", "hero-status"].some((id) => $(id).contains(t))) return;
+      statusOpen = null;
+      statusShown = "";
+    },
+    true
+  );
   var heroTab = "inv";
   var pickedChoice = null;
   function renderHeroScreen() {
@@ -21438,10 +22602,10 @@
   function renderCharacter() {
     const head = buildIcon(HERO_HEAD, HERO_HEAD_PALETTE);
     const who = el("span", "char-head");
-    who.append(head, document.createTextNode(`${game.heroClass.name} \xB7 Niv ${game.level}`));
+    who.append(head, document.createTextNode(tr(`${game.heroClass.name} \xB7 Niv ${game.level}`)));
     $("char-who").replaceChildren(who);
-    $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
-    $("char-points").textContent = game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} \xE0 attribuer${game.inCombat() ? " (pas en combat)" : ""}` : "";
+    $("char-xp").textContent = tr(`XP ${game.xp}/${game.xpToNext()}`);
+    $("char-points").textContent = game.points > 0 ? tr(`${game.points} point${game.points > 1 ? "s" : ""} \xE0 attribuer${game.inCombat() ? " (pas en combat)" : ""}`) : "";
     const row = (name, value, stat, wide = false) => {
       const node = el("div", `r${wide ? " wide" : ""}`);
       node.append(el("span", "", name), el("b", "", value));
@@ -21449,7 +22613,7 @@
         const plus = el("button", "plus");
         plus.type = "button";
         plus.append(plusIcon());
-        plus.setAttribute("aria-label", `Un point en ${name}`);
+        plus.setAttribute("aria-label", tr(`Un point en ${name}`));
         if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
         plus.addEventListener("click", () => {
           sfx.play("click");
@@ -21485,7 +22649,7 @@
       for (const path of Object.values(PATHS)) {
         const picked = pickedChoice?.kind === "path" && pickedChoice.id === path.id;
         const card = el("div", `skill-card${picked ? " picked" : ""}${game.canChoosePath() ? "" : " locked"}`);
-        card.append(buildIcon(PATH_ICONS[path.id]), el("b", "", path.name), document.createTextNode(path.description));
+        card.append(buildIcon(PATH_ICONS[path.id]), el("b", "", path.name), document.createTextNode(tr(path.description)));
         if (game.canChoosePath()) {
           card.addEventListener("click", () => {
             sfx.play("click");
@@ -21520,7 +22684,7 @@
         if (points > 0 && r < MAX_RANK) {
           const plus = el("button", "plus rank-plus");
           plus.type = "button";
-          plus.setAttribute("aria-label", `Am\xE9liorer ${pw.name}`);
+          plus.setAttribute("aria-label", tr(`Am\xE9liorer ${pw.name}`));
           plus.append(plusIcon());
           if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
           plus.addEventListener("click", (ev) => {
@@ -21543,9 +22707,9 @@
     $("char-path").replaceChildren(...pathCards);
     $("char-path").classList.toggle("choose", !game.voie);
     $("char-skills").replaceChildren(...powerCards);
-    $("char-note").textContent = note;
+    $("char-note").textContent = tr(note);
     confirm.hidden = pickedChoice === null;
-    confirm.textContent = "Choisir cette voie (d\xE9finitif)";
+    confirm.textContent = tr("Choisir cette voie (d\xE9finitif)");
   }
   function throwCells(uid) {
     const cells = [];
@@ -21644,15 +22808,16 @@
   function showScreen(screen) {
     menuOpen = screen !== null;
     menu.hidden = !menuOpen;
-    for (const name of ["main", "new", "settings", "codex", "records"]) $(`screen-${name}`).hidden = screen !== name;
+    for (const name of ["main", "new", "settings", "codex", "records", "manual"]) $(`screen-${name}`).hidden = screen !== name;
     $("detail").hidden = true;
     $("menu-resume").hidden = (!started || game.over) && savedRun === null;
-    $("settings-sound").textContent = `Bruitages : ${options.sound ? "oui" : "non"}`;
-    $("settings-music").textContent = `Musique : ${options.music ? "oui" : "non"}`;
-    $("settings-lang").textContent = `Langue : ${options.lang === "en" ? "English" : "Fran\xE7ais"}`;
+    $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
+    $("settings-music").textContent = tr(`Musique : ${options.music ? "oui" : "non"}`);
+    $("settings-lang").textContent = tr(`Langue : ${options.lang === "en" ? "English" : "Fran\xE7ais"}`);
     if (screen === "new") renderCards();
     if (screen === "codex") renderCodex();
     if (screen === "records") renderRecords();
+    if (screen === "manual") renderManual();
   }
   var signedBonus = (n) => n >= 0 ? `+${n}` : `${n}`;
   function raceCard(r) {
@@ -21725,7 +22890,7 @@
     svg.classList.add("rarity-pip");
     const [light, dark] = RARITY_COLORS[rarity];
     const title = document.createElementNS(ns, "title");
-    title.textContent = rarity in RARITY_LABELS ? RARITY_LABELS[rarity] : rarity === "epic" ? "\xC9pique" : "L\xE9gendaire";
+    title.textContent = tr(rarity in RARITY_LABELS ? RARITY_LABELS[rarity] : rarity === "epic" ? "\xC9pique" : "L\xE9gendaire");
     svg.append(title);
     const rows = ["..OOO..", ".OxxxO.", "OxhxxxO", "OxxxxxO", "OxxxxxO", ".OxxxO.", "..OOO.."];
     const fill = { O: dark, x: light, h: "#ffffff" };
@@ -21746,7 +22911,7 @@
   function namedWithRarity(className, def, text) {
     const node = el("div", className);
     if (def.rarity) node.append(rarityPip(def.rarity));
-    node.append(document.createTextNode(text));
+    node.append(document.createTextNode(tr(text)));
     return node;
   }
   function plusIcon() {
@@ -21768,7 +22933,7 @@
   function el(tag, className, text = "") {
     const node = document.createElement(tag);
     node.className = className;
-    node.textContent = text;
+    node.textContent = tr(text);
     return node;
   }
   function buildCards(container, cards, selectedId, onSelect) {
@@ -21777,7 +22942,7 @@
         const node = el("div", `card${card.available ? "" : " locked"}${card.id === selectedId ? " selected" : ""}`);
         const more = el("button", "more");
         more.append(plusIcon());
-        more.setAttribute("aria-label", `D\xE9tail : ${card.name}`);
+        more.setAttribute("aria-label", tr(`D\xE9tail : ${card.name}`));
         more.addEventListener("click", (e) => {
           e.stopPropagation();
           sfx.play("click");
@@ -21810,7 +22975,7 @@
     });
   }
   function showDetail(card) {
-    $("detail-title").textContent = card.name;
+    $("detail-title").textContent = tr(card.name);
     const lines = card.available ? card.details : [...card.details, "Pas encore jouable : valeurs provisoires."];
     $("detail-body").replaceChildren(...lines.map((line) => el("div", "", line)));
     $("detail").hidden = false;
@@ -21825,11 +22990,13 @@
   });
   button("menu-new", () => showScreen("new"));
   button("menu-settings", () => {
-    $("settings-note").textContent = "";
+    $("settings-note").textContent = tr("");
     showScreen("settings");
   });
   button("menu-codex", () => showScreen("codex"));
   button("menu-records", () => showScreen("records"));
+  button("menu-manual", () => showScreen("manual"));
+  button("manual-back", () => showScreen("main"));
   button("records-back", () => showScreen("main"));
   button("codex-back", () => showScreen("main"));
   button("new-back", () => showScreen("main"));
@@ -21849,7 +23016,7 @@
   });
   button("peace", () => {
     game.setPeaceful(!game.peaceful);
-    $("peace").textContent = game.peaceful ? "Combats : non" : "Combats : oui";
+    $("peace").textContent = tr(game.peaceful ? "Combats : non" : "Combats : oui");
     logLines.push(game.peaceful ? "Combats coup\xE9s : les monstres sont retir\xE9s." : "Combats r\xE9tablis : les monstres reviennent.");
     renderLog();
   });
@@ -21881,8 +23048,11 @@
     options.lang = options.lang === "fr" ? "en" : "fr";
     saveOptions();
     sfx.play("click");
+    setLang(options.lang);
+    translatePage();
+    logLines = [...logLines];
+    renderLog();
     showScreen("settings");
-    $("settings-note").textContent = options.lang === "en" ? "English is coming soon: the game is still in French for now." : "";
   });
   button("reset-talks", () => {
     game.resetDialogues();
@@ -21917,7 +23087,7 @@
         break;
       }
     }
-    stairsScene = new StairsScene(direction, variant, `\xC9TAGE ${target}`);
+    stairsScene = new StairsScene(direction, variant, tr(`\xC9TAGE ${target}`));
   }
   function advanceStairs(dt) {
     const scene = stairsScene;
@@ -22001,7 +23171,7 @@
     diceBox.classList.toggle("ready", !game.over && game.meleeTarget() !== null);
     if (!cue && queue.length === 0 && die.textContent === "") {
       const hint = game.meleeTarget() && !game.over ? "Frapper" : "";
-      if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = hint;
+      if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = tr(hint);
     }
     if (started) discoverSurroundings();
     const aimRange = aimMode && game.arrows() > 0 ? game.shotProfile()?.range ?? null : null;
@@ -22012,11 +23182,11 @@
     renderAlarm();
     renderHeroStatus();
     const floorText = String(game.depth);
-    if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
+    if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
     hpOrbs();
     renderHere();
-    $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
+    $("hp-label").textContent = tr(`PV ${shownHp}/${game.hero.maxHp}`);
     const xpShown = shownXp();
     const capped = game.xpBlocked() && xpInFlight === 0;
     xpBar.classList.toggle("capped", capped);
@@ -22025,7 +23195,7 @@
       if (capped && !$("xp-stop").firstChild) $("xp-stop").append(uiIcon("stop"));
     }
     $("xp-fill").style.width = capped ? "100%" : `${100 * xpShown.xp / xpShown.need}%`;
-    $("xp-label").textContent = capped ? `Niv ${game.level} \xB7 MAX` : `Niv ${xpShown.level} \xB7 XP ${xpShown.xp}/${xpShown.need}`;
+    $("xp-label").textContent = tr(capped ? `Niv ${game.level} \xB7 MAX` : `Niv ${xpShown.level} \xB7 XP ${xpShown.xp}/${xpShown.need}`);
     const doorOptions = game.doorOptions();
     doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
     $("door-key").hidden = !doorOptions.includes("key");
@@ -22034,8 +23204,8 @@
     const maiden = game.pendingDoor !== null && game.maidenAt(game.pendingDoor.x, game.pendingDoor.y) !== null;
     const pickText = maiden ? "D\xE9samorcer" : "Crocheter";
     const breakText = maiden ? "Forcer" : "Enfoncer";
-    if ($("door-pick").textContent !== pickText) $("door-pick").textContent = pickText;
-    if ($("door-break").textContent !== breakText) $("door-break").textContent = breakText;
+    if ($("door-pick").textContent !== pickText) $("door-pick").textContent = tr(pickText);
+    if ($("door-break").textContent !== breakText) $("door-break").textContent = tr(breakText);
     $("door-break").hidden = !doorOptions.includes("break");
     if (game.pendingDoor && !doorWasPending && !game.usingKey()) {
       renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);
@@ -22057,7 +23227,7 @@
     const aimKey = `${bow?.id}|${ammo}|${game.arrows()}`;
     if (aimKey !== aimShown) {
       aimShown = aimKey;
-      aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(`\xD7${game.arrows()}`));
+      aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(tr(`\xD7${game.arrows()}`)));
     }
     aim.classList.toggle("active", aimMode);
     renderPower();
@@ -22069,6 +23239,8 @@
   requestAnimationFrame(frame);
   window.leutenheim = {
     game: () => game,
+    /** Pour les vérifications : les textes affichés sans traduction anglaise. */
+    untranslated: () => [...missing],
     renderer: () => renderer,
     /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
     stairs: (variant) => beginStairs(variant),

@@ -34,6 +34,9 @@ export const RULES = {
   arrowOvershoot: 4,
   /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
   hideDc: 9,
+  /** Après une cachette réussie, les monstres qui le traquaient restent sur place tant de tours (Thomas, 2026-11-12 :
+   * « les Kobolds archers essayent de s'approcher si on se cache »). */
+  hideLostTurns: 6,
   /** Se dégager (roue d'actions) : le héros saute à tant de cases, en ligne droite… */
   jumpDistance: 2,
   /** …s'il réussit d20 + bonus d'agilité contre cette difficulté ; raté, il reste sur place et le tour est perdu. */

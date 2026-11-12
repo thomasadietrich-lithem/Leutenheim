@@ -1143,7 +1143,7 @@ export class Game {
   /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
   private killerName(m: Actor): string {
     if (m.boss) return m.name;
-    return `${m.defId === "araignee" ? "une" : "un"} ${m.name}`;
+    return m.defId === "araignee" ? `une ${m.name}` : `un ${m.name}`;
   }
 
   /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
@@ -1633,7 +1633,7 @@ export class Game {
   private refreshLight(): void {
     const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
     // Une torche posée au sol brille un peu, comme celles des murs (Thomas).
-    const dropped = (this.ground ?? []).filter((g) => g.item === "torche").map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
+    const dropped = (this.ground ?? []).filter((g) => g.item === "torche" && this.map.get(g.x, g.y) !== Tile.Water).map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
     // Une torche ou une cheminée n'éclaire que la salle où elle est accrochée (Thomas, 2026-11-12 : « que du côté où
     // elle est placée, pas de l'autre côté du mur ») : ni le couloir derrière le mur, ni à travers une porte.
     const fixed = this.torches.map((t) => {
@@ -2881,6 +2881,8 @@ export class Game {
         m.alerted = false;
         m.asleep = false;
         m.wary = false;
+        m.goal = undefined;
+        m.lost = RULES.hideLostTurns;
       }
     }
     this.events.push({ type: "hide", d20, bonus, total, success });
@@ -4137,7 +4139,7 @@ export class Game {
             "Vous lui montrez : on pointe le doigt ailleurs, on crie « Là-bas ! », on file.",
             "« Là-bas ! … Ça marche ! Même sur moi ! »",
             `« Tiens, pour toi : des fioles de fumée. Volées. »`,
-            `(${KRIK.smokeFlasks} fioles de fumée dans le sac : lancée, elle fait perdre votre trace aux monstres tout près.)`,
+            `(${KRIK.smokeFlasks} fioles de fumée dans le sac.)`,
           ]);
         }
         this.callFoes(g, "schrat", KRIK.pursuers);
@@ -4710,7 +4712,8 @@ export class Game {
   private dropItem(x: number, y: number, item: ItemId, count: number, angle?: number): void {
     // Rien ne reste sur un escalier : l'objet rebondit sur la marche et retombe à côté (Thomas, 2026-11-12).
     const t = this.map.get(x, y);
-    if (t === Tile.StairsDown || t === Tile.StairsUp) {
+    // Une torche ne reste pas dans l'eau non plus (Thomas, 2026-11-12) : elle rebondit sur la berge.
+    if (t === Tile.StairsDown || t === Tile.StairsUp || (item === "torche" && t === Tile.Water)) {
       const at = this.landingCell({ x, y }, item);
       if (at.x !== x || at.y !== y) {
         this.events.push({ type: "stairsBounce", item, fromX: x, fromY: y, x: at.x, y: at.y });
@@ -5038,6 +5041,12 @@ export class Game {
 
   /** Promenade : le monstre va de salle en salle, au hasard. */
   private wander(m: Actor): void {
+    // Il vient de perdre la trace du héros caché : il reste là, il regarde autour de lui.
+    if (m.lost) {
+      m.lost--;
+      if (this.rng.chance(0.5)) this.faceToward(m, { x: m.x + this.rng.int(-1, 1), y: m.y + this.rng.int(-1, 1) });
+      return;
+    }
     if (!m.goal || (m.goal.x === m.x && m.goal.y === m.y)) {
       if (m.patrol) {
         // Ronde : une case libre au hasard de sa salle.
@@ -5048,6 +5057,10 @@ export class Game {
         m.goal = { x, y };
       } else {
         const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
+        // Un tireur ne va pas fouiller la salle où le héros s'est caché : il n'aime pas le corps à corps.
+        const sling = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.sling;
+        const h = this.hero;
+        if (sling && this.hidden && h.x >= room.x && h.x < room.x + room.w && h.y >= room.y && h.y < room.y + room.h) return;
         m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
       }
     }

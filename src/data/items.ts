@@ -162,7 +162,7 @@ export const ITEMS = {
     id: "javeline",
     name: "Javelines",
     kind: "ammo",
-    description: "Se lance à la main, sans arc (choisie dans le carquois). Moins précise qu'une flèche, elle frappe fort, et se ramasse.",
+    description: "Se lance à la main, sans arc. Moins précise qu'une flèche, mais frappe fort ; se ramasse.",
     w: 1,
     h: 2,
     maxStack: 6,

@@ -18,6 +18,8 @@ import { GLUCK_PALETTE, KRIK_PALETTE, Renderer } from "./render/renderer";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
+import { MANUAL } from "./data/manual";
+import { missing as i18nMissing, setLang, tr } from "./i18n/i18n";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
@@ -67,7 +69,7 @@ const menu = $("menu");
 
 // ---------- Options (mémorisées sur l'appareil quand c'est possible) ----------
 
-/** Réglages (Thomas, 2026-11-12) : bruitages et musique séparés ; langue (l'anglais viendra). */
+/** Réglages (Thomas, 2026-11-12) : bruitages et musique séparés ; langue (français ou anglais). */
 const options = { sound: true, music: true, lang: "fr" as "fr" | "en" };
 try {
   Object.assign(options, JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}"));
@@ -81,6 +83,34 @@ function saveOptions(): void {
     /* sans gravité */
   }
 }
+
+setLang(options.lang);
+/** Textes écrits dans la page (boutons, titres) : traduits une fois au lancement ; l'original français est gardé. */
+const frOriginal = new WeakMap<Node, string>();
+const frAttr = new WeakMap<Element, Record<string, string>>();
+function translatePage(root: Node = document.body): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let n: Node | null = walker.currentNode; n; n = walker.nextNode()) {
+    if (n.nodeType === Node.TEXT_NODE) {
+      const tag = n.parentElement?.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE" || !n.textContent?.trim()) continue;
+      const fr = frOriginal.get(n) ?? n.textContent ?? "";
+      if (!frOriginal.has(n)) frOriginal.set(n, fr);
+      n.textContent = tr(fr);
+    } else if (n instanceof Element) {
+      const saved = frAttr.get(n) ?? {};
+      for (const a of ["aria-label", "title"]) {
+        const v = saved[a] ?? n.getAttribute(a);
+        if (v === null) continue;
+        saved[a] = v;
+        n.setAttribute(a, tr(v));
+      }
+      frAttr.set(n, saved);
+    }
+  }
+  document.title = tr("Cave Roller — démo");
+}
+translatePage();
 
 const sfx = new Sfx();
 sfx.enabled = options.sound;
@@ -233,7 +263,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   game = next;
   const sandbox = game.sandbox;
   $("test-tools").hidden = !sandbox;
-  $("peace").textContent = "Combats : oui";
+  $("peace").textContent = tr("Combats : oui");
   aimMode = false;
   doorWasPending = false;
   foundOpen = false;
@@ -251,23 +281,23 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "Ici : les nouveaux objets (vous êtes niveau 4) et, dans le coin en bas à droite, L'ESCALIER DU BOSS : il descend à l'étage 2, la nichée de la Tisseuse (un plan différent à chaque partie). À l'est : colonnes, un Kobold qui fait sa ronde, cache à fouiller, piège à pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds à pousser, piège à gaz, un autre escalier vers le boss, puis la SALLE DE PRIÈRE et l'ALCHIMISTE. Plus au sud : l'antre de l'araignée (aiguille empoisonnée), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton « Réveiller » : tous les monstres foncent sur vous.",
+        "Ici : les nouveaux objets. L'escalier du coin en bas à droite mène au boss. « Réveiller » : tous les monstres foncent sur vous.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
   clearDie();
   over.hidden = true;
-  seedLabel.textContent = `Graine ${game.runSeed}`;
+  seedLabel.textContent = tr(`Graine ${game.runSeed}`);
   renderer.snapTo(game);
 }
 
 /** Le dé redevient vide : il ne montre un nombre que pendant et juste après un jet. */
 function clearDie(): void {
-  die.textContent = "";
+  die.textContent = tr("");
   die.className = "die";
   die2.hidden = true;
   die.parentElement?.classList.toggle("pair", !die2.hidden);
-  dieWho.textContent = "";
+  dieWho.textContent = tr("");
 }
 
 function renderLog(): void {
@@ -275,7 +305,7 @@ function renderLog(): void {
   log.replaceChildren(
     ...logLines.map((line) => {
       const p = document.createElement("div");
-      p.textContent = line;
+      p.textContent = tr(line);
       return p;
     }),
   );
@@ -322,10 +352,10 @@ function startRoll(e: GameEvent): void {
   die.parentElement?.classList.toggle("pair", !die2.hidden);
   die2.className = `die rolling${foe ? " foe" : ""}`;
   const who = e.type === "attack" && e.attacker.kind === "monster" ? e.attacker.name : "Vous";
-  dieWho.textContent = mode === "advantage" ? `${who} · avantage` : mode === "disadvantage" ? `${who} · désavantage` : who;
+  dieWho.textContent = tr(mode === "advantage" ? `${who} · avantage` : mode === "disadvantage" ? `${who} · désavantage` : who);
   dieWho.className = mode === "normal" ? "" : mode;
   // Jet de dialogue (Gluck) : on dit quelle caractéristique est jetée.
-  if (e.type === "npcRoll") dieWho.textContent = e.stat;
+  if (e.type === "npcRoll") dieWho.textContent = tr(e.stat);
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
   if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
@@ -879,6 +909,22 @@ function showDeath(): void {
   over.hidden = false;
 }
 
+/** Le manuel : les caractéristiques, l'avantage et le désavantage (src/data/manual.ts). */
+function renderManual(): void {
+  const list = $("manual-list");
+  list.replaceChildren();
+  for (const section of MANUAL) {
+    list.append(el("h3", "", section.title));
+    if (section.intro) list.append(el("p", "manual-intro", section.intro));
+    for (const entry of section.entries) {
+      const div = el("div", "manual-entry");
+      div.append(el("b", "", entry.title), document.createElement("br"));
+      div.append(document.createTextNode(entry.lines.map((l) => tr(l)).join(" ")));
+      list.append(div);
+    }
+  }
+}
+
 function renderRecords(): void {
   const list = $("records-list");
   list.replaceChildren();
@@ -1109,7 +1155,7 @@ function useQuickItem(): void {
 const WHEEL_SHORT: Record<string, string> = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-skill": "Voie" };
 for (const [id, icon, label] of WHEEL) {
   $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
-  $(id).setAttribute("aria-label", label);
+  $(id).setAttribute("aria-label", tr(label));
   $(id).addEventListener("click", (ev) => {
     ev.stopPropagation();
     sfx.unlock();
@@ -1248,7 +1294,7 @@ function renderHere(): void {
   hereKey = key;
   const def: ItemDef = ITEMS[top.item];
   $("here-icon").replaceChildren(itemIcon(top.item));
-  $("here-name").textContent = `${def.name}${top.count > 1 ? ` ×${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`;
+  $("here-name").textContent = tr(`${def.name}${top.count > 1 ? ` ×${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`);
 }
 button("here-take", () => {
   if (game.pickUp()) stepMs = COMBAT_STEP_MS;
@@ -1256,14 +1302,14 @@ button("here-take", () => {
 button("here-info", () => {
   const top = game.itemsHere()[0];
   if (!top) return;
-  (document.querySelector("#found h2") as HTMLElement).textContent = "Au sol";
+  (document.querySelector("#found h2") as HTMLElement).textContent = tr("Au sol");
   $("found-card").replaceChildren(itemCard(ITEMS[top.item], top.count));
   $("found").hidden = false;
   foundOpen = true;
 });
 $("here-take").replaceChildren(uiIcon("take"));
-$("here-take").setAttribute("aria-label", "Ramasser");
-$("here-info").setAttribute("aria-label", "Fiche de l'objet");
+$("here-take").setAttribute("aria-label", tr("Ramasser"));
+$("here-info").setAttribute("aria-label", tr("Fiche de l'objet"));
 
 // Boutons sans texte : un pictogramme, et un nom lisible par les aides à la lecture.
 for (const [id, icon, label] of [
@@ -1274,18 +1320,18 @@ for (const [id, icon, label] of [
   ["door-cancel", "cancel", "Ne rien faire"],
 ] as const) {
   $(id).replaceChildren(uiIcon(icon));
-  $(id).setAttribute("aria-label", label);
-  $(id).title = label;
+  $(id).setAttribute("aria-label", tr(label));
+  $(id).title = tr(label);
 }
-$("aim").setAttribute("aria-label", "Tirer à l'arc");
+$("aim").setAttribute("aria-label", tr("Tirer à l'arc"));
 // Le bouton de l'écran du héros : sa tête, et un « ! » doré quand un point ou une compétence attend (demande de Thomas).
 {
   const bang = el("span", "", "!");
   bang.id = "bag-bang";
   bang.hidden = true;
   $("open-bag").replaceChildren(buildIcon(HERO_HEAD, HERO_HEAD_PALETTE), bang);
-  $("open-bag").setAttribute("aria-label", "Le héros : inventaire et personnage");
-  $("open-bag").title = "Le héros";
+  $("open-bag").setAttribute("aria-label", tr("Le héros : inventaire et personnage"));
+  $("open-bag").title = tr("Le héros");
 }
 // L'étage, en haut à droite : l'escalier du jeu et son numéro (demande de Thomas).
 $("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
@@ -1306,7 +1352,7 @@ function openShop(line: number): void {
   shopTab = "buy";
   shopPick = null;
   shopNote = "";
-  $("shop-line").textContent = `« ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} »`;
+  $("shop-line").textContent = tr(`« ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} »`);
   $("shop").hidden = false;
   // Pendant la conversation, l'encart du dé et la barre du bas disparaissent (Thomas).
   document.body.classList.add("shop-open");
@@ -1331,7 +1377,7 @@ function renderShop(): void {
   }
   $("shop-tab-buy").classList.toggle("on", shopTab === "buy");
   $("shop-tab-sell").classList.toggle("on", shopTab === "sell");
-  $("shop-purse").textContent = `Bourse : ${game.gold} or`;
+  $("shop-purse").textContent = tr(`Bourse : ${game.gold} or`);
   const list = $("shop-list");
   const detail = $("shop-detail");
   list.replaceChildren();
@@ -1435,7 +1481,7 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : "Krik";
+  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : "Krik");
   $("talk-face").replaceChildren(
     who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : who === "soeur" ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE) : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
   );
@@ -1476,7 +1522,7 @@ function renderTalk(): void {
   }
   for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", glue(l)));
   // L'or seulement : le nombre de pommes ne s'affiche pas (Thomas : « ça spoile »).
-  $("talk-purse").textContent = `Bourse : ${game.gold} or`;
+  $("talk-purse").textContent = tr(`Bourse : ${game.gold} or`);
   if (imposed !== null) {
     const b = el("button", "talk-choice", glue(imposed));
     b.addEventListener("click", () => {
@@ -1667,8 +1713,8 @@ function renderBag(): void {
         box.append(ghost);
       }
       node.append(box);
-      node.title = label;
-      node.setAttribute("aria-label", label);
+      node.title = tr(label);
+      node.setAttribute("aria-label", tr(label));
       node.addEventListener("click", () => {
         sfx.play("click");
         selected = worn && selectedSlot !== slot ? { slot } : null;
@@ -1679,7 +1725,7 @@ function renderBag(): void {
   );
 
   // En haut : l'or de la bourse (les caractéristiques sont dans l'onglet Personnage).
-  $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(String(game.gold)));
+  $("bag-gold").replaceChildren(itemIcon("or"), document.createTextNode(tr(String(game.gold))));
 
   // Le carquois, à côté du sac : la flèche qui partira et combien il en reste ; le toucher passe à l'autre sorte.
   const kinds = game.ammoKinds();
@@ -1694,7 +1740,7 @@ function renderBag(): void {
     qbox.append(ghost);
   }
   quiver.append(qbox);
-  quiver.title = "Carquois : touchez pour changer de flèches";
+  quiver.title = tr("Carquois : touchez pour changer de flèches");
   quiver.addEventListener("click", () => {
     sfx.play("click");
     const usable = kinds.filter((id) => !game.tooLow(ITEMS[id] as ItemDef));
@@ -1734,7 +1780,7 @@ function renderBag(): void {
   const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
   if (!item) {
     selected = null;
-    info.replaceChildren(el("div", "", "Touchez un objet pour le sélectionner. Dans le sac, touchez ensuite une case libre pour le déplacer. Restez appuyé sur une pomme, une torche ou une potion pour en faire le raccourci « Objet » de la barre d'actions."));
+    info.replaceChildren(el("div", "", "Touchez un objet pour le choisir, puis une case libre pour le déplacer. Appui long sur une pomme, une torche ou une potion : raccourci « Objet »."));
     action.hidden = true;
     $("bag-drop").hidden = true;
     $("bag-throw").hidden = true;
@@ -1746,7 +1792,7 @@ function renderBag(): void {
   const card = miniCard(def, item.count, selectedSlot ? "porté" : keyNote.replace(/^ — /, ""));
   const close = el("button", "item-close", "×") as HTMLButtonElement;
   close.type = "button";
-  close.setAttribute("aria-label", "Fermer la fiche");
+  close.setAttribute("aria-label", tr("Fermer la fiche"));
   close.addEventListener("click", () => {
     selected = null;
     renderHeroScreen();
@@ -1767,6 +1813,7 @@ function renderBag(): void {
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
     : def.kind === "use" ? "Consommer" : "Équiper";
+  action.textContent = tr(action.textContent ?? "");
   $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
@@ -1921,9 +1968,9 @@ function renderPower(): void {
   b.hidden = !withPower;
   if (!withPower || !game.voie) return;
   const name = game.voie === "blue" ? "Second souffle" : "Double frappe";
-  b.setAttribute("aria-label", name);
-  b.title = name;
-  b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(`×${powerCharges()}`));
+  b.setAttribute("aria-label", tr(name));
+  b.title = tr(name);
+  b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(tr(`×${powerCharges()}`)));
   b.classList.toggle("off", !ready);
 }
 button("power", () => {
@@ -2093,7 +2140,7 @@ function renderHeroStatus(): void {
     ...list.map((st) => {
       const b = el("button", "", "") as HTMLButtonElement;
       b.type = "button";
-      b.setAttribute("aria-label", st.name);
+      b.setAttribute("aria-label", tr(st.name));
       b.append(buildIcon(STATUS_ICONS[st.id]));
       b.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -2117,7 +2164,7 @@ function renderHeroStatus(): void {
   if (!open) statusOpen = null;
   pop.hidden = !open;
   if (open) {
-    pop.replaceChildren(el("b", "", open.name), document.createTextNode(open.detail));
+    pop.replaceChildren(el("b", "", open.name), document.createTextNode(tr(open.detail)));
   }
 }
 $("status-pop").addEventListener("click", () => {
@@ -2156,11 +2203,11 @@ function renderHeroScreen(): void {
 function renderCharacter(): void {
   const head = buildIcon(HERO_HEAD, HERO_HEAD_PALETTE);
   const who = el("span", "char-head");
-  who.append(head, document.createTextNode(`${game.heroClass.name} · Niv ${game.level}`));
+  who.append(head, document.createTextNode(tr(`${game.heroClass.name} · Niv ${game.level}`)));
   $("char-who").replaceChildren(who);
-  $("char-xp").textContent = `XP ${game.xp}/${game.xpToNext()}`;
+  $("char-xp").textContent = tr(`XP ${game.xp}/${game.xpToNext()}`);
   $("char-points").textContent =
-    game.points > 0 ? `${game.points} point${game.points > 1 ? "s" : ""} à attribuer${game.inCombat() ? " (pas en combat)" : ""}` : "";
+    game.points > 0 ? tr(`${game.points} point${game.points > 1 ? "s" : ""} à attribuer${game.inCombat() ? " (pas en combat)" : ""}`) : "";
 
   // Caractéristiques sur deux colonnes (l'écran tient sans défiler).
   const row = (name: string, value: string, stat?: StatId, wide = false) => {
@@ -2170,7 +2217,7 @@ function renderCharacter(): void {
       const plus = el("button", "plus") as HTMLButtonElement;
       plus.type = "button";
       plus.append(plusIcon());
-      plus.setAttribute("aria-label", `Un point en ${name}`);
+      plus.setAttribute("aria-label", tr(`Un point en ${name}`));
       // En combat, les « + » sont grisés (Thomas : on n'augmente pas ses caractéristiques en plein combat).
       if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
       plus.addEventListener("click", () => {
@@ -2209,7 +2256,7 @@ function renderCharacter(): void {
     for (const path of Object.values(PATHS)) {
       const picked = pickedChoice?.kind === "path" && pickedChoice.id === path.id;
       const card = el("div", `skill-card${picked ? " picked" : ""}${game.canChoosePath() ? "" : " locked"}`);
-      card.append(buildIcon(PATH_ICONS[path.id]), el("b", "", path.name), document.createTextNode(path.description));
+      card.append(buildIcon(PATH_ICONS[path.id]), el("b", "", path.name), document.createTextNode(tr(path.description)));
       if (game.canChoosePath()) {
         card.addEventListener("click", () => {
           sfx.play("click");
@@ -2246,7 +2293,7 @@ function renderCharacter(): void {
       if (points > 0 && r < MAX_RANK) {
         const plus = el("button", "plus rank-plus") as HTMLButtonElement;
         plus.type = "button";
-        plus.setAttribute("aria-label", `Améliorer ${pw.name}`);
+        plus.setAttribute("aria-label", tr(`Améliorer ${pw.name}`));
         plus.append(plusIcon());
         if (game.inCombat()) plus.style.filter = "grayscale(1) brightness(0.6)";
         plus.addEventListener("click", (ev) => {
@@ -2269,9 +2316,9 @@ function renderCharacter(): void {
   $("char-path").replaceChildren(...pathCards);
   $("char-path").classList.toggle("choose", !game.voie);
   $("char-skills").replaceChildren(...powerCards);
-  $("char-note").textContent = note;
+  $("char-note").textContent = tr(note);
   confirm.hidden = pickedChoice === null;
-  confirm.textContent = "Choisir cette voie (définitif)";
+  confirm.textContent = tr("Choisir cette voie (définitif)");
 }
 
 /** Cases où l'on peut lancer une potion : en vue, à portée. */
@@ -2388,21 +2435,22 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "records";
+type Screen = "main" | "new" | "settings" | "codex" | "records" | "manual";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex", "records"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "records", "manual"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
-  $("settings-sound").textContent = `Bruitages : ${options.sound ? "oui" : "non"}`;
-  $("settings-music").textContent = `Musique : ${options.music ? "oui" : "non"}`;
-  $("settings-lang").textContent = `Langue : ${options.lang === "en" ? "English" : "Français"}`;
+  $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
+  $("settings-music").textContent = tr(`Musique : ${options.music ? "oui" : "non"}`);
+  $("settings-lang").textContent = tr(`Langue : ${options.lang === "en" ? "English" : "Français"}`);
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
   if (screen === "records") renderRecords();
+  if (screen === "manual") renderManual();
 }
 
 interface Card {
@@ -2496,7 +2544,7 @@ function rarityPip(rarity: keyof typeof RARITY_COLORS): SVGSVGElement {
   svg.classList.add("rarity-pip");
   const [light, dark] = RARITY_COLORS[rarity];
   const title = document.createElementNS(ns, "title");
-  title.textContent = rarity in RARITY_LABELS ? RARITY_LABELS[rarity as keyof typeof RARITY_LABELS] : rarity === "epic" ? "Épique" : "Légendaire";
+  title.textContent = tr(rarity in RARITY_LABELS ? RARITY_LABELS[rarity as keyof typeof RARITY_LABELS] : rarity === "epic" ? "Épique" : "Légendaire");
   svg.append(title);
   const rows = ["..OOO..", ".OxxxO.", "OxhxxxO", "OxxxxxO", "OxxxxxO", ".OxxxO.", "..OOO.."];
   const fill: Record<string, string> = { O: dark, x: light, h: "#ffffff" };
@@ -2519,7 +2567,7 @@ function rarityPip(rarity: keyof typeof RARITY_COLORS): SVGSVGElement {
 function namedWithRarity(className: string, def: ItemDef, text: string): HTMLElement {
   const node = el("div", className);
   if (def.rarity) node.append(rarityPip(def.rarity));
-  node.append(document.createTextNode(text));
+  node.append(document.createTextNode(tr(text)));
   return node;
 }
 
@@ -2543,7 +2591,7 @@ function plusIcon(): SVGSVGElement {
 function el(tag: string, className: string, text = ""): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
-  node.textContent = text;
+  node.textContent = tr(text);
   return node;
 }
 
@@ -2553,7 +2601,7 @@ function buildCards(container: HTMLElement, cards: Card[], selectedId: string, o
       const node = el("div", `card${card.available ? "" : " locked"}${card.id === selectedId ? " selected" : ""}`);
       const more = el("button", "more");
       more.append(plusIcon());
-      more.setAttribute("aria-label", `Détail : ${card.name}`);
+      more.setAttribute("aria-label", tr(`Détail : ${card.name}`));
       more.addEventListener("click", (e) => {
         e.stopPropagation();
         sfx.play("click");
@@ -2589,7 +2637,7 @@ function renderCards(): void {
 }
 
 function showDetail(card: Card): void {
-  $("detail-title").textContent = card.name;
+  $("detail-title").textContent = tr(card.name);
   const lines = card.available ? card.details : [...card.details, "Pas encore jouable : valeurs provisoires."];
   $("detail-body").replaceChildren(...lines.map((line) => el("div", "", line)));
   $("detail").hidden = false;
@@ -2605,11 +2653,13 @@ button("menu-resume", () => {
 });
 button("menu-new", () => showScreen("new"));
 button("menu-settings", () => {
-  $("settings-note").textContent = "";
+  $("settings-note").textContent = tr("");
   showScreen("settings");
 });
 button("menu-codex", () => showScreen("codex"));
 button("menu-records", () => showScreen("records"));
+button("menu-manual", () => showScreen("manual"));
+button("manual-back", () => showScreen("main"));
 button("records-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));
@@ -2632,7 +2682,7 @@ button("wake-all", () => {
 // Salle d'essai : couper ou rétablir les combats (Thomas) — les monstres ne remarquent plus le héros.
 button("peace", () => {
   game.setPeaceful(!game.peaceful);
-  $("peace").textContent = game.peaceful ? "Combats : non" : "Combats : oui";
+  $("peace").textContent = tr(game.peaceful ? "Combats : non" : "Combats : oui");
   logLines.push(game.peaceful ? "Combats coupés : les monstres sont retirés." : "Combats rétablis : les monstres reviennent.");
   renderLog();
 });
@@ -2661,12 +2711,14 @@ button("settings-music", () => {
   showScreen("settings");
 });
 button("settings-lang", () => {
-  // L'anglais n'est pas encore traduit : le choix est gardé, le jeu reste en français pour l'instant.
   options.lang = options.lang === "fr" ? "en" : "fr";
   saveOptions();
   sfx.play("click");
+  setLang(options.lang);
+  translatePage();
+  logLines = [...logLines];
+  renderLog();
   showScreen("settings");
-  $("settings-note").textContent = options.lang === "en" ? "English is coming soon: the game is still in French for now." : "";
 });
 // Salle d'essai : Gluck et Sœur Osseuse reprennent à leur première scène (Thomas, 2026-11-12).
 button("reset-talks", () => {
@@ -2711,7 +2763,7 @@ function beginStairs(force?: StairsVariant): void {
     let acc = 0;
     for (const [v, p] of table) if (r < (acc += p)) { variant = v; break; }
   }
-  stairsScene = new StairsScene(direction, variant, `ÉTAGE ${target}`);
+  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`));
 }
 
 function advanceStairs(dt: number): void {
@@ -2816,7 +2868,7 @@ function frame(now: number): void {
   diceBox.classList.toggle("ready", !game.over && game.meleeTarget() !== null);
   if (!cue && queue.length === 0 && die.textContent === "") {
     const hint = game.meleeTarget() && !game.over ? "Frapper" : "";
-    if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = hint;
+    if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = tr(hint);
   }
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.shotProfile()?.range ?? null) : null;
@@ -2827,11 +2879,11 @@ function frame(now: number): void {
   renderAlarm();
   renderHeroStatus();
   const floorText = String(game.depth);
-  if ($("floor-num").textContent !== floorText) $("floor-num").textContent = floorText;
+  if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
   hpOrbs();
   renderHere();
-  $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
+  $("hp-label").textContent = tr(`PV ${shownHp}/${game.hero.maxHp}`);
   const xpShown = shownXp();
   // Niveau maximal de la section : la jauge est pleine, grisée, avec un petit panneau « stop ».
   const capped = game.xpBlocked() && xpInFlight === 0;
@@ -2841,7 +2893,7 @@ function frame(now: number): void {
     if (capped && !$("xp-stop").firstChild) $("xp-stop").append(uiIcon("stop"));
   }
   $("xp-fill").style.width = capped ? "100%" : `${(100 * xpShown.xp) / xpShown.need}%`;
-  $("xp-label").textContent = capped ? `Niv ${game.level} · MAX` : `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`;
+  $("xp-label").textContent = tr(capped ? `Niv ${game.level} · MAX` : `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`);
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
   // Avec la clef de l'étage, rien à choisir : elle sert toute seule.
@@ -2853,8 +2905,8 @@ function frame(now: number): void {
   const maiden = game.pendingDoor !== null && game.maidenAt(game.pendingDoor.x, game.pendingDoor.y) !== null;
   const pickText = maiden ? "Désamorcer" : "Crocheter";
   const breakText = maiden ? "Forcer" : "Enfoncer";
-  if ($("door-pick").textContent !== pickText) $("door-pick").textContent = pickText;
-  if ($("door-break").textContent !== breakText) $("door-break").textContent = breakText;
+  if ($("door-pick").textContent !== pickText) $("door-pick").textContent = tr(pickText);
+  if ($("door-break").textContent !== breakText) $("door-break").textContent = tr(breakText);
   $("door-break").hidden = !doorOptions.includes("break");
   // En arrivant devant une porte verrouillée, le héros bute dessus.
   if (game.pendingDoor && !doorWasPending && !game.usingKey()) {
@@ -2881,7 +2933,7 @@ function frame(now: number): void {
   const aimKey = `${bow?.id}|${ammo}|${game.arrows()}`;
   if (aimKey !== aimShown) {
     aimShown = aimKey;
-    aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(`×${game.arrows()}`));
+    aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(tr(`×${game.arrows()}`)));
   }
   aim.classList.toggle("active", aimMode);
   renderPower();
@@ -2898,6 +2950,8 @@ requestAnimationFrame(frame);
 // Accès de débogage pour les tests automatiques dans un navigateur (sans effet sur le jeu).
 (window as unknown as { leutenheim: unknown }).leutenheim = {
   game: () => game,
+  /** Pour les vérifications : les textes affichés sans traduction anglaise. */
+  untranslated: () => [...i18nMissing],
   renderer: () => renderer,
   /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
   stairs: (variant?: StairsVariant) => beginStairs(variant),

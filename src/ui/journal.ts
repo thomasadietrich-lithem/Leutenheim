@@ -79,9 +79,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
     }
     case "levelup":
-      return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
+      return `Niveau ${e.level} ! Un point à attribuer.`;
     case "death":
-      return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+      return e.actor.kind === "hero" ? null : e.actor.name.endsWith("e") ? `${capFirst(e.actor.name)} est vaincue.` : `${capFirst(e.actor.name)} est vaincu.`;
     case "npc": {
       if (e.what !== "leave") return null;
       const name = e.who === "gluck" ? "Gluck" : e.who === "soeur" ? "Sœur Osseuse" : "Krik";
@@ -337,7 +337,7 @@ export const REFUSALS = {
     hidden: "Vous êtes déjà caché.",
     threatened: "Impossible de se cacher : un ennemi est à votre contact.",
     watched: "Impossible de se cacher : un ennemi vous a en vue.",
-    "no-cover": "Rien pour vous cacher ici : il faut une colonne à côté de vous, ou un angle de mur.",
+    "no-cover": "Rien pour vous cacher : il faut une colonne ou un angle de mur.",
     torch: "Impossible de se cacher avec une torche allumée.",
   },
   disengage: {
@@ -355,3 +355,7 @@ export const REFUSALS = {
     danger: "Impossible de se reposer : un ennemi est en vue.",
   },
 } as const;
+
+function capFirst(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

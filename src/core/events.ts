@@ -34,10 +34,10 @@ export type GameEvent =
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
   /** Le sac est plein : l'objet reste au sol. */
-  | { type: "bagFull"; item?: ItemId; x?: number; y?: number }
+  | { type: "bagFull"; item?: ItemId; x?: number; y?: number; messy?: boolean }
   /** Un objet tombé sur un escalier rebondit sur la marche et retombe à côté. */
   | { type: "stairsBounce"; item: ItemId; fromX: number; fromY: number; x: number; y: number }
-  | { type: "bounce"; item: ItemId; count: number; fromX: number; fromY: number; x: number; y: number }
+  | { type: "bounce"; item: ItemId; count: number; fromX: number; fromY: number; x: number; y: number; messy?: boolean }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "blessEnd" }
@@ -128,7 +128,11 @@ export type GameEvent =
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
   | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[] }
   | { type: "burn"; actor: Actor; damage: number }
-  | { type: "potion"; potion: "youth" | "poison" | "haste"; points?: number }
+  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin"; points?: number }
+  /** Potion d'oursin : l'attaquant se pique et perd des PV. */
+  | { type: "thorns"; actor: Actor; damage: number }
+  /** Flûte de pan : quelques notes, un ennemi s'endort. */
+  | { type: "lullaby"; actor: Actor }
   | { type: "slowed"; actor: Actor }
   | { type: "dropped"; item: ItemId; count: number }
   /** Une potion jetée se casse sur les dalles (Thomas, 2026-11-12). */

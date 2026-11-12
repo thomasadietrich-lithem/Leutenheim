@@ -57,7 +57,7 @@ export interface ItemDef {
   bagCols?: number;
   bagRows?: number;
   /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
-  potion?: "youth" | "poison" | "haste" | "fire" | "smoke";
+  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin";
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
   throwRange?: number;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
@@ -359,6 +359,11 @@ export const ITEMS = {
   potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps à corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
   potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "À lancer : la case visée et ses quatre voisines brûlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
   potion_fumee: { id: "potion_fumee", name: "Fiole de fumée", kind: "use", description: "À lancer : un nuage gris ; les monstres tout près (2 cases) perdent votre trace et restent un tour hébétés. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
+  potion_brouillard: { id: "potion_brouillard", name: "Potion de brouillard", kind: "use", description: "Noire et épaisse. À lancer : une nappe de brouillard en croix, cinq cases de large. Personne n'y voit : de quoi fuir.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fog", throwRange: 5 },
+  potion_oursin: { id: "potion_oursin", name: "Potion d'oursin", kind: "use", description: "Brune et piquante. Pendant 40 tours, 15 % des dégâts reçus au contact reviennent à l'attaquant.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "urchin" },
+  // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
+  oeil_chauve_souris: { id: "oeil_chauve_souris", name: "Œil de chauve-souris", kind: "artifact", description: "Desséché, il palpite encore. Vous devinez l'ombre des monstres hors de vue : à 10 cases, et à 3 à travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
+  flute_pan: { id: "flute_pan", name: "Flûte de pan", kind: "artifact", description: "Quelques roseaux liés. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
   // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
   sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. À rapporter à Gluck.", w: 1, h: 1, maxStack: 1 },
   magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. À rapporter à Krik… ou pas.", w: 1, h: 1, maxStack: 1 },

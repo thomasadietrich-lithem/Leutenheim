@@ -473,6 +473,12 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "doused") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
     sfx.play("splash");
+  } else if (e.type === "thorns") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, `Piqué ! −${e.damage}`, "#d8a060");
+    sfx.play("hit");
+  } else if (e.type === "lullaby") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "♪ Zzz", "#b48ce0");
+    sfx.play("flute");
   } else if (e.type === "quest") {
     if (e.what === "start") renderer.addFloatingText(game.hero.x, game.hero.y, "Nouvelle quête !", "#ffd75e");
     if (e.what === "fail" && e.gold) renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#f0c850");
@@ -485,7 +491,7 @@ function reveal(e: GameEvent): void {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
   } else if (e.type === "bounce") {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
-    renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
+    renderer.addFloatingText(game.hero.x, game.hero.y, e.messy ? "Sac à ranger" : "Sac plein", "#ffd75e");
   } else if (e.type === "merchantLeaves") {
     if (e.seen) renderer.addFloatingText(e.x, e.y, "Pfft !", "#c8b8ff");
     if (shopOpen) closeShop();
@@ -640,7 +646,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "bagFull") {
     if (e.item && e.x !== undefined && e.y !== undefined) {
       renderer.addHop(e.item, e.x, e.y, e.x, e.y);
-      renderer.addFloatingText(e.x, e.y, "Sac plein", "#ff8a7a");
+      renderer.addFloatingText(e.x, e.y, e.messy ? "Sac à ranger" : "Sac plein", "#ff8a7a");
     }
   } else if (e.type === "heavyBlow") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : e.kind === "knockback" ? "Projeté !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
@@ -1246,7 +1252,7 @@ function useQuickItem(): void {
     logLines.push(`Il faut être niveau ${def.level} pour cela.`);
     return;
   }
-  if (def.potion === "fire" || def.potion === "smoke") {
+  if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") {
     throwUid = stack.uid;
     renderer.jumpCells = throwCells(stack.uid);
     logLines.push("Touchez la case où lancer la potion.");
@@ -1914,7 +1920,7 @@ function renderBag(): void {
   // les autres se BOIVENT.
   action.textContent = selectedSlot
     ? "Retirer"
-    : def.potion === "fire" || def.potion === "smoke" ? "Lancer"
+    : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" ? "Lancer"
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
     : def.kind === "use" ? "Consommer" : "Équiper";
@@ -2016,7 +2022,7 @@ button("bag-equip", () => {
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
     logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
-  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke")) {
+  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog")) {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;
     renderer.jumpCells = throwCells(chosen.uid);
@@ -2133,6 +2139,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.clarityActive()) list.push({ id: "clarte", name: "Clarté", detail: "Le poison vous ronge deux fois moins longtemps, sur cet étage." });
   if (game.curseActive()) list.push({ id: "malediction", name: "Malédiction des Kobolds", detail: "+2 dégâts contre les Kobolds, sur cet étage." });
   if (game.luck > 0) list.push({ id: "chance", name: "Chance", detail: `Vos ${game.luck > 1 ? `${game.luck} prochains 1` : "prochain 1"} au dé ${game.luck > 1 ? "seront relancés" : "sera relancé"}.` });
+  if (game.urchinTurns > 0) list.push({ id: "oursin", name: "Oursin", detail: `15 % des dégâts reçus au contact reviennent à l'attaquant. Encore ${game.urchinTurns} tours.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
   const rampart = game.rank("dernier_rempart");
   if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {

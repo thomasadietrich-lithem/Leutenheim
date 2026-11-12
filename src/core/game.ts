@@ -72,7 +72,7 @@ export interface KrikMemory {
 }
 
 /** La flaque qu'une potion laisse en éclatant : sa couleur. */
-const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot" };
+const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste" };
 
 /** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
 export interface SoeurMemory {
@@ -161,6 +161,8 @@ export class Game {
   quickItem: ItemId | null = null;
   /** La tâche de quête en cours (une seule à la fois ; Thomas, 2026-11-12). */
   quest: QuestTask | null = null;
+  /** Les fractions de points d'expérience pas encore gagnées (XP divisée par deux). */
+  xpCarry = 0;
   /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
   blessTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -335,6 +337,7 @@ export class Game {
     this.useFloor(state, depth);
     this.fires = [];
     this.gas = [];
+    this.fog = [];
     this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
@@ -1157,6 +1160,10 @@ export class Game {
 
   /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
   gas: { x: number; y: number; turns: number }[] = [];
+  /** Brouillard noir (potion de brouillard) : on ne voit ni à travers ni dedans ; personne ne s'y empoisonne. */
+  fog: { x: number; y: number; turns: number }[] = [];
+  /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
+  urchinTurns = 0;
 
   isGassed(x: number, y: number): boolean {
     return this.gas.some((g) => g.x === x && g.y === y);
@@ -1177,6 +1184,83 @@ export class Game {
     this.gasPoison();
     for (const g of this.gas) g.turns--;
     this.gas = this.gas.filter((g) => g.turns > 0);
+  }
+
+  /** Du brouillard sur cette case ? */
+  fogAt(x: number, y: number): boolean {
+    return this.fog.some((f) => f.x === x && f.y === y);
+  }
+
+  /** Le brouillard cache-t-il `b` aux yeux de `a` (b dedans, ou une nappe sur la ligne) ? */
+  private fogBetween(a: Point, b: Point): boolean {
+    if (this.fog.length === 0) return false;
+    return this.fogAt(b.x, b.y) || this.lineCells(a, b).some((c) => this.fogAt(c.x, c.y));
+  }
+
+  /** Les monstres qui ne voient plus le héros à cause du brouillard perdent sa trace et vont voir là où il était. */
+  private fogBlinds(): void {
+    for (const m of this.monsters) {
+      if (m.boss || !m.alerted || this.inReach(m, this.hero) || !this.fogBetween(m, this.hero)) continue;
+      m.alerted = false;
+      m.wary = false;
+      m.lost = 0;
+      m.goal = { x: this.hero.x, y: this.hero.y };
+    }
+  }
+
+  /** Fin de tour : le brouillard aveugle, puis se dissipe. */
+  private fogTick(): void {
+    if (this.fog.length === 0) return;
+    this.fogBlinds();
+    for (const f of this.fog) f.turns--;
+    this.fog = this.fog.filter((f) => f.turns > 0);
+  }
+
+  /** Une nappe de brouillard autour de `at` : la case et `arm` cases dans chaque direction. */
+  private spreadFog(at: Point, arm: number): Point[] {
+    const cells: Point[] = [{ x: at.x, y: at.y }];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let k = 1; k <= arm; k++) {
+        const c = { x: at.x + dx * k, y: at.y + dy * k };
+        if (!this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Furniture) break;
+        cells.push(c);
+      }
+    }
+    for (const c of cells) {
+      const old = this.fog.find((f) => f.x === c.x && f.y === c.y);
+      if (old) old.turns = Math.max(old.turns, RULES.fogTurns);
+      else this.fog.push({ x: c.x, y: c.y, turns: RULES.fogTurns });
+    }
+    this.fogBlinds();
+    return cells;
+  }
+
+  /**
+   * Flûte de pan (bibelot, Thomas 2026-11-12) : en combat, de temps en temps, quelques notes endorment un ennemi proche.
+   */
+  private fluteTick(): void {
+    if (this.equipment.artifact?.defId !== "flute_pan" || !this.inCombat() || !this.rng.chance(RULES.fluteChance)) return;
+    const foes = this.monsters.filter((m) => !m.boss && m.alerted && this.isVisible(m.x, m.y) && gapBetween(m, this.hero) <= RULES.fluteRange);
+    if (foes.length === 0) return;
+    foes.sort((a, b) => gapBetween(a, this.hero) - gapBetween(b, this.hero));
+    const m = foes[0];
+    m.asleep = true;
+    m.alerted = false;
+    m.wary = false;
+    m.feud = undefined;
+    this.events.push({ type: "lullaby", actor: m });
+  }
+
+  /** Œil de chauve-souris (bibelot) : les monstres hors de vue qu'on devine, en ombres (10 cases, 3 à travers un mur). */
+  batShadows(): Point[] {
+    if (this.equipment.artifact?.defId !== "oeil_chauve_souris") return [];
+    const out: Point[] = [];
+    for (const m of this.monsters) {
+      if (this.isVisible(m.x, m.y)) continue;
+      const d = gapBetween(m, this.hero);
+      if (d <= RULES.batWallRange || (d <= RULES.batRange && hasLineOfSight(this.map, this.hero, m))) out.push({ x: m.x, y: m.y });
+    }
+    return out;
   }
 
   /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
@@ -1353,15 +1437,18 @@ export class Game {
       floorPerks: this.floorPerks,
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
+      urchinTurns: this.urchinTurns,
       gluck: this.gluckMemory,
       soeur: this.soeurMemory,
       krik: this.krikMemory,
       quest: this.quest,
+      xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
       blessTurns: this.blessTurns,
       quickItem: this.quickItem,
       fires: this.fires,
       gas: this.gas,
+      fog: this.fog,
       bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
       torchTurns: this.torchTurns,
       sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : undefined,
@@ -1449,11 +1536,13 @@ export class Game {
     }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
+    game.urchinTurns = saved.urchinTurns ?? 0;
     game.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
     game.blessTurns = saved.blessTurns ?? 0;
     game.soeurMemory = saved.soeur ?? { met: 0 };
     game.krikMemory = saved.krik ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
+    game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
     game.clarityDepth = saved.blessings?.clarity ?? 0;
     game.curseDepth = saved.blessings?.curse ?? 0;
@@ -1474,6 +1563,7 @@ export class Game {
     game.deepest = saved.deepest;
     game.fires = saved.fires;
     game.gas = saved.gas ?? [];
+    game.fog = saved.fog ?? [];
     game.refreshStats();
     game.hidden = saved.hidden;
     for (const a of [game.hero, ...game.monsters]) {
@@ -1681,7 +1771,7 @@ export class Game {
     // Une torche se tient d'une main : impossible avec une arme à deux mains (Thomas, 2026-11-11).
     if (def.lightTurns && this.twoHanded()) return false;
     // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
-    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke") return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -1714,6 +1804,9 @@ export class Game {
       // +1 : le tour où on la boit ne compte pas.
       this.hasteTurns = RULES.hasteTurns + 1;
       this.events.push({ type: "potion", potion: "haste" });
+    } else if (def.potion === "urchin") {
+      this.urchinTurns = RULES.urchinTurns + 1;
+      this.events.push({ type: "potion", potion: "urchin" });
     }
     if (def.lightTurns) {
       this.torchTurns = def.lightTurns;
@@ -1747,6 +1840,7 @@ export class Game {
         this.gasPoison();
       }
       if (potion === "smoke") this.smokeBurst(at, 1);
+      if (potion === "fog") this.spreadFog(at, 1);
       // Une flaque de sa couleur reste au sol (Thomas, 2026-11-12).
       if (this.map.get(at.x, at.y) !== Tile.Water) this.stain(at.x, at.y, POTION_STAIN[potion] ?? "pYouth");
       this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
@@ -1974,6 +2068,12 @@ export class Game {
     const extra = splash[this.rng.int(0, splash.length - 1)];
     // La flaque de sa couleur, là où la fiole éclate (Thomas, 2026-11-12).
     if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+    if (potion === "fog") {
+      // Potion de brouillard (Thomas, 2026-11-12, soir) : une épaisse nappe noire en croix de 5 cases, pour fuir.
+      const cells = this.spreadFog(order, RULES.fogArm);
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
+      return;
+    }
     if (potion === "smoke") {
       // Fiole de fumée (quête 03, Krik) : un nuage gris ; les monstres tout près perdent la trace du héros.
       const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
@@ -2842,6 +2942,7 @@ export class Game {
     this.merchantAct();
     this.burn();
     this.gasTick();
+    this.fogTick();
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
@@ -2851,6 +2952,8 @@ export class Game {
       }
     }
     if (this.hasteTurns > 0) this.hasteTurns--;
+    if (this.urchinTurns > 0) this.urchinTurns--;
+    this.fluteTick();
     if (this.protectTurns > 0) {
       this.protectTurns--;
       if (this.protectTurns === 0) this.refreshStats();
@@ -2886,8 +2989,11 @@ export class Game {
         m.alerted = false;
         m.asleep = false;
         m.wary = false;
-        m.goal = undefined;
-        m.lost = RULES.hideLostTurns;
+        // Le frondeur, lui, va voir là où le héros a disparu (Thomas, 2026-11-12, soir : « pareil si le joueur se
+        // cache ») ; les autres restent sur place un moment.
+        const sling = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.sling;
+        m.goal = sling ? { x: this.hero.x, y: this.hero.y } : undefined;
+        m.lost = sling ? 0 : RULES.hideLostTurns;
       }
     }
     this.events.push({ type: "hide", d20, bonus, total, success });
@@ -3171,7 +3277,7 @@ export class Game {
     const h = this.hero;
     const at = this.landingCell(h, item);
     this.dropItem(at.x, at.y, item, count);
-    this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
+    this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y, messy: this.inventory.fitsIfTidied(item) });
   }
 
   /**
@@ -4796,7 +4902,13 @@ export class Game {
     else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
     // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
     if (monster.boss) this.bossDefeated();
-    if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+    if (def && byHero) {
+      // XP encore divisée par deux (Thomas, 2026-11-12, soir : « je monte trop vite ») : les demi-points s'accumulent.
+      this.xpCarry += this.rng.int(def.xpMin, def.xpMax) * RULES.xpGainFactor;
+      const gain = Math.floor(this.xpCarry + 1e-9);
+      this.xpCarry -= gain;
+      if (gain > 0) this.gainXp(gain);
+    }
     const q = this.quest;
     if (byHero && q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) q.got++;
     for (const o of this.monsters) if (o.feud === monster.id) o.feud = undefined;
@@ -4942,7 +5054,7 @@ export class Game {
     pile.count = left;
     if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
     // Sac plein : l'objet saute sur place et retombe (Thomas, 2026-11-12).
-    else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y });
+    else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y, messy: this.inventory.fitsIfTidied(item) });
     this.ground = this.ground.filter((g) => g.count > 0);
     return left === 0 && this.itemsHere().some((g) => g.item === item);
   }
@@ -4981,8 +5093,8 @@ export class Game {
           (this.onRug() ? RULES.rugNotice : 1);
         // Caché, le héros ne peut être remarqué que par un monstre arrivé à son contact. Endormi, il n'entend que de
         // près ; éveillé, il ne voit que dans l'éventail devant lui (celui qu'on dessine), ou au contact.
-        const range = this.hidden ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
-        const inSight = distance <= 1 || m.asleep || this.inGaze(m, this.hero);
+        const range = this.hidden || this.fogAt(this.hero.x, this.hero.y) ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
+        const inSight = distance <= 1 || ((m.asleep || this.inGaze(m, this.hero)) && !this.fogBetween(m, this.hero));
         if (this.isVisible(m.x, m.y) && distance <= range && inSight && this.rng.chance(chance)) {
           this.faceToward(m, this.hero);
           m.alerted = true;
@@ -5020,6 +5132,13 @@ export class Game {
         this.raiseAlarm(RULES.alarmCombat, this.hero);
         this.wakeNear(this.hero);
         this.hurtHero(result.damage, this.killerName(m));
+        // Potion d'oursin (Thomas, 2026-11-12, soir) : 15 % des dégâts reçus au contact reviennent à l'attaquant.
+        if (this.urchinTurns > 0 && result.damage > 0 && !this.over) {
+          const back = Math.max(1, Math.round(result.damage * RULES.urchinReflect));
+          m.hp -= back;
+          this.events.push({ type: "thorns", actor: m, damage: back });
+          this.removeIfDead(m);
+        }
         continue;
       }
 
@@ -5036,15 +5155,11 @@ export class Game {
    */
   private slingerAct(m: Actor, sling: NonNullable<MonsterDef["sling"]>, distance: number): boolean {
     const hero = this.hero;
-    // Le héros hors de vue (derrière une porte, un coin de mur) mais pas loin (Thomas, 2026-11-12 : « il essaye de me
-    // suivre derrière une porte ») : le frondeur ne le poursuit pas au corps à corps, il garde sa place et attend qu'il
-    // se remontre, la fronde prête. Plus loin que sa portée, il se rapproche comme les autres.
-    const sees = hasLineOfSight(this.map, m, hero) && this.isVisible(m.x, m.y);
-    if (!sees && !this.inReach(m, hero)) {
-      if (distance > sling.range) return false;
-      this.faceToward(m, hero);
-      return true;
-    }
+    // Le héros hors de vue (derrière un mur, une porte, une colonne) : le frondeur le suit pour le retrouver
+    // (Thomas, 2026-11-12, soir : « s'il se retire derrière un mur, une porte ou un poteau, ils suivent et tentent de se
+    // rapprocher » ; remplace « il garde sa place »). Le tour ordinaire d'un monstre s'applique : il marche vers lui.
+    const sees = hasLineOfSight(this.map, m, hero) && this.isVisible(m.x, m.y) && !this.fogBetween(m, hero);
+    if (!sees && !this.inReach(m, hero)) return false;
     if (distance < sling.keep) {
       const away = this.stepAway(m);
       if (away) {
@@ -5058,7 +5173,7 @@ export class Game {
       // Acculé : au contact il se défend à la dague, sinon il tire quand même.
       if (this.inReach(m, hero)) return false;
     }
-    if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y)) return false;
+    if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y) || this.fogBetween(m, hero)) return false;
     this.faceToward(m, hero);
     // Un autre monstre sur la trajectoire (Thomas, 2026-11-12) : c'est lui qui prend la pierre, et il peut le prendre mal.
     const inTheWay = this.lineCells(m, hero).map((c) => this.monsterAt(c.x, c.y)).find((o) => o && o !== m && !o.boss);
@@ -5244,10 +5359,6 @@ export class Game {
         m.goal = { x, y };
       } else {
         const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
-        // Un tireur ne va pas fouiller la salle où le héros s'est caché : il n'aime pas le corps à corps.
-        const sling = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.sling;
-        const h = this.hero;
-        if (sling && this.hidden && h.x >= room.x && h.x < room.x + room.w && h.y >= room.y && h.y < room.y + room.h) return;
         m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
       }
     }

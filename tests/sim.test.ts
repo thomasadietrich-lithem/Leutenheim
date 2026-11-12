@@ -1278,7 +1278,7 @@ test("potion jetée : elle se casse à côté du héros (feu : le feu prend ; po
   }
 });
 
-test("frondeur : le héros hors de vue (derrière une porte) et à portée, il garde sa place au lieu de le suivre", () => {
+test("frondeur : le héros hors de vue (mur, porte, colonne), il le suit pour le retrouver (Thomas, 2026-11-12, soir)", () => {
   const base = new Game(2, undefined, undefined, undefined, true);
   const m0 = base.monsters.find((x) => x.defId === "frondeur")!;
   assert.ok(m0, "un frondeur dans la salle d'essai");
@@ -1291,7 +1291,7 @@ test("frondeur : le héros hors de vue (derrière une porte) et à portée, il g
     }
   }
   assert.ok(spots.length > 0);
-  let checked = 0;
+  let moved = 0;
   for (const spot of spots.slice(0, 6)) {
     const game = new Game(2, undefined, undefined, undefined, true);
     const m = game.monsters.find((x) => x.defId === "frondeur")!;
@@ -1302,10 +1302,9 @@ test("frondeur : le héros hors de vue (derrière une porte) et à portée, il g
     const at = { x: m.x, y: m.y };
     game.wait();
     game.tick();
-    assert.deepEqual({ x: m.x, y: m.y }, at, `héros en ${spot.x},${spot.y} : il attend`);
-    checked++;
+    if (m.x !== at.x || m.y !== at.y) moved++;
   }
-  assert.ok(checked >= 1);
+  assert.ok(moved >= 1, "il ne bouge jamais vers le héros caché derrière un obstacle");
 });
 
 test("porte : après un échec, la même méthode n'est plus proposée", () => {
@@ -1877,7 +1876,7 @@ test("se cacher : refusé au contact d'un ennemi ; réussi, les monstres perdent
     assert.ok(game.hidden);
     assert.ok(game.monsters.every((m) => !m.alerted), `graine ${seed} : un monstre garde la trace`);
     // Ils ont perdu sa trace : quelques tours sur place, sans s'approcher (Thomas, 2026-11-12, les frondeurs).
-    const before = game.monsters.map((m) => ({ m, x: m.x, y: m.y }));
+    const before = game.monsters.filter((m) => m.defId !== "frondeur").map((m) => ({ m, x: m.x, y: m.y }));
     for (let i = 0; i < RULES.hideLostTurns - 1; i++) {
       game.wait();
       game.tick();
@@ -3890,4 +3889,68 @@ test("l'eau ne brûle pas, et éteint un personnage en feu", () => {
   assert.equal(h.burning, 0);
   assert.ok(game.events.some((e) => e.type === "doused"));
   assert.equal(game.fires.length, 0);
+});
+
+test("potion de brouillard : lancée, une croix de 5 de large ; le monstre qui traquait le héros perd sa trace (Thomas, 2026-11-12)", () => {
+  const { game, m } = foeAt(3);
+  game.inventory.add("potion_brouillard", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "potion_brouillard")!.uid;
+  assert.ok(game.throwPotion(uid, game.hero.x, game.hero.y) || game.throwPotion(uid, m.x, m.y));
+  game.tick();
+  assert.ok(game.fog.length >= 3, "une nappe de plusieurs cases");
+  assert.ok(game.fog.length <= 9, "une croix, pas plus");
+  assert.ok(game.fogAt(game.hero.x, game.hero.y) || game.fogAt(m.x, m.y));
+  if (game.fogAt(game.hero.x, game.hero.y) && Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)) > 1) assert.equal(m.alerted, false, "il ne voit plus le héros");
+});
+
+test("potion d'oursin : 15 % des dégâts reçus au contact reviennent à l'attaquant (au moins 1)", () => {
+  const { game, m } = foeAt(1);
+  game.urchinTurns = 40;
+  game.hero.hp = game.hero.maxHp = 999;
+  const before = m.hp;
+  let hurt = false;
+  for (let i = 0; i < 30 && !hurt; i++) {
+    game.wait();
+    game.tick();
+    hurt = game.events.some((e) => e.type === "thorns");
+    if (!hurt) game.events.length = 0;
+  }
+  assert.ok(hurt, "le monstre s'est piqué");
+  assert.ok(m.hp < before);
+});
+
+test("bibelots : l'œil de chauve-souris montre l'ombre des monstres hors de vue ; la flûte endort", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.equipment.artifact = { uid: 999, defId: "oeil_chauve_souris", count: 1, x: 0, y: 0 } as never;
+  const hidden = game.monsters.filter((m) => !game.isVisible(m.x, m.y));
+  const shadows = game.batShadows();
+  assert.ok(shadows.every((p) => hidden.some((m) => m.x === p.x && m.y === p.y)), "seulement des monstres qu'on ne voit pas");
+  for (const p of shadows) assert.ok(Math.max(Math.abs(p.x - game.hero.x), Math.abs(p.y - game.hero.y)) <= 10);
+  game.equipment.artifact = null;
+  assert.equal(game.batShadows().length, 0);
+  const { game: g2, m } = foeAt(1);
+  g2.equipment.artifact = { uid: 998, defId: "flute_pan", count: 1, x: 0, y: 0 } as never;
+  g2.hero.hp = g2.hero.maxHp = 999;
+  let slept = false;
+  for (let i = 0; i < 200 && !slept; i++) {
+    g2.wait();
+    g2.tick();
+    slept = g2.events.some((e) => e.type === "lullaby");
+    g2.events.length = 0;
+    m.alerted = true;
+    m.asleep = false;
+  }
+  assert.ok(slept, "la flûte finit par endormir un ennemi");
+});
+
+test("sac : assez de place mais pas d'un seul tenant, le message le dit (Thomas, 2026-11-12)", () => {
+  const game = new Game(3);
+  game.inventory.items.splice(0);
+  // Un sac de 6 × 4 rempli en damier de pommes : 12 cases libres, mais aucun carré de 2 × 2.
+  for (let y = 0; y < game.inventory.rows; y++) for (let x = 0; x < game.inventory.cols; x++) if ((x + y) % 2 === 0) game.inventory.items.push({ uid: 1000 + y * 10 + x, defId: "pomme", count: 1, x, y } as never);
+  assert.ok(game.inventory.fitsIfTidied("armure_cuir"));
+  assert.equal(game.inventory.add("armure_cuir", 1), 1, "elle ne rentre pas");
+  game.inventory.items.splice(0);
+  for (let y = 0; y < game.inventory.rows; y++) for (let x = 0; x < game.inventory.cols; x++) game.inventory.items.push({ uid: 2000 + y * 10 + x, defId: "pomme", count: 1, x, y } as never);
+  assert.ok(!game.inventory.fitsIfTidied("pomme"), "plein pour de bon");
 });

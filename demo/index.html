@@ -1680,6 +1680,11 @@
     potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps \xE0 corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
     potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "\xC0 lancer : la case vis\xE9e et ses quatre voisines br\xFBlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
     potion_fumee: { id: "potion_fumee", name: "Fiole de fum\xE9e", kind: "use", description: "\xC0 lancer : un nuage gris ; les monstres tout pr\xE8s (2 cases) perdent votre trace et restent un tour h\xE9b\xE9t\xE9s. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
+    potion_brouillard: { id: "potion_brouillard", name: "Potion de brouillard", kind: "use", description: "Noire et \xE9paisse. \xC0 lancer : une nappe de brouillard en croix, cinq cases de large. Personne n'y voit : de quoi fuir.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fog", throwRange: 5 },
+    potion_oursin: { id: "potion_oursin", name: "Potion d'oursin", kind: "use", description: "Brune et piquante. Pendant 40 tours, 15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "urchin" },
+    // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
+    oeil_chauve_souris: { id: "oeil_chauve_souris", name: "\u0152il de chauve-souris", kind: "artifact", description: "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
+    flute_pan: { id: "flute_pan", name: "Fl\xFBte de pan", kind: "artifact", description: "Quelques roseaux li\xE9s. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
     // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
     sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. \xC0 rapporter \xE0 Gluck.", w: 1, h: 1, maxStack: 1 },
     magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. \xC0 rapporter \xE0 Krik\u2026 ou pas.", w: 1, h: 1, maxStack: 1 },
@@ -1913,6 +1918,20 @@
     arrowOvershoot: 4,
     /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
     hideDc: 9,
+    /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */
+    xpGainFactor: 0.5,
+    /** Potion de brouillard (Thomas, 2026-11-12, soir) : croix de 2 cases de chaque côté (5 de large), durée en tours (C). */
+    fogArm: 2,
+    fogTurns: 8,
+    /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
+    urchinReflect: 0.15,
+    urchinTurns: 40,
+    /** Flûte de pan (bibelot) : chance par tour de combat d'endormir l'ennemi le plus proche à tant de cases (C). */
+    fluteChance: 0.08,
+    fluteRange: 4,
+    /** Œil de chauve-souris (bibelot) : ombres des monstres à 10 cases en vue dégagée, 3 à travers un mur (Thomas). */
+    batRange: 10,
+    batWallRange: 3,
     /** Après une cachette réussie, les monstres qui le traquaient restent sur place tant de tours (Thomas, 2026-11-12 :
      * « les Kobolds archers essayent de s'approcher si on se cache »). */
     hideLostTurns: 6,
@@ -2281,6 +2300,15 @@
       this.rows = rows;
       this.items = [];
       this.nextUid = 1;
+    }
+    /**
+     * Il y aurait assez de cases libres pour cet objet, mais pas d'un seul tenant (Thomas, 2026-11-12 : « un message
+     * adapté ») : il suffit de ranger le sac.
+     */
+    fitsIfTidied(defId) {
+      const d = ITEMS[defId];
+      const used = this.items.reduce((n, i) => n + ITEMS[i.defId].w * ITEMS[i.defId].h, 0);
+      return this.cols * this.rows - used >= d.w * d.h;
     }
     /** Change la taille du sac (on en équipe un autre). Refusé si un objet se retrouverait dehors. */
     resize(cols, rows) {
@@ -3851,7 +3879,12 @@
         { x: 3, y: 9, item: "casque_maille", count: 1 },
         // Armures en paliers (Thomas, 2026-11-12) : cotte de mailles (CA 16, niveau 3, bruyante) et harnois (CA 17, niveau 5).
         { x: 5, y: 7, item: "cotte_mailles", count: 1 },
-        { x: 10, y: 9, item: "harnois", count: 1 }
+        { x: 10, y: 9, item: "harnois", count: 1 },
+        // Thomas, 2026-11-12 (soir) : potions de brouillard et d'oursin, bibelots (œil de chauve-souris, flûte de pan).
+        { x: 5, y: 4, item: "potion_brouillard", count: 2 },
+        { x: 7, y: 4, item: "potion_oursin", count: 1 },
+        { x: 10, y: 4, item: "oeil_chauve_souris", count: 1 },
+        { x: 11, y: 4, item: "flute_pan", count: 1 }
       ],
       heroLevel: 4,
       monsters: [
@@ -4261,7 +4294,10 @@
       { item: "arc_puissant", minDepth: 5 },
       { item: "potion_poison" },
       { item: "potion_vitesse" },
-      { item: "potion_feu" }
+      { item: "potion_feu" },
+      { item: "potion_brouillard" },
+      { item: "potion_oursin" },
+      { item: "flute_pan", minDepth: 2 }
     ],
     rare: [
       { item: "gold" },
@@ -4271,7 +4307,8 @@
       { item: "potion_jouvence" },
       { item: "emeraude", minDepth: 6 },
       { item: "diamant", minDepth: 11 },
-      { item: "sac_voyage", minDepth: 6 }
+      { item: "sac_voyage", minDepth: 6 },
+      { item: "oeil_chauve_souris" }
     ]
   };
   var GOLD_SIZE = { common: "small", uncommon: "medium", rare: "large" };
@@ -4554,7 +4591,7 @@
 
   // src/core/game.ts
   var NPC_IDS = ["gluck", "soeur", "krik"];
-  var POTION_STAIN = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot" };
+  var POTION_STAIN = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste" };
   var Game = class _Game {
     constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR, sandbox = false) {
       this.runSeed = runSeed;
@@ -4624,6 +4661,8 @@
       this.quickItem = null;
       /** La tâche de quête en cours (une seule à la fois ; Thomas, 2026-11-12). */
       this.quest = null;
+      /** Les fractions de points d'expérience pas encore gagnées (XP divisée par deux). */
+      this.xpCarry = 0;
       /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
       this.blessTurns = 0;
       /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -4679,6 +4718,10 @@
       this.breakTarget = null;
       /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
       this.gas = [];
+      /** Brouillard noir (potion de brouillard) : on ne voit ni à travers ni dedans ; personne ne s'y empoisonne. */
+      this.fog = [];
+      /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
+      this.urchinTurns = 0;
       /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
       /** Ce qui a tué le héros, pour l'écran de fin (Thomas : « dis de quoi il est mort »). */
       this.deathCause = null;
@@ -4782,6 +4825,7 @@
       this.useFloor(state, depth);
       this.fires = [];
       this.gas = [];
+      this.fog = [];
       this.furnitureFire.clear();
       const arrival = via === "down" ? state.start : state.stairs;
       this.hero.x = this.hero.fromX = arrival.x;
@@ -5532,6 +5576,76 @@
       for (const g of this.gas) g.turns--;
       this.gas = this.gas.filter((g) => g.turns > 0);
     }
+    /** Du brouillard sur cette case ? */
+    fogAt(x, y) {
+      return this.fog.some((f) => f.x === x && f.y === y);
+    }
+    /** Le brouillard cache-t-il `b` aux yeux de `a` (b dedans, ou une nappe sur la ligne) ? */
+    fogBetween(a, b) {
+      if (this.fog.length === 0) return false;
+      return this.fogAt(b.x, b.y) || this.lineCells(a, b).some((c) => this.fogAt(c.x, c.y));
+    }
+    /** Les monstres qui ne voient plus le héros à cause du brouillard perdent sa trace et vont voir là où il était. */
+    fogBlinds() {
+      for (const m of this.monsters) {
+        if (m.boss || !m.alerted || this.inReach(m, this.hero) || !this.fogBetween(m, this.hero)) continue;
+        m.alerted = false;
+        m.wary = false;
+        m.lost = 0;
+        m.goal = { x: this.hero.x, y: this.hero.y };
+      }
+    }
+    /** Fin de tour : le brouillard aveugle, puis se dissipe. */
+    fogTick() {
+      if (this.fog.length === 0) return;
+      this.fogBlinds();
+      for (const f of this.fog) f.turns--;
+      this.fog = this.fog.filter((f) => f.turns > 0);
+    }
+    /** Une nappe de brouillard autour de `at` : la case et `arm` cases dans chaque direction. */
+    spreadFog(at, arm) {
+      const cells = [{ x: at.x, y: at.y }];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        for (let k = 1; k <= arm; k++) {
+          const c = { x: at.x + dx * k, y: at.y + dy * k };
+          if (!this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Furniture) break;
+          cells.push(c);
+        }
+      }
+      for (const c of cells) {
+        const old = this.fog.find((f) => f.x === c.x && f.y === c.y);
+        if (old) old.turns = Math.max(old.turns, RULES.fogTurns);
+        else this.fog.push({ x: c.x, y: c.y, turns: RULES.fogTurns });
+      }
+      this.fogBlinds();
+      return cells;
+    }
+    /**
+     * Flûte de pan (bibelot, Thomas 2026-11-12) : en combat, de temps en temps, quelques notes endorment un ennemi proche.
+     */
+    fluteTick() {
+      if (this.equipment.artifact?.defId !== "flute_pan" || !this.inCombat() || !this.rng.chance(RULES.fluteChance)) return;
+      const foes = this.monsters.filter((m2) => !m2.boss && m2.alerted && this.isVisible(m2.x, m2.y) && gapBetween(m2, this.hero) <= RULES.fluteRange);
+      if (foes.length === 0) return;
+      foes.sort((a, b) => gapBetween(a, this.hero) - gapBetween(b, this.hero));
+      const m = foes[0];
+      m.asleep = true;
+      m.alerted = false;
+      m.wary = false;
+      m.feud = void 0;
+      this.events.push({ type: "lullaby", actor: m });
+    }
+    /** Œil de chauve-souris (bibelot) : les monstres hors de vue qu'on devine, en ombres (10 cases, 3 à travers un mur). */
+    batShadows() {
+      if (this.equipment.artifact?.defId !== "oeil_chauve_souris") return [];
+      const out = [];
+      for (const m of this.monsters) {
+        if (this.isVisible(m.x, m.y)) continue;
+        const d = gapBetween(m, this.hero);
+        if (d <= RULES.batWallRange || d <= RULES.batRange && hasLineOfSight(this.map, this.hero, m)) out.push({ x: m.x, y: m.y });
+      }
+      return out;
+    }
     /** Les monstres qu'on peut pousser : ceux qu'on voit, au contact. */
     pushTargets() {
       return this.visibleMonsters().filter((m) => !m.boss && this.inReach(this.hero, m));
@@ -5686,15 +5800,18 @@
         floorPerks: this.floorPerks,
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
+        urchinTurns: this.urchinTurns,
         gluck: this.gluckMemory,
         soeur: this.soeurMemory,
         krik: this.krikMemory,
         quest: this.quest,
+        xpCarry: this.xpCarry,
         blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
         blessTurns: this.blessTurns,
         quickItem: this.quickItem,
         fires: this.fires,
         gas: this.gas,
+        fog: this.fog,
         bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
         torchTurns: this.torchTurns,
         sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : void 0,
@@ -5781,11 +5898,13 @@
       }
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
+      game2.urchinTurns = saved.urchinTurns ?? 0;
       game2.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
       game2.blessTurns = saved.blessTurns ?? 0;
       game2.soeurMemory = saved.soeur ?? { met: 0 };
       game2.krikMemory = saved.krik ?? { met: 0 };
       game2.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
+      game2.xpCarry = saved.xpCarry ?? 0;
       game2.protectTurns = saved.blessings?.protect ?? 0;
       game2.clarityDepth = saved.blessings?.clarity ?? 0;
       game2.curseDepth = saved.blessings?.curse ?? 0;
@@ -5806,6 +5925,7 @@
       game2.deepest = saved.deepest;
       game2.fires = saved.fires;
       game2.gas = saved.gas ?? [];
+      game2.fog = saved.fog ?? [];
       game2.refreshStats();
       game2.hidden = saved.hidden;
       for (const a of [game2.hero, ...game2.monsters]) {
@@ -5967,7 +6087,7 @@
       if (this.over || !item) return false;
       const def = ITEMS[item.defId];
       if (def.lightTurns && this.twoHanded()) return false;
-      if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke") return false;
+      if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") return false;
       if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
       this.wait();
       this.waiting = false;
@@ -5997,6 +6117,9 @@
       } else if (def.potion === "haste") {
         this.hasteTurns = RULES.hasteTurns + 1;
         this.events.push({ type: "potion", potion: "haste" });
+      } else if (def.potion === "urchin") {
+        this.urchinTurns = RULES.urchinTurns + 1;
+        this.events.push({ type: "potion", potion: "urchin" });
       }
       if (def.lightTurns) {
         this.torchTurns = def.lightTurns;
@@ -6026,6 +6149,7 @@
           this.gasPoison();
         }
         if (potion === "smoke") this.smokeBurst(at, 1);
+        if (potion === "fog") this.spreadFog(at, 1);
         if (this.map.get(at.x, at.y) !== Tile.Water) this.stain(at.x, at.y, POTION_STAIN[potion] ?? "pYouth");
         this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
         return true;
@@ -6221,6 +6345,11 @@
       const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
       const extra = splash[this.rng.int(0, splash.length - 1)];
       if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+      if (potion === "fog") {
+        const cells2 = this.spreadFog(order, RULES.fogArm);
+        this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: cells2 });
+        return;
+      }
       if (potion === "smoke") {
         const cells2 = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
         this.smokeBurst(order, 2);
@@ -6990,6 +7119,7 @@
       this.merchantAct();
       this.burn();
       this.gasTick();
+      this.fogTick();
       this.npcsFlee();
       this.counterChatter();
       for (const gk of [this.current.gluck, this.current.soeur, this.current.krik]) {
@@ -6998,6 +7128,8 @@
         }
       }
       if (this.hasteTurns > 0) this.hasteTurns--;
+      if (this.urchinTurns > 0) this.urchinTurns--;
+      this.fluteTick();
       if (this.protectTurns > 0) {
         this.protectTurns--;
         if (this.protectTurns === 0) this.refreshStats();
@@ -7031,8 +7163,9 @@
           m.alerted = false;
           m.asleep = false;
           m.wary = false;
-          m.goal = void 0;
-          m.lost = RULES.hideLostTurns;
+          const sling = MONSTERS[m.defId]?.sling;
+          m.goal = sling ? { x: this.hero.x, y: this.hero.y } : void 0;
+          m.lost = sling ? 0 : RULES.hideLostTurns;
         }
       }
       this.events.push({ type: "hide", d20, bonus, total, success });
@@ -7288,7 +7421,7 @@
       const h = this.hero;
       const at = this.landingCell(h, item);
       this.dropItem(at.x, at.y, item, count);
-      this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
+      this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y, messy: this.inventory.fitsIfTidied(item) });
     }
     /**
      * La case libre la plus proche de `o` où poser un objet (sans objet, meuble, piège, monstre ni héros, du même côté des
@@ -8754,7 +8887,12 @@
       if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
       else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
       if (monster.boss) this.bossDefeated();
-      if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+      if (def && byHero) {
+        this.xpCarry += this.rng.int(def.xpMin, def.xpMax) * RULES.xpGainFactor;
+        const gain = Math.floor(this.xpCarry + 1e-9);
+        this.xpCarry -= gain;
+        if (gain > 0) this.gainXp(gain);
+      }
       const q = this.quest;
       if (byHero && q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) q.got++;
       for (const o of this.monsters) if (o.feud === monster.id) o.feud = void 0;
@@ -8875,7 +9013,7 @@
       const taken = pile.count - left;
       pile.count = left;
       if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
-      else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y });
+      else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y, messy: this.inventory.fitsIfTidied(item) });
       this.ground = this.ground.filter((g) => g.count > 0);
       return left === 0 && this.itemsHere().some((g) => g.item === item);
     }
@@ -8903,8 +9041,8 @@
         if (!m.alerted && !this.peaceful) {
           const def = MONSTERS[m.defId];
           const chance = def.noticeChance * (this.heroInLight() ? RULES.noticeInLight : RULES.noticeInDark) * (m.asleep ? RULES.noticeAsleep : RULES.noticeAwake) * (this.onRug() ? RULES.rugNotice : 1);
-          const range = this.hidden ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
-          const inSight = distance <= 1 || m.asleep || this.inGaze(m, this.hero);
+          const range = this.hidden || this.fogAt(this.hero.x, this.hero.y) ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
+          const inSight = distance <= 1 || (m.asleep || this.inGaze(m, this.hero)) && !this.fogBetween(m, this.hero);
           if (this.isVisible(m.x, m.y) && distance <= range && inSight && this.rng.chance(chance)) {
             this.faceToward(m, this.hero);
             m.alerted = true;
@@ -8935,6 +9073,12 @@
           this.raiseAlarm(RULES.alarmCombat, this.hero);
           this.wakeNear(this.hero);
           this.hurtHero(result.damage, this.killerName(m));
+          if (this.urchinTurns > 0 && result.damage > 0 && !this.over) {
+            const back = Math.max(1, Math.round(result.damage * RULES.urchinReflect));
+            m.hp -= back;
+            this.events.push({ type: "thorns", actor: m, damage: back });
+            this.removeIfDead(m);
+          }
           continue;
         }
         const steps = MONSTERS[m.defId].chaseSteps ?? 1;
@@ -8948,12 +9092,8 @@
      */
     slingerAct(m, sling, distance) {
       const hero = this.hero;
-      const sees = hasLineOfSight(this.map, m, hero) && this.isVisible(m.x, m.y);
-      if (!sees && !this.inReach(m, hero)) {
-        if (distance > sling.range) return false;
-        this.faceToward(m, hero);
-        return true;
-      }
+      const sees = hasLineOfSight(this.map, m, hero) && this.isVisible(m.x, m.y) && !this.fogBetween(m, hero);
+      if (!sees && !this.inReach(m, hero)) return false;
       if (distance < sling.keep) {
         const away = this.stepAway(m);
         if (away) {
@@ -8966,7 +9106,7 @@
         }
         if (this.inReach(m, hero)) return false;
       }
-      if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y)) return false;
+      if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y) || this.fogBetween(m, hero)) return false;
       this.faceToward(m, hero);
       const inTheWay = this.lineCells(m, hero).map((c) => this.monsterAt(c.x, c.y)).find((o) => o && o !== m && !o.boss);
       if (inTheWay) {
@@ -9137,9 +9277,6 @@
           m.goal = { x, y };
         } else {
           const room = this.rooms[this.rng.int(0, this.rooms.length - 1)];
-          const sling = MONSTERS[m.defId]?.sling;
-          const h = this.hero;
-          if (sling && this.hidden && h.x >= room.x && h.x < room.x + room.w && h.y >= room.y && h.y < room.y + room.h) return;
           m.goal = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
         }
       }
@@ -11912,7 +12049,37 @@
     "Supprimer": "Delete",
     "S\xFBr ?": "Sure?",
     "Aucune sauvegarde.": "No saves.",
-    "Sauvegardes": "Saves"
+    "Sauvegardes": "Saves",
+    "Cloches et alerte": "Bells and alert",
+    "Chaque \xE9tage a son niveau d'alerte : la cloche en haut de l'\xE9cran. Le temps et le bruit le font monter.": "Each floor has its alert level: the bell at the top of the screen. Time and noise make it rise.",
+    "Le bruit": "Noise",
+    "Une porte enfonc\xE9e, le gravier, l'eau, les coups \xE9chang\xE9s.": "A door broken down, gravel, water, blows exchanged.",
+    "Les paliers": "Stages",
+    "La cloche sonne \xE0 chaque palier.": "The bell rings at each stage.",
+    "Agit\xE9, puis Alerte : des renforts arrivent, de plus en plus vite.": "Restless, then Alert: reinforcements arrive, faster and faster.",
+    "Traque : tout l'\xE9tage sait o\xF9 vous \xEAtes.": "Hunted: the whole floor knows where you are.",
+    "La cloche d'alarme": "The alarm bell",
+    "Sur certains \xE9tages, une cloche sur son support. La sonner : l'alerte grimpe d'un palier et les monstres alentour accourent.": "On some floors, a bell on its stand. Ring it: the alert goes up a stage and nearby monsters come running.",
+    "Toucher la cloche du haut": "Tapping the top bell",
+    "Elle dit ce que fait le palier en cours.": "It tells you what the current stage does.",
+    "Potion de brouillard": "Fog potion",
+    "Noire et \xE9paisse. \xC0 lancer : une nappe de brouillard en croix, cinq cases de large. Personne n'y voit : de quoi fuir.": "Black and thick. To throw: a cross of fog five squares wide. Nobody can see in it: time to run.",
+    "Potion d'oursin": "Urchin potion",
+    "Brune et piquante. Pendant 40 tours, 15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant.": "Brown and prickly. For 40 turns, 15% of melee damage you take goes back to the attacker.",
+    "\u0152il de chauve-souris": "Bat eye",
+    "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.": "Dried, yet still twitching. You sense the shadow of monsters out of sight: up to 10 squares, and 3 through a wall or door.",
+    "Fl\xFBte de pan": "Pan flute",
+    "Quelques roseaux li\xE9s. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.": "A few tied reeds. In combat, now and then, a soft tune puts the nearest enemy to sleep.",
+    "Piqu\xE9 ! \u2212{0}": "Pricked! \u2212{0}",
+    "\u266A Zzz": "\u266A Zzz",
+    "Oursin": "Urchin",
+    "15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant. Encore {0} tours.": "15% of melee damage you take goes back to the attacker. {0} turns left.",
+    "Des piquants vous h\xE9rissent la peau : qui vous frappe s'y pique.": "Spines bristle on your skin: whoever hits you gets pricked.",
+    "{0} se pique : {1} d\xE9g\xE2t{2}.": "{0} gets pricked: {1} damage.",
+    "Quelques notes de fl\xFBte\u2026 {0} s'endort.": "A few flute notes\u2026 {0} falls asleep.",
+    "Sac \xE0 ranger": "Tidy your bag",
+    "Pas de place d'un seul tenant : {0}{1} tombe par terre. Rangez le sac pour lui faire un trou.": "No room in one piece: {0}{1} falls to the ground. Tidy your bag to make a gap.",
+    "Il reste de la place, mais pas d'un seul tenant : rangez le sac (touchez un objet, puis une case libre).": "There's room left, but not in one piece: tidy your bag (tap an item, then an empty square)."
   };
 
   // src/i18n/i18n.ts
@@ -12934,6 +13101,82 @@
       "................",
       "................"
     ],
+    // Potion de brouillard (2026-11-12) : la même fiole, un liquide noir.
+    potion_brouillard: [
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      ".....Kc99cK.....",
+      ".....KKc9KK.....",
+      "....Kc9999cK....",
+      "...Kc999999cK...",
+      "..Kc9W999900cK..",
+      "..Kc9W999000cK..",
+      "..Kc999900000K..",
+      "..Kc99900000cK..",
+      "...Kc900000cK...",
+      "....Kc0000cK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
+    ],
+    // Potion d'oursin (2026-11-12) : la même fiole, brune, avec des piquants.
+    potion_oursin: [
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      ".....KcTTcK.....",
+      ".....KKcTKK.....",
+      "....KcTTTTcK....",
+      "...KcTTTTTTcK...",
+      "..KcTWTTTTBBcK..",
+      "..KcTWnTTBBBcK..",
+      "..KcTTTTBnBbbK..",
+      "..KcTnTBBBbncK..",
+      "...KcTBBnbbcK...",
+      "....KcBBbbcK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
+    ],
+    // Œil de chauve-souris (bibelot) : un œil rouge entre deux ailes de cuir.
+    oeil_chauve_souris: [
+      "................",
+      "..K..........K..",
+      ".KpK........KpK.",
+      ".KPpK......KpPK.",
+      "..KPpKKKKKKpPK..",
+      "...KpLLLLLLpK...",
+      "..KpLLRRRRLLpK..",
+      "..KLLRRKKRRLLK..",
+      "..KLLRRKKRRLLK..",
+      "..KpLLRRRRLLpK..",
+      "...KpLLLLLLpK...",
+      "....KKpppKKK....",
+      "......KppK......",
+      ".......KK.......",
+      "................",
+      "................"
+    ],
+    // Flûte de pan (bibelot) : cinq roseaux liés d'une cordelette rouge.
+    flute_pan: [
+      "................",
+      "...KKKKKKKKKK...",
+      "..KnnnnnnnnnnK..",
+      "..KTBTBTBTBTBK..",
+      "..KTBTBTBTBTBK..",
+      "..KRRRRRRRRRRK..",
+      "..KrrrrrrrrrrK..",
+      "..KTBTBTBTBTBK..",
+      "..KTBTBTBTBKK...",
+      "..KTBTBTBKK.....",
+      "..KTBTBTBK......",
+      "..KTBTBKK.......",
+      "..KTBKK.........",
+      "..KTBK..........",
+      "...KK...........",
+      "................"
+    ],
     // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
     potion_fumee: [
       ".......KK.......",
@@ -13322,6 +13565,25 @@
       "....KfFFFFffK...",
       ".....KffffK.....",
       "......KKKK......",
+      "................",
+      "................"
+    ],
+    // Oursin (potion d'oursin) : une boule brune hérissée de piquants.
+    oursin: [
+      "................",
+      ".....K....K.....",
+      "..K..KK..KK..K..",
+      "...KKbBBBBbKK...",
+      "....KBTTTBBK....",
+      ".KKbBTTBBBBbKK..",
+      "..KBTTBBBBBBK...",
+      "..KBTBBBBBBbK...",
+      ".KKBBBBBBBbbKK..",
+      "..KbBBBBBbbbK...",
+      "...KbBBBbbbK....",
+      "..KKKbbbbbKKK...",
+      ".K..KKKKKKK..K..",
+      ".....K...K......",
       "................",
       "................"
     ],
@@ -18673,9 +18935,33 @@
   var CORPSE_MS = 1400;
   var PROJECTILE_MS = 170;
   function screenScale() {
-    return Math.min(maxScale, window.devicePixelRatio || 1);
+    return frameScale ?? Math.min(maxScale, window.devicePixelRatio || 1);
   }
+  var frameScale = null;
   var maxScale = 2;
+  var GAS_TONES = { shadow: "#2e5a1e", body: "#7ab84a", light: "#d0f088", shadowAlpha: 0.22, bodyAlpha: 0.3, lightAlpha: 0.3, bubbles: true };
+  var FOG_TONES = { shadow: "#000000", body: "#1c1924", light: "#4a4656", shadowAlpha: 0.72, bodyAlpha: 0.78, lightAlpha: 0.38 };
+  var SHADOW_ROWS = [
+    "................",
+    "................",
+    "......oooo......",
+    ".....oXXXXo.....",
+    "....oXXXXXXo....",
+    "....oXoXXoXo....",
+    "....oXXXXXXo....",
+    "...ooXXXXXXoo...",
+    "..oXXXXXXXXXXo..",
+    "..oXXXXXXXXXXo..",
+    "...oXXXXXXXXo...",
+    "...oXXXXXXXXo...",
+    "....oXXooXXo....",
+    "....oXo..oXo....",
+    ".....o....o.....",
+    "................"
+  ];
+  var SHADOW_PALETTE = { X: "#0a0612", o: "#4a2e66" };
+  var CHUNK = 8;
+  var CHUNK_BUDGET = 6;
   var Renderer = class {
     constructor(canvas2) {
       this.canvas = canvas2;
@@ -18685,6 +18971,13 @@
        * les flammes, elles, sont dessinées à chaque image par-dessus.
        */
       this.cellCache = /* @__PURE__ */ new Map();
+      /**
+       * Les cases déjà vues, regroupées par blocs de 8 × 8 dessinés d'une pièce : une image par bloc au lieu d'une par case
+       * (mesuré : des centaines d'appels de dessin en moins par image). Un bloc n'est refait que si une de ses cases change.
+       */
+      this.chunkBudget = 0;
+      this.furnitureOrder = null;
+      this.chunkCache = /* @__PURE__ */ new Map();
       /** Nombre de cases redessinées depuis le début (pour mesurer l'effet du cache). */
       this.cellRedraws = 0;
       this.width = 0;
@@ -18731,6 +19024,7 @@
       this.puffs = [];
       /** Cases dont le feu ou le gaz ne doit apparaître qu'à l'éclatement de la fiole (clé « x,y » → instant). */
       this.held = /* @__PURE__ */ new Map();
+      this.cloudCanvas = null;
       /** Fait voler une flèche d'une case à une autre. */
       /** Objets qui rebondissent du héros vers le sol (sac plein) : un arc, puis un petit rebond. */
       this.hops = [];
@@ -18823,6 +19117,7 @@
       this.camY = game2.hero.y;
       this.floats = [];
       this.cellCache.clear();
+      this.chunkCache.clear();
       this.slashes = [];
       this.projectiles = [];
       this.bowAge = Infinity;
@@ -18962,6 +19257,74 @@
           }
         }
       }
+    }
+    /**
+     * Un nuage en pixels sur ses cases : chaque case porte quelques bouffées rondes (16 pixels par case, comme les
+     * dessins), peintes en trois couches à plat (ombre décalée vers le bas, corps, reflet vers le haut), puis agrandies
+     * sans lissage. `puffs` : bouffées par case.
+     */
+    drawClouds(game2, cells, ox, oy, tones, puffs) {
+      const shown = cells.filter((c) => game2.isVisible(c.x, c.y) && !this.isHeld(c.x, c.y));
+      if (shown.length === 0) return;
+      const { ctx, tile } = this;
+      const P = 16;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const c of shown) {
+        minX = Math.min(minX, c.x - 1);
+        minY = Math.min(minY, c.y - 1);
+        maxX = Math.max(maxX, c.x + 1);
+        maxY = Math.max(maxY, c.y + 1);
+      }
+      const w = (maxX - minX + 1) * P;
+      const h = (maxY - minY + 1) * P;
+      const cv = this.cloudCanvas ?? (this.cloudCanvas = document.createElement("canvas"));
+      if (cv.width < w || cv.height < h) {
+        cv.width = Math.max(cv.width, w);
+        cv.height = Math.max(cv.height, h);
+      }
+      const lc = cv.getContext("2d");
+      const disc = (cx, cy, r) => {
+        const R = Math.max(1, Math.round(r));
+        for (let dy = -R; dy <= R; dy++) {
+          const half = Math.floor(Math.sqrt(R * R - dy * dy) + 0.35);
+          lc.fillRect(Math.round(cx) - half, Math.round(cy) + dy, half * 2 + 1, 1);
+        }
+      };
+      const layers = [
+        [tones.shadow, 1.5, 1, tones.shadowAlpha],
+        [tones.body, 0, 0.86, tones.bodyAlpha],
+        [tones.light, -2.2, 0.48, tones.lightAlpha]
+      ];
+      const smooth2 = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      for (const [color, shift, scale2, alpha] of layers) {
+        lc.clearRect(0, 0, w, h);
+        lc.fillStyle = color;
+        for (const c of shown) {
+          const fade = Math.min(1, c.turns / 2);
+          for (let i = 0; i < puffs; i++) {
+            const seed = (c.x * 73 + c.y * 151 + i * 37) % 997;
+            const t = this.time / 1500 + seed;
+            const bx = (seed % 7 / 7 - 0.5) * 0.7 + Math.cos(t) * 0.14;
+            const by = ((seed >> 3) % 7 / 7 - 0.5) * 0.6 + Math.sin(t * 1.3) * 0.1;
+            const r = P * (0.3 + (seed >> 5) % 5 * 0.035 + 0.04 * Math.sin(t * 0.9)) * (0.55 + 0.45 * fade);
+            disc((c.x - minX + 0.5 + bx) * P, (c.y - minY + 0.5 + by) * P + shift, r * scale2);
+          }
+        }
+        if (scale2 < 0.5 && tones.bubbles) {
+          for (const c of shown) {
+            for (let i = 0; i < 2; i++) {
+              const seed = (c.x * 31 + c.y * 17 + i * 53) % 211;
+              const cycle = ((this.time / 1600 + seed / 23) % 1 + 1) % 1;
+              lc.fillRect(Math.round((c.x - minX + 0.25 + seed % 5 * 0.12) * P), Math.round((c.y - minY + 0.85 - cycle * 0.9) * P), 1 + seed % 2, 1 + seed % 2);
+            }
+          }
+        }
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(cv, 0, 0, w, h, Math.round(ox + minX * tile), Math.round(oy + minY * tile), Math.round(w / P * tile), Math.round(h / P * tile));
+      }
+      ctx.globalAlpha = 1;
+      ctx.imageSmoothingEnabled = smooth2;
     }
     /** Fumée des feux : des volutes grises qui montent, grossissent et s'effacent (en cases, depuis le haut de la flamme). */
     drawSmoke(game2, ox, oy, dt) {
@@ -19497,7 +19860,10 @@
      * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
      */
     draw(game2, progress, dt, ghosts2 = [], aimRange = null, aimTarget2 = null) {
+      frameScale = null;
+      frameScale = screenScale();
       this.cellBudget = CELL_BUDGET;
+      this.chunkBudget = CHUNK_BUDGET;
       const target = this.snapTile();
       if (target !== this.tile && performance.now() - this.zoomAt > ZOOM_SETTLE_MS) this.tile = target;
       const zs = target / this.tile;
@@ -19568,16 +19934,26 @@
       const y0 = Math.floor(-oy / tile);
       const x1 = Math.ceil((this.width - ox) / tile);
       const y1 = Math.ceil((this.height - oy) / tile);
+      const smoothBefore = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      for (let cy = Math.floor(y0 / CHUNK); cy <= Math.floor(y1 / CHUNK); cy++) {
+        for (let cx = Math.floor(x0 / CHUNK); cx <= Math.floor(x1 / CHUNK); cx++) this.drawChunk(game2, cx, cy, ox, oy, stains);
+      }
+      ctx.imageSmoothingEnabled = smoothBefore;
+      const veils = /* @__PURE__ */ new Map();
+      const veil = (style, x, y, w, h) => {
+        let path = veils.get(style);
+        if (!path) veils.set(style, path = new Path2D());
+        path.rect(x, y, w, h);
+      };
+      const q = (a) => (Math.round(a * 64) / 64).toFixed(4);
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
           if (!game2.map.inBounds(x, y)) continue;
           const sx = ox + x * tile;
           const sy = oy + y * tile;
           if (!game2.isExplored(x, y)) {
-            if (game2.isSensed(x, y)) {
-              ctx.fillStyle = COLORS.sensed;
-              ctx.fillRect(sx + tile * 0.12, sy + tile * 0.12, tile * 0.76, tile * 0.76);
-            }
+            if (game2.isSensed(x, y)) veil(COLORS.sensed, sx + tile * 0.12, sy + tile * 0.12, tile * 0.76, tile * 0.76);
             continue;
           }
           const t = game2.map.get(x, y);
@@ -19586,40 +19962,22 @@
           const ry = this.snap(sy);
           const rw = this.snap(sx + tile) - rx;
           const rh = this.snap(sy + tile) - ry;
-          this.drawCell(game2, t, x, y, rx, ry, rw, rh);
-          const stain = stains.get(game2.map.index(x, y));
-          if (stain) {
-            const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
-            const smooth2 = ctx.imageSmoothingEnabled;
-            ctx.imageSmoothingEnabled = false;
-            if (stain.shape === 2 || !stain.turn) {
-              ctx.drawImage(this.sprite(rows, PALETTE3), rx, ry, rw, rh);
-            } else {
-              ctx.save();
-              ctx.translate(rx + rw / 2, ry + rh / 2);
-              ctx.rotate(stain.turn % 4 * (Math.PI / 2));
-              if (stain.turn >= 4) ctx.scale(-1, 1);
-              ctx.drawImage(this.sprite(rows, PALETTE3), -rw / 2, -rh / 2, rw, rh);
-              ctx.restore();
-            }
-            ctx.imageSmoothingEnabled = smooth2;
-          }
           const shade = wall || t === Tile.Pillar ? 0.6 : 1;
           if (game2.isVisible(x, y)) {
             const lit = wall ? this.wallLight(game2, x, y) : game2.light[game2.map.index(x, y)];
             const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game2.race.darkVision + 1.5));
             const brightness = Math.min(1, Math.max(lit * flicker, glow));
-            ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
-            ctx.fillRect(rx, ry, rw, rh);
-            if (lit > 0) {
-              ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
-              ctx.fillRect(rx, ry, rw, rh);
-            }
+            const dark = (1 - brightness) * 0.55 * shade;
+            if (dark > 4e-3) veil(`rgba(12,11,18,${q(dark)})`, rx, ry, rw, rh);
+            if (lit > 0) veil(`rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
           } else {
-            ctx.fillStyle = `rgba(8,7,14,${(wall || t === Tile.Pillar ? 0.72 : 0.82).toFixed(3)})`;
-            ctx.fillRect(rx, ry, rw, rh);
+            veil(wall || t === Tile.Pillar ? "rgba(8,7,14,0.720)" : "rgba(8,7,14,0.820)", rx, ry, rw, rh);
           }
         }
+      }
+      for (const [style, path] of [...veils].sort((a, b) => Number(a[0].startsWith("rgba(255")) - Number(b[0].startsWith("rgba(255")))) {
+        ctx.fillStyle = style;
+        ctx.fill(path);
       }
       this.drawFurniture(game2, ox, oy, flicker, "early");
       this.drawAnchorThreads(game2, ox, oy);
@@ -19857,20 +20215,19 @@
       }
       this.drawSmoke(game2, ox, oy, dt);
       this.drawPuffs(ox, oy, dt);
-      for (const g of game2.gas) {
-        if (!game2.isVisible(g.x, g.y) || this.isHeld(g.x, g.y)) continue;
-        for (let i = 0; i < 6; i++) {
-          const t = this.time / 700 + i * 1.1 + g.x * 0.9 + g.y * 1.3;
-          const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.26) * tile;
-          const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.22) * tile;
-          const r = tile * (0.46 + 0.1 * Math.sin(t * 0.8));
-          const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-          grad.addColorStop(0, `rgba(120,200,80,${0.42 * Math.min(1, g.turns / 2)})`);
-          grad.addColorStop(0.6, `rgba(110,180,70,${0.22 * Math.min(1, g.turns / 2)})`);
-          grad.addColorStop(1, "rgba(150,220,110,0)");
-          ctx.fillStyle = grad;
-          ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
+      this.drawClouds(game2, game2.gas, ox, oy, GAS_TONES, 5);
+      this.drawClouds(game2, game2.fog, ox, oy, FOG_TONES, 7);
+      const shadows = game2.batShadows();
+      if (shadows.length > 0) {
+        const smooth2 = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        const img = this.sprite(SHADOW_ROWS, SHADOW_PALETTE);
+        for (const p of shadows) {
+          ctx.globalAlpha = 0.55 + 0.2 * Math.sin(this.time / 300 + p.x);
+          ctx.drawImage(img, Math.round(ox + p.x * tile), Math.round(oy + p.y * tile + Math.sin(this.time / 420 + p.y) * tile * 0.04), Math.round(tile), Math.round(tile));
         }
+        ctx.globalAlpha = 1;
+        ctx.imageSmoothingEnabled = smooth2;
       }
       const searching = game2.searchProgress();
       if (searching > 0) {
@@ -20037,21 +20394,18 @@
       ctx.globalAlpha = 1;
       this.drawBossBar(game2);
     }
-    /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
-    drawCell(game2, t, x, y, rx, ry, rw, rh) {
+    /**
+     * Le dessin d'une case, depuis le cache, refait d'abord s'il a changé. `final` : faux s'il montre encore l'ancien
+     * dessin, à l'ancienne taille (juste après un zoom, on ne redessine que quelques dizaines de cases par image).
+     */
+    cellCanvas(game2, t, x, y, rw, rh) {
       const dpr = screenScale();
       const key = `${Math.round(rw * dpr)}x${Math.round(rh * dpr)}`;
       const index = game2.map.index(x, y);
       const stamp = game2.map.changed[index];
       let entry = this.cellCache.get(index);
       const resizedOnly = !!entry && entry.stamp === stamp && entry.key !== key;
-      if (resizedOnly && this.cellBudget <= 0) {
-        const smooth0 = this.ctx.imageSmoothingEnabled;
-        this.ctx.imageSmoothingEnabled = false;
-        this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
-        this.ctx.imageSmoothingEnabled = smooth0;
-        return;
-      }
+      if (resizedOnly && this.cellBudget <= 0) return { canvas: entry.canvas, final: false };
       if (resizedOnly) this.cellBudget--;
       if (!entry || entry.key !== key || entry.stamp !== stamp) {
         const canvas2 = entry?.canvas ?? document.createElement("canvas");
@@ -20065,10 +20419,82 @@
         this.cellCache.set(index, entry);
         this.cellRedraws++;
       }
-      const smooth2 = this.ctx.imageSmoothingEnabled;
-      this.ctx.imageSmoothingEnabled = false;
-      this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
-      this.ctx.imageSmoothingEnabled = smooth2;
+      return { canvas: entry.canvas, final: true };
+    }
+    /**
+     * Un bloc de 8 × 8 cases déjà vues (décor et taches), refait seulement si une case a changé, vient d'être découverte,
+     * ou a reçu une tache, ou si la taille des cases a changé ; sinon, une seule image à poser.
+     */
+    drawChunk(game2, cx, cy, ox, oy, stains) {
+      const { ctx, tile } = this;
+      const dpr = screenScale();
+      const px = Math.round(tile * dpr);
+      const map = game2.map;
+      let sig = 0;
+      let any = false;
+      for (let y = cy * CHUNK; y < (cy + 1) * CHUNK; y++) {
+        for (let x = cx * CHUNK; x < (cx + 1) * CHUNK; x++) {
+          if (!map.inBounds(x, y) || !game2.isExplored(x, y)) {
+            sig = sig * 31 + 1 | 0;
+            continue;
+          }
+          any = true;
+          const i = map.index(x, y);
+          const st = stains.get(i);
+          sig = sig * 31 + map.changed[i] * 7 + 3 + (st ? st.shape * 11 + (st.turn ?? 0) * 13 + st.color.length * 17 + 5 : 0) | 0;
+        }
+      }
+      if (!any) return;
+      const id = cy * 4096 + cx;
+      let entry = this.chunkCache.get(id);
+      const stale = !!entry && entry.key !== px;
+      if (stale && this.chunkBudget <= 0) {
+        const size2 = CHUNK * px / dpr;
+        ctx.drawImage(entry.canvas, this.snap(ox + cx * CHUNK * tile), this.snap(oy + cy * CHUNK * tile), size2, size2);
+        return;
+      }
+      if (!entry || entry.key !== px || entry.sig !== sig || !entry.complete) {
+        if (stale) this.chunkBudget--;
+        const canvas2 = entry?.canvas ?? document.createElement("canvas");
+        if (canvas2.width !== CHUNK * px) {
+          canvas2.width = CHUNK * px;
+          canvas2.height = CHUNK * px;
+        }
+        const c = canvas2.getContext("2d");
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, canvas2.width, canvas2.height);
+        c.imageSmoothingEnabled = false;
+        let complete = true;
+        const cell = px / dpr;
+        for (let y = cy * CHUNK; y < (cy + 1) * CHUNK; y++) {
+          for (let x = cx * CHUNK; x < (cx + 1) * CHUNK; x++) {
+            if (!map.inBounds(x, y) || !game2.isExplored(x, y)) continue;
+            const lx = (x - cx * CHUNK) * px;
+            const ly = (y - cy * CHUNK) * px;
+            const got = this.cellCanvas(game2, map.get(x, y), x, y, cell, cell);
+            if (!got.final) complete = false;
+            c.drawImage(got.canvas, lx, ly, px, px);
+            const stain = stains.get(map.index(x, y));
+            if (!stain) continue;
+            const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
+            const img = this.sprite(rows, PALETTE3);
+            if (stain.shape === 2 || !stain.turn) {
+              c.drawImage(img, lx, ly, px, px);
+            } else {
+              c.save();
+              c.translate(lx + px / 2, ly + px / 2);
+              c.rotate(stain.turn % 4 * (Math.PI / 2));
+              if (stain.turn >= 4) c.scale(-1, 1);
+              c.drawImage(img, -px / 2, -px / 2, px, px);
+              c.restore();
+            }
+          }
+        }
+        entry = { key: px, sig, canvas: canvas2, complete };
+        this.chunkCache.set(id, entry);
+      }
+      const size = CHUNK * px / dpr;
+      ctx.drawImage(entry.canvas, this.snap(ox + cx * CHUNK * tile), this.snap(oy + cy * CHUNK * tile), size, size);
     }
     /**
      * Meubles (dortoir, planche art/dortoir_v3.png) : vus de 3/4, ce qui est haut déborde sur la case du dessus. Dessinés
@@ -20076,13 +20502,23 @@
      * La bougie de la table vacille (3 images).
      */
     drawFurniture(game2, ox, oy, flicker, phase) {
-      const list = [...game2.furnitureList()].sort((a, b) => {
-        const ra = isFlat(a.kind) ? 0 : 1;
-        const rb = isFlat(b.kind) ? 0 : 1;
-        return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
-      });
-      if (list.length === 0) return;
+      const source = game2.furnitureList();
+      const sig = source.reduce((n, f) => n * 31 + f.x * 7 + f.y * 13 + f.kind.length | 0, source.length);
+      if (this.furnitureOrder?.source !== source || this.furnitureOrder.sig !== sig) {
+        const sorted = [...source].sort((a, b) => {
+          const ra = isFlat(a.kind) ? 0 : 1;
+          const rb = isFlat(b.kind) ? 0 : 1;
+          return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
+        });
+        this.furnitureOrder = { source, sig, sorted };
+      }
       const { ctx, tile } = this;
+      const vx0 = Math.floor(-ox / tile) - 3;
+      const vy0 = Math.floor(-oy / tile) - 3;
+      const vx1 = Math.ceil((this.width - ox) / tile) + 1;
+      const vy1 = Math.ceil((this.height - oy) / tile) + 3;
+      const list = this.furnitureOrder.sorted.filter((f) => f.x >= vx0 && f.x <= vx1 && f.y >= vy0 && f.y <= vy1);
+      if (list.length === 0) return;
       const u = tile / 16;
       const hero = game2.hero;
       const frame2 = Math.floor(performance.now() / 160) % 3;
@@ -20826,6 +21262,16 @@
         { title: "Passer une porte", lines: ["En y entrant ou en en sortant : pas de coup."] },
         { title: "Se d\xE9gager", lines: ["Dans la barre d'actions : un saut de deux cases, sans coup. Il faut r\xE9ussir un jet d'Agilit\xE9."] }
       ]
+    },
+    {
+      title: "Cloches et alerte",
+      intro: "Chaque \xE9tage a son niveau d'alerte : la cloche en haut de l'\xE9cran. Le temps et le bruit le font monter.",
+      entries: [
+        { title: "Le bruit", lines: ["Une porte enfonc\xE9e, le gravier, l'eau, les coups \xE9chang\xE9s."] },
+        { title: "Les paliers", lines: ["La cloche sonne \xE0 chaque palier.", "Agit\xE9, puis Alerte : des renforts arrivent, de plus en plus vite.", "Traque : tout l'\xE9tage sait o\xF9 vous \xEAtes."] },
+        { title: "La cloche d'alarme", lines: ["Sur certains \xE9tages, une cloche sur son support. La sonner : l'alerte grimpe d'un palier et les monstres alentour accourent."] },
+        { title: "Toucher la cloche du haut", lines: ["Elle dit ce que fait le palier en cours."] }
+      ]
     }
   ];
 
@@ -20926,8 +21372,10 @@
       case "heavyBlow":
         return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : e.kind === "knockback" ? `Coup critique : ${e.actor.name} est projet\xE9 en arri\xE8re !` : `D'un seul coup !`;
       case "bounce":
+        if (e.messy) return `Pas de place d'un seul tenant : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombe par terre. Rangez le sac pour lui faire un trou.`;
         return `Sac plein : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombe par terre.`;
       case "bagFull":
+        if (e.messy) return "Il reste de la place, mais pas d'un seul tenant : rangez le sac (touchez un objet, puis une case libre).";
         return "Le sac est plein : l'objet reste au sol.";
       case "stairs":
         return e.direction === "down" ? `Vous descendez \xE0 l'\xE9tage ${ctx.depth}.${e.healed > 0 ? ` Vous r\xE9cup\xE9rez ${e.healed} PV.` : ""}` : `Vous remontez \xE0 l'\xE9tage ${ctx.depth}.`;
@@ -21047,7 +21495,11 @@
       case "burn":
         return e.actor.kind === "hero" ? `Vous br\xFBlez : ${e.damage} d\xE9g\xE2ts.` : `${e.actor.name} br\xFBle : ${e.damage} d\xE9g\xE2ts.`;
       case "potion":
-        return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+        return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : e.potion === "urchin" ? "Des piquants vous h\xE9rissent la peau : qui vous frappe s'y pique." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+      case "thorns":
+        return `${capFirst(e.actor.name)} se pique : ${e.damage} d\xE9g\xE2t${e.damage > 1 ? "s" : ""}.`;
+      case "lullaby":
+        return `Quelques notes de fl\xFBte\u2026 ${e.actor.name} s'endort.`;
       case "doused":
         return e.actor.kind === "hero" ? "Pschh ! L'eau \xE9teint vos flammes." : null;
       case "quest":
@@ -21466,6 +21918,12 @@
     } else if (e.type === "doused") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
       sfx.play("splash");
+    } else if (e.type === "thorns") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, `Piqu\xE9 ! \u2212${e.damage}`, "#d8a060");
+      sfx.play("hit");
+    } else if (e.type === "lullaby") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "\u266A Zzz", "#b48ce0");
+      sfx.play("flute");
     } else if (e.type === "quest") {
       if (e.what === "start") renderer.addFloatingText(game.hero.x, game.hero.y, "Nouvelle qu\xEAte !", "#ffd75e");
       if (e.what === "fail" && e.gold) renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#f0c850");
@@ -21478,7 +21936,7 @@
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
     } else if (e.type === "bounce") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
-      renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
+      renderer.addFloatingText(game.hero.x, game.hero.y, e.messy ? "Sac \xE0 ranger" : "Sac plein", "#ffd75e");
     } else if (e.type === "merchantLeaves") {
       if (e.seen) renderer.addFloatingText(e.x, e.y, "Pfft !", "#c8b8ff");
       if (shopOpen) closeShop();
@@ -21621,7 +22079,7 @@
     } else if (e.type === "bagFull") {
       if (e.item && e.x !== void 0 && e.y !== void 0) {
         renderer.addHop(e.item, e.x, e.y, e.x, e.y);
-        renderer.addFloatingText(e.x, e.y, "Sac plein", "#ff8a7a");
+        renderer.addFloatingText(e.x, e.y, e.messy ? "Sac \xE0 ranger" : "Sac plein", "#ff8a7a");
       }
     } else if (e.type === "heavyBlow") {
       renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assomm\xE9 !" : e.kind === "knockback" ? "Projet\xE9 !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
@@ -22150,7 +22608,7 @@
       logLines.push(`Il faut \xEAtre niveau ${def.level} pour cela.`);
       return;
     }
-    if (def.potion === "fire" || def.potion === "smoke") {
+    if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") {
       throwUid = stack.uid;
       renderer.jumpCells = throwCells(stack.uid);
       logLines.push("Touchez la case o\xF9 lancer la potion.");
@@ -22739,7 +23197,7 @@
     info.replaceChildren(card);
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem" && def.kind !== "quest";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
-    action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
+    action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
     action.textContent = tr(action.textContent ?? "");
     $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
     $("bag-drop").hidden = selectedSlot !== null;
@@ -22833,7 +23291,7 @@
     const chosenDef = chosen ? ITEMS[chosen.defId] : void 0;
     if (chosen && chosenDef && game.tooLow(chosenDef)) {
       logLines.push(`Il faut \xEAtre niveau ${chosenDef.level} pour cela.`);
-    } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke")) {
+    } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog")) {
       throwUid = chosen.uid;
       renderer.jumpCells = throwCells(chosen.uid);
       logLines.push("Touchez la case o\xF9 lancer la potion.");
@@ -22934,6 +23392,7 @@
     if (game.clarityActive()) list.push({ id: "clarte", name: "Clart\xE9", detail: "Le poison vous ronge deux fois moins longtemps, sur cet \xE9tage." });
     if (game.curseActive()) list.push({ id: "malediction", name: "Mal\xE9diction des Kobolds", detail: "+2 d\xE9g\xE2ts contre les Kobolds, sur cet \xE9tage." });
     if (game.luck > 0) list.push({ id: "chance", name: "Chance", detail: `Vos ${game.luck > 1 ? `${game.luck} prochains 1` : "prochain 1"} au d\xE9 ${game.luck > 1 ? "seront relanc\xE9s" : "sera relanc\xE9"}.` });
+    if (game.urchinTurns > 0) list.push({ id: "oursin", name: "Oursin", detail: `15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant. Encore ${game.urchinTurns} tours.` });
     if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Acc\xE9l\xE9r\xE9", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
     const rampart = game.rank("dernier_rempart");
     if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {

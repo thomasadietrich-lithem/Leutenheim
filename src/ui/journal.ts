@@ -133,8 +133,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.`
         : e.kind === "knockback" ? `Coup critique : ${e.actor.name} est projeté en arrière !` : `D'un seul coup !`;
     case "bounce":
+      if (e.messy) return `Pas de place d'un seul tenant : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombe par terre. Rangez le sac pour lui faire un trou.`;
       return `Sac plein : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombe par terre.`;
     case "bagFull":
+      if (e.messy) return "Il reste de la place, mais pas d'un seul tenant : rangez le sac (touchez un objet, puis une case libre).";
       return "Le sac est plein : l'objet reste au sol.";
     case "stairs":
       return e.direction === "down"
@@ -284,7 +286,13 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         ? `Jouvence : vos points vous reviennent (${e.points} à attribuer).`
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
-          : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+          : e.potion === "urchin"
+            ? "Des piquants vous hérissent la peau : qui vous frappe s'y pique."
+            : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "thorns":
+      return `${capFirst(e.actor.name)} se pique : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
+    case "lullaby":
+      return `Quelques notes de flûte… ${e.actor.name} s'endort.`;
     case "doused":
       return e.actor.kind === "hero" ? "Pschh ! L'eau éteint vos flammes." : null;
     case "quest":

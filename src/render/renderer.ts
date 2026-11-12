@@ -65,7 +65,7 @@ const MERCHANT_GHOSTS: Record<string, string[][]> = Object.fromEntries(
 /** Dessins des salles à thème récentes (cuisine, prière, torture, forge, alchimiste). */
 const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS, ...BOSS };
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
-import { furnitureCells } from "../world/furnish";
+import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
 
@@ -137,12 +137,51 @@ interface FloatingText {
  * chaque image ; à 2, c'est 2,25 fois moins, sans différence visible pour du pixel art.
  */
 export function screenScale(): number {
-  return Math.min(maxScale, window.devicePixelRatio || 1);
+  return frameScale ?? Math.min(maxScale, window.devicePixelRatio || 1);
 }
+/** La finesse lue une fois par image (lire `devicePixelRatio` des milliers de fois par image coûtait cher). */
+let frameScale: number | null = null;
 /** Plafond de finesse : 2 au départ, baissé tout seul si le téléphone peine (voir `Renderer.lowerQuality`). */
 let maxScale = 2;
 
-/** Dessine l'état du jeu sur le Canvas. Design volontairement minimal : des formes colorées. */
+/** Les tons d'un nuage en pixels : ombre, corps, reflet, et leur opacité. */
+interface CloudTones {
+  shadow: string;
+  body: string;
+  light: string;
+  shadowAlpha: number;
+  bodyAlpha: number;
+  lightAlpha: number;
+  bubbles?: boolean;
+}
+const GAS_TONES: CloudTones = { shadow: "#2e5a1e", body: "#7ab84a", light: "#d0f088", shadowAlpha: 0.22, bodyAlpha: 0.3, lightAlpha: 0.3, bubbles: true };
+const FOG_TONES: CloudTones = { shadow: "#000000", body: "#1c1924", light: "#4a4656", shadowAlpha: 0.72, bodyAlpha: 0.78, lightAlpha: 0.38 };
+/** Œil de chauve-souris : une ombre voûtée, pas le monstre lui-même. */
+const SHADOW_ROWS = [
+  "................",
+  "................",
+  "......oooo......",
+  ".....oXXXXo.....",
+  "....oXXXXXXo....",
+  "....oXoXXoXo....",
+  "....oXXXXXXo....",
+  "...ooXXXXXXoo...",
+  "..oXXXXXXXXXXo..",
+  "..oXXXXXXXXXXo..",
+  "...oXXXXXXXXo...",
+  "...oXXXXXXXXo...",
+  "....oXXooXXo....",
+  "....oXo..oXo....",
+  ".....o....o.....",
+  "................",
+];
+const SHADOW_PALETTE: Record<string, string> = { X: "#0a0612", o: "#4a2e66" };
+/** Côté d'un bloc de cases dessiné d'une pièce (performances, Thomas 2026-11-13 : « ralentissements quand la carte est chargée »). */
+const CHUNK = 8;
+/** Blocs refaits au plus par image juste après un zoom. */
+const CHUNK_BUDGET = 6;
+
+/** Dessine l'état du jeu sur le Canvas. */
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   /**
@@ -151,6 +190,13 @@ export class Renderer {
    * les flammes, elles, sont dessinées à chaque image par-dessus.
    */
   private readonly cellCache = new Map<number, { key: string; stamp: number; canvas: HTMLCanvasElement }>();
+  /**
+   * Les cases déjà vues, regroupées par blocs de 8 × 8 dessinés d'une pièce : une image par bloc au lieu d'une par case
+   * (mesuré : des centaines d'appels de dessin en moins par image). Un bloc n'est refait que si une de ses cases change.
+   */
+  private chunkBudget = 0;
+  private furnitureOrder: { source: readonly unknown[]; sig: number; sorted: Furniture[] } | null = null;
+  private readonly chunkCache = new Map<number, { key: number; sig: number; canvas: HTMLCanvasElement; complete: boolean }>();
   /** Nombre de cases redessinées depuis le début (pour mesurer l'effet du cache). */
   cellRedraws = 0;
   private width = 0;
@@ -284,6 +330,7 @@ export class Renderer {
     this.camY = game.hero.y;
     this.floats = [];
     this.cellCache.clear();
+    this.chunkCache.clear();
     this.slashes = [];
     this.projectiles = [];
     this.bowAge = Infinity;
@@ -455,6 +502,77 @@ export class Renderer {
         }
       }
     }
+  }
+
+  private cloudCanvas: HTMLCanvasElement | null = null;
+
+  /**
+   * Un nuage en pixels sur ses cases : chaque case porte quelques bouffées rondes (16 pixels par case, comme les
+   * dessins), peintes en trois couches à plat (ombre décalée vers le bas, corps, reflet vers le haut), puis agrandies
+   * sans lissage. `puffs` : bouffées par case.
+   */
+  private drawClouds(game: Game, cells: readonly { x: number; y: number; turns: number }[], ox: number, oy: number, tones: CloudTones, puffs: number): void {
+    const shown = cells.filter((c) => game.isVisible(c.x, c.y) && !this.isHeld(c.x, c.y));
+    if (shown.length === 0) return;
+    const { ctx, tile } = this;
+    const P = 16;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of shown) {
+      minX = Math.min(minX, c.x - 1); minY = Math.min(minY, c.y - 1);
+      maxX = Math.max(maxX, c.x + 1); maxY = Math.max(maxY, c.y + 1);
+    }
+    const w = (maxX - minX + 1) * P;
+    const h = (maxY - minY + 1) * P;
+    const cv = (this.cloudCanvas ??= document.createElement("canvas"));
+    if (cv.width < w || cv.height < h) {
+      cv.width = Math.max(cv.width, w);
+      cv.height = Math.max(cv.height, h);
+    }
+    const lc = cv.getContext("2d")!;
+    // Une bouffée : un disque plein, rangée de pixels par rangée (bords nets).
+    const disc = (cx: number, cy: number, r: number) => {
+      const R = Math.max(1, Math.round(r));
+      for (let dy = -R; dy <= R; dy++) {
+        const half = Math.floor(Math.sqrt(R * R - dy * dy) + 0.35);
+        lc.fillRect(Math.round(cx) - half, Math.round(cy) + dy, half * 2 + 1, 1);
+      }
+    };
+    const layers: [string, number, number, number][] = [
+      [tones.shadow, 1.5, 1.0, tones.shadowAlpha],
+      [tones.body, 0, 0.86, tones.bodyAlpha],
+      [tones.light, -2.2, 0.48, tones.lightAlpha],
+    ];
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    for (const [color, shift, scale, alpha] of layers) {
+      lc.clearRect(0, 0, w, h);
+      lc.fillStyle = color;
+      for (const c of shown) {
+        const fade = Math.min(1, c.turns / 2);
+        for (let i = 0; i < puffs; i++) {
+          const seed = (c.x * 73 + c.y * 151 + i * 37) % 997;
+          const t = this.time / 1500 + seed;
+          const bx = ((seed % 7) / 7 - 0.5) * 0.7 + Math.cos(t) * 0.14;
+          const by = (((seed >> 3) % 7) / 7 - 0.5) * 0.6 + Math.sin(t * 1.3) * 0.1;
+          const r = P * (0.3 + ((seed >> 5) % 5) * 0.035 + 0.04 * Math.sin(t * 0.9)) * (0.55 + 0.45 * fade);
+          disc((c.x - minX + 0.5 + bx) * P, (c.y - minY + 0.5 + by) * P + shift, r * scale);
+        }
+      }
+      // Bulles qui montent du gaz (sur le reflet seulement).
+      if (scale < 0.5 && tones.bubbles) {
+        for (const c of shown) {
+          for (let i = 0; i < 2; i++) {
+            const seed = (c.x * 31 + c.y * 17 + i * 53) % 211;
+            const cycle = ((this.time / 1600 + seed / 23) % 1 + 1) % 1;
+            lc.fillRect(Math.round((c.x - minX + 0.25 + (seed % 5) * 0.12) * P), Math.round((c.y - minY + 0.85 - cycle * 0.9) * P), 1 + (seed % 2), 1 + (seed % 2));
+          }
+        }
+      }
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(cv, 0, 0, w, h, Math.round(ox + minX * tile), Math.round(oy + minY * tile), Math.round((w / P) * tile), Math.round((h / P) * tile));
+    }
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = smooth;
   }
 
   /** Fumée des feux : des volutes grises qui montent, grossissent et s'effacent (en cases, depuis le haut de la flamme). */
@@ -1061,7 +1179,10 @@ export class Renderer {
    * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
    */
   draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null, aimTarget: Actor | null = null): void {
+    frameScale = null;
+    frameScale = screenScale();
     this.cellBudget = CELL_BUDGET;
+    this.chunkBudget = CHUNK_BUDGET;
     const target = this.snapTile();
     if (target !== this.tile && performance.now() - this.zoomAt > ZOOM_SETTLE_MS) this.tile = target;
     const zs = target / this.tile;
@@ -1140,6 +1261,22 @@ export class Renderer {
     const y0 = Math.floor(-oy / tile);
     const x1 = Math.ceil((this.width - ox) / tile);
     const y1 = Math.ceil((this.height - oy) / tile);
+    // 1) Le décor des cases vues (et les taches), par blocs dessinés d'une pièce.
+    const smoothBefore = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    for (let cy = Math.floor(y0 / CHUNK); cy <= Math.floor(y1 / CHUNK); cy++) {
+      for (let cx = Math.floor(x0 / CHUNK); cx <= Math.floor(x1 / CHUNK); cx++) this.drawChunk(game, cx, cy, ox, oy, stains);
+    }
+    ctx.imageSmoothingEnabled = smoothBefore;
+    // 2) Les voiles d'ombre et de lumière, regroupés par teinte : un seul remplissage par teinte (et non un par case).
+    // Les opacités sont arrondies au 1/64 : invisible à l'œil, mais bien moins de teintes différentes.
+    const veils = new Map<string, Path2D>();
+    const veil = (style: string, x: number, y: number, w: number, h: number) => {
+      let path = veils.get(style);
+      if (!path) veils.set(style, (path = new Path2D()));
+      path.rect(x, y, w, h);
+    };
+    const q = (a: number) => (Math.round(a * 64) / 64).toFixed(4);
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         if (!game.map.inBounds(x, y)) continue;
@@ -1147,44 +1284,18 @@ export class Renderer {
         const sy = oy + y * tile;
         if (!game.isExplored(x, y)) {
           // Passage deviné mais jamais vu : une trace très estompée.
-          if (game.isSensed(x, y)) {
-            ctx.fillStyle = COLORS.sensed;
-            ctx.fillRect(sx + tile * 0.12, sy + tile * 0.12, tile * 0.76, tile * 0.76);
-          }
+          if (game.isSensed(x, y)) veil(COLORS.sensed, sx + tile * 0.12, sy + tile * 0.12, tile * 0.76, tile * 0.76);
           continue;
         }
         const t = game.map.get(x, y);
         const wall = t === Tile.Wall;
-        // Les voiles d'ombre et de lumière sont calés sur les pixels entiers : deux cases voisines ne laissent
-        // ni jour ni recouvrement, donc aucune ligne claire ou sombre à leur jonction.
-        // Origine et taille des cases sont calées sur les pixels réels : toutes les cases ont la même taille.
+        // Les voiles sont calés sur les pixels entiers : deux cases voisines ne laissent ni jour ni recouvrement.
         const rx = this.snap(sx);
         const ry = this.snap(sy);
         const rw = this.snap(sx + tile) - rx;
         const rh = this.snap(sy + tile) - ry;
-        // Chaque case est dessinée découpée sur ces mêmes pixels entiers : rien ne déborde sur une voisine déjà ombrée.
-        this.drawCell(game, t, x, y, rx, ry, rw, rh);
-        const stain = stains.get(game.map.index(x, y));
-        if (stain) {
-          const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
-          const smooth = ctx.imageSmoothingEnabled;
-          ctx.imageSmoothingEnabled = false;
-          if (stain.shape === 2 || !stain.turn) {
-            ctx.drawImage(this.sprite(rows, ICON_PALETTE), rx, ry, rw, rh);
-          } else {
-            // Au sol, la giclure tourne d'un quart de tour et/ou se retourne : elles ne se ressemblent pas toutes.
-            ctx.save();
-            ctx.translate(rx + rw / 2, ry + rh / 2);
-            ctx.rotate((stain.turn % 4) * (Math.PI / 2));
-            if (stain.turn >= 4) ctx.scale(-1, 1);
-            ctx.drawImage(this.sprite(rows, ICON_PALETTE), -rw / 2, -rh / 2, rw, rh);
-            ctx.restore();
-          }
-          ctx.imageSmoothingEnabled = smooth;
-        }
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
         const shade = wall || t === Tile.Pillar ? 0.6 : 1;
-
         if (game.isVisible(x, y)) {
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
           // Un mur ne montre que la lumière qui tombe sur la face qu'on regarde : celle des cases dégagées
@@ -1192,19 +1303,20 @@ export class Renderer {
           const lit = wall ? this.wallLight(game, x, y) : game.light[game.map.index(x, y)];
           const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
-          ctx.fillStyle = `rgba(12,11,18,${((1 - brightness) * 0.55 * shade).toFixed(3)})`;
-          ctx.fillRect(rx, ry, rw, rh);
-          if (lit > 0) {
-            ctx.fillStyle = `rgba(255,150,60,${(lit * flicker * 0.2).toFixed(3)})`;
-            ctx.fillRect(rx, ry, rw, rh);
-          }
+          const dark = (1 - brightness) * 0.55 * shade;
+          if (dark > 0.004) veil(`rgba(12,11,18,${q(dark)})`, rx, ry, rw, rh);
+          if (lit > 0) veil(`rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
-          ctx.fillStyle = `rgba(8,7,14,${(wall || t === Tile.Pillar ? 0.72 : 0.82).toFixed(3)})`;
-          ctx.fillRect(rx, ry, rw, rh);
+          veil(wall || t === Tile.Pillar ? "rgba(8,7,14,0.720)" : "rgba(8,7,14,0.820)", rx, ry, rw, rh);
         }
       }
+    }
+    // L'ombre d'abord, la lueur orange par-dessus (comme avant, case par case).
+    for (const [style, path] of [...veils].sort((a, b) => Number(a[0].startsWith("rgba(255")) - Number(b[0].startsWith("rgba(255")))) {
+      ctx.fillStyle = style;
+      ctx.fill(path);
     }
 
     this.drawFurniture(game, ox, oy, flicker, "early");
@@ -1496,22 +1608,23 @@ export class Renderer {
     }
     this.drawSmoke(game, ox, oy, dt);
     this.drawPuffs(ox, oy, dt);
-    // Gaz empoisonné (piège à gaz) : des volutes vertes, translucides, qui ondulent sur leurs cases.
-    // Nuage ÉPAIS (Thomas, 2026-11-12 : « bien plus épaisse ») : six volutes plus grandes et plus opaques par case.
-    for (const g of game.gas) {
-      if (!game.isVisible(g.x, g.y) || this.isHeld(g.x, g.y)) continue;
-      for (let i = 0; i < 6; i++) {
-        const t = this.time / 700 + i * 1.1 + g.x * 0.9 + g.y * 1.3;
-        const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.26) * tile;
-        const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.22) * tile;
-        const r = tile * (0.46 + 0.1 * Math.sin(t * 0.8));
-        const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-        grad.addColorStop(0, `rgba(120,200,80,${0.42 * Math.min(1, g.turns / 2)})`);
-        grad.addColorStop(0.6, `rgba(110,180,70,${0.22 * Math.min(1, g.turns / 2)})`);
-        grad.addColorStop(1, "rgba(150,220,110,0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
+    // Gaz empoisonné et brouillard noir, en PIXELS comme le reste du jeu (Thomas, 2026-11-12, soir : « l'effet est assez
+    // cheap ») : des bouffées rondes qui se touchent d'une case à l'autre, en trois tons (ombre, corps, reflet),
+    // qui roulent lentement ; des bulles montent du gaz ; la nappe rétrécit en se dissipant.
+    this.drawClouds(game, game.gas, ox, oy, GAS_TONES, 5);
+    this.drawClouds(game, game.fog, ox, oy, FOG_TONES, 7);
+    // Œil de chauve-souris (bibelot) : l'ombre des monstres qu'on ne voit pas.
+    const shadows = game.batShadows();
+    if (shadows.length > 0) {
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      const img = this.sprite(SHADOW_ROWS, SHADOW_PALETTE);
+      for (const p of shadows) {
+        ctx.globalAlpha = 0.55 + 0.2 * Math.sin(this.time / 300 + p.x);
+        ctx.drawImage(img, Math.round(ox + p.x * tile), Math.round(oy + p.y * tile + Math.sin(this.time / 420 + p.y) * tile * 0.04), Math.round(tile), Math.round(tile));
       }
+      ctx.globalAlpha = 1;
+      ctx.imageSmoothingEnabled = smooth;
     }
     // Repos en cours : petite jauge au-dessus du héros.
     // Fouille en cours : la loupe oscille au-dessus de la tête du héros, comme s'il examinait le sol.
@@ -1697,8 +1810,11 @@ export class Renderer {
     this.drawBossBar(game);
   }
 
-  /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
-  private drawCell(game: Game, t: Tile, x: number, y: number, rx: number, ry: number, rw: number, rh: number): void {
+  /**
+   * Le dessin d'une case, depuis le cache, refait d'abord s'il a changé. `final` : faux s'il montre encore l'ancien
+   * dessin, à l'ancienne taille (juste après un zoom, on ne redessine que quelques dizaines de cases par image).
+   */
+  private cellCanvas(game: Game, t: Tile, x: number, y: number, rw: number, rh: number): { canvas: HTMLCanvasElement; final: boolean } {
     const dpr = screenScale();
     // Le dessin d'un mur ou d'une porte dépend des cases voisines (raccords, coins, sens) : la carte tient à jour, pour
     // chaque case, le numéro de la dernière modification à moins de deux cases (`changed`).
@@ -1706,16 +1822,8 @@ export class Renderer {
     const index = game.map.index(x, y);
     const stamp = game.map.changed[index];
     let entry = this.cellCache.get(index);
-    // Après un zoom, toutes les cases changent de taille : on ne les redessine pas toutes dans la même image (à-coup),
-    // mais quelques dizaines par image ; les autres montrent en attendant leur ancien dessin, agrandi ou réduit.
     const resizedOnly = !!entry && entry.stamp === stamp && entry.key !== key;
-    if (resizedOnly && this.cellBudget <= 0) {
-      const smooth0 = this.ctx.imageSmoothingEnabled;
-      this.ctx.imageSmoothingEnabled = false;
-      this.ctx.drawImage(entry!.canvas, rx, ry, rw, rh);
-      this.ctx.imageSmoothingEnabled = smooth0;
-      return;
-    }
+    if (resizedOnly && this.cellBudget <= 0) return { canvas: entry!.canvas, final: false };
     if (resizedOnly) this.cellBudget--;
     if (!entry || entry.key !== key || entry.stamp !== stamp) {
       const canvas = entry?.canvas ?? document.createElement("canvas");
@@ -1729,10 +1837,85 @@ export class Renderer {
       this.cellCache.set(index, entry);
       this.cellRedraws++;
     }
-    const smooth = this.ctx.imageSmoothingEnabled;
-    this.ctx.imageSmoothingEnabled = false;
-    this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
-    this.ctx.imageSmoothingEnabled = smooth;
+    return { canvas: entry.canvas, final: true };
+  }
+
+  /**
+   * Un bloc de 8 × 8 cases déjà vues (décor et taches), refait seulement si une case a changé, vient d'être découverte,
+   * ou a reçu une tache, ou si la taille des cases a changé ; sinon, une seule image à poser.
+   */
+  private drawChunk(game: Game, cx: number, cy: number, ox: number, oy: number, stains: Map<number, { color: StainColor; shape: 0 | 1 | 2; turn?: number }>): void {
+    const { ctx, tile } = this;
+    const dpr = screenScale();
+    const px = Math.round(tile * dpr);
+    const map = game.map;
+    let sig = 0;
+    let any = false;
+    for (let y = cy * CHUNK; y < (cy + 1) * CHUNK; y++) {
+      for (let x = cx * CHUNK; x < (cx + 1) * CHUNK; x++) {
+        if (!map.inBounds(x, y) || !game.isExplored(x, y)) {
+          sig = (sig * 31 + 1) | 0;
+          continue;
+        }
+        any = true;
+        const i = map.index(x, y);
+        const st = stains.get(i);
+        sig = (sig * 31 + map.changed[i] * 7 + 3 + (st ? st.shape * 11 + (st.turn ?? 0) * 13 + st.color.length * 17 + 5 : 0)) | 0;
+      }
+    }
+    if (!any) return;
+    const id = cy * 4096 + cx;
+    let entry = this.chunkCache.get(id);
+    // Après un zoom, quelques blocs refaits par image ; les autres montrent un instant leur ancien dessin, mis à l'échelle.
+    const stale = !!entry && entry.key !== px;
+    if (stale && this.chunkBudget <= 0) {
+      const size = (CHUNK * px) / dpr;
+      ctx.drawImage(entry!.canvas, this.snap(ox + cx * CHUNK * tile), this.snap(oy + cy * CHUNK * tile), size, size);
+      return;
+    }
+    if (!entry || entry.key !== px || entry.sig !== sig || !entry.complete) {
+      if (stale) this.chunkBudget--;
+      const canvas = entry?.canvas ?? document.createElement("canvas");
+      if (canvas.width !== CHUNK * px) {
+        canvas.width = CHUNK * px;
+        canvas.height = CHUNK * px;
+      }
+      const c = canvas.getContext("2d")!;
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, canvas.width, canvas.height);
+      c.imageSmoothingEnabled = false;
+      let complete = true;
+      const cell = px / dpr;
+      for (let y = cy * CHUNK; y < (cy + 1) * CHUNK; y++) {
+        for (let x = cx * CHUNK; x < (cx + 1) * CHUNK; x++) {
+          if (!map.inBounds(x, y) || !game.isExplored(x, y)) continue;
+          const lx = (x - cx * CHUNK) * px;
+          const ly = (y - cy * CHUNK) * px;
+          const got = this.cellCanvas(game, map.get(x, y), x, y, cell, cell);
+          if (!got.final) complete = false;
+          c.drawImage(got.canvas, lx, ly, px, px);
+          const stain = stains.get(map.index(x, y));
+          if (!stain) continue;
+          const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
+          const img = this.sprite(rows, ICON_PALETTE);
+          if (stain.shape === 2 || !stain.turn) {
+            c.drawImage(img, lx, ly, px, px);
+          } else {
+            // Au sol, la giclure tourne d'un quart de tour et/ou se retourne : elles ne se ressemblent pas toutes.
+            c.save();
+            c.translate(lx + px / 2, ly + px / 2);
+            c.rotate((stain.turn % 4) * (Math.PI / 2));
+            if (stain.turn >= 4) c.scale(-1, 1);
+            c.drawImage(img, -px / 2, -px / 2, px, px);
+            c.restore();
+          }
+        }
+      }
+      entry = { key: px, sig, canvas, complete };
+      this.chunkCache.set(id, entry);
+    }
+    const size = (CHUNK * px) / dpr;
+    ctx.drawImage(entry.canvas, this.snap(ox + cx * CHUNK * tile), this.snap(oy + cy * CHUNK * tile), size, size);
   }
 
   /**
@@ -1741,13 +1924,25 @@ export class Renderer {
    * La bougie de la table vacille (3 images).
    */
   private drawFurniture(game: Game, ox: number, oy: number, flicker: number, phase: "early" | "late"): void {
-    const list = [...game.furnitureList()].sort((a, b) => {
-      const ra = isFlat(a.kind) ? 0 : 1;
-      const rb = isFlat(b.kind) ? 0 : 1;
-      return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
-    });
-    if (list.length === 0) return;
+    // L'ordre de dessin (du fond vers l'avant) ne change que si les meubles changent : on le garde.
+    const source = game.furnitureList();
+    const sig = source.reduce((n, f) => (n * 31 + f.x * 7 + f.y * 13 + f.kind.length) | 0, source.length);
+    if (this.furnitureOrder?.source !== source || this.furnitureOrder.sig !== sig) {
+      const sorted = [...source].sort((a, b) => {
+        const ra = isFlat(a.kind) ? 0 : 1;
+        const rb = isFlat(b.kind) ? 0 : 1;
+        return ra - rb || a.y + (FURNITURE_KINDS[a.kind]?.h ?? 1) - (b.y + (FURNITURE_KINDS[b.kind]?.h ?? 1));
+      });
+      this.furnitureOrder = { source, sig, sorted };
+    }
     const { ctx, tile } = this;
+    // Seulement ce qui est à l'écran (à deux cases près : un meuble haut déborde vers le haut).
+    const vx0 = Math.floor(-ox / tile) - 3;
+    const vy0 = Math.floor(-oy / tile) - 3;
+    const vx1 = Math.ceil((this.width - ox) / tile) + 1;
+    const vy1 = Math.ceil((this.height - oy) / tile) + 3;
+    const list = this.furnitureOrder.sorted.filter((f) => f.x >= vx0 && f.x <= vx1 && f.y >= vy0 && f.y <= vy1);
+    if (list.length === 0) return;
     const u = tile / 16;
     const hero = game.hero;
     const frame = Math.floor(performance.now() / 160) % 3;

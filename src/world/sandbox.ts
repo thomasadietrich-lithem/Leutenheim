@@ -219,6 +219,11 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       // Armures en paliers (Thomas, 2026-11-12) : cotte de mailles (CA 16, niveau 3, bruyante) et harnois (CA 17, niveau 5).
       { x: 5, y: 7, item: "cotte_mailles", count: 1 },
       { x: 10, y: 9, item: "harnois", count: 1 },
+      // Thomas, 2026-11-12 (soir) : potions de brouillard et d'oursin, bibelots (œil de chauve-souris, flûte de pan).
+      { x: 5, y: 4, item: "potion_brouillard", count: 2 },
+      { x: 7, y: 4, item: "potion_oursin", count: 1 },
+      { x: 10, y: 4, item: "oeil_chauve_souris", count: 1 },
+      { x: 11, y: 4, item: "flute_pan", count: 1 },
     ],
     heroLevel: 4,
     monsters: [

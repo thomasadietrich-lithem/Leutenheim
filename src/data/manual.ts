@@ -66,4 +66,14 @@ export const MANUAL: ManualSection[] = [
       { title: "Se dégager", lines: ["Dans la barre d'actions : un saut de deux cases, sans coup. Il faut réussir un jet d'Agilité."] },
     ],
   },
+  {
+    title: "Cloches et alerte",
+    intro: "Chaque étage a son niveau d'alerte : la cloche en haut de l'écran. Le temps et le bruit le font monter.",
+    entries: [
+      { title: "Le bruit", lines: ["Une porte enfoncée, le gravier, l'eau, les coups échangés."] },
+      { title: "Les paliers", lines: ["La cloche sonne à chaque palier.", "Agité, puis Alerte : des renforts arrivent, de plus en plus vite.", "Traque : tout l'étage sait où vous êtes."] },
+      { title: "La cloche d'alarme", lines: ["Sur certains étages, une cloche sur son support. La sonner : l'alerte grimpe d'un palier et les monstres alentour accourent."] },
+      { title: "Toucher la cloche du haut", lines: ["Elle dit ce que fait le palier en cours."] },
+    ],
+  },
 ];

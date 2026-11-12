@@ -34,6 +34,20 @@ export const RULES = {
   arrowOvershoot: 4,
   /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
   hideDc: 9,
+  /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */
+  xpGainFactor: 0.5,
+  /** Potion de brouillard (Thomas, 2026-11-12, soir) : croix de 2 cases de chaque côté (5 de large), durée en tours (C). */
+  fogArm: 2,
+  fogTurns: 8,
+  /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
+  urchinReflect: 0.15,
+  urchinTurns: 40,
+  /** Flûte de pan (bibelot) : chance par tour de combat d'endormir l'ennemi le plus proche à tant de cases (C). */
+  fluteChance: 0.08,
+  fluteRange: 4,
+  /** Œil de chauve-souris (bibelot) : ombres des monstres à 10 cases en vue dégagée, 3 à travers un mur (Thomas). */
+  batRange: 10,
+  batWallRange: 3,
   /** Après une cachette réussie, les monstres qui le traquaient restent sur place tant de tours (Thomas, 2026-11-12 :
    * « les Kobolds archers essayent de s'approcher si on se cache »). */
   hideLostTurns: 6,

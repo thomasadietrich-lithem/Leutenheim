@@ -96,6 +96,8 @@ export interface SaveData {
   krik?: KrikMemory;
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;
+  xpCarry?: number;
+  urchinTurns?: number;
   blessings?: { protect: number; clarity: number; curse: number; luck: number };
   /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
   blessTurns?: number;
@@ -104,6 +106,7 @@ export interface SaveData {
   fires: { x: number; y: number; turns: number; gen?: number }[];
   /** Nuages de gaz empoisonné (absent des sauvegardes d'avant les pièges v3). */
   gas?: { x: number; y: number; turns: number }[];
+  fog?: { x: number; y: number; turns: number }[];
   bagSize: { cols: number; rows: number };
   /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
   torchTurns?: number;

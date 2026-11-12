@@ -21,6 +21,16 @@ export class Inventory {
     public rows = 4,
   ) {}
 
+  /**
+   * Il y aurait assez de cases libres pour cet objet, mais pas d'un seul tenant (Thomas, 2026-11-12 : « un message
+   * adapté ») : il suffit de ranger le sac.
+   */
+  fitsIfTidied(defId: ItemId): boolean {
+    const d = ITEMS[defId];
+    const used = this.items.reduce((n, i) => n + ITEMS[i.defId].w * ITEMS[i.defId].h, 0);
+    return this.cols * this.rows - used >= d.w * d.h;
+  }
+
   /** Change la taille du sac (on en équipe un autre). Refusé si un objet se retrouverait dehors. */
   resize(cols: number, rows: number): boolean {
     for (const i of this.items) {

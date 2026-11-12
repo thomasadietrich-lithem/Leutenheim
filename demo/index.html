@@ -18444,6 +18444,8 @@
   var stepMs = 125;
   var stepping = false;
   var stepTime = 0;
+  var PUBLIC_BUILD = false;
+  if (PUBLIC_BUILD) $("menu-sandbox").remove();
   var SAVE_KEYS = { donjon: "leutenheim.save", essai: "leutenheim.save.essai", last: "leutenheim.save.last" };
   var lastSaveAt = 0;
   function saveSlot(sandbox) {
@@ -18471,7 +18473,7 @@
   function readSave() {
     try {
       const last2 = localStorage.getItem(SAVE_KEYS.last);
-      const text = localStorage.getItem(last2 === "essai" ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
+      const text = localStorage.getItem(last2 === "essai" && !PUBLIC_BUILD ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
       return text ? Game.restore(JSON.parse(text)) : null;
     } catch {
       return null;
@@ -20368,7 +20370,7 @@
     game.levelUpNow();
     collectEvents();
   });
-  button("menu-sandbox", () => {
+  if (!PUBLIC_BUILD) button("menu-sandbox", () => {
     newRun(true);
     started = true;
     showScreen(null);

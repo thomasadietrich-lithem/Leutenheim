@@ -152,6 +152,11 @@ let stepTime = 0;
 // ---------- Sauvegarde (sur l'appareil) ----------
 
 /** Deux emplacements : la partie de donjon et la salle d'essai ; « last » dit laquelle reprendre. */
+/** Version publique (GitHub Pages) : pas de salle d'essai (Thomas, 2026-11-12). Fixé à la construction. */
+declare const __PUBLIC__: boolean;
+const PUBLIC_BUILD = typeof __PUBLIC__ !== "undefined" && __PUBLIC__;
+if (PUBLIC_BUILD) $("menu-sandbox").remove();
+
 const SAVE_KEYS = { donjon: "leutenheim.save", essai: "leutenheim.save.essai", last: "leutenheim.save.last" };
 let lastSaveAt = 0;
 
@@ -187,7 +192,7 @@ function eraseSave(sandbox: boolean): void {
 function readSave(): Game | null {
   try {
     const last = localStorage.getItem(SAVE_KEYS.last);
-    const text = localStorage.getItem(last === "essai" ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
+    const text = localStorage.getItem(last === "essai" && !PUBLIC_BUILD ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
     return text ? Game.restore(JSON.parse(text)) : null;
   } catch {
     return null;
@@ -2360,7 +2365,7 @@ button("level-up", () => {
   game.levelUpNow();
   collectEvents();
 });
-button("menu-sandbox", () => {
+if (!PUBLIC_BUILD) button("menu-sandbox", () => {
   newRun(true);
   started = true;
   showScreen(null);

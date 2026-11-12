@@ -1,4 +1,5 @@
 // Construit le jeu. Sans option : demo/index.html (fichier unique). Avec --tests : dist/tests.cjs.
+// Avec --public : la version publique (sans salle d'essai), même fichier.
 import { build } from "esbuild";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -18,6 +19,8 @@ if (process.argv.includes("--tests")) {
     format: "iife",
     target: "es2020",
     write: false,
+    // Version publique (GitHub Pages, pour les copains) : sans la salle d'essai (Thomas, 2026-11-12).
+    define: { __PUBLIC__: process.argv.includes("--public") ? "true" : "false" },
     logLevel: "warning",
   });
   const js = result.outputFiles[0].text.replaceAll("</script", "<\\/script");

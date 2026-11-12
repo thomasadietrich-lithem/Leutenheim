@@ -148,4 +148,5 @@ def main():
     print(f"{len(out) / SR:.0f} s")
 
 
-main()
+if __name__ == "__main__":
+    main()

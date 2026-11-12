@@ -16329,6 +16329,9 @@
   var HURT_MS = 260;
   var CORPSE_MS = 1400;
   var PROJECTILE_MS = 170;
+  function screenScale() {
+    return Math.min(2, window.devicePixelRatio || 1);
+  }
   var Renderer = class {
     constructor(canvas2) {
       this.canvas = canvas2;
@@ -16393,7 +16396,7 @@
     }
     resize() {
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = screenScale();
       this.width = rect.width;
       this.height = rect.height;
       this.canvas.width = Math.round(rect.width * dpr);
@@ -16403,7 +16406,7 @@
     }
     /** Pixels réels de l'écran par pixel de page (2 ou 3 sur un téléphone). */
     dpr() {
-      return window.devicePixelRatio || 1;
+      return screenScale();
     }
     /**
      * Taille d'une case, arrondie à un nombre entier de pixels de l'écran : toutes les cases ont alors exactement la même
@@ -17564,7 +17567,7 @@
     }
     /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
     drawCell(game2, t, x, y, rx, ry, rw, rh) {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = screenScale();
       const key = `${Math.round(rw * dpr)}x${Math.round(rh * dpr)}`;
       const index = game2.map.index(x, y);
       const stamp = game2.map.changed[index];
@@ -20437,6 +20440,10 @@
   }
   var last = performance.now();
   function frame(now) {
+    if (now - last < 15) {
+      requestAnimationFrame(frame);
+      return;
+    }
     const dt = Math.min(now - last, 100);
     last = now;
     advanceCues(dt);

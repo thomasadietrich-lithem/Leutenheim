@@ -2442,6 +2442,11 @@ function advanceStairs(dt: number): void {
 
 let last = performance.now();
 function frame(now: number): void {
+  // Pas plus de 60 images par seconde (les écrans à 90 ou 120 Hz doublaient le travail pour rien).
+  if (now - last < 15) {
+    requestAnimationFrame(frame);
+    return;
+  }
   const dt = Math.min(now - last, 100);
   last = now;
 

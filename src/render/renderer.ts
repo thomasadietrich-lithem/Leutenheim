@@ -116,6 +116,15 @@ interface FloatingText {
   slot: number;
 }
 
+/**
+ * Pixels réels par pixel de page, plafonnés à 2 (Thomas, 2026-11-12 : « une fois installé, le jeu est très lent ») :
+ * installé en plein écran sur un téléphone à densité 3, le canevas faisait plus de 3 millions de pixels à redessiner à
+ * chaque image ; à 2, c'est 2,25 fois moins, sans différence visible pour du pixel art.
+ */
+export function screenScale(): number {
+  return Math.min(2, window.devicePixelRatio || 1);
+}
+
 /** Dessine l'état du jeu sur le Canvas. Design volontairement minimal : des formes colorées. */
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -167,7 +176,7 @@ export class Renderer {
 
   resize(): void {
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = screenScale();
     this.width = rect.width;
     this.height = rect.height;
     this.canvas.width = Math.round(rect.width * dpr);
@@ -178,7 +187,7 @@ export class Renderer {
 
   /** Pixels réels de l'écran par pixel de page (2 ou 3 sur un téléphone). */
   private dpr(): number {
-    return window.devicePixelRatio || 1;
+    return screenScale();
   }
 
   /**
@@ -1527,7 +1536,7 @@ export class Renderer {
 
   /** Dessine une case depuis le cache, en la (re)dessinant d'abord si elle a changé. */
   private drawCell(game: Game, t: Tile, x: number, y: number, rx: number, ry: number, rw: number, rh: number): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = screenScale();
     // Le dessin d'un mur ou d'une porte dépend des cases voisines (raccords, coins, sens) : la carte tient à jour, pour
     // chaque case, le numéro de la dernière modification à moins de deux cases (`changed`).
     const key = `${Math.round(rw * dpr)}x${Math.round(rh * dpr)}`;

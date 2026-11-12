@@ -4420,6 +4420,16 @@ export class Game {
   }
 
   private dropItem(x: number, y: number, item: ItemId, count: number, angle?: number): void {
+    // Rien ne reste sur un escalier : l'objet rebondit sur la marche et retombe à côté (Thomas, 2026-11-12).
+    const t = this.map.get(x, y);
+    if (t === Tile.StairsDown || t === Tile.StairsUp) {
+      const at = this.landingCell({ x, y }, item);
+      if (at.x !== x || at.y !== y) {
+        this.events.push({ type: "stairsBounce", item, fromX: x, fromY: y, x: at.x, y: at.y });
+        x = at.x;
+        y = at.y;
+      }
+    }
     // Un objet orienté (une flèche tombée) garde sa propre place au sol ; les autres s'empilent.
     const pile = angle === undefined ? this.ground.find((g) => g.x === x && g.y === y && g.item === item && g.angle === undefined) : undefined;
     if (pile) pile.count += count;

@@ -8245,6 +8245,15 @@
       else this.lureBoss(landing);
     }
     dropItem(x, y, item, count, angle) {
+      const t = this.map.get(x, y);
+      if (t === Tile.StairsDown || t === Tile.StairsUp) {
+        const at = this.landingCell({ x, y }, item);
+        if (at.x !== x || at.y !== y) {
+          this.events.push({ type: "stairsBounce", item, fromX: x, fromY: y, x: at.x, y: at.y });
+          x = at.x;
+          y = at.y;
+        }
+      }
       const pile = angle === void 0 ? this.ground.find((g) => g.x === x && g.y === y && g.item === item && g.angle === void 0) : void 0;
       if (pile) pile.count += count;
       else this.ground.push({ x, y, item, count, angle });
@@ -19541,6 +19550,8 @@
     } else if (e.type === "npc") {
       if (e.what === "talk") openTalk(e.who);
       else gluckPouf(e);
+    } else if (e.type === "stairsBounce") {
+      renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
     } else if (e.type === "bounce") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
       renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");

@@ -32,6 +32,8 @@ export type GameEvent =
   | { type: "stairs"; direction: "down" | "up"; healed: number }
   /** Le sac est plein : l'objet reste au sol. */
   | { type: "bagFull"; item?: ItemId; x?: number; y?: number }
+  /** Un objet tombé sur un escalier rebondit sur la marche et retombe à côté. */
+  | { type: "stairsBounce"; item: ItemId; fromX: number; fromY: number; x: number; y: number }
   | { type: "bounce"; item: ItemId; count: number; fromX: number; fromY: number; x: number; y: number }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }

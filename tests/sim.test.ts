@@ -3741,3 +3741,15 @@ test("porte du Kobold qui compte : forcée depuis l'un ou l'autre côté, il sor
   }
   assert.ok(checked >= 4);
 });
+
+test("un objet qui tombe sur un escalier rebondit à côté", () => {
+  const game = new Game(5);
+  const map = game.map;
+  let st: { x: number; y: number } | null = null;
+  for (let y = 0; y < map.height && !st; y++) for (let x = 0; x < map.width; x++) if (map.get(x, y) === 2) { st = { x, y }; break; }
+  assert.ok(st);
+  game.events.length = 0;
+  (game as unknown as { dropItem(x: number, y: number, i: string, n: number): void }).dropItem(st.x, st.y, "pomme", 1);
+  assert.ok(!game.ground.some((g) => g.x === st!.x && g.y === st!.y), "la pomme est restée sur l'escalier");
+  assert.ok(game.events.some((e) => e.type === "stairsBounce"));
+});

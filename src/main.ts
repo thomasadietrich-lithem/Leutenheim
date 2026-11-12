@@ -438,6 +438,8 @@ function reveal(e: GameEvent): void {
     if (e.what === "talk") openTalk(e.who);
     // Il part : nuage et « Pouf ! » (la conversation est fermée : voir `talkLater`).
     else gluckPouf(e);
+  } else if (e.type === "stairsBounce") {
+    renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
   } else if (e.type === "bounce") {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
     renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");

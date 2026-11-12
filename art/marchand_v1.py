@@ -156,6 +156,25 @@ def floor_tile(S):
     return t
 
 
+def export():
+    """Écrit src/render/sprites/marchand.ts (lignes de lettres + palette ; le profil regarde vers la droite)."""
+    import json
+    pal = {k: v for k, v in PAL.items()}
+    body = "\n".join(f"  {name}: {json.dumps(rows)}," for name, rows in (("front", FRONT), ("side", SIDE), ("back", BACK), ("bubble", BUBBLE)))
+    out = (
+        "// Fichier généré par art/marchand_v1.py export (planche art/marchand_v1.png). Ne pas modifier à la main.\n\n"
+        f"export const MARCHAND_PALETTE: Record<string, string> = {json.dumps(pal)};\n\n"
+        "/** Le Colporteur : face, profil (vers la droite), dos (16 × 20), et sa bulle (12 × 10). */\n"
+        f"export const MARCHAND: Record<\"front\" | \"side\" | \"back\" | \"bubble\", string[]> = {{\n{body}\n}};\n"
+    )
+    open("src/render/sprites/marchand.ts", "w").write(out)
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+    print("ok")
+    sys.exit(0)
+
 if __name__ == "__main__":
     S = 6
     W, H = 900, 760

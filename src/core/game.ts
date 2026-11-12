@@ -28,6 +28,8 @@ import { BloodStain, Debris, FloorState, GroundItem, Trap, guaranteedLoot, lootP
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
 export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
+import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
+import { buyBackPrice, MERCHANT, SANDBOX_WARES } from "../data/merchant";
 
 /** Ce qui s'est passé pendant un tour, pour que l'affichage puisse le montrer. */
 /** Ce qui ne sert qu'un nombre limité de fois par étage : second souffle et dernier rempart (fois déjà utilisés),
@@ -58,6 +60,8 @@ export class Game {
   light!: Float32Array;
   /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
   pendingDoor: Point | null = null;
+  /** On marche vers le Colporteur : sa boutique s'ouvrira en arrivant à côté de lui. */
+  private shopTarget = false;
   /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
   inventory = new Inventory();
   equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null, bag: null };
@@ -242,6 +246,9 @@ export class Game {
         boss: bossFloor?.boss,
       };
       if (bossFloor) for (const sec of bossFloor.secrets) state.secrets.push({ ...sec, found: false });
+      // Le Colporteur : dans la salle d'essai, et au 4e étage de chaque section (Thomas, 2026-11-12).
+      if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
+      else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? undefined;
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -1076,6 +1083,7 @@ export class Game {
       themes: f.themes,
       motifs: f.motifs,
       boss: f.boss,
+      merchant: f.merchant,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1157,6 +1165,7 @@ export class Game {
         themes: f.themes ?? [],
         motifs: f.motifs ?? [],
         boss: f.boss,
+        merchant: f.merchant,
       });
     }
     game.turn = saved.turn;
@@ -1945,6 +1954,9 @@ export class Game {
     if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
       return this.approachLockedDoor(x, y, ignoreFog);
     }
+    // Le Colporteur : on va à côté de lui, puis sa boutique s'ouvre (pas pendant un combat, pas s'il se cache).
+    const merchant = this.merchantAt(x, y);
+    if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
     if (this.breakableAt(x, y) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     const seen = this.monsterAt(x, y);
@@ -2270,6 +2282,10 @@ export class Game {
       a.fromX = a.x;
       a.fromY = a.y;
     }
+    if (this.current.merchant) {
+      this.current.merchant.fromX = this.current.merchant.x;
+      this.current.merchant.fromY = this.current.merchant.y;
+    }
 
     const wasResting = this.resting > 0;
     const wasSearching = this.searching > 0;
@@ -2329,6 +2345,20 @@ export class Game {
       }
       const next = this.path[0];
       if (!next) return false;
+      // Le Colporteur sur le chemin : si on allait le voir, on s'arrête et sa boutique s'ouvre ; sinon il s'écarte
+      // (il prend la place du héros) et on passe.
+      const peddler = this.merchantAt(next.x, next.y);
+      if (peddler && this.shopTarget) {
+        this.path = [];
+        this.shopTarget = false;
+        if (this.nextToMerchant()) this.openShop();
+        return false;
+      }
+      if (peddler) {
+        peddler.x = this.hero.x;
+        peddler.y = this.hero.y;
+        peddler.target = null;
+      }
       const blocker = this.monsterAt(next.x, next.y);
       if (blocker) {
         this.heroAttacks(blocker);
@@ -2368,6 +2398,10 @@ export class Game {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
           this.doorTarget = null;
+        }
+        if (this.path.length === 0 && this.shopTarget) {
+          this.shopTarget = false;
+          if (this.nextToMerchant()) this.openShop();
         }
         if (this.path.length === 0 && this.doorTarget) {
           // Arrivé devant la porte verrouillée : au joueur de décider.
@@ -2410,6 +2444,7 @@ export class Game {
       this.poisonTick();
       this.monstersAct();
     }
+    this.merchantAct();
     this.burn();
     this.gasTick();
     if (this.hasteTurns > 0) this.hasteTurns--;
@@ -2641,6 +2676,158 @@ export class Game {
 
   /** Un ennemi alerté est-il au contact du héros ? */
   /** En plein combat : un monstre qui traque le héros est en vue. On ne place pas de points à ce moment-là (Thomas). */
+  /** Le Colporteur de l'étage, s'il y en a un. */
+  merchant(): Merchant | null {
+    return this.current.merchant ?? null;
+  }
+
+  merchantAt(x: number, y: number): Merchant | null {
+    const m = this.current.merchant;
+    return m && m.x === x && m.y === y ? m : null;
+  }
+
+  private nextToMerchant(): boolean {
+    const m = this.current.merchant;
+    return !!m && !m.hidden && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) === 1;
+  }
+
+  /** Peut-on commercer maintenant ? Il faut être à côté de lui, qu'il soit visible, et pas en plein combat. */
+  canTrade(): boolean {
+    return !this.over && this.nextToMerchant() && !this.inCombat();
+  }
+
+  private openShop(): void {
+    if (!this.canTrade()) return;
+    const m = this.current.merchant!;
+    this.events.push({ type: "shop", line: Math.floor(mix(this.turn, m.x, m.y) * MERCHANT.lines.length) });
+  }
+
+  private approachMerchant(m: Merchant): boolean {
+    this.clearDoorOrders();
+    this.targetId = null;
+    this.waiting = false;
+    if (this.nextToMerchant()) {
+      this.path = [];
+      this.openShop();
+      return true;
+    }
+    let best: Point[] | null = null;
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const to = { x: m.x + dx, y: m.y + dy };
+      if (!this.map.isWalkable(to.x, to.y) || this.monsterAt(to.x, to.y)) continue;
+      const path = this.heroPath(to, (cx, cy) => this.isKnown(cx, cy) && !(cx === m.x && cy === m.y));
+      if (path && (!best || path.length < best.length)) best = path;
+    }
+    if (!best) return false;
+    this.path = best;
+    this.shopTarget = true;
+    return true;
+  }
+
+  /** Acheter le lot n° `index` : il faut l'or et la place dans le sac ; ne prend pas de tour. */
+  buy(index: number): "ok" | "gold" | "full" | "none" | "away" {
+    const m = this.current.merchant;
+    const ware = m?.wares[index];
+    if (!m || !ware) return "none";
+    if (!this.canTrade()) return "away";
+    if (this.gold < ware.price) return "gold";
+    const left = this.inventory.add(ware.item, ware.count);
+    if (left > 0) {
+      if (ware.count - left > 0) this.inventory.take(ware.item, ware.count - left);
+      return "full";
+    }
+    this.gold -= ware.price;
+    m.wares.splice(index, 1);
+    this.events.push({ type: "bought", item: ware.item, count: ware.count, price: ware.price });
+    return "ok";
+  }
+
+  /** Ce que le Colporteur donne pour cet objet du sac (tout le tas) ; null s'il n'en veut pas. */
+  sellPrice(uid: number): number | null {
+    const item = this.inventory.get(uid);
+    if (!item) return null;
+    const unit = buyBackPrice(item.defId);
+    return unit === null ? null : unit * item.count;
+  }
+
+  /** Vendre un objet du sac (tout le tas) ; ne prend pas de tour. */
+  sell(uid: number): boolean {
+    const price = this.sellPrice(uid);
+    if (price === null || !this.canTrade()) return false;
+    const item = this.inventory.removeItem(uid);
+    if (!item) return false;
+    this.gold += price;
+    this.events.push({ type: "sold", item: item.defId, count: item.count, price });
+    return true;
+  }
+
+  /**
+   * Le Colporteur flâne dans sa salle, un pas tous les 2 tours ; il attend quand le héros est tout près. Un monstre à
+   * 4 cases ou moins : il se cache (on le devine à peine) et ne bouge plus ; il réapparaît quand ils sont partis.
+   */
+  private merchantAct(): void {
+    const m = this.current.merchant;
+    if (!m) return;
+    // Trop de bruit (Thomas : « il disparaît quand le niveau d'alerte est important ») : au palier ALERTE, il plie
+    // bagage et quitte l'étage pour de bon.
+    if (this.current.alarmStage >= MERCHANT.leaveAtAlarmStage) {
+      this.current.merchant = undefined;
+      this.events.push({ type: "merchantLeaves", x: m.x, y: m.y, seen: this.isVisible(m.x, m.y) });
+      return;
+    }
+    const near = (p: Point, r: number) => Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= r;
+    const hide = this.monsters.some((mo) => mo.hp > 0 && near(mo, MERCHANT.hideRadius));
+    if (hide !== m.hidden) {
+      m.hidden = hide;
+      if (this.isVisible(m.x, m.y)) this.events.push({ type: hide ? "merchantHides" : "merchantShows" });
+    }
+    if (m.hidden) return;
+    if (near(this.hero, MERCHANT.waitNearHero)) {
+      const dx = this.hero.x - m.x;
+      const dy = this.hero.y - m.y;
+      m.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy < 0 ? "up" : "down";
+      return;
+    }
+    if (this.turn % MERCHANT.stepEvery !== 0) return;
+    const r = m.home;
+    const inHome = (x: number, y: number) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+    const free = (x: number, y: number) =>
+      inHome(x, y) && this.map.isWalkable(x, y) && !this.monsterAt(x, y) && !(x === this.hero.x && y === this.hero.y) && !this.isTrap(x, y) && !this.furnitureAt(x, y);
+    if (!m.target || (m.target.x === m.x && m.target.y === m.y) || !free(m.target.x, m.target.y)) {
+      m.target = null;
+      for (let k = 0; k < 12 && !m.target; k++) {
+        const x = r.x + Math.floor(mix(this.turn, k, m.x * 31 + m.y) * r.w);
+        const y = r.y + Math.floor(mix(k, this.turn, m.y * 17 + m.x) * r.h);
+        if (free(x, y) && (x !== m.x || y !== m.y)) m.target = { x, y };
+      }
+      if (!m.target) return;
+    }
+    const path = findPath(this.map, m, m.target, (x, y) => free(x, y) || (x === m.x && y === m.y));
+    const step = path?.[0];
+    if (!step) {
+      m.target = null;
+      return;
+    }
+    const dx = step.x - m.x;
+    const dy = step.y - m.y;
+    m.facing = dx > 0 ? "right" : dx < 0 ? "left" : dy < 0 ? "up" : "down";
+    m.x = step.x;
+    m.y = step.y;
+  }
+
+  /** Au 4e étage d'une section : le Colporteur flâne dans une salle ordinaire (ni départ, ni salle spéciale, ni escalier). */
+  private placeMerchant(floor: { rooms: Room[]; start: Point; stairs: Point; map: GameMap; specials?: { room: Room }[] }, seed: number, depth: number): Merchant | null {
+    const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    const rooms = floor.rooms.filter((r) => !inside(r, floor.start) && !inside(r, floor.stairs) && !(floor.specials ?? []).some((s) => s.room === r) && r.w * r.h >= 12);
+    if (rooms.length === 0) return null;
+    const room = rooms[Math.floor(mix(seed, depth, 5) * rooms.length)];
+    const cells: Point[] = [];
+    for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Floor) cells.push({ x, y });
+    if (cells.length === 0) return null;
+    const at = cells[Math.floor(mix(seed, depth, 6) * cells.length)];
+    return makeMerchant(at, room, rollWares(depth, seed), seed);
+  }
+
   inCombat(): boolean {
     return this.monsters.some((m) => m.alerted && this.isVisible(m.x, m.y));
   }

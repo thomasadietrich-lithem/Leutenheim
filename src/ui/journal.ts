@@ -192,6 +192,18 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       const outcome = e.success ? "réussi, il s'ouvre sans mal." : `raté, une pointe jaillit : ${e.damage} dégâts. Il s'ouvre quand même.`;
       return `${how} : ${roll(e.d20, e.bonus, e.total)} — ${outcome} Un squelette y est pris ; ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombent à côté.`;
     }
+    case "shop":
+      return "Le Colporteur ouvre son sac.";
+    case "bought":
+      return `Vous achetez ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} au Colporteur : ${e.price} or.`;
+    case "sold":
+      return `Vous vendez ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} au Colporteur : +${e.price} or.`;
+    case "merchantHides":
+      return "Des pas approchent : le Colporteur se fond dans l'ombre.";
+    case "merchantLeaves":
+      return e.seen ? "Trop de bruit : le Colporteur plie bagage et disparaît." : "Quelque part, le Colporteur a plié bagage : trop de bruit sur cet étage.";
+    case "merchantShows":
+      return "Le Colporteur ressort de l'ombre.";
     case "chest":
       return `Le coffre s'ouvre : ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombent à côté.`;
     case "used":

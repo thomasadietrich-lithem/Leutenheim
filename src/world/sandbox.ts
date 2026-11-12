@@ -33,6 +33,8 @@ export interface SandboxFloor extends Floor {
   heroLevel: number;
   /** `patrol` : il fait les cent pas dans sa salle au lieu de se promener dans tout l'étage. */
   monsters: { x: number; y: number; asleep: boolean; patrol?: boolean; monster?: "schrat" | "araignee" | "frondeur" }[];
+  /** Le Colporteur (Thomas, 2026-11-12) : où il se tient et la salle où il flâne. */
+  merchant: { x: number; y: number; home: Room };
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
@@ -160,6 +162,8 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       { x: 10, y: 19, kind: "spirale" },
     ],
     start: { x: 7, y: 6 },
+    // Le Colporteur (Thomas, 2026-11-12 : « ajoute le marchand dans l'étage test ») flâne dans la salle de départ.
+    merchant: { x: 9, y: 5, home: start },
     stairs,
     torches: floorPlan.torches,
     specials: [

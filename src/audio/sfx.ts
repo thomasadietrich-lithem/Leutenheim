@@ -23,7 +23,8 @@ export type SoundName =
   | "pickup"
   | "advantage"
   | "disadvantage"
-  | "click";
+  | "click"
+  | "coin";
 
 type Wave = OscillatorType;
 
@@ -187,6 +188,10 @@ export class Sfx {
           this.tone(470, 380, 0.03, "square", 0.05, 0.29);
           this.tone(190, 85, 0.1, "sine", 0.32, 0.43);
           this.noise(0.09, 0.28, 650, 0.43);
+          break;
+        case "coin": // deux pièces qui tintent (achat, vente)
+          this.tone(1900, 1900, 0.05, "triangle", 0.12);
+          this.tone(2500, 2500, 0.07, "triangle", 0.1, 0.07);
           break;
         case "unlock":
           this.tone(1200, 1200, 0.03, "square", 0.08);

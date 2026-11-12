@@ -2956,3 +2956,79 @@ test("rigoles v2 : chaque morceau se raccorde à ses voisins et la rigole finit 
   }
   assert.ok(checked > 0, "aucune rigole trouvée");
 });
+
+test("Colporteur (salle d'essai) : on va à côté, la boutique s'ouvre ; acheter, vendre ; il se cache près des monstres", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  const m = game.merchant()!;
+  assert.ok(m, "le Colporteur est dans la salle d'essai");
+  assert.equal(m.wares.length, 4);
+  // Le toucher : le héros va à côté, puis la boutique s'ouvre.
+  assert.ok(game.setDestination(m.x, m.y));
+  let opened = false;
+  for (let i = 0; i < 20 && !opened; i++) {
+    game.tick();
+    opened = game.events.some((e) => e.type === "shop");
+    game.events.length = 0;
+  }
+  assert.ok(opened, "boutique ouverte");
+  assert.ok(game.canTrade());
+  // Acheter : sans or, refusé ; avec, le lot va dans le sac et il disparaît de l'étal.
+  game.gold = 0;
+  assert.equal(game.buy(0), "gold");
+  game.gold = 500;
+  const ware = m.wares[0];
+  const before = game.inventory.count(ware.item);
+  assert.equal(game.buy(0), "ok");
+  assert.equal(game.gold, 500 - ware.price);
+  assert.equal(game.inventory.count(ware.item), before + ware.count);
+  assert.equal(m.wares.length, 3);
+  // Vendre : il rachète à 40 % (au moins 1 or), jamais l'or ni les gemmes.
+  const it = game.inventory.items.find((x) => x.defId === ware.item)!;
+  const price = game.sellPrice(it.uid)!;
+  assert.ok(price >= 1);
+  const gold = game.gold;
+  assert.ok(game.sell(it.uid));
+  assert.equal(game.gold, gold + price);
+  // Un monstre à 4 cases : il se cache, et on ne peut plus lui parler.
+  game.setPeaceful(false);
+  const foe = game.monsters[0];
+  Object.assign(foe, { x: m.x + 3, y: m.y, fromX: m.x + 3, fromY: m.y, asleep: true, alerted: false });
+  game.wait();
+  game.tick();
+  if (game.monsters.some((mo) => Math.max(Math.abs(mo.x - m.x), Math.abs(mo.y - m.y)) <= 4)) {
+    assert.ok(m.hidden, "caché");
+    assert.equal(game.canTrade(), false);
+  }
+});
+
+test("Colporteur : un par section, au 4e étage, gardé dans la sauvegarde", () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const game = new Game(seed);
+    const at: number[] = [];
+    for (let d = 1; d <= 4; d++) {
+      if (game.merchant()) at.push(game.depth);
+      if (d < 4) {
+        game.pendingStairs = "down";
+        assert.ok(game.takeStairs());
+      }
+    }
+    assert.deepEqual(at, [4], `graine ${seed}`);
+    const m = game.merchant()!;
+    assert.equal(m.wares.length, 4);
+    assert.ok(game.map.isWalkable(m.x, m.y));
+    const copy = Game.restore(game.snapshot())!;
+    assert.deepEqual(copy.merchant(), m);
+  }
+});
+
+test("Colporteur : au palier d'alerte ALERTE, il quitte l'étage", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  assert.ok(game.merchant());
+  game.raiseAlarm(55);
+  game.wait();
+  game.tick();
+  assert.equal(game.merchant(), null);
+  assert.ok(game.events.some((e) => e.type === "merchantLeaves"));
+});

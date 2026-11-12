@@ -10,6 +10,7 @@ import type { BossLayout } from "../world/bossFloor";
 import { THEMED_ROOMS } from "../data/themedRooms";
 import { GameMap, Point, Tile } from "../world/map";
 import { Rng } from "./rng";
+import type { Merchant } from "./merchant";
 import { TRAPS, TrapKind } from "../data/traps";
 
 /**
@@ -52,6 +53,8 @@ export interface FloorState {
   motifs: Motif[];
   /** Étage du boss : le plan de la nichée (grande toile, colonnes, brèches, coffre, escalier scellé). */
   boss?: BossLayout;
+  /** Le Colporteur, s'il passe par cet étage (pour l'instant : salle d'essai). */
+  merchant?: Merchant;
 }
 
 /** Un piège : sa case, sa sorte (pointes par défaut, pour les anciennes sauvegardes), et la fosse déjà effondrée. */

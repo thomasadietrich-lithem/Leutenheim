@@ -8,6 +8,7 @@ import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
 import { Point } from "../world/map";
 import { BloodStain, Debris, GroundItem, Secret, Trap } from "./floor";
+import type { Merchant } from "./merchant";
 
 /**
  * Sauvegarde d'une partie : de simples données (texte JSON), écrites sur l'appareil à chaque tour.
@@ -47,6 +48,8 @@ export interface SavedFloor {
   motifs?: Motif[];
   /** Étage du boss (facultatif). */
   boss?: BossLayout;
+  /** Le Colporteur (facultatif). */
+  merchant?: Merchant;
 }
 
 export interface SaveData {

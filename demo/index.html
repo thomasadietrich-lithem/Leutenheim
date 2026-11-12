@@ -81,6 +81,25 @@
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
+  #shop { justify-content: flex-start; overflow-y: auto; }
+  #shop h2 { color: var(--gold); margin: 34px 0 0; }
+  #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
+  #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
+  .shop-wares { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: min(100%, 318px); }
+  .shop-ware { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; color: #fff3c8; font-family: inherit; border: none; cursor: pointer; }
+  .shop-ware.picked { box-shadow: inset 0 0 0 3px #ffd75e; background: #4a3814; }
+  .shop-ware.dear .shop-price { color: #ff8a7a; }
+  .shop-icon svg { width: 44px; height: 44px; display: block; }
+  .shop-row .shop-icon svg { width: 32px; height: 32px; }
+  .shop-name { font-size: 15px; text-align: center; line-height: 1.1; }
+  .shop-price { color: #ffd75e; font-size: 16px; }
+  .shop-sell { display: flex; flex-direction: column; gap: 4px; width: min(100%, 318px); overflow-y: auto; max-height: 52vh; }
+  .shop-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; background: #241c14; }
+  .shop-row .shop-name { flex: 1; text-align: left; }
+  .shop-act { font-size: 16px; padding: 4px 8px; }
+  #shop-detail { width: min(100%, 318px); display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 8px; }
+  .shop-empty, .shop-note { color: var(--dim); font-size: 16px; text-align: center; }
+  .shop-note { color: #ff8a7a; }
   #over.over-win { background: #0e1408; border-color: #8a7a2a; }
   #over.over-win .over-title { color: #ffd75e; }
   #over .over-best { color: #ffd75e; font-size: 26px; }
@@ -386,6 +405,18 @@
     <button id="actions" type="button"></button>
     <button id="power" type="button" hidden></button>
     <button id="open-bag" type="button"></button>
+  </div>
+  <div id="shop" class="overlay" hidden>
+    <button id="shop-close" class="hero-close" type="button" aria-label="Fermer">×</button>
+    <h2>Le Colporteur</h2>
+    <div id="shop-line"></div>
+    <div class="hero-tabs">
+      <button id="shop-tab-buy" class="hero-tab on" type="button">Acheter</button>
+      <button id="shop-tab-sell" class="hero-tab" type="button">Vendre</button>
+    </div>
+    <div id="shop-purse"></div>
+    <div id="shop-list"></div>
+    <div id="shop-detail"></div>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>
@@ -739,6 +770,10 @@
             this.tone(470, 380, 0.03, "square", 0.05, 0.29);
             this.tone(190, 85, 0.1, "sine", 0.32, 0.43);
             this.noise(0.09, 0.28, 650, 0.43);
+            break;
+          case "coin":
+            this.tone(1900, 1900, 0.05, "triangle", 0.12);
+            this.tone(2500, 2500, 0.07, "triangle", 0.1, 0.07);
             break;
           case "unlock":
             this.tone(1200, 1200, 0.03, "square", 0.08);
@@ -3058,6 +3093,8 @@
         { x: 10, y: 19, kind: "spirale" }
       ],
       start: { x: 7, y: 6 },
+      // Le Colporteur (Thomas, 2026-11-12 : « ajoute le marchand dans l'étage test ») flâne dans la salle de départ.
+      merchant: { x: 9, y: 5, home: start },
       stairs,
       torches: floorPlan.torches,
       specials: [
@@ -3748,6 +3785,89 @@
     }
   }
 
+  // src/data/merchant.ts
+  var MERCHANT = {
+    /** Un Colporteur par section, à son 4e étage (Thomas, 2026-11-12 : « un marchand par section, étage 4 »). */
+    floorInSection: 4,
+    /** Au palier d'alerte ALERTE (2) et au-delà, il quitte l'étage pour de bon (Thomas, 2026-11-12). */
+    leaveAtAlarmStage: 2,
+    /** Un monstre à cette distance (en cases) ou moins : il se cache (presque transparent, on le devine). */
+    hideRadius: 4,
+    /** Sa bulle (une pièce d'or) n'apparaît que si le héros est à cette distance ou moins. */
+    bubbleRadius: 6,
+    /** Il fait un pas tous les N tours (il flâne), et s'arrête quand le héros est à 2 cases ou moins. */
+    stepEvery: 2,
+    waitNearHero: 2,
+    /** Il rachète au héros à cette part du prix (40 %), au moins 1 or. */
+    buyBack: 0.4,
+    /** Prix « louches » : chaque article vaut de −20 % à +20 % de son prix normal. */
+    priceSwing: 0.2,
+    /** Ce qu'il dit en ouvrant la boutique (une phrase au hasard). */
+    lines: [
+      "Pas d'questions, pas d'soucis\u2026",
+      "Tout est d'origine. Presque.",
+      "Prix d'ami. Enfin\u2026 d'ami.",
+      "Chut. Les murs ont des oreilles pointues."
+    ]
+  };
+  var BY_RARITY = { common: 8, uncommon: 25, rare: 60 };
+  var SPECIAL = {
+    fleche: 1,
+    fleche_poison: 3,
+    javeline: 8,
+    pomme: 4,
+    torche: 5,
+    potion_jouvence: 80,
+    sac_cuir: 40,
+    sac_voyage: 90
+  };
+  function basePrice(id) {
+    const def = ITEMS[id];
+    if (def.kind === "gold" || def.kind === "gem" || def.kind === "key") return null;
+    return SPECIAL[id] ?? (def.rarity ? BY_RARITY[def.rarity] : 4);
+  }
+  function buyBackPrice(id) {
+    const p = basePrice(id);
+    return p === null ? null : Math.max(1, Math.floor(p * MERCHANT.buyBack));
+  }
+  var SANDBOX_WARES = [
+    { item: "potion_feu", count: 1 },
+    { item: "javeline", count: 3 },
+    { item: "casque_maille", count: 1 },
+    { item: "pomme", count: 2 }
+  ];
+
+  // src/core/merchant.ts
+  function mix(a, b, c) {
+    let h = Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177) | 0;
+    h = Math.imul(h ^ h >>> 13, 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function makeMerchant(at, home, list, seed) {
+    const wares = list.map((w, i) => {
+      const swing = 1 + (mix(seed, i, 77) * 2 - 1) * MERCHANT.priceSwing;
+      return { ...w, price: Math.max(1, Math.round((basePrice(w.item) ?? 1) * w.count * swing)) };
+    });
+    return { x: at.x, y: at.y, fromX: at.x, fromY: at.y, hidden: false, wares, home, target: null, facing: "down" };
+  }
+  function rollWares(depth, seed) {
+    const out = [];
+    const pick = (pool, k) => {
+      const free = pool.filter((id) => !out.some((w) => w.item === id));
+      return free.length > 0 ? free[Math.floor(mix(seed, depth, k) * free.length)] : null;
+    };
+    const use = pick(lootPool(depth, (kind) => kind === "use"), 1);
+    if (use) out.push({ item: use, count: ITEMS[use].heal ? 2 : 1 });
+    const gear = pick(lootPool(depth, (kind) => ["melee", "ranged", "armor", "hat"].includes(kind)), 2);
+    if (gear) out.push({ item: gear, count: 1 });
+    const ammo = pick(lootPool(depth, (kind) => kind === "ammo"), 3) ?? "fleche";
+    out.push({ item: ammo, count: ammo === "fleche" ? 10 : ammo === "javeline" ? 3 : 5 });
+    const rare = pick(lootPool(depth, (kind) => kind !== "gem", "rare"), 4) ?? pick(lootPool(depth, (kind) => kind !== "gem", "uncommon"), 5);
+    if (rare) out.push({ item: rare, count: 1 });
+    return out;
+  }
+
   // src/core/game.ts
   var Game = class _Game {
     constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR, sandbox = false) {
@@ -3766,6 +3886,8 @@
       this.torches = [];
       /** Porte verrouillée devant laquelle le héros se tient et attend une décision du joueur. */
       this.pendingDoor = null;
+      /** On marche vers le Colporteur : sa boutique s'ouvrira en arrivant à côté de lui. */
+      this.shopTarget = false;
       /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
       this.inventory = new Inventory();
       this.equipment = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null, bag: null };
@@ -3938,6 +4060,8 @@
           boss: bossFloor?.boss
         };
         if (bossFloor) for (const sec of bossFloor.secrets) state.secrets.push({ ...sec, found: false });
+        if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
+        else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? void 0;
         this.floors.set(depth, state);
       }
       this.useFloor(state, depth);
@@ -4675,7 +4799,8 @@
         furniture: f.furniture,
         themes: f.themes,
         motifs: f.motifs,
-        boss: f.boss
+        boss: f.boss,
+        merchant: f.merchant
       }));
       return clone({
         version: SAVE_VERSION,
@@ -4756,7 +4881,8 @@
           furniture: f.furniture ?? [],
           themes: f.themes ?? [],
           motifs: f.motifs ?? [],
-          boss: f.boss
+          boss: f.boss,
+          merchant: f.merchant
         });
       }
       game2.turn = saved.turn;
@@ -5438,6 +5564,8 @@
       if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
         return this.approachLockedDoor(x, y, ignoreFog);
       }
+      const merchant = this.merchantAt(x, y);
+      if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
       if (this.breakableAt(x, y) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
@@ -5727,6 +5855,10 @@
         a.fromX = a.x;
         a.fromY = a.y;
       }
+      if (this.current.merchant) {
+        this.current.merchant.fromX = this.current.merchant.x;
+        this.current.merchant.fromY = this.current.merchant.y;
+      }
       const wasResting = this.resting > 0;
       const wasSearching = this.searching > 0;
       const shotTarget = this.shotTarget;
@@ -5782,6 +5914,18 @@
         }
         const next = this.path[0];
         if (!next) return false;
+        const peddler = this.merchantAt(next.x, next.y);
+        if (peddler && this.shopTarget) {
+          this.path = [];
+          this.shopTarget = false;
+          if (this.nextToMerchant()) this.openShop();
+          return false;
+        }
+        if (peddler) {
+          peddler.x = this.hero.x;
+          peddler.y = this.hero.y;
+          peddler.target = null;
+        }
         const blocker = this.monsterAt(next.x, next.y);
         if (blocker) {
           this.heroAttacks(blocker);
@@ -5814,6 +5958,10 @@
           if (!throughDoor && this.opportunityAttacks(threats)) {
             this.path = [];
             this.doorTarget = null;
+          }
+          if (this.path.length === 0 && this.shopTarget) {
+            this.shopTarget = false;
+            if (this.nextToMerchant()) this.openShop();
           }
           if (this.path.length === 0 && this.doorTarget) {
             this.pendingDoor = this.doorTarget;
@@ -5851,6 +5999,7 @@
         this.poisonTick();
         this.monstersAct();
       }
+      this.merchantAct();
       this.burn();
       this.gasTick();
       if (this.hasteTurns > 0) this.hasteTurns--;
@@ -6062,6 +6211,144 @@
     }
     /** Un ennemi alerté est-il au contact du héros ? */
     /** En plein combat : un monstre qui traque le héros est en vue. On ne place pas de points à ce moment-là (Thomas). */
+    /** Le Colporteur de l'étage, s'il y en a un. */
+    merchant() {
+      return this.current.merchant ?? null;
+    }
+    merchantAt(x, y) {
+      const m = this.current.merchant;
+      return m && m.x === x && m.y === y ? m : null;
+    }
+    nextToMerchant() {
+      const m = this.current.merchant;
+      return !!m && !m.hidden && Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) === 1;
+    }
+    /** Peut-on commercer maintenant ? Il faut être à côté de lui, qu'il soit visible, et pas en plein combat. */
+    canTrade() {
+      return !this.over && this.nextToMerchant() && !this.inCombat();
+    }
+    openShop() {
+      if (!this.canTrade()) return;
+      const m = this.current.merchant;
+      this.events.push({ type: "shop", line: Math.floor(mix(this.turn, m.x, m.y) * MERCHANT.lines.length) });
+    }
+    approachMerchant(m) {
+      this.clearDoorOrders();
+      this.targetId = null;
+      this.waiting = false;
+      if (this.nextToMerchant()) {
+        this.path = [];
+        this.openShop();
+        return true;
+      }
+      let best = null;
+      for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const to = { x: m.x + dx, y: m.y + dy };
+        if (!this.map.isWalkable(to.x, to.y) || this.monsterAt(to.x, to.y)) continue;
+        const path = this.heroPath(to, (cx, cy) => this.isKnown(cx, cy) && !(cx === m.x && cy === m.y));
+        if (path && (!best || path.length < best.length)) best = path;
+      }
+      if (!best) return false;
+      this.path = best;
+      this.shopTarget = true;
+      return true;
+    }
+    /** Acheter le lot n° `index` : il faut l'or et la place dans le sac ; ne prend pas de tour. */
+    buy(index) {
+      const m = this.current.merchant;
+      const ware = m?.wares[index];
+      if (!m || !ware) return "none";
+      if (!this.canTrade()) return "away";
+      if (this.gold < ware.price) return "gold";
+      const left = this.inventory.add(ware.item, ware.count);
+      if (left > 0) {
+        if (ware.count - left > 0) this.inventory.take(ware.item, ware.count - left);
+        return "full";
+      }
+      this.gold -= ware.price;
+      m.wares.splice(index, 1);
+      this.events.push({ type: "bought", item: ware.item, count: ware.count, price: ware.price });
+      return "ok";
+    }
+    /** Ce que le Colporteur donne pour cet objet du sac (tout le tas) ; null s'il n'en veut pas. */
+    sellPrice(uid) {
+      const item = this.inventory.get(uid);
+      if (!item) return null;
+      const unit = buyBackPrice(item.defId);
+      return unit === null ? null : unit * item.count;
+    }
+    /** Vendre un objet du sac (tout le tas) ; ne prend pas de tour. */
+    sell(uid) {
+      const price = this.sellPrice(uid);
+      if (price === null || !this.canTrade()) return false;
+      const item = this.inventory.removeItem(uid);
+      if (!item) return false;
+      this.gold += price;
+      this.events.push({ type: "sold", item: item.defId, count: item.count, price });
+      return true;
+    }
+    /**
+     * Le Colporteur flâne dans sa salle, un pas tous les 2 tours ; il attend quand le héros est tout près. Un monstre à
+     * 4 cases ou moins : il se cache (on le devine à peine) et ne bouge plus ; il réapparaît quand ils sont partis.
+     */
+    merchantAct() {
+      const m = this.current.merchant;
+      if (!m) return;
+      if (this.current.alarmStage >= MERCHANT.leaveAtAlarmStage) {
+        this.current.merchant = void 0;
+        this.events.push({ type: "merchantLeaves", x: m.x, y: m.y, seen: this.isVisible(m.x, m.y) });
+        return;
+      }
+      const near = (p, r2) => Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= r2;
+      const hide = this.monsters.some((mo) => mo.hp > 0 && near(mo, MERCHANT.hideRadius));
+      if (hide !== m.hidden) {
+        m.hidden = hide;
+        if (this.isVisible(m.x, m.y)) this.events.push({ type: hide ? "merchantHides" : "merchantShows" });
+      }
+      if (m.hidden) return;
+      if (near(this.hero, MERCHANT.waitNearHero)) {
+        const dx2 = this.hero.x - m.x;
+        const dy2 = this.hero.y - m.y;
+        m.facing = Math.abs(dx2) > Math.abs(dy2) ? dx2 > 0 ? "right" : "left" : dy2 < 0 ? "up" : "down";
+        return;
+      }
+      if (this.turn % MERCHANT.stepEvery !== 0) return;
+      const r = m.home;
+      const inHome = (x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+      const free = (x, y) => inHome(x, y) && this.map.isWalkable(x, y) && !this.monsterAt(x, y) && !(x === this.hero.x && y === this.hero.y) && !this.isTrap(x, y) && !this.furnitureAt(x, y);
+      if (!m.target || m.target.x === m.x && m.target.y === m.y || !free(m.target.x, m.target.y)) {
+        m.target = null;
+        for (let k = 0; k < 12 && !m.target; k++) {
+          const x = r.x + Math.floor(mix(this.turn, k, m.x * 31 + m.y) * r.w);
+          const y = r.y + Math.floor(mix(k, this.turn, m.y * 17 + m.x) * r.h);
+          if (free(x, y) && (x !== m.x || y !== m.y)) m.target = { x, y };
+        }
+        if (!m.target) return;
+      }
+      const path = findPath(this.map, m, m.target, (x, y) => free(x, y) || x === m.x && y === m.y);
+      const step = path?.[0];
+      if (!step) {
+        m.target = null;
+        return;
+      }
+      const dx = step.x - m.x;
+      const dy = step.y - m.y;
+      m.facing = dx > 0 ? "right" : dx < 0 ? "left" : dy < 0 ? "up" : "down";
+      m.x = step.x;
+      m.y = step.y;
+    }
+    /** Au 4e étage d'une section : le Colporteur flâne dans une salle ordinaire (ni départ, ni salle spéciale, ni escalier). */
+    placeMerchant(floor, seed, depth) {
+      const inside = (r, p) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+      const rooms = floor.rooms.filter((r) => !inside(r, floor.start) && !inside(r, floor.stairs) && !(floor.specials ?? []).some((s) => s.room === r) && r.w * r.h >= 12);
+      if (rooms.length === 0) return null;
+      const room = rooms[Math.floor(mix(seed, depth, 5) * rooms.length)];
+      const cells = [];
+      for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Floor) cells.push({ x, y });
+      if (cells.length === 0) return null;
+      const at = cells[Math.floor(mix(seed, depth, 6) * cells.length)];
+      return makeMerchant(at, room, rollWares(depth, seed), seed);
+    }
     inCombat() {
       return this.monsters.some((m) => m.alerted && this.isVisible(m.x, m.y));
     }
@@ -13611,6 +13898,15 @@
     ] }
   };
 
+  // src/render/sprites/marchand.ts
+  var MARCHAND_PALETTE = { "K": "#18121e", "H": "#4a3a5a", "h": "#6a5880", "C": "#5a6a3a", "F": "#1e1622", "Y": "#f4e04a", "N": "#c89a7a", "n": "#946a52", "T": "#e8debe", "P": "#8a6038", "p": "#5a3e22", "R": "#c4a060", "S": "#9aa2b4", "s": "#5e6476", "L": "#ffd75e", "l": "#b07a1a", "G": "#e8b83a", "B": "#3a2a1e", "W": "#8a6a44", "#": "#fff3c8" };
+  var MARCHAND = {
+    front: ["....KKK...KKK...", "...KSSsK.KLlK...", "..KSSSSsKKLLK...", "..KpPPPPPPPPpK..", "..KPPKKKKKKPPK..", "..KPKhhhhhhKPK..", "..KPKhHHHHhKPK..", "..KKhHFFFFHhKK..", "...KhFYFFYFhK...", "...KhFFNNFFhK...", "...KHhFTTFhHK...", "..KHHHhhhhHHHK..", ".KHHCHHRHHHHHHK.", ".KhHHHHHRHHCHhK.", ".KNKHHHHHRHHKNK.", "..KKHHHHHHHHKK..", "...KHHhHHhHHK...", "...KHHhHHhHHK...", "...KBBK..KBBK...", "...KKKK..KKKK..."],
+    side: ["..KKK...........", ".KSSsK.KKK......", ".KSSSsKLlK......", "KpPPPPKLLK......", "KPPPPPPKKKK.....", "KPPPPPKhhhhK....", "KPPPPKhHHHhhK...", "KPPPPKHHFFFhK...", "KpPPPKHHFYFNK...", "KPPPPKHHFFNNNK..", ".KPPPKHHFTFK.K..", ".KpPKHHHhhhK.KW.", "..KKHHRHHHHHKNKW", "...KHHHRHHHHKK.W", "...KHHHHRHHHK..W", "...KHCHHHHHHK..W", "...KHHhHHHhK...W", "...KHHhHHHhK...W", "...KBBK.KBBK...W", "...KKKK.KKKK...K"],
+    back: ["....KKK...KKK...", "...KSSsK.KLlK...", "..KSSSSsKKLLK...", "..KpPPPPPPPPpK..", ".KPPPPPPPPPPPPK.", ".KPPRPPPPPPRPPK.", ".KPPRPPGPPPRPPK.", ".KpPRPPPPPPRPpK.", ".KPPRPPPPPPRPPK.", ".KPPRPPPPPPRPPK.", ".KpPPPPPPPPPPpK.", "..KPPPPPPPPPPK..", ".KHHKKKKKKKKHHK.", ".KhHHHHHHHHHHhK.", ".KnKHHHHHHHHKnK.", "..KKHHHHHHHHKK..", "...KHHhHHhHHK...", "...KHHhHHhHHK...", "...KBBK..KBBK...", "...KKKK..KKKK..."],
+    bubble: [".KKKKKKKKKK.", "K##########K", "K####GG####K", "K###GGGG###K", "K###GlGG###K", "K####GG####K", "K##########K", ".KKKK##KKKK.", ".....K#K....", "......K....."]
+  };
+
   // src/render/motifs.ts
   var hypot = Math.hypot;
   var MOTIFS = {
@@ -14250,6 +14546,13 @@
 
   // src/render/renderer.ts
   var FRONDEUR_PALETTE = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
+  var MERCHANT_GHOST_PALETTE = { g: "rgba(190,210,255,0.75)", Y: "rgba(244,224,74,0.55)" };
+  var MERCHANT_GHOSTS = Object.fromEntries(
+    ["front", "side", "back"].map((view) => [
+      view,
+      [...Array(7).keys()].map((t) => MARCHAND[view].map((row, y) => [...row].map((c, x) => c === "K" && (x * 3 + y * 5 + t) % 7 === 0 ? "g" : c === "Y" ? "Y" : ".").join("")))
+    ])
+  );
   var SALLES2 = { ...SALLES, ...ATELIERS, ...BOSS };
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
@@ -14548,6 +14851,52 @@
       ctx.imageSmoothingEnabled = smooth;
     }
     /** Le Schrat : repos, marche, coup de dague, blessure ou sommeil, tourné vers où il va ou vers sa cible. */
+    /**
+     * Le Colporteur (Thomas, 2026-11-12) : 1,25 case de haut, il glisse d'une case à l'autre comme les monstres. Caché
+     * (un monstre est tout près), on ne le devine qu'à son contour qui frémit et à ses yeux. Sa bulle (une pièce d'or)
+     * flotte au-dessus de lui quand il est visible et que le héros est à 6 cases ou moins.
+     */
+    drawMerchant(game2, ox, oy, progress) {
+      const m = game2.merchant();
+      if (!m || !game2.isVisible(m.x, m.y)) return;
+      const { ctx, tile } = this;
+      const t = Math.min(1, progress);
+      const px = m.fromX + (m.x - m.fromX) * t;
+      const py = m.fromY + (m.y - m.fromY) * t;
+      const cx = Math.round(ox + (px + 0.5) * tile);
+      const feet = oy + (py + 1) * tile;
+      const view = m.facing === "up" ? "back" : m.facing === "down" ? "front" : "side";
+      const h = Math.round(tile * 1.25);
+      const w = Math.round(tile);
+      const top = Math.round(feet - h);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.translate(cx, 0);
+      if (m.facing === "left") ctx.scale(-1, 1);
+      if (m.hidden) {
+        ctx.globalAlpha = 0.1;
+        ctx.drawImage(this.sprite(MARCHAND[view], MARCHAND_PALETTE), -w / 2, top, w, h);
+        ctx.globalAlpha = 1;
+        const ghost = MERCHANT_GHOSTS[view][Math.floor(Math.abs(this.time) / 180) % 7];
+        ctx.drawImage(this.sprite(ghost, MERCHANT_GHOST_PALETTE), -w / 2, top, w, h);
+      } else {
+        ctx.fillStyle = "rgba(10,8,16,0.45)";
+        ctx.beginPath();
+        ctx.ellipse(0, feet - tile * 0.14, tile * 0.3, tile * 0.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.drawImage(this.sprite(MARCHAND[view], MARCHAND_PALETTE), -w / 2, top, w, h);
+      }
+      ctx.restore();
+      const hero = game2.hero;
+      if (!m.hidden && Math.max(Math.abs(hero.x - m.x), Math.abs(hero.y - m.y)) <= MERCHANT.bubbleRadius) {
+        const bw = Math.round(tile * 0.75);
+        const bh = Math.round(bw * 10 / 12);
+        const bob = Math.round(Math.sin(this.time / 260) * tile * 0.04);
+        ctx.drawImage(this.sprite(MARCHAND.bubble, MARCHAND_PALETTE), Math.round(cx - bw / 2 + tile * 0.2), top - bh + bob, bw, bh);
+      }
+      ctx.imageSmoothingEnabled = smooth;
+    }
     drawMonster(m, cx, cy, progress) {
       const mdx = m.x - m.fromX;
       const mdy = m.y - m.fromY;
@@ -15143,6 +15492,7 @@
           ctx.strokeRect(x02 + 3, y02 + 3, Math.round(tile) - 6, Math.round(tile) - 6);
         }
       }
+      this.drawMerchant(game2, ox, oy, progress);
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
       this.drawFurniture(game2, ox, oy, flicker, "late");
@@ -15637,6 +15987,18 @@
         const outcome = e.success ? "r\xE9ussi, il s'ouvre sans mal." : `rat\xE9, une pointe jaillit : ${e.damage} d\xE9g\xE2ts. Il s'ouvre quand m\xEAme.`;
         return `${how} : ${roll(e.d20, e.bonus, e.total)} \u2014 ${outcome} Un squelette y est pris ; ${e.gold} pi\xE8ces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombent \xE0 c\xF4t\xE9.`;
       }
+      case "shop":
+        return "Le Colporteur ouvre son sac.";
+      case "bought":
+        return `Vous achetez ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} au Colporteur : ${e.price} or.`;
+      case "sold":
+        return `Vous vendez ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} au Colporteur : +${e.price} or.`;
+      case "merchantHides":
+        return "Des pas approchent : le Colporteur se fond dans l'ombre.";
+      case "merchantLeaves":
+        return e.seen ? "Trop de bruit : le Colporteur plie bagage et dispara\xEEt." : "Quelque part, le Colporteur a pli\xE9 bagage : trop de bruit sur cet \xE9tage.";
+      case "merchantShows":
+        return "Le Colporteur ressort de l'ombre.";
       case "chest":
         return `Le coffre s'ouvre : ${e.gold} pi\xE8ces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombent \xE0 c\xF4t\xE9.`;
       case "used":
@@ -15761,6 +16123,7 @@
   var doorWasPending = false;
   var aimShown = "";
   var foundOpen = false;
+  var shopOpen = false;
   var wheelOpen = false;
   var jumpMode = false;
   var throwUid = null;
@@ -15975,6 +16338,14 @@
           sfx.play(e.success ? "unlock" : "click");
         }
       }
+    } else if (e.type === "shop") {
+      openShop(e.line);
+    } else if (e.type === "merchantLeaves") {
+      if (e.seen) renderer.addFloatingText(e.x, e.y, "Pfft !", "#c8b8ff");
+      if (shopOpen) closeShop();
+    } else if (e.type === "merchantHides" || e.type === "merchantShows") {
+      const m = game.merchant();
+      if (m) renderer.addFloatingText(m.x, m.y, e.type === "merchantHides" ? "\u2026" : "Psst !", "#c8b8ff");
     } else if (e.type === "maiden") {
       landDie(e.d20, e.success ? "hit" : "miss", false);
       renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
@@ -16298,7 +16669,7 @@
   }
   bindInput(canvas, {
     onTap(px, py) {
-      if (menuOpen || bagOpen || foundOpen) return;
+      if (menuOpen || bagOpen || foundOpen || shopOpen) return;
       const t = renderer.screenToTile(px, py);
       if (pushMode) {
         pushMode = false;
@@ -16340,7 +16711,7 @@
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
     },
     onMove(dx, dy) {
-      if (menuOpen || bagOpen || foundOpen) return;
+      if (menuOpen || bagOpen || foundOpen || shopOpen) return;
       if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
     },
     onPan(dx, dy) {
@@ -16350,7 +16721,7 @@
       renderer.zoomBy(factor);
     },
     onLongPress(px, py) {
-      if (menuOpen || bagOpen || foundOpen || game.over) return false;
+      if (menuOpen || bagOpen || foundOpen || shopOpen || game.over) return false;
       const t = renderer.screenToTile(px, py);
       if (t.x !== game.hero.x || t.y !== game.hero.y) return false;
       openWheel();
@@ -16463,7 +16834,7 @@
   button("actions", () => wheelOpen ? closeWheel() : openWheel());
   var diceBox = die.parentElement.parentElement;
   diceBox.addEventListener("click", () => {
-    if (menuOpen || bagOpen || foundOpen || wheelOpen || game.over) return;
+    if (menuOpen || bagOpen || foundOpen || shopOpen || wheelOpen || game.over) return;
     sfx.unlock();
     jumpMode = false;
     pushMode = false;
@@ -16577,6 +16948,103 @@
     $("open-bag").title = "Le h\xE9ros";
   }
   $("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
+  var shopTab = "buy";
+  var shopPick = null;
+  var shopNote = "";
+  function openShop(line) {
+    shopOpen = true;
+    shopTab = "buy";
+    shopPick = null;
+    shopNote = "";
+    $("shop-line").textContent = `\xAB ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} \xBB`;
+    $("shop").hidden = false;
+    sfx.play("click");
+    renderShop();
+  }
+  function closeShop() {
+    shopOpen = false;
+    $("shop").hidden = true;
+  }
+  function renderShop() {
+    if (!shopOpen) return;
+    const m = game.merchant();
+    if (!m || !game.canTrade()) {
+      closeShop();
+      return;
+    }
+    $("shop-tab-buy").classList.toggle("on", shopTab === "buy");
+    $("shop-tab-sell").classList.toggle("on", shopTab === "sell");
+    $("shop-purse").textContent = `Bourse : ${game.gold} or`;
+    const list = $("shop-list");
+    const detail = $("shop-detail");
+    list.replaceChildren();
+    detail.replaceChildren();
+    list.className = shopTab === "buy" ? "shop-wares" : "shop-sell";
+    if (shopTab === "buy") {
+      if (m.wares.length === 0) list.append(el("div", "shop-empty", "Plus rien \xE0 vendre\u2026 mais je rach\xE8te."));
+      m.wares.forEach((w2, i) => {
+        const card = el("button", `shop-ware${shopPick === i ? " picked" : ""}${game.gold < w2.price ? " dear" : ""}`);
+        card.type = "button";
+        const icon = el("div", "shop-icon");
+        icon.append(itemIcon(w2.item));
+        card.append(icon, el("div", "shop-name", `${ITEMS[w2.item].name}${w2.count > 1 ? ` \xD7${w2.count}` : ""}`), el("div", "shop-price", `${w2.price} or`));
+        card.addEventListener("click", () => {
+          sfx.play("click");
+          shopPick = shopPick === i ? null : i;
+          shopNote = "";
+          renderShop();
+        });
+        list.append(card);
+      });
+      const w = shopPick !== null ? m.wares[shopPick] : void 0;
+      if (w) {
+        const buy = el("button", "shop-act", `Acheter (${w.price} or)`);
+        buy.type = "button";
+        buy.disabled = game.gold < w.price;
+        buy.addEventListener("click", () => {
+          const r = game.buy(shopPick);
+          shopNote = r === "gold" ? "Pas assez d'or." : r === "full" ? "Votre sac est plein." : "";
+          if (r === "ok") {
+            sfx.play("coin");
+            shopPick = null;
+          }
+          collectEvents();
+          renderShop();
+        });
+        detail.append(buy, itemCard(ITEMS[w.item], w.count));
+      }
+    } else {
+      const bag = game.inventory.items.filter((it) => game.sellPrice(it.uid) !== null);
+      if (bag.length === 0) list.append(el("div", "shop-empty", "Rien qui m'int\xE9resse dans ce sac."));
+      for (const it of bag) {
+        const row = el("div", "shop-row");
+        const icon = el("div", "shop-icon");
+        icon.append(itemIcon(it.defId));
+        const sell = el("button", "shop-act", `Vendre ${game.sellPrice(it.uid)} or`);
+        sell.type = "button";
+        sell.addEventListener("click", () => {
+          if (game.sell(it.uid)) sfx.play("coin");
+          collectEvents();
+          renderShop();
+        });
+        row.append(icon, el("div", "shop-name", `${ITEMS[it.defId].name}${it.count > 1 ? ` \xD7${it.count}` : ""}`), sell);
+        list.append(row);
+      }
+    }
+    if (shopNote) detail.append(el("div", "shop-note", shopNote));
+  }
+  button("shop-close", closeShop);
+  button("shop-tab-buy", () => {
+    shopTab = "buy";
+    shopNote = "";
+    renderShop();
+  });
+  button("shop-tab-sell", () => {
+    shopTab = "sell";
+    shopPick = null;
+    shopNote = "";
+    renderShop();
+  });
   function itemCard(def, count = 1, note = "") {
     const card = el("div", "item-card");
     const picture = el("div", "item-card-icon");
@@ -17356,7 +17824,7 @@
         }
       }
     }
-    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !wheelOpen) {
+    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
       shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
       const before = { x: game.hero.x, y: game.hero.y };

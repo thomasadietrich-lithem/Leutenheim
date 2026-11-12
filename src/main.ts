@@ -8,6 +8,7 @@ import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_LABELS, Slot, SLOTS, UNARMO
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
 import { RULES } from "./data/rules";
+import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
@@ -91,6 +92,7 @@ let doorWasPending = false;
 let aimShown = "";
 /** Une fiche d'objet est affichée par-dessus le jeu (objet trouvé pour la première fois). */
 let foundOpen = false;
+let shopOpen = false;
 let wheelOpen = false;
 /** Se dégager : on attend que le joueur touche une des cases proposées. */
 let jumpMode = false;
@@ -367,6 +369,14 @@ function reveal(e: GameEvent): void {
         sfx.play(e.success ? "unlock" : "click");
       }
     }
+  } else if (e.type === "shop") {
+    openShop(e.line);
+  } else if (e.type === "merchantLeaves") {
+    if (e.seen) renderer.addFloatingText(e.x, e.y, "Pfft !", "#c8b8ff");
+    if (shopOpen) closeShop();
+  } else if (e.type === "merchantHides" || e.type === "merchantShows") {
+    const m = game.merchant();
+    if (m) renderer.addFloatingText(m.x, m.y, e.type === "merchantHides" ? "…" : "Psst !", "#c8b8ff");
   } else if (e.type === "maiden") {
     // Sarcophage à pointes : désamorcé ou forcé ; raté, une pointe jaillit (le héros saigne), il s'ouvre quand même.
     landDie(e.d20, e.success ? "hit" : "miss", false);
@@ -723,7 +733,7 @@ function collectEvents(): void {
 
 bindInput(canvas, {
   onTap(px, py) {
-    if (menuOpen || bagOpen || foundOpen) return;
+    if (menuOpen || bagOpen || foundOpen || shopOpen) return;
     const t = renderer.screenToTile(px, py);
     if (pushMode) {
       pushMode = false;
@@ -768,7 +778,7 @@ bindInput(canvas, {
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
   },
   onMove(dx, dy) {
-    if (menuOpen || bagOpen || foundOpen) return;
+    if (menuOpen || bagOpen || foundOpen || shopOpen) return;
     if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
   },
   onPan(dx, dy) {
@@ -778,7 +788,7 @@ bindInput(canvas, {
     renderer.zoomBy(factor);
   },
   onLongPress(px, py) {
-    if (menuOpen || bagOpen || foundOpen || game.over) return false;
+    if (menuOpen || bagOpen || foundOpen || shopOpen || game.over) return false;
     const t = renderer.screenToTile(px, py);
     if (t.x !== game.hero.x || t.y !== game.hero.y) return false;
     openWheel();
@@ -911,7 +921,7 @@ button("actions", () => (wheelOpen ? closeWheel() : openWheel()));
 // Toucher le dé : frapper au corps à corps l'ennemi au contact (demande de Thomas).
 const diceBox = die.parentElement!.parentElement!;
 diceBox.addEventListener("click", () => {
-  if (menuOpen || bagOpen || foundOpen || wheelOpen || game.over) return;
+  if (menuOpen || bagOpen || foundOpen || shopOpen || wheelOpen || game.over) return;
   sfx.unlock();
   jumpMode = false;
   pushMode = false;
@@ -1044,6 +1054,109 @@ $("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
  * Fiche d'un objet : son image, son nom, son genre, ses chiffres et une phrase de description.
  * La même fiche sert dans l'écran d'équipement et quand on trouve un objet dans le donjon.
  */
+/** Boutique du Colporteur (Thomas, 2026-11-11/12) : 4 articles à acheter, ou le sac à vendre ; rien ne prend de tour. */
+let shopTab: "buy" | "sell" = "buy";
+let shopPick: number | null = null;
+let shopNote = "";
+
+function openShop(line: number): void {
+  shopOpen = true;
+  shopTab = "buy";
+  shopPick = null;
+  shopNote = "";
+  $("shop-line").textContent = `« ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} »`;
+  $("shop").hidden = false;
+  sfx.play("click");
+  renderShop();
+}
+
+function closeShop(): void {
+  shopOpen = false;
+  $("shop").hidden = true;
+}
+
+function renderShop(): void {
+  if (!shopOpen) return;
+  const m = game.merchant();
+  if (!m || !game.canTrade()) {
+    closeShop();
+    return;
+  }
+  $("shop-tab-buy").classList.toggle("on", shopTab === "buy");
+  $("shop-tab-sell").classList.toggle("on", shopTab === "sell");
+  $("shop-purse").textContent = `Bourse : ${game.gold} or`;
+  const list = $("shop-list");
+  const detail = $("shop-detail");
+  list.replaceChildren();
+  detail.replaceChildren();
+  list.className = shopTab === "buy" ? "shop-wares" : "shop-sell";
+  if (shopTab === "buy") {
+    if (m.wares.length === 0) list.append(el("div", "shop-empty", "Plus rien à vendre… mais je rachète."));
+    m.wares.forEach((w, i) => {
+      const card = el("button", `shop-ware${shopPick === i ? " picked" : ""}${game.gold < w.price ? " dear" : ""}`) as HTMLButtonElement;
+      card.type = "button";
+      const icon = el("div", "shop-icon");
+      icon.append(itemIcon(w.item));
+      card.append(icon, el("div", "shop-name", `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", `${w.price} or`));
+      card.addEventListener("click", () => {
+        sfx.play("click");
+        shopPick = shopPick === i ? null : i;
+        shopNote = "";
+        renderShop();
+      });
+      list.append(card);
+    });
+    const w = shopPick !== null ? m.wares[shopPick] : undefined;
+    if (w) {
+      const buy = el("button", "shop-act", `Acheter (${w.price} or)`) as HTMLButtonElement;
+      buy.type = "button";
+      buy.disabled = game.gold < w.price;
+      buy.addEventListener("click", () => {
+        const r = game.buy(shopPick!);
+        shopNote = r === "gold" ? "Pas assez d'or." : r === "full" ? "Votre sac est plein." : "";
+        if (r === "ok") {
+          sfx.play("coin");
+          shopPick = null;
+        }
+        collectEvents();
+        renderShop();
+      });
+      detail.append(buy, itemCard(ITEMS[w.item], w.count));
+    }
+  } else {
+    const bag = game.inventory.items.filter((it) => game.sellPrice(it.uid) !== null);
+    if (bag.length === 0) list.append(el("div", "shop-empty", "Rien qui m'intéresse dans ce sac."));
+    for (const it of bag) {
+      const row = el("div", "shop-row");
+      const icon = el("div", "shop-icon");
+      icon.append(itemIcon(it.defId));
+      const sell = el("button", "shop-act", `Vendre ${game.sellPrice(it.uid)} or`) as HTMLButtonElement;
+      sell.type = "button";
+      sell.addEventListener("click", () => {
+        if (game.sell(it.uid)) sfx.play("coin");
+        collectEvents();
+        renderShop();
+      });
+      row.append(icon, el("div", "shop-name", `${ITEMS[it.defId].name}${it.count > 1 ? ` ×${it.count}` : ""}`), sell);
+      list.append(row);
+    }
+  }
+  if (shopNote) detail.append(el("div", "shop-note", shopNote));
+}
+
+button("shop-close", closeShop);
+button("shop-tab-buy", () => {
+  shopTab = "buy";
+  shopNote = "";
+  renderShop();
+});
+button("shop-tab-sell", () => {
+  shopTab = "sell";
+  shopPick = null;
+  shopNote = "";
+  renderShop();
+});
+
 function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   const card = el("div", "item-card");
   const picture = el("div", "item-card-icon");
@@ -1937,7 +2050,7 @@ function frame(now: number): void {
     }
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
-  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !wheelOpen) {
+  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };

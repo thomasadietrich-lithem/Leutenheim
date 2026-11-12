@@ -19,6 +19,18 @@ import { PIEGES } from "./sprites/pieges";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
 import { BOSS } from "./sprites/boss";
+import { MARCHAND, MARCHAND_PALETTE } from "./sprites/marchand";
+import { MERCHANT } from "../data/merchant";
+
+/** Le Colporteur caché (planche art/marchand_v1.png) : seuls quelques points de son contour frémissent et ses yeux
+ * luisent ; 7 images qui défilent. Calculées une fois (le cache des dessins se repère à la liste de lignes). */
+const MERCHANT_GHOST_PALETTE: Record<string, string> = { g: "rgba(190,210,255,0.75)", Y: "rgba(244,224,74,0.55)" };
+const MERCHANT_GHOSTS: Record<string, string[][]> = Object.fromEntries(
+  (["front", "side", "back"] as const).map((view) => [
+    view,
+    [...Array(7).keys()].map((t) => MARCHAND[view].map((row, y) => [...row].map((c, x) => (c === "K" && (x * 3 + y * 5 + t) % 7 === 0 ? "g" : c === "Y" ? "Y" : ".")).join(""))),
+  ]),
+);
 
 /** Dessins des salles à thème récentes (cuisine, prière, torture, forge, alchimiste). */
 const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS, ...BOSS };
@@ -397,6 +409,53 @@ export class Renderer {
   }
 
   /** Le Schrat : repos, marche, coup de dague, blessure ou sommeil, tourné vers où il va ou vers sa cible. */
+  /**
+   * Le Colporteur (Thomas, 2026-11-12) : 1,25 case de haut, il glisse d'une case à l'autre comme les monstres. Caché
+   * (un monstre est tout près), on ne le devine qu'à son contour qui frémit et à ses yeux. Sa bulle (une pièce d'or)
+   * flotte au-dessus de lui quand il est visible et que le héros est à 6 cases ou moins.
+   */
+  private drawMerchant(game: Game, ox: number, oy: number, progress: number): void {
+    const m = game.merchant();
+    if (!m || !game.isVisible(m.x, m.y)) return;
+    const { ctx, tile } = this;
+    const t = Math.min(1, progress);
+    const px = m.fromX + (m.x - m.fromX) * t;
+    const py = m.fromY + (m.y - m.fromY) * t;
+    const cx = Math.round(ox + (px + 0.5) * tile);
+    const feet = oy + (py + 1) * tile;
+    const view = m.facing === "up" ? "back" : m.facing === "down" ? "front" : "side";
+    const h = Math.round(tile * 1.25);
+    const w = Math.round(tile);
+    const top = Math.round(feet - h);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(cx, 0);
+    if (m.facing === "left") ctx.scale(-1, 1);
+    if (m.hidden) {
+      ctx.globalAlpha = 0.1;
+      ctx.drawImage(this.sprite(MARCHAND[view], MARCHAND_PALETTE), -w / 2, top, w, h);
+      ctx.globalAlpha = 1;
+      const ghost = MERCHANT_GHOSTS[view][Math.floor(Math.abs(this.time) / 180) % 7];
+      ctx.drawImage(this.sprite(ghost, MERCHANT_GHOST_PALETTE), -w / 2, top, w, h);
+    } else {
+      ctx.fillStyle = "rgba(10,8,16,0.45)";
+      ctx.beginPath();
+      ctx.ellipse(0, feet - tile * 0.14, tile * 0.3, tile * 0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.drawImage(this.sprite(MARCHAND[view], MARCHAND_PALETTE), -w / 2, top, w, h);
+    }
+    ctx.restore();
+    const hero = game.hero;
+    if (!m.hidden && Math.max(Math.abs(hero.x - m.x), Math.abs(hero.y - m.y)) <= MERCHANT.bubbleRadius) {
+      const bw = Math.round(tile * 0.75);
+      const bh = Math.round((bw * 10) / 12);
+      const bob = Math.round(Math.sin(this.time / 260) * tile * 0.04);
+      ctx.drawImage(this.sprite(MARCHAND.bubble, MARCHAND_PALETTE), Math.round(cx - bw / 2 + tile * 0.2), top - bh + bob, bw, bh);
+    }
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
   private drawMonster(m: Actor, cx: number, cy: number, progress: number): void {
     const mdx = m.x - m.fromX;
     const mdy = m.y - m.fromY;
@@ -1105,6 +1164,7 @@ export class Renderer {
       }
     }
 
+    this.drawMerchant(game, ox, oy, progress);
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.

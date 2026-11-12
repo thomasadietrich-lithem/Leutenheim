@@ -93,6 +93,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   barrel: { blocks: true, w: 1, h: 1, burns: true },
   crate: { blocks: true, w: 1, h: 1, burns: true },
   crateStack: { blocks: true, w: 1, h: 1, burns: true },
+  // Cloche d'alarme sur son support de bois (Thomas, 2026-11-12) : la sonner fait monter l'alerte, et on se moque de vous.
+  bell: { blocks: true, w: 1, h: 1, burns: true },
   // Toiles d'araignée (dès l'étage 3), dans un coin de salle sans torche : TL = coin en haut à gauche, etc. Elles collent.
   webTL: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   webTR: { blocks: false, w: 1, h: 1, burns: true, flat: true },

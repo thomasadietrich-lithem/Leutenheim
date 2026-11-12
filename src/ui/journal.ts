@@ -82,6 +82,23 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+    case "counter":
+      if (e.what === "count") return e.first ? `Derrière cette porte, une petite voix compte : « ${e.n}… ${e.n}… ${e.n}… »` : null;
+      if (e.what === "poke") return `Vous collez l'œil au trou… un doigt crasseux s'y enfonce tout droit. Aïe ! Derrière, la voix reprend : « ${e.n}… ${e.n}… ${e.n}… »`;
+      return `Derrière la porte, un petit Kobold, le doigt encore en l'air, vous regarde : « …${e.n} ? »`;
+    case "bell": {
+      // La cloche d'alarme : on se moque gentiment du héros (Thomas, 2026-11-12).
+      const first = ["DONG ! Bravo. Tout l'étage sait maintenant que vous êtes là.", "DONG ! Les Kobolds vous remercient pour l'invitation."];
+      const again = [
+        "DONG ! Encore ? Vous cherchez des amis ?",
+        "DONG ! Discret comme un troupeau de vaches dans un couloir.",
+        "DONG ! Le donjon applaudit votre sens de la discrétion.",
+        "DONG ! Quelle idée lumineuse. Vraiment.",
+        "DONG ! Quelque part, un Kobold se lève en soupirant.",
+      ];
+      const pool = e.rings === 1 ? first : again;
+      return pool[e.joke % pool.length];
+    }
     case "feud":
       return ctx.sees?.(e.a) || ctx.sees?.(e.b)
         ? e.reason === "shot"

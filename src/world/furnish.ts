@@ -23,7 +23,7 @@ export interface RoomTheme {
 }
 
 /** Nombre de cases où l'on peut marcher, atteignables depuis `from`. */
-function reachable(map: GameMap, from: Point): number {
+export function reachable(map: GameMap, from: Point): number {
   const seen = new Uint8Array(map.width * map.height);
   const stack = [from];
   seen[map.index(from.x, from.y)] = 1;
@@ -231,6 +231,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1): { furniture
   }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
+  placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
   if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
   return { furniture, themes };
 }
@@ -606,6 +607,33 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
     before = after;
     furniture.push({ x, y, kind });
     placed++;
+  }
+}
+
+/**
+ * La cloche d'alarme (Thomas, 2026-11-12), de temps en temps : sur son support de bois, au milieu d'une salle
+ * ordinaire, loin des ouvertures. Elle bloque sa case (rien ne devient inaccessible) et brûle.
+ */
+export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
+  if (!rng.chance(RULES.bellChance)) return;
+  const { map } = floor;
+  const before = reachable(map, floor.start);
+  const specials = (floor as Floor & { specials?: { room: Room }[] }).specials ?? [];
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const index = rng.int(1, Math.max(1, floor.rooms.length - 1));
+    const room = floor.rooms[index];
+    if (!room || special.has(index) || specials.some((s) => s.room === room) || room.w < 4 || room.h < 4) continue;
+    const x = rng.int(room.x + 1, room.x + room.w - 2);
+    const y = rng.int(room.y + 1, room.y + room.h - 2);
+    if (!freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || nearHearth(floor, x, y)) continue;
+    if ((x === floor.stairs.x && y === floor.stairs.y) || (x === floor.start.x && y === floor.start.y)) continue;
+    map.set(x, y, Tile.Furniture);
+    if (reachable(map, floor.start) !== before - 1) {
+      map.set(x, y, Tile.Floor);
+      continue;
+    }
+    furniture.push({ x, y, kind: "bell" });
+    return;
   }
 }
 

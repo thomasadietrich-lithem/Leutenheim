@@ -479,6 +479,23 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
+  } else if (e.type === "counter") {
+    // Le Kobold qui compte derrière sa porte (Thomas, 2026-11-12).
+    if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}… ${e.n}… ${e.n}…`, "#c8c0d4");
+    else if (e.what === "poke") {
+      renderer.addFloatingText(game.hero.x, game.hero.y, "Aïe ! L'œil !", "#ff6b7a");
+      renderer.addFloatingText(e.x, e.y, `${e.n}… ${e.n}… ${e.n}…`, "#c8c0d4");
+      renderer.heroHurt();
+      shownHp = game.hero.hp;
+      sfx.play("hurt");
+    } else {
+      renderer.addFloatingText(e.x, e.y, `…${e.n} ?`, "#ffd75e");
+      sfx.play("notice");
+    }
+  } else if (e.type === "bell") {
+    sfx.play("bell");
+    renderer.ringBell(e.x, e.y);
+    renderer.addFloatingText(e.x, e.y, "DONG !", "#ffd75e");
   } else if (e.type === "feud") {
     // Deux monstres se querellent : « Grr ! » au-dessus des deux.
     if (game.isVisible(e.a.x, e.a.y) || game.isVisible(e.b.x, e.b.y)) {
@@ -998,6 +1015,7 @@ diceBox.addEventListener("click", () => {
 });
 button("over-new-run", () => showScreen("new"));
 const doorButton = (id: string, action: DoorAction) => button(id, () => game.actOnDoor(action));
+doorButton("door-peek", "peek");
 doorButton("door-pick", "pick");
 doorButton("door-break", "break");
 doorButton("door-key", "key");
@@ -2298,6 +2316,7 @@ function frame(now: number): void {
   // Avec la clef de l'étage, rien à choisir : elle sert toute seule.
   doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
   $("door-key").hidden = !doorOptions.includes("key");
+  $("door-peek").hidden = !doorOptions.includes("peek");
   $("door-pick").hidden = !doorOptions.includes("pick");
   // Devant un sarcophage à pointes, les deux mêmes boutons : désamorcer (agilité) ou forcer (force).
   const maiden = game.pendingDoor !== null && game.maidenAt(game.pendingDoor.x, game.pendingDoor.y) !== null;

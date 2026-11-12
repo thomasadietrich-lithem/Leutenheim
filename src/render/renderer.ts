@@ -5,6 +5,7 @@ import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
+import { CLOCHE } from "./sprites/cloche";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 
 /** Kobold frondeur (planche art/frondeur_v2.png) : le dessin du Kobold en orange (Thomas), œil jaune, jaque de cuir sombre
@@ -1467,8 +1468,10 @@ export class Renderer {
       const animated = f.kind.startsWith("table") || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
       // Panier à fruits : son dessin montre les pommes qui restent dedans (0 à 3).
       const apples = f.kind === "basket" ? game.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
-      const name = f.kind === "basket" ? `basket${Math.min(3, apples)}` : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name];
+      // Cloche d'alarme : elle se balance (à gauche, à droite) pendant un peu plus d'une seconde après le coup.
+      const swing = f.kind === "bell" ? this.bellSwing(f.x, f.y) : 0;
+      const name = f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name];
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -1485,7 +1488,7 @@ export class Renderer {
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
         py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
       } else {
-        const off = f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
+        const off = f.kind === "bell" ? [0, 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }
@@ -1497,6 +1500,25 @@ export class Renderer {
       ctx.drawImage(img, x, y, this.snap(ox + (px + w) * u) - x, this.snap(oy + (py + h) * u) - y);
       ctx.imageSmoothingEnabled = smooth;
     }
+  }
+
+  /** Cloches qui sonnent : case → moment du coup. */
+  private readonly bells = new Map<string, number>();
+
+  ringBell(x: number, y: number): void {
+    this.bells.set(`${x},${y}`, performance.now());
+  }
+
+  /** 0 au repos, 1 penchée à gauche, 2 à droite (elle se balance 1,2 s après le coup). */
+  private bellSwing(x: number, y: number): number {
+    const at = this.bells.get(`${x},${y}`);
+    if (at === undefined) return 0;
+    const age = performance.now() - at;
+    if (age > 1200) {
+      this.bells.delete(`${x},${y}`);
+      return 0;
+    }
+    return Math.floor(age / 150) % 2 === 0 ? 1 : 2;
   }
 
   private readonly shadedCache = new Map<string, HTMLCanvasElement>();

@@ -13,7 +13,7 @@ import { generateFloor, Room } from "../world/generator";
 import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
-import { furnishFloor, Furniture, furnitureCells } from "../world/furnish";
+import { furnishFloor, Furniture, furnitureCells, reachable } from "../world/furnish";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
@@ -22,7 +22,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, Debris, FloorState, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, CounterDoor, Debris, FloorState, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -251,6 +251,7 @@ export class Game {
       // Le Colporteur : dans la salle d'essai, et au 4e étage de chaque section (Thomas, 2026-11-12).
       if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
       else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? undefined;
+      if (!bossFloor) state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? undefined;
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -368,6 +369,79 @@ export class Game {
     };
   }
 
+  /**
+   * La porte du Kobold qui compte (Thomas, 2026-11-12), de temps en temps : une porte ordinaire entre un couloir et
+   * une salle, qu'on verrouille ; il se tient juste derrière, dans la salle. Jamais une porte dont la fermeture
+   * couperait une partie de l'étage (on doit pouvoir passer ailleurs). En salle d'essai : toujours, si possible.
+   */
+  private placeCounterDoor(floor: { map: GameMap; start: Point; stairs: Point; rooms: Room[] }, state: FloorState, seed: number, sandbox: boolean): CounterDoor | null {
+    const rng = new Rng(seed ^ 0x2a7c11e3);
+    const { map } = floor;
+    if (sandbox) {
+      // Salle d'essai : le placard au bout du couloir du dortoir.
+      if (map.get(13, 28) !== Tile.DoorClosed) return null;
+      map.set(13, 28, Tile.DoorLocked);
+      return { x: 13, y: 28, inside: { x: 13, y: 29 }, n: RULES.counterStart, heard: false, opened: false };
+    }
+    if (!rng.chance(RULES.counterDoorChance)) return null;
+    const inRoom = (p: Point) => floor.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+    const doors: Point[] = [];
+    for (let y = 1; y < map.height - 1; y++) for (let x = 1; x < map.width - 1; x++) if (map.get(x, y) === Tile.DoorClosed) doors.push({ x, y });
+    const open = reachable(map, floor.start);
+    while (doors.length > 0) {
+      const door = doors.splice(rng.int(0, doors.length - 1), 1)[0];
+      const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: door.x + dx, y: door.y + dy })).filter((p) => map.isWalkable(p.x, p.y));
+      const inside = sides.find((p) => inRoom(p) > 0 && map.get(p.x, p.y) === Tile.Floor && !state.furniture?.some((f) => f.x === p.x && f.y === p.y));
+      if (!inside || sides.length !== 2) continue;
+      if ((inside.x === floor.stairs.x && inside.y === floor.stairs.y) || (inside.x === floor.start.x && inside.y === floor.start.y)) continue;
+      map.set(door.x, door.y, Tile.DoorLocked);
+      if (reachable(map, floor.start) === open - 1) return { x: door.x, y: door.y, inside, n: RULES.counterStart, heard: false, opened: false };
+      map.set(door.x, door.y, Tile.DoorClosed);
+    }
+    return null;
+  }
+
+  /** La porte du compteur à cette case (encore fermée), s'il y en a une. */
+  counterAt(x: number, y: number): CounterDoor | null {
+    const c = this.current.counter;
+    return c && !c.opened && c.x === x && c.y === y ? c : null;
+  }
+
+  /** Le Kobold compte, quand le héros est assez près pour l'entendre (tous les quelques tours). */
+  private counterChatter(): void {
+    const c = this.current.counter;
+    if (!c || c.opened) return;
+    const d = Math.max(Math.abs(c.x - this.hero.x), Math.abs(c.y - this.hero.y));
+    if (d > RULES.counterHearing || this.turn % RULES.counterEvery !== 0) return;
+    this.events.push({ type: "counter", what: "count", n: c.n, x: c.x, y: c.y, first: !c.heard });
+    c.heard = true;
+  }
+
+  /** Regarder par le trou : le doigt dans l'œil, et il compte un de plus. */
+  private peekCounter(c: CounterDoor): void {
+    c.n++;
+    c.heard = true;
+    this.events.push({ type: "counter", what: "poke", n: c.n, x: c.x, y: c.y });
+    this.hurtHero(RULES.counterPoke, "un doigt dans l'œil");
+  }
+
+  /** La porte s'ouvre (crochetée, enfoncée ou à la clef) : le Kobold est là, surpris, sa bourse pleine. */
+  private releaseCounter(c: CounterDoor): void {
+    c.opened = true;
+    const spot = [c.inside, ...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.inside.x + dx, y: c.inside.y + dy }))].find(
+      (p) => this.map.isWalkable(p.x, p.y) && !this.actorAt(p.x, p.y) && !(p.x === c.x && p.y === c.y),
+    );
+    if (!spot) return;
+    const kobold = this.newMonster(MONSTERS.schrat, spot.x, spot.y, false);
+    kobold.name = "Kobold qui compte";
+    kobold.alerted = true;
+    kobold.stunned = 1; // surpris : il perd son premier tour
+    kobold.purse = c.n;
+    this.faceToward(kobold, this.hero);
+    this.monsters.push(kobold);
+    this.events.push({ type: "counter", what: "caught", n: c.n + 1, x: spot.x, y: spot.y });
+  }
+
   /** Étage d'un boss ? (le dernier de chaque section ; en salle d'essai, l'étage 2, sous l'escalier). */
   isBossDepth(depth: number): boolean {
     return this.sandbox ? depth === 2 : (RULES.bossDepths as readonly number[]).includes(depth);
@@ -398,6 +472,29 @@ export class Game {
   /** Cocon, sac d'œufs ou amarre (sur sa colonne) sur cette case : ça se crève d'un coup. */
   breakableAt(x: number, y: number): Furniture | null {
     return this.current.furniture.find((f) => f.x === x && f.y === y && (f.kind.startsWith("cocoon") || f.kind === "eggSac" || f.kind === "anchor")) ?? null;
+  }
+
+  /** La cloche d'alarme sur cette case, s'il y en a une. */
+  bellAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind === "bell") ?? null;
+  }
+
+  /**
+   * Le héros sonne la cloche (Thomas, 2026-11-12) : DONG ! L'alerte de l'étage monte d'un palier, les monstres proches
+   * accourent, et le journal se moque de lui. On peut recommencer (le moqueur aussi).
+   */
+  private ringBell(f: Furniture): void {
+    f.count = (f.count ?? 0) + 1;
+    this.reveal();
+    this.raiseAlarm(RULES.bellAlarm, f);
+    for (const m of this.monsters) {
+      const d = Math.max(Math.abs(m.x - f.x), Math.abs(m.y - f.y));
+      if (!m.alerted && d <= RULES.noiseRadius) {
+        m.alerted = true;
+        m.asleep = false;
+      }
+    }
+    this.events.push({ type: "bell", x: f.x, y: f.y, rings: f.count, joke: this.rng.int(0, 99) });
   }
 
   private approachBreakable(x: number, y: number, ignoreFog: boolean): boolean {
@@ -436,6 +533,11 @@ export class Game {
 
   /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
   private resolveBreak(at: Point): void {
+    const bell = this.bellAt(at.x, at.y);
+    if (bell) {
+      this.ringBell(bell);
+      return;
+    }
     const f = this.breakableAt(at.x, at.y);
     if (!f) return;
     this.reveal();
@@ -1086,6 +1188,7 @@ export class Game {
       motifs: f.motifs,
       boss: f.boss,
       merchant: f.merchant,
+      counter: f.counter,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1169,6 +1272,7 @@ export class Game {
         motifs: f.motifs ?? [],
         boss: f.boss,
         merchant: f.merchant,
+        counter: f.counter,
       });
     }
     game.turn = saved.turn;
@@ -1962,7 +2066,7 @@ export class Game {
     const merchant = this.merchantAt(x, y);
     if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if (this.breakableAt(x, y) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     const seen = this.monsterAt(x, y);
     const monster = seen && this.isVisible(x, y) ? seen : undefined;
     // Vers un monstre en vue, on trouve toujours un chemin ; sinon on ne passe que par les cases déjà vues.
@@ -2060,6 +2164,8 @@ export class Game {
     // Sarcophage : désamorcer (« pick ») ou forcer (« break »), toujours possibles ; la clef n'y sert à rien.
     if (this.maidenAt(door.x, door.y)) return ["pick", "break"];
     const options: DoorAction[] = [];
+    // La porte du compteur : on peut d'abord regarder par le trou (autant de fois qu'on veut…).
+    if (this.counterAt(door.x, door.y)) options.push("peek");
     // Une clef n'ouvre que les portes de l'étage où on l'a trouvée.
     if (this.inventory.count("clef", this.depth) > 0) options.push("key");
     if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "pick"))) options.push("pick");
@@ -2451,6 +2557,7 @@ export class Game {
     this.merchantAct();
     this.burn();
     this.gasTick();
+    this.counterChatter();
     if (this.hasteTurns > 0) this.hasteTurns--;
     if (this.blessTurns > 0) {
       this.blessTurns--;
@@ -3063,7 +3170,7 @@ export class Game {
     const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
     const loot = rollLoot(this.rng, this.depth);
     const drops = this.spillLoot(at.x, at.y, gold, loot);
-    this.events.push({ type: "maiden", action, x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
+    this.events.push({ type: "maiden", action: action as "pick" | "break" | "key", x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
     if (damage > 0) {
       this.bleed(this.hero, this.hero);
       this.hurtHero(damage, "la pointe d'un sarcophage");
@@ -3072,6 +3179,16 @@ export class Game {
 
   private resolveDoor(action: DoorAction, door: Point): void {
     if (this.maidenAt(door.x, door.y)) return this.resolveMaiden(action, door);
+    const counter = this.counterAt(door.x, door.y);
+    if (action === "peek") {
+      if (counter) this.peekCounter(counter);
+      return;
+    }
+    this.resolveDoorOpening(action, door);
+    if (counter && this.map.get(door.x, door.y) !== Tile.DoorLocked) this.releaseCounter(counter);
+  }
+
+  private resolveDoorOpening(action: DoorAction, door: Point): void {
     if (action === "key") {
       // La clef ouvre sans jet, sans alerter personne (juste le bruit de la serrure) ; elle est consommée.
       if (!this.inventory.take("clef", 1, this.depth)) return;
@@ -3185,7 +3302,8 @@ export class Game {
     this.events.push({ type: "death", actor: monster });
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
-    if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
+    if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
+    else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
     if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
     for (const o of this.monsters) if (o.feud === monster.id) o.feud = undefined;
     if (monster.boss) this.bossDefeated();

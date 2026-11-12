@@ -48,6 +48,8 @@ export interface Actor {
   /** Bloqué face à un autre monstre (numéro) depuis tant de tours : deux monstres qui se bloquent finissent par se battre. */
   blockedBy?: number;
   blockedTurns?: number;
+  /** Or qu'il lâche en mourant, à coup sûr (le Kobold qui compte : autant de pièces que son nombre). */
+  purse?: number;
   /** Querelle (Thomas, 2026-11-12) : il se bat contre ce monstre (numéro) jusqu'à ce que l'un des deux tombe. */
   feud?: number;
   /** Boss : où il en est de son combat (avance, recule, tapi…), voir `src/core/boss.ts`. */

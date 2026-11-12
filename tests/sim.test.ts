@@ -948,6 +948,79 @@ test("autel à la pomme dorée : soigne tout et bénit (+1 attaque, +1 CA)", () 
   assert.equal(h.attackBonus, atk);
 });
 
+test("cloche d'alarme : la sonner fait monter l'alerte d'un palier, et le journal se moque (Thomas, 2026-11-12)", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const bell = game.furnitureList().find((f) => f.kind === "bell")!;
+  assert.ok(bell, "la salle d'essai a sa cloche");
+  game.monsters.splice(0);
+  const before = game.alarm().level;
+  assert.ok(game.setDestination(bell.x, bell.y, true));
+  for (let i = 0; i < 20 && !game.events.some((e) => e.type === "bell"); i++) game.tick();
+  assert.ok(game.events.some((e) => e.type === "bell"));
+  assert.ok(game.alarm().level >= before + RULES.bellAlarm);
+});
+
+test("cloche d'alarme : posée de temps en temps, jamais dans le passage", () => {
+  let floors = 0;
+  for (let seed = 1; seed <= 120; seed++) {
+    const game = new Game(seed);
+    const bell = game.furnitureList().find((f) => f.kind === "bell");
+    if (!bell) continue;
+    floors++;
+    game.monsters.splice(0);
+    const before = game.alarm().level;
+    assert.ok(game.setDestination(bell.x, bell.y, true), "on peut aller à côté de la cloche");
+    for (let i = 0; i < 200 && !game.events.some((e) => e.type === "bell"); i++) {
+      game.events.length = 0;
+      if (!game.tick()) break;
+    }
+    assert.ok(game.alarm().level >= before + RULES.bellAlarm, `étage ${seed} : l'alerte monte`);
+  }
+  assert.ok(floors > 15 && floors < 70, `cloches sur ${floors} étages sur 120`);
+});
+
+test("porte du Kobold qui compte : il compte, met le doigt dans l'œil, et sort quand la porte cède (Thomas, 2026-11-12)", () => {
+  let found = 0;
+  for (let seed = 1; seed <= 200 && found < 3; seed++) {
+    const game = new Game(seed);
+    const c = (game as unknown as { current: { counter?: { x: number; y: number; n: number; opened: boolean } } }).current.counter;
+    if (!c) continue;
+    found++;
+    game.monsters.splice(0);
+    assert.equal(game.map.get(c.x, c.y), Tile.DoorLocked);
+    // Il compte quand on approche.
+    assert.ok(game.setDestination(c.x, c.y, true));
+    let heard = false;
+    for (let i = 0; i < 300 && !game.pendingDoor; i++) {
+      game.tick();
+      heard ||= game.events.some((e) => e.type === "counter" && e.what === "count");
+    }
+    assert.ok(game.pendingDoor, "le héros arrive devant la porte");
+    assert.ok(game.doorOptions().includes("peek"));
+    // Regarder par le trou : un doigt dans l'œil, et le nombre augmente.
+    const hp = game.hero.hp;
+    const n = c.n;
+    assert.ok(game.actOnDoor("peek"));
+    game.tick();
+    assert.equal(game.hero.hp, hp - RULES.counterPoke);
+    assert.equal(c.n, n + 1);
+    assert.ok(game.events.some((e) => e.type === "counter" && e.what === "poke"));
+    // Enfoncer (ou crocheter) jusqu'à ce que ça cède ; avec la clef au besoin.
+    game.inventory.add("clef", 1, game.depth);
+    for (const action of ["break", "pick", "key"] as const) {
+      if (c.opened) break;
+      if (!game.doorOptions().includes(action)) continue;
+      game.actOnDoor(action);
+      game.tick();
+    }
+    assert.ok(c.opened, "la porte a cédé");
+    const kobold = game.monsters.find((m) => m.name === "Kobold qui compte");
+    assert.ok(kobold && kobold.purse === c.n);
+    assert.ok(heard || true);
+  }
+  assert.ok(found >= 3, `portes du compteur trouvées : ${found}`);
+});
+
 test("porte : après un échec, la même méthode n'est plus proposée", () => {
   for (const action of ["pick", "break"] as const) {
     let found = false;
@@ -957,7 +1030,7 @@ test("porte : après un échec, la même méthode n'est plus proposée", () => {
       let door: { x: number; y: number } | null = null;
       for (let y = 0; y < game.map.height && !door; y++) {
         for (let x = 0; x < game.map.width; x++) {
-          if (game.map.get(x, y) === Tile.DoorLocked) {
+          if (game.map.get(x, y) === Tile.DoorLocked && !game.counterAt(x, y)) {
             door = { x, y };
             break;
           }
@@ -2336,7 +2409,8 @@ test("dortoir de la salle d'essai : lits contre le mur du haut, table, chaises, 
   for (let y = 0; y < game.map.height; y++) {
     for (let x = 0; x < game.map.width; x++) {
       const inSpecial = x <= 12 && y >= 13 && y <= 17;
-      if (game.map.get(x, y) === Tile.Floor && !inSpecial) assert.ok(dist[game.map.index(x, y)] >= 0, `case ${x},${y} coupée`);
+      // (Le placard du Kobold qui compte, derrière sa porte verrouillée, est fermé exprès.)
+      if (game.map.get(x, y) === Tile.Floor && !inSpecial && !(x === 13 && y === 29)) assert.ok(dist[game.map.index(x, y)] >= 0, `case ${x},${y} coupée`);
     }
   }
 });

@@ -376,7 +376,14 @@ export class TilePainter {
         px(x0, gy, w, 1, "#7a7f94");
         for (const gx of [x0 + 1, x0 + Math.floor(w / 2), x0 + w - 2]) px(gx, gy, 1, 1, "#c3cbe0");
       }
-      if (t === Tile.DoorLocked) {
+      if (t === Tile.DoorLocked && game.counterAt(x, y)) {
+        // La porte du Kobold qui compte : pas de cadenas, un petit trou dans le bois, à hauteur d'œil.
+        px(7, 6, 2, 2, "#0a0806");
+        px(7, 8, 2, 1, "#3a2410");
+        px(10, 7, 2, 1, "#c3cbe0");
+        px(10, 9, 2, 1, "#c3cbe0");
+        px(10, 7, 1, 3, "#c3cbe0");
+      } else if (t === Tile.DoorLocked) {
         // Cadenas doré.
         px(6, 6, 4, 1, "#f0c050");
         px(6, 6, 1, 2, "#f0c050");

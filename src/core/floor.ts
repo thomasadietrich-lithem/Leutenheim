@@ -55,6 +55,25 @@ export interface FloorState {
   boss?: BossLayout;
   /** Le Colporteur, s'il passe par cet étage (pour l'instant : salle d'essai). */
   merchant?: Merchant;
+  /** La porte du Kobold qui compte (Thomas, 2026-11-12), s'il y en a une sur cet étage. */
+  counter?: CounterDoor;
+}
+
+/**
+ * La porte du compteur : derrière une porte verrouillée percée d'un trou, un Kobold invisible répète le même nombre.
+ * On regarde par le trou : il y met le doigt (dans l'œil) et compte un de plus. On force la porte : on l'attrape.
+ */
+export interface CounterDoor {
+  x: number;
+  y: number;
+  /** Où il se tient, derrière la porte. */
+  inside: { x: number; y: number };
+  /** Le nombre qu'il répète. */
+  n: number;
+  /** Le héros l'a déjà entendu (le journal ne le dit qu'une fois). */
+  heard: boolean;
+  /** La porte est ouverte : il est sorti de sa cachette. */
+  opened: boolean;
 }
 
 /** Un piège : sa case, sa sorte (pointes par défaut, pour les anciennes sauvegardes), et la fosse déjà effondrée. */

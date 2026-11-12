@@ -9,6 +9,7 @@ import { Room } from "../world/generator";
 import { Point } from "../world/map";
 import { BloodStain, Debris, GroundItem, Secret, Trap } from "./floor";
 import type { Merchant } from "./merchant";
+import type { CounterDoor } from "./floor";
 
 /**
  * Sauvegarde d'une partie : de simples données (texte JSON), écrites sur l'appareil à chaque tour.
@@ -50,6 +51,8 @@ export interface SavedFloor {
   boss?: BossLayout;
   /** Le Colporteur (facultatif). */
   merchant?: Merchant;
+  /** La porte du Kobold qui compte (facultatif). */
+  counter?: CounterDoor;
 }
 
 export interface SaveData {

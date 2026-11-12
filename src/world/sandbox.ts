@@ -38,7 +38,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 16;
+export const SANDBOX_LAYOUT = 17;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
@@ -98,6 +98,10 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   carve(dortoir);
   for (let y = 20; y <= 27; y++) map.set(13, y, Tile.Floor);
   map.set(12, 27, Tile.Floor);
+  // Le placard du Kobold qui compte (Thomas, 2026-11-12) : au bout du couloir du dortoir, une porte (13, 28) et une case
+  // derrière (13, 29). La porte est verrouillée par la partie (voir `Game.placeCounterDoor`).
+  map.set(13, 28, Tile.DoorClosed);
+  map.set(13, 29, Tile.Floor);
   // Antre de l'araignée (2026-11-11) : au sud de la salle de combat, sans torche, des toiles dans trois coins.
   const den: Room = { x: 17, y: 23, w: 9, h: 6 };
   carve(den);
@@ -138,7 +142,8 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   ];
   // Toiles de l'antre, et des trainards (tonneau, caisses) contre le mur gauche de la salle des colonnes.
   furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });
-  for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }]) {
+  // La cloche d'alarme (Thomas, 2026-11-12), dans la salle de départ, à gauche du héros.
+  for (const f of [{ x: 17, y: 8, kind: "barrel" }, { x: 17, y: 9, kind: "crateStack" }, { x: 17, y: 28, kind: "crate" }, { x: 5, y: 6, kind: "bell" }]) {
     furniture.push(f);
     map.set(f.x, f.y, Tile.Furniture);
   }

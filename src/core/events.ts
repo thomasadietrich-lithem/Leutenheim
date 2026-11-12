@@ -8,7 +8,7 @@ import { PathId } from "../data/skills";
 
 /** Ce qui s'est passé pendant un tour, dans l'ordre : l'affichage les lit, les met en scène, puis vide la liste. */
 /** Crocheter (silencieux) ou enfoncer (bruyant) une porte verrouillée. */
-export type DoorAction = "pick" | "break" | "key";
+export type DoorAction = "pick" | "break" | "key" | "peek";
 
 export type GameEvent =
   | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult; opportunity?: boolean; ranged?: boolean }
@@ -36,6 +36,10 @@ export type GameEvent =
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "blessEnd" }
+  /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */
+  | { type: "counter"; what: "count" | "poke" | "caught"; n: number; x: number; y: number; first?: boolean }
+  /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */
+  | { type: "bell"; x: number; y: number; rings: number; joke: number }
   /** Deux monstres se querellent : bloqués face à face dans un couloir, ou touchés par la pierre d'un frondeur. */
   | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" }
   /** Un monstre en frappe un autre (sans dé à l'écran : le héros regarde). */

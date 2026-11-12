@@ -3,6 +3,7 @@ import { Tile } from "../world/map";
 import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { groundImage } from "./ground";
+import { wallImage } from "./walls";
 import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
@@ -121,217 +122,15 @@ export class TilePainter {
   }
 
   /**
-   * Mur de pierres : trois assises de hauteurs inégales, des joints placés au hasard (mais toujours au même
-   * endroit pour une case donnée), des pierres aux coins décalés et de teintes légèrement différentes. Les murs voisins se raccordent :
-   * pas de bordure entre deux cases de mur, un rebord clair seulement là où le mur s'arrête.
+   * Mur v3 (planche `art/murs_v3.png`, validée le 2026-11-12) : dessin en pixels calculé sur tout le mur (`render/walls.ts`) :
+   * briques qui chevauchent les cases, assises croisées aux angles, T et X, pierres de harpe aux extrémités, mousse.
    */
   drawWall(game: Game, mx: number, my: number, screenX: number, screenY: number): void {
     const { ctx, tile } = this;
-    // « Ouvert » = ni mur ni porte : une porte fait partie du mur, elle ne crée ni coin ni changement de sens.
-    const isOpen = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) !== Tile.Wall && !game.map.isDoor(cx, cy);
-    const wallAt = (cx: number, cy: number) => game.map.inBounds(cx, cy) && game.map.get(cx, cy) === Tile.Wall;
-    const open = (dx: number, dy: number) => isOpen(mx + dx, my + dy);
-    // Première lecture d'une case, d'après le vide qui l'entoure :
-    //  - pan vertical s'il borde un passage par la gauche ou la droite (et pas par le haut ni le bas) ;
-    //  - coin si elle donne sur le vide par deux côtés perpendiculaires, ou seulement par une diagonale ;
-    //  - pan horizontal sinon.
-    const sideways = (cx: number, cy: number) => (isOpen(cx - 1, cy) || isOpen(cx + 1, cy)) && !isOpen(cx, cy - 1) && !isOpen(cx, cy + 1);
-    const cornerLike = (cx: number, cy: number) => {
-      const h = isOpen(cx - 1, cy) || isOpen(cx + 1, cy);
-      const v = isOpen(cx, cy - 1) || isOpen(cx, cy + 1);
-      const diagonal = isOpen(cx - 1, cy - 1) || isOpen(cx + 1, cy - 1) || isOpen(cx - 1, cy + 1) || isOpen(cx + 1, cy + 1);
-      return (h && v) || (!h && !v && diagonal);
-    };
-    const hRun = (cx: number, cy: number) => wallAt(cx, cy) && !cornerLike(cx, cy) && !sideways(cx, cy) && (isOpen(cx, cy - 1) || isOpen(cx, cy + 1));
-    const vRun = (cx: number, cy: number) => wallAt(cx, cy) && !cornerLike(cx, cy) && sideways(cx, cy);
-    // Lecture finale, qui reconnaît les jonctions en « T » : un pan qui continue tout droit pendant qu'un pan
-    // perpendiculaire vient s'y accrocher. La case appartient alors au pan qui continue.
-    const kind = (cx: number, cy: number): "h" | "v" | "corner" => {
-      if (!cornerLike(cx, cy)) return sideways(cx, cy) ? "v" : "h";
-      const [l, r, u, d] = [hRun(cx - 1, cy), hRun(cx + 1, cy), vRun(cx, cy - 1), vRun(cx, cy + 1)];
-      if (l && r && (u || d)) return "h";
-      if (u && d && (l || r)) return "v";
-      return "corner";
-    };
-    const mine = kind(mx, my);
-    // (La case est déjà découpée sur ses pixels par l'appelant : rien ne déborde sur les voisines.)
-    ctx.save();
-    if (mine === "corner") {
-      // De quel côté part le pan horizontal, de quel côté part le pan vertical ? On préfère le voisin qui est
-      // vraiment un pan de ce sens ; à défaut n'importe quel mur ; à défaut le côté opposé au vide.
-      const hScore = (d: number) => (!wallAt(mx + d, my) ? 0 : hRun(mx + d, my) ? 2 : 1);
-      const vScore = (d: number) => (!wallAt(mx, my + d) ? 0 : vRun(mx, my + d) ? 2 : 1);
-      const hdir = hScore(1) >= hScore(-1) ? 1 : -1;
-      const vdir = vScore(1) >= vScore(-1) ? 1 : -1;
-      this.drawCornerBricks(mx, my, screenX, screenY, hdir, vdir, open);
-      ctx.restore();
-      return;
-    }
-    const vertical = mine === "v";
-    // Les pierres du bord ne se prolongent dans la case voisine que si c'est un mur de même sens ;
-    // sinon le pan se termine proprement par un joint (contre un coin, un pan de l'autre sens ou une porte).
-    const sameRun = (cx: number, cy: number) => wallAt(cx, cy) && kind(cx, cy) === mine;
-    const joinBefore = vertical ? sameRun(mx, my - 1) : sameRun(mx - 1, my);
-    const joinAfter = vertical ? sameRun(mx, my + 1) : sameRun(mx + 1, my);
-    // Jonction en « T » : un pan de l'autre sens arrive par le « haut » ou le « bas » du dessin. Sa brique du
-    // milieu vient alors mordre dans l'assise voisine de ce pan-ci, comme une brique en harpe.
-    const stemAbove = vertical ? hRun(mx + 1, my) : vRun(mx, my - 1);
-    const stemBelow = vertical ? hRun(mx - 1, my) : vRun(mx, my + 1);
-    // Où passe la brique du milieu du pan qui arrive, le long de ce pan-ci.
-    const stemLevels = vertical
-      ? [0.29 + 0.1 * noise(my, 0, 4), 0.62 + 0.1 * noise(my, 0, 5)]
-      : [1 - (0.62 + 0.1 * noise(-mx, 0, 5)), 1 - (0.29 + 0.1 * noise(-mx, 0, 4))];
-    // Repère du dessin : pour un pan vertical, « à droite » veut dire « vers le bas de l'écran ».
-    const x = vertical ? my : mx;
-    const y = vertical ? -mx : my;
-    const sx = vertical ? -tile / 2 : screenX;
-    const sy = vertical ? -tile / 2 : screenY;
-    const openAbove = vertical ? open(1, 0) : open(0, -1);
-    const openBelow = vertical ? open(-1, 0) : open(0, 1);
-    if (vertical) {
-      ctx.translate(screenX + tile / 2, screenY + tile / 2);
-      ctx.rotate(Math.PI / 2);
-    }
-    const gap = Math.max(1, tile * 0.05);
-    const soft = Math.max(1, tile * 0.05);
-    ctx.fillStyle = COLORS.mortar;
-    // Le fond de mortier dépasse largement : la découpe de la case le ramène à sa place.
-    ctx.fillRect(sx - 1, sy - 1, tile + 2, tile + 2);
-    // Trois assises de hauteurs inégales (les mêmes sur toute la ligne de la carte, pour que les murs se raccordent).
-    const levels = [0, 0.29 + 0.1 * noise(y, 0, 4), 0.62 + 0.1 * noise(y, 0, 5), 1];
-    ctx.lineJoin = "round";
-    /**
-     * Une pierre taillée à la main : chaque coin est légèrement décalé, les arêtes sont adoucies. Un côté
-     * « ouvert » (flush) se prolonge sans joint dans la case voisine.
-     */
-    const stone = (x0: number, x1: number, y0: number, y1: number, tint: number, seed: number, flush: { l?: boolean; r?: boolean; t?: boolean; b?: boolean }) => {
-      const light = 0.84 + 0.3 * tint;
-      const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
-      const j = (k: number) => Math.abs(noise(seed, y * 3, 50 + k) - 0.5) * tile * 0.07;
-      const edge = (open: boolean | undefined, k: number) => (open ? 0 : soft / 2 + j(k));
-      const left = sx + x0 * tile + (flush.l ? 0 : gap / 2);
-      const right = sx + x1 * tile - (flush.r ? -0.5 : gap / 2);
-      const top = sy + y0 * tile + (flush.t ? -0.5 : gap / 2);
-      const bottom = sy + y1 * tile - (flush.b ? -0.5 : gap / 2);
-      ctx.fillStyle = color;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = soft;
-      ctx.beginPath();
-      ctx.moveTo(left + edge(flush.l, 0), top + edge(flush.t, 1));
-      ctx.lineTo(right - edge(flush.r, 2), top + edge(flush.t, 3));
-      ctx.lineTo(right - edge(flush.r, 4), bottom - edge(flush.b, 5));
-      ctx.lineTo(left + edge(flush.l, 6), bottom - edge(flush.b, 7));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-    for (let r = 0; r < 3; r++) {
-      const row = y * 3 + r;
-      const stem = (r === 0 && stemAbove) || (r === 2 && stemBelow);
-      // Assise ordinaire : trois pierres. Assise en harpe : une pierre, la brique du pan qui arrive, une pierre.
-      const cuts = stem ? [0, stemLevels[0], stemLevels[1], 1] : [0, 0.2 + 0.14 * noise(x, row, 1), 0.64 + 0.14 * noise(x, row, 3), 1];
-      for (let i = 0; i < 3; i++) {
-        // Les pierres du bord continuent dans la case voisine : même teinte des deux côtés, pas de joint.
-        const tint = i === 0 ? noise(x, row, 9) : i === 2 ? noise(x + 1, row, 9) : noise(x, row, stem ? 13 : 11);
-        const harp = stem && i === 1;
-        stone(cuts[i], cuts[i + 1], levels[r], levels[r + 1], tint, x * 4 + i + r * 17, {
-          l: i === 0 && joinBefore,
-          r: i === 2 && joinAfter,
-          t: harp && r === 0,
-          b: harp && r === 2,
-        });
-      }
-    }
-    ctx.lineJoin = "miter";
-    // Rebord clair en haut et ombre en bas, uniquement là où le mur s'arrête.
-    if (openAbove) {
-      ctx.fillStyle = "rgba(190,196,230,0.35)";
-      ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
-    }
-    if (openBelow) {
-      ctx.fillStyle = "rgba(12,11,18,0.4)";
-      ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
-    }
-    ctx.restore();
-  }
-
-  /**
-   * Coin de mur en briques : les trois assises du pan horizontal tournent l'angle et deviennent les trois assises
-   * du pan vertical, en trois « L » emboîtés. À chaque assise, la brique d'angle appartient tantôt au pan
-   * horizontal, tantôt au pan vertical : les briques se croisent comme dans un vrai mur. Les hauteurs d'assise
-   * sont celles des deux pans voisins, pour que tout se raccorde.
-   * Dessiné dans un repère où le pan horizontal part vers la droite et le pan vertical vers le bas, puis retourné.
-   */
-  drawCornerBricks(mx: number, my: number, sx: number, sy: number, hdir: number, vdir: number, open: (dx: number, dy: number) => boolean): void {
-    const { ctx, tile } = this;
-    const gap = Math.max(1, tile * 0.05);
-    const soft = Math.max(1, tile * 0.05);
-    ctx.save();
-    ctx.translate(sx + tile / 2, sy + tile / 2);
-    ctx.scale(hdir, vdir);
-    ctx.translate(-tile / 2, -tile / 2);
-    ctx.fillStyle = COLORS.mortar;
-    ctx.fillRect(-1, -1, tile + 2, tile + 2);
-    // Assises du pan horizontal (mesurées depuis le haut de l'écran) et du pan vertical (depuis la droite de l'écran).
-    const lh = [0, 0.29 + 0.1 * noise(my, 0, 4), 0.62 + 0.1 * noise(my, 0, 5), 1];
-    const lv = [0, 0.29 + 0.1 * noise(-mx, 0, 4), 0.62 + 0.1 * noise(-mx, 0, 5), 1];
-    const rows = vdir > 0 ? lh : [0, 1 - lh[2], 1 - lh[1], 1];
-    const cols = hdir > 0 ? [0, 1 - lv[2], 1 - lv[1], 1] : lv;
-    ctx.lineJoin = "round";
-    let n = 0;
-    /** Une brique taillée à la main, comme celles des pans : coins un peu décalés, arêtes adoucies. */
-    const brick = (x0: number, y0: number, x1: number, y1: number) => {
-      if (x1 - x0 < 0.06 || y1 - y0 < 0.06) return;
-      const id = n++;
-      const light = 0.84 + 0.3 * noise(mx * 7 + id, my, 61);
-      const color = `rgb(${Math.round(103 * light)},${Math.round(107 * light)},${Math.round(136 * light)})`;
-      const j = (k: number) => Math.abs(noise(mx * 5 + id, my, 70 + k) - 0.5) * tile * 0.07;
-      const l = x0 * tile + (x0 <= 0 ? 0 : gap / 2 + soft / 2);
-      const r = x1 * tile - (x1 >= 1 ? -0.5 : gap / 2 + soft / 2);
-      const t = y0 * tile + (y0 <= 0 ? 0 : gap / 2 + soft / 2);
-      const b = y1 * tile - (y1 >= 1 ? -0.5 : gap / 2 + soft / 2);
-      ctx.fillStyle = color;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = soft;
-      ctx.beginPath();
-      ctx.moveTo(l + j(0), t + j(1));
-      ctx.lineTo(r - j(2), t + j(3));
-      ctx.lineTo(r - j(4), b - j(5));
-      ctx.lineTo(l + j(6), b - j(7));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-    for (let k = 0; k < 3; k++) {
-      const [x0, x1] = [cols[k], cols[k + 1]];
-      const [y0, y1] = [rows[k], rows[k + 1]];
-      if (k % 2 === 0) {
-        // La brique d'angle court le long du pan horizontal ; le pan vertical vient buter dessous.
-        const cut = Math.min(1, x1 + 0.3 + 0.12 * noise(mx, my, 80 + k));
-        brick(x0, y0, cut, y1);
-        brick(cut, y0, 1, y1);
-        const mid = y1 + (1 - y1) * (0.45 + 0.15 * noise(mx, my, 83 + k));
-        brick(x0, y1, x1, 1 - y1 > 0.5 ? mid : 1);
-        if (1 - y1 > 0.5) brick(x0, mid, x1, 1);
-      } else {
-        // La brique d'angle court le long du pan vertical ; le pan horizontal vient buter contre elle.
-        const cut = Math.min(1, y1 + 0.3 + 0.12 * noise(mx, my, 86 + k));
-        brick(x0, y0, x1, cut);
-        brick(x0, cut, x1, 1);
-        const mid = x1 + (1 - x1) * (0.45 + 0.15 * noise(mx, my, 89 + k));
-        brick(x1, y0, 1 - x1 > 0.5 ? mid : 1, y1);
-        if (1 - x1 > 0.5) brick(mid, y0, 1, y1);
-      }
-    }
-    ctx.lineJoin = "miter";
-    ctx.restore();
-    // Côtés donnant sur le vide : même convention que les pans de mur (clair en haut et à droite, ombre en bas et à gauche).
-    ctx.fillStyle = "rgba(190,196,230,0.35)";
-    if (open(0, -1)) ctx.fillRect(sx, sy, tile + 0.5, tile * 0.1);
-    if (open(1, 0)) ctx.fillRect(sx + tile * 0.9, sy, tile * 0.1 + 0.5, tile + 0.5);
-    ctx.fillStyle = "rgba(12,11,18,0.4)";
-    if (open(0, 1)) ctx.fillRect(sx, sy + tile * 0.88, tile + 0.5, tile * 0.12 + 0.5);
-    if (open(-1, 0)) ctx.fillRect(sx, sy, tile * 0.12, tile + 0.5);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(wallImage(game.map, mx, my), Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
+    ctx.imageSmoothingEnabled = smooth;
   }
 
   /**

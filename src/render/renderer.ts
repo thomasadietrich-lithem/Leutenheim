@@ -10,6 +10,8 @@ import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 
 /** Kobold frondeur (planche art/frondeur_v2.png) : le dessin du Kobold en orange (Thomas), œil jaune, jaque de cuir sombre
  * et fronde à la place de la maille et de la dague. */
+/** Grik, le Kobold déserteur (quête 01) : le Kobold, mais plus pâle, presque crème, l'œil rond et jaune. */
+export const GRIK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { BLOOD, FIRE_FRAMES, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";
 import { goldRange } from "../data/loot";
@@ -463,6 +465,33 @@ export class Renderer {
       ctx.drawImage(this.sprite(MARCHAND.bubble, MARCHAND_PALETTE), Math.round(cx - bw / 2 + tile * 0.2), top - bh + bob, bw, bh);
     }
     ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /** Grik (quête 01) : un Kobold pâle, immobile, avec une pomme dans une bulle quand le héros approche. */
+  private drawGrik(game: Game, ox: number, oy: number): void {
+    const g = game.grik();
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { ctx, tile } = this;
+    const cx = Math.round(ox + (g.x + 0.5) * tile);
+    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const hero = game.hero;
+    const frames = SCHRAT.idleDown;
+    const rows = frames[Math.floor(Math.abs(this.time) / 420) % frames.length];
+    this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GRIK_PALETTE);
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) {
+      const s = Math.round(tile * 0.55);
+      const bob = Math.round(Math.sin(this.time / 260) * tile * 0.05);
+      const bx = Math.round(cx - s / 2 + tile * 0.2);
+      const by = Math.round(cy - tile * 0.5 - s * 1.1 + bob);
+      ctx.fillStyle = "#f4ecd2";
+      ctx.fillRect(bx - 2, by - 2, s + 4, s + 4);
+      ctx.fillStyle = "#120d08";
+      ctx.fillRect(bx - 2, by + s + 2, 3, 3);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(itemIconRows("pomme"), ICON_PALETTE), bx, by, s, s);
+      ctx.imageSmoothingEnabled = smooth;
+    }
   }
 
   private drawMonster(m: Actor, cx: number, cy: number, progress: number): void {
@@ -1183,6 +1212,7 @@ export class Renderer {
     }
 
     this.drawMerchant(game, ox, oy, progress);
+    this.drawGrik(game, ox, oy);
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.

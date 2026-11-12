@@ -36,6 +36,10 @@ export type GameEvent =
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "blessEnd" }
+  /** Grik : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
+  | { type: "grik"; what: "talk" | "leave" }
+  /** Un jet de dialogue avec Grik (d20 + caractéristique). */
+  | { type: "grikRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */
   | { type: "counter"; what: "count" | "poke" | "caught"; n: number; x: number; y: number; first?: boolean }
   /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */

@@ -57,6 +57,25 @@ export interface FloorState {
   merchant?: Merchant;
   /** La porte du Kobold qui compte (Thomas, 2026-11-12), s'il y en a une sur cet étage. */
   counter?: CounterDoor;
+  /** Grik, le Kobold aux pommes (quête 01), s'il est sur cet étage. */
+  grik?: GrikSpot;
+}
+
+/** Grik sur un étage : sa case, s'il est parti, et où en est la conversation. */
+export interface GrikSpot {
+  x: number;
+  y: number;
+  gone: boolean;
+  /** Ce qu'il a dit en arrivant (retour d'un placement), affiché une fois. */
+  intro?: string[];
+  opened?: boolean;
+  /** Un choix en attente : « give » (donne-moi une pomme d'abord), « scam » (la pomme à 80 or). */
+  pending?: "give" | "scam";
+  pendingLines?: string[];
+  /** Marchandage déjà tenté (commerçant) : on ne peut pas recommencer. */
+  haggled?: boolean;
+  /** Salle d'essai : il revient quelques tours après être parti, à la rencontre suivante. */
+  backAt?: number;
 }
 
 /**

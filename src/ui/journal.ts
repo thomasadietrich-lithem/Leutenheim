@@ -82,6 +82,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+    case "grik":
+      return e.what === "leave" ? "Grik s'éclipse par un trou du mur." : null;
+    case "grikRoll":
+      return `Jet de ${e.stat.toLowerCase()} : ${e.d20} + ${e.bonus} = ${e.total} — ${e.success ? "réussi" : "raté"}.`;
     case "counter":
       if (e.what === "count") return e.first ? `Derrière cette porte, une petite voix compte : « ${e.n}… ${e.n}… ${e.n}… »` : null;
       if (e.what === "poke") return `Vous collez l'œil au trou… un doigt crasseux s'y enfonce tout droit. Aïe ! Derrière, la voix reprend : « ${e.n}… ${e.n}… ${e.n}… »`;

@@ -9,6 +9,8 @@ export interface LightSource extends Point {
   /** Une cheminée plutôt qu'une torche. Éteinte (`lit: false`), elle n'éclaire pas. */
   hearth?: boolean;
   lit?: boolean;
+  /** La salle de la torche : elle n'éclaire qu'elle (et ses murs), jamais de l'autre côté d'un mur ou d'une porte. */
+  area?: { x: number; y: number; w: number; h: number };
 }
 
 /** Vrai si rien ne bloque la vue entre deux cases (les cases de départ et d'arrivée ne comptent pas). */
@@ -126,6 +128,8 @@ export function computeLight(map: GameMap, sources: readonly LightSource[]): Flo
     for (let y = s.y - s.radius; y <= s.y + s.radius; y++) {
       for (let x = s.x - s.radius; x <= s.x + s.radius; x++) {
         if (!map.inBounds(x, y)) continue;
+        const a = torch.area;
+        if (a && (x < a.x - 1 || y < a.y - 1 || x > a.x + a.w || y > a.y + a.h)) continue;
         const d = Math.hypot(x - s.x, y - s.y);
         if (d > s.radius + 0.5 || !hasLineOfSight(map, s, { x, y })) continue;
         const i = map.index(x, y);

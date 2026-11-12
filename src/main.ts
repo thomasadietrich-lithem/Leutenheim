@@ -3,7 +3,7 @@ import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { expectedDamagePerTurn } from "./core/combat";
-import { DoorAction, Game, GameEvent } from "./core/game";
+import { DoorAction, Game, GameEvent, GrikResult } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
@@ -12,7 +12,9 @@ import { RULES } from "./data/rules";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
-import { Renderer } from "./render/renderer";
+import { GRIK_PALETTE, Renderer } from "./render/renderer";
+import { SCHRAT } from "./render/sprites/schrat";
+import { STAT_NAMES } from "./data/grik";
 import { StairsScene } from "./render/stairsScene";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
@@ -96,6 +98,8 @@ let aimShown = "";
 /** Une fiche d'objet est affichée par-dessus le jeu (objet trouvé pour la première fois). */
 let foundOpen = false;
 let shopOpen = false;
+/** La conversation avec Grik (quête 01) est ouverte. */
+let talkOpen = false;
 let wheelOpen = false;
 /** Se dégager : on attend que le joueur touche une des cases proposées. */
 let jumpMode = false;
@@ -377,6 +381,8 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "shop") {
     openShop(e.line);
+  } else if (e.type === "grik") {
+    if (e.what === "talk") openTalk();
   } else if (e.type === "bounce") {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
     renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
@@ -812,7 +818,7 @@ bindInput(canvas, {
       stairsScene.skip();
       return;
     }
-    if (menuOpen || bagOpen || foundOpen || shopOpen) return;
+    if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen) return;
     const t = renderer.screenToTile(px, py);
     if (pushMode) {
       pushMode = false;
@@ -855,11 +861,13 @@ bindInput(canvas, {
       return;
     }
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
+    // Ce qui arrive sans qu'un tour passe (conversation avec Grik ou le Colporteur, déjà à côté) : on le montre tout de suite.
+    if (game.events.length > 0) collectEvents();
     // Toucher l'escalier sur lequel on se tient : on le prend (Thomas, 2026-11-12).
     if (!stepping && game.pendingStairs) beginStairs();
   },
   onMove(dx, dy) {
-    if (menuOpen || bagOpen || foundOpen || shopOpen) return;
+    if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen) return;
     if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
   },
   onPan(dx, dy) {
@@ -869,7 +877,7 @@ bindInput(canvas, {
     renderer.zoomBy(factor);
   },
   onLongPress(px, py) {
-    if (menuOpen || bagOpen || foundOpen || shopOpen || game.over) return false;
+    if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen || game.over) return false;
     const t = renderer.screenToTile(px, py);
     if (t.x !== game.hero.x || t.y !== game.hero.y) return false;
     openWheel();
@@ -1002,7 +1010,7 @@ button("actions", () => (wheelOpen ? closeWheel() : openWheel()));
 // Toucher le dé : frapper au corps à corps l'ennemi au contact (demande de Thomas).
 const diceBox = die.parentElement!.parentElement!;
 diceBox.addEventListener("click", () => {
-  if (menuOpen || bagOpen || foundOpen || shopOpen || wheelOpen || game.over) return;
+  if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen || wheelOpen || game.over) return;
   sfx.unlock();
   jumpMode = false;
   pushMode = false;
@@ -1232,6 +1240,64 @@ function renderShop(): void {
 }
 
 button("shop-close", closeShop);
+button("talk-close", closeTalk);
+
+// ---------- Quête 01 : la conversation avec Grik (Thomas, 2026-11-12) ----------
+
+/** Ce qui vient de se dire (le résultat du dernier choix), affiché au-dessus des choix suivants. */
+let talkLast: GrikResult | null = null;
+
+function openTalk(): void {
+  if (!game.canTalk()) return;
+  talkOpen = true;
+  talkLast = null;
+  $("talk").hidden = false;
+  $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GRIK_PALETTE));
+  document.body.classList.add("shop-open");
+  renderer.resize();
+  sfx.play("click");
+  renderTalk();
+}
+
+function closeTalk(): void {
+  talkOpen = false;
+  $("talk").hidden = true;
+  document.body.classList.remove("shop-open");
+  renderer.resize();
+}
+
+function renderTalk(): void {
+  const lines = $("talk-lines");
+  const choices = $("talk-choices");
+  lines.replaceChildren();
+  choices.replaceChildren();
+  const scene = game.grikScene();
+  const shown = talkLast ? talkLast.lines : scene.lines;
+  if (talkLast?.roll) {
+    const r = talkLast.roll;
+    const sign = r.bonus >= 0 ? "+" : "−";
+    lines.append(el("div", `talk-roll ${r.success ? "ok" : "ko"}`, `${r.stat} : d20 ${r.d20} ${sign} ${Math.abs(r.bonus)} = ${r.total} — ${r.success ? "réussi" : "raté"}`));
+  }
+  for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", l));
+  $("talk-purse").textContent = `Bourse : ${game.gold} or · Pommes : ${game.inventory.count("pomme")}`;
+  if (talkLast?.done || !game.grik()) {
+    const b = el("button", "talk-choice", "Continuer");
+    b.addEventListener("click", closeTalk);
+    choices.append(b);
+    return;
+  }
+  for (const c of scene.choices) {
+    const b = el("button", "talk-choice", c.label);
+    if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
+    b.addEventListener("click", () => {
+      talkLast = game.grikChoose(c.id);
+      collectEvents();
+      sfx.play(talkLast.roll ? "dice" : "click");
+      renderTalk();
+    });
+    choices.append(b);
+  }
+}
 button("shop-tab-buy", () => {
   shopTab = "buy";
   shopNote = "";
@@ -2258,7 +2324,7 @@ function frame(now: number): void {
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
   advanceStairs(dt);
-  if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
+  if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !talkOpen && !wheelOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };
@@ -2371,4 +2437,6 @@ requestAnimationFrame(frame);
   renderer: () => renderer,
   /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
   stairs: (fall: boolean) => beginStairs(fall),
+  /** Pour les captures : montre les événements en attente (comme après un toucher). */
+  flush: () => collectEvents(),
 };

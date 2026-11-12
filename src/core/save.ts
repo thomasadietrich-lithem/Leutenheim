@@ -9,7 +9,8 @@ import { Room } from "../world/generator";
 import { Point } from "../world/map";
 import { BloodStain, Debris, GroundItem, Secret, Trap } from "./floor";
 import type { Merchant } from "./merchant";
-import type { CounterDoor } from "./floor";
+import type { CounterDoor, GrikSpot } from "./floor";
+import type { GrikMemory } from "./game";
 
 /**
  * Sauvegarde d'une partie : de simples données (texte JSON), écrites sur l'appareil à chaque tour.
@@ -53,6 +54,8 @@ export interface SavedFloor {
   merchant?: Merchant;
   /** La porte du Kobold qui compte (facultatif). */
   counter?: CounterDoor;
+  /** Grik (facultatif). */
+  grik?: GrikSpot;
 }
 
 export interface SaveData {
@@ -81,6 +84,8 @@ export interface SaveData {
   floorPerks: Record<number, { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number }>;
   weaponPoison: number;
   hasteTurns: number;
+  /** Grik : ce qu'il sait du héros dans cette partie (absent des anciennes sauvegardes). */
+  grik?: GrikMemory;
   /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
   blessTurns?: number;
   fires: { x: number; y: number; turns: number; gen?: number }[];

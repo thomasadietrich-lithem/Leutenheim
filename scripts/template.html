@@ -89,6 +89,19 @@
   body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
+  #talk { justify-content: flex-start; overflow-y: auto; text-align: center; }
+  #talk h2 { color: var(--gold); margin: 34px 0 0; }
+  #talk-face svg { width: 96px; height: 96px; display: block; margin: 4px auto; }
+  #talk-lines { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+  .talk-line { color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
+  .talk-line.me { color: var(--dim); background: transparent; box-shadow: none; font-style: italic; }
+  .talk-roll { font-size: 18px; padding: 4px 8px; box-shadow: inset 0 0 0 2px #6a5a3a; }
+  .talk-roll.ok { color: #7ee07a; }
+  .talk-roll.ko { color: #ff7a7a; }
+  #talk-purse { color: #ffd75e; font-size: 17px; margin: 2px 0 6px; }
+  #talk-choices { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; }
+  .talk-choice { font-size: 18px; text-align: left; padding: 8px 10px; }
+  .talk-stat { color: var(--dim); font-size: 14px; display: block; }
   #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
   .shop-wares { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 318px); }
   .shop-ware { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; color: #fff3c8; font-family: inherit; border: none; cursor: pointer; }
@@ -428,6 +441,14 @@
     <div id="shop-purse"></div>
     <div id="shop-list"></div>
     <div id="shop-detail"></div>
+  </div>
+  <div id="talk" class="overlay" hidden>
+    <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
+    <h2>Grik</h2>
+    <div id="talk-face"></div>
+    <div id="talk-lines"></div>
+    <div id="talk-purse"></div>
+    <div id="talk-choices"></div>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>

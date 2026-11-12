@@ -89,6 +89,19 @@
   body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
+  #talk { justify-content: flex-start; overflow-y: auto; text-align: center; }
+  #talk h2 { color: var(--gold); margin: 34px 0 0; }
+  #talk-face svg { width: 96px; height: 96px; display: block; margin: 4px auto; }
+  #talk-lines { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+  .talk-line { color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
+  .talk-line.me { color: var(--dim); background: transparent; box-shadow: none; font-style: italic; }
+  .talk-roll { font-size: 18px; padding: 4px 8px; box-shadow: inset 0 0 0 2px #6a5a3a; }
+  .talk-roll.ok { color: #7ee07a; }
+  .talk-roll.ko { color: #ff7a7a; }
+  #talk-purse { color: #ffd75e; font-size: 17px; margin: 2px 0 6px; }
+  #talk-choices { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; }
+  .talk-choice { font-size: 18px; text-align: left; padding: 8px 10px; }
+  .talk-stat { color: var(--dim); font-size: 14px; display: block; }
   #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
   .shop-wares { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 318px); }
   .shop-ware { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; color: #fff3c8; font-family: inherit; border: none; cursor: pointer; }
@@ -428,6 +441,14 @@
     <div id="shop-purse"></div>
     <div id="shop-list"></div>
     <div id="shop-detail"></div>
+  </div>
+  <div id="talk" class="overlay" hidden>
+    <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
+    <h2>Grik</h2>
+    <div id="talk-face"></div>
+    <div id="talk-lines"></div>
+    <div id="talk-purse"></div>
+    <div id="talk-choices"></div>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>
@@ -1727,6 +1748,44 @@
     fastAttackTurns: 0.75
   };
 
+  // src/data/grik.ts
+  var GRIK = {
+    name: "Grik",
+    /** Chance qu'il se montre sur un étage 1 à 4 d'une section (jamais à l'étage du boss), tant qu'on l'a vu moins de 4 fois. */
+    chance: 0.35,
+    maxEncounters: 4,
+    /** Difficultés cachées des jets : facile, moyen, dur. */
+    dc: { easy: 9, medium: 12, hard: 15 },
+    /** Prix d'une pomme quand il est commerçant : s'il vous aime bien, sinon. */
+    applePriceFriend: 6,
+    applePrice: 12,
+    /** « Au prix d'une potion de jouvence » : la pomme qu'il essaie de vous vendre quand le marché rate. */
+    scamPrice: 80,
+    /** Sommes qu'on peut investir dans son commerce de pommes ; retour ×2 (or) et 2 pommes, sauf une fois sur 5. */
+    invest: [10, 20, 40],
+    investLoss: 0.2,
+    /** Le tuyau du philosophe : les Kobolds de l'étage s'endorment. */
+    sleepTurns: 30,
+    /** Vol raté : l'alerte monte de tant, et un Kobold frondeur accourt. */
+    stealAlarm: 10
+  };
+  var GRIK_OPENING = {
+    1: () => [
+      "\xAB Psst ! Humain ! Par ici ! \xBB",
+      "\xAB Je veux partir. Je d\xE9teste cet endroit. \xBB",
+      "Vous : \xAB Tu es un Kobold. \xBB",
+      "\xAB Et alors ? Je peux d\xE9tester mon travail ! J'ai besoin de pommes. Beaucoup de pommes. Les potions, \xE7a br\xFBle la gorge. \xBB"
+    ],
+    2: (mood) => mood < 0 ? ["\xAB Encore toi\u2026 \xBB", "\xAB J'ai des pommes. Mais pour toi, c'est plus cher. Paie d'abord. \xBB"] : ["\xAB H\xE9 ! Mon humain pr\xE9f\xE9r\xE9 ! \xBB", "\xAB J'ai encore des pommes. Tu as de l'or ? \xBB"],
+    3: () => ["\xAB Les affaires marchent ! Tu veux investir ? \xBB", "Vous : \xAB Dans quoi ? \xBB", "\xAB Des pommes. \xBB"],
+    4: () => [
+      "\xAB Finalement, le donjon n'est pas si mal. \xBB",
+      "Vous : \xAB Tu as chang\xE9 d'avis ? \xBB",
+      "\xAB Non. J'ai trouv\xE9 une meilleure cachette. \xBB"
+    ]
+  };
+  var STAT_NAMES = { force: "Force", agilite: "Agilit\xE9", intelligence: "Intelligence", charisme: "Charisme" };
+
   // src/items/inventory.ts
   var Inventory = class {
     constructor(cols = 6, rows = 4) {
@@ -1942,6 +2001,8 @@
       for (let y = s.y - s.radius; y <= s.y + s.radius; y++) {
         for (let x = s.x - s.radius; x <= s.x + s.radius; x++) {
           if (!map.inBounds(x, y)) continue;
+          const a = torch.area;
+          if (a && (x < a.x - 1 || y < a.y - 1 || x > a.x + a.w || y > a.y + a.h)) continue;
           const d = Math.hypot(x - s.x, y - s.y);
           if (d > s.radius + 0.5 || !hasLineOfSight(map, s, { x, y })) continue;
           const i = map.index(x, y);
@@ -4019,6 +4080,8 @@
       this.pendingDoor = null;
       /** On marche vers le Colporteur : sa boutique s'ouvrira en arrivant à côté de lui. */
       this.shopTarget = false;
+      /** Le héros va parler à Grik : la conversation s'ouvre en arrivant à côté de lui. */
+      this.talkTarget = false;
       /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
       this.inventory = new Inventory();
       this.equipment = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null, bag: null };
@@ -4052,6 +4115,8 @@
       /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
       this.weaponPoison = 0;
       this.hasteTurns = 0;
+      /** Grik, le Kobold aux pommes : ce qu'il sait du héros dans cette partie. */
+      this.grikMemory = { met: 0, mood: 0, invested: 0 };
       /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
       this.blessTurns = 0;
       /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -4253,6 +4318,7 @@
         if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
         placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
       }
+      if (fresh && !state.boss) state.grik = this.placeGrik(state, depth) ?? void 0;
       for (const m of this.monsters) {
         m.fromX = m.x;
         m.fromY = m.y;
@@ -5045,7 +5111,8 @@
         motifs: f.motifs,
         boss: f.boss,
         merchant: f.merchant,
-        counter: f.counter
+        counter: f.counter,
+        grik: f.grik
       }));
       return clone({
         version: SAVE_VERSION,
@@ -5072,6 +5139,7 @@
         floorPerks: this.floorPerks,
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
+        grik: this.grikMemory,
         blessTurns: this.blessTurns,
         fires: this.fires,
         gas: this.gas,
@@ -5129,7 +5197,8 @@
           motifs: f.motifs ?? [],
           boss: f.boss,
           merchant: f.merchant,
-          counter: f.counter
+          counter: f.counter,
+          grik: f.grik
         });
       }
       game2.turn = saved.turn;
@@ -5158,6 +5227,7 @@
       }
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
+      game2.grikMemory = saved.grik ?? { met: 0, mood: 0, invested: 0 };
       game2.blessTurns = saved.blessTurns ?? 0;
       game2.inventory.cols = saved.bagSize.cols;
       game2.inventory.rows = saved.bagSize.rows;
@@ -5302,7 +5372,13 @@
     refreshLight() {
       const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
       const dropped = (this.ground ?? []).filter((g) => g.item === "torche").map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
-      this.light = computeLight(this.map, [...this.torches, ...carried, ...dropped]);
+      const fixed = this.torches.map((t) => {
+        const fx = t.x + t.faceX;
+        const fy = t.y + t.faceY;
+        const area = this.rooms.find((r) => fx >= r.x && fy >= r.y && fx < r.x + r.w && fy < r.y + r.h);
+        return area ? { ...t, area } : t;
+      });
+      this.light = computeLight(this.map, [...fixed, ...carried, ...dropped]);
     }
     /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
     twoHanded() {
@@ -5811,6 +5887,8 @@
       }
       const merchant = this.merchantAt(x, y);
       if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
+      const grik = this.grikAt(x, y);
+      if (grik && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachGrik(grik);
       if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
@@ -6160,6 +6238,17 @@
         }
         const next = this.path[0];
         if (!next) return false;
+        const grik = this.grikAt(next.x, next.y);
+        if (grik && this.talkTarget) {
+          this.path = [];
+          this.talkTarget = false;
+          if (this.nextToGrik()) this.events.push({ type: "grik", what: "talk" });
+          return false;
+        }
+        if (grik) {
+          grik.x = this.hero.x;
+          grik.y = this.hero.y;
+        }
         const peddler = this.merchantAt(next.x, next.y);
         if (peddler && this.shopTarget) {
           this.path = [];
@@ -6209,6 +6298,10 @@
             this.shopTarget = false;
             if (this.nextToMerchant()) this.openShop();
           }
+          if (this.path.length === 0 && this.talkTarget) {
+            this.talkTarget = false;
+            if (this.nextToGrik()) this.events.push({ type: "grik", what: "talk" });
+          }
           if (this.path.length === 0 && this.doorTarget) {
             this.pendingDoor = this.doorTarget;
             this.doorTarget = null;
@@ -6249,6 +6342,10 @@
       this.burn();
       this.gasTick();
       this.counterChatter();
+      const gk = this.current.grik;
+      if (gk && gk.gone && gk.backAt !== void 0 && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
+        Object.assign(gk, { gone: false, backAt: void 0, opened: false, intro: void 0, pending: void 0, pendingLines: void 0, haggled: false });
+      }
       if (this.hasteTurns > 0) this.hasteTurns--;
       if (this.blessTurns > 0) {
         this.blessTurns--;
@@ -6615,6 +6712,301 @@
       m.y = step.y;
     }
     /** Au 4e étage d'une section : le Colporteur flâne dans une salle ordinaire (ni départ, ni salle spéciale, ni escalier). */
+    // ---------- Quête 01 : Grik, le Kobold aux pommes (Thomas, 2026-11-12) ----------
+    /**
+     * Grik se montre sur un étage 1 à 4 d'une section (jamais celui du boss), une fois sur trois environ, tant qu'on ne
+     * l'a pas vu 4 fois. Il se tient dans une salle ordinaire (de préférence un dortoir ou une forge), loin de l'arrivée.
+     * Salle d'essai : toujours, dans la salle des colonnes.
+     */
+    placeGrik(state, depth) {
+      const free = (x, y) => state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) && !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y);
+      if (this.sandbox && depth === 1) {
+        for (const [x, y] of [[20, 5], [21, 5], [20, 6], [22, 6]]) if (free(x, y)) return { x, y, gone: false };
+        return null;
+      }
+      const rng = new Rng(floorSeed(this.runSeed, depth) ^ 1780165693);
+      if ((depth - 1) % RULES.floorsPerSection > 3 || this.grikMemory.met >= GRIK.maxEncounters || !rng.chance(GRIK.chance)) return null;
+      const inside = (r, p) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+      const rooms = state.rooms.filter((r, i) => i > 0 && !inside(r, state.start) && !inside(r, state.stairs));
+      const themed = rooms.filter((r) => (state.themes ?? []).some((t) => (t.id === "dortoir" || t.id === "forge") && state.rooms[t.room] === r));
+      for (const pool of [themed, rooms]) {
+        for (let attempt = 0; attempt < 40 && pool.length > 0; attempt++) {
+          const r = pool[rng.int(0, pool.length - 1)];
+          const x = rng.int(r.x, r.x + r.w - 1);
+          const y = rng.int(r.y, r.y + r.h - 1);
+          if (free(x, y)) return { x, y, gone: false };
+        }
+      }
+      return null;
+    }
+    /** Grik sur cet étage (pas encore parti), s'il y est. */
+    grik() {
+      const g = this.current.grik;
+      return g && !g.gone ? g : null;
+    }
+    grikAt(x, y) {
+      const g = this.grik();
+      return g && g.x === x && g.y === y ? g : null;
+    }
+    nextToGrik() {
+      const g = this.grik();
+      return !!g && Math.max(Math.abs(g.x - this.hero.x), Math.abs(g.y - this.hero.y)) === 1;
+    }
+    /** Peut-on parler à Grik maintenant ? À côté de lui, et pas en plein combat. */
+    canTalk() {
+      return !this.over && this.nextToGrik() && !this.inCombat();
+    }
+    approachGrik(g) {
+      this.clearDoorOrders();
+      this.targetId = null;
+      this.waiting = false;
+      if (this.nextToGrik()) {
+        this.path = [];
+        if (!this.inCombat()) this.events.push({ type: "grik", what: "talk" });
+        return true;
+      }
+      let best = null;
+      for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const to = { x: g.x + dx, y: g.y + dy };
+        if (!this.map.isWalkable(to.x, to.y) || this.monsterAt(to.x, to.y)) continue;
+        const path = this.heroPath(to, (cx, cy) => this.isKnown(cx, cy) && !(cx === g.x && cy === g.y));
+        if (path && (!best || path.length < best.length)) best = path;
+      }
+      if (!best) return false;
+      this.path = best;
+      this.talkTarget = true;
+      return true;
+    }
+    /** La scène en cours : 1 déserteur, 2 commerçant, 3 chef d'entreprise, 4 philosophe. */
+    grikStage() {
+      return Math.min(4, this.grikMemory.met + 1);
+    }
+    grikApplePrice() {
+      return this.grikMemory.mood > 0 ? GRIK.applePriceFriend : GRIK.applePrice;
+    }
+    /** Ce que Grik dit en ce moment, et les choix proposés. */
+    grikScene() {
+      const g = this.grik();
+      if (!g) return { lines: [], choices: [] };
+      const mem = this.grikMemory;
+      if (!g.opened) {
+        g.opened = true;
+        if (mem.invested > 0) {
+          const stake = mem.invested;
+          mem.invested = 0;
+          if (this.rng.chance(GRIK.investLoss)) {
+            g.intro = ["\xAB Ton investissement ? J'ai tout perdu\u2026 la faute aux rats. Tiens, une pomme pour m'excuser. \xBB"];
+            this.giveApples(1);
+          } else {
+            this.gold += stake * 2;
+            this.events.push({ type: "pickup", item: "or", count: stake * 2 });
+            g.intro = [`\xAB Ton investissement a rapport\xE9 ! Voil\xE0 ${stake * 2} pi\xE8ces, et deux pommes. \xBB`];
+            this.giveApples(2);
+          }
+        }
+      }
+      if (g.pending === "give") {
+        const has = this.inventory.count("pomme") > 0;
+        return { lines: g.pendingLines ?? [], choices: [...has ? [{ id: "give", label: "Lui donner une pomme" }] : [], { id: "refuse", label: has ? "Refuser" : "Vous n'avez pas de pomme" }] };
+      }
+      if (g.pending === "scam") {
+        return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GRIK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
+      }
+      const stage = this.grikStage();
+      const lines = [...g.intro ?? [], ...GRIK_OPENING[stage](mem.mood)];
+      const leave = { id: "leave", label: "Partir" };
+      if (stage === 1) {
+        return {
+          lines,
+          choices: [
+            { id: "kind", label: "Lui parler gentiment", stat: "charisme", dc: "medium" },
+            { id: "threaten", label: "Le menacer", stat: "force", dc: "easy" },
+            { id: "deal", label: "Lui proposer un march\xE9", stat: "intelligence", dc: "medium" },
+            { id: "steal", label: "Lui voler ses pommes", stat: "agilite", dc: "hard" },
+            leave
+          ]
+        };
+      }
+      if (stage === 2) {
+        return {
+          lines,
+          choices: [
+            { id: "buy", label: `Acheter une pomme (${this.grikApplePrice()} or)` },
+            ...g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme", dc: "medium" }],
+            { id: "scare", label: "L'intimider", stat: "force", dc: "medium" },
+            leave
+          ]
+        };
+      }
+      if (stage === 3) {
+        return { lines, choices: [...GRIK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
+      }
+      return { lines, choices: [{ id: "ask", label: "\xAB Et pour moi, un petit quelque chose ? \xBB" }, leave] };
+    }
+    /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
+    grikChoose(id) {
+      const g = this.grik();
+      if (!g || !this.canTalk()) return { lines: [], done: true };
+      const mem = this.grikMemory;
+      const choice = this.grikScene().choices.find((c) => c.id === id);
+      if (!choice) return { lines: [], done: false };
+      let roll2;
+      const test = () => {
+        const stat = choice.stat;
+        const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
+        const d20 = this.rng.int(1, 20);
+        const total = d20 + bonus;
+        const success = d20 === 20 || d20 !== 1 && total >= GRIK.dc[choice.dc];
+        roll2 = { stat: STAT_NAMES[stat] ?? stat, d20, bonus, total, success };
+        this.events.push({ type: "grikRoll", stat: roll2.stat, d20, bonus, total, success });
+        return success;
+      };
+      const end = (lines) => {
+        mem.met++;
+        g.gone = true;
+        g.pending = void 0;
+        if (this.sandbox && mem.met < GRIK.maxEncounters) g.backAt = this.turn + 3;
+        this.events.push({ type: "grik", what: "leave" });
+        return { lines, roll: roll2, done: true };
+      };
+      const stay = (lines) => ({ lines, roll: roll2, done: false });
+      const mood = (d) => mem.mood = Math.max(-1, Math.min(1, mem.mood + d));
+      switch (id) {
+        case "leave":
+          return { lines: ["\xAB Reviens quand tu veux. Avec des pommes. \xBB"], done: true };
+        case "kind":
+          if (test()) {
+            mood(1);
+            this.giveApples(2);
+            return end(["\xAB Ah ! Enfin quelqu'un de gentil. Tiens, ma r\xE9serve. \xBB"]);
+          }
+          g.pending = "give";
+          g.pendingLines = ["\xAB Hmm. Prouve-moi ta bonne volont\xE9 : donne-moi une pomme d'abord. \xBB"];
+          return stay(g.pendingLines);
+        case "give":
+          if (!this.inventory.take("pomme", 1)) return end(["\xAB Pas de pomme ? Je m'en doutais. \xBB"]);
+          mood(1);
+          this.giveApples(2);
+          return end(["\xAB Merci ! Deux pour une : c'est \xE7a, l'amiti\xE9. \xBB"]);
+        case "refuse":
+          return end([g.pending === "scam" ? "\xAB Tant pis pour toi. \xBB" : "\xAB Je m'en doutais. \xBB", "Grik dispara\xEEt dans un trou du mur."]);
+        case "threaten":
+          mood(-1);
+          if (test()) {
+            this.giveApples(2);
+            return end(["\xAB D'accord, d'accord ! Prends-les, mais ne me fais pas mal ! \xBB"]);
+          }
+          this.dropItem(g.x, g.y, "pomme", 1);
+          return end(["\xAB Au secours ! \xBB", "Il d\xE9tale en l\xE2chant une pomme."]);
+        case "deal":
+          if (test()) {
+            this.giveApples(1);
+            this.revealStairs();
+            return end(["\xAB March\xE9 conclu : une pomme, et un secret. L'escalier qui descend ? C'est par l\xE0. \xBB", "(L'escalier appara\xEEt sur votre carte.)"]);
+          }
+          g.pending = "scam";
+          g.pendingLines = [`\xAB Une pomme ? ${GRIK.scamPrice} pi\xE8ces. C'est le prix d'une potion de jouvence\u2026 mais en meilleur. \xBB`];
+          return stay(g.pendingLines);
+        case "buyScam":
+          if (this.gold < GRIK.scamPrice) return end(["\xAB Pas assez d'or ? Dommage. Une autre fois. \xBB"]);
+          this.gold -= GRIK.scamPrice;
+          mood(1);
+          this.giveApples(1);
+          return end(["\xAB Un plaisir de faire affaire avec toi ! \xBB"]);
+        case "steal":
+          if (test()) {
+            this.giveApples(this.rng.int(1, 2));
+            return end(["Vous glissez la main dans son sac\u2026 il ne remarque rien.", "Grik s'en va en sifflotant."]);
+          }
+          mood(-1);
+          this.raiseAlarm(GRIK.stealAlarm, g);
+          this.callSlinger(g);
+          return end(["\xAB AU VOLEUR ! FRONDEUR, \xC0 MOI ! \xBB", "Grik d\xE9tale. Un Kobold frondeur accourt."]);
+        case "buy": {
+          const price = this.grikApplePrice();
+          if (this.gold < price) return stay(["\xAB Pas d'or, pas de pomme. \xBB"]);
+          this.gold -= price;
+          this.giveApples(1);
+          return end(["\xAB Excellent choix ! Reviens quand tu veux. \xBB"]);
+        }
+        case "haggle": {
+          g.haggled = true;
+          const price = this.grikApplePrice();
+          if (!test()) return stay(["\xAB Le prix, c'est le prix. \xBB"]);
+          if (this.gold < price) return stay(["\xAB Bon, d'accord\u2026 mais tu n'as m\xEAme pas l'or. Culott\xE9. \xBB"]);
+          this.gold -= price;
+          this.giveApples(2);
+          return end(["\xAB Bon. Deux pour le prix d'une. Mais ne le dis \xE0 personne. \xBB"]);
+        }
+        case "scare":
+          mood(-1);
+          if (test()) {
+            this.giveApples(1);
+            return end(["\xAB Bon, bon\u2026 Tiens. Mais je m'en souviendrai. \xBB"]);
+          }
+          return end(["\xAB M\xEAme pas peur ! \xBB", "Il file avec son sac."]);
+        case "decline":
+          this.giveApples(1);
+          return end(["\xAB Tant pis. Tiens, une pomme. Pour la pub. \xBB"]);
+        case "ask": {
+          const gifts = ["apple", "stairs", "sleep"].filter((r) => r !== mem.lastReward);
+          const gift = gifts[this.rng.int(0, gifts.length - 1)];
+          mem.lastReward = gift;
+          if (gift === "apple") {
+            this.giveApples(1);
+            return end(["\xAB Tiens. Une pomme de ma r\xE9serve secr\xE8te. \xBB"]);
+          }
+          if (gift === "stairs") {
+            this.revealStairs();
+            return end(["\xAB Un secret, entre nous : l'escalier, c'est par l\xE0. \xBB", "(L'escalier appara\xEEt sur votre carte.)"]);
+          }
+          for (const m of this.monsters) {
+            if (m.boss || m.defId !== "schrat" && m.defId !== "frondeur") continue;
+            m.asleep = true;
+            m.alerted = false;
+            m.feud = void 0;
+          }
+          return end(["\xAB Un tuyau : j'ai mis de la mousse dodo dans la soupe des Kobolds. Ils font la sieste. \xBB", "(Les Kobolds de l'\xE9tage se sont endormis.)"]);
+        }
+        default: {
+          const n = Number(id.replace("invest", ""));
+          if (!id.startsWith("invest") || !n) return stay([]);
+          if (this.gold < n) return stay(["\xAB Tu n'as pas cette somme. Reviens plus riche. \xBB"]);
+          this.gold -= n;
+          mem.invested = n;
+          return end(["\xAB Excellent choix ! Reviens me voir plus bas : \xE7a va rapporter. \xBB"]);
+        }
+      }
+    }
+    /** Des pommes de Grik : dans le sac, ou au sol à côté si le sac est plein. */
+    giveApples(n) {
+      const left = this.inventory.add("pomme", n);
+      if (n - left > 0) this.events.push({ type: "pickup", item: "pomme", count: n - left });
+      if (left > 0) this.bounceFromHero("pomme", left);
+    }
+    /** L'escalier qui descend apparaît sur la carte (il est noté comme déjà vu, avec ses voisines). */
+    revealStairs() {
+      const s = this.current.stairs;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.inBounds(s.x + dx, s.y + dy)) this.explored[this.map.index(s.x + dx, s.y + dy)] = 1;
+    }
+    /** Vol raté : un Kobold frondeur accourt (il arrive hors de vue, à quelques cases, et sait où est le héros). */
+    callSlinger(from) {
+      let spot = null;
+      for (let r = 4; r <= 9 && !spot; r++) {
+        for (let dy = -r; dy <= r && !spot; dy++) {
+          for (let dx = -r; dx <= r && !spot; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const x = from.x + dx;
+            const y = from.y + dy;
+            if (this.map.inBounds(x, y) && this.map.isWalkable(x, y) && !this.actorAt(x, y) && !this.isVisible(x, y)) spot = { x, y };
+          }
+        }
+      }
+      if (!spot) return;
+      const m = this.newMonster(MONSTERS.frondeur, spot.x, spot.y, false);
+      m.alerted = true;
+      this.monsters.push(m);
+    }
     placeMerchant(floor, seed, depth) {
       const inside = (r, p) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
       const rooms = floor.rooms.filter((r) => !inside(r, floor.start) && !inside(r, floor.stairs) && !(floor.specials ?? []).some((s) => s.room === r) && r.w * r.h >= 12);
@@ -7193,7 +7585,7 @@
         m.blockedBy = void 0;
         m.blockedTurns = 0;
       }
-      if (!this.actorAt(step.x, step.y)) {
+      if (!this.actorAt(step.x, step.y) && !this.grikAt(step.x, step.y)) {
         const left = { x: m.x, y: m.y };
         const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
         this.faceToward(m, step);
@@ -15176,6 +15568,7 @@
   };
 
   // src/render/renderer.ts
+  var GRIK_PALETTE = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
   var FRONDEUR_PALETTE = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
   var MERCHANT_GHOST_PALETTE = { g: "rgba(190,210,255,0.75)", Y: "rgba(244,224,74,0.55)" };
   var MERCHANT_GHOSTS = Object.fromEntries(
@@ -15539,6 +15932,32 @@
         ctx.drawImage(this.sprite(MARCHAND.bubble, MARCHAND_PALETTE), Math.round(cx - bw / 2 + tile * 0.2), top - bh + bob, bw, bh);
       }
       ctx.imageSmoothingEnabled = smooth2;
+    }
+    /** Grik (quête 01) : un Kobold pâle, immobile, avec une pomme dans une bulle quand le héros approche. */
+    drawGrik(game2, ox, oy) {
+      const g = game2.grik();
+      if (!g || !game2.isVisible(g.x, g.y)) return;
+      const { ctx, tile } = this;
+      const cx = Math.round(ox + (g.x + 0.5) * tile);
+      const cy = Math.round(oy + (g.y + 0.5) * tile);
+      const hero = game2.hero;
+      const frames = SCHRAT.idleDown;
+      const rows = frames[Math.floor(Math.abs(this.time) / 420) % frames.length];
+      this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GRIK_PALETTE);
+      if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) {
+        const s = Math.round(tile * 0.55);
+        const bob = Math.round(Math.sin(this.time / 260) * tile * 0.05);
+        const bx = Math.round(cx - s / 2 + tile * 0.2);
+        const by = Math.round(cy - tile * 0.5 - s * 1.1 + bob);
+        ctx.fillStyle = "#f4ecd2";
+        ctx.fillRect(bx - 2, by - 2, s + 4, s + 4);
+        ctx.fillStyle = "#120d08";
+        ctx.fillRect(bx - 2, by + s + 2, 3, 3);
+        const smooth2 = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.sprite(itemIconRows("pomme"), PALETTE2), bx, by, s, s);
+        ctx.imageSmoothingEnabled = smooth2;
+      }
     }
     drawMonster(m, cx, cy, progress) {
       const mdx = m.x - m.fromX;
@@ -16139,6 +16558,7 @@
         }
       }
       this.drawMerchant(game2, ox, oy, progress);
+      this.drawGrik(game2, ox, oy);
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
       this.drawFurniture(game2, ox, oy, flicker, "late");
@@ -16907,6 +17327,10 @@
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
       case "death":
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+      case "grik":
+        return e.what === "leave" ? "Grik s'\xE9clipse par un trou du mur." : null;
+      case "grikRoll":
+        return `Jet de ${e.stat.toLowerCase()} : ${e.d20} + ${e.bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi" : "rat\xE9"}.`;
       case "counter":
         if (e.what === "count") return e.first ? `Derri\xE8re cette porte, une petite voix compte : \xAB ${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026 \xBB` : null;
         if (e.what === "poke") return `Vous collez l'\u0153il au trou\u2026 un doigt crasseux s'y enfonce tout droit. A\xEFe ! Derri\xE8re, la voix reprend : \xAB ${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026 \xBB`;
@@ -17160,6 +17584,7 @@
   var aimShown = "";
   var foundOpen = false;
   var shopOpen = false;
+  var talkOpen = false;
   var wheelOpen = false;
   var jumpMode = false;
   var throwUid = null;
@@ -17378,6 +17803,8 @@
       }
     } else if (e.type === "shop") {
       openShop(e.line);
+    } else if (e.type === "grik") {
+      if (e.what === "talk") openTalk();
     } else if (e.type === "bounce") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
       renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
@@ -17770,7 +18197,7 @@
         stairsScene.skip();
         return;
       }
-      if (menuOpen || bagOpen || foundOpen || shopOpen) return;
+      if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen) return;
       const t = renderer.screenToTile(px, py);
       if (pushMode) {
         pushMode = false;
@@ -17810,10 +18237,11 @@
         return;
       }
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
+      if (game.events.length > 0) collectEvents();
       if (!stepping && game.pendingStairs) beginStairs();
     },
     onMove(dx, dy) {
-      if (menuOpen || bagOpen || foundOpen || shopOpen) return;
+      if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen) return;
       if (game.path.length === 0 && game.moveBy(dx, dy)) stepMs = KEYBOARD_STEP_MS;
     },
     onPan(dx, dy) {
@@ -17823,7 +18251,7 @@
       renderer.zoomBy(factor);
     },
     onLongPress(px, py) {
-      if (menuOpen || bagOpen || foundOpen || shopOpen || game.over) return false;
+      if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen || game.over) return false;
       const t = renderer.screenToTile(px, py);
       if (t.x !== game.hero.x || t.y !== game.hero.y) return false;
       openWheel();
@@ -17936,7 +18364,7 @@
   button("actions", () => wheelOpen ? closeWheel() : openWheel());
   var diceBox = die.parentElement.parentElement;
   diceBox.addEventListener("click", () => {
-    if (menuOpen || bagOpen || foundOpen || shopOpen || wheelOpen || game.over) return;
+    if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen || wheelOpen || game.over) return;
     sfx.unlock();
     jumpMode = false;
     pushMode = false;
@@ -18141,6 +18569,57 @@
     if (shopNote) detail.append(el("div", "shop-note", shopNote));
   }
   button("shop-close", closeShop);
+  button("talk-close", closeTalk);
+  var talkLast = null;
+  function openTalk() {
+    if (!game.canTalk()) return;
+    talkOpen = true;
+    talkLast = null;
+    $("talk").hidden = false;
+    $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GRIK_PALETTE));
+    document.body.classList.add("shop-open");
+    renderer.resize();
+    sfx.play("click");
+    renderTalk();
+  }
+  function closeTalk() {
+    talkOpen = false;
+    $("talk").hidden = true;
+    document.body.classList.remove("shop-open");
+    renderer.resize();
+  }
+  function renderTalk() {
+    const lines = $("talk-lines");
+    const choices = $("talk-choices");
+    lines.replaceChildren();
+    choices.replaceChildren();
+    const scene = game.grikScene();
+    const shown = talkLast ? talkLast.lines : scene.lines;
+    if (talkLast?.roll) {
+      const r = talkLast.roll;
+      const sign = r.bonus >= 0 ? "+" : "\u2212";
+      lines.append(el("div", `talk-roll ${r.success ? "ok" : "ko"}`, `${r.stat} : d20 ${r.d20} ${sign} ${Math.abs(r.bonus)} = ${r.total} \u2014 ${r.success ? "r\xE9ussi" : "rat\xE9"}`));
+    }
+    for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", l));
+    $("talk-purse").textContent = `Bourse : ${game.gold} or \xB7 Pommes : ${game.inventory.count("pomme")}`;
+    if (talkLast?.done || !game.grik()) {
+      const b = el("button", "talk-choice", "Continuer");
+      b.addEventListener("click", closeTalk);
+      choices.append(b);
+      return;
+    }
+    for (const c of scene.choices) {
+      const b = el("button", "talk-choice", c.label);
+      if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
+      b.addEventListener("click", () => {
+        talkLast = game.grikChoose(c.id);
+        collectEvents();
+        sfx.play(talkLast.roll ? "dice" : "click");
+        renderTalk();
+      });
+      choices.append(b);
+    }
+  }
   button("shop-tab-buy", () => {
     shopTab = "buy";
     shopNote = "";
@@ -19033,7 +19512,7 @@
       }
     }
     advanceStairs(dt);
-    if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
+    if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !talkOpen && !wheelOpen) {
       shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
       const before = { x: game.hero.x, y: game.hero.y };
@@ -19127,7 +19606,9 @@
     game: () => game,
     renderer: () => renderer,
     /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
-    stairs: (fall) => beginStairs(fall)
+    stairs: (fall) => beginStairs(fall),
+    /** Pour les captures : montre les événements en attente (comme après un toucher). */
+    flush: () => collectEvents()
   };
 })();
 

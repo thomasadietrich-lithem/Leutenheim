@@ -2113,12 +2113,15 @@ export class Game {
 
   /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
   private burn(): void {
+    // L'eau ne brûle jamais (Thomas, 2026-11-12 : « l'eau éteint le feu et ne peut pas brûler »).
+    this.fires = this.fires.filter((f) => this.map.get(f.x, f.y) !== Tile.Water);
     // Ceux qui ont quitté les flammes brûlent encore un peu (les flammes les suivent).
     for (const a of [this.hero, ...this.monsters]) {
       if (!a.burning || this.over || cellsOf(a).some((c) => this.isBurning(c.x, c.y))) continue;
-      // Dans une flaque, on s'éteint.
-      if (this.map.get(a.x, a.y) === Tile.Water) {
+      // Dans une flaque, on s'éteint : « Pschh ! ».
+      if (cellsOf(a).some((c) => this.map.get(c.x, c.y) === Tile.Water)) {
         a.burning = 0;
+        this.events.push({ type: "doused", actor: a });
         continue;
       }
       a.burning--;
@@ -2206,7 +2209,7 @@ export class Game {
   }
 
   isBurning(x: number, y: number): boolean {
-    return this.fires.some((f) => f.x === x && f.y === y);
+    return this.map.get(x, y) !== Tile.Water && this.fires.some((f) => f.x === x && f.y === y);
   }
 
   /** Expérience à réunir pour passer au niveau suivant. */

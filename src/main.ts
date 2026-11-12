@@ -440,6 +440,9 @@ function reveal(e: GameEvent): void {
     if (e.what === "talk") openTalk(e.who);
     // Il part : nuage et « Pouf ! » (la conversation est fermée : voir `talkLater`).
     else gluckPouf(e);
+  } else if (e.type === "doused") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
+    sfx.play("splash");
   } else if (e.type === "krikReturn") {
     if (e.amount > 0) {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} or`, "#f0c850");
@@ -2121,6 +2124,18 @@ $("status-pop").addEventListener("click", () => {
   statusOpen = null;
   statusShown = "";
 });
+// Toucher ailleurs referme le détail d'un statut ou de la cloche d'alerte (Thomas, 2026-11-12).
+window.addEventListener(
+  "pointerdown",
+  (ev) => {
+    if (statusOpen === null) return;
+    const t = ev.target as Node | null;
+    if (t && ["status-pop", "alarm-badge", "hero-status"].some((id) => $(id).contains(t))) return;
+    statusOpen = null;
+    statusShown = "";
+  },
+  true,
+);
 
 // ---------- Écran du héros : onglets Inventaire et Personnage ----------
 

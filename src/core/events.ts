@@ -139,6 +139,8 @@ export type GameEvent =
   | { type: "poisoned"; actor: Actor }
   | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number; blocked?: boolean }
+  /** Un personnage en feu entre dans l'eau : il s'éteint. */
+  | { type: "doused"; actor: Actor }
   /** L'investissement chez Krik (quête 03) : rendu à l'étage suivant, ou perdu. */
   | { type: "krikReturn"; amount: number }
   /** L'alerte de l'étage redescend d'un palier. */

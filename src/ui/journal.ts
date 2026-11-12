@@ -284,6 +284,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
           : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "doused":
+      return e.actor.kind === "hero" ? "Pschh ! L'eau éteint vos flammes." : null;
     case "krikReturn":
       return e.amount > 0
         ? `Un petit Kobold coursier vous rattrape : « De la part de Krik. » ${e.amount} pièces ! Il avait dit vrai.`

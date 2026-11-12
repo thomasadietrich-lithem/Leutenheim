@@ -3794,3 +3794,23 @@ test("fiole de fumée : lancée, les monstres tout près perdent la trace du hé
   assert.equal(m.alerted, false);
   assert.equal(game.inventory.count("potion_fumee"), 0);
 });
+
+test("l'eau ne brûle pas, et éteint un personnage en feu", () => {
+  const game = new Game(3);
+  game.monsters.splice(0);
+  const h = game.hero;
+  const spots = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).filter((p) => game.map.isWalkable(p.x, p.y));
+  const w = spots[0];
+  game.map.set(w.x, w.y, Tile.Water);
+  game.fires.push({ x: w.x, y: w.y, turns: 5 });
+  assert.ok(!game.isBurning(w.x, w.y));
+  h.burning = 2;
+  h.x = w.x;
+  h.y = w.y;
+  game.events.length = 0;
+  game.wait();
+  game.tick();
+  assert.equal(h.burning, 0);
+  assert.ok(game.events.some((e) => e.type === "doused"));
+  assert.equal(game.fires.length, 0);
+});

@@ -21,6 +21,9 @@ function stripGear(rows: readonly string[]): string[] {
       if (c === "U" || c === "u") g[y][x] = ".";
       else if ((c === "M" || c === "m" || c === "b") && x >= 11) g[y][x] = ".";
       else if (c === "Q") g[y][x] = "W";
+      // L'image « blessé » a une tunique rouge : dans l'escalier, la tunique reste blanche (Thomas, 2026-11-12).
+      else if (c === "R") g[y][x] = "W";
+      else if (c === "r") g[y][x] = "w";
     }
   const colored = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && g[y][x] !== "." && g[y][x] !== "O";
   for (let y = 0; y < H; y++)

@@ -69,6 +69,18 @@ export interface ItemDef {
 export type Rarity = "common" | "uncommon" | "rare";
 export const RARITY_LABELS: Record<Rarity, string> = { common: "Commun", uncommon: "Peu commun", rare: "Rare" };
 
+/**
+ * La rareté se montre par une PASTILLE de couleur, plus par un mot (Thomas, 2026-11-12) : gris commun, vert peu commun,
+ * bleu rare ; violet (épique) et doré (légendaire) sont prêts pour les objets à venir. Clair, foncé (le bord).
+ */
+export const RARITY_COLORS: Record<Rarity | "epic" | "legendary", [string, string]> = {
+  common: ["#a8a8b0", "#5a5a64"],
+  uncommon: ["#5cc860", "#2e7a38"],
+  rare: ["#4a9ae0", "#22508a"],
+  epic: ["#b07ae8", "#5a3290"],
+  legendary: ["#f0c050", "#8a6418"],
+};
+
 export const ITEMS = {
   epee: {
     id: "epee",

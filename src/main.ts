@@ -4,7 +4,7 @@ import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { DoorAction, Game, GameEvent } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
-import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
+import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
 import { RULES } from "./data/rules";
@@ -1100,7 +1100,7 @@ function renderShop(): void {
       card.type = "button";
       const icon = el("div", "shop-icon");
       icon.append(itemIcon(w.item));
-      card.append(icon, el("div", "shop-name", `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", `${w.price} or`));
+      card.append(icon, namedWithRarity("shop-name", ITEMS[w.item] as ItemDef, `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", `${w.price} or`));
       card.addEventListener("click", () => {
         sfx.play("click");
         shopPick = shopPick === i ? null : i;
@@ -1140,7 +1140,7 @@ function renderShop(): void {
         collectEvents();
         renderShop();
       });
-      row.append(icon, el("div", "shop-name", `${ITEMS[it.defId].name}${it.count > 1 ? ` ×${it.count}` : ""}`), sell);
+      row.append(icon, namedWithRarity("shop-name", ITEMS[it.defId] as ItemDef, `${ITEMS[it.defId].name}${it.count > 1 ? ` ×${it.count}` : ""}`), sell);
       list.append(row);
     }
   }
@@ -1165,7 +1165,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   const picture = el("div", "item-card-icon");
   picture.append(itemIcon(def.id as ItemId));
   const body = el("div", "item-card-body");
-  body.append(el("div", "item-card-name", `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "item-card-kind", `${KIND_LABELS[def.kind]}${note}`));
+  body.append(namedWithRarity("item-card-name", def, `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "item-card-kind", `${KIND_LABELS[def.kind]}${note}`));
   const rows: [string, string][] = [];
   if (def.attackBonus !== undefined) rows.push(["Attaque", `d20 ${signedBonus(def.attackBonus)}`]);
   if (def.damage) rows.push(["Dégâts", diceLabel(def.damage)]);
@@ -1176,7 +1176,6 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
-  if (def.rarity) rows.push(["Rareté", RARITY_LABELS[def.rarity]]);
   if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
   if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
@@ -1204,9 +1203,8 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.acBonus) bits.push(`+${def.acBonus} CA`);
   if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
   if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
-  if (def.rarity) bits.push(RARITY_LABELS[def.rarity].toLowerCase());
   if (note) bits.push(note);
-  body.append(el("div", "t", `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "s", bits.join(" · ")), el("div", "", def.description));
+  body.append(namedWithRarity("t", def, `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "s", bits.join(" · ")), el("div", "", def.description));
   card.append(body);
   return card;
 }
@@ -1907,6 +1905,41 @@ function rankPip(filled: boolean): SVGSVGElement {
     }),
   );
   return svg;
+}
+
+/** Pastille de rareté (Thomas, 2026-11-12) : une bille de couleur à la place du mot, dessinée en pixels 7 × 7. */
+function rarityPip(rarity: keyof typeof RARITY_COLORS): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 7 7");
+  svg.classList.add("rarity-pip");
+  const [light, dark] = RARITY_COLORS[rarity];
+  const title = document.createElementNS(ns, "title");
+  title.textContent = rarity in RARITY_LABELS ? RARITY_LABELS[rarity as keyof typeof RARITY_LABELS] : rarity === "epic" ? "Épique" : "Légendaire";
+  svg.append(title);
+  const rows = ["..OOO..", ".OxxxO.", "OxhxxxO", "OxxxxxO", "OxxxxxO", ".OxxxO.", "..OOO.."];
+  const fill: Record<string, string> = { O: dark, x: light, h: "#ffffff" };
+  rows.forEach((row, y) =>
+    [...row].forEach((c, x) => {
+      if (c === ".") return;
+      const r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", String(x));
+      r.setAttribute("y", String(y));
+      r.setAttribute("width", "1");
+      r.setAttribute("height", "1");
+      r.setAttribute("fill", fill[c]);
+      svg.append(r);
+    }),
+  );
+  return svg;
+}
+
+/** Un nom d'objet précédé de sa pastille de rareté (rien pour les objets de départ, sans rareté). */
+function namedWithRarity(className: string, def: ItemDef, text: string): HTMLElement {
+  const node = el("div", className);
+  if (def.rarity) node.append(rarityPip(def.rarity));
+  node.append(document.createTextNode(text));
+  return node;
 }
 
 function plusIcon(): SVGSVGElement {

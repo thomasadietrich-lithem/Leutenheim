@@ -79,6 +79,7 @@
   #over { inset: 14% 6%; background: #140808; border-color: #7a2a2a; font-size: 22px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
   #over .over-title { font-size: 34px; color: #ff6b7a; }
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
+  .rarity-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: inline-block; vertical-align: middle; margin: 0 6px 2px 0; flex: none; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
   #shop { justify-content: flex-start; overflow-y: auto; text-align: center; }
@@ -88,13 +89,13 @@
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
   #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
-  .shop-wares { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: min(100%, 318px); }
+  .shop-wares { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 318px); }
   .shop-ware { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; color: #fff3c8; font-family: inherit; border: none; cursor: pointer; }
   .shop-ware.picked { box-shadow: inset 0 0 0 3px #ffd75e; background: #4a3814; }
   .shop-ware.dear .shop-price { color: #ff8a7a; }
   .shop-icon svg { width: 44px; height: 44px; display: block; }
   .shop-row .shop-icon svg { width: 32px; height: 32px; }
-  .shop-name { font-size: 15px; text-align: center; line-height: 1.1; }
+  .shop-name { font-size: 14px; text-align: center; line-height: 1.1; }
   .shop-price { color: #ffd75e; font-size: 16px; }
   .shop-sell { display: flex; flex-direction: column; gap: 4px; width: min(100%, 318px); overflow-y: auto; max-height: 52vh; }
   .shop-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; background: #241c14; }
@@ -953,6 +954,13 @@
   ];
   var UNARMORED_AC = 10;
   var RARITY_LABELS = { common: "Commun", uncommon: "Peu commun", rare: "Rare" };
+  var RARITY_COLORS = {
+    common: ["#a8a8b0", "#5a5a64"],
+    uncommon: ["#5cc860", "#2e7a38"],
+    rare: ["#4a9ae0", "#22508a"],
+    epic: ["#b07ae8", "#5a3290"],
+    legendary: ["#f0c050", "#8a6418"]
+  };
   var ITEMS = {
     epee: {
       id: "epee",
@@ -17046,7 +17054,7 @@
         card.type = "button";
         const icon = el("div", "shop-icon");
         icon.append(itemIcon(w2.item));
-        card.append(icon, el("div", "shop-name", `${ITEMS[w2.item].name}${w2.count > 1 ? ` \xD7${w2.count}` : ""}`), el("div", "shop-price", `${w2.price} or`));
+        card.append(icon, namedWithRarity("shop-name", ITEMS[w2.item], `${ITEMS[w2.item].name}${w2.count > 1 ? ` \xD7${w2.count}` : ""}`), el("div", "shop-price", `${w2.price} or`));
         card.addEventListener("click", () => {
           sfx.play("click");
           shopPick = shopPick === i ? null : i;
@@ -17086,7 +17094,7 @@
           collectEvents();
           renderShop();
         });
-        row.append(icon, el("div", "shop-name", `${ITEMS[it.defId].name}${it.count > 1 ? ` \xD7${it.count}` : ""}`), sell);
+        row.append(icon, namedWithRarity("shop-name", ITEMS[it.defId], `${ITEMS[it.defId].name}${it.count > 1 ? ` \xD7${it.count}` : ""}`), sell);
         list.append(row);
       }
     }
@@ -17109,7 +17117,7 @@
     const picture = el("div", "item-card-icon");
     picture.append(itemIcon(def.id));
     const body = el("div", "item-card-body");
-    body.append(el("div", "item-card-name", `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "item-card-kind", `${KIND_LABELS[def.kind]}${note}`));
+    body.append(namedWithRarity("item-card-name", def, `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "item-card-kind", `${KIND_LABELS[def.kind]}${note}`));
     const rows = [];
     if (def.attackBonus !== void 0) rows.push(["Attaque", `d20 ${signedBonus(def.attackBonus)}`]);
     if (def.damage) rows.push(["D\xE9g\xE2ts", diceLabel(def.damage)]);
@@ -17120,7 +17128,6 @@
     if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
     if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
     if (def.lightTurns) rows.push(["Lumi\xE8re", `${def.lightTurns} tours`]);
-    if (def.rarity) rows.push(["Raret\xE9", RARITY_LABELS[def.rarity]]);
     if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
     if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
     if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
@@ -17146,9 +17153,8 @@
     if (def.acBonus) bits.push(`+${def.acBonus} CA`);
     if (def.bagCols) bits.push(`${def.bagCols} \xD7 ${def.bagRows} cases`);
     if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
-    if (def.rarity) bits.push(RARITY_LABELS[def.rarity].toLowerCase());
     if (note) bits.push(note);
-    body.append(el("div", "t", `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "s", bits.join(" \xB7 ")), el("div", "", def.description));
+    body.append(namedWithRarity("t", def, `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "s", bits.join(" \xB7 ")), el("div", "", def.description));
     card.append(body);
     return card;
   }
@@ -17753,6 +17759,37 @@
       })
     );
     return svg;
+  }
+  function rarityPip(rarity) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 7 7");
+    svg.classList.add("rarity-pip");
+    const [light, dark] = RARITY_COLORS[rarity];
+    const title = document.createElementNS(ns, "title");
+    title.textContent = rarity in RARITY_LABELS ? RARITY_LABELS[rarity] : rarity === "epic" ? "\xC9pique" : "L\xE9gendaire";
+    svg.append(title);
+    const rows = ["..OOO..", ".OxxxO.", "OxhxxxO", "OxxxxxO", "OxxxxxO", ".OxxxO.", "..OOO.."];
+    const fill = { O: dark, x: light, h: "#ffffff" };
+    rows.forEach(
+      (row, y) => [...row].forEach((c, x) => {
+        if (c === ".") return;
+        const r = document.createElementNS(ns, "rect");
+        r.setAttribute("x", String(x));
+        r.setAttribute("y", String(y));
+        r.setAttribute("width", "1");
+        r.setAttribute("height", "1");
+        r.setAttribute("fill", fill[c]);
+        svg.append(r);
+      })
+    );
+    return svg;
+  }
+  function namedWithRarity(className, def, text) {
+    const node = el("div", className);
+    if (def.rarity) node.append(rarityPip(def.rarity));
+    node.append(document.createTextNode(text));
+    return node;
   }
   function plusIcon() {
     const ns = "http://www.w3.org/2000/svg";

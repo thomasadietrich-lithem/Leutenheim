@@ -59,3 +59,16 @@ export function rollAttack(
   }
   return result;
 }
+
+/**
+ * Dégâts moyens par tour d'une arme de corps à corps contre une classe d'armure (sert à comparer deux armes
+ * sur la fiche, Thomas 2026-11-12 : « sentir la différence »). Compte les ratés, les critiques et la vitesse.
+ */
+export function expectedDamagePerTurn(attackBonus: number, damage: Dice, speed: "slow" | "fast" | undefined, armorClass: number, slowTurns = 1.5, fastTurns = 0.75): number {
+  const average = damage.count * (damage.sides + 1) / 2 + damage.bonus;
+  const hits = Math.min(19, Math.max(1, 21 - (armorClass - attackBonus))); // faces du d20 qui touchent (le 1 rate, le 20 touche)
+  const normal = (hits - 1) / 20;
+  const critical = 1 / 20;
+  const perAttack = normal * average + critical * (average + damage.count * (damage.sides + 1) / 2);
+  return perAttack / (speed === "slow" ? slowTurns : speed === "fast" ? fastTurns : 1);
+}

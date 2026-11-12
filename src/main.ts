@@ -2,6 +2,7 @@ import { addRecord, loadRecords, recordLine } from "./ui/records";
 import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
+import { expectedDamagePerTurn } from "./core/combat";
 import { DoorAction, Game, GameEvent } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
@@ -12,6 +13,7 @@ import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
+import { StairsScene } from "./render/stairsScene";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
@@ -355,7 +357,10 @@ function reveal(e: GameEvent): void {
       pulse(hpBar, "hit");
       pulse(mapFrame, "hurt");
     }
-    sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : "hit") : "miss");
+    // Arme lourde (lente ou à deux mains) : un choc plus grave, pour sentir le poids de la lame.
+    const melee = !foe && !e.ranged ? game.weapon("melee") : undefined;
+    const heavy = !!melee && (melee.speed === "slow" || !!melee.twoHanded);
+    sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : heavy ? "heavy" : "hit") : "miss");
   } else if (e.type === "door") {
     if (e.action === "key") {
       sfx.play("key");
@@ -475,6 +480,9 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
   } else if (e.type === "bagFull") {
+  } else if (e.type === "heavyBlow") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : "Net !", e.kind === "stun" ? "#ffd75e" : "#ffffff");
+    if (e.kind === "stun") sfx.play("thud");
   } else if (e.type === "stairs") {
     shownHp = game.hero.hp;
     sfx.play("descend");
@@ -732,6 +740,11 @@ function collectEvents(): void {
 
 bindInput(canvas, {
   onTap(px, py) {
+    // Pendant le passage d'un étage à l'autre, toucher l'écran l'abrège.
+    if (stairsScene) {
+      stairsScene.skip();
+      return;
+    }
     if (menuOpen || bagOpen || foundOpen || shopOpen) return;
     const t = renderer.screenToTile(px, py);
     if (pushMode) {
@@ -775,6 +788,8 @@ bindInput(canvas, {
       return;
     }
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
+    // Toucher l'escalier sur lequel on se tient : on le prend (Thomas, 2026-11-12).
+    if (!stepping && game.pendingStairs) beginStairs();
   },
   onMove(dx, dy) {
     if (menuOpen || bagOpen || foundOpen || shopOpen) return;
@@ -1161,6 +1176,40 @@ button("shop-tab-sell", () => {
   renderShop();
 });
 
+/**
+ * Comparaison avec ce que le héros porte (Thomas, 2026-11-12 : « que le joueur sente vraiment la différence ») :
+ * ▲ vert si l'objet est meilleur, ▼ rouge s'il est moins bon, « = » sinon. Armes : dégâts moyens par tour contre
+ * un monstre ordinaire (CA 13) ; armures et casques : classe d'armure ; arcs : bonus au jet et portée.
+ */
+function compareNode(def: ItemDef): HTMLElement | null {
+  const slot = def.kind === "melee" ? "melee" : def.kind === "armor" ? "armor" : def.kind === "hat" ? "hat" : def.kind === "ranged" ? "ranged" : null;
+  if (!slot) return null;
+  const worn = game.equipment[slot];
+  if (worn && worn.defId === def.id) return null;
+  const other = worn ? (ITEMS[worn.defId] as ItemDef) : undefined;
+  let delta = 0;
+  let text = "";
+  const fmt = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1).replace(".", ",").replace(",0", "")}`;
+  if (slot === "melee") {
+    const dpt = (d?: ItemDef) => (d?.damage ? expectedDamagePerTurn(d.attackBonus ?? 0, d.damage, d.speed, 13, RULES.slowAttackTurns, RULES.fastAttackTurns) : 0.6);
+    delta = Math.round((dpt(def) - dpt(other)) * 10) / 10;
+    text = `${fmt(delta)} dégâts par tour`;
+  } else if (slot === "armor") {
+    delta = (def.armorClass ?? UNARMORED_AC) - (other?.armorClass ?? UNARMORED_AC);
+    text = delta === 0 ? "même CA" : `${fmt(delta)} CA (${Math.abs(delta) * 5} % de coups ${delta > 0 ? "évités" : "reçus"} en plus)`;
+  } else if (slot === "hat") {
+    delta = (def.acBonus ?? 0) - (other?.acBonus ?? 0);
+    text = `${fmt(delta)} CA`;
+  } else {
+    delta = (def.attackBonus ?? 0) - (other?.attackBonus ?? 0);
+    const range = (def.range ?? 0) - (other?.range ?? 0);
+    text = `${fmt(delta)} au jet, ${fmt(range)} de portée`;
+    if (delta === 0) delta = range;
+  }
+  const node = el("div", `item-compare ${delta > 0 ? "up" : delta < 0 ? "down" : "same"}`, `${delta > 0 ? "▲" : delta < 0 ? "▼" : "="} ${text}${other ? ` que ${other.name.toLowerCase()}` : ""}`);
+  return node;
+}
+
 function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   const card = el("div", "item-card");
   const picture = el("div", "item-card-icon");
@@ -1174,6 +1223,8 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
   if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; ni javeline, ni torche)"]);
+  if (def.stunOn) rows.push(["Assomme", `sur un ${def.stunOn} ou plus au dé`]);
+  if (def.stealthPenalty) rows.push(["Discrétion", `−${def.stealthPenalty} (bruyante)`]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
@@ -1183,7 +1234,10 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
   const stats = el("div", "item-card-stats");
   for (const [label, value] of rows) stats.append(el("span", "", label), el("span", "item-card-value", value));
-  body.append(stats, el("div", "item-card-desc", def.description));
+  body.append(stats);
+  const cmp = compareNode(def);
+  if (cmp) body.append(cmp);
+  body.append(el("div", "item-card-desc", def.description));
   card.append(picture, body);
   return card;
 }
@@ -1199,13 +1253,18 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
   if (def.twoHanded) bits.push("deux mains");
   if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
+  if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
+  if (def.stealthPenalty) bits.push(`discrétion −${def.stealthPenalty}`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
   if (def.acBonus) bits.push(`+${def.acBonus} CA`);
   if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
   if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
   if (note) bits.push(note);
-  body.append(namedWithRarity("t", def, `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "s", bits.join(" · ")), el("div", "", def.description));
+  body.append(namedWithRarity("t", def, `${def.name}${count > 1 ? ` ×${count}` : ""}`), el("div", "s", bits.join(" · ")));
+  const cmp = compareNode(def);
+  if (cmp) body.append(cmp);
+  body.append(el("div", "", def.description));
   card.append(body);
   return card;
 }
@@ -1616,7 +1675,7 @@ function renderCharacter(): void {
     row("Intellig.", signedBonus(game.alloc.intelligence), "intelligence"),
     row("Charisme", signedBonus(game.alloc.charisme), "charisme"),
     row("Fouille", signedBonus(c.searchBonus)),
-    row("Discrétion", signedBonus(c.stealthBonus)),
+    row("Discrétion", signedBonus(game.stealthBonus())),
     row("Attaque", signedBonus(game.hero.attackBonus)),
     row("Classe d'armure", String(game.hero.armorClass), undefined, true),
   );
@@ -2074,6 +2133,38 @@ button("settings-sound", () => {
   showScreen("settings");
 });
 
+// ---------- Passage d'un étage à l'autre ----------
+
+/** La petite scène dans le noir entre deux étages (Thomas, 2026-11-12) ; `null` hors passage. */
+let stairsScene: StairsScene | null = null;
+
+function beginStairs(forceFall?: boolean): void {
+  const direction = game.pendingStairs;
+  if (!direction || game.over || stairsScene) return;
+  const target = game.depth + (direction === "down" ? 1 : -1);
+  if (target < 1) return;
+  // Une fois sur huit environ, en descendant, il se prend les pieds dans une marche (décor seulement).
+  stairsScene = new StairsScene(direction, direction === "down" && (forceFall ?? Math.random() < 1 / 8), `ÉTAGE ${target}`);
+}
+
+function advanceStairs(dt: number): void {
+  const scene = stairsScene;
+  if (!scene) return;
+  scene.update(dt);
+  for (const sound of scene.sounds) sfx.play(sound);
+  scene.sounds = [];
+  if (!scene.done) return;
+  stairsScene = null;
+  if (game.takeStairs()) {
+    renderer.snapTo(game);
+    collectEvents();
+    if (scene.tumbled) {
+      logLines.push("Vous dégringolez l'escalier… et vous relevez, un peu sonné, mais entier.");
+      renderLog();
+    }
+  }
+}
+
 // ---------- Boucle d'affichage ----------
 
 let last = performance.now();
@@ -2091,14 +2182,12 @@ function frame(now: number): void {
       // Tour terminé ; le reste de temps est reporté sur le suivant pour garder une vitesse constante.
       stepTime -= stepMs;
       stepping = false;
-      if (game.takeStairs()) {
-        renderer.snapTo(game);
-        collectEvents();
-      }
+      if (game.pendingStairs) beginStairs();
     }
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
-  if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
+  advanceStairs(dt);
+  if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };
@@ -2137,7 +2226,8 @@ function frame(now: number): void {
   }
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.shotProfile()?.range ?? null) : null;
-  renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
+  if (stairsScene) stairsScene.draw(canvas);
+  else renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
   $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
   renderAlarm();
@@ -2203,4 +2293,9 @@ showScreen("main");
 requestAnimationFrame(frame);
 
 // Accès de débogage pour les tests automatiques dans un navigateur (sans effet sur le jeu).
-(window as unknown as { leutenheim: unknown }).leutenheim = { game: () => game, renderer: () => renderer };
+(window as unknown as { leutenheim: unknown }).leutenheim = {
+  game: () => game,
+  renderer: () => renderer,
+  /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
+  stairs: (fall: boolean) => beginStairs(fall),
+};

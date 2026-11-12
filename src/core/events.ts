@@ -26,6 +26,8 @@ export type GameEvent =
     }
   | { type: "pickup"; item: ItemId; count: number }
   | { type: "death"; actor: Actor }
+  /** Coup de l'arme du héros qui tue net un monstre intact (Thomas : « sentir la différence »), ou qui l'assomme (arme lourde). */
+  | { type: "heavyBlow"; actor: Actor; kind: "oneShot" | "stun" }
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
   /** Le sac est plein : l'objet reste au sol. */

@@ -3,7 +3,7 @@ import { RULES } from "../src/data/rules";
 import { ITEMS } from "../src/data/items";
 import { test } from "node:test";
 import { Game } from "../src/core/game";
-import { rollAttack } from "../src/core/combat";
+import { expectedDamagePerTurn, rollAttack } from "../src/core/combat";
 import { Rng } from "../src/core/rng";
 import { DEFAULT_FLOOR } from "../src/data/floors";
 import { spawnsForDepth } from "../src/data/monsters";
@@ -785,6 +785,79 @@ test("escaliers : on peut remonter, et chaque étage est retrouvé tel qu'on l'a
   assert.ok(game.takeStairs());
   assert.equal(game.map, floor2);
   assert.equal(game.monsters.length, 0);
+});
+
+test("escalier au clic : toucher l'escalier sur lequel on se tient le prend (Thomas, 2026-11-12)", () => {
+  const game = new Game(5);
+  game.monsters.splice(0);
+  const down = (game as unknown as { current: { stairs: { x: number; y: number } } }).current.stairs;
+  Object.assign(game.hero, { x: down.x, y: down.y });
+  game.pendingStairs = null;
+  const turn = game.turn;
+  assert.ok(game.setDestination(down.x, down.y));
+  assert.equal(game.pendingStairs, "down");
+  assert.equal(game.turn, turn, "toucher l'escalier ne fait pas passer de tour");
+  assert.ok(game.takeStairs());
+  assert.equal(game.depth, 2);
+  // Arrivé sur l'escalier qui remonte : le toucher fait remonter.
+  assert.equal(game.pendingStairs, null);
+  assert.ok(game.setDestination(game.hero.x, game.hero.y));
+  assert.equal(game.pendingStairs, "up");
+  assert.ok(game.takeStairs());
+  assert.equal(game.depth, 1);
+  // À l'étage 1, l'arrivée n'a pas d'escalier qui remonte : retoucher sa case passe un tour.
+  const fresh = new Game(5);
+  fresh.monsters.splice(0);
+  assert.ok(fresh.setDestination(fresh.hero.x, fresh.hero.y));
+  assert.equal(fresh.pendingStairs, null);
+});
+
+test("armes et armures en paliers (Thomas, 2026-11-12) : chaque rareté se sent", () => {
+  const dpt = (id: keyof typeof ITEMS) => {
+    const d = ITEMS[id] as { attackBonus?: number; damage?: { count: number; sides: number; bonus: number }; speed?: "slow" | "fast" };
+    return expectedDamagePerTurn(d.attackBonus ?? 0, d.damage!, d.speed, 13, RULES.slowAttackTurns, RULES.fastAttackTurns);
+  };
+  const start = dpt("epee");
+  // Commun : à peu près l'arme de départ ; peu commun : nettement mieux ; rare : bien au-dessus.
+  assert.ok(dpt("couteau_boucher") <= start * 1.1);
+  for (const id of ["epee_longue", "lance"] as const) assert.ok(dpt(id) >= start * 1.25, `${id} : ${dpt(id).toFixed(2)} contre ${start.toFixed(2)}`);
+  assert.ok(dpt("cimeterre") >= start * 1.6);
+  // Armures : 12 (tunique) < 13 (cuir) < 14 (clouté) < 16 (cotte) < 17 (harnois) ; les lourdes sont bruyantes.
+  const ac = ["tunique", "armure_cuir", "armure_cloutee", "cotte_mailles", "harnois"].map((id) => (ITEMS as Record<string, { armorClass?: number }>)[id].armorClass);
+  assert.deepEqual(ac, [12, 13, 14, 16, 17]);
+  const game = new Game(3);
+  const base = game.stealthBonus();
+  game.level = 5;
+  game.inventory.add("harnois", 1);
+  assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "harnois")!.uid));
+  assert.equal(game.hero.armorClass, 17);
+  assert.equal(game.stealthBonus(), base - 3);
+});
+
+test("épée longue : un grand d20 assomme la cible", () => {
+  for (let seed = 1; seed < 400; seed++) {
+    const game = new Game(seed);
+    const foe = game.monsters[0];
+    if (!foe) continue;
+    game.monsters.splice(1);
+    game.level = 5;
+    game.inventory.add("epee_longue", 1);
+    assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "epee_longue")!.uid));
+    Object.assign(foe, { x: game.hero.x + (game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1), y: game.hero.y, hp: 999, maxHp: 999, alerted: true, asleep: false });
+    for (let i = 0; i < 40; i++) {
+      game.setDestination(foe.x, foe.y, true);
+      game.tick();
+      const blow = game.events.find((e) => e.type === "heavyBlow");
+      if (blow && blow.type === "heavyBlow") {
+        assert.equal(blow.kind, "stun");
+        const at = game.events.indexOf(blow);
+        const attack = game.events.slice(0, at).reverse().find((e) => e.type === "attack" && e.attacker === game.hero);
+        assert.ok(attack && attack.type === "attack" && attack.result.d20 >= 18);
+        return;
+      }
+    }
+  }
+  assert.fail("aucun coup assommant en 400 parties");
 });
 
 test("porte : après un échec, la même méthode n'est plus proposée", () => {
@@ -1795,7 +1868,15 @@ function monsterAttacksPerHeroAttack(weapon: "epee" | "epee_longue" | "cimeterre
 
 test("vitesse d'attaque : lente = 1,5 attaque des monstres par coup, rapide = ¾, normale = 1", () => {
   assert.equal(monsterAttacksPerHeroAttack("epee"), 1);
-  assert.equal(monsterAttacksPerHeroAttack("epee_longue"), 1.5);
+  // L'épée longue assomme parfois (le monstre perd un tour) : on mesure ici la seule vitesse, sans cet effet.
+  const longsword = ITEMS.epee_longue as { stunOn?: number };
+  const stunOn = longsword.stunOn;
+  delete longsword.stunOn;
+  try {
+    assert.equal(monsterAttacksPerHeroAttack("epee_longue"), 1.5);
+  } finally {
+    longsword.stunOn = stunOn;
+  }
   assert.equal(monsterAttacksPerHeroAttack("cimeterre"), 0.75);
 });
 

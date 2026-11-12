@@ -24,7 +24,11 @@ export type SoundName =
   | "advantage"
   | "disadvantage"
   | "click"
-  | "coin";
+  | "coin"
+  | "heavy"
+  | "thud"
+  | "stairStep"
+  | "tumble";
 
 type Wave = OscillatorType;
 
@@ -148,6 +152,23 @@ export class Sfx {
           this.noise(0.05, 0.22, 2600);
           this.tone(190, 70, 0.12, "triangle", 0.28);
           this.tone(1700, 1250, 0.07, "triangle", 0.06, 0.01);
+          break;
+        case "heavy": // arme lourde : choc grave et long, éclat de métal plus sourd
+          this.noise(0.09, 0.3, 1500);
+          this.tone(120, 40, 0.26, "triangle", 0.4);
+          this.tone(900, 700, 0.12, "triangle", 0.07, 0.02);
+          break;
+        case "thud": // assommé : un « bong » mat
+          this.tone(110, 70, 0.3, "sine", 0.3);
+          this.tone(660, 640, 0.35, "sine", 0.06, 0.03);
+          break;
+        case "stairStep": // un pas sur une marche de pierre, avec le cliquetis de l'équipement
+          this.noise(0.04, 0.09, 600);
+          this.noise(0.03, 0.03, 4200, 0.02);
+          break;
+        case "tumble": // la dégringolade : chocs en cascade qui s'éloignent
+          for (let i = 0; i < 7; i++) this.noise(0.05, 0.22 - i * 0.025, 900 - i * 60, i * 0.11);
+          for (let i = 0; i < 4; i++) this.tone(180 - i * 20, 60, 0.12, "triangle", 0.12 - i * 0.02, i * 0.15 + 0.03);
           break;
         case "miss": // la lame fend l'air
           this.noise(0.07, 0.05, 1400);

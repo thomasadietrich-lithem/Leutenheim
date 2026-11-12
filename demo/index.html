@@ -280,7 +280,11 @@
   #bag-grid { max-height: 30vh; }
   #bag-info { min-height: 0; }
   .item-mini { position: relative; width: min(100%, 318px); padding: 6px 34px 6px 8px; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; font-size: 16px; color: var(--dim); display: flex; gap: 8px; align-items: center; text-align: left; }
-  .item-mini svg { width: 40px; height: 40px; flex: none; }
+  .item-compare { font-size: 16px; line-height: 1.05; margin: 2px 0; }
+  .item-compare.up { color: #7ee07a; }
+  .item-compare.down { color: #ff7a7a; }
+  .item-compare.same { color: #b8b0a0; }
+  .item-mini > svg { width: 40px; height: 40px; flex: none; }
   .item-mini .t { color: #fff3c8; font-size: 19px; text-transform: uppercase; }
   .item-mini .s { color: var(--gold); font-size: 15px; }
   .char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; width: min(100%, 330px); font-size: 18px; text-transform: uppercase; color: var(--dim); }
@@ -736,6 +740,23 @@
             this.tone(190, 70, 0.12, "triangle", 0.28);
             this.tone(1700, 1250, 0.07, "triangle", 0.06, 0.01);
             break;
+          case "heavy":
+            this.noise(0.09, 0.3, 1500);
+            this.tone(120, 40, 0.26, "triangle", 0.4);
+            this.tone(900, 700, 0.12, "triangle", 0.07, 0.02);
+            break;
+          case "thud":
+            this.tone(110, 70, 0.3, "sine", 0.3);
+            this.tone(660, 640, 0.35, "sine", 0.06, 0.03);
+            break;
+          case "stairStep":
+            this.noise(0.04, 0.09, 600);
+            this.noise(0.03, 0.03, 4200, 0.02);
+            break;
+          case "tumble":
+            for (let i = 0; i < 7; i++) this.noise(0.05, 0.22 - i * 0.025, 900 - i * 60, i * 0.11);
+            for (let i = 0; i < 4; i++) this.tone(180 - i * 20, 60, 0.12, "triangle", 0.12 - i * 0.02, i * 0.15 + 0.03);
+            break;
           case "miss":
             this.noise(0.07, 0.05, 1400);
             this.noise(0.1, 0.09, 3200, 0.04);
@@ -847,6 +868,44 @@
   }
   function diceLabel(d) {
     return `${d.count}d${d.sides}${d.bonus > 0 ? `+${d.bonus}` : d.bonus < 0 ? d.bonus : ""}`;
+  }
+
+  // src/core/combat.ts
+  function rollAttack(rng, attacker, defender, mode = "normal", critFrom = 20) {
+    const rolls = [rng.int(1, 20)];
+    if (mode !== "normal") rolls.push(rng.int(1, 20));
+    const d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
+    const total = d20 + attacker.attackBonus;
+    const critical = d20 >= critFrom;
+    const hit = critical || d20 !== 1 && total >= defender.armorClass;
+    const result = {
+      mode,
+      rolls,
+      d20,
+      bonus: attacker.attackBonus,
+      total,
+      targetAc: defender.armorClass,
+      hit,
+      critical,
+      damage: 0
+    };
+    if (hit) {
+      const count = critical ? attacker.damage.count * 2 : attacker.damage.count;
+      const faces = [];
+      for (let i = 0; i < count; i++) faces.push(rng.int(1, attacker.damage.sides));
+      const rolled = Math.max(1, faces.reduce((a, b) => a + b, 0) + attacker.damage.bonus);
+      result.damage = rolled;
+      result.damageRoll = { dice: attacker.damage, faces, rolled };
+    }
+    return result;
+  }
+  function expectedDamagePerTurn(attackBonus, damage, speed, armorClass, slowTurns = 1.5, fastTurns = 0.75) {
+    const average = damage.count * (damage.sides + 1) / 2 + damage.bonus;
+    const hits = Math.min(19, Math.max(1, 21 - (armorClass - attackBonus)));
+    const normal = (hits - 1) / 20;
+    const critical = 1 / 20;
+    const perAttack = normal * average + critical * (average + damage.count * (damage.sides + 1) / 2);
+    return perAttack / (speed === "slow" ? slowTurns : speed === "fast" ? fastTurns : 1);
   }
 
   // src/data/classes.ts
@@ -1080,7 +1139,7 @@
       id: "epee_longue",
       name: "\xC9p\xE9e longue",
       kind: "melee",
-      description: "Lourde et longue, elle se tient \xE0 deux mains. Chaque coup prend du temps, mais il porte.",
+      description: "Lourde et longue, elle se tient \xE0 deux mains. Chaque coup prend du temps, mais il porte, et peut assommer.",
       w: 1,
       h: 3,
       maxStack: 1,
@@ -1089,7 +1148,8 @@
       speed: "slow",
       twoHanded: true,
       attackBonus: 4,
-      damage: { count: 2, sides: 6, bonus: 2 }
+      damage: { count: 2, sides: 8, bonus: 2 },
+      stunOn: 18
     },
     couteau_boucher: {
       id: "couteau_boucher",
@@ -1102,24 +1162,23 @@
       rarity: "common",
       level: 2,
       speed: "fast",
-      attackBonus: 4,
-      damage: { count: 1, sides: 4, bonus: 2 }
+      attackBonus: 3,
+      damage: { count: 1, sides: 4, bonus: 1 }
     },
     lance: {
       id: "lance",
       name: "Lance",
       kind: "melee",
-      description: "Frappe \xE0 deux cases : on touche l'ennemi avant qu'il n'arrive au contact. \xC0 deux mains, lente \xE0 manier.",
+      description: "Frappe \xE0 deux cases : on touche l'ennemi avant qu'il n'arrive au contact. \xC0 deux mains.",
       w: 1,
       h: 4,
       maxStack: 1,
       rarity: "uncommon",
       level: 2,
-      speed: "slow",
       twoHanded: true,
       reach: 2,
       attackBonus: 4,
-      damage: { count: 1, sides: 8, bonus: 1 }
+      damage: { count: 1, sides: 10, bonus: 2 }
     },
     cimeterre: {
       id: "cimeterre",
@@ -1143,8 +1202,8 @@
       w: 2,
       h: 2,
       maxStack: 1,
-      rarity: "rare",
-      level: 5,
+      rarity: "uncommon",
+      level: 2,
       armorClass: 14
     },
     // Casques (Thomas, 2026-11-11 ; planche art/objets_v4.png) : ils s'ajoutent à l'armure.
@@ -1184,15 +1243,31 @@
       maxStack: 1,
       armorClass: 12
     },
+    harnois: {
+      id: "harnois",
+      name: "Harnois",
+      kind: "armor",
+      description: "Des plaques d'acier qui couvrent tout le corps. Presque rien ne passe, mais on l'entend venir de loin.",
+      w: 2,
+      h: 2,
+      maxStack: 1,
+      rarity: "rare",
+      level: 5,
+      armorClass: 17,
+      stealthPenalty: 3
+    },
     cotte_mailles: {
       id: "cotte_mailles",
       name: "Cotte de mailles",
       kind: "armor",
-      description: "Des anneaux de fer rivet\xE9s. Lourde, mais s\xFBre.",
+      description: "Des anneaux de fer rivet\xE9s. Lourde et s\xFBre, mais elle cliquette : on se cache moins bien.",
       w: 2,
       h: 2,
       maxStack: 1,
-      armorClass: 16
+      rarity: "uncommon",
+      level: 3,
+      armorClass: 16,
+      stealthPenalty: 2
     },
     armure_cuir: {
       id: "armure_cuir",
@@ -1202,6 +1277,7 @@
       w: 2,
       h: 2,
       maxStack: 1,
+      rarity: "common",
       armorClass: 13
     },
     // ---- Gemmes (Thomas, 2026-11-11) : ramassées, elles vont dans la bourse pour leur valeur. ----
@@ -3023,7 +3099,7 @@
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 15;
+  var SANDBOX_LAYOUT = 16;
   var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
     const map = new GameMap(52, 32);
@@ -3171,7 +3247,10 @@
         { x: 8, y: 9, item: "javeline", count: 3 },
         // Casques (2026-11-11) : de cuir (+1 CA) et de maille (+2 CA, niveau 3).
         { x: 3, y: 8, item: "casque_cuir", count: 1 },
-        { x: 3, y: 9, item: "casque_maille", count: 1 }
+        { x: 3, y: 9, item: "casque_maille", count: 1 },
+        // Armures en paliers (Thomas, 2026-11-12) : cotte de mailles (CA 16, niveau 3, bruyante) et harnois (CA 17, niveau 5).
+        { x: 5, y: 7, item: "cotte_mailles", count: 1 },
+        { x: 10, y: 9, item: "harnois", count: 1 }
       ],
       heroLevel: 4,
       monsters: [
@@ -3192,16 +3271,16 @@
     const NW = rng.int(18, 22);
     const NH = rng.int(12, 15);
     const corr = rng.int(2, 4);
-    const H = NH + 8;
+    const H2 = NH + 8;
     const ring = { x: 1 + 5 + corr, y: 1, w: NW + 6, h: NH + 6 };
     const lair = { x: ring.x + 3, y: ring.y + 3, w: NW, h: NH };
-    const W = ring.x + ring.w + 4;
-    const map = new GameMap(W, H);
+    const W2 = ring.x + ring.w + 4;
+    const map = new GameMap(W2, H2);
     const fill = (r, t) => {
       for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, t);
     };
     const cy = rng.int(lair.y + 2, lair.y + NH - 4);
-    const ante = { x: 1, y: Math.max(1, Math.min(H - 6, cy - 2)), w: 5, h: 5 };
+    const ante = { x: 1, y: Math.max(1, Math.min(H2 - 6, cy - 2)), w: 5, h: 5 };
     fill(ante, Tile.Floor);
     fill({ x: 6, y: cy, w: corr, h: 1 }, Tile.Floor);
     fill(ring, Tile.Floor);
@@ -3353,8 +3432,8 @@
     };
     const inLair = (x, y) => x >= lair.x && x < lair.x + NW && y >= lair.y && y < lair.y + NH;
     const inRing = (x, y) => x >= ring.x && x < ring.x + ring.w && y >= ring.y && y < ring.y + ring.h && !inLair(x, y);
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H2; y++) {
+      for (let x = 0; x < W2; x++) {
         if (map.get(x, y) !== Tile.Floor || isTaken(x, y) || clear.has(map.index(x, y))) continue;
         let p;
         if (inLair(x, y)) p = density;
@@ -3382,14 +3461,14 @@
   }
   function mirror(f, flipX, flipY) {
     if (!flipX && !flipY) return f;
-    const W = f.map.width;
-    const H = f.map.height;
-    const mx = (x, w = 1) => flipX ? W - x - w : x;
-    const my = (y, h = 1) => flipY ? H - y - h : y;
+    const W2 = f.map.width;
+    const H2 = f.map.height;
+    const mx = (x, w = 1) => flipX ? W2 - x - w : x;
+    const my = (y, h = 1) => flipY ? H2 - y - h : y;
     const p = (q, w = 1, h = 1) => ({ x: mx(q.x, w), y: my(q.y, h) });
     const r = (q) => ({ ...p(q, q.w, q.h), w: q.w, h: q.h });
-    const map = new GameMap(W, H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) map.set(mx(x), my(y), f.map.get(x, y));
+    const map = new GameMap(W2, H2);
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) map.set(mx(x), my(y), f.map.get(x, y));
     const hub = p(f.boss.hub, 3, 3);
     const furniture = f.furniture.map((o) => {
       if (o.kind.startsWith("webHub")) {
@@ -3448,28 +3527,28 @@
     };
     const done = (x, y) => touch ? gapBetween({ x, y, size: s }, { x: touch.x, y: touch.y }) === 1 : goal !== null && x === goal.x && y === goal.y;
     if (done(m.x, m.y)) return null;
-    const W = map.width;
-    const prev = new Int32Array(W * map.height).fill(-1);
-    const start = m.y * W + m.x;
+    const W2 = map.width;
+    const prev = new Int32Array(W2 * map.height).fill(-1);
+    const start = m.y * W2 + m.x;
     prev[start] = start;
     const queue2 = [start];
     const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
     for (let head = 0; head < queue2.length && head < 4e3; head++) {
       const cur = queue2[head];
-      const cx = cur % W;
-      const cy = (cur - cx) / W;
+      const cx = cur % W2;
+      const cy = (cur - cx) / W2;
       for (const [dx, dy] of dirs) {
         const nx = cx + dx;
         const ny = cy + dy;
         if (!map.inBounds(nx, ny) || !map.inBounds(nx + s - 1, ny + s - 1)) continue;
-        const ni = ny * W + nx;
+        const ni = ny * W2 + nx;
         if (prev[ni] !== -1 || !fits2(nx, ny)) continue;
         if (dx !== 0 && dy !== 0 && !fits2(cx + dx, cy) && !fits2(cx, cy + dy)) continue;
         prev[ni] = cur;
         if (done(nx, ny)) {
           let k = ni;
           while (prev[k] !== start) k = prev[k];
-          return { x: k % W, y: Math.floor(k / W) };
+          return { x: k % W2, y: Math.floor(k / W2) };
         }
         queue2.push(ni);
       }
@@ -3536,36 +3615,6 @@
     return out;
   }
 
-  // src/core/combat.ts
-  function rollAttack(rng, attacker, defender, mode = "normal", critFrom = 20) {
-    const rolls = [rng.int(1, 20)];
-    if (mode !== "normal") rolls.push(rng.int(1, 20));
-    const d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
-    const total = d20 + attacker.attackBonus;
-    const critical = d20 >= critFrom;
-    const hit = critical || d20 !== 1 && total >= defender.armorClass;
-    const result = {
-      mode,
-      rolls,
-      d20,
-      bonus: attacker.attackBonus,
-      total,
-      targetAc: defender.armorClass,
-      hit,
-      critical,
-      damage: 0
-    };
-    if (hit) {
-      const count = critical ? attacker.damage.count * 2 : attacker.damage.count;
-      const faces = [];
-      for (let i = 0; i < count; i++) faces.push(rng.int(1, attacker.damage.sides));
-      const rolled = Math.max(1, faces.reduce((a, b) => a + b, 0) + attacker.damage.bonus);
-      result.damage = rolled;
-      result.damageRoll = { dice: attacker.damage, faces, rolled };
-    }
-    return result;
-  }
-
   // src/core/save.ts
   var SAVE_VERSION = 2;
   function bytesToText(bytes) {
@@ -3594,7 +3643,7 @@
     { small: [6, 15], medium: [20, 40], large: [50, 80] }
   ];
   var LOOT = {
-    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }],
+    common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }, { item: "armure_cuir", minDepth: 2 }],
     uncommon: [
       { item: "fleche_poison", count: [2, 4] },
       { item: "gold" },
@@ -3603,6 +3652,8 @@
       { item: "amethyste" },
       { item: "sac_cuir", minDepth: 5 },
       { item: "casque_maille", minDepth: 3 },
+      { item: "armure_cloutee", minDepth: 2 },
+      { item: "cotte_mailles", minDepth: 3 },
       { item: "javeline", count: [3, 3], minDepth: 3 },
       { item: "arc_puissant", minDepth: 5 },
       { item: "potion_poison" },
@@ -3612,7 +3663,7 @@
     rare: [
       { item: "gold" },
       { item: "cimeterre" },
-      { item: "armure_cloutee" },
+      { item: "harnois", minDepth: 5 },
       { item: "saphir" },
       { item: "potion_jouvence" },
       { item: "emeraude", minDepth: 6 },
@@ -5576,7 +5627,15 @@
     setDestination(x, y, ignoreFog = false) {
       if (this.over) return false;
       if (x === this.hero.x && y === this.hero.y) {
-        if (!this.pickUp()) this.wait();
+        if (this.pickUp()) return true;
+        const here = this.map.get(x, y);
+        const stairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp && this.depth > 1 ? "up" : null;
+        if (stairs) {
+          this.path = [];
+          this.pendingStairs = stairs;
+          return true;
+        }
+        this.wait();
         return true;
       }
       if ((this.map.get(x, y) === Tile.DoorLocked || this.maidenAt(x, y)) && (ignoreFog || this.isExplored(x, y))) {
@@ -6025,9 +6084,14 @@
       if (wasSearching) this.afterSearchTurn();
       return true;
     }
+    /** Discrétion du héros : celle de sa classe, moins le malus d'une armure lourde (cotte de mailles, harnois). */
+    stealthBonus() {
+      const armor = this.equipment.armor;
+      return this.heroClass.stealthBonus - (armor && ITEMS[armor.defId].stealthPenalty || 0);
+    }
     /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
     resolveHide() {
-      const bonus = this.heroClass.stealthBonus;
+      const bonus = this.stealthBonus();
       const d20 = this.rng.int(1, 20);
       const total = d20 + bonus;
       const success = d20 === 20 || d20 !== 1 && total >= RULES.hideDc;
@@ -6615,8 +6679,15 @@
       }
       monster.alerted = true;
       monster.asleep = false;
+      const intact = monster.hp >= monster.maxHp;
       monster.hp -= result.damage;
       this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
+      const stunOn = this.weapon("melee")?.stunOn;
+      if (result.hit && stunOn && result.d20 >= stunOn && monster.hp > 0 && !monster.boss) {
+        monster.stunned = Math.max(monster.stunned ?? 0, 1);
+        this.events.push({ type: "heavyBlow", actor: monster, kind: "stun" });
+      }
+      if (result.hit && intact && monster.hp <= 0 && !monster.boss) this.events.push({ type: "heavyBlow", actor: monster, kind: "oneShot" });
       if (result.damage > 0) this.bleed(monster, this.hero);
       this.raiseAlarm(RULES.alarmCombat, monster);
       this.wakeNear(monster);
@@ -8460,6 +8531,40 @@
       "......KHHHHHHHHHHHHHHHHHHK......",
       "......KCcCcCcCcCcCcCcCcCcK......",
       "......KcCcCcCcCcCcCcCcCcCK......",
+      ".......KKKKKKKKKKKKKKKKKK.......",
+      "................................"
+    ],
+    harnois: [
+      "................................",
+      "................................",
+      "...KKKKKKKKK........KKKKKKKKK...",
+      "..KDDDDDDDDDK......KDDDDDDDDDK..",
+      "..KWGSSSSSSSDK....KWSSSSGSSSDK..",
+      "..KWSSSSSSSSDK....KWSSSSSSSSDK..",
+      "..KDDDDDDDDDDDKKKKDDDDDDDDDDDK..",
+      "..KWSSSSSSSSSSSGgSSSSSSSSSSSDK..",
+      "..KWSSSSSSSSSSSSSSSSSSSSSSSSDK..",
+      "..KDDDDDDDDDDDDDDDDDDDDDDDDDDK..",
+      "..KWSSSSSSSSSSSGgSSSSSSSSSSSDK..",
+      "..KWSSSSSSSSSSSSSSSSSSSSSSSSDK..",
+      "...KKKKKDDDDDDDDDDDDDDDDKKKKK...",
+      ".......KWSSSSSSGgSSSSSSDK.......",
+      ".......KWSSSSSSSSSSSSSSDK.......",
+      ".......KDDDDDDDDDDDDDDDDK.......",
+      ".......KWSSSSSSGgSSSSSSDK.......",
+      ".......KWSSSSSSSSSSSSSSDK.......",
+      ".......KDDDDDDDDDDDDDDDDK.......",
+      ".......KWSSSSSSGgSSSSSSDK.......",
+      ".......KWSSSSSSSSSSSSSSDK.......",
+      ".......KDDDDDDDDDDDDDDDDK.......",
+      ".......KbbbbbbbGGbbbbbbbK.......",
+      ".......KBBBBBBBggBBBBBBBK.......",
+      ".......KDDDDDDDDDDDDDDDDK.......",
+      "......KWSSSSSSSSSSSSSSSSDK......",
+      "......KWSSSSSSSSSSSSSSSSDK......",
+      "......KDDDDDDDDDDDDDDDDDDK......",
+      "......KWSSSSSSSSSSSSSSSSDK......",
+      "......KWSSSSSSSSSSSSSSSSDK......",
       ".......KKKKKKKKKKKKKKKKKK.......",
       "................................"
     ],
@@ -15061,20 +15166,20 @@
       const queen = game2.bossActor();
       if (!queen?.boss?.engaged) return;
       const { ctx } = this;
-      const W = this.width;
+      const W2 = this.width;
       const scale2 = 1;
-      const bw = Math.min(W * 0.7, 300 * scale2);
+      const bw = Math.min(W2 * 0.7, 300 * scale2);
       const bh = Math.round(8 * scale2);
-      const x = Math.round((W - bw) / 2);
+      const x = Math.round((W2 - bw) / 2);
       const y = Math.round(28 * scale2);
       ctx.save();
       ctx.font = `${Math.round(16 * scale2)}px "VT323", "Courier New", monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       ctx.fillStyle = "#000000";
-      ctx.fillText("LA TISSEUSE", W / 2 + scale2, y - 2 * scale2 + scale2);
+      ctx.fillText("LA TISSEUSE", W2 / 2 + scale2, y - 2 * scale2 + scale2);
       ctx.fillStyle = "#ffe6aa";
-      ctx.fillText("LA TISSEUSE", W / 2, y - 2 * scale2);
+      ctx.fillText("LA TISSEUSE", W2 / 2, y - 2 * scale2);
       ctx.fillStyle = "#1a1210";
       ctx.fillRect(x - scale2, y - scale2, bw + 2 * scale2, bh + 2 * scale2);
       ctx.fillStyle = "#4a1a14";
@@ -15914,6 +16019,314 @@
     }
   };
 
+  // src/render/stairsScene.ts
+  var W = 96;
+  var H = 64;
+  var STEP_W = 12;
+  var STEP_H = 6;
+  var HOP_MS = 210;
+  var HOPS = 7;
+  var FADE_IN = 220;
+  var FADE_OUT = 380;
+  var HERO_X = 36;
+  var HERO_Y = 34;
+  var StairsScene = class {
+    constructor(direction, fall, label) {
+      /** Vrai si le héros a vraiment dégringolé (pour le journal). */
+      this.tumbled = false;
+      this.sprites = /* @__PURE__ */ new Map();
+      this.time = 0;
+      this.phase = "walk";
+      this.phaseTime = 0;
+      /** Marche atteinte (fractionnaire pendant un saut). */
+      this.hop = 0;
+      this.landed = 0;
+      /** Chute : position et rotation du héros, et de la torche qui lui échappe. */
+      this.tumble = { x: 0, y: 0, vx: 0, vy: 0, angle: 0, bounces: 0 };
+      this.torch = { x: 0, y: 0, vx: 0, vy: 0, angle: 0 };
+      this.cameraStep = 0;
+      this.done = false;
+      /** Sons demandés depuis le dernier appel à `update` (« marche » à chaque marche, « chute » au début de la chute). */
+      this.sounds = [];
+      this.direction = direction;
+      this.fall = fall && direction === "down";
+      this.label = label;
+      this.buffer = document.createElement("canvas");
+      this.buffer.width = W;
+      this.buffer.height = H;
+      this.resize(H);
+      this.g = this.buffer.getContext("2d");
+    }
+    resize(height) {
+      H = Math.max(64, Math.min(160, height));
+      HERO_Y = Math.round(H / 2) - 12;
+      if (this.buffer.height !== H) this.buffer.height = H;
+    }
+    /** Toucher l'écran pendant le passage : on file directement au fondu de fin. */
+    skip() {
+      if (this.phase !== "out") {
+        if (this.phase === "walk") this.fall = false;
+        this.phase = "out";
+        this.phaseTime = 0;
+      }
+    }
+    update(dt) {
+      this.time += dt;
+      this.phaseTime += dt;
+      if (this.phase === "walk") {
+        const hopsDone = Math.floor(this.phaseTime / HOP_MS);
+        while (this.landed < hopsDone) {
+          this.landed++;
+          this.sounds.push("stairStep");
+        }
+        this.hop = Math.min(HOPS, this.phaseTime / HOP_MS);
+        this.cameraStep = this.hop;
+        if (this.fall && this.hop >= 3.6) {
+          this.phase = "tumble";
+          this.tumbled = true;
+          this.phaseTime = 0;
+          this.sounds.push("tumble");
+          this.tumble = { x: HERO_X, y: HERO_Y, vx: 0.03, vy: -0.05, angle: 0, bounces: 0 };
+          this.torch = { x: HERO_X + 13, y: HERO_Y + 5, vx: -0.02, vy: -0.09, angle: 0 };
+        } else if (this.hop >= HOPS) {
+          this.phase = "out";
+          this.phaseTime = 0;
+        }
+      } else if (this.phase === "tumble") {
+        const t = this.tumble;
+        t.vy += 3e-4 * dt;
+        t.x += t.vx * dt;
+        t.y += t.vy * dt;
+        t.angle += 0.012 * dt;
+        const floorY = this.stairTopAt(t.x + 8) - 15;
+        if (t.y >= floorY && t.vy > 0) {
+          t.y = floorY;
+          t.vy = -0.06 - Math.min(0.04, t.bounces * 5e-3);
+          t.vx = 0.035 + t.bounces * 6e-3;
+          t.bounces++;
+          this.sounds.push("stairStep");
+        }
+        const o = this.torch;
+        o.vy += 4e-4 * dt;
+        o.x += o.vx * dt;
+        o.y += o.vy * dt;
+        o.angle -= 0.012 * dt;
+        if (o.y >= this.stairTopAt(o.x) - 1 && o.vy > 0) {
+          o.y = this.stairTopAt(o.x) - 1;
+          o.vy = -0.04;
+          o.vx = 0.035;
+        }
+        if (t.x > W + 24 || t.y > H + 24) {
+          this.phase = "dark";
+          this.phaseTime = 0;
+        }
+      } else if (this.phase === "dark") {
+        if (this.phaseTime > 700) {
+          this.phase = "out";
+          this.phaseTime = 0;
+        }
+      } else if (this.phase === "out" && this.phaseTime >= FADE_OUT) {
+        this.done = true;
+      }
+    }
+    /** Haut de la marche sous l'abscisse `x` (pixels de la scène), compte tenu de la caméra. */
+    stairTopAt(x) {
+      const s = Math.floor((x - this.originX()) / STEP_W);
+      return this.originY() + s * (this.direction === "down" ? STEP_H : -STEP_H);
+    }
+    /** Coin haut-gauche de la marche 0, placé pour que la marche courante soit sous les pieds du héros. */
+    originX() {
+      return HERO_X + 2 - this.cameraStep * STEP_W;
+    }
+    originY() {
+      const sign = this.direction === "down" ? 1 : -1;
+      return HERO_Y + 16 - sign * this.cameraStep * STEP_H;
+    }
+    spriteOf(rows) {
+      let c = this.sprites.get(rows);
+      if (!c) {
+        c = document.createElement("canvas");
+        c.width = rows[0].length;
+        c.height = rows.length;
+        const g = c.getContext("2d");
+        rows.forEach((row, y) => {
+          for (let x = 0; x < row.length; x++) {
+            const color = GUERRIER_PALETTE[row[x]];
+            if (color) {
+              g.fillStyle = color;
+              g.fillRect(x, y, 1, 1);
+            }
+          }
+        });
+        this.sprites.set(rows, c);
+      }
+      return c;
+    }
+    /** La scène, peinte sur tout le canevas du jeu. */
+    draw(target) {
+      this.resize(Math.round(W * target.height / Math.max(1, target.width)));
+      const g = this.g;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalCompositeOperation = "source-over";
+      g.fillStyle = "#050307";
+      g.fillRect(0, 0, W, H);
+      this.drawStairs();
+      let light = { x: HERO_X + 13, y: HERO_Y + 4 };
+      let flame = light;
+      const flicker = Math.sin(this.time / 70) * 1.2 + Math.sin(this.time / 23) * 0.6;
+      const fallen = this.fall && this.phase !== "walk";
+      if (!fallen) light = flame = this.drawWalkingHero();
+      else {
+        this.drawTorch(this.torch.x, this.torch.y, this.torch.angle);
+        this.drawTumblingHero();
+        const t = this.tumble;
+        flame = this.flameOfTorch();
+        light = this.phase === "tumble" && t.x < W + 4 ? { x: (t.x + 8 + flame.x) / 2, y: (t.y + 8 + flame.y) / 2 } : flame;
+      }
+      const radius = 42 + flicker;
+      const halo = g.createRadialGradient(light.x, light.y, 2, light.x, light.y, radius);
+      halo.addColorStop(0, "rgba(5,3,7,0)");
+      halo.addColorStop(0.5, "rgba(5,3,7,0.2)");
+      halo.addColorStop(1, "rgba(5,3,7,1)");
+      g.fillStyle = halo;
+      g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = "lighter";
+      const warm = g.createRadialGradient(light.x, light.y, 0, light.x, light.y, 16 + flicker);
+      warm.addColorStop(0, "rgba(255,150,60,0.22)");
+      warm.addColorStop(1, "rgba(255,150,60,0)");
+      g.fillStyle = warm;
+      g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = "source-over";
+      this.drawFlame(flame.x, flame.y + 3);
+      let fade = 0;
+      if (this.time < FADE_IN) fade = 1 - this.time / FADE_IN;
+      if (this.phase === "out") fade = Math.min(1, this.phaseTime / FADE_OUT);
+      if (fade > 0) {
+        g.fillStyle = `rgba(0,0,0,${fade})`;
+        g.fillRect(0, 0, W, H);
+      }
+      const ctx = target.getContext("2d");
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, target.width, target.height);
+      const scale2 = Math.max(1, Math.floor(Math.min(target.width / W, target.height / H)));
+      const dw = W * scale2;
+      const dh = H * scale2;
+      const dx = Math.floor((target.width - dw) / 2);
+      const dy = Math.floor((target.height - dh) / 2);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.buffer, dx, dy, dw, dh);
+      if (this.phase === "out" || this.phase === "dark") {
+        const alpha = this.phase === "dark" ? 0.9 : Math.min(1, 0.4 + this.phaseTime / FADE_OUT);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = "#e8c070";
+        ctx.font = `${Math.round(scale2 * 7)}px VT323, monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(this.label, target.width / 2, dy + dh - scale2 * 6);
+      }
+      ctx.restore();
+    }
+    /** Les marches de pierre : dessus clair, contremarche plus sombre, joints, quelques éclats. */
+    drawStairs() {
+      const g = this.g;
+      const sign = this.direction === "down" ? 1 : -1;
+      const ox = this.originX();
+      const oy = this.originY();
+      for (let i = -6; i < 16; i++) {
+        const x = Math.round(ox + i * STEP_W);
+        const y = Math.round(oy + i * sign * STEP_H);
+        if (x > W + STEP_W || x < -STEP_W * 2) continue;
+        g.fillStyle = "#463e4e";
+        g.fillRect(x, y + 2, STEP_W, H - y + 10);
+        g.fillStyle = "#332c3a";
+        g.fillRect(x, y + 2, STEP_W, STEP_H);
+        g.fillStyle = "#8a8092";
+        g.fillRect(x, y, STEP_W, 2);
+        g.fillStyle = "#a69cae";
+        g.fillRect(x + 3, y, STEP_W - 6, 1);
+        g.fillStyle = "#1e1a24";
+        g.fillRect(x, y, 1, STEP_H + 2);
+        g.fillRect(x + (i * 5 & 7) + 2, y + 4, 1, STEP_H - 2);
+        if (i * 7 % 3 === 0) {
+          g.fillStyle = "#4e4656";
+          g.fillRect(x + 7, y + 3, 2, 1);
+        }
+      }
+      g.fillStyle = "#1c1722";
+      for (let r = 0; r < Math.ceil(H / 7) + 1; r++) {
+        for (let c = -1; c < 10; c++) {
+          const bx = ((c * 14 + (r & 1) * 7 - Math.round(this.cameraStep * STEP_W * 0.5)) % 140 + 140) % 140 - 14;
+          const by = r * 7 - Math.round(sign * this.cameraStep * STEP_H * 0.5) % 7;
+          g.fillRect(bx, by, 13, 1);
+          g.fillRect(bx, by, 1, 6);
+        }
+      }
+    }
+    /** Le héros qui saute de marche en marche. Renvoie la position de la flamme. */
+    drawWalkingHero() {
+      const g = this.g;
+      const u = this.hop - Math.floor(this.hop);
+      const rising = this.direction === "up";
+      const lift = this.hop >= HOPS ? 0 : Math.sin(Math.PI * u) * (rising ? 6 : 4);
+      const x = HERO_X;
+      const y = HERO_Y - lift;
+      const frames = GUERRIER.walkSide;
+      const frame2 = this.hop >= HOPS ? GUERRIER.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length];
+      g.fillStyle = "rgba(0,0,0,0.45)";
+      g.fillRect(x + 4, HERO_Y + 15, 8, 1);
+      g.drawImage(this.spriteOf(frame2), Math.round(x), Math.round(y));
+      const tx = x + 12;
+      const ty = y + 9;
+      this.drawTorch(tx, ty, -0.35 + Math.sin(this.time / 90) * 0.08);
+      return { x: tx + 1, y: ty - 6 };
+    }
+    /** Le héros qui dégringole, en tournant sur lui-même. */
+    drawTumblingHero() {
+      const t = this.tumble;
+      if (t.x > W + 24) return;
+      const g = this.g;
+      g.save();
+      g.translate(Math.round(t.x + 8), Math.round(t.y + 8));
+      g.rotate(Math.round(t.angle / (Math.PI / 4)) * (Math.PI / 4));
+      g.drawImage(this.spriteOf(GUERRIER.hurt[0]), -8, -8);
+      g.restore();
+    }
+    /** Bout du manche de la torche tombée, là où brûle la flamme. */
+    flameOfTorch() {
+      const o = this.torch;
+      return { x: o.x + 1 + Math.sin(o.angle) * 6, y: o.y - Math.cos(o.angle) * 6 };
+    }
+    /** Le manche de la torche (la flamme est peinte à part, par-dessus le noir). */
+    drawTorch(x, y, angle) {
+      const g = this.g;
+      g.save();
+      g.translate(Math.round(x), Math.round(y));
+      g.rotate(angle);
+      g.fillStyle = "#5a3817";
+      g.fillRect(0, -5, 2, 6);
+      g.fillStyle = "#9a6a34";
+      g.fillRect(0, -5, 1, 6);
+      g.fillStyle = "#3a2410";
+      g.fillRect(-1, -6, 4, 2);
+      g.restore();
+    }
+    drawFlame(x, y) {
+      const g = this.g;
+      const f = Math.floor(this.time / 90) % 3;
+      const cx = Math.round(x);
+      const cy = Math.round(y);
+      g.fillStyle = "#c03a1a";
+      g.fillRect(cx - 1, cy - 5 - (f === 1 ? 1 : 0), 3, 4);
+      g.fillStyle = "#ff9a3a";
+      g.fillRect(cx - 1, cy - 4, 3, 3);
+      g.fillRect(cx + (f === 2 ? 1 : 0), cy - 6 - (f === 0 ? 1 : 0), 1, 2);
+      g.fillStyle = "#ffe27a";
+      g.fillRect(cx, cy - 3, 1, 2);
+    }
+  };
+
   // src/ui/pictos.ts
   var PICTOS = {
     humain: { rows: ["FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", "FPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPF", "FPFFFFFFFFFPFFFFFPFFFFFPFFFFFFFFPF", "FPFPPFPPPPFPPPPPFPPPPPFPPPPPFPPFPF", "FPFPFFFFPFFPFFPFFPFFPFFPFFPFFFPFPF", "FPFPFPPFPPPPPFPPPPPFPPPPPFPPPFPFPF", "FPFPFPPPPPPPPPPPPPPPPPPPPPPPPFPFPF", "FPFPPPPFFFFFFFFFFFFFFFFFFFFPFFPFPF", "FPFPFFPFPPPPPPPPPPPPPPPPPPFPPPPFPF", "FPFPFPPFPPPPPPPPPPPPPPPPPPFPPFPFPF", "FPPPPPPFPPPPPPPPPPPPPPPPPPFPPFFFPF", "FPFFFPPFPPFPPPPPFFPPPPPFPPFPPPPPPF", "FPFPFPPFPFLFPPPFLLFPPPFLFPFPPFPFPF", "FPFPPPPFPFLFPPPFLLFPPPFLFPFPFFPFPF", "FPFPFFPFPFLLFPFLLLLFPFLLFPFPPPPFPF", "FPFPFPPFPFLLLFLLLLLLFLLLFPFPPFPFPF", "FPPPPPPFPFLLLLLLLLLLLLLLFPFPPFFFPF", "FPFFFPPFPFLLPLLLLLLLLPLLFPFPPPPPPF", "FPFPFPPFPFLLLLLLPPLLLLLLFPFPPFPFPF", "FPFPPPPFPFFFFFFFFFFFFFFFFPFPFFPFPF", "FPFPFFPFPFPPPPPPPPPPPPPPFPFPPPPFPF", "FPFPFPPFPFFFFFFFFFFFFFFFFPFPPFPFPF", "FPPPPPPFPPPPPPPPPPPPPPPPPPFPPFFFPF", "FPFFFPPFPPPPPPPPPPPPPPPPPPFPPPPPPF", "FPFPFPPFPPPPPPPPPPPPPPPPPPFPPFPFPF", "FPFPPPPFPPPPPPPPPPPPPPPPPPFPFFPFPF", "FPFPFFPFFFFFFFFFFFFFFFFFFFFPPPPFPF", "FPFPFPPPPPPPPPPPPPPPPPPPPPPPPFPFPF", "FPFPFPPPFPPPPPFPPPPPFPPPPPFPPFPFPF", "FPFPFFFPFFPFFPFFPFFPFFPFFPFFFFPFPF", "FPFPPFPPPPPFPPPPPFPPPPPFPPPPFPPFPF", "FPFFFFFFFFPFFFFFPFFFFFPFFFFFFFFFPF", "FPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPF", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"], palette: { "F": "#e27070", "L": "#f3c6c6", "P": "#fbf5e6" } },
@@ -15971,6 +16384,8 @@
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
       case "death":
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+      case "heavyBlow":
+        return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : `D'un seul coup !`;
       case "bounce":
         return `Sac plein : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombe par terre.`;
       case "bagFull":
@@ -16400,7 +16815,9 @@
         pulse(hpBar, "hit");
         pulse(mapFrame, "hurt");
       }
-      sfx.play(r.critical ? "crit" : r.hit ? foe ? "hurt" : "hit" : "miss");
+      const melee = !foe && !e.ranged ? game.weapon("melee") : void 0;
+      const heavy = !!melee && (melee.speed === "slow" || !!melee.twoHanded);
+      sfx.play(r.critical ? "crit" : r.hit ? foe ? "hurt" : heavy ? "heavy" : "hit" : "miss");
     } else if (e.type === "door") {
       if (e.action === "key") {
         sfx.play("key");
@@ -16512,6 +16929,9 @@
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
     } else if (e.type === "bagFull") {
+    } else if (e.type === "heavyBlow") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assomm\xE9 !" : "Net !", e.kind === "stun" ? "#ffd75e" : "#ffffff");
+      if (e.kind === "stun") sfx.play("thud");
     } else if (e.type === "stairs") {
       shownHp = game.hero.hp;
       sfx.play("descend");
@@ -16743,6 +17163,10 @@
   }
   bindInput(canvas, {
     onTap(px, py) {
+      if (stairsScene) {
+        stairsScene.skip();
+        return;
+      }
       if (menuOpen || bagOpen || foundOpen || shopOpen) return;
       const t = renderer.screenToTile(px, py);
       if (pushMode) {
@@ -16783,6 +17207,7 @@
         return;
       }
       if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
+      if (!stepping && game.pendingStairs) beginStairs();
     },
     onMove(dx, dy) {
       if (menuOpen || bagOpen || foundOpen || shopOpen) return;
@@ -17123,6 +17548,34 @@
     shopNote = "";
     renderShop();
   });
+  function compareNode(def) {
+    const slot = def.kind === "melee" ? "melee" : def.kind === "armor" ? "armor" : def.kind === "hat" ? "hat" : def.kind === "ranged" ? "ranged" : null;
+    if (!slot) return null;
+    const worn = game.equipment[slot];
+    if (worn && worn.defId === def.id) return null;
+    const other = worn ? ITEMS[worn.defId] : void 0;
+    let delta = 0;
+    let text = "";
+    const fmt = (n) => `${n > 0 ? "+" : n < 0 ? "\u2212" : ""}${Math.abs(n).toFixed(1).replace(".", ",").replace(",0", "")}`;
+    if (slot === "melee") {
+      const dpt = (d) => d?.damage ? expectedDamagePerTurn(d.attackBonus ?? 0, d.damage, d.speed, 13, RULES.slowAttackTurns, RULES.fastAttackTurns) : 0.6;
+      delta = Math.round((dpt(def) - dpt(other)) * 10) / 10;
+      text = `${fmt(delta)} d\xE9g\xE2ts par tour`;
+    } else if (slot === "armor") {
+      delta = (def.armorClass ?? UNARMORED_AC) - (other?.armorClass ?? UNARMORED_AC);
+      text = delta === 0 ? "m\xEAme CA" : `${fmt(delta)} CA (${Math.abs(delta) * 5} % de coups ${delta > 0 ? "\xE9vit\xE9s" : "re\xE7us"} en plus)`;
+    } else if (slot === "hat") {
+      delta = (def.acBonus ?? 0) - (other?.acBonus ?? 0);
+      text = `${fmt(delta)} CA`;
+    } else {
+      delta = (def.attackBonus ?? 0) - (other?.attackBonus ?? 0);
+      const range = (def.range ?? 0) - (other?.range ?? 0);
+      text = `${fmt(delta)} au jet, ${fmt(range)} de port\xE9e`;
+      if (delta === 0) delta = range;
+    }
+    const node = el("div", `item-compare ${delta > 0 ? "up" : delta < 0 ? "down" : "same"}`, `${delta > 0 ? "\u25B2" : delta < 0 ? "\u25BC" : "="} ${text}${other ? ` que ${other.name.toLowerCase()}` : ""}`);
+    return node;
+  }
   function itemCard(def, count = 1, note = "") {
     const card = el("div", "item-card");
     const picture = el("div", "item-card-icon");
@@ -17136,6 +17589,8 @@
     if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
     if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
     if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; ni javeline, ni torche)"]);
+    if (def.stunOn) rows.push(["Assomme", `sur un ${def.stunOn} ou plus au d\xE9`]);
+    if (def.stealthPenalty) rows.push(["Discr\xE9tion", `\u2212${def.stealthPenalty} (bruyante)`]);
     if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
     if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
     if (def.lightTurns) rows.push(["Lumi\xE8re", `${def.lightTurns} tours`]);
@@ -17145,7 +17600,10 @@
     if (def.kind !== "gold") rows.push(["Place", `${def.w} \xD7 ${def.h}`]);
     const stats = el("div", "item-card-stats");
     for (const [label, value] of rows) stats.append(el("span", "", label), el("span", "item-card-value", value));
-    body.append(stats, el("div", "item-card-desc", def.description));
+    body.append(stats);
+    const cmp = compareNode(def);
+    if (cmp) body.append(cmp);
+    body.append(el("div", "item-card-desc", def.description));
     card.append(picture, body);
     return card;
   }
@@ -17159,13 +17617,18 @@
     if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
     if (def.twoHanded) bits.push("deux mains");
     if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
+    if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
+    if (def.stealthPenalty) bits.push(`discr\xE9tion \u2212${def.stealthPenalty}`);
     if (def.range) bits.push(`port\xE9e ${def.range}`);
     if (def.armorClass) bits.push(`CA ${def.armorClass}`);
     if (def.acBonus) bits.push(`+${def.acBonus} CA`);
     if (def.bagCols) bits.push(`${def.bagCols} \xD7 ${def.bagRows} cases`);
     if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
     if (note) bits.push(note);
-    body.append(namedWithRarity("t", def, `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "s", bits.join(" \xB7 ")), el("div", "", def.description));
+    body.append(namedWithRarity("t", def, `${def.name}${count > 1 ? ` \xD7${count}` : ""}`), el("div", "s", bits.join(" \xB7 ")));
+    const cmp = compareNode(def);
+    if (cmp) body.append(cmp);
+    body.append(el("div", "", def.description));
     card.append(body);
     return card;
   }
@@ -17527,7 +17990,7 @@
       row("Intellig.", signedBonus(game.alloc.intelligence), "intelligence"),
       row("Charisme", signedBonus(game.alloc.charisme), "charisme"),
       row("Fouille", signedBonus(c.searchBonus)),
-      row("Discr\xE9tion", signedBonus(c.stealthBonus)),
+      row("Discr\xE9tion", signedBonus(game.stealthBonus())),
       row("Attaque", signedBonus(game.hero.attackBonus)),
       row("Classe d'armure", String(game.hero.armorClass), void 0, true)
     );
@@ -17923,6 +18386,31 @@
     sfx.play("click");
     showScreen("settings");
   });
+  var stairsScene = null;
+  function beginStairs(forceFall) {
+    const direction = game.pendingStairs;
+    if (!direction || game.over || stairsScene) return;
+    const target = game.depth + (direction === "down" ? 1 : -1);
+    if (target < 1) return;
+    stairsScene = new StairsScene(direction, direction === "down" && (forceFall ?? Math.random() < 1 / 8), `\xC9TAGE ${target}`);
+  }
+  function advanceStairs(dt) {
+    const scene = stairsScene;
+    if (!scene) return;
+    scene.update(dt);
+    for (const sound of scene.sounds) sfx.play(sound);
+    scene.sounds = [];
+    if (!scene.done) return;
+    stairsScene = null;
+    if (game.takeStairs()) {
+      renderer.snapTo(game);
+      collectEvents();
+      if (scene.tumbled) {
+        logLines.push("Vous d\xE9gringolez l'escalier\u2026 et vous relevez, un peu sonn\xE9, mais entier.");
+        renderLog();
+      }
+    }
+  }
   var last = performance.now();
   function frame(now) {
     const dt = Math.min(now - last, 100);
@@ -17935,13 +18423,11 @@
       if (stepTime >= stepMs) {
         stepTime -= stepMs;
         stepping = false;
-        if (game.takeStairs()) {
-          renderer.snapTo(game);
-          collectEvents();
-        }
+        if (game.pendingStairs) beginStairs();
       }
     }
-    if (!stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
+    advanceStairs(dt);
+    if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !wheelOpen) {
       shownHp = game.hero.hp;
       if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
       const before = { x: game.hero.x, y: game.hero.y };
@@ -17975,7 +18461,8 @@
     }
     if (started) discoverSurroundings();
     const aimRange = aimMode && game.arrows() > 0 ? game.shotProfile()?.range ?? null : null;
-    renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
+    if (stairsScene) stairsScene.draw(canvas);
+    else renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
     $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
     $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
     renderAlarm();
@@ -18028,7 +18515,12 @@
   setupRun(new Game(Math.floor(Math.random() * 4294967295), chosenRace, chosenClass), null);
   showScreen("main");
   requestAnimationFrame(frame);
-  window.leutenheim = { game: () => game, renderer: () => renderer };
+  window.leutenheim = {
+    game: () => game,
+    renderer: () => renderer,
+    /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
+    stairs: (fall) => beginStairs(fall)
+  };
 })();
 
 </script>

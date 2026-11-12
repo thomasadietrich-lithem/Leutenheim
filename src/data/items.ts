@@ -64,6 +64,10 @@ export interface ItemDef {
   ammoFamily?: string;
   /** Arme à deux mains (épée longue, lance) : marqué sur la fiche (Thomas, 2026-11-11). */
   twoHanded?: boolean;
+  /** Armes lourdes : un d20 naturel à partir de ce nombre SONNE la cible (elle perd son prochain tour). */
+  stunOn?: number;
+  /** Armures lourdes : malus de discrétion (Thomas, 2026-11-12 : « bruyante »). */
+  stealthPenalty?: number;
 }
 
 export type Rarity = "common" | "uncommon" | "rare";
@@ -199,7 +203,7 @@ export const ITEMS = {
     id: "epee_longue",
     name: "Épée longue",
     kind: "melee",
-    description: "Lourde et longue, elle se tient à deux mains. Chaque coup prend du temps, mais il porte.",
+    description: "Lourde et longue, elle se tient à deux mains. Chaque coup prend du temps, mais il porte, et peut assommer.",
     w: 1,
     h: 3,
     maxStack: 1,
@@ -208,7 +212,8 @@ export const ITEMS = {
     speed: "slow",
     twoHanded: true,
     attackBonus: 4,
-    damage: { count: 2, sides: 6, bonus: 2 },
+    damage: { count: 2, sides: 8, bonus: 2 },
+    stunOn: 18,
   },
   couteau_boucher: {
     id: "couteau_boucher",
@@ -221,24 +226,23 @@ export const ITEMS = {
     rarity: "common",
     level: 2,
     speed: "fast",
-    attackBonus: 4,
-    damage: { count: 1, sides: 4, bonus: 2 },
+    attackBonus: 3,
+    damage: { count: 1, sides: 4, bonus: 1 },
   },
   lance: {
     id: "lance",
     name: "Lance",
     kind: "melee",
-    description: "Frappe à deux cases : on touche l'ennemi avant qu'il n'arrive au contact. À deux mains, lente à manier.",
+    description: "Frappe à deux cases : on touche l'ennemi avant qu'il n'arrive au contact. À deux mains.",
     w: 1,
     h: 4,
     maxStack: 1,
     rarity: "uncommon",
     level: 2,
-    speed: "slow",
     twoHanded: true,
     reach: 2,
     attackBonus: 4,
-    damage: { count: 1, sides: 8, bonus: 1 },
+    damage: { count: 1, sides: 10, bonus: 2 },
   },
   cimeterre: {
     id: "cimeterre",
@@ -262,8 +266,8 @@ export const ITEMS = {
     w: 2,
     h: 2,
     maxStack: 1,
-    rarity: "rare",
-    level: 5,
+    rarity: "uncommon",
+    level: 2,
     armorClass: 14,
   },
   // Casques (Thomas, 2026-11-11 ; planche art/objets_v4.png) : ils s'ajoutent à l'armure.
@@ -303,15 +307,31 @@ export const ITEMS = {
     maxStack: 1,
     armorClass: 12,
   },
+  harnois: {
+    id: "harnois",
+    name: "Harnois",
+    kind: "armor",
+    description: "Des plaques d'acier qui couvrent tout le corps. Presque rien ne passe, mais on l'entend venir de loin.",
+    w: 2,
+    h: 2,
+    maxStack: 1,
+    rarity: "rare",
+    level: 5,
+    armorClass: 17,
+    stealthPenalty: 3,
+  },
   cotte_mailles: {
     id: "cotte_mailles",
     name: "Cotte de mailles",
     kind: "armor",
-    description: "Des anneaux de fer rivetés. Lourde, mais sûre.",
+    description: "Des anneaux de fer rivetés. Lourde et sûre, mais elle cliquette : on se cache moins bien.",
     w: 2,
     h: 2,
     maxStack: 1,
+    rarity: "uncommon",
+    level: 3,
     armorClass: 16,
+    stealthPenalty: 2,
   },
   armure_cuir: {
     id: "armure_cuir",
@@ -321,6 +341,7 @@ export const ITEMS = {
     w: 2,
     h: 2,
     maxStack: 1,
+    rarity: "common",
     armorClass: 13,
   },
   // ---- Gemmes (Thomas, 2026-11-11) : ramassées, elles vont dans la bourse pour leur valeur. ----

@@ -280,7 +280,11 @@
   #bag-grid { max-height: 30vh; }
   #bag-info { min-height: 0; }
   .item-mini { position: relative; width: min(100%, 318px); padding: 6px 34px 6px 8px; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; font-size: 16px; color: var(--dim); display: flex; gap: 8px; align-items: center; text-align: left; }
-  .item-mini svg { width: 40px; height: 40px; flex: none; }
+  .item-compare { font-size: 16px; line-height: 1.05; margin: 2px 0; }
+  .item-compare.up { color: #7ee07a; }
+  .item-compare.down { color: #ff7a7a; }
+  .item-compare.same { color: #b8b0a0; }
+  .item-mini > svg { width: 40px; height: 40px; flex: none; }
   .item-mini .t { color: #fff3c8; font-size: 19px; text-transform: uppercase; }
   .item-mini .s { color: var(--gold); font-size: 15px; }
   .char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; width: min(100%, 330px); font-size: 18px; text-transform: uppercase; color: var(--dim); }

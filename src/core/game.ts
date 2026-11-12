@@ -1935,8 +1935,17 @@ export class Game {
   setDestination(x: number, y: number, ignoreFog = false): boolean {
     if (this.over) return false;
     if (x === this.hero.x && y === this.hero.y) {
-      // Retoucher sa propre case : ramasser ce qui s'y trouve, sinon passer un tour.
-      if (!this.pickUp()) this.wait();
+      // Retoucher sa propre case : ramasser ce qui s'y trouve ; sur un escalier, le prendre (Thomas, 2026-11-12 :
+      // « on doit pouvoir monter et descendre au clic ») ; sinon passer un tour.
+      if (this.pickUp()) return true;
+      const here = this.map.get(x, y);
+      const stairs = here === Tile.StairsDown ? "down" : here === Tile.StairsUp && this.depth > 1 ? "up" : null;
+      if (stairs) {
+        this.path = [];
+        this.pendingStairs = stairs;
+        return true;
+      }
+      this.wait();
       return true;
     }
     // Porte verrouillée, ou sarcophage à pointes fermé : on va devant, puis on choisit quoi en faire.
@@ -2442,9 +2451,15 @@ export class Game {
     return true;
   }
 
+  /** Discrétion du héros : celle de sa classe, moins le malus d'une armure lourde (cotte de mailles, harnois). */
+  stealthBonus(): number {
+    const armor = this.equipment.armor;
+    return this.heroClass.stealthBonus - ((armor && (ITEMS[armor.defId] as ItemDef).stealthPenalty) || 0);
+  }
+
   /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
   private resolveHide(): void {
-    const bonus = this.heroClass.stealthBonus;
+    const bonus = this.stealthBonus();
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
     const success = d20 === 20 || (d20 !== 1 && total >= RULES.hideDc);
@@ -3116,8 +3131,16 @@ export class Game {
     }
     monster.alerted = true;
     monster.asleep = false;
+    const intact = monster.hp >= monster.maxHp;
     monster.hp -= result.damage;
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
+    // Arme lourde (épée longue) : un grand d20 assomme la cible, qui perd son prochain tour.
+    const stunOn = this.weapon("melee")?.stunOn;
+    if (result.hit && stunOn && result.d20 >= stunOn && monster.hp > 0 && !monster.boss) {
+      monster.stunned = Math.max(monster.stunned ?? 0, 1);
+      this.events.push({ type: "heavyBlow", actor: monster, kind: "stun" });
+    }
+    if (result.hit && intact && monster.hp <= 0 && !monster.boss) this.events.push({ type: "heavyBlow", actor: monster, kind: "oneShot" });
     if (result.damage > 0) this.bleed(monster, this.hero);
     this.raiseAlarm(RULES.alarmCombat, monster);
     this.wakeNear(monster);

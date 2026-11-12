@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Leutenheim — démo</title>
+<title>Cave Roller — démo</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
 <style>
   /* Interface rétro : police à gros pixels, angles droits, cadres biseautés, pas d'arrondis ni de transparences douces. */
@@ -80,6 +80,7 @@
   #over .over-title { font-size: 34px; color: #ff6b7a; }
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
   .rarity-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: inline-block; vertical-align: middle; margin: 0 6px 2px 0; flex: none; }
+  .title-demo { text-shadow: none; display: block; font-size: 0.4em; letter-spacing: 0.3em; color: var(--dim); margin-top: 2px; text-transform: lowercase; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
   #shop { justify-content: flex-start; overflow-y: auto; text-align: center; }
@@ -458,8 +459,7 @@
   </div>
   <div id="menu" class="overlay">
     <section id="screen-main">
-      <h1>LEUTENHEIM</h1>
-      <p>Démo de travail</p>
+      <h1>CAVE ROLLER<small class="title-demo">démo</small></h1>
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>

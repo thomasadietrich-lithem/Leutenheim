@@ -902,6 +902,11 @@ export class Game {
     return { level: this.current.alarm, stage: this.current.alarmStage };
   }
 
+  /** L'étage du boss : pas de niveau d'alerte (Thomas, 2026-11-12 : « désactive le niveau d'alerte des étages boss »). */
+  alarmOff(): boolean {
+    return !!this.current.boss;
+  }
+
   /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
   raiseAlarm(points: number, at?: Point): void {
     const state = this.current;

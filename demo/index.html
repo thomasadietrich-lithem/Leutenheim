@@ -4904,6 +4904,10 @@
     alarm() {
       return { level: this.current.alarm, stage: this.current.alarmStage };
     }
+    /** L'étage du boss : pas de niveau d'alerte (Thomas, 2026-11-12 : « désactive le niveau d'alerte des étages boss »). */
+    alarmOff() {
+      return !!this.current.boss;
+    }
     /** Du bruit, ou du temps qui passe : l'alerte monte ; à chaque palier franchi, le donjon réagit. */
     raiseAlarm(points, at) {
       const state = this.current;
@@ -19880,9 +19884,13 @@
   var alarmShown = "";
   function renderAlarm() {
     const { level, stage } = game.alarm();
-    const key = `${level}|${stage}`;
+    const off = game.alarmOff();
+    const key = `${level}|${stage}|${off}`;
     if (key === alarmShown) return;
     alarmShown = key;
+    $("alarm-badge").style.visibility = off ? "hidden" : "";
+    $("alarm-up").hidden = off;
+    if (off && statusOpen === "tocsin") statusOpen = null;
     $("alarm-bell").replaceChildren(buildIcon(BELL, BELL_COLORS[stage]));
     const fill = $("alarm-fill");
     fill.style.width = `${level}%`;

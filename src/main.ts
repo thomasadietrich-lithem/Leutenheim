@@ -1802,9 +1802,14 @@ const ALARM_DETAILS = [
 let alarmShown = "";
 function renderAlarm(): void {
   const { level, stage } = game.alarm();
-  const key = `${level}|${stage}`;
+  const off = game.alarmOff();
+  const key = `${level}|${stage}|${off}`;
   if (key === alarmShown) return;
   alarmShown = key;
+  // Étage du boss : la cloche d'alerte disparaît du haut de l'écran (et le bouton « + Alerte » de la salle d'essai).
+  $("alarm-badge").style.visibility = off ? "hidden" : "";
+  $("alarm-up").hidden = off;
+  if (off && statusOpen === "tocsin") statusOpen = null;
   $("alarm-bell").replaceChildren(buildIcon(BELL, BELL_COLORS[stage]));
   const fill = $("alarm-fill");
   fill.style.width = `${level}%`;

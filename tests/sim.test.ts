@@ -1033,76 +1033,76 @@ test("porte du Kobold qui compte : il compte, met le doigt dans l'œil, et sort 
   assert.ok(found >= 3, `portes du compteur trouvées : ${found}`);
 });
 
-test("quête 01, Grik : quatre scènes, des pommes, un jet par choix risqué (Thomas, 2026-11-12)", () => {
+test("quête 01, Gluck : quatre scènes, des pommes, un jet par choix risqué (Thomas, 2026-11-12)", () => {
   const game = new Game(2, undefined, undefined, undefined, true);
   game.monsters.splice(0);
   game.peaceful = true;
-  const g = game.grik()!;
-  assert.ok(g, "Grik est dans la salle d'essai");
+  const g = game.gluck()!;
+  assert.ok(g, "Gluck est dans la salle d'essai");
   const besides = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: g.x + dx, y: g.y + dy })).filter((p) => game.map.isWalkable(p.x, p.y));
   Object.assign(game.hero, { x: besides[0].x, y: besides[0].y });
   assert.ok(game.canTalk());
   // Scène 1 : le déserteur. Le menacer (Force, facile) : des pommes, ou une pomme lâchée en fuyant.
-  assert.equal(game.grikStage(), 1);
-  assert.deepEqual(game.grikScene().choices.map((c) => c.id), ["kind", "threaten", "deal", "steal", "leave"]);
+  assert.equal(game.gluckStage(), 1);
+  assert.deepEqual(game.gluckScene().choices.map((c) => c.id), ["kind", "threaten", "deal", "steal", "leave"]);
   const apples = game.inventory.count("pomme");
-  const r1 = game.grikChoose("threaten");
+  const r1 = game.gluckChoose("threaten");
   assert.ok(r1.roll && r1.done);
   assert.ok(game.inventory.count("pomme") > apples || game.ground.some((it) => it.item === "pomme" && it.x === g.x && it.y === g.y));
-  assert.equal(game.grikMemory.met, 1);
-  assert.equal(game.grikMemory.mood, -1);
-  assert.equal(game.grik(), null, "il est parti");
+  assert.equal(game.gluckMemory.met, 1);
+  assert.equal(game.gluckMemory.mood, -1);
+  assert.equal(game.gluck(), null, "il est parti");
   // En salle d'essai, il revient quelques tours plus tard : scène 2, le commerçant (rancunier : 12 or la pomme).
-  for (let i = 0; i < 6 && !game.grik(); i++) {
+  for (let i = 0; i < 6 && !game.gluck(); i++) {
     game.wait();
     game.tick();
   }
-  assert.ok(game.grik());
+  assert.ok(game.gluck());
   Object.assign(game.hero, { x: besides[0].x, y: besides[0].y });
-  if (!game.canTalk()) Object.assign(game.hero, { x: game.grik()!.x + 1, y: game.grik()!.y });
-  assert.equal(game.grikStage(), 2);
+  if (!game.canTalk()) Object.assign(game.hero, { x: game.gluck()!.x + 1, y: game.gluck()!.y });
+  assert.equal(game.gluckStage(), 2);
   game.gold = 100;
-  assert.ok(game.grikScene().choices.some((c) => c.label.includes("12 or")));
-  const r2 = game.grikChoose("buy");
+  assert.ok(game.gluckScene().choices.some((c) => c.label.includes("12 or")));
+  const r2 = game.gluckChoose("buy");
   assert.ok(r2.done && game.gold === 88);
   // Scène 3 : investir 20 or ; scène 4 : le placement revient (×2, ou une pomme d'excuse).
-  for (let i = 0; i < 6 && !game.grik(); i++) {
+  for (let i = 0; i < 6 && !game.gluck(); i++) {
     game.wait();
     game.tick();
   }
-  const g3 = game.grik()!;
+  const g3 = game.gluck()!;
   Object.assign(game.hero, { x: g3.x + (game.map.isWalkable(g3.x + 1, g3.y) ? 1 : -1), y: g3.y });
-  assert.equal(game.grikStage(), 3);
-  game.grikChoose("invest20");
+  assert.equal(game.gluckStage(), 3);
+  game.gluckChoose("invest20");
   assert.equal(game.gold, 68);
-  assert.equal(game.grikMemory.invested, 20);
-  for (let i = 0; i < 6 && !game.grik(); i++) {
+  assert.equal(game.gluckMemory.invested, 20);
+  for (let i = 0; i < 6 && !game.gluck(); i++) {
     game.wait();
     game.tick();
   }
-  const g4 = game.grik()!;
+  const g4 = game.gluck()!;
   Object.assign(game.hero, { x: g4.x + (game.map.isWalkable(g4.x + 1, g4.y) ? 1 : -1), y: g4.y });
-  assert.equal(game.grikStage(), 4);
-  game.grikScene();
-  assert.equal(game.grikMemory.invested, 0);
+  assert.equal(game.gluckStage(), 4);
+  game.gluckScene();
+  assert.equal(game.gluckMemory.invested, 0);
   assert.ok(game.gold === 68 + 40 || game.gold === 68, "le placement rapporte ×2, ou il a tout perdu");
-  const r4 = game.grikChoose("ask");
+  const r4 = game.gluckChoose("ask");
   assert.ok(r4.done);
-  assert.equal(game.grikMemory.met, 4);
+  assert.equal(game.gluckMemory.met, 4);
 });
 
-test("Grik dans le donjon : parfois aux étages 1 à 4 d'une section, jamais à l'étage du boss", () => {
+test("Gluck dans le donjon : parfois aux étages 1 à 4 d'une section, jamais à l'étage du boss", () => {
   let seen = 0;
   for (let seed = 1; seed <= 150; seed++) {
     const game = new Game(seed);
-    if (game.grik()) {
+    if (game.gluck()) {
       seen++;
-      const g = game.grik()!;
+      const g = game.gluck()!;
       assert.equal(game.map.get(g.x, g.y), Tile.Floor);
       assert.ok(!game.monsters.some((m) => m.x === g.x && m.y === g.y));
     }
   }
-  assert.ok(seen > 25 && seen < 90, `Grik à l'étage 1 dans ${seen} parties sur 150`);
+  assert.ok(seen > 25 && seen < 90, `Gluck à l'étage 1 dans ${seen} parties sur 150`);
 });
 
 test("porte : après un échec, la même méthode n'est plus proposée", () => {
@@ -2580,6 +2580,20 @@ test("gravier : un pas dessus crisse, alerte les monstres proches (pas les loint
   game.tick();
   assert.equal(game.hero.x, spot.x);
   assert.ok(game.events.some((e) => e.type === "gravel"), "le gravier crisse");
+  assert.ok(game.alarm().level >= before + RULES.gravelAlarm);
+});
+
+test("eau : un pas dedans fait plic-ploc, alerte et fait monter l'alerte comme le gravier", () => {
+  const game = new Game(3);
+  game.monsters.splice(0);
+  const h = game.hero;
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor)!;
+  game.map.set(spot.x, spot.y, Tile.Water);
+  const before = game.alarm().level;
+  assert.ok(game.setDestination(spot.x, spot.y));
+  game.tick();
+  assert.equal(game.hero.x, spot.x);
+  assert.ok(game.events.some((e) => e.type === "gravel" && e.water === true), "l'eau clapote");
   assert.ok(game.alarm().level >= before + RULES.gravelAlarm);
 });
 

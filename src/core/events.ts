@@ -36,10 +36,10 @@ export type GameEvent =
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
   | { type: "blessEnd" }
-  /** Grik : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
-  | { type: "grik"; what: "talk" | "leave" }
-  /** Un jet de dialogue avec Grik (d20 + caractéristique). */
-  | { type: "grikRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
+  /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
+  | { type: "gluck"; what: "talk" | "leave" }
+  /** Un jet de dialogue avec Gluck (d20 + caractéristique). */
+  | { type: "gluckRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */
   | { type: "counter"; what: "count" | "poke" | "caught"; n: number; x: number; y: number; first?: boolean }
   /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */
@@ -87,7 +87,8 @@ export type GameEvent =
       drops: Point[];
     }
   /** Le héros marche sur du gravier : ça crisse ; `alerted` monstres l'ont entendu. */
-  | { type: "gravel"; x: number; y: number; alerted: number }
+  /** Un pas bruyant : sur le gravier, ou dans l'eau (`water`). */
+  | { type: "gravel"; x: number; y: number; alerted: number; water?: boolean }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
   | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
   /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */

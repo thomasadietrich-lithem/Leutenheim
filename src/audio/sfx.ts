@@ -2,6 +2,7 @@
 export type SoundName =
   | "bell"
   | "gravel"
+  | "splash"
   | "step"
   | "dice"
   | "hit"
@@ -262,6 +263,11 @@ export class Sfx {
         case "gravel": // crac, crac : des petits cailloux qui roulent et crissent sous la botte
           for (let i = 0; i < 5; i++) this.noise(0.02 + Math.random() * 0.02, 0.1 + Math.random() * 0.08, 3000 + Math.random() * 2500, i * (0.025 + Math.random() * 0.03));
           this.noise(0.06, 0.06, 900, 0.01);
+          break;
+        case "splash": // plic, ploc : une goutte qui tombe dans une flaque, et le clapotis
+          this.tone(900 + Math.random() * 300, 380, 0.12, "sine", 0.12);
+          this.noise(0.08, 0.06, 1800, 0.02);
+          this.tone(1300 + Math.random() * 200, 700, 0.07, "sine", 0.05, 0.09);
           break;
         case "click":
           this.tone(700, 700, 0.03, "square", 0.05);

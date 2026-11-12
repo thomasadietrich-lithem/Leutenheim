@@ -1,14 +1,14 @@
 import type { StatId } from "./skills";
 
 /**
- * QUÊTE 01 — Grik, le Kobold et ses pommes (Thomas, 2026-11-12 : « implémente quête 1 » ; brouillon `claude/QUETES.md`).
+ * QUÊTE 01 — Gluck, le Kobold et ses pommes (Thomas, 2026-11-12 : « implémente quête 1 » ; brouillon `claude/QUETES.md`).
  * Un petit Kobold déserteur, peureux et maladroit, qui veut des pommes (« les potions, ça brûle la gorge »).
  * On le croise au plus 4 fois dans une partie, à des étages de plus en plus profonds ; à chaque fois il a changé :
  * déserteur, commerçant, chef d'entreprise, philosophe. Rien n'est gardé d'une partie à l'autre (Thomas).
  * Valeurs (C) : à confirmer.
  */
-export const GRIK = {
-  name: "Grik",
+export const GLUCK = {
+  name: "Gluck",
   /** Chance qu'il se montre sur un étage 1 à 4 d'une section (jamais à l'étage du boss), tant qu'on l'a vu moins de 4 fois. */
   chance: 0.35,
   maxEncounters: 4,
@@ -28,8 +28,8 @@ export const GRIK = {
   stealAlarm: 10,
 } as const;
 
-/** Les répliques d'ouverture, selon la rencontre (1 à 4) et l'humeur de Grik. */
-export const GRIK_OPENING: Record<1 | 2 | 3 | 4, (mood: number) => string[]> = {
+/** Les répliques d'ouverture, selon la rencontre (1 à 4) et l'humeur de Gluck. */
+export const GLUCK_OPENING: Record<1 | 2 | 3 | 4, (mood: number) => string[]> = {
   1: () => [
     "« Psst ! Humain ! Par ici ! »",
     "« Je veux partir. Je déteste cet endroit. »",
@@ -49,11 +49,11 @@ export const GRIK_OPENING: Record<1 | 2 | 3 | 4, (mood: number) => string[]> = {
 };
 
 /** Un choix du dialogue : son texte, et le jet qu'il demande (caractéristique et difficulté), s'il y en a un. */
-export interface GrikChoice {
+export interface GluckChoice {
   id: string;
   label: string;
   stat?: StatId;
-  dc?: keyof typeof GRIK.dc;
+  dc?: keyof typeof GLUCK.dc;
 }
 
 export const STAT_NAMES: Partial<Record<StatId, string>> = { force: "Force", agilite: "Agilité", intelligence: "Intelligence", charisme: "Charisme" };

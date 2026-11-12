@@ -6,7 +6,7 @@ import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
 import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
-import { GRIK, GRIK_OPENING, GrikChoice, STAT_NAMES } from "../data/grik";
+import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
@@ -23,7 +23,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, CounterDoor, Debris, FloorState, GrikSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, CounterDoor, Debris, FloorState, GluckSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -42,8 +42,8 @@ export interface FloorPerks {
   chainRefunds: number;
 }
 
-/** Ce que Grik sait du héros, le temps d'une partie (Thomas : pas de mémoire d'une partie à l'autre). */
-export interface GrikMemory {
+/** Ce que Gluck sait du héros, le temps d'une partie (Thomas : pas de mémoire d'une partie à l'autre). */
+export interface GluckMemory {
   /** Rencontres menées à leur terme (0 à 4) : choisit la scène suivante. */
   met: number;
   /** −1 rancunier, 0, +1 ami. */
@@ -54,8 +54,8 @@ export interface GrikMemory {
   lastReward?: string;
 }
 
-/** Ce que rend un choix du dialogue de Grik : ses répliques, le jet s'il y en a eu un, et si la scène est finie. */
-export interface GrikResult {
+/** Ce que rend un choix du dialogue de Gluck : ses répliques, le jet s'il y en a eu un, et si la scène est finie. */
+export interface GluckResult {
   lines: string[];
   roll?: { stat: string; d20: number; bonus: number; total: number; success: boolean };
   done: boolean;
@@ -82,7 +82,7 @@ export class Game {
   pendingDoor: Point | null = null;
   /** On marche vers le Colporteur : sa boutique s'ouvrira en arrivant à côté de lui. */
   private shopTarget = false;
-  /** Le héros va parler à Grik : la conversation s'ouvre en arrivant à côté de lui. */
+  /** Le héros va parler à Gluck : la conversation s'ouvre en arrivant à côté de lui. */
   private talkTarget = false;
   /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
   inventory = new Inventory();
@@ -117,8 +117,8 @@ export class Game {
   /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
   weaponPoison = 0;
   hasteTurns = 0;
-  /** Grik, le Kobold aux pommes : ce qu'il sait du héros dans cette partie. */
-  grikMemory: GrikMemory = { met: 0, mood: 0, invested: 0 };
+  /** Gluck, le Kobold aux pommes : ce qu'il sait du héros dans cette partie. */
+  gluckMemory: GluckMemory = { met: 0, mood: 0, invested: 0 };
   /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
   blessTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -336,7 +336,7 @@ export class Game {
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
       placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
     }
-    if (fresh && !state.boss) state.grik = this.placeGrik(state, depth) ?? undefined;
+    if (fresh && !state.boss) state.gluck = this.placeGluck(state, depth) ?? undefined;
     for (const m of this.monsters) {
       m.fromX = m.x;
       m.fromY = m.y;
@@ -949,12 +949,14 @@ export class Game {
         if (clean && clean.length <= plain0.length + webs) plain = clean;
       }
     }
-    if (!plain || !plain.some((p) => this.map.get(p.x, p.y) === Tile.Gravel)) return plain;
+    // Le gravier et l'eau font du bruit (Thomas, 2026-11-12) : le héros les contourne s'il peut.
+    const noisy = (t: Tile) => t === Tile.Gravel || t === Tile.Water;
+    if (!plain || !plain.some((p) => noisy(this.map.get(p.x, p.y)))) return plain;
     const quiet = findPath(
       this.map,
       this.hero,
       to,
-      this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (this.map.get(x, y) !== Tile.Gravel || (x === to.x && y === to.y))),
+      this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (!noisy(this.map.get(x, y)) || (x === to.x && y === to.y))),
     );
     return quiet && quiet.length <= plain.length + RULES.gravelDetour ? quiet : plain;
   }
@@ -988,7 +990,9 @@ export class Game {
   }
 
   private crunch(): void {
-    if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel || this.peaceful) return;
+    // Gravier qui crisse, ou eau qui clapote (Thomas, 2026-11-12 : « l'eau et le gravier attirent les ennemis »).
+    const ground = this.map.get(this.hero.x, this.hero.y);
+    if ((ground !== Tile.Gravel && ground !== Tile.Water) || this.peaceful) return;
     this.reveal();
     let alerted = 0;
     for (const m of this.monsters) {
@@ -999,7 +1003,7 @@ export class Game {
         alerted++;
       }
     }
-    this.events.push({ type: "gravel", x: this.hero.x, y: this.hero.y, alerted });
+    this.events.push({ type: "gravel", x: this.hero.x, y: this.hero.y, alerted, water: ground === Tile.Water });
     this.raiseAlarm(RULES.gravelAlarm, this.hero);
   }
 
@@ -1233,7 +1237,7 @@ export class Game {
       boss: f.boss,
       merchant: f.merchant,
       counter: f.counter,
-      grik: f.grik,
+      gluck: f.gluck,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1259,7 +1263,7 @@ export class Game {
       floorPerks: this.floorPerks,
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
-      grik: this.grikMemory,
+      gluck: this.gluckMemory,
       blessTurns: this.blessTurns,
       fires: this.fires,
       gas: this.gas,
@@ -1319,7 +1323,7 @@ export class Game {
         boss: f.boss,
         merchant: f.merchant,
         counter: f.counter,
-        grik: f.grik,
+        gluck: f.gluck,
       });
     }
     game.turn = saved.turn;
@@ -1348,7 +1352,7 @@ export class Game {
     }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
-    game.grikMemory = saved.grik ?? { met: 0, mood: 0, invested: 0 };
+    game.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
     game.blessTurns = saved.blessTurns ?? 0;
     game.inventory.cols = saved.bagSize.cols;
     game.inventory.rows = saved.bagSize.rows;
@@ -2121,8 +2125,8 @@ export class Game {
     // Le Colporteur : on va à côté de lui, puis sa boutique s'ouvre (pas pendant un combat, pas s'il se cache).
     const merchant = this.merchantAt(x, y);
     if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
-    const grik = this.grikAt(x, y);
-    if (grik && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachGrik(grik);
+    const gluck = this.gluckAt(x, y);
+    if (gluck && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachGluck(gluck);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
     if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     const seen = this.monsterAt(x, y);
@@ -2515,17 +2519,17 @@ export class Game {
       if (!next) return false;
       // Le Colporteur sur le chemin : si on allait le voir, on s'arrête et sa boutique s'ouvre ; sinon il s'écarte
       // (il prend la place du héros) et on passe.
-      // Grik sur le chemin : on s'arrête à côté de lui (la conversation s'ouvre) ; sinon il s'écarte, comme le Colporteur.
-      const grik = this.grikAt(next.x, next.y);
-      if (grik && this.talkTarget) {
+      // Gluck sur le chemin : on s'arrête à côté de lui (la conversation s'ouvre) ; sinon il s'écarte, comme le Colporteur.
+      const gluck = this.gluckAt(next.x, next.y);
+      if (gluck && this.talkTarget) {
         this.path = [];
         this.talkTarget = false;
-        if (this.nextToGrik()) this.events.push({ type: "grik", what: "talk" });
+        if (this.nextToGluck()) this.events.push({ type: "gluck", what: "talk" });
         return false;
       }
-      if (grik) {
-        grik.x = this.hero.x;
-        grik.y = this.hero.y;
+      if (gluck) {
+        gluck.x = this.hero.x;
+        gluck.y = this.hero.y;
       }
       const peddler = this.merchantAt(next.x, next.y);
       if (peddler && this.shopTarget) {
@@ -2585,7 +2589,7 @@ export class Game {
         }
         if (this.path.length === 0 && this.talkTarget) {
           this.talkTarget = false;
-          if (this.nextToGrik()) this.events.push({ type: "grik", what: "talk" });
+          if (this.nextToGluck()) this.events.push({ type: "gluck", what: "talk" });
         }
         if (this.path.length === 0 && this.doorTarget) {
           // Arrivé devant la porte verrouillée : au joueur de décider.
@@ -2632,8 +2636,8 @@ export class Game {
     this.burn();
     this.gasTick();
     this.counterChatter();
-    // Salle d'essai : Grik revient quelques tours après être parti, pour montrer la scène suivante.
-    const gk = this.current.grik;
+    // Salle d'essai : Gluck revient quelques tours après être parti, pour montrer la scène suivante.
+    const gk = this.current.gluck;
     if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
       Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false });
     }
@@ -3049,14 +3053,14 @@ export class Game {
   }
 
   /** Au 4e étage d'une section : le Colporteur flâne dans une salle ordinaire (ni départ, ni salle spéciale, ni escalier). */
-  // ---------- Quête 01 : Grik, le Kobold aux pommes (Thomas, 2026-11-12) ----------
+  // ---------- Quête 01 : Gluck, le Kobold aux pommes (Thomas, 2026-11-12) ----------
 
   /**
-   * Grik se montre sur un étage 1 à 4 d'une section (jamais celui du boss), une fois sur trois environ, tant qu'on ne
+   * Gluck se montre sur un étage 1 à 4 d'une section (jamais celui du boss), une fois sur trois environ, tant qu'on ne
    * l'a pas vu 4 fois. Il se tient dans une salle ordinaire (de préférence un dortoir ou une forge), loin de l'arrivée.
    * Salle d'essai : toujours, dans la salle des colonnes.
    */
-  private placeGrik(state: FloorState, depth: number): GrikSpot | null {
+  private placeGluck(state: FloorState, depth: number): GluckSpot | null {
     const free = (x: number, y: number) =>
       state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) &&
       !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y);
@@ -3065,7 +3069,7 @@ export class Game {
       return null;
     }
     const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
-    if ((depth - 1) % RULES.floorsPerSection > 3 || this.grikMemory.met >= GRIK.maxEncounters || !rng.chance(GRIK.chance)) return null;
+    if ((depth - 1) % RULES.floorsPerSection > 3 || this.gluckMemory.met >= GLUCK.maxEncounters || !rng.chance(GLUCK.chance)) return null;
     const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
     const rooms = state.rooms.filter((r, i) => i > 0 && !inside(r, state.start) && !inside(r, state.stairs));
     const themed = rooms.filter((r) => (state.themes ?? []).some((t) => (t.id === "dortoir" || t.id === "forge") && state.rooms[t.room] === r));
@@ -3080,34 +3084,34 @@ export class Game {
     return null;
   }
 
-  /** Grik sur cet étage (pas encore parti), s'il y est. */
-  grik(): GrikSpot | null {
-    const g = this.current.grik;
+  /** Gluck sur cet étage (pas encore parti), s'il y est. */
+  gluck(): GluckSpot | null {
+    const g = this.current.gluck;
     return g && !g.gone ? g : null;
   }
 
-  grikAt(x: number, y: number): GrikSpot | null {
-    const g = this.grik();
+  gluckAt(x: number, y: number): GluckSpot | null {
+    const g = this.gluck();
     return g && g.x === x && g.y === y ? g : null;
   }
 
-  private nextToGrik(): boolean {
-    const g = this.grik();
+  private nextToGluck(): boolean {
+    const g = this.gluck();
     return !!g && Math.max(Math.abs(g.x - this.hero.x), Math.abs(g.y - this.hero.y)) === 1;
   }
 
-  /** Peut-on parler à Grik maintenant ? À côté de lui, et pas en plein combat. */
+  /** Peut-on parler à Gluck maintenant ? À côté de lui, et pas en plein combat. */
   canTalk(): boolean {
-    return !this.over && this.nextToGrik() && !this.inCombat();
+    return !this.over && this.nextToGluck() && !this.inCombat();
   }
 
-  private approachGrik(g: GrikSpot): boolean {
+  private approachGluck(g: GluckSpot): boolean {
     this.clearDoorOrders();
     this.targetId = null;
     this.waiting = false;
-    if (this.nextToGrik()) {
+    if (this.nextToGluck()) {
       this.path = [];
-      if (!this.inCombat()) this.events.push({ type: "grik", what: "talk" });
+      if (!this.inCombat()) this.events.push({ type: "gluck", what: "talk" });
       return true;
     }
     let best: Point[] | null = null;
@@ -3124,26 +3128,26 @@ export class Game {
   }
 
   /** La scène en cours : 1 déserteur, 2 commerçant, 3 chef d'entreprise, 4 philosophe. */
-  grikStage(): 1 | 2 | 3 | 4 {
-    return Math.min(4, this.grikMemory.met + 1) as 1 | 2 | 3 | 4;
+  gluckStage(): 1 | 2 | 3 | 4 {
+    return Math.min(4, this.gluckMemory.met + 1) as 1 | 2 | 3 | 4;
   }
 
-  private grikApplePrice(): number {
-    return this.grikMemory.mood > 0 ? GRIK.applePriceFriend : GRIK.applePrice;
+  private gluckApplePrice(): number {
+    return this.gluckMemory.mood > 0 ? GLUCK.applePriceFriend : GLUCK.applePrice;
   }
 
-  /** Ce que Grik dit en ce moment, et les choix proposés. */
-  grikScene(): { lines: string[]; choices: GrikChoice[] } {
-    const g = this.grik();
+  /** Ce que Gluck dit en ce moment, et les choix proposés. */
+  gluckScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.gluck();
     if (!g) return { lines: [], choices: [] };
-    const mem = this.grikMemory;
+    const mem = this.gluckMemory;
     if (!g.opened) {
       g.opened = true;
       // Le placement de la rencontre précédente : rendu ×2 (or et deux pommes), ou perdu.
       if (mem.invested > 0) {
         const stake = mem.invested;
         mem.invested = 0;
-        if (this.rng.chance(GRIK.investLoss)) {
+        if (this.rng.chance(GLUCK.investLoss)) {
           g.intro = ["« Ton investissement ? J'ai tout perdu… la faute aux rats. Tiens, une pomme pour m'excuser. »"];
           this.giveApples(1);
         } else {
@@ -3159,10 +3163,10 @@ export class Game {
       return { lines: g.pendingLines ?? [], choices: [...(has ? [{ id: "give", label: "Lui donner une pomme" }] : []), { id: "refuse", label: has ? "Refuser" : "Vous n'avez pas de pomme" }] };
     }
     if (g.pending === "scam") {
-      return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GRIK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
+      return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GLUCK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
     }
-    const stage = this.grikStage();
-    const lines = [...(g.intro ?? []), ...GRIK_OPENING[stage](mem.mood)];
+    const stage = this.gluckStage();
+    const lines = [...(g.intro ?? []), ...GLUCK_OPENING[stage](mem.mood)];
     const leave = { id: "leave", label: "Partir" };
     if (stage === 1) {
       return {
@@ -3180,7 +3184,7 @@ export class Game {
       return {
         lines,
         choices: [
-          { id: "buy", label: `Acheter une pomme (${this.grikApplePrice()} or)` },
+          { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)` },
           ...(g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme" as const, dc: "medium" as const }]),
           { id: "scare", label: "L'intimider", stat: "force", dc: "medium" },
           leave,
@@ -3188,38 +3192,38 @@ export class Game {
       };
     }
     if (stage === 3) {
-      return { lines, choices: [...GRIK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
+      return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
     }
     return { lines, choices: [{ id: "ask", label: "« Et pour moi, un petit quelque chose ? »" }, leave] };
   }
 
   /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
-  grikChoose(id: string): GrikResult {
-    const g = this.grik();
+  gluckChoose(id: string): GluckResult {
+    const g = this.gluck();
     if (!g || !this.canTalk()) return { lines: [], done: true };
-    const mem = this.grikMemory;
-    const choice = this.grikScene().choices.find((c) => c.id === id);
+    const mem = this.gluckMemory;
+    const choice = this.gluckScene().choices.find((c) => c.id === id);
     if (!choice) return { lines: [], done: false };
-    let roll: GrikResult["roll"];
+    let roll: GluckResult["roll"];
     const test = (): boolean => {
       const stat = choice.stat!;
       const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
       const d20 = this.rng.int(1, 20);
       const total = d20 + bonus;
-      const success = d20 === 20 || (d20 !== 1 && total >= GRIK.dc[choice.dc!]);
+      const success = d20 === 20 || (d20 !== 1 && total >= GLUCK.dc[choice.dc!]);
       roll = { stat: STAT_NAMES[stat] ?? stat, d20, bonus, total, success };
-      this.events.push({ type: "grikRoll", stat: roll.stat, d20, bonus, total, success });
+      this.events.push({ type: "gluckRoll", stat: roll.stat, d20, bonus, total, success });
       return success;
     };
-    const end = (lines: string[]): GrikResult => {
+    const end = (lines: string[]): GluckResult => {
       mem.met++;
       g.gone = true;
       g.pending = undefined;
-      if (this.sandbox && mem.met < GRIK.maxEncounters) g.backAt = this.turn + 3;
-      this.events.push({ type: "grik", what: "leave" });
+      if (this.sandbox && mem.met < GLUCK.maxEncounters) g.backAt = this.turn + 3;
+      this.events.push({ type: "gluck", what: "leave" });
       return { lines, roll, done: true };
     };
-    const stay = (lines: string[]): GrikResult => ({ lines, roll, done: false });
+    const stay = (lines: string[]): GluckResult => ({ lines, roll, done: false });
     const mood = (d: number) => (mem.mood = Math.max(-1, Math.min(1, mem.mood + d)));
     switch (id) {
       case "leave":
@@ -3239,7 +3243,7 @@ export class Game {
         this.giveApples(2);
         return end(["« Merci ! Deux pour une : c'est ça, l'amitié. »"]);
       case "refuse":
-        return end([g.pending === "scam" ? "« Tant pis pour toi. »" : "« Je m'en doutais. »", "Grik disparaît dans un trou du mur."]);
+        return end([g.pending === "scam" ? "« Tant pis pour toi. »" : "« Je m'en doutais. »", "Gluck disparaît dans un trou du mur."]);
       case "threaten":
         mood(-1);
         if (test()) {
@@ -3255,25 +3259,25 @@ export class Game {
           return end(["« Marché conclu : une pomme, et un secret. L'escalier qui descend ? C'est par là. »", "(L'escalier apparaît sur votre carte.)"]);
         }
         g.pending = "scam";
-        g.pendingLines = [`« Une pomme ? ${GRIK.scamPrice} pièces. C'est le prix d'une potion de jouvence… mais en meilleur. »`];
+        g.pendingLines = [`« Une pomme ? ${GLUCK.scamPrice} pièces. C'est le prix d'une potion de jouvence… mais en meilleur. »`];
         return stay(g.pendingLines);
       case "buyScam":
-        if (this.gold < GRIK.scamPrice) return end(["« Pas assez d'or ? Dommage. Une autre fois. »"]);
-        this.gold -= GRIK.scamPrice;
+        if (this.gold < GLUCK.scamPrice) return end(["« Pas assez d'or ? Dommage. Une autre fois. »"]);
+        this.gold -= GLUCK.scamPrice;
         mood(1);
         this.giveApples(1);
         return end(["« Un plaisir de faire affaire avec toi ! »"]);
       case "steal":
         if (test()) {
           this.giveApples(this.rng.int(1, 2));
-          return end(["Vous glissez la main dans son sac… il ne remarque rien.", "Grik s'en va en sifflotant."]);
+          return end(["Vous glissez la main dans son sac… il ne remarque rien.", "Gluck s'en va en sifflotant."]);
         }
         mood(-1);
-        this.raiseAlarm(GRIK.stealAlarm, g);
+        this.raiseAlarm(GLUCK.stealAlarm, g);
         this.callSlinger(g);
-        return end(["« AU VOLEUR ! FRONDEUR, À MOI ! »", "Grik détale. Un Kobold frondeur accourt."]);
+        return end(["« AU VOLEUR ! FRONDEUR, À MOI ! »", "Gluck détale. Un Kobold frondeur accourt."]);
       case "buy": {
-        const price = this.grikApplePrice();
+        const price = this.gluckApplePrice();
         if (this.gold < price) return stay(["« Pas d'or, pas de pomme. »"]);
         this.gold -= price;
         this.giveApples(1);
@@ -3281,7 +3285,7 @@ export class Game {
       }
       case "haggle": {
         g.haggled = true;
-        const price = this.grikApplePrice();
+        const price = this.gluckApplePrice();
         if (!test()) return stay(["« Le prix, c'est le prix. »"]);
         if (this.gold < price) return stay(["« Bon, d'accord… mais tu n'as même pas l'or. Culotté. »"]);
         this.gold -= price;
@@ -3329,7 +3333,7 @@ export class Game {
     }
   }
 
-  /** Des pommes de Grik : dans le sac, ou au sol à côté si le sac est plein. */
+  /** Des pommes de Gluck : dans le sac, ou au sol à côté si le sac est plein. */
   private giveApples(n: number): void {
     const left = this.inventory.add("pomme", n);
     if (n - left > 0) this.events.push({ type: "pickup", item: "pomme", count: n - left });
@@ -4039,8 +4043,8 @@ export class Game {
       m.blockedBy = undefined;
       m.blockedTurns = 0;
     }
-    // Grik (quête 01) occupe sa case : les monstres le contournent.
-    if (!this.actorAt(step.x, step.y) && !this.grikAt(step.x, step.y)) {
+    // Gluck (quête 01) occupe sa case : les monstres le contournent.
+    if (!this.actorAt(step.x, step.y) && !this.gluckAt(step.x, step.y)) {
       const left = { x: m.x, y: m.y };
       const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
       this.faceToward(m, step);

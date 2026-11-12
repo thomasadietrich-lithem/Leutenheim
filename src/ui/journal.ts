@@ -82,9 +82,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
-    case "grik":
-      return e.what === "leave" ? "Grik s'éclipse par un trou du mur." : null;
-    case "grikRoll":
+    case "gluck":
+      return e.what === "leave" ? "Gluck s'éclipse par un trou du mur." : null;
+    case "gluckRoll":
       return `Jet de ${e.stat.toLowerCase()} : ${e.d20} + ${e.bonus} = ${e.total} — ${e.success ? "réussi" : "raté"}.`;
     case "counter":
       if (e.what === "count") return e.first ? `Derrière cette porte, une petite voix compte : « ${e.n}… ${e.n}… ${e.n}… »` : null;
@@ -190,6 +190,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       }
       return null;
     case "gravel":
+      if (e.water) return e.alerted > 0 ? "Plic, ploc : l'eau clapote sous vos pas… on vous a entendu !" : null;
       return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;

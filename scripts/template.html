@@ -92,15 +92,15 @@
   #talk { justify-content: flex-start; overflow-y: auto; text-align: center; }
   #talk h2 { color: var(--gold); margin: 34px 0 0; }
   #talk-face svg { width: 96px; height: 96px; display: block; margin: 4px auto; }
-  #talk-lines { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
-  .talk-line { color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
+  #talk-lines { box-sizing: border-box; width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+  .talk-line { box-sizing: border-box; overflow-wrap: anywhere; color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
   .talk-line.me { color: var(--dim); background: transparent; box-shadow: none; font-style: italic; }
   .talk-roll { font-size: 18px; padding: 4px 8px; box-shadow: inset 0 0 0 2px #6a5a3a; }
   .talk-roll.ok { color: #7ee07a; }
   .talk-roll.ko { color: #ff7a7a; }
   #talk-purse { color: #ffd75e; font-size: 17px; margin: 2px 0 6px; }
-  #talk-choices { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; }
-  .talk-choice { font-size: 18px; text-align: left; padding: 8px 10px; }
+  #talk-choices { box-sizing: border-box; width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; }
+  .talk-choice { font-size: 18px; text-align: left; padding: 8px 10px; width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; line-height: 1.05; }
   .talk-stat { color: var(--dim); font-size: 14px; display: block; }
   #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
   .shop-wares { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 318px); }
@@ -444,7 +444,7 @@
   </div>
   <div id="talk" class="overlay" hidden>
     <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
-    <h2>Grik</h2>
+    <h2>Gluck</h2>
     <div id="talk-face"></div>
     <div id="talk-lines"></div>
     <div id="talk-purse"></div>

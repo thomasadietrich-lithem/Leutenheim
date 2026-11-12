@@ -57,12 +57,12 @@ export interface FloorState {
   merchant?: Merchant;
   /** La porte du Kobold qui compte (Thomas, 2026-11-12), s'il y en a une sur cet étage. */
   counter?: CounterDoor;
-  /** Grik, le Kobold aux pommes (quête 01), s'il est sur cet étage. */
-  grik?: GrikSpot;
+  /** Gluck, le Kobold aux pommes (quête 01), s'il est sur cet étage. */
+  gluck?: GluckSpot;
 }
 
-/** Grik sur un étage : sa case, s'il est parti, et où en est la conversation. */
-export interface GrikSpot {
+/** Gluck sur un étage : sa case, s'il est parti, et où en est la conversation. */
+export interface GluckSpot {
   x: number;
   y: number;
   gone: boolean;

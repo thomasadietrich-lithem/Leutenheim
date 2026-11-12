@@ -3,7 +3,7 @@ import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { expectedDamagePerTurn } from "./core/combat";
-import { DoorAction, Game, GameEvent, GrikResult } from "./core/game";
+import { DoorAction, Game, GameEvent, GluckResult } from "./core/game";
 import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
@@ -12,9 +12,9 @@ import { RULES } from "./data/rules";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
-import { GRIK_PALETTE, Renderer } from "./render/renderer";
+import { GLUCK_PALETTE, Renderer } from "./render/renderer";
 import { SCHRAT } from "./render/sprites/schrat";
-import { STAT_NAMES } from "./data/grik";
+import { STAT_NAMES } from "./data/gluck";
 import { StairsScene } from "./render/stairsScene";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
@@ -98,7 +98,7 @@ let aimShown = "";
 /** Une fiche d'objet est affichée par-dessus le jeu (objet trouvé pour la première fois). */
 let foundOpen = false;
 let shopOpen = false;
-/** La conversation avec Grik (quête 01) est ouverte. */
+/** La conversation avec Gluck (quête 01) est ouverte. */
 let talkOpen = false;
 let wheelOpen = false;
 /** Se dégager : on attend que le joueur touche une des cases proposées. */
@@ -381,7 +381,7 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "shop") {
     openShop(e.line);
-  } else if (e.type === "grik") {
+  } else if (e.type === "gluck") {
     if (e.what === "talk") openTalk();
   } else if (e.type === "bounce") {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
@@ -538,9 +538,9 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
     if (!e.success) sfx.play("miss");
   } else if (e.type === "gravel") {
-    sfx.play("gravel");
-    // « Crik », puis « Crak », pas après pas (Thomas, 2026-11-12).
-    renderer.addFloatingText(e.x, e.y, gravelCrik ? "Crik" : "Crak", "#c8c0d4");
+    sfx.play(e.water ? "splash" : "gravel");
+    // « Crik », puis « Crak » sur le gravier ; « Plic », puis « Ploc » dans l'eau (Thomas, 2026-11-12).
+    renderer.addFloatingText(e.x, e.y, e.water ? (gravelCrik ? "Plic" : "Ploc") : gravelCrik ? "Crik" : "Crak", e.water ? "#9fd0f4" : "#c8c0d4");
     gravelCrik = !gravelCrik;
   } else if (e.type === "revealed") {
   } else if (e.type === "jump") {
@@ -861,7 +861,7 @@ bindInput(canvas, {
       return;
     }
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
-    // Ce qui arrive sans qu'un tour passe (conversation avec Grik ou le Colporteur, déjà à côté) : on le montre tout de suite.
+    // Ce qui arrive sans qu'un tour passe (conversation avec Gluck ou le Colporteur, déjà à côté) : on le montre tout de suite.
     if (game.events.length > 0) collectEvents();
     // Toucher l'escalier sur lequel on se tient : on le prend (Thomas, 2026-11-12).
     if (!stepping && game.pendingStairs) beginStairs();
@@ -1242,17 +1242,17 @@ function renderShop(): void {
 button("shop-close", closeShop);
 button("talk-close", closeTalk);
 
-// ---------- Quête 01 : la conversation avec Grik (Thomas, 2026-11-12) ----------
+// ---------- Quête 01 : la conversation avec Gluck (Thomas, 2026-11-12) ----------
 
 /** Ce qui vient de se dire (le résultat du dernier choix), affiché au-dessus des choix suivants. */
-let talkLast: GrikResult | null = null;
+let talkLast: GluckResult | null = null;
 
 function openTalk(): void {
   if (!game.canTalk()) return;
   talkOpen = true;
   talkLast = null;
   $("talk").hidden = false;
-  $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GRIK_PALETTE));
+  $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE));
   document.body.classList.add("shop-open");
   renderer.resize();
   sfx.play("click");
@@ -1271,16 +1271,18 @@ function renderTalk(): void {
   const choices = $("talk-choices");
   lines.replaceChildren();
   choices.replaceChildren();
-  const scene = game.grikScene();
+  const scene = game.gluckScene();
   const shown = talkLast ? talkLast.lines : scene.lines;
   if (talkLast?.roll) {
     const r = talkLast.roll;
     const sign = r.bonus >= 0 ? "+" : "−";
     lines.append(el("div", `talk-roll ${r.success ? "ok" : "ko"}`, `${r.stat} : d20 ${r.d20} ${sign} ${Math.abs(r.bonus)} = ${r.total} — ${r.success ? "réussi" : "raté"}`));
   }
-  for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", l));
+  // Espaces insécables autour des guillemets et avant « ! ? : » : jamais un « » » tout seul en bout de ligne.
+  const glue = (t: string) => t.replace(/« /g, "«\u00a0").replace(/ ([»!?:;])/g, "\u00a0$1");
+  for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", glue(l)));
   $("talk-purse").textContent = `Bourse : ${game.gold} or · Pommes : ${game.inventory.count("pomme")}`;
-  if (talkLast?.done || !game.grik()) {
+  if (talkLast?.done || !game.gluck()) {
     const b = el("button", "talk-choice", "Continuer");
     b.addEventListener("click", closeTalk);
     choices.append(b);
@@ -1290,7 +1292,7 @@ function renderTalk(): void {
     const b = el("button", "talk-choice", c.label);
     if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
     b.addEventListener("click", () => {
-      talkLast = game.grikChoose(c.id);
+      talkLast = game.gluckChoose(c.id);
       collectEvents();
       sfx.play(talkLast.roll ? "dice" : "click");
       renderTalk();

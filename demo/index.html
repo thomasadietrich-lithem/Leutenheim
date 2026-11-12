@@ -92,15 +92,15 @@
   #talk { justify-content: flex-start; overflow-y: auto; text-align: center; }
   #talk h2 { color: var(--gold); margin: 34px 0 0; }
   #talk-face svg { width: 96px; height: 96px; display: block; margin: 4px auto; }
-  #talk-lines { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
-  .talk-line { color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
+  #talk-lines { box-sizing: border-box; width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+  .talk-line { box-sizing: border-box; overflow-wrap: anywhere; color: #fff3c8; font-size: 18px; line-height: 1.1; text-align: left; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; padding: 6px 8px; }
   .talk-line.me { color: var(--dim); background: transparent; box-shadow: none; font-style: italic; }
   .talk-roll { font-size: 18px; padding: 4px 8px; box-shadow: inset 0 0 0 2px #6a5a3a; }
   .talk-roll.ok { color: #7ee07a; }
   .talk-roll.ko { color: #ff7a7a; }
   #talk-purse { color: #ffd75e; font-size: 17px; margin: 2px 0 6px; }
-  #talk-choices { width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; }
-  .talk-choice { font-size: 18px; text-align: left; padding: 8px 10px; }
+  #talk-choices { box-sizing: border-box; width: min(100%, 330px); display: flex; flex-direction: column; gap: 6px; }
+  .talk-choice { font-size: 18px; text-align: left; padding: 8px 10px; width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; line-height: 1.05; }
   .talk-stat { color: var(--dim); font-size: 14px; display: block; }
   #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
   .shop-wares { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 318px); }
@@ -444,7 +444,7 @@
   </div>
   <div id="talk" class="overlay" hidden>
     <button id="talk-close" class="hero-close" type="button" aria-label="Fermer">×</button>
-    <h2>Grik</h2>
+    <h2>Gluck</h2>
     <div id="talk-face"></div>
     <div id="talk-lines"></div>
     <div id="talk-purse"></div>
@@ -871,6 +871,11 @@
           case "gravel":
             for (let i = 0; i < 5; i++) this.noise(0.02 + Math.random() * 0.02, 0.1 + Math.random() * 0.08, 3e3 + Math.random() * 2500, i * (0.025 + Math.random() * 0.03));
             this.noise(0.06, 0.06, 900, 0.01);
+            break;
+          case "splash":
+            this.tone(900 + Math.random() * 300, 380, 0.12, "sine", 0.12);
+            this.noise(0.08, 0.06, 1800, 0.02);
+            this.tone(1300 + Math.random() * 200, 700, 0.07, "sine", 0.05, 0.09);
             break;
           case "click":
             this.tone(700, 700, 0.03, "square", 0.05);
@@ -1748,9 +1753,9 @@
     fastAttackTurns: 0.75
   };
 
-  // src/data/grik.ts
-  var GRIK = {
-    name: "Grik",
+  // src/data/gluck.ts
+  var GLUCK = {
+    name: "Gluck",
     /** Chance qu'il se montre sur un étage 1 à 4 d'une section (jamais à l'étage du boss), tant qu'on l'a vu moins de 4 fois. */
     chance: 0.35,
     maxEncounters: 4,
@@ -1769,7 +1774,7 @@
     /** Vol raté : l'alerte monte de tant, et un Kobold frondeur accourt. */
     stealAlarm: 10
   };
-  var GRIK_OPENING = {
+  var GLUCK_OPENING = {
     1: () => [
       "\xAB Psst ! Humain ! Par ici ! \xBB",
       "\xAB Je veux partir. Je d\xE9teste cet endroit. \xBB",
@@ -4080,7 +4085,7 @@
       this.pendingDoor = null;
       /** On marche vers le Colporteur : sa boutique s'ouvrira en arrivant à côté de lui. */
       this.shopTarget = false;
-      /** Le héros va parler à Grik : la conversation s'ouvre en arrivant à côté de lui. */
+      /** Le héros va parler à Gluck : la conversation s'ouvre en arrivant à côté de lui. */
       this.talkTarget = false;
       /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
       this.inventory = new Inventory();
@@ -4115,8 +4120,8 @@
       /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
       this.weaponPoison = 0;
       this.hasteTurns = 0;
-      /** Grik, le Kobold aux pommes : ce qu'il sait du héros dans cette partie. */
-      this.grikMemory = { met: 0, mood: 0, invested: 0 };
+      /** Gluck, le Kobold aux pommes : ce qu'il sait du héros dans cette partie. */
+      this.gluckMemory = { met: 0, mood: 0, invested: 0 };
       /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
       this.blessTurns = 0;
       /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -4318,7 +4323,7 @@
         if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
         placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
       }
-      if (fresh && !state.boss) state.grik = this.placeGrik(state, depth) ?? void 0;
+      if (fresh && !state.boss) state.gluck = this.placeGluck(state, depth) ?? void 0;
       for (const m of this.monsters) {
         m.fromX = m.x;
         m.fromY = m.y;
@@ -4864,12 +4869,13 @@
           if (clean && clean.length <= plain0.length + webs) plain = clean;
         }
       }
-      if (!plain || !plain.some((p) => this.map.get(p.x, p.y) === Tile.Gravel)) return plain;
+      const noisy = (t) => t === Tile.Gravel || t === Tile.Water;
+      if (!plain || !plain.some((p) => noisy(this.map.get(p.x, p.y)))) return plain;
       const quiet = findPath(
         this.map,
         this.hero,
         to,
-        this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (this.map.get(x, y) !== Tile.Gravel || x === to.x && y === to.y))
+        this.avoidTraps(to, (x, y) => (!known || known(x, y)) && (!noisy(this.map.get(x, y)) || x === to.x && y === to.y))
       );
       return quiet && quiet.length <= plain.length + RULES.gravelDetour ? quiet : plain;
     }
@@ -4899,7 +4905,8 @@
       this.events.push({ type: "web", escaped, roll: roll2, bonus: this.pushBonus() });
     }
     crunch() {
-      if (this.map.get(this.hero.x, this.hero.y) !== Tile.Gravel || this.peaceful) return;
+      const ground = this.map.get(this.hero.x, this.hero.y);
+      if (ground !== Tile.Gravel && ground !== Tile.Water || this.peaceful) return;
       this.reveal();
       let alerted = 0;
       for (const m of this.monsters) {
@@ -4910,7 +4917,7 @@
           alerted++;
         }
       }
-      this.events.push({ type: "gravel", x: this.hero.x, y: this.hero.y, alerted });
+      this.events.push({ type: "gravel", x: this.hero.x, y: this.hero.y, alerted, water: ground === Tile.Water });
       this.raiseAlarm(RULES.gravelAlarm, this.hero);
     }
     /** Quelqu'un vient d'arriver sur cette case : si c'est un piège, il se déclenche. */
@@ -5112,7 +5119,7 @@
         boss: f.boss,
         merchant: f.merchant,
         counter: f.counter,
-        grik: f.grik
+        gluck: f.gluck
       }));
       return clone({
         version: SAVE_VERSION,
@@ -5139,7 +5146,7 @@
         floorPerks: this.floorPerks,
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
-        grik: this.grikMemory,
+        gluck: this.gluckMemory,
         blessTurns: this.blessTurns,
         fires: this.fires,
         gas: this.gas,
@@ -5198,7 +5205,7 @@
           boss: f.boss,
           merchant: f.merchant,
           counter: f.counter,
-          grik: f.grik
+          gluck: f.gluck
         });
       }
       game2.turn = saved.turn;
@@ -5227,7 +5234,7 @@
       }
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
-      game2.grikMemory = saved.grik ?? { met: 0, mood: 0, invested: 0 };
+      game2.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
       game2.blessTurns = saved.blessTurns ?? 0;
       game2.inventory.cols = saved.bagSize.cols;
       game2.inventory.rows = saved.bagSize.rows;
@@ -5887,8 +5894,8 @@
       }
       const merchant = this.merchantAt(x, y);
       if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
-      const grik = this.grikAt(x, y);
-      if (grik && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachGrik(grik);
+      const gluck = this.gluckAt(x, y);
+      if (gluck && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachGluck(gluck);
       if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
@@ -6238,16 +6245,16 @@
         }
         const next = this.path[0];
         if (!next) return false;
-        const grik = this.grikAt(next.x, next.y);
-        if (grik && this.talkTarget) {
+        const gluck = this.gluckAt(next.x, next.y);
+        if (gluck && this.talkTarget) {
           this.path = [];
           this.talkTarget = false;
-          if (this.nextToGrik()) this.events.push({ type: "grik", what: "talk" });
+          if (this.nextToGluck()) this.events.push({ type: "gluck", what: "talk" });
           return false;
         }
-        if (grik) {
-          grik.x = this.hero.x;
-          grik.y = this.hero.y;
+        if (gluck) {
+          gluck.x = this.hero.x;
+          gluck.y = this.hero.y;
         }
         const peddler = this.merchantAt(next.x, next.y);
         if (peddler && this.shopTarget) {
@@ -6300,7 +6307,7 @@
           }
           if (this.path.length === 0 && this.talkTarget) {
             this.talkTarget = false;
-            if (this.nextToGrik()) this.events.push({ type: "grik", what: "talk" });
+            if (this.nextToGluck()) this.events.push({ type: "gluck", what: "talk" });
           }
           if (this.path.length === 0 && this.doorTarget) {
             this.pendingDoor = this.doorTarget;
@@ -6342,7 +6349,7 @@
       this.burn();
       this.gasTick();
       this.counterChatter();
-      const gk = this.current.grik;
+      const gk = this.current.gluck;
       if (gk && gk.gone && gk.backAt !== void 0 && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: void 0, opened: false, intro: void 0, pending: void 0, pendingLines: void 0, haggled: false });
       }
@@ -6712,20 +6719,20 @@
       m.y = step.y;
     }
     /** Au 4e étage d'une section : le Colporteur flâne dans une salle ordinaire (ni départ, ni salle spéciale, ni escalier). */
-    // ---------- Quête 01 : Grik, le Kobold aux pommes (Thomas, 2026-11-12) ----------
+    // ---------- Quête 01 : Gluck, le Kobold aux pommes (Thomas, 2026-11-12) ----------
     /**
-     * Grik se montre sur un étage 1 à 4 d'une section (jamais celui du boss), une fois sur trois environ, tant qu'on ne
+     * Gluck se montre sur un étage 1 à 4 d'une section (jamais celui du boss), une fois sur trois environ, tant qu'on ne
      * l'a pas vu 4 fois. Il se tient dans une salle ordinaire (de préférence un dortoir ou une forge), loin de l'arrivée.
      * Salle d'essai : toujours, dans la salle des colonnes.
      */
-    placeGrik(state, depth) {
+    placeGluck(state, depth) {
       const free = (x, y) => state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) && !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y);
       if (this.sandbox && depth === 1) {
         for (const [x, y] of [[20, 5], [21, 5], [20, 6], [22, 6]]) if (free(x, y)) return { x, y, gone: false };
         return null;
       }
       const rng = new Rng(floorSeed(this.runSeed, depth) ^ 1780165693);
-      if ((depth - 1) % RULES.floorsPerSection > 3 || this.grikMemory.met >= GRIK.maxEncounters || !rng.chance(GRIK.chance)) return null;
+      if ((depth - 1) % RULES.floorsPerSection > 3 || this.gluckMemory.met >= GLUCK.maxEncounters || !rng.chance(GLUCK.chance)) return null;
       const inside = (r, p) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
       const rooms = state.rooms.filter((r, i) => i > 0 && !inside(r, state.start) && !inside(r, state.stairs));
       const themed = rooms.filter((r) => (state.themes ?? []).some((t) => (t.id === "dortoir" || t.id === "forge") && state.rooms[t.room] === r));
@@ -6739,30 +6746,30 @@
       }
       return null;
     }
-    /** Grik sur cet étage (pas encore parti), s'il y est. */
-    grik() {
-      const g = this.current.grik;
+    /** Gluck sur cet étage (pas encore parti), s'il y est. */
+    gluck() {
+      const g = this.current.gluck;
       return g && !g.gone ? g : null;
     }
-    grikAt(x, y) {
-      const g = this.grik();
+    gluckAt(x, y) {
+      const g = this.gluck();
       return g && g.x === x && g.y === y ? g : null;
     }
-    nextToGrik() {
-      const g = this.grik();
+    nextToGluck() {
+      const g = this.gluck();
       return !!g && Math.max(Math.abs(g.x - this.hero.x), Math.abs(g.y - this.hero.y)) === 1;
     }
-    /** Peut-on parler à Grik maintenant ? À côté de lui, et pas en plein combat. */
+    /** Peut-on parler à Gluck maintenant ? À côté de lui, et pas en plein combat. */
     canTalk() {
-      return !this.over && this.nextToGrik() && !this.inCombat();
+      return !this.over && this.nextToGluck() && !this.inCombat();
     }
-    approachGrik(g) {
+    approachGluck(g) {
       this.clearDoorOrders();
       this.targetId = null;
       this.waiting = false;
-      if (this.nextToGrik()) {
+      if (this.nextToGluck()) {
         this.path = [];
-        if (!this.inCombat()) this.events.push({ type: "grik", what: "talk" });
+        if (!this.inCombat()) this.events.push({ type: "gluck", what: "talk" });
         return true;
       }
       let best = null;
@@ -6778,23 +6785,23 @@
       return true;
     }
     /** La scène en cours : 1 déserteur, 2 commerçant, 3 chef d'entreprise, 4 philosophe. */
-    grikStage() {
-      return Math.min(4, this.grikMemory.met + 1);
+    gluckStage() {
+      return Math.min(4, this.gluckMemory.met + 1);
     }
-    grikApplePrice() {
-      return this.grikMemory.mood > 0 ? GRIK.applePriceFriend : GRIK.applePrice;
+    gluckApplePrice() {
+      return this.gluckMemory.mood > 0 ? GLUCK.applePriceFriend : GLUCK.applePrice;
     }
-    /** Ce que Grik dit en ce moment, et les choix proposés. */
-    grikScene() {
-      const g = this.grik();
+    /** Ce que Gluck dit en ce moment, et les choix proposés. */
+    gluckScene() {
+      const g = this.gluck();
       if (!g) return { lines: [], choices: [] };
-      const mem = this.grikMemory;
+      const mem = this.gluckMemory;
       if (!g.opened) {
         g.opened = true;
         if (mem.invested > 0) {
           const stake = mem.invested;
           mem.invested = 0;
-          if (this.rng.chance(GRIK.investLoss)) {
+          if (this.rng.chance(GLUCK.investLoss)) {
             g.intro = ["\xAB Ton investissement ? J'ai tout perdu\u2026 la faute aux rats. Tiens, une pomme pour m'excuser. \xBB"];
             this.giveApples(1);
           } else {
@@ -6810,10 +6817,10 @@
         return { lines: g.pendingLines ?? [], choices: [...has ? [{ id: "give", label: "Lui donner une pomme" }] : [], { id: "refuse", label: has ? "Refuser" : "Vous n'avez pas de pomme" }] };
       }
       if (g.pending === "scam") {
-        return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GRIK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
+        return { lines: g.pendingLines ?? [], choices: [{ id: "buyScam", label: `Acheter la pomme (${GLUCK.scamPrice} or)` }, { id: "refuse", label: "Refuser" }] };
       }
-      const stage = this.grikStage();
-      const lines = [...g.intro ?? [], ...GRIK_OPENING[stage](mem.mood)];
+      const stage = this.gluckStage();
+      const lines = [...g.intro ?? [], ...GLUCK_OPENING[stage](mem.mood)];
       const leave = { id: "leave", label: "Partir" };
       if (stage === 1) {
         return {
@@ -6831,7 +6838,7 @@
         return {
           lines,
           choices: [
-            { id: "buy", label: `Acheter une pomme (${this.grikApplePrice()} or)` },
+            { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)` },
             ...g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme", dc: "medium" }],
             { id: "scare", label: "L'intimider", stat: "force", dc: "medium" },
             leave
@@ -6839,16 +6846,16 @@
         };
       }
       if (stage === 3) {
-        return { lines, choices: [...GRIK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
+        return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or` })), { id: "decline", label: "Refuser poliment" }] };
       }
       return { lines, choices: [{ id: "ask", label: "\xAB Et pour moi, un petit quelque chose ? \xBB" }, leave] };
     }
     /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
-    grikChoose(id) {
-      const g = this.grik();
+    gluckChoose(id) {
+      const g = this.gluck();
       if (!g || !this.canTalk()) return { lines: [], done: true };
-      const mem = this.grikMemory;
-      const choice = this.grikScene().choices.find((c) => c.id === id);
+      const mem = this.gluckMemory;
+      const choice = this.gluckScene().choices.find((c) => c.id === id);
       if (!choice) return { lines: [], done: false };
       let roll2;
       const test = () => {
@@ -6856,17 +6863,17 @@
         const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
         const d20 = this.rng.int(1, 20);
         const total = d20 + bonus;
-        const success = d20 === 20 || d20 !== 1 && total >= GRIK.dc[choice.dc];
+        const success = d20 === 20 || d20 !== 1 && total >= GLUCK.dc[choice.dc];
         roll2 = { stat: STAT_NAMES[stat] ?? stat, d20, bonus, total, success };
-        this.events.push({ type: "grikRoll", stat: roll2.stat, d20, bonus, total, success });
+        this.events.push({ type: "gluckRoll", stat: roll2.stat, d20, bonus, total, success });
         return success;
       };
       const end = (lines) => {
         mem.met++;
         g.gone = true;
         g.pending = void 0;
-        if (this.sandbox && mem.met < GRIK.maxEncounters) g.backAt = this.turn + 3;
-        this.events.push({ type: "grik", what: "leave" });
+        if (this.sandbox && mem.met < GLUCK.maxEncounters) g.backAt = this.turn + 3;
+        this.events.push({ type: "gluck", what: "leave" });
         return { lines, roll: roll2, done: true };
       };
       const stay = (lines) => ({ lines, roll: roll2, done: false });
@@ -6889,7 +6896,7 @@
           this.giveApples(2);
           return end(["\xAB Merci ! Deux pour une : c'est \xE7a, l'amiti\xE9. \xBB"]);
         case "refuse":
-          return end([g.pending === "scam" ? "\xAB Tant pis pour toi. \xBB" : "\xAB Je m'en doutais. \xBB", "Grik dispara\xEEt dans un trou du mur."]);
+          return end([g.pending === "scam" ? "\xAB Tant pis pour toi. \xBB" : "\xAB Je m'en doutais. \xBB", "Gluck dispara\xEEt dans un trou du mur."]);
         case "threaten":
           mood(-1);
           if (test()) {
@@ -6905,25 +6912,25 @@
             return end(["\xAB March\xE9 conclu : une pomme, et un secret. L'escalier qui descend ? C'est par l\xE0. \xBB", "(L'escalier appara\xEEt sur votre carte.)"]);
           }
           g.pending = "scam";
-          g.pendingLines = [`\xAB Une pomme ? ${GRIK.scamPrice} pi\xE8ces. C'est le prix d'une potion de jouvence\u2026 mais en meilleur. \xBB`];
+          g.pendingLines = [`\xAB Une pomme ? ${GLUCK.scamPrice} pi\xE8ces. C'est le prix d'une potion de jouvence\u2026 mais en meilleur. \xBB`];
           return stay(g.pendingLines);
         case "buyScam":
-          if (this.gold < GRIK.scamPrice) return end(["\xAB Pas assez d'or ? Dommage. Une autre fois. \xBB"]);
-          this.gold -= GRIK.scamPrice;
+          if (this.gold < GLUCK.scamPrice) return end(["\xAB Pas assez d'or ? Dommage. Une autre fois. \xBB"]);
+          this.gold -= GLUCK.scamPrice;
           mood(1);
           this.giveApples(1);
           return end(["\xAB Un plaisir de faire affaire avec toi ! \xBB"]);
         case "steal":
           if (test()) {
             this.giveApples(this.rng.int(1, 2));
-            return end(["Vous glissez la main dans son sac\u2026 il ne remarque rien.", "Grik s'en va en sifflotant."]);
+            return end(["Vous glissez la main dans son sac\u2026 il ne remarque rien.", "Gluck s'en va en sifflotant."]);
           }
           mood(-1);
-          this.raiseAlarm(GRIK.stealAlarm, g);
+          this.raiseAlarm(GLUCK.stealAlarm, g);
           this.callSlinger(g);
-          return end(["\xAB AU VOLEUR ! FRONDEUR, \xC0 MOI ! \xBB", "Grik d\xE9tale. Un Kobold frondeur accourt."]);
+          return end(["\xAB AU VOLEUR ! FRONDEUR, \xC0 MOI ! \xBB", "Gluck d\xE9tale. Un Kobold frondeur accourt."]);
         case "buy": {
-          const price = this.grikApplePrice();
+          const price = this.gluckApplePrice();
           if (this.gold < price) return stay(["\xAB Pas d'or, pas de pomme. \xBB"]);
           this.gold -= price;
           this.giveApples(1);
@@ -6931,7 +6938,7 @@
         }
         case "haggle": {
           g.haggled = true;
-          const price = this.grikApplePrice();
+          const price = this.gluckApplePrice();
           if (!test()) return stay(["\xAB Le prix, c'est le prix. \xBB"]);
           if (this.gold < price) return stay(["\xAB Bon, d'accord\u2026 mais tu n'as m\xEAme pas l'or. Culott\xE9. \xBB"]);
           this.gold -= price;
@@ -6978,7 +6985,7 @@
         }
       }
     }
-    /** Des pommes de Grik : dans le sac, ou au sol à côté si le sac est plein. */
+    /** Des pommes de Gluck : dans le sac, ou au sol à côté si le sac est plein. */
     giveApples(n) {
       const left = this.inventory.add("pomme", n);
       if (n - left > 0) this.events.push({ type: "pickup", item: "pomme", count: n - left });
@@ -7585,7 +7592,7 @@
         m.blockedBy = void 0;
         m.blockedTurns = 0;
       }
-      if (!this.actorAt(step.x, step.y) && !this.grikAt(step.x, step.y)) {
+      if (!this.actorAt(step.x, step.y) && !this.gluckAt(step.x, step.y)) {
         const left = { x: m.x, y: m.y };
         const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
         this.faceToward(m, step);
@@ -15568,7 +15575,22 @@
   };
 
   // src/render/renderer.ts
-  var GRIK_PALETTE = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
+  var GLUCK_BUBBLE = [
+    "...KKKKKKKK...",
+    ".KK########KK.",
+    "K############K",
+    "K############K",
+    "K############K",
+    "K############K",
+    "K############K",
+    "Ko##########oK",
+    ".KKo######oKK.",
+    "...KKK##KKK...",
+    "......K#K.....",
+    ".......K......"
+  ];
+  var GLUCK_BUBBLE_PALETTE = { K: "#1a1410", "#": "#f4ecd2", o: "#d8ccae" };
+  var GLUCK_PALETTE = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
   var FRONDEUR_PALETTE = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
   var MERCHANT_GHOST_PALETTE = { g: "rgba(190,210,255,0.75)", Y: "rgba(244,224,74,0.55)" };
   var MERCHANT_GHOSTS = Object.fromEntries(
@@ -15933,9 +15955,9 @@
       }
       ctx.imageSmoothingEnabled = smooth2;
     }
-    /** Grik (quête 01) : un Kobold pâle, immobile, avec une pomme dans une bulle quand le héros approche. */
-    drawGrik(game2, ox, oy) {
-      const g = game2.grik();
+    /** Gluck (quête 01) : un Kobold pâle, immobile, avec une pomme dans une bulle quand le héros approche. */
+    drawGluck(game2, ox, oy) {
+      const g = game2.gluck();
       if (!g || !game2.isVisible(g.x, g.y)) return;
       const { ctx, tile } = this;
       const cx = Math.round(ox + (g.x + 0.5) * tile);
@@ -15943,19 +15965,18 @@
       const hero = game2.hero;
       const frames = SCHRAT.idleDown;
       const rows = frames[Math.floor(Math.abs(this.time) / 420) % frames.length];
-      this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GRIK_PALETTE);
+      this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GLUCK_PALETTE);
       if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) {
-        const s = Math.round(tile * 0.55);
-        const bob = Math.round(Math.sin(this.time / 260) * tile * 0.05);
-        const bx = Math.round(cx - s / 2 + tile * 0.2);
-        const by = Math.round(cy - tile * 0.5 - s * 1.1 + bob);
-        ctx.fillStyle = "#f4ecd2";
-        ctx.fillRect(bx - 2, by - 2, s + 4, s + 4);
-        ctx.fillStyle = "#120d08";
-        ctx.fillRect(bx - 2, by + s + 2, 3, 3);
+        const bw = Math.round(tile * 0.95);
+        const bh = Math.round(bw * 12 / 14);
+        const bob = Math.round(Math.sin(this.time / 260) * tile * 0.04);
+        const bx = Math.round(cx - bw / 2 + tile * 0.12);
+        const by = Math.round(cy - tile * 0.42 - bh + bob);
         const smooth2 = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this.sprite(itemIconRows("pomme"), PALETTE2), bx, by, s, s);
+        ctx.drawImage(this.sprite(GLUCK_BUBBLE, GLUCK_BUBBLE_PALETTE), bx, by, bw, bh);
+        const s = Math.round(bw * 8 / 14);
+        ctx.drawImage(this.sprite(itemIconRows("pomme"), PALETTE2), Math.round(bx + (bw - s) / 2), Math.round(by + bh * (1.2 / 12)), s, s);
         ctx.imageSmoothingEnabled = smooth2;
       }
     }
@@ -16558,7 +16579,7 @@
         }
       }
       this.drawMerchant(game2, ox, oy, progress);
-      this.drawGrik(game2, ox, oy);
+      this.drawGluck(game2, ox, oy);
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
       this.drawFurniture(game2, ox, oy, flicker, "late");
@@ -17327,9 +17348,9 @@
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
       case "death":
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
-      case "grik":
-        return e.what === "leave" ? "Grik s'\xE9clipse par un trou du mur." : null;
-      case "grikRoll":
+      case "gluck":
+        return e.what === "leave" ? "Gluck s'\xE9clipse par un trou du mur." : null;
+      case "gluckRoll":
         return `Jet de ${e.stat.toLowerCase()} : ${e.d20} + ${e.bonus} = ${e.total} \u2014 ${e.success ? "r\xE9ussi" : "rat\xE9"}.`;
       case "counter":
         if (e.what === "count") return e.first ? `Derri\xE8re cette porte, une petite voix compte : \xAB ${e.n}\u2026 ${e.n}\u2026 ${e.n}\u2026 \xBB` : null;
@@ -17414,6 +17435,7 @@
         }
         return null;
       case "gravel":
+        if (e.water) return e.alerted > 0 ? "Plic, ploc : l'eau clapote sous vos pas\u2026 on vous a entendu !" : null;
         return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
       case "jump":
         return `Vous tentez de vous d\xE9gager : ${roll(e.d20, e.bonus, e.total)} \u2014 ${e.success ? "r\xE9ussi, d'un bond." : "rat\xE9, vous restez au contact."}`;
@@ -17803,7 +17825,7 @@
       }
     } else if (e.type === "shop") {
       openShop(e.line);
-    } else if (e.type === "grik") {
+    } else if (e.type === "gluck") {
       if (e.what === "talk") openTalk();
     } else if (e.type === "bounce") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
@@ -17950,8 +17972,8 @@
       renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Cach\xE9" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
       if (!e.success) sfx.play("miss");
     } else if (e.type === "gravel") {
-      sfx.play("gravel");
-      renderer.addFloatingText(e.x, e.y, gravelCrik ? "Crik" : "Crak", "#c8c0d4");
+      sfx.play(e.water ? "splash" : "gravel");
+      renderer.addFloatingText(e.x, e.y, e.water ? gravelCrik ? "Plic" : "Ploc" : gravelCrik ? "Crik" : "Crak", e.water ? "#9fd0f4" : "#c8c0d4");
       gravelCrik = !gravelCrik;
     } else if (e.type === "revealed") {
     } else if (e.type === "jump") {
@@ -18576,7 +18598,7 @@
     talkOpen = true;
     talkLast = null;
     $("talk").hidden = false;
-    $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GRIK_PALETTE));
+    $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE));
     document.body.classList.add("shop-open");
     renderer.resize();
     sfx.play("click");
@@ -18593,16 +18615,17 @@
     const choices = $("talk-choices");
     lines.replaceChildren();
     choices.replaceChildren();
-    const scene = game.grikScene();
+    const scene = game.gluckScene();
     const shown = talkLast ? talkLast.lines : scene.lines;
     if (talkLast?.roll) {
       const r = talkLast.roll;
       const sign = r.bonus >= 0 ? "+" : "\u2212";
       lines.append(el("div", `talk-roll ${r.success ? "ok" : "ko"}`, `${r.stat} : d20 ${r.d20} ${sign} ${Math.abs(r.bonus)} = ${r.total} \u2014 ${r.success ? "r\xE9ussi" : "rat\xE9"}`));
     }
-    for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", l));
+    const glue = (t) => t.replace(/« /g, "\xAB\xA0").replace(/ ([»!?:;])/g, "\xA0$1");
+    for (const l of shown) lines.append(el("div", l.startsWith("Vous") || l.startsWith("(") ? "talk-line me" : "talk-line", glue(l)));
     $("talk-purse").textContent = `Bourse : ${game.gold} or \xB7 Pommes : ${game.inventory.count("pomme")}`;
-    if (talkLast?.done || !game.grik()) {
+    if (talkLast?.done || !game.gluck()) {
       const b = el("button", "talk-choice", "Continuer");
       b.addEventListener("click", closeTalk);
       choices.append(b);
@@ -18612,7 +18635,7 @@
       const b = el("button", "talk-choice", c.label);
       if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
       b.addEventListener("click", () => {
-        talkLast = game.grikChoose(c.id);
+        talkLast = game.gluckChoose(c.id);
         collectEvents();
         sfx.play(talkLast.roll ? "dice" : "click");
         renderTalk();

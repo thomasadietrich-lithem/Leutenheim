@@ -47,6 +47,21 @@ export function underTorch(floor: Floor, x: number, y: number): boolean {
   return floor.torches.some((t) => t.x === x && t.y === y - 1);
 }
 
+/**
+ * Devant une cheminée (Thomas, 2026-11-12 : « empêche les objets à proximité des cheminées ») : les 2 cases qui la
+ * suivent dans la salle, sur 3 de large. Aucun meuble ni trainard n'y est posé.
+ */
+export function nearHearth(floor: Floor, x: number, y: number): boolean {
+  return floor.torches.some((t) => {
+    if (!t.hearth) return false;
+    const fx = t.faceX ?? 0;
+    const fy = t.faceY ?? 0;
+    const along = fx !== 0 ? (x - t.x) * fx : (y - t.y) * fy; // cases devant elle (1, 2)
+    const across = fx !== 0 ? Math.abs(y - t.y) : Math.abs(x - t.x);
+    return along >= 1 && along <= 2 && across <= 1;
+  });
+}
+
 /** Les cases couvertes par un meuble. */
 export function furnitureCells(f: Furniture): Point[] {
   const k = FURNITURE_KINDS[f.kind] ?? { w: 1, h: 1 };
@@ -88,7 +103,7 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
   const tryPlace = (f: Furniture): boolean => {
     const kind = FURNITURE_KINDS[f.kind];
     const cells = furnitureCells(f);
-    if (cells.some((c) => !inside(c.x, c.y) || used.has(key(c.x, c.y)) || special(c.x, c.y))) return false;
+    if (cells.some((c) => !inside(c.x, c.y) || used.has(key(c.x, c.y)) || special(c.x, c.y) || nearHearth(floor, c.x, c.y))) return false;
     if (kind.blocks) {
       if (cells.some((c) => nearOpening(c.x, c.y))) return false;
       for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
@@ -250,7 +265,7 @@ function roomPlacer(floor: Floor, room: Room) {
   let before = reachable(map, floor.start);
   const placed: Furniture[] = [];
   const chests: Point[] = [];
-  const free = (x: number, y: number) => inside(x, y) && !used.has(key(x, y)) && !special(x, y) && map.get(x, y) === Tile.Floor;
+  const free = (x: number, y: number) => inside(x, y) && !used.has(key(x, y)) && !special(x, y) && map.get(x, y) === Tile.Floor && !nearHearth(floor, x, y);
   const tryPlace = (f: Furniture): boolean => {
     const kind = FURNITURE_KINDS[f.kind];
     const cells = furnitureCells(f);
@@ -435,6 +450,15 @@ function placeTableWithChairs(P: ReturnType<typeof roomPlacer>, room: Room, rng:
  * 2 à 6 vitraux dans le mur du fond.
  */
 export function furnishChapel(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  // Pas de cheminée dans une salle de prière : on l'éteint (on la remet si la salle ne s'y prête pas).
+  const torches = floor.torches;
+  floor.torches = torches.filter((t) => !(t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h));
+  const ok = furnishChapelInner(floor, room, rng, out);
+  if (!ok) floor.torches = torches;
+  return ok;
+}
+
+function furnishChapelInner(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
   const P = roomPlacer(floor, room);
   if (!P.allFloor()) return false;
   const ax = room.x + Math.floor(room.w / 2);
@@ -572,7 +596,7 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
     const y = rng.int(room.y, room.y + room.h - 1);
     const kind = (["barrel", "crate", "crateStack"] as const)[rng.int(0, 2)];
     const againstWall = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
-    if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y)) continue;
+    if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y) || nearHearth(floor, x, y)) continue;
     map.set(x, y, Tile.Furniture);
     const after = reachable(map, floor.start);
     if (after !== before - 1) {
@@ -690,23 +714,7 @@ export function furnishForge(floor: Floor, room: Room, rng: Rng, out: Furniture[
 export function furnishAlchemist(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
   const P = roomPlacer(floor, room);
   if (!P.allFloor()) return false;
-  const books = rng.int(1, 3);
-  const front = rng.int(0, Math.min(1, books));
-  const back = [...Array(front).fill("bookcase"), ...Array(rng.int(0, 3)).fill("glassShelf"), ...Array(rng.int(0, 2)).fill("herbs")];
-  P.alongBackWall(shuffle(rng, back));
-  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
-  // Bibliothèques de profil contre les murs de côté (2 cases de haut).
-  let sides = books - P.placed.filter((f) => f.kind === "bookcase").length;
-  for (let attempt = 0; attempt < 30 && sides > 0; attempt++) {
-    const left = rng.chance(0.5);
-    const y = rng.int(room.y + 2, room.y + room.h - 2);
-    if (P.tryPlace({ x: left ? room.x : room.x + room.w - 1, y, kind: left ? "bookcaseL" : "bookcaseR" })) sides--;
-  }
-  if (!P.placed.some((f) => f.kind.startsWith("bookcase"))) {
-    P.undo();
-    return false;
-  }
-  // Cheminée au milieu d'un mur de côté (comme au dortoir).
+  // Cheminée d'abord, au milieu d'un mur de côté : rien n'est posé devant elle (Thomas, 2026-11-12).
   const hy = room.y + Math.floor(room.h / 2);
   for (const side of rng.chance(0.5) ? [-1, 1] : [1, -1]) {
     const wx = side < 0 ? room.x - 1 : room.x + room.w;
@@ -716,16 +724,36 @@ export function furnishAlchemist(floor: Floor, room: Room, rng: Rng, out: Furnit
     floor.torches.push({ x: wx, y: hy, radius: 5, faceX: -side, faceY: 0, hearth: true, lit: true });
     break;
   }
-  const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
+  // Mur du fond (Thomas, 2026-11-12) : bibliothèques DE FACE seulement (1 à 2), au moins une étagère de verrerie
+  // (jusqu'à 3), 0 à 2 bouquets d'herbes. Plus de bibliothèque de profil.
+  const others = [...Array(rng.int(0, 1)).fill("bookcase"), ...Array(rng.int(0, 2)).fill("glassShelf"), ...Array(rng.int(0, 2)).fill("herbs")];
+  // Une bibliothèque et une étagère de verrerie à coup sûr, d'un côté ou de l'autre ; le reste mélangé derrière.
+  const sure = rng.chance(0.5) ? ["bookcase", "glassShelf"] : ["glassShelf", "bookcase"];
+  P.alongBackWall([sure[0], ...shuffle(rng, [sure[1], ...others])]);
+  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+  if (!P.placed.some((f) => f.kind === "bookcase") || !P.placed.some((f) => f.kind === "glassShelf")) {
+    P.undo();
+    return false;
+  }
+  const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 3), y: rng.int(room.y + 2, room.y + room.h - 2) });
+  // Le pupitre au grimoire, contre le mur de droite (Thomas, 2026-11-12).
+  scatter(P, rng, ["grimoire"], 1, () => ({ x: room.x + room.w - 1, y: rng.int(room.y + 2, room.y + room.h - 2) }));
+  const lectern = P.placed.find((f) => f.kind === "grimoire");
   const corner = () => {
-    const cs = [{ x: room.x, y: room.y + 2 }, { x: room.x + room.w - 1, y: room.y + 2 }, { x: room.x, y: room.y + room.h - 1 }, { x: room.x + room.w - 1, y: room.y + room.h - 1 }];
-    return cs[rng.int(0, 3)];
+    // Jamais collé au pupitre : l'ours, haut, le cacherait.
+    const cs = [{ x: room.x, y: room.y + 2 }, { x: room.x + room.w - 1, y: room.y + 2 }, { x: room.x, y: room.y + room.h - 1 }, { x: room.x + room.w - 1, y: room.y + room.h - 1 }].filter(
+      (c) => !lectern || Math.max(Math.abs(c.x - lectern.x), Math.abs(c.y - lectern.y)) > 1,
+    );
+    return cs[rng.int(0, cs.length - 1)];
   };
   scatter(P, rng, ["cauldron"], 1, inner);
-  scatter(P, rng, ["grimoire"], 1, inner);
   scatter(P, rng, ["stuffedBear"], 1, corner);
   scatter(P, rng, ["pottedPlant"], 1, corner);
   edgeChests(P, floor, room, rng, rng.int(1, 2));
+  // Un tapis usé au milieu de la salle (Thomas, 2026-11-12).
+  for (let attempt = 0; attempt < 30; attempt++) {
+    if (P.tryPlace({ x: rng.int(room.x + 1, room.x + room.w - 4), y: rng.int(room.y + 2, room.y + room.h - 2), kind: rng.chance(0.5) ? "rug" : "rugB" })) break;
+  }
   out.push(...P.placed);
   return true;
 }

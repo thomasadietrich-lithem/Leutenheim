@@ -81,7 +81,10 @@
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
-  #shop { justify-content: flex-start; overflow-y: auto; }
+  #shop { justify-content: flex-start; overflow-y: auto; text-align: center; }
+  #shop .hero-tabs { justify-content: center; margin-right: 0; width: 100%; }
+  #shop .item-card-body { text-align: center; }
+  body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
   #shop-purse { color: #ffd75e; font-size: 18px; margin: 6px 0; }
@@ -95,7 +98,7 @@
   .shop-price { color: #ffd75e; font-size: 16px; }
   .shop-sell { display: flex; flex-direction: column; gap: 4px; width: min(100%, 318px); overflow-y: auto; max-height: 52vh; }
   .shop-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; background: #241c14; }
-  .shop-row .shop-name { flex: 1; text-align: left; }
+  .shop-row .shop-name { flex: 1; text-align: center; }
   .shop-act { font-size: 16px; padding: 4px 8px; }
   #shop-detail { width: min(100%, 318px); display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 8px; }
   .shop-empty, .shop-note { color: var(--dim); font-size: 16px; text-align: center; }
@@ -1266,8 +1269,8 @@
       attackBonus: 2,
       damage: { count: 1, sides: 4, bonus: 0 },
       vision: 6,
-      xpMin: 3,
-      xpMax: 5,
+      xpMin: 1,
+      xpMax: 3,
       goldChance: 0.35,
       goldMax: 4,
       noticeChance: 0.4,
@@ -1285,8 +1288,8 @@
       attackBonus: 1,
       damage: { count: 1, sides: 3, bonus: 0 },
       vision: 7,
-      xpMin: 4,
-      xpMax: 6,
+      xpMin: 2,
+      xpMax: 3,
       goldChance: 0.35,
       goldMax: 4,
       noticeChance: 0.45,
@@ -1305,8 +1308,8 @@
       attackBonus: 3,
       damage: { count: 1, sides: 6, bonus: 0 },
       vision: 6,
-      xpMin: 5,
-      xpMax: 7,
+      xpMin: 2,
+      xpMax: 4,
       goldChance: 0,
       goldMax: 0,
       noticeChance: 0.45,
@@ -1327,8 +1330,8 @@
       attackBonus: 4,
       damage: { count: 1, sides: 8, bonus: 1 },
       vision: 2,
-      xpMin: 30,
-      xpMax: 30,
+      xpMin: 15,
+      xpMax: 15,
       goldChance: 0,
       goldMax: 0,
       noticeChance: 1,
@@ -1550,11 +1553,13 @@
     keyChance: 0.35,
     /**
      * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « à peu près un niveau par étage »).
-     * Réglée sur l'expérience que rapporte un étage nettoyé (mesuré : 10, 12, 22, 24 XP aux étages 1 à 4, la Tisseuse 30) :
-     * chaque niveau demande à peu près ce que donne l'étage où l'on se trouve. Au-delà du tableau, +6 par niveau.
+     * XP des monstres divisée par deux (Thomas, 2026-11-12) : Kobold 1 à 3, frondeur 2 à 3, araignée 2 à 4, Tisseuse 15.
+     * Mesuré sur 300 parties avec un joueur qui tue la moitié des monstres de chaque étage : 2,4 / 2,7 / 3,8 / 4,2 tués
+     * et 4,6 / 5,7 / 8,7 / 9,7 XP aux étages 1 à 4 ; chaque niveau demande donc à peu près ce que rapporte un étage
+     * (il arrive niveau 1,7 / 2,7 / 3,9 / 5,1 aux étages 2 à 5). Au-delà du tableau, +1 par niveau.
      */
-    xpLevels: [9, 11, 18, 20, 26, 30, 34],
-    xpLevelStep: 6,
+    xpLevels: [4, 5, 7, 8, 9, 10, 11],
+    xpLevelStep: 1,
     /** Points de vie gagnés à chaque niveau. */
     hpPerLevel: 3,
     /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */
@@ -2430,6 +2435,16 @@
   function underTorch(floor, x, y) {
     return floor.torches.some((t) => t.x === x && t.y === y - 1);
   }
+  function nearHearth(floor, x, y) {
+    return floor.torches.some((t) => {
+      if (!t.hearth) return false;
+      const fx = t.faceX ?? 0;
+      const fy = t.faceY ?? 0;
+      const along = fx !== 0 ? (x - t.x) * fx : (y - t.y) * fy;
+      const across = fx !== 0 ? Math.abs(y - t.y) : Math.abs(x - t.x);
+      return along >= 1 && along <= 2 && across <= 1;
+    });
+  }
   function furnitureCells(f) {
     const k = FURNITURE_KINDS[f.kind] ?? { w: 1, h: 1 };
     const out = [];
@@ -2461,7 +2476,7 @@
     const tryPlace = (f) => {
       const kind = FURNITURE_KINDS[f.kind];
       const cells = furnitureCells(f);
-      if (cells.some((c) => !inside(c.x, c.y) || used.has(key(c.x, c.y)) || special(c.x, c.y))) return false;
+      if (cells.some((c) => !inside(c.x, c.y) || used.has(key(c.x, c.y)) || special(c.x, c.y) || nearHearth(floor, c.x, c.y))) return false;
       if (kind.blocks) {
         if (cells.some((c) => nearOpening(c.x, c.y))) return false;
         for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
@@ -2592,7 +2607,7 @@
     let before = reachable(map, floor.start);
     const placed = [];
     const chests = [];
-    const free = (x, y) => inside(x, y) && !used.has(key(x, y)) && !special(x, y) && map.get(x, y) === Tile.Floor;
+    const free = (x, y) => inside(x, y) && !used.has(key(x, y)) && !special(x, y) && map.get(x, y) === Tile.Floor && !nearHearth(floor, x, y);
     const tryPlace = (f) => {
       const kind = FURNITURE_KINDS[f.kind];
       const cells = furnitureCells(f);
@@ -2748,6 +2763,13 @@
     }
   }
   function furnishChapel(floor, room, rng, out) {
+    const torches = floor.torches;
+    floor.torches = torches.filter((t) => !(t.hearth && t.x >= room.x - 1 && t.x <= room.x + room.w && t.y >= room.y - 1 && t.y <= room.y + room.h));
+    const ok = furnishChapelInner(floor, room, rng, out);
+    if (!ok) floor.torches = torches;
+    return ok;
+  }
+  function furnishChapelInner(floor, room, rng, out) {
     const P = roomPlacer(floor, room);
     if (!P.allFloor()) return false;
     const ax = room.x + Math.floor(room.w / 2);
@@ -2862,7 +2884,7 @@
       const y = rng.int(room.y, room.y + room.h - 1);
       const kind = ["barrel", "crate", "crateStack"][rng.int(0, 2)];
       const againstWall = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
-      if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y)) continue;
+      if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y) || nearHearth(floor, x, y)) continue;
       map.set(x, y, Tile.Furniture);
       const after = reachable(map, floor.start);
       if (after !== before - 1) {
@@ -2954,21 +2976,6 @@
   function furnishAlchemist(floor, room, rng, out) {
     const P = roomPlacer(floor, room);
     if (!P.allFloor()) return false;
-    const books = rng.int(1, 3);
-    const front = rng.int(0, Math.min(1, books));
-    const back = [...Array(front).fill("bookcase"), ...Array(rng.int(0, 3)).fill("glassShelf"), ...Array(rng.int(0, 2)).fill("herbs")];
-    P.alongBackWall(shuffle(rng, back));
-    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
-    let sides = books - P.placed.filter((f) => f.kind === "bookcase").length;
-    for (let attempt = 0; attempt < 30 && sides > 0; attempt++) {
-      const left = rng.chance(0.5);
-      const y = rng.int(room.y + 2, room.y + room.h - 2);
-      if (P.tryPlace({ x: left ? room.x : room.x + room.w - 1, y, kind: left ? "bookcaseL" : "bookcaseR" })) sides--;
-    }
-    if (!P.placed.some((f) => f.kind.startsWith("bookcase"))) {
-      P.undo();
-      return false;
-    }
     const hy = room.y + Math.floor(room.h / 2);
     for (const side of rng.chance(0.5) ? [-1, 1] : [1, -1]) {
       const wx = side < 0 ? room.x - 1 : room.x + room.w;
@@ -2978,22 +2985,36 @@
       floor.torches.push({ x: wx, y: hy, radius: 5, faceX: -side, faceY: 0, hearth: true, lit: true });
       break;
     }
-    const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
+    const others = [...Array(rng.int(0, 1)).fill("bookcase"), ...Array(rng.int(0, 2)).fill("glassShelf"), ...Array(rng.int(0, 2)).fill("herbs")];
+    const sure = rng.chance(0.5) ? ["bookcase", "glassShelf"] : ["glassShelf", "bookcase"];
+    P.alongBackWall([sure[0], ...shuffle(rng, [sure[1], ...others])]);
+    for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+    if (!P.placed.some((f) => f.kind === "bookcase") || !P.placed.some((f) => f.kind === "glassShelf")) {
+      P.undo();
+      return false;
+    }
+    const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 3), y: rng.int(room.y + 2, room.y + room.h - 2) });
+    scatter(P, rng, ["grimoire"], 1, () => ({ x: room.x + room.w - 1, y: rng.int(room.y + 2, room.y + room.h - 2) }));
+    const lectern = P.placed.find((f) => f.kind === "grimoire");
     const corner = () => {
-      const cs = [{ x: room.x, y: room.y + 2 }, { x: room.x + room.w - 1, y: room.y + 2 }, { x: room.x, y: room.y + room.h - 1 }, { x: room.x + room.w - 1, y: room.y + room.h - 1 }];
-      return cs[rng.int(0, 3)];
+      const cs = [{ x: room.x, y: room.y + 2 }, { x: room.x + room.w - 1, y: room.y + 2 }, { x: room.x, y: room.y + room.h - 1 }, { x: room.x + room.w - 1, y: room.y + room.h - 1 }].filter(
+        (c) => !lectern || Math.max(Math.abs(c.x - lectern.x), Math.abs(c.y - lectern.y)) > 1
+      );
+      return cs[rng.int(0, cs.length - 1)];
     };
     scatter(P, rng, ["cauldron"], 1, inner);
-    scatter(P, rng, ["grimoire"], 1, inner);
     scatter(P, rng, ["stuffedBear"], 1, corner);
     scatter(P, rng, ["pottedPlant"], 1, corner);
     edgeChests(P, floor, room, rng, rng.int(1, 2));
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (P.tryPlace({ x: rng.int(room.x + 1, room.x + room.w - 4), y: rng.int(room.y + 2, room.y + room.h - 2), kind: rng.chance(0.5) ? "rug" : "rugB" })) break;
+    }
     out.push(...P.placed);
     return true;
   }
 
   // src/world/sandbox.ts
-  var SANDBOX_LAYOUT = 14;
+  var SANDBOX_LAYOUT = 15;
   var SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
   function buildSandbox(seeds = SANDBOX_SEEDS) {
     const map = new GameMap(52, 32);
@@ -4987,37 +5008,24 @@
       this.inventory.removeItem(uid);
       const bow = ITEMS[item.defId].twoHanded ? this.equipment.ranged : null;
       if (bow) {
-        if (!this.inventory.placeItem(bow)) {
-          item.x = from.x;
-          item.y = from.y;
-          this.inventory.items.push(item);
-          return false;
-        }
+        if (!this.inventory.placeItem(bow)) this.bounceFromHero(bow.defId, bow.count);
         this.equipment.ranged = null;
       }
       if (kind === "bag") {
         const def = ITEMS[item.defId];
         const before = { cols: this.inventory.cols, rows: this.inventory.rows };
-        if (!this.inventory.resize(def.bagCols ?? 6, def.bagRows ?? 4) || previous && !this.inventory.placeItem(previous)) {
+        if (!this.inventory.resize(def.bagCols ?? 6, def.bagRows ?? 4)) {
           this.inventory.resize(before.cols, before.rows);
           item.x = from.x;
           item.y = from.y;
           this.inventory.items.push(item);
           return false;
         }
+        if (previous && !this.inventory.placeItem(previous)) this.bounceFromHero(previous.defId, previous.count);
         this.equipment.bag = item;
         return true;
       }
-      if (previous && !this.inventory.placeItem(previous)) {
-        if (bow) {
-          this.inventory.removeItem(bow.uid);
-          this.equipment.ranged = bow;
-        }
-        item.x = from.x;
-        item.y = from.y;
-        this.inventory.items.push(item);
-        return false;
-      }
+      if (previous && !this.inventory.placeItem(previous)) this.bounceFromHero(previous.defId, previous.count);
       this.equipment[kind] = item;
       this.refreshStats();
       return true;
@@ -5026,7 +5034,8 @@
     unequip(slot) {
       if (slot === "bag") return false;
       const item = this.equipment[slot];
-      if (!item || !this.inventory.placeItem(item)) return false;
+      if (!item) return false;
+      if (!this.inventory.placeItem(item)) this.bounceFromHero(item.defId, item.count);
       this.equipment[slot] = null;
       this.refreshStats();
       return true;
@@ -6261,14 +6270,31 @@
       if (!this.canTrade()) return "away";
       if (this.gold < ware.price) return "gold";
       const left = this.inventory.add(ware.item, ware.count);
-      if (left > 0) {
-        if (ware.count - left > 0) this.inventory.take(ware.item, ware.count - left);
-        return "full";
-      }
+      if (left > 0) this.bounceFromHero(ware.item, left);
       this.gold -= ware.price;
       m.wares.splice(index, 1);
       this.events.push({ type: "bought", item: ware.item, count: ware.count, price: ware.price });
       return "ok";
+    }
+    /**
+     * Sac plein (Thomas, 2026-11-12) : l'objet part du héros et rebondit au sol sur la case libre la plus proche (sans
+     * objet, meuble, piège ni escalier, du même côté des murs) ; à défaut, à ses pieds.
+     */
+    bounceFromHero(item, count) {
+      const h = this.hero;
+      const free = (x, y) => (this.map.get(x, y) === Tile.Floor || this.map.get(x, y) === Tile.Gravel) && !(x === h.x && y === h.y) && !this.furnitureAt(x, y) && !this.isTrap(x, y) && !this.monsterAt(x, y) && !this.merchantAt(x, y) && !this.ground.some((g) => g.x === x && g.y === y) && hasLineOfSight(this.map, h, { x, y });
+      let at = { x: h.x, y: h.y };
+      search: for (let r = 1; r <= 3; r++) {
+        const ring = [];
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) ring.push({ x: h.x + dx, y: h.y + dy });
+        const ok = ring.filter((p) => free(p.x, p.y));
+        if (ok.length > 0) {
+          at = ok[Math.floor(mix(this.turn, ok.length, item.length) * ok.length)];
+          break search;
+        }
+      }
+      this.dropItem(at.x, at.y, item, count);
+      this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
     }
     /** Ce que le Colporteur donne pour cet objet du sac (tout le tas) ; null s'il n'en veut pas. */
     sellPrice(uid) {
@@ -6312,6 +6338,7 @@
         m.facing = Math.abs(dx2) > Math.abs(dy2) ? dx2 > 0 ? "right" : "left" : dy2 < 0 ? "up" : "down";
         return;
       }
+      if (this.isVisible(m.x, m.y)) return;
       if (this.turn % MERCHANT.stepEvery !== 0) return;
       const r = m.home;
       const inHome = (x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
@@ -13146,83 +13173,89 @@
       "....lllllllllllb",
       "....lllllllllllb"
     ] },
-    grimoire0: { palette: { "a": "#96c8ff", "b": "#120d08", "c": "#e8debe", "d": "#8c2828", "e": "#3c2828", "f": "#704c28", "g": "#56381c", "h": "#342010", "i": "#1c1622" }, rows: [
-      "..............",
-      ".........a....",
-      "....a.........",
-      ".bbbbbbbbbbbb.",
-      "bcccccddcccccb",
-      "bceeecddceeecb",
-      "bceeecddcccccb",
-      "bcccccddcccccb",
-      ".bffffffffffb.",
-      ".bffffffffffb.",
-      ".bffffffffffb.",
-      "..bbbbggbbbb..",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      "...bbbggbbb...",
-      "..bhhhhhhhhb..",
-      "..bhhhhhhhhb..",
-      ".biiiiiiiiiib.",
-      ".biiiiiiiiiib."
+    grimoire0: { palette: { "a": "#ffbe5a", "b": "#120d08", "c": "#e8debe", "d": "#96c8ff", "e": "#522c1c", "f": "#3c2828", "g": "#8c2828", "h": "#704c28", "i": "#8a6238", "j": "#342010", "k": "#56381c", "l": "#1c1622" }, rows: [
+      ".............aa.",
+      "............bccb",
+      ".........d..bccb",
+      "............bccb",
+      "......d....beeee",
+      "..........bbbbbe",
+      "........bbfcb..b",
+      "......bbcfccbb..",
+      "...bbbcggcccbhb.",
+      "..bcffccccgghhb.",
+      "..bcccccgghihjb.",
+      "..bcccggihhjjb..",
+      "..bggghhijjbb...",
+      ".bighihjjkb.....",
+      ".bighjjhkkb.....",
+      ".bjgjbbjjjb.....",
+      "..beb.bhkkb.....",
+      "...b..bhkkb.....",
+      "......bjjjb.....",
+      "......bhkkb.....",
+      ".....bbhkkbb....",
+      "....bkkkkkkkb...",
+      "...bjjjjjjjjjb..",
+      "..bbjjjjjjjjjb..",
+      ".bllllllllllllb.",
+      ".bllllllllllllb."
     ] },
-    grimoire1: { palette: { "a": "#96c8ff", "b": "#120d08", "c": "#e8debe", "d": "#8c2828", "e": "#3c2828", "f": "#704c28", "g": "#56381c", "h": "#342010", "i": "#1c1622" }, rows: [
-      "..............",
-      ".....a........",
-      "........a.....",
-      ".bbbbbbbbbbbb.",
-      "bcccccddcccccb",
-      "bceeecddceeecb",
-      "bceeecddcccccb",
-      "bcccccddcccccb",
-      ".bffffffffffb.",
-      ".bffffffffffb.",
-      ".bffffffffffb.",
-      "..bbbbggbbbb..",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      "...bbbggbbb...",
-      "..bhhhhhhhhb..",
-      "..bhhhhhhhhb..",
-      ".biiiiiiiiiib.",
-      ".biiiiiiiiiib."
+    grimoire1: { palette: { "a": "#ffbe5a", "b": "#120d08", "c": "#96c8ff", "d": "#e8debe", "e": "#522c1c", "f": "#3c2828", "g": "#8c2828", "h": "#704c28", "i": "#8a6238", "j": "#342010", "k": "#56381c", "l": "#1c1622" }, rows: [
+      ".............ab.",
+      "..........c.bddb",
+      "............bddb",
+      ".......c....bddb",
+      "...........beeee",
+      "..........bbbbbe",
+      "........bbfdb..b",
+      "......bbdfddbb..",
+      "...bbbdggdddbhb.",
+      "..bdffddddgghhb.",
+      "..bdddddgghihjb.",
+      "..bdddggihhjjb..",
+      "..bggghhijjbb...",
+      ".bighihjjkb.....",
+      ".bighjjhkkb.....",
+      ".bjgjbbjjjb.....",
+      "..beb.bhkkb.....",
+      "...b..bhkkb.....",
+      "......bjjjb.....",
+      "......bhkkb.....",
+      ".....bbhkkbb....",
+      "....bkkkkkkkb...",
+      "...bjjjjjjjjjb..",
+      "..bbjjjjjjjjjb..",
+      ".bllllllllllllb.",
+      ".bllllllllllllb."
     ] },
-    grimoire2: { palette: { "a": "#96c8ff", "b": "#120d08", "c": "#e8debe", "d": "#8c2828", "e": "#3c2828", "f": "#704c28", "g": "#56381c", "h": "#342010", "i": "#1c1622" }, rows: [
-      "..............",
-      ".........a....",
-      "....a.........",
-      ".bbbbbbbbbbbb.",
-      "bcccccddcccccb",
-      "bceeecddceeecb",
-      "bceeecddcccccb",
-      "bcccccddcccccb",
-      ".bffffffffffb.",
-      ".bffffffffffb.",
-      ".bffffffffffb.",
-      "..bbbbggbbbb..",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      ".....bggb.....",
-      "...bbbggbbb...",
-      "..bhhhhhhhhb..",
-      "..bhhhhhhhhb..",
-      ".biiiiiiiiiib.",
-      ".biiiiiiiiiib."
+    grimoire2: { palette: { "a": "#120d08", "b": "#ffbe5a", "c": "#e8debe", "d": "#96c8ff", "e": "#522c1c", "f": "#3c2828", "g": "#8c2828", "h": "#704c28", "i": "#8a6238", "j": "#342010", "k": "#56381c", "l": "#1c1622" }, rows: [
+      ".............ab.",
+      "............acca",
+      ".....d......acca",
+      "............acca",
+      "........d..aeeee",
+      "..........aaaaae",
+      "........aafca..a",
+      "......aacfccaa..",
+      "...aaacggcccaha.",
+      "..acffccccgghha.",
+      "..acccccgghihja.",
+      "..acccggihhjja..",
+      "..aggghhijjaa...",
+      ".aighihjjka.....",
+      ".aighjjhkka.....",
+      ".ajgjaajjja.....",
+      "..aea.ahkka.....",
+      "...a..ahkka.....",
+      "......ajjja.....",
+      "......ahkka.....",
+      ".....aahkkaa....",
+      "....akkkkkkka...",
+      "...ajjjjjjjjja..",
+      "..aajjjjjjjjja..",
+      ".alllllllllllla.",
+      ".alllllllllllla."
     ] }
   };
 
@@ -14603,11 +14636,16 @@
       /** Monstres vaincus : leur corps reste un instant au sol avant de s'effacer. */
       this.corpses = [];
       this.heroDown = false;
-      this.spriteCache = /* @__PURE__ */ new Map();
+      /** Dessins déjà peints, par palette puis par liste de lignes : le Kobold et le frondeur partagent les mêmes lignes avec
+       * des couleurs différentes (Thomas : « un Kobold tireur vert » — le cache ne regardait que les lignes). */
+      this.spriteCache = /* @__PURE__ */ new WeakMap();
       /** Le héros vient d'être blessé. */
       /** Moment où chaque piège (par case « x,y ») s'est déclenché : il se montre « déclenché » un instant. */
       this.trapFlash = /* @__PURE__ */ new Map();
       this.smoke = [];
+      /** Fait voler une flèche d'une case à une autre. */
+      /** Objets qui rebondissent du héros vers le sol (sac plein) : un arc, puis un petit rebond. */
+      this.hops = [];
       /** Fouille : une vague dorée balaie les cases de la salle depuis le héros, puis les trouvailles scintillent. */
       this.scan = null;
       /** Cases proposées pour se dégager (roue d'actions) : encadrées en doré tant qu'on n'a pas choisi. */
@@ -14712,7 +14750,12 @@
     }
     /** Une image de sprite (rangées de lettres) peinte une fois pour toutes sur un petit canevas 16×16. */
     sprite(rows, palette = GUERRIER_PALETTE) {
-      let c = this.spriteCache.get(rows);
+      let byRows = this.spriteCache.get(palette);
+      if (!byRows) {
+        byRows = /* @__PURE__ */ new Map();
+        this.spriteCache.set(palette, byRows);
+      }
+      let c = byRows.get(rows);
       if (!c) {
         c = document.createElement("canvas");
         c.width = rows[0].length;
@@ -14726,7 +14769,7 @@
             g.fillRect(x, y, 1, 1);
           }
         });
-        this.spriteCache.set(rows, c);
+        byRows.set(rows, c);
       }
       return c;
     }
@@ -15114,7 +15157,9 @@
     addSlash(attackerId, fromX, fromY, x, y, color, arc = true) {
       this.slashes.push({ attackerId, fromX, fromY, x, y, color, age: 0, arc });
     }
-    /** Fait voler une flèche d'une case à une autre. */
+    addHop(item, fromX, fromY, x, y) {
+      this.hops.push({ item, fromX, fromY, x, y, age: 0 });
+    }
     addProjectile(fromX, fromY, x, y, delay = 0, tumble = false, stone = false) {
       this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone });
     }
@@ -15365,6 +15410,7 @@
       for (const g of game2.ground) {
         if (!game2.isExplored(g.x, g.y)) continue;
         if (g.item === "pomme" && game2.furnitureAt(g.x, g.y)?.kind === "basket") continue;
+        if (this.hops.some((h) => h.x === g.x && h.y === g.y && h.item === g.item)) continue;
         const gx = ox + g.x * tile;
         const gy = oy + g.y * tile;
         if (g.item === "clef") {
@@ -15581,6 +15627,15 @@
         ctx.beginPath();
         ctx.arc(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, tile * 0.44, 0, Math.PI * 2);
         ctx.stroke();
+      }
+      this.hops = this.hops.filter((h) => (h.age += dt) < 550);
+      for (const h of this.hops) {
+        const t = h.age / 550;
+        const along = Math.min(1, t / 0.75);
+        const lift = t < 0.75 ? Math.sin(Math.PI * along) * 0.9 : Math.sin(Math.PI * ((t - 0.75) / 0.25)) * 0.22;
+        const gx = ox + (h.fromX + (h.x - h.fromX) * along) * tile;
+        const gy = oy + (h.fromY + (h.y - h.fromY) * along - lift) * tile;
+        this.drawGroundIcon(itemIconRows(h.item), gx, gy);
       }
       this.projectiles = this.projectiles.filter((p) => (p.age += dt) < PROJECTILE_MS);
       for (const p of this.projectiles) {
@@ -15897,6 +15952,8 @@
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
       case "death":
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+      case "bounce":
+        return `Sac plein : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombe par terre.`;
       case "bagFull":
         return "Le sac est plein : l'objet reste au sol.";
       case "stairs":
@@ -16340,6 +16397,9 @@
       }
     } else if (e.type === "shop") {
       openShop(e.line);
+    } else if (e.type === "bounce") {
+      renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
+      renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
     } else if (e.type === "merchantLeaves") {
       if (e.seen) renderer.addFloatingText(e.x, e.y, "Pfft !", "#c8b8ff");
       if (shopOpen) closeShop();
@@ -16613,11 +16673,6 @@
       const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills });
       if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
       else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
-      const best = loadRecords().slice(0, 3);
-      if (best.length > 0) {
-        over.append(el("div", "over-sub", "Records"));
-        best.forEach((r, i) => over.append(el("div", "over-record", recordLine(r, i + 1))));
-      }
     }
     const again = el("button", "", "Nouvelle partie");
     again.type = "button";
@@ -16958,12 +17013,16 @@
     shopNote = "";
     $("shop-line").textContent = `\xAB ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} \xBB`;
     $("shop").hidden = false;
+    document.body.classList.add("shop-open");
+    renderer.resize();
     sfx.play("click");
     renderShop();
   }
   function closeShop() {
     shopOpen = false;
     $("shop").hidden = true;
+    document.body.classList.remove("shop-open");
+    renderer.resize();
   }
   function renderShop() {
     if (!shopOpen) return;
@@ -17253,15 +17312,17 @@
       const bagSwap = chosenDef?.kind === "bag";
       const hadBow = !!game.equipment.ranged;
       if (game.equip(selected.uid)) {
-        if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged) logLines.push("Arme \xE0 deux mains : votre arc retourne dans le sac.");
+        const bounced = game.events.some((e) => e.type === "bounce");
+        if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged && !bounced) logLines.push("Arme \xE0 deux mains : votre arc retourne dans le sac.");
       } else {
         logLines.push(
           chosenDef?.twoHanded && game.torchTurns > 0 ? "Une arme \xE0 deux mains ? Votre torche br\xFBle encore dans l'autre main." : chosenDef?.kind === "ranged" && game.twoHanded() ? "Votre arme se tient \xE0 deux mains : rangez-la d'abord pour prendre un arc." : bagSwap ? "Ce sac est trop petit pour tout ce que vous portez." : "Pas assez de place dans le sac pour \xE9changer."
         );
       }
     } else if (selected && "slot" in selected) {
-      if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
+      game.unequip(selected.slot);
     }
+    collectEvents();
     selected = null;
     aimShown = "";
     renderLog();
@@ -17481,11 +17542,13 @@
         const r = game.rank(pw.id);
         const card = el("div", `skill-card${main ? " main" : ""}${r > 0 ? " owned" : ""}`);
         const body = el("div", "");
-        const now = r > 0 ? pw.ranks[r - 1] : "Pas encore pris";
+        const now = r > 0 ? pw.ranks[r - 1] : "";
         const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
         const pips = el("div", "rank-pips");
         for (let k = 0; k < MAX_RANK; k++) pips.append(rankPip(k < r));
-        body.append(el("b", "", pw.name), pips, el("div", "rank-now", now), el("div", "rank-next", next));
+        body.append(el("b", "", pw.name), pips);
+        if (now) body.append(el("div", "rank-now", now));
+        body.append(el("div", "rank-next", next));
         if (main) {
           const uses = game.voie === "blue" ? ` (${powerCharges()} \xE0 cet \xE9tage)` : ` (${game.perks().doubleStrikes} \xE0 cet \xE9tage)`;
           body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));

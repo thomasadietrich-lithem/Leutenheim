@@ -21,6 +21,7 @@ import { ATELIERS } from "./sprites/atelier";
 import { BOSS } from "./sprites/boss";
 import { MARCHAND, MARCHAND_PALETTE } from "./sprites/marchand";
 import { MERCHANT } from "../data/merchant";
+import type { ItemId } from "../data/items";
 
 /** Le Colporteur caché (planche art/marchand_v1.png) : seuls quelques points de son contour frémissent et ses yeux
  * luisent ; 7 images qui défilent. Calculées une fois (le cache des dessins se repère à la liste de lignes). */
@@ -134,7 +135,9 @@ export class Renderer {
   /** Monstres vaincus : leur corps reste un instant au sol avant de s'effacer. */
   private corpses: { actor: Actor; age: number; facing: Facing }[] = [];
   private heroDown = false;
-  private readonly spriteCache = new Map<readonly string[], HTMLCanvasElement>();
+  /** Dessins déjà peints, par palette puis par liste de lignes : le Kobold et le frondeur partagent les mêmes lignes avec
+   * des couleurs différentes (Thomas : « un Kobold tireur vert » — le cache ne regardait que les lignes). */
+  private readonly spriteCache = new WeakMap<Record<string, string>, Map<readonly string[], HTMLCanvasElement>>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -258,7 +261,12 @@ export class Renderer {
 
   /** Une image de sprite (rangées de lettres) peinte une fois pour toutes sur un petit canevas 16×16. */
   private sprite(rows: readonly string[], palette: Record<string, string> = GUERRIER_PALETTE): HTMLCanvasElement {
-    let c = this.spriteCache.get(rows);
+    let byRows = this.spriteCache.get(palette);
+    if (!byRows) {
+      byRows = new Map();
+      this.spriteCache.set(palette, byRows);
+    }
+    let c = byRows.get(rows);
     if (!c) {
       c = document.createElement("canvas");
       c.width = rows[0].length;
@@ -272,7 +280,7 @@ export class Renderer {
           g.fillRect(x, y, 1, 1);
         }
       });
-      this.spriteCache.set(rows, c);
+      byRows.set(rows, c);
     }
     return c;
   }
@@ -702,6 +710,13 @@ export class Renderer {
   }
 
   /** Fait voler une flèche d'une case à une autre. */
+  /** Objets qui rebondissent du héros vers le sol (sac plein) : un arc, puis un petit rebond. */
+  private hops: { item: ItemId; fromX: number; fromY: number; x: number; y: number; age: number }[] = [];
+
+  addHop(item: ItemId, fromX: number, fromY: number, x: number, y: number): void {
+    this.hops.push({ item, fromX, fromY, x, y, age: 0 });
+  }
+
   addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false): void {
     this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone }); // un âge négatif : elle partira après ce délai
   }
@@ -1022,6 +1037,8 @@ export class Renderer {
       if (!game.isExplored(g.x, g.y)) continue;
       // Les pommes d'un panier sont dessinées dans le panier.
       if (g.item === "pomme" && game.furnitureAt(g.x, g.y)?.kind === "basket") continue;
+      // Un objet encore en train de rebondir n'est pas déjà posé.
+      if (this.hops.some((h) => h.x === g.x && h.y === g.y && h.item === g.item)) continue;
       const gx = ox + g.x * tile;
       const gy = oy + g.y * tile;
       if (g.item === "clef") {
@@ -1268,6 +1285,16 @@ export class Renderer {
 
     // Coups d'épée ou de griffe : un arc qui balaie la case visée, perpendiculaire à la direction du coup.
     // Flèches en vol : un trait qui file de l'archer vers sa cible.
+    // Sac plein : l'objet part de la main du héros, décrit un arc, touche le sol et rebondit une fois (550 ms).
+    this.hops = this.hops.filter((h) => (h.age += dt) < 550);
+    for (const h of this.hops) {
+      const t = h.age / 550;
+      const along = Math.min(1, t / 0.75);
+      const lift = t < 0.75 ? Math.sin(Math.PI * along) * 0.9 : Math.sin(Math.PI * ((t - 0.75) / 0.25)) * 0.22;
+      const gx = ox + (h.fromX + (h.x - h.fromX) * along) * tile;
+      const gy = oy + (h.fromY + (h.y - h.fromY) * along - lift) * tile;
+      this.drawGroundIcon(itemIconRows(h.item), gx, gy);
+    }
     this.projectiles = this.projectiles.filter((p) => (p.age += dt) < PROJECTILE_MS);
     for (const p of this.projectiles) {
       if (p.age < 0) continue;

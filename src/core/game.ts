@@ -1286,39 +1286,27 @@ export class Game {
     // Arme à deux mains (Thomas, 2026-11-11) : elle fait sauter l'autre main, l'arc retourne dans le sac.
     const bow = (ITEMS[item.defId] as ItemDef).twoHanded ? this.equipment.ranged : null;
     if (bow) {
-      if (!this.inventory.placeItem(bow)) {
-        item.x = from.x;
-        item.y = from.y;
-        this.inventory.items.push(item);
-        return false;
-      }
+      // Sac plein (Thomas) : l'arc rebondit au sol, sur une case libre à côté.
+      if (!this.inventory.placeItem(bow)) this.bounceFromHero(bow.defId, bow.count);
       this.equipment.ranged = null;
     }
     if (kind === "bag") {
       // Un sac : le sac change de taille ; ce qu'il contient doit tenir dans le nouveau.
       const def = ITEMS[item.defId] as ItemDef;
       const before = { cols: this.inventory.cols, rows: this.inventory.rows };
-      if (!this.inventory.resize(def.bagCols ?? 6, def.bagRows ?? 4) || (previous && !this.inventory.placeItem(previous))) {
+      if (!this.inventory.resize(def.bagCols ?? 6, def.bagRows ?? 4)) {
         this.inventory.resize(before.cols, before.rows);
         item.x = from.x;
         item.y = from.y;
         this.inventory.items.push(item);
         return false;
       }
+      if (previous && !this.inventory.placeItem(previous)) this.bounceFromHero(previous.defId, previous.count);
       this.equipment.bag = item;
       return true;
     }
-    if (previous && !this.inventory.placeItem(previous)) {
-      // Pas de place pour ranger l'ancien : on annule (l'arc rangé reprend sa place).
-      if (bow) {
-        this.inventory.removeItem(bow.uid);
-        this.equipment.ranged = bow;
-      }
-      item.x = from.x;
-      item.y = from.y;
-      this.inventory.items.push(item);
-      return false;
-    }
+    // Pas de place pour ranger l'ancien : il rebondit au sol (Thomas).
+    if (previous && !this.inventory.placeItem(previous)) this.bounceFromHero(previous.defId, previous.count);
     this.equipment[kind] = item;
     this.refreshStats();
     return true;
@@ -1329,7 +1317,8 @@ export class Game {
     // Le sac ne s'enlève pas : on le remplace par un autre.
     if (slot === "bag") return false;
     const item = this.equipment[slot];
-    if (!item || !this.inventory.placeItem(item)) return false;
+    if (!item) return false;
+    if (!this.inventory.placeItem(item)) this.bounceFromHero(item.defId, item.count);
     this.equipment[slot] = null;
     this.refreshStats();
     return true;
@@ -2732,14 +2721,41 @@ export class Game {
     if (!this.canTrade()) return "away";
     if (this.gold < ware.price) return "gold";
     const left = this.inventory.add(ware.item, ware.count);
-    if (left > 0) {
-      if (ware.count - left > 0) this.inventory.take(ware.item, ware.count - left);
-      return "full";
-    }
+    // Sac plein (Thomas) : ce qui ne tient pas rebondit au sol à côté du héros.
+    if (left > 0) this.bounceFromHero(ware.item, left);
     this.gold -= ware.price;
     m.wares.splice(index, 1);
     this.events.push({ type: "bought", item: ware.item, count: ware.count, price: ware.price });
     return "ok";
+  }
+
+  /**
+   * Sac plein (Thomas, 2026-11-12) : l'objet part du héros et rebondit au sol sur la case libre la plus proche (sans
+   * objet, meuble, piège ni escalier, du même côté des murs) ; à défaut, à ses pieds.
+   */
+  private bounceFromHero(item: ItemId, count: number): void {
+    const h = this.hero;
+    const free = (x: number, y: number) =>
+      (this.map.get(x, y) === Tile.Floor || this.map.get(x, y) === Tile.Gravel) &&
+      !(x === h.x && y === h.y) &&
+      !this.furnitureAt(x, y) &&
+      !this.isTrap(x, y) &&
+      !this.monsterAt(x, y) &&
+      !this.merchantAt(x, y) &&
+      !this.ground.some((g) => g.x === x && g.y === y) &&
+      hasLineOfSight(this.map, h, { x, y });
+    let at: Point = { x: h.x, y: h.y };
+    search: for (let r = 1; r <= 3; r++) {
+      const ring: Point[] = [];
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) ring.push({ x: h.x + dx, y: h.y + dy });
+      const ok = ring.filter((p) => free(p.x, p.y));
+      if (ok.length > 0) {
+        at = ok[Math.floor(mix(this.turn, ok.length, item.length) * ok.length)];
+        break search;
+      }
+    }
+    this.dropItem(at.x, at.y, item, count);
+    this.events.push({ type: "bounce", item, count, fromX: h.x, fromY: h.y, x: at.x, y: at.y });
   }
 
   /** Ce que le Colporteur donne pour cet objet du sac (tout le tas) ; null s'il n'en veut pas. */
@@ -2788,6 +2804,9 @@ export class Game {
       m.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy < 0 ? "up" : "down";
       return;
     }
+    // Vu du héros, il ne bouge plus (Thomas : « il ne s'éloigne pas, faut éviter de lui courir après ») : il ne flâne
+    // que hors de vue.
+    if (this.isVisible(m.x, m.y)) return;
     if (this.turn % MERCHANT.stepEvery !== 0) return;
     const r = m.home;
     const inHome = (x: number, y: number) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;

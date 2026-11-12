@@ -874,13 +874,13 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   }
   assert.equal(kills, 3);
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
-  assert.ok(gains.every((g) => g >= 3 && g <= 5), "un monstre rapporte 3 à 5 points d'expérience");
+  assert.ok(gains.every((g) => g >= 1 && g <= 3), "un Kobold rapporte 1 à 3 points d'expérience (divisé par deux, Thomas 2026-11-12)");
   const total = gains.reduce((a, b) => a + b, 0);
-  // Niveau 2 à 9 points, niveau 3 à 20 (9 + 11) : trois victoires (9 à 15 points) mènent au niveau 2.
-  const level = 2;
-  const left = total - 9;
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, 11, maxHp]);
-  assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
+  // Niveau 2 à 4 points, niveau 3 à 9 (4 + 5) : trois victoires (3 à 9 points) mènent au niveau 1, 2 ou 3.
+  const level = total >= 9 ? 3 : total >= 4 ? 2 : 1;
+  const left = total - (level === 3 ? 9 : level === 2 ? 4 : 0);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, [4, 5, 7][level - 1], maxHp]);
+  if (level >= 2) assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
   assert.equal(game.points, level - 1);
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
 
@@ -1880,13 +1880,13 @@ test("butin : rareté selon la section, tas d'or selon la section, jamais dans l
   }
 });
 
-test("expérience : chaque niveau demande un peu plus que le précédent (9, 11, 18, 20, 26)", () => {
+test("expérience : chaque niveau demande un peu plus que le précédent (4, 5, 7, 8, 9)", () => {
   const game = new Game(1);
   const needs = [1, 2, 3, 4, 5].map((level) => {
     game.level = level;
     return game.xpToNext();
   });
-  assert.deepEqual(needs, [9, 11, 18, 20, 26]);
+  assert.deepEqual(needs, [4, 5, 7, 8, 9]);
 });
 
 test("salle d'essai : les Schrats en ronde restent dans leur salle ; « Réveiller » les lance sur le héros", () => {
@@ -2148,7 +2148,7 @@ test("dortoir de la salle d'essai : lits contre le mur du haut, table, chaises, 
   const bunks = list.filter((f) => f.kind.startsWith("bunk"));
   assert.ok(bunks.length >= 2 && bunks.length <= 4, `lits : ${bunks.length}`);
   assert.ok(bunks.every((b) => b.y === game.rooms[4].y), "contre le mur du haut");
-  assert.ok(list.some((f) => f.kind === "table"));
+  assert.ok(list.some((f) => f.kind.startsWith("table")));
   assert.ok(list.some((f) => f.kind.startsWith("chair") && f.kind !== "chairFallen"));
   assert.ok(list.some((f) => f.kind.startsWith("rug")));
   for (const f of list) {
@@ -2648,7 +2648,9 @@ test("forge, alchimiste, panier de pommes ; la fouille montre ce qui est interac
   const game = new Game(1, undefined, undefined, undefined, true);
   const kinds = new Set(game.furnitureList().map((f) => f.kind));
   for (const k of ["forge", "anvil", "workbench", "grindstone", "cauldron", "grimoire", "stuffedBear", "bookcase", "basket"]) assert.ok(kinds.has(k), `${k} manque`);
-  assert.ok(kinds.has("bookcaseL") || kinds.has("bookcaseR"), "une bibliothèque de profil");
+  assert.ok(!kinds.has("bookcaseL") && !kinds.has("bookcaseR"), "plus de bibliothèque de profil (Thomas, 2026-11-12)");
+  for (const k of ["glassShelf", "rug", "rugB"].slice(0, 1)) assert.ok(kinds.has(k), `${k} manque`);
+  assert.ok(kinds.has("rug") || kinds.has("rugB"), "un tapis");
   const basket = game.furnitureList().find((f) => f.kind === "basket")!;
   const apples = game.ground.filter((g) => g.x === basket.x && g.y === basket.y && g.item === "pomme").reduce((n, g) => n + g.count, 0);
   assert.ok(apples >= 2 && apples <= 3, `pommes : ${apples}`);
@@ -3031,4 +3033,34 @@ test("Colporteur : au palier d'alerte ALERTE, il quitte l'étage", () => {
   game.tick();
   assert.equal(game.merchant(), null);
   assert.ok(game.events.some((e) => e.type === "merchantLeaves"));
+});
+
+test("sac plein : ce qui ne tient pas rebondit au sol sur une case libre ; le Colporteur ne bouge pas quand on le voit", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  game.setPeaceful(true);
+  const m = game.merchant()!;
+  // On se met à côté de lui, sac rempli de pommes.
+  Object.assign(game.hero, { x: m.x - 1, y: m.y, fromX: m.x - 1, fromY: m.y });
+  game.wait();
+  game.tick();
+  assert.deepEqual([m.x, m.y], [game.hero.x + 1, game.hero.y], "il ne s'éloigne pas");
+  while (game.inventory.add("pomme", 5) === 0);
+  game.gold = 500;
+  const before = game.ground.length;
+  const ware = m.wares.find((w) => w.item !== "pomme")!;
+  assert.equal(game.buy(m.wares.indexOf(ware)), "ok");
+  const hop = game.events.find((e) => e.type === "bounce");
+  assert.ok(hop && hop.type === "bounce");
+  assert.equal(game.ground.length, before + 1);
+  const g = game.ground.find((x) => x.x === hop.x && x.y === hop.y)!;
+  assert.equal(g.item, ware.item);
+  assert.ok(Math.max(Math.abs(hop.x - game.hero.x), Math.abs(hop.y - game.hero.y)) >= 1, "pas sous les pieds du héros");
+  // Il reste là tant qu'on le voit.
+  const at = [m.x, m.y];
+  Object.assign(game.hero, { x: m.x - 4, y: m.y, fromX: m.x - 4, fromY: m.y });
+  for (let i = 0; i < 6; i++) {
+    game.wait();
+    game.tick();
+  }
+  if (game.isVisible(m.x, m.y)) assert.deepEqual([m.x, m.y], at);
 });

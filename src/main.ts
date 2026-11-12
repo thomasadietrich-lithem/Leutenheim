@@ -371,6 +371,9 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "shop") {
     openShop(e.line);
+  } else if (e.type === "bounce") {
+    renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Sac plein", "#ffd75e");
   } else if (e.type === "merchantLeaves") {
     if (e.seen) renderer.addFloatingText(e.x, e.y, "Pfft !", "#c8b8ff");
     if (shopOpen) closeShop();
@@ -669,11 +672,6 @@ function showDeath(): void {
     const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills });
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
-    const best = loadRecords().slice(0, 3);
-    if (best.length > 0) {
-      over.append(el("div", "over-sub", "Records"));
-      best.forEach((r, i) => over.append(el("div", "over-record", recordLine(r, i + 1))));
-    }
   }
   const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
   again.type = "button";
@@ -1066,6 +1064,9 @@ function openShop(line: number): void {
   shopNote = "";
   $("shop-line").textContent = `« ${MERCHANT.lines[line] ?? MERCHANT.lines[0]} »`;
   $("shop").hidden = false;
+  // Pendant la conversation, l'encart du dé et la barre du bas disparaissent (Thomas).
+  document.body.classList.add("shop-open");
+  renderer.resize();
   sfx.play("click");
   renderShop();
 }
@@ -1073,6 +1074,8 @@ function openShop(line: number): void {
 function closeShop(): void {
   shopOpen = false;
   $("shop").hidden = true;
+  document.body.classList.remove("shop-open");
+  renderer.resize();
 }
 
 function renderShop(): void {
@@ -1388,7 +1391,8 @@ button("bag-equip", () => {
     const bagSwap = chosenDef?.kind === "bag";
     const hadBow = !!game.equipment.ranged;
     if (game.equip(selected.uid)) {
-      if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged) logLines.push("Arme à deux mains : votre arc retourne dans le sac.");
+      const bounced = game.events.some((e) => e.type === "bounce");
+      if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged && !bounced) logLines.push("Arme à deux mains : votre arc retourne dans le sac.");
     } else {
       logLines.push(
         chosenDef?.twoHanded && game.torchTurns > 0
@@ -1401,8 +1405,9 @@ button("bag-equip", () => {
       );
     }
   } else if (selected && "slot" in selected) {
-    if (!game.unequip(selected.slot)) logLines.push("Pas assez de place dans le sac.");
+    game.unequip(selected.slot);
   }
+  collectEvents();
   selected = null;
   aimShown = "";
   renderLog();
@@ -1647,12 +1652,14 @@ function renderCharacter(): void {
       const r = game.rank(pw.id);
       const card = el("div", `skill-card${main ? " main" : ""}${r > 0 ? " owned" : ""}`);
       const body = el("div", "");
-      const now = r > 0 ? pw.ranks[r - 1] : "Pas encore pris";
+      const now = r > 0 ? pw.ranks[r - 1] : "";
       const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
       // Nom, puis une rangée : 3 billes de rang (pleines jusqu'au rang atteint) et, à droite, le petit « + ».
       const pips = el("div", "rank-pips");
       for (let k = 0; k < MAX_RANK; k++) pips.append(rankPip(k < r));
-      body.append(el("b", "", pw.name), pips, el("div", "rank-now", now), el("div", "rank-next", next));
+      body.append(el("b", "", pw.name), pips);
+      if (now) body.append(el("div", "rank-now", now));
+      body.append(el("div", "rank-next", next));
       if (main) {
         const uses = game.voie === "blue" ? ` (${powerCharges()} à cet étage)` : ` (${game.perks().doubleStrikes} à cet étage)`;
         body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));

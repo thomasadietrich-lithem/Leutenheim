@@ -16,6 +16,7 @@ import forge_alchimie_v1 as fa
 from boss_v2 import export_sprites as boss_sprites
 from bibliotheque_profil_v2 import side_a
 from rigoles_v2 import pieces as rigoles
+from pupitre_v2 import grimoire_wall
 
 
 def side_a_padded():
@@ -130,7 +131,7 @@ if __name__ == "__main__":
            **{f"cauldron{i}": fa.cauldron(i).img() for i in range(3)}, "glassShelf": fa.glass_shelf().img(),
            "stuffedBear": fa.stuffed_bear().img(), "herbs": fa.herbs().img(), "pottedPlant": fa.potted_plant().img(),
            "bookcase": fa.bookcase_front().img(), "bookcaseL": side_a_padded(), "bookcaseR": side_a_padded().transpose(Image.FLIP_LEFT_RIGHT),
-           "grimoire0": fa.grimoire_stand(0).img(), "grimoire1": fa.grimoire_stand(1).img(), "grimoire2": fa.grimoire_stand(0).img()})
+           "grimoire0": grimoire_wall(0).img(), "grimoire1": grimoire_wall(1).img(), "grimoire2": grimoire_wall(2).img()})
     write("src/render/sprites/boss.ts", "BOSS",
           "Étage du boss de la section 1, la Tisseuse (planche art/boss_v2.png) : la Tisseuse, nappes de toile, grande toile (9 cases), cocons, sac d'œufs, amarre, escalier scellé, restes d'aventurier.",
           boss_sprites())

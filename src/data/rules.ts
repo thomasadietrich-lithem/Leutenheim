@@ -149,11 +149,13 @@ export const RULES = {
   keyChance: 0.35,
   /**
    * Expérience à réunir pour passer au niveau suivant (Thomas, 2026-11-11 : « à peu près un niveau par étage »).
-   * Réglée sur l'expérience que rapporte un étage nettoyé (mesuré : 10, 12, 22, 24 XP aux étages 1 à 4, la Tisseuse 30) :
-   * chaque niveau demande à peu près ce que donne l'étage où l'on se trouve. Au-delà du tableau, +6 par niveau.
+   * XP des monstres divisée par deux (Thomas, 2026-11-12) : Kobold 1 à 3, frondeur 2 à 3, araignée 2 à 4, Tisseuse 15.
+   * Mesuré sur 300 parties avec un joueur qui tue la moitié des monstres de chaque étage : 2,4 / 2,7 / 3,8 / 4,2 tués
+   * et 4,6 / 5,7 / 8,7 / 9,7 XP aux étages 1 à 4 ; chaque niveau demande donc à peu près ce que rapporte un étage
+   * (il arrive niveau 1,7 / 2,7 / 3,9 / 5,1 aux étages 2 à 5). Au-delà du tableau, +1 par niveau.
    */
-  xpLevels: [9, 11, 18, 20, 26, 30, 34],
-  xpLevelStep: 6,
+  xpLevels: [4, 5, 7, 8, 9, 10, 11],
+  xpLevelStep: 1,
   /** Points de vie gagnés à chaque niveau. */
   hpPerLevel: 3,
   /** Or contenu dans un coffre : de `min` à `max`, plus un bonus par étage. */

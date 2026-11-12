@@ -77,7 +77,7 @@ def b2low():
     halo(img, 32, 24, 34, (120, 60, 18), 0.55)
     torch(img, 52, 52, 34, -30)
     torch(img, 12, 52, 34, 30)
-    die(img, 32, 46, 16)
+    die(img, 32, 42, 16)
     return img
 
 

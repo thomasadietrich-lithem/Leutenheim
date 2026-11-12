@@ -70,13 +70,14 @@ def b2():
 
 
 def b2low():
-    """B2 retenu (Thomas, 2026-11-12 : « le B2 en baissant le dé ») : torches croisées, flammes de chaque côté, dé plus bas."""
+    """B2 retenu (Thomas, 2026-11-12 : « le B2 en baissant le dé », puis « rapetisse un peu le dé et baisse-le pour
+    qu'on comprenne les torches ») : torches croisées bien visibles (manches, bague, flammes), dé plus petit, en bas."""
     img = Image.new("RGB", (64, 64))
     bg(img, True)
-    halo(img, 32, 30, 36, (120, 60, 18), 0.55)
-    torch(img, 50, 63, 38, -36)
-    torch(img, 14, 63, 38, 36)
-    die(img, 32, 37, 21)
+    halo(img, 32, 24, 34, (120, 60, 18), 0.55)
+    torch(img, 52, 52, 34, -30)
+    torch(img, 12, 52, 34, 30)
+    die(img, 32, 46, 16)
     return img
 
 

@@ -29,7 +29,7 @@ export type SoundName =
   | "click"
   | "coin"
   | "heavy"
-  | "thud"
+  | "shoulder"
   | "stairStep"
   | "tumble";
 
@@ -227,7 +227,7 @@ export class Sfx {
           this.noise(0.3, 0.2, 500, 0.22);
           this.noise(0.4, 0.1, 300, 0.5);
           break;
-        case "thud": // coup d'épaule : la porte tient, mais ça résonne
+        case "shoulder": // coup d'épaule : la porte tient, mais ça résonne
           this.noise(0.18, 0.4, 500);
           this.tone(100, 45, 0.16, "sine", 0.32);
           this.noise(0.3, 0.12, 280, 0.2);

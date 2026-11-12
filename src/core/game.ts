@@ -262,6 +262,11 @@ export class Game {
           : RULES.themedRoomsInDungeon
           ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell")
           : { furniture: [], themes: [] };
+      // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
+      // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
+      if (!sandboxFloor && !bossFloor && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
+        placeBell(floor, new Rng(seed ^ 0x57a7f), furnished.furniture, new Set(furnished.themes.map((t) => t.room)), "statue");
+      }
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
       if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
       const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
@@ -601,6 +606,11 @@ export class Game {
     const bell = this.bellAt(at.x, at.y);
     if (bell) {
       this.ringBell(bell);
+      return;
+    }
+    const statue = this.statueAt(at.x, at.y);
+    if (statue?.hinted) {
+      this.smashStatue(statue);
       return;
     }
     const f = this.breakableAt(at.x, at.y);
@@ -2180,6 +2190,13 @@ export class Game {
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
     if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
+    const statue = this.statueAt(x, y);
+    if (statue && this.isExplored(x, y)) {
+      if (statue.hinted) return this.approachBreakable(x, y, ignoreFog);
+      this.events.push({ type: "statue", x, y, look: true });
+      return false;
+    }
     const seen = this.monsterAt(x, y);
     const monster = seen && this.isVisible(x, y) ? seen : undefined;
     // Vers un monstre en vue, on trouve toujours un chemin ; sinon on ne passe que par les cases déjà vues.
@@ -3132,6 +3149,7 @@ export class Game {
       if (depth !== 1) return;
       state.gluck = this.placeGluck(state, depth) ?? undefined;
       state.soeur = this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0)) ?? undefined;
+      this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
       return;
     }
     const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
@@ -3139,8 +3157,81 @@ export class Game {
     const who = (["gluck", "soeur"] as const).filter((id) => this.npcMemory(id).met < (id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters));
     if (who.length === 0) return;
     const pick = who[rng.int(0, who.length - 1)];
-    if (pick === "gluck") state.gluck = this.placeGluck(state, depth, rng) ?? undefined;
+    if (pick === "gluck") {
+      state.gluck = this.placeGluck(state, depth, rng) ?? undefined;
+      if (state.gluck) this.placeHollowStatue(state, rng);
+    }
     else state.soeur = this.placeSoeur(state, rng) ?? undefined;
+  }
+
+  /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
+  private placeHollowStatue(state: FloorState, rng: Rng): void {
+    const furniture = state.furniture ?? (state.furniture = []);
+    const special = new Set((state.themes ?? []).map((t) => t.room));
+    const floor = state as unknown as Parameters<typeof placeBell>[0];
+    // Ni sur un PNJ, ni sur un objet, un monstre, un motif au sol ou une flaque.
+    const avoid = (x: number, y: number) =>
+      [state.gluck, state.soeur, state.merchant].some((p) => p && p.x === x && p.y === y) ||
+      state.ground.some((g) => g.x === x && g.y === y) ||
+      this.monsters.some((m) => m.x === x && m.y === y) ||
+      (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
+    if (placeBell(floor, rng, furniture, special, "statue", avoid)) furniture[furniture.length - 1].hollow = true;
+  }
+
+  /** La statue (debout) sur cette case, s'il y en a une. */
+  statueAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind === "statue") ?? null;
+  }
+
+  /** Gluck parle de la statue creuse : la fissure se voit, et on peut la briser. Faux s'il n'y en a pas (ou plus). */
+  private hintStatue(): boolean {
+    const f = this.current.furniture.find((o) => o.kind === "statue" && o.hollow && !o.hinted);
+    if (!f) return false;
+    f.hinted = true;
+    this.map.touch(f.x, f.y);
+    return true;
+  }
+
+  /**
+   * Briser la statue creuse (Thomas, 2026-11-12) : un coup, d20 + force contre 12 (C) ; chaque coup fait du bruit (+5
+   * d'alerte). Réussi : elle s'effondre, son trésor (un cran plus rare que le butin de l'étage) et de l'or roulent à
+   * côté. Raté : on peut recommencer.
+   */
+  private smashStatue(f: Furniture): void {
+    this.reveal();
+    const bonus = this.pushBonus();
+    let d20 = this.rng.int(1, 20);
+    if (d20 === 1 && this.useLuck()) d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.statueDc);
+    this.raiseAlarm(RULES.statueAlarm, f);
+    this.events.push({ type: "statue", x: f.x, y: f.y, d20, bonus, total, success });
+    if (!success) return;
+    f.kind = "statueBroken";
+    this.map.set(f.x, f.y, Tile.Floor);
+    const gold = this.rng.int(10, 20) + this.depth * 3;
+    this.spillLoot(f.x, f.y, gold, rollLoot(this.rng, this.depth + RULES.floorsPerSection));
+  }
+
+  /** Salle d'essai : les PNJ de quête oublient tout et reviennent à leur première scène (Thomas, 2026-11-12). */
+  resetDialogues(): void {
+    if (!this.sandbox) return;
+    this.gluckMemory = { met: 0, mood: 0, invested: 0 };
+    this.soeurMemory = { met: 0 };
+    for (const g of [this.current.gluck, this.current.soeur]) {
+      if (!g) continue;
+      Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
+    }
+    for (const f of this.current.furniture) {
+      if (f.hollow) {
+        if (f.kind === "statueBroken") {
+          f.kind = "statue";
+          this.map.set(f.x, f.y, Tile.Furniture);
+        }
+        f.hinted = false;
+        this.map.touch(f.x, f.y);
+      }
+    }
   }
 
   /** Une case où un PNJ peut se tenir : du sol nu, sans monstre, meuble, objet ni Colporteur. */
@@ -3431,6 +3522,10 @@ export class Game {
       case "deal":
         if (test()) {
           this.gluckDrops(1);
+          // Le secret (Thomas, 2026-11-12) : la statue creuse de l'étage ; à défaut, l'escalier.
+          if (this.hintStatue()) {
+            return end(["« Marché conclu : une pomme, et un secret. La statue de pierre, sur cet étage… elle sonne creux. Un bon coup, et hop ! »", "(Une fissure apparaît sur la statue. Touchez-la pour la briser.)"]);
+          }
           this.revealStairs();
           return end(["« Marché conclu : une pomme, et un secret. L'escalier qui descend ? C'est par là. »", "(L'escalier apparaît sur votre carte.)"]);
         }
@@ -3485,6 +3580,9 @@ export class Game {
         if (gift === "apple") {
           this.gluckDrops(1);
           return end(["« Tiens. Une pomme de ma réserve secrète. »"]);
+        }
+        if (gift === "stairs" && this.hintStatue()) {
+          return end(["« Un secret, entre nous : la statue de pierre ? Creuse. J'y ai caché mes économies. Enfin… mes ANCIENNES économies. »", "(Une fissure apparaît sur la statue. Touchez-la pour la briser.)"]);
         }
         if (gift === "stairs") {
           this.revealStairs();

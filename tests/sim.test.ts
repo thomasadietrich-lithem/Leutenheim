@@ -1192,6 +1192,37 @@ test("quête 02, Sœur Osseuse : quatre scènes et ses bénédictions (Thomas, 2
   assert.equal(game.soeurMemory.met, 4);
 });
 
+test("statue creuse : invisible sans Gluck ; il en parle, la fissure se voit, on la brise et son trésor tombe (Thomas, 2026-11-12)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  game.peaceful = true;
+  const cur = (game as unknown as { current: { furniture: { x: number; y: number; kind: string; hollow?: boolean; hinted?: boolean }[] } }).current;
+  const st = cur.furniture.find((f) => f.kind === "statue" && f.hollow)!;
+  assert.ok(st, "une statue creuse dans la salle d'essai");
+  // Sans la ligne de dialogue : rien à briser, juste de la pierre.
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: st.x + dx, y: st.y + dy })).find((p) => game.map.isWalkable(p.x, p.y))!;
+  Object.assign(game.hero, spot);
+  game.wait();
+  game.tick();
+  game.events.length = 0;
+  assert.equal(game.setDestination(st.x, st.y), false);
+  assert.ok(game.events.some((e) => e.type === "statue" && e.look));
+  // Gluck, scène 4 (le philosophe) ou le marché : il en parle.
+  (game as unknown as { hintStatue(): boolean }).hintStatue();
+  assert.ok(st.hinted);
+  game.alloc.force = 20; // le premier coup suffit
+  const goldBefore = game.ground.filter((g) => g.item === "or").length;
+  assert.ok(game.setDestination(st.x, st.y));
+  for (let i = 0; i < 4 && st.kind === "statue"; i++) game.tick();
+  assert.equal(st.kind, "statueBroken");
+  assert.ok(game.ground.filter((g) => g.item === "or").length > goldBefore, "l'or roule à côté");
+  // Le bouton « Dialogues » de la salle d'essai remet tout en place.
+  game.resetDialogues();
+  assert.equal(st.kind, "statue");
+  assert.ok(!st.hinted);
+  assert.equal(game.gluckMemory.met, 0);
+});
+
 test("bénédictions de Sœur Osseuse : malédiction des Kobolds (+2), clarté (poison deux fois plus court), chance (1 relancé)", () => {
   const game = new Game(5);
   game.monsters.splice(0);

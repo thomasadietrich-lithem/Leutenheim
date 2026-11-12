@@ -66,7 +66,8 @@ const menu = $("menu");
 
 // ---------- Options (mémorisées sur l'appareil quand c'est possible) ----------
 
-const options = { sound: true };
+/** Réglages (Thomas, 2026-11-12) : bruitages et musique séparés ; langue (l'anglais viendra). */
+const options = { sound: true, music: true, lang: "fr" as "fr" | "en" };
 try {
   Object.assign(options, JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}"));
 } catch {
@@ -265,9 +266,10 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "npcRoll" }> =>
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "npcRoll" | "statue" }> =>
   e.type === "attack" ||
   e.type === "npcRoll" ||
+  (e.type === "statue" && !e.look) ||
   e.type === "hide" ||
   e.type === "jump" ||
   e.type === "searched" ||
@@ -378,7 +380,7 @@ function reveal(e: GameEvent): void {
         // Le héros se jette contre la porte : élan, choc, et le fracas qui résonne.
         renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
         renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
-        sfx.play(e.success ? "break" : "thud");
+        sfx.play(e.success ? "break" : "shoulder");
       } else {
         sfx.play(e.success ? "unlock" : "click");
       }
@@ -395,6 +397,12 @@ function reveal(e: GameEvent): void {
     }, 420);
   } else if (e.type === "luck") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
+  } else if (e.type === "statue") {
+    if (!e.look) {
+      landDie(e.d20!, e.success ? "hit" : "miss", false);
+      renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BONG", "#ffd75e");
+      sfx.play(e.success ? "break" : "thud");
+    }
   } else if (e.type === "npcRoll") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
   } else if (e.type === "npc") {
@@ -1725,8 +1733,9 @@ button("open-bag", () => {
   bagOpen = true;
   selected = null;
   pickedChoice = null;
-  // Par défaut, l'inventaire (Thomas) ; le « ! » de l'onglet Personnage signale ce qui attend.
-  heroTab = "inv";
+  // Par défaut, l'inventaire (Thomas) ; mais quand un point, la voie ou un pouvoir attend, on ouvre directement la fiche
+  // du personnage (Thomas, 2026-11-12 : « quand on a un niveau à monter, on tombe dans la fiche perso »).
+  heroTab = game.hasPendingChoice() && !game.over ? "char" : "inv";
   statusOpen = null;
   $("bag").hidden = false;
   renderHeroScreen();
@@ -2104,7 +2113,9 @@ function showScreen(screen: Screen | null): void {
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
-  $("settings-sound").textContent = `Sons : ${options.sound ? "activés" : "désactivés"}`;
+  $("settings-sound").textContent = `Bruitages : ${options.sound ? "oui" : "non"}`;
+  $("settings-music").textContent = `Musique : ${options.music ? "oui" : "non"}`;
+  $("settings-lang").textContent = `Langue : ${options.lang === "en" ? "English" : "Français"}`;
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
   if (screen === "records") renderRecords();
@@ -2309,7 +2320,10 @@ button("menu-resume", () => {
   showScreen(null);
 });
 button("menu-new", () => showScreen("new"));
-button("menu-settings", () => showScreen("settings"));
+button("menu-settings", () => {
+  $("settings-note").textContent = "";
+  showScreen("settings");
+});
 button("menu-codex", () => showScreen("codex"));
 button("menu-records", () => showScreen("records"));
 button("records-back", () => showScreen("main"));
@@ -2350,6 +2364,27 @@ button("menu-sandbox", () => {
   newRun(true);
   started = true;
   showScreen(null);
+});
+button("settings-music", () => {
+  options.music = !options.music;
+  saveOptions();
+  sfx.play("click");
+  showScreen("settings");
+  $("settings-note").textContent = "Pas encore de musique dans le jeu : le réglage est gardé pour plus tard.";
+});
+button("settings-lang", () => {
+  // L'anglais n'est pas encore traduit : le choix est gardé, le jeu reste en français pour l'instant.
+  options.lang = options.lang === "fr" ? "en" : "fr";
+  saveOptions();
+  sfx.play("click");
+  showScreen("settings");
+  $("settings-note").textContent = options.lang === "en" ? "English is coming soon: the game is still in French for now." : "";
+});
+// Salle d'essai : Gluck et Sœur Osseuse reprennent à leur première scène (Thomas, 2026-11-12).
+button("reset-talks", () => {
+  game.resetDialogues();
+  logLines.push("Dialogues remis à zéro : Gluck et Sœur Osseuse reprennent depuis le début.");
+  renderLog();
 });
 button("settings-sound", () => {
   options.sound = !options.sound;

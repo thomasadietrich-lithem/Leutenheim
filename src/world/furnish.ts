@@ -14,6 +14,9 @@ export interface Furniture {
   kind: string;
   /** Panier à fruits : nombre de pommes posées dedans à la création de l'étage. */
   count?: number;
+  /** Statue creuse (Thomas, 2026-11-12) : elle cache quelque chose ; `hinted` : Gluck l'a dit (la fissure se voit). */
+  hollow?: boolean;
+  hinted?: boolean;
 }
 
 /** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */
@@ -614,7 +617,7 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
  * La cloche d'alarme (Thomas, 2026-11-12), le « truc fun » de certaines sections : sur son support de bois, au milieu d'une salle
  * ordinaire, loin des ouvertures. Elle bloque sa case (rien ne devient inaccessible) et brûle.
  */
-export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): boolean {
+export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>, kind = "bell", avoid?: (x: number, y: number) => boolean): boolean {
   const { map } = floor;
   const before = reachable(map, floor.start);
   const specials = (floor as Floor & { specials?: { room: Room }[] }).specials ?? [];
@@ -626,12 +629,13 @@ export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], specia
     const y = rng.int(room.y + 1, room.y + room.h - 2);
     if (!freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || nearHearth(floor, x, y)) continue;
     if ((x === floor.stairs.x && y === floor.stairs.y) || (x === floor.start.x && y === floor.start.y)) continue;
+    if (avoid?.(x, y)) continue;
     map.set(x, y, Tile.Furniture);
     if (reachable(map, floor.start) !== before - 1) {
       map.set(x, y, Tile.Floor);
       continue;
     }
-    furniture.push({ x, y, kind: "bell" });
+    furniture.push({ x, y, kind });
     return true;
   }
   return false;

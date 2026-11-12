@@ -7,6 +7,7 @@ import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
 import { CLOCHE } from "./sprites/cloche";
+import { STATUES } from "./sprites/statue";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 
 /** Kobold frondeur (planche art/frondeur_v2.png) : le dessin du Kobold en orange (Thomas), œil jaune, jaque de cuir sombre
@@ -538,6 +539,23 @@ export class Renderer {
     const rows = SOEUR_SPRITE[Math.floor(Math.abs(this.time) / 520) % SOEUR_SPRITE.length];
     this.drawMonsterSprite(rows, cx, cy, false, true, SOEUR_PALETTE);
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, SOEUR_BUBBLE_ICON, { K: "#1a1410", W: "#e6dcc0" });
+  }
+
+  /** La statue creuse dont Gluck a parlé : un éclat doré scintille dans sa fissure, pour qu'on la repère. */
+  private drawStatueGlints(game: Game, ox: number, oy: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const pulse = (Math.sin(this.time / 220) + 1) / 2;
+    for (const f of game.furnitureList()) {
+      if (f.kind !== "statue" || !f.hinted || !game.isVisible(f.x, f.y)) continue;
+      // La fissure est vers le milieu du corps de la statue (dessin de 27 pixels de haut, posé sur sa case).
+      const cx = ox + (f.x * 16 + 9.5) * u;
+      const cy = oy + (f.y * 16 + 16 - 27 + 16.5) * u;
+      const r = u * (1.5 + pulse * 2.5);
+      ctx.fillStyle = `rgba(255,226,122,${(0.35 + pulse * 0.6).toFixed(2)})`;
+      ctx.fillRect(Math.round(cx - u / 2), Math.round(cy - r), Math.max(1, Math.round(u)), Math.round(r * 2));
+      ctx.fillRect(Math.round(cx - r), Math.round(cy - u / 2), Math.round(r * 2), Math.max(1, Math.round(u)));
+    }
   }
 
   /** Bulle de BD au-dessus de la tête d'un PNJ (Thomas, 2026-11-12) : contour sombre, fond crème, pointe vers lui. */
@@ -1294,6 +1312,7 @@ export class Renderer {
     this.drawMerchant(game, ox, oy, progress);
     this.drawGluck(game, ox, oy);
     this.drawSoeur(game, ox, oy);
+    this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.
@@ -1584,8 +1603,8 @@ export class Renderer {
       const apples = f.kind === "basket" ? game.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
       // Cloche d'alarme : elle se balance (à gauche, à droite) pendant un peu plus d'une seconde après le coup.
       const swing = f.kind === "bell" ? this.bellSwing(f.x, f.y) : 0;
-      const name = f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name];
+      const name = f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name];
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -1602,7 +1621,7 @@ export class Renderer {
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
         py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
       } else {
-        const off = f.kind === "bell" ? [0, 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
+        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }

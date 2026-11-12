@@ -89,6 +89,7 @@
   body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
+  #settings-note { color: var(--dim); font-size: 16px; min-height: 20px; }
   #talk { justify-content: flex-start; overflow-y: auto; text-align: center; gap: 8px; padding-top: 8px; z-index: 5; }
   /* Conversation : elle couvre la carte seulement ; le dé et le journal restent dessous (Thomas). */
   body.talk-open .bar, body.talk-open #here { display: none; }
@@ -392,7 +393,7 @@
     <button id="recenter" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button></div>
+    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
@@ -523,6 +524,9 @@
     <section id="screen-settings" hidden>
       <h2>Paramètres</h2>
       <button id="settings-sound" type="button"></button>
+      <button id="settings-music" type="button"></button>
+      <button id="settings-lang" type="button"></button>
+      <div id="settings-note"></div>
       <button id="settings-back" type="button" class="ghost">Retour</button>
     </section>
     <div id="detail" class="overlay" hidden>
@@ -838,7 +842,7 @@
             this.noise(0.3, 0.2, 500, 0.22);
             this.noise(0.4, 0.1, 300, 0.5);
             break;
-          case "thud":
+          case "shoulder":
             this.noise(0.18, 0.4, 500);
             this.tone(100, 45, 0.16, "sine", 0.32);
             this.noise(0.3, 0.12, 280, 0.2);
@@ -1598,6 +1602,11 @@
     feudShotChance: 0.5,
     blessBonus: 1,
     blessTurns: 150,
+    /** Statues (Thomas, 2026-11-12) : un étage sur trois en a une (décor) ; la creuse (avec Gluck) se brise, d20 + force
+     *  contre `statueDc`, chaque coup fait `statueAlarm` d'alerte. (C) */
+    statueChance: 1 / 3,
+    statueDc: 12,
+    statueAlarm: 5,
     /** Potion de poison jetée (cassée) : un petit nuage sur sa case, tant de tours (C). */
     brokenPoisonGasTurns: 3,
     gravelPatchesMax: 6,
@@ -2560,6 +2569,9 @@
     crateStack: { blocks: true, w: 1, h: 1, burns: true },
     // Cloche d'alarme sur son support de bois (Thomas, 2026-11-12) : la sonner fait monter l'alerte, et on se moque de vous.
     bell: { blocks: true, w: 1, h: 1, burns: true },
+    /** Statue de pierre (Thomas, 2026-11-12) : bloque, on se cache derrière ; une creuse cache un trésor (voir Gluck). */
+    statue: { blocks: true, w: 1, h: 1, burns: false },
+    statueBroken: { blocks: false, w: 1, h: 1, burns: false },
     // Toiles d'araignée (dès l'étage 3), dans un coin de salle sans torche : TL = coin en haut à gauche, etc. Elles collent.
     webTL: { blocks: false, w: 1, h: 1, burns: true, flat: true },
     webTR: { blocks: false, w: 1, h: 1, burns: true, flat: true },
@@ -3135,7 +3147,7 @@
       placed++;
     }
   }
-  function placeBell(floor, rng, furniture, special) {
+  function placeBell(floor, rng, furniture, special, kind = "bell", avoid) {
     const { map } = floor;
     const before = reachable(map, floor.start);
     const specials = floor.specials ?? [];
@@ -3147,12 +3159,13 @@
       const y = rng.int(room.y + 1, room.y + room.h - 2);
       if (!freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || nearHearth(floor, x, y)) continue;
       if (x === floor.stairs.x && y === floor.stairs.y || x === floor.start.x && y === floor.start.y) continue;
+      if (avoid?.(x, y)) continue;
       map.set(x, y, Tile.Furniture);
       if (reachable(map, floor.start) !== before - 1) {
         map.set(x, y, Tile.Floor);
         continue;
       }
-      furniture.push({ x, y, kind: "bell" });
+      furniture.push({ x, y, kind });
       return true;
     }
     return false;
@@ -4304,6 +4317,9 @@
         const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
         const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : bossFloor ? { furniture: bossFloor.furniture, themes: [] } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell") : { furniture: [], themes: [] };
+        if (!sandboxFloor && !bossFloor && new Rng(seed ^ 359038).chance(RULES.statueChance)) {
+          placeBell(floor, new Rng(seed ^ 359039), furnished.furniture, new Set(furnished.themes.map((t) => t.room)), "statue");
+        }
         if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
         const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
         state = {
@@ -4610,6 +4626,11 @@
       const bell = this.bellAt(at.x, at.y);
       if (bell) {
         this.ringBell(bell);
+        return;
+      }
+      const statue = this.statueAt(at.x, at.y);
+      if (statue?.hinted) {
+        this.smashStatue(statue);
         return;
       }
       const f = this.breakableAt(at.x, at.y);
@@ -5996,6 +6017,12 @@
       const npcHere = this.npcAt(x, y);
       if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
       if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+      const statue = this.statueAt(x, y);
+      if (statue && this.isExplored(x, y)) {
+        if (statue.hinted) return this.approachBreakable(x, y, ignoreFog);
+        this.events.push({ type: "statue", x, y, look: true });
+        return false;
+      }
       const seen = this.monsterAt(x, y);
       const monster = seen && this.isVisible(x, y) ? seen : void 0;
       const known = ignoreFog || monster ? void 0 : (cx, cy) => this.isKnown(cx, cy);
@@ -6842,6 +6869,7 @@
         if (depth !== 1) return;
         state.gluck = this.placeGluck(state, depth) ?? void 0;
         state.soeur = this.placeSoeur(state, new Rng(this.runSeed ^ 20704)) ?? void 0;
+        this.placeHollowStatue(state, new Rng(this.runSeed ^ 22439));
         return;
       }
       const rng = new Rng(floorSeed(this.runSeed, depth) ^ 1780165693);
@@ -6849,8 +6877,70 @@
       const who = ["gluck", "soeur"].filter((id) => this.npcMemory(id).met < (id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters));
       if (who.length === 0) return;
       const pick = who[rng.int(0, who.length - 1)];
-      if (pick === "gluck") state.gluck = this.placeGluck(state, depth, rng) ?? void 0;
-      else state.soeur = this.placeSoeur(state, rng) ?? void 0;
+      if (pick === "gluck") {
+        state.gluck = this.placeGluck(state, depth, rng) ?? void 0;
+        if (state.gluck) this.placeHollowStatue(state, rng);
+      } else state.soeur = this.placeSoeur(state, rng) ?? void 0;
+    }
+    /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
+    placeHollowStatue(state, rng) {
+      const furniture = state.furniture ?? (state.furniture = []);
+      const special = new Set((state.themes ?? []).map((t) => t.room));
+      const floor = state;
+      const avoid = (x, y) => [state.gluck, state.soeur, state.merchant].some((p) => p && p.x === x && p.y === y) || state.ground.some((g) => g.x === x && g.y === y) || this.monsters.some((m) => m.x === x && m.y === y) || (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
+      if (placeBell(floor, rng, furniture, special, "statue", avoid)) furniture[furniture.length - 1].hollow = true;
+    }
+    /** La statue (debout) sur cette case, s'il y en a une. */
+    statueAt(x, y) {
+      return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind === "statue") ?? null;
+    }
+    /** Gluck parle de la statue creuse : la fissure se voit, et on peut la briser. Faux s'il n'y en a pas (ou plus). */
+    hintStatue() {
+      const f = this.current.furniture.find((o) => o.kind === "statue" && o.hollow && !o.hinted);
+      if (!f) return false;
+      f.hinted = true;
+      this.map.touch(f.x, f.y);
+      return true;
+    }
+    /**
+     * Briser la statue creuse (Thomas, 2026-11-12) : un coup, d20 + force contre 12 (C) ; chaque coup fait du bruit (+5
+     * d'alerte). Réussi : elle s'effondre, son trésor (un cran plus rare que le butin de l'étage) et de l'or roulent à
+     * côté. Raté : on peut recommencer.
+     */
+    smashStatue(f) {
+      this.reveal();
+      const bonus = this.pushBonus();
+      let d20 = this.rng.int(1, 20);
+      if (d20 === 1 && this.useLuck()) d20 = this.rng.int(1, 20);
+      const total = d20 + bonus;
+      const success = d20 === 20 || d20 !== 1 && total >= RULES.statueDc;
+      this.raiseAlarm(RULES.statueAlarm, f);
+      this.events.push({ type: "statue", x: f.x, y: f.y, d20, bonus, total, success });
+      if (!success) return;
+      f.kind = "statueBroken";
+      this.map.set(f.x, f.y, Tile.Floor);
+      const gold = this.rng.int(10, 20) + this.depth * 3;
+      this.spillLoot(f.x, f.y, gold, rollLoot(this.rng, this.depth + RULES.floorsPerSection));
+    }
+    /** Salle d'essai : les PNJ de quête oublient tout et reviennent à leur première scène (Thomas, 2026-11-12). */
+    resetDialogues() {
+      if (!this.sandbox) return;
+      this.gluckMemory = { met: 0, mood: 0, invested: 0 };
+      this.soeurMemory = { met: 0 };
+      for (const g of [this.current.gluck, this.current.soeur]) {
+        if (!g) continue;
+        Object.assign(g, { gone: false, backAt: void 0, opened: false, intro: void 0, pending: void 0, pendingLines: void 0, haggled: false, drumDone: false, drops: 0, gold: 0 });
+      }
+      for (const f of this.current.furniture) {
+        if (f.hollow) {
+          if (f.kind === "statueBroken") {
+            f.kind = "statue";
+            this.map.set(f.x, f.y, Tile.Furniture);
+          }
+          f.hinted = false;
+          this.map.touch(f.x, f.y);
+        }
+      }
     }
     /** Une case où un PNJ peut se tenir : du sol nu, sans monstre, meuble, objet ni Colporteur. */
     npcFree(state, x, y) {
@@ -7116,6 +7206,9 @@
         case "deal":
           if (test()) {
             this.gluckDrops(1);
+            if (this.hintStatue()) {
+              return end(["\xAB March\xE9 conclu : une pomme, et un secret. La statue de pierre, sur cet \xE9tage\u2026 elle sonne creux. Un bon coup, et hop ! \xBB", "(Une fissure appara\xEEt sur la statue. Touchez-la pour la briser.)"]);
+            }
             this.revealStairs();
             return end(["\xAB March\xE9 conclu : une pomme, et un secret. L'escalier qui descend ? C'est par l\xE0. \xBB", "(L'escalier appara\xEEt sur votre carte.)"]);
           }
@@ -7170,6 +7263,9 @@
           if (gift === "apple") {
             this.gluckDrops(1);
             return end(["\xAB Tiens. Une pomme de ma r\xE9serve secr\xE8te. \xBB"]);
+          }
+          if (gift === "stairs" && this.hintStatue()) {
+            return end(["\xAB Un secret, entre nous : la statue de pierre ? Creuse. J'y ai cach\xE9 mes \xE9conomies. Enfin\u2026 mes ANCIENNES \xE9conomies. \xBB", "(Une fissure appara\xEEt sur la statue. Touchez-la pour la briser.)"]);
           }
           if (gift === "stairs") {
             this.revealStairs();
@@ -9104,6 +9200,62 @@
     ] }
   };
 
+  // src/render/sprites/statue.ts
+  var PALETTE2 = { K: "#0c0a10", S: "#7c809e", D: "#545670", H: "#b6bad6", d: "#221e2c", G: "#f0c050", g: "#a87c1c" };
+  var STATUE = [
+    "......KKKK......",
+    ".....KDSSDK.....",
+    "....KDSHHSDK....",
+    "....KSHddHSK....",
+    "....KSdKKdSK....",
+    ".....KSddSK.....",
+    "...KKDSSSSDKK...",
+    "..KDSSSSSSSSDK..",
+    "..KSSHSSSSHSSK..",
+    ".KDSHHSSSSHHSDK.",
+    ".KSSHSSHHSSHSSK.",
+    ".KSSSSSHHSSSSSK.",
+    "..KSSSSHHSSSSK..",
+    "..KDSSSHHSSSDK..",
+    "..KSSSSHHSSSSK..",
+    "..KDSSSSSSSSDK..",
+    "..KSSSSSSSSSSK..",
+    "..KDSSSSSSSSDK..",
+    "...KSSSSSSSSK...",
+    "...KSSSDDSSSK...",
+    "...KSSSDDSSSK...",
+    "..KKSSSDDSSSKK..",
+    ".KHHHHHHHHHHHHK.",
+    "KHSSSSSSSSSSSSHK",
+    "KDSSSSSSSSSSSSDK",
+    "KDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKK."
+  ];
+  function cracked() {
+    const rows = STATUE.map((r) => r.split(""));
+    for (const [x, y, c] of [[9, 14, "K"], [10, 15, "K"], [9, 16, "G"], [10, 17, "K"], [9, 18, "K"], [10, 16, "g"]]) rows[y][x] = c;
+    return rows.map((r) => r.join(""));
+  }
+  var BROKEN = [
+    "................",
+    "....K.....K.....",
+    "...KSK...KHK....",
+    "..KSDSK.KSSDK...",
+    "..KKSSSKSSSKK...",
+    ".KHHHHHHHHHHHHK.",
+    "KHSSSSSSSSSSSSHK",
+    "KDSSSSSSSSSSSSDK",
+    "KDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKK.",
+    ".KSK......KHSK..",
+    "KSDK.KSK..KDK..."
+  ];
+  var STATUES = {
+    statue: { palette: PALETTE2, rows: STATUE },
+    statueCracked: { palette: PALETTE2, rows: cracked() },
+    statueBroken: { palette: PALETTE2, rows: BROKEN }
+  };
+
   // src/render/sprites/schrat.ts
   var SCHRAT_PALETTE = {
     A: "#9cb63e",
@@ -9526,7 +9678,7 @@
   };
 
   // src/ui/icons.ts
-  var PALETTE2 = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
+  var PALETTE3 = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
   var ICONS = {
     tunique: [
       "................................",
@@ -11017,7 +11169,7 @@
   function itemIcon(id) {
     return buildIcon(ICONS[id]);
   }
-  function buildIcon(rows, palette = PALETTE2) {
+  function buildIcon(rows, palette = PALETTE3) {
     const ns = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", `0 0 ${rows[0].length} ${rows.length}`);
@@ -16443,7 +16595,7 @@
       ctx.globalAlpha = alpha;
       const rx = this.snap(gx);
       const ry = this.snap(gy);
-      ctx.drawImage(this.sprite(frame2, PALETTE2), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
+      ctx.drawImage(this.sprite(frame2, PALETTE3), rx, ry, this.snap(gx + tile) - rx, this.snap(gy + tile) - ry);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth2;
     }
@@ -16469,7 +16621,7 @@
         ctx.strokeStyle = "#d6aa54";
         ctx.lineWidth = 1.5;
         ctx.strokeRect(x - 2, y - 2, s + 4, s + 4);
-        ctx.drawImage(this.sprite(STATUS_ICONS[id], PALETTE2), x, y, s, s);
+        ctx.drawImage(this.sprite(STATUS_ICONS[id], PALETTE3), x, y, s, s);
         x += s + gap;
       }
       ctx.imageSmoothingEnabled = smooth2;
@@ -16486,7 +16638,7 @@
       const long = h > w;
       if (long) ctx.rotate(Math.PI / 4);
       const scale2 = tile * (long ? 1.05 : 0.8) / Math.max(w, h);
-      ctx.drawImage(this.sprite(rows, PALETTE2), -w * scale2 / 2, -h * scale2 / 2, w * scale2, h * scale2);
+      ctx.drawImage(this.sprite(rows, PALETTE3), -w * scale2 / 2, -h * scale2 / 2, w * scale2, h * scale2);
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth2;
     }
@@ -16548,7 +16700,7 @@
       const frames = SCHRAT.idleDown;
       const rows = frames[Math.floor(Math.abs(this.time) / 420) % frames.length];
       this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GLUCK_PALETTE);
-      if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("pomme"), PALETTE2);
+      if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("pomme"), PALETTE3);
     }
     /** Sœur Osseuse (quête 02) : le squelette en voile de nonne, une croix d'os dans sa bulle quand le héros approche. */
     drawSoeur(game2, ox, oy) {
@@ -16561,6 +16713,21 @@
       const rows = SOEUR_SPRITE[Math.floor(Math.abs(this.time) / 520) % SOEUR_SPRITE.length];
       this.drawMonsterSprite(rows, cx, cy, false, true, SOEUR_PALETTE);
       if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, SOEUR_BUBBLE_ICON, { K: "#1a1410", W: "#e6dcc0" });
+    }
+    /** La statue creuse dont Gluck a parlé : un éclat doré scintille dans sa fissure, pour qu'on la repère. */
+    drawStatueGlints(game2, ox, oy) {
+      const { ctx, tile } = this;
+      const u = tile / 16;
+      const pulse2 = (Math.sin(this.time / 220) + 1) / 2;
+      for (const f of game2.furnitureList()) {
+        if (f.kind !== "statue" || !f.hinted || !game2.isVisible(f.x, f.y)) continue;
+        const cx = ox + (f.x * 16 + 9.5) * u;
+        const cy = oy + (f.y * 16 + 16 - 27 + 16.5) * u;
+        const r = u * (1.5 + pulse2 * 2.5);
+        ctx.fillStyle = `rgba(255,226,122,${(0.35 + pulse2 * 0.6).toFixed(2)})`;
+        ctx.fillRect(Math.round(cx - u / 2), Math.round(cy - r), Math.max(1, Math.round(u)), Math.round(r * 2));
+        ctx.fillRect(Math.round(cx - r), Math.round(cy - u / 2), Math.round(r * 2), Math.max(1, Math.round(u)));
+      }
     }
     /** Bulle de BD au-dessus de la tête d'un PNJ (Thomas, 2026-11-12) : contour sombre, fond crème, pointe vers lui. */
     drawNpcBubble(cx, cy, icon, palette) {
@@ -16947,13 +17114,13 @@
             const smooth2 = ctx.imageSmoothingEnabled;
             ctx.imageSmoothingEnabled = false;
             if (stain.shape === 2 || !stain.turn) {
-              ctx.drawImage(this.sprite(rows, PALETTE2), rx, ry, rw, rh);
+              ctx.drawImage(this.sprite(rows, PALETTE3), rx, ry, rw, rh);
             } else {
               ctx.save();
               ctx.translate(rx + rw / 2, ry + rh / 2);
               ctx.rotate(stain.turn % 4 * (Math.PI / 2));
               if (stain.turn >= 4) ctx.scale(-1, 1);
-              ctx.drawImage(this.sprite(rows, PALETTE2), -rw / 2, -rh / 2, rw, rh);
+              ctx.drawImage(this.sprite(rows, PALETTE3), -rw / 2, -rh / 2, rw, rh);
               ctx.restore();
             }
             ctx.imageSmoothingEnabled = smooth2;
@@ -17194,6 +17361,7 @@
       this.drawMerchant(game2, ox, oy, progress);
       this.drawGluck(game2, ox, oy);
       this.drawSoeur(game2, ox, oy);
+      this.drawStatueGlints(game2, ox, oy);
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
       this.drawFurniture(game2, ox, oy, flicker, "late");
@@ -17225,7 +17393,7 @@
         const ly = Math.round(oy + hero.y * tile - tile * 0.5 - s);
         const smooth2 = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this.sprite(uiIconRows("search"), PALETTE2), lx, ly, s, s);
+        ctx.drawImage(this.sprite(uiIconRows("search"), PALETTE3), lx, ly, s, s);
         ctx.imageSmoothingEnabled = smooth2;
       }
       if (this.scan) {
@@ -17449,8 +17617,8 @@
         const animated = f.kind.startsWith("table") || !DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES2[f.kind] && !!SALLES2[`${f.kind}0`];
         const apples = f.kind === "basket" ? game2.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
         const swing = f.kind === "bell" ? this.bellSwing(f.x, f.y) : 0;
-        const name = f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? swing ? `bell${swing}` : "bell" : animated ? `${f.kind}${visible ? (frame2 + f.x) % 3 : 0}` : f.kind;
-        const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES2[name] ?? CLOCHE[name];
+        const name = f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? swing ? `bell${swing}` : "bell" : animated ? `${f.kind}${visible ? (frame2 + f.x) % 3 : 0}` : f.kind;
+        const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES2[name] ?? CLOCHE[name] ?? STATUES[name];
         if (!art) continue;
         const w = art.rows[0].length;
         const h = art.rows.length;
@@ -17463,7 +17631,7 @@
           px = (f.x + def.w / 2) * 16 - w / 2;
           py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
         } else {
-          const off = f.kind === "bell" ? [0, 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
+          const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
           px = f.x * 16 + off[0];
           py = (f.y + def.h) * 16 - h + off[1];
         }
@@ -17971,6 +18139,9 @@
         const gold = (e.drops ?? []).some((d) => d.item === "or");
         return `Pouf ! ${name} dispara\xEEt dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
       }
+      case "statue":
+        if (e.look) return "Une statue de pierre. Froide, lourde\u2026 et pleine, on dirait.";
+        return e.success ? `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} \u2014 CRAC ! La statue s'effondre. Quelque chose brille dans les gravats.` : `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} \u2014 BONG. La statue tient bon.`;
       case "luck":
         return "Chance ! Votre 1 est relanc\xE9.";
       case "npcRoll":
@@ -18207,7 +18378,7 @@
   var seedLabel = $("seed");
   var doorActions = $("door-actions");
   var menu = $("menu");
-  var options = { sound: true };
+  var options = { sound: true, music: true, lang: "fr" };
   try {
     Object.assign(options, JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}"));
   } catch {
@@ -18355,7 +18526,7 @@
       })
     );
   }
-  var isRoll = (e) => e.type === "attack" || e.type === "npcRoll" || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "maiden" || e.type === "door" && e.action !== "key";
+  var isRoll = (e) => e.type === "attack" || e.type === "npcRoll" || e.type === "statue" && !e.look || e.type === "hide" || e.type === "jump" || e.type === "searched" || e.type === "push" || e.type === "maiden" || e.type === "door" && e.action !== "key";
   var byFoe = (e) => e.type === "attack" && e.attacker.kind === "monster";
   var launched = /* @__PURE__ */ new WeakSet();
   function launchArrow(e) {
@@ -18444,7 +18615,7 @@
         if (e.action === "break") {
           renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.x, e.y, "", false);
           renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BOUM", "#ffd75e");
-          sfx.play(e.success ? "break" : "thud");
+          sfx.play(e.success ? "break" : "shoulder");
         } else {
           sfx.play(e.success ? "unlock" : "click");
         }
@@ -18460,6 +18631,12 @@
       }, 420);
     } else if (e.type === "luck") {
       renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
+    } else if (e.type === "statue") {
+      if (!e.look) {
+        landDie(e.d20, e.success ? "hit" : "miss", false);
+        renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BONG", "#ffd75e");
+        sfx.play(e.success ? "break" : "thud");
+      }
     } else if (e.type === "npcRoll") {
       landDie(e.d20, e.success ? "hit" : "miss", false);
     } else if (e.type === "npc") {
@@ -19637,7 +19814,7 @@
     bagOpen = true;
     selected = null;
     pickedChoice = null;
-    heroTab = "inv";
+    heroTab = game.hasPendingChoice() && !game.over ? "char" : "inv";
     statusOpen = null;
     $("bag").hidden = false;
     renderHeroScreen();
@@ -19968,7 +20145,9 @@
     for (const name of ["main", "new", "settings", "codex", "records"]) $(`screen-${name}`).hidden = screen !== name;
     $("detail").hidden = true;
     $("menu-resume").hidden = (!started || game.over) && savedRun === null;
-    $("settings-sound").textContent = `Sons : ${options.sound ? "activ\xE9s" : "d\xE9sactiv\xE9s"}`;
+    $("settings-sound").textContent = `Bruitages : ${options.sound ? "oui" : "non"}`;
+    $("settings-music").textContent = `Musique : ${options.music ? "oui" : "non"}`;
+    $("settings-lang").textContent = `Langue : ${options.lang === "en" ? "English" : "Fran\xE7ais"}`;
     if (screen === "new") renderCards();
     if (screen === "codex") renderCodex();
     if (screen === "records") renderRecords();
@@ -20143,7 +20322,10 @@
     showScreen(null);
   });
   button("menu-new", () => showScreen("new"));
-  button("menu-settings", () => showScreen("settings"));
+  button("menu-settings", () => {
+    $("settings-note").textContent = "";
+    showScreen("settings");
+  });
   button("menu-codex", () => showScreen("codex"));
   button("menu-records", () => showScreen("records"));
   button("records-back", () => showScreen("main"));
@@ -20181,6 +20363,25 @@
     newRun(true);
     started = true;
     showScreen(null);
+  });
+  button("settings-music", () => {
+    options.music = !options.music;
+    saveOptions();
+    sfx.play("click");
+    showScreen("settings");
+    $("settings-note").textContent = "Pas encore de musique dans le jeu : le r\xE9glage est gard\xE9 pour plus tard.";
+  });
+  button("settings-lang", () => {
+    options.lang = options.lang === "fr" ? "en" : "fr";
+    saveOptions();
+    sfx.play("click");
+    showScreen("settings");
+    $("settings-note").textContent = options.lang === "en" ? "English is coming soon: the game is still in French for now." : "";
+  });
+  button("reset-talks", () => {
+    game.resetDialogues();
+    logLines.push("Dialogues remis \xE0 z\xE9ro : Gluck et S\u0153ur Osseuse reprennent depuis le d\xE9but.");
+    renderLog();
   });
   button("settings-sound", () => {
     options.sound = !options.sound;

@@ -89,6 +89,7 @@
   body.shop-open .panel-wrap, body.shop-open .bar { display: none; }
   #shop h2 { color: var(--gold); margin: 34px 0 0; }
   #shop-line { color: var(--dim); font-size: 17px; text-align: center; margin: 2px 0 8px; }
+  #settings-note { color: var(--dim); font-size: 16px; min-height: 20px; }
   #talk { justify-content: flex-start; overflow-y: auto; text-align: center; gap: 8px; padding-top: 8px; z-index: 5; }
   /* Conversation : elle couvre la carte seulement ; le dé et le journal restent dessous (Thomas). */
   body.talk-open .bar, body.talk-open #here { display: none; }
@@ -392,7 +393,7 @@
     <button id="recenter" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button></div>
+    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
     <div id="wheel" hidden>
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
@@ -523,6 +524,9 @@
     <section id="screen-settings" hidden>
       <h2>Paramètres</h2>
       <button id="settings-sound" type="button"></button>
+      <button id="settings-music" type="button"></button>
+      <button id="settings-lang" type="button"></button>
+      <div id="settings-note"></div>
       <button id="settings-back" type="button" class="ghost">Retour</button>
     </section>
     <div id="detail" class="overlay" hidden>

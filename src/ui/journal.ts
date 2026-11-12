@@ -89,6 +89,11 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       const gold = (e.drops ?? []).some((d) => d.item === "or");
       return `Pouf ! ${name} disparaît dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
     }
+    case "statue":
+      if (e.look) return "Une statue de pierre. Froide, lourde… et pleine, on dirait.";
+      return e.success
+        ? `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} — CRAC ! La statue s'effondre. Quelque chose brille dans les gravats.`
+        : `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} — BONG. La statue tient bon.`;
     case "luck":
       return "Chance ! Votre 1 est relancé.";
     case "npcRoll":

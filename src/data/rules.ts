@@ -63,6 +63,11 @@ export const RULES = {
   feudShotChance: 0.5,
   blessBonus: 1,
   blessTurns: 150,
+  /** Statues (Thomas, 2026-11-12) : un étage sur trois en a une (décor) ; la creuse (avec Gluck) se brise, d20 + force
+   *  contre `statueDc`, chaque coup fait `statueAlarm` d'alerte. (C) */
+  statueChance: 1 / 3,
+  statueDc: 12,
+  statueAlarm: 5,
   /** Potion de poison jetée (cassée) : un petit nuage sur sa case, tant de tours (C). */
   brokenPoisonGasTurns: 3,
   gravelPatchesMax: 6,

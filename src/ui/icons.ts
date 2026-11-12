@@ -1575,6 +1575,25 @@ export function buildIcon(rows: readonly string[], palette: Record<string, strin
 
 /** Pictogrammes de l'interface (boutons sans texte), dessinés de la même façon que les objets. */
 const UI_ICONS = {
+  /** Panneau « stop » sur la jauge d'expérience : niveau maximal de la section (Thomas, 2026-11-12). */
+  stop: [
+    "................",
+    ".....KKKKKK.....",
+    "....KRRRRRRK....",
+    "...KRRRRRRRRK...",
+    "..KRRRRRRRRRrK..",
+    ".KRRRRRRRRRRrrK.",
+    ".KRRRRRRRRRRrrK.",
+    ".KRWWWWWWWWWWrK.",
+    ".KRWWWWWWWWWWrK.",
+    ".KRRRRRRRRRRrrK.",
+    ".KRRRRRRRRRrrrK.",
+    "..KRRRRRRRrrrK..",
+    "...KrRRRRrrrK...",
+    "....KrrrrrrK....",
+    ".....KKKKKK.....",
+    "................",
+  ],
   amulet: [
     "................",
     "..L..........L..",

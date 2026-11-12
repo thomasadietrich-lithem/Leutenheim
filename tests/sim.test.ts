@@ -3687,3 +3687,21 @@ test("chemin : il contourne un escalier qui n'est pas la destination", () => {
   }
   assert.fail("aucun escalier testable");
 });
+
+test("niveau maximal : 5 avant le boss de la section, l'XP rebondit ; le boss vaincu le relève", () => {
+  const game = new Game(3);
+  const g = game as unknown as { gainXp(n: number): void };
+  while (game.level < 5) g.gainXp(game.xpToNext() - game.xp);
+  assert.equal(game.level, 5);
+  assert.equal(game.xp, 0);
+  assert.ok(game.xpBlocked());
+  game.events.length = 0;
+  g.gainXp(50);
+  assert.equal(game.level, 5);
+  assert.equal(game.xp, 0);
+  assert.ok(game.events.some((e) => e.type === "xp" && e.blocked));
+  game.bossKills = 1;
+  assert.ok(!game.xpBlocked());
+  g.gainXp(3);
+  assert.equal(game.xp, 3);
+});

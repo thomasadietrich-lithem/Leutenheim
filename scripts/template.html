@@ -69,6 +69,11 @@
   @keyframes hurt { to { opacity: 0; } }
   .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
   .hp.xp { height: 14px; background: #0c1626; }
+  /* Niveau maximal de la section : jauge grisée et petit panneau « stop » au bout (Thomas, 2026-11-12). */
+  #xp-stop { position: absolute; right: -6px; top: 50%; width: 22px; height: 22px; margin-top: -11px; z-index: 2; cursor: pointer; }
+  #xp-stop[hidden] { display: none; }
+  #xp-stop svg { width: 100%; height: 100%; display: block; }
+  .hp.xp.capped #xp-fill { background: repeating-linear-gradient(to right, #6a7fa0 0 6px, #4a5a76 6px 8px); }
   .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }
   #xp-fill { height: 100%; width: 0; background: repeating-linear-gradient(to right, #3a7bd0 0 6px, #24508e 6px 8px); }
   #hp-fill { height: 100%; width: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
@@ -403,7 +408,7 @@
   <div class="gauges">
     <div class="gauges-col">
       <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
-      <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
+      <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span><i id="xp-stop" hidden></i></div>
     </div>
     <button id="alarm-badge" type="button" aria-label="Niveau d'alerte"><span id="alarm-bell"></span><span class="alarm-bar"><span id="alarm-fill"></span></span></button>
     <div id="floor-badge" aria-label="Étage"><span id="floor-icon"></span><span id="floor-num"></span></div>

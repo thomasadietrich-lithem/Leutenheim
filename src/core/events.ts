@@ -134,7 +134,7 @@ export type GameEvent =
   | { type: "noise"; x: number; y: number; points: number }
   | { type: "poisoned"; actor: Actor }
   | { type: "poison"; actor: Actor; damage: number }
-  | { type: "xp"; amount: number }
+  | { type: "xp"; amount: number; blocked?: boolean }
   | { type: "levelup"; level: number }
   | {
       type: "door";

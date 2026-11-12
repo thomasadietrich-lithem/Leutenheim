@@ -246,6 +246,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   ghosts = [];
   shownHp = game.hero.hp;
   orbHp = null;
+  capNoted = false;
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
@@ -471,6 +472,14 @@ function reveal(e: GameEvent): void {
     else if (found.kind === "gem") renderer.addFloatingText(game.hero.x, game.hero.y, `+${(found.value ?? 0) * e.count} or`, "#f0c850");
     else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` ×${e.count}` : ""}`, "#fff3c8");
     // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
+  } else if (e.type === "xp" && e.blocked) {
+    // Niveau maximal de la section : les billes rebondissent sur la jauge et retombent (Thomas, 2026-11-12).
+    if (lastKill) xpOrbs(lastKill, e.amount, true);
+    lastKill = null;
+    if (!capNoted) {
+      capNoted = true;
+      logLines.push(`Niveau ${game.level} : le maximum avant le boss. L'expérience rebondit ; battez le boss pour progresser.`);
+    }
   } else if (e.type === "xp") {
     renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
     // Billes d'expérience (Thomas, 2026-11-11) : elles quittent le monstre vaincu et filent vers la jauge.
@@ -763,13 +772,48 @@ function shownXp(): { level: number; xp: number; need: number } {
 }
 
 /** Billes d'expérience : de petites perles bleues qui partent du monstre et volent jusqu'à la jauge, qui s'allume. */
-function xpOrbs(cell: { x: number; y: number }, amount: number): void {
+/** La phrase sur le niveau maximal n'est écrite qu'une fois par partie. */
+let capNoted = false;
+$("xp-stop").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  logLines.push(`Niveau ${game.level} : le maximum avant d'avoir vaincu le boss de la section.`);
+  renderLog();
+});
+
+function xpOrbs(cell: { x: number; y: number }, amount: number, blocked = false): void {
   const box = canvas.getBoundingClientRect();
   const c = renderer.tileCenter(cell.x, cell.y);
   const bar = xpBar.getBoundingClientRect();
   const count = Math.max(3, Math.min(8, amount));
   // Chaque bille porte sa part de l'XP gagnée ; la jauge avance quand elle arrive.
   const shares = Array.from({ length: count }, (_, i) => Math.floor(((i + 1) * amount) / count) - Math.floor((i * amount) / count));
+  if (blocked) {
+    // Elles volent jusqu'à la jauge, rebondissent dessus et retombent en s'éteignant.
+    for (let i = 0; i < count; i++) {
+      const orb = document.createElement("div");
+      orb.className = "xp-orb";
+      const sx = box.left + c.x + (Math.random() - 0.5) * 18;
+      const sy = box.top + c.y + (Math.random() - 0.5) * 18;
+      const tx = bar.left + bar.width * (0.25 + Math.random() * 0.5);
+      const ty = bar.top + bar.height / 2;
+      const side = (Math.random() - 0.5) * 70;
+      orb.style.left = `${sx}px`;
+      orb.style.top = `${sy}px`;
+      document.body.append(orb);
+      orb.animate(
+        [
+          { transform: "translate(0, 0) scale(0.6)", opacity: 0 },
+          { transform: `translate(${(Math.random() - 0.5) * 30}px, -22px) scale(1)`, opacity: 1, offset: 0.15 },
+          { transform: `translate(${tx - sx}px, ${ty - sy}px) scale(0.8)`, opacity: 1, offset: 0.45, easing: "ease-out" },
+          { transform: `translate(${tx - sx + side * 0.5}px, ${ty - sy - 14}px) scale(0.8)`, opacity: 1, offset: 0.6, easing: "ease-in" },
+          { transform: `translate(${tx - sx + side}px, ${ty - sy + 140}px) scale(0.6)`, opacity: 0 },
+        ],
+        { duration: 1300, delay: 120 + i * 70, fill: "forwards" },
+      ).onfinish = () => orb.remove();
+      window.setTimeout(() => pulse(xpBar, "hit"), 120 + i * 70 + 585);
+    }
+    return;
+  }
   xpInFlight += amount;
   for (let i = 0; i < count; i++) {
     const orb = document.createElement("div");
@@ -2690,8 +2734,15 @@ function frame(now: number): void {
   renderHere();
   $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
   const xpShown = shownXp();
-  $("xp-fill").style.width = `${(100 * xpShown.xp) / xpShown.need}%`;
-  $("xp-label").textContent = `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`;
+  // Niveau maximal de la section : la jauge est pleine, grisée, avec un petit panneau « stop ».
+  const capped = game.xpBlocked() && xpInFlight === 0;
+  xpBar.classList.toggle("capped", capped);
+  if ($("xp-stop").hidden === capped) {
+    $("xp-stop").hidden = !capped;
+    if (capped && !$("xp-stop").firstChild) $("xp-stop").append(uiIcon("stop"));
+  }
+  $("xp-fill").style.width = capped ? "100%" : `${(100 * xpShown.xp) / xpShown.need}%`;
+  $("xp-label").textContent = capped ? `Niv ${game.level} · MAX` : `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`;
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
   // Avec la clef de l'étage, rien à choisir : elle sert toute seule.

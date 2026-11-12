@@ -69,6 +69,11 @@
   @keyframes hurt { to { opacity: 0; } }
   .hp span { position: absolute; inset: 0; text-align: center; font-size: 16px; line-height: 12px; color: #fff; text-shadow: 1px 1px 0 #000; text-transform: uppercase; }
   .hp.xp { height: 14px; background: #0c1626; }
+  /* Niveau maximal de la section : jauge grisée et petit panneau « stop » au bout (Thomas, 2026-11-12). */
+  #xp-stop { position: absolute; right: -6px; top: 50%; width: 22px; height: 22px; margin-top: -11px; z-index: 2; cursor: pointer; }
+  #xp-stop[hidden] { display: none; }
+  #xp-stop svg { width: 100%; height: 100%; display: block; }
+  .hp.xp.capped #xp-fill { background: repeating-linear-gradient(to right, #6a7fa0 0 6px, #4a5a76 6px 8px); }
   .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }
   #xp-fill { height: 100%; width: 0; background: repeating-linear-gradient(to right, #3a7bd0 0 6px, #24508e 6px 8px); }
   #hp-fill { height: 100%; width: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
@@ -403,7 +408,7 @@
   <div class="gauges">
     <div class="gauges-col">
       <div class="hp"><div id="hp-fill"></div><span id="hp-label"></span></div>
-      <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span></div>
+      <div class="hp xp"><div id="xp-fill"></div><span id="xp-label"></span><i id="xp-stop" hidden></i></div>
     </div>
     <button id="alarm-badge" type="button" aria-label="Niveau d'alerte"><span id="alarm-bell"></span><span class="alarm-bar"><span id="alarm-fill"></span></span></button>
     <div id="floor-badge" aria-label="Étage"><span id="floor-icon"></span><span id="floor-num"></span></div>
@@ -1990,6 +1995,11 @@
     weaponPoisonHits: 15,
     hasteTurns: 4,
     fireTurns: 5,
+    /**
+     * Niveau le plus haut par section (Thomas, 2026-11-12 : « une fois le niveau 5 atteint, bloque l'XP… ça évite le farm
+     * avant le boss ») : 5 tant que le boss de la section 1 vit, 10 après, etc.
+     */
+    levelCapPerSection: 5,
     /** Un coup critique du héros projette le monstre d'une case (Thomas, 2026-11-12). */
     critKnockback: true,
     /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
@@ -5723,7 +5733,7 @@
     /** Salle d'essai : gagner tout de suite le niveau suivant. */
     levelUpNow() {
       if (this.over) return;
-      this.gainXp(this.xpToNext() - this.xp);
+      this.gainXp(this.xpToNext() - this.xp, true);
     }
     // ---------- Torche, objets à utiliser ----------
     /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
@@ -6230,8 +6240,20 @@
       const n = this.level - 1;
       return n < table.length ? table[n] : table[table.length - 1] + (n - table.length + 1) * RULES.xpLevelStep;
     }
-    gainXp(amount) {
+    /** Niveau le plus haut avant d'avoir vaincu le boss de la section (5, puis 10…). */
+    levelCap() {
+      return RULES.levelCapPerSection * (this.bossKills + 1);
+    }
+    /** L'XP est bloquée : niveau maximal de la section atteint (petit panneau « stop » sur la jauge). */
+    xpBlocked() {
+      return this.level >= this.levelCap();
+    }
+    gainXp(amount, ignoreCap = false) {
       if (amount <= 0) return;
+      if (!ignoreCap && this.xpBlocked()) {
+        this.events.push({ type: "xp", amount, blocked: true });
+        return;
+      }
       this.xp += amount;
       this.events.push({ type: "xp", amount });
       while (this.xp >= this.xpToNext()) {
@@ -6239,6 +6261,10 @@
         this.level++;
         this.points++;
         this.events.push({ type: "levelup", level: this.level });
+        if (!ignoreCap && this.xpBlocked()) {
+          this.xp = 0;
+          break;
+        }
       }
     }
     /** Flèches prêtes à partir (celles choisies dans le carquois). */
@@ -8111,9 +8137,9 @@
       const def = MONSTERS[monster.defId];
       if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
       else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
+      if (monster.boss) this.bossDefeated();
       if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
       for (const o of this.monsters) if (o.feud === monster.id) o.feud = void 0;
-      if (monster.boss) this.bossDefeated();
     }
     /**
      * Tir à l'arc vers une case. La flèche file en ligne droite : elle s'arrête sur le premier monstre rencontré
@@ -11703,6 +11729,25 @@
     return svg;
   }
   var UI_ICONS = {
+    /** Panneau « stop » sur la jauge d'expérience : niveau maximal de la section (Thomas, 2026-11-12). */
+    stop: [
+      "................",
+      ".....KKKKKK.....",
+      "....KRRRRRRK....",
+      "...KRRRRRRRRK...",
+      "..KRRRRRRRRRrK..",
+      ".KRRRRRRRRRRrrK.",
+      ".KRRRRRRRRRRrrK.",
+      ".KRWWWWWWWWWWrK.",
+      ".KRWWWWWWWWWWrK.",
+      ".KRRRRRRRRRRrrK.",
+      ".KRRRRRRRRRrrrK.",
+      "..KRRRRRRRrrrK..",
+      "...KrRRRRrrrK...",
+      "....KrrrrrrK....",
+      ".....KKKKKK.....",
+      "................"
+    ],
     amulet: [
       "................",
       "..L..........L..",
@@ -19313,6 +19358,7 @@
     ghosts = [];
     shownHp = game.hero.hp;
     orbHp = null;
+    capNoted = false;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
       "Ici : les nouveaux objets (vous \xEAtes niveau 4) et, dans le coin en bas \xE0 droite, L'ESCALIER DU BOSS : il descend \xE0 l'\xE9tage 2, la nich\xE9e de la Tisseuse (un plan diff\xE9rent \xE0 chaque partie). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, un autre escalier vers le boss, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
@@ -19498,6 +19544,13 @@
       if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.count} or`, "#f0c850");
       else if (found.kind === "gem") renderer.addFloatingText(game.hero.x, game.hero.y, `+${(found.value ?? 0) * e.count} or`, "#f0c850");
       else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}`, "#fff3c8");
+    } else if (e.type === "xp" && e.blocked) {
+      if (lastKill) xpOrbs(lastKill, e.amount, true);
+      lastKill = null;
+      if (!capNoted) {
+        capNoted = true;
+        logLines.push(`Niveau ${game.level} : le maximum avant le boss. L'exp\xE9rience rebondit ; battez le boss pour progresser.`);
+      }
     } else if (e.type === "xp") {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} XP`, "#8fc7ff");
       if (lastKill) xpOrbs(lastKill, e.amount);
@@ -19761,12 +19814,44 @@
     }
     return { level, xp: Math.max(0, xp), need: xpNeed(level) };
   }
-  function xpOrbs(cell, amount) {
+  var capNoted = false;
+  $("xp-stop").addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    logLines.push(`Niveau ${game.level} : le maximum avant d'avoir vaincu le boss de la section.`);
+    renderLog();
+  });
+  function xpOrbs(cell, amount, blocked = false) {
     const box = canvas.getBoundingClientRect();
     const c = renderer.tileCenter(cell.x, cell.y);
     const bar = xpBar.getBoundingClientRect();
     const count = Math.max(3, Math.min(8, amount));
     const shares = Array.from({ length: count }, (_, i) => Math.floor((i + 1) * amount / count) - Math.floor(i * amount / count));
+    if (blocked) {
+      for (let i = 0; i < count; i++) {
+        const orb = document.createElement("div");
+        orb.className = "xp-orb";
+        const sx = box.left + c.x + (Math.random() - 0.5) * 18;
+        const sy = box.top + c.y + (Math.random() - 0.5) * 18;
+        const tx = bar.left + bar.width * (0.25 + Math.random() * 0.5);
+        const ty = bar.top + bar.height / 2;
+        const side = (Math.random() - 0.5) * 70;
+        orb.style.left = `${sx}px`;
+        orb.style.top = `${sy}px`;
+        document.body.append(orb);
+        orb.animate(
+          [
+            { transform: "translate(0, 0) scale(0.6)", opacity: 0 },
+            { transform: `translate(${(Math.random() - 0.5) * 30}px, -22px) scale(1)`, opacity: 1, offset: 0.15 },
+            { transform: `translate(${tx - sx}px, ${ty - sy}px) scale(0.8)`, opacity: 1, offset: 0.45, easing: "ease-out" },
+            { transform: `translate(${tx - sx + side * 0.5}px, ${ty - sy - 14}px) scale(0.8)`, opacity: 1, offset: 0.6, easing: "ease-in" },
+            { transform: `translate(${tx - sx + side}px, ${ty - sy + 140}px) scale(0.6)`, opacity: 0 }
+          ],
+          { duration: 1300, delay: 120 + i * 70, fill: "forwards" }
+        ).onfinish = () => orb.remove();
+        window.setTimeout(() => pulse(xpBar, "hit"), 120 + i * 70 + 585);
+      }
+      return;
+    }
     xpInFlight += amount;
     for (let i = 0; i < count; i++) {
       const orb = document.createElement("div");
@@ -21436,8 +21521,14 @@
     renderHere();
     $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
     const xpShown = shownXp();
-    $("xp-fill").style.width = `${100 * xpShown.xp / xpShown.need}%`;
-    $("xp-label").textContent = `Niv ${xpShown.level} \xB7 XP ${xpShown.xp}/${xpShown.need}`;
+    const capped = game.xpBlocked() && xpInFlight === 0;
+    xpBar.classList.toggle("capped", capped);
+    if ($("xp-stop").hidden === capped) {
+      $("xp-stop").hidden = !capped;
+      if (capped && !$("xp-stop").firstChild) $("xp-stop").append(uiIcon("stop"));
+    }
+    $("xp-fill").style.width = capped ? "100%" : `${100 * xpShown.xp / xpShown.need}%`;
+    $("xp-label").textContent = capped ? `Niv ${game.level} \xB7 MAX` : `Niv ${xpShown.level} \xB7 XP ${xpShown.xp}/${xpShown.need}`;
     const doorOptions = game.doorOptions();
     doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
     $("door-key").hidden = !doorOptions.includes("key");

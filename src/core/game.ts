@@ -1583,7 +1583,7 @@ export class Game {
   /** Salle d'essai : gagner tout de suite le niveau suivant. */
   levelUpNow(): void {
     if (this.over) return;
-    this.gainXp(this.xpToNext() - this.xp);
+    this.gainXp(this.xpToNext() - this.xp, true);
   }
 
   // ---------- Torche, objets à utiliser ----------
@@ -2167,8 +2167,23 @@ export class Game {
     return n < table.length ? table[n] : table[table.length - 1] + (n - table.length + 1) * RULES.xpLevelStep;
   }
 
-  private gainXp(amount: number): void {
+  /** Niveau le plus haut avant d'avoir vaincu le boss de la section (5, puis 10…). */
+  levelCap(): number {
+    return RULES.levelCapPerSection * (this.bossKills + 1);
+  }
+
+  /** L'XP est bloquée : niveau maximal de la section atteint (petit panneau « stop » sur la jauge). */
+  xpBlocked(): boolean {
+    return this.level >= this.levelCap();
+  }
+
+  private gainXp(amount: number, ignoreCap = false): void {
     if (amount <= 0) return;
+    if (!ignoreCap && this.xpBlocked()) {
+      // Les billes rebondissent sur la jauge et retombent : rien n'est gagné.
+      this.events.push({ type: "xp", amount, blocked: true });
+      return;
+    }
     this.xp += amount;
     this.events.push({ type: "xp", amount });
     while (this.xp >= this.xpToNext()) {
@@ -2177,6 +2192,10 @@ export class Game {
       // Un niveau donne un point à placer (Vie, Force ou Agilité) ; plus de PV automatiques.
       this.points++;
       this.events.push({ type: "levelup", level: this.level });
+      if (!ignoreCap && this.xpBlocked()) {
+        this.xp = 0;
+        break;
+      }
     }
   }
 
@@ -4277,9 +4296,10 @@ export class Game {
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
     else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
+    // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
+    if (monster.boss) this.bossDefeated();
     if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
     for (const o of this.monsters) if (o.feud === monster.id) o.feud = undefined;
-    if (monster.boss) this.bossDefeated();
   }
 
   /**

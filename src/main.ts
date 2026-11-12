@@ -12,6 +12,7 @@ import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
 import { Renderer } from "./render/renderer";
+import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
@@ -1978,6 +1979,13 @@ function buildCards(container: HTMLElement, cards: Card[], selectedId: string, o
         sfx.play("click");
         showDetail(card);
       });
+      // Picto de la race ou de la classe (Thomas, 2026-11-12 ; planche art/pictos_race_classe_v4.png).
+      const picto = PICTOS[card.id];
+      if (picto) {
+        const icon = buildIcon(picto.rows, picto.palette);
+        icon.classList.add("card-picto");
+        node.append(icon);
+      }
       node.append(more, el("div", "card-name", card.name), ...card.basics.map((line) => el("div", "card-info", line)));
       if (!card.available) node.append(el("div", "card-soon", "Bientôt"));
       node.addEventListener("click", () => {

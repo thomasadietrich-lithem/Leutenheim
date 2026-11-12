@@ -233,3 +233,27 @@ if __name__ == "__main__":
         d.text((x + N * S // 2, y + N * S + 14), NAMES[key], fill=(220, 210, 190), font=font(12, False), anchor="mm")
     sheet.save("art/pictos_race_classe_v4.png")
     print("ok")
+
+
+def export():
+    """Écrit src/ui/pictos.ts : chaque tuile 34 × 34 en lignes de lettres (F cadre/symbole, L clair, P parchemin, W blanc)."""
+    import json
+    out = {}
+    for key in ["humain", "halfelin", "elfe", "guerrier", "assassin", "magicien"]:
+        im = tile(key)
+        col, light = COLORS[key], mix(COLORS[key], 0.6)
+        lut = {col: "F", light: "L", BG: "P"}
+        rows = ["".join(lut.get(im.getpixel((x, y)), "P") for x in range(N)) for y in range(N)]
+        pal = {"F": "#%02x%02x%02x" % col, "L": "#%02x%02x%02x" % light, "P": "#%02x%02x%02x" % BG}
+        out[key] = {"rows": rows, "palette": pal}
+    body = ",\n".join(f"  {k}: {{ rows: {json.dumps(v['rows'])}, palette: {json.dumps(v['palette'])} }}" for k, v in out.items())
+    open("src/ui/pictos.ts", "w").write(
+        "// Fichier généré par art/pictos_race_classe_v4.py export (planche art/pictos_race_classe_v4.png). Ne pas modifier à la main.\n\n"
+        "/** Pictos de race et de classe (Thomas, 2026-11-12) : tuiles 34 × 34, cadre en méandres, symbole pastel. */\n"
+        f"export const PICTOS: Record<string, {{ rows: string[]; palette: Record<string, string> }}> = {{\n{body},\n}};\n"
+    )
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+    print("export ok")

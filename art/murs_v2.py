@@ -3,7 +3,7 @@ en X aux croisements, de la mousse pourquoi pas »). PROPOSITION à valider, rie
 
 Deux pistes sur le même petit plan (L, T, X, bout de mur, porte) :
   A — vue de dessus (comme aujourd'hui), mais en pixels 16 × 16 : un PILIER taillé marque chaque T et chaque X,
-      une pierre d'angle chaque coin, un chapeau chaque bout de mur ;
+      des briques croisées en harpe aux coins, un chapeau chaque bout de mur ;
   B — vue 3/4 (comme les meubles) : le dessus du mur (chaperon) et, côté salle, sa face de briques ; les T et X
       sont des piliers dont le chaperon dépasse.
 Mousse : dans les joints et au pied des faces, plus fournie dans les coins humides.
@@ -129,10 +129,15 @@ def wall_A(img, ox, oy, plan, x, y):
             for (i, j) in [(7, 6), (6, 7), (9, 8), (8, 9)]:
                 px[ox + i, oy + j] = C["hi"]
     elif links == 2 and (n or s) and (e or w):
-        # Coin : une grosse pierre d'angle (harpe).
-        stone_rect(px, ox, oy, 1, 1, 15, 15, 3, seed)
-        for k in range(1, 15):
-            px[ox + (14 if e else 1) - (0 if e else 0), oy + k] = px[ox + (14 if e else 1), oy + k]
+        # Coin : les assises se croisent en harpe (pas de gros bloc d'angle : refusé par Thomas).
+        for r, (a0, a1) in enumerate([(0, 5), (5, 11), (11, 16)]):
+            if r % 2 == 0:
+                stone_rect(px, ox, oy, 0, a0, 9, a1, 2, seed + r)
+                stone_rect(px, ox, oy, 9, a0, 16, a1, 1, seed + r + 7)
+            else:
+                stone_rect(px, ox, oy, 0, a0, 5, a1, 1, seed + r)
+                stone_rect(px, ox, oy, 5, a0, 11, 16 if s else a1, 3, seed + r + 3)
+                stone_rect(px, ox, oy, 11, a0, 16, a1, 1, seed + r + 5)
     elif links <= 1:
         # Bout de mur : une pierre de chapeau arrondie.
         stone_rect(px, ox, oy, 2, 2, 14, 14, 3, seed)
@@ -406,7 +411,7 @@ def main():
     out = Image.new("RGB", (W, H), (26, 22, 30))
     d = ImageDraw.Draw(out)
     y = 16
-    d.text((pad, y), "A — vue de dessus : pilier aux T et X, pierre d'angle, mousse", font=font, fill=(240, 220, 170))
+    d.text((pad, y), "A — vue de dessus : pilier aux T et X, coins en harpe, mousse", font=font, fill=(240, 220, 170))
     y += 40
     out.paste(a, (pad, y)); out.paste(za, (pad * 2 + a.width, y))
     y += a.height + 20

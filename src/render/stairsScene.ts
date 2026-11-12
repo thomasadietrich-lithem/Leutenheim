@@ -1,4 +1,48 @@
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
+import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
+
+/**
+ * Ce qui arrive dans l'escalier (Thomas, 2026-11-12) : la descente ordinaire, ou une scène rare : la dégringolade,
+ * un Kobold croisé qui monte, la flûte, les lianes au-dessus des marches, la bassine qui glisse.
+ */
+export type StairsVariant = "normal" | "tumble" | "kobold" | "flute" | "vines" | "basin";
+
+/**
+ * Le héros sans son équipement (Thomas, 2026-11-12 : « ça alourdit l'image ») : ni épée, ni carquois, ni sangle ;
+ * le contour sombre est refait autour de ce qui reste.
+ */
+function stripGear(rows: readonly string[]): string[] {
+  const g = rows.map((r) => r.split(""));
+  const H = g.length;
+  const W = g[0].length;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const c = g[y][x];
+      if (c === "U" || c === "u") g[y][x] = ".";
+      else if ((c === "M" || c === "m" || c === "b") && x >= 11) g[y][x] = ".";
+      else if (c === "Q") g[y][x] = "W";
+    }
+  const colored = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && g[y][x] !== "." && g[y][x] !== "O";
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      if (g[y][x] !== "O") continue;
+      let near = false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && colored(x + dx, y + dy)) near = true;
+      if (!near) g[y][x] = ".";
+    }
+  const add: [number, number][] = [];
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (g[y][x] === "." && (colored(x + 1, y) || colored(x - 1, y) || colored(x, y + 1) || colored(x, y - 1))) add.push([x, y]);
+  for (const [x, y] of add) g[y][x] = "O";
+  return g.map((r) => r.join(""));
+}
+const STRIPPED = new Map<readonly string[], string[]>();
+function bare(rows: readonly string[]): string[] {
+  let r = STRIPPED.get(rows);
+  if (!r) STRIPPED.set(rows, (r = stripGear(rows)));
+  return r;
+}
 
 /**
  * Passage d'un étage à l'autre (Thomas, 2026-11-12) : dans le noir, le héros, torche en main, descend (ou monte)
@@ -16,6 +60,9 @@ const STEP_W = 12;
 const STEP_H = 6;
 const HOP_MS = 210;
 const HOPS = 7;
+/** La bassine glisse plus vite, sur plus de marches. */
+const BASIN_HOP_MS = 120;
+const BASIN_HOPS = 10;
 const FADE_IN = 220;
 const FADE_OUT = 380;
 /** Le héros tient debout sur sa marche à cet endroit de l'écran. */
@@ -26,7 +73,12 @@ type Phase = "walk" | "tumble" | "dark" | "out";
 
 export class StairsScene {
   readonly direction: "down" | "up";
+  readonly variant: StairsVariant;
   private fall: boolean;
+  /** Notes de musique (flûte) : elles montent et s'effacent. */
+  private notes: { x: number; y: number; age: number; drift: number }[] = [];
+  /** Le Kobold croisé : instant de la rencontre (le « ! » s'affiche un moment). */
+  private metAt = -1;
   /** Vrai si le héros a vraiment dégringolé (pour le journal). */
   tumbled = false;
   private readonly label: string;
@@ -49,11 +101,13 @@ export class StairsScene {
   private cameraStep = 0;
   done = false;
   /** Sons demandés depuis le dernier appel à `update` (« marche » à chaque marche, « chute » au début de la chute). */
-  sounds: ("stairStep" | "tumble")[] = [];
+  sounds: ("stairStep" | "tumble" | "flute" | "whoosh" | "slide" | "squeak")[] = [];
 
-  constructor(direction: "down" | "up", fall: boolean, label: string) {
+  constructor(direction: "down" | "up", variant: StairsVariant, label: string) {
     this.direction = direction;
-    this.fall = fall && direction === "down";
+    // Lianes, bassine et dégringolade : seulement en descendant.
+    this.variant = direction === "up" && (variant === "vines" || variant === "basin" || variant === "tumble") ? "normal" : variant;
+    this.fall = this.variant === "tumble";
     this.label = label;
     this.buffer = document.createElement("canvas");
     this.buffer.width = W;
@@ -81,16 +135,40 @@ export class StairsScene {
     }
   }
 
+  /** Nombre de marches du passage. */
+  private hops(): number {
+    return this.variant === "basin" ? BASIN_HOPS : HOPS;
+  }
+
+  /** Le Kobold qui monte (en marches, comme `hop`) : il part loin devant et vient à la rencontre du héros. */
+  private koboldStep(): number {
+    return 8.5 - 1.3 * this.hop;
+  }
+
   update(dt: number): void {
     this.time += dt;
     this.phaseTime += dt;
+    for (const n of this.notes) n.age += dt;
+    this.notes = this.notes.filter((n) => n.age < 1400);
     if (this.phase === "walk") {
-      const hopsDone = Math.floor(this.phaseTime / HOP_MS);
-      while (this.landed < hopsDone) {
+      const hopMs = this.variant === "basin" ? BASIN_HOP_MS : HOP_MS;
+      const hops = this.hops();
+      const hopsDone = Math.floor(this.phaseTime / hopMs);
+      while (this.landed < hopsDone && this.landed < hops) {
         this.landed++;
-        this.sounds.push("stairStep");
+        if (this.variant === "flute") {
+          this.sounds.push("flute");
+          this.notes.push({ x: HERO_X + 15, y: HERO_Y + 4, age: 0, drift: this.landed % 2 ? 0.006 : -0.004 });
+        } else if (this.variant === "vines") {
+          if (this.landed % 2 === 1) this.sounds.push("whoosh");
+        } else if (this.variant === "basin") this.sounds.push("slide");
+        else this.sounds.push("stairStep");
       }
-      this.hop = Math.min(HOPS, this.phaseTime / HOP_MS);
+      this.hop = Math.min(hops, this.phaseTime / hopMs);
+      if (this.variant === "kobold" && this.metAt < 0 && Math.abs(this.koboldStep() - this.hop) < 0.6) {
+        this.metAt = this.time;
+        this.sounds.push("squeak");
+      }
       this.cameraStep = this.hop;
       // Chute : à la 4e marche, le pied glisse.
       if (this.fall && this.hop >= 3.6) {
@@ -100,7 +178,7 @@ export class StairsScene {
         this.sounds.push("tumble");
         this.tumble = { x: HERO_X, y: HERO_Y, vx: 0.03, vy: -0.05, angle: 0, bounces: 0 };
         this.torch = { x: HERO_X + 13, y: HERO_Y + 5, vx: -0.02, vy: -0.09, angle: 0 };
-      } else if (this.hop >= HOPS) {
+      } else if (this.hop >= hops) {
         this.phase = "out";
         this.phaseTime = 0;
       }
@@ -159,7 +237,7 @@ export class StairsScene {
     return HERO_Y + 16 - sign * this.cameraStep * STEP_H;
   }
 
-  private spriteOf(rows: readonly string[]): HTMLCanvasElement {
+  private spriteOf(rows: readonly string[], palette: Record<string, string> = GUERRIER_PALETTE): HTMLCanvasElement {
     let c = this.sprites.get(rows);
     if (!c) {
       c = document.createElement("canvas");
@@ -168,7 +246,7 @@ export class StairsScene {
       const g = c.getContext("2d")!;
       rows.forEach((row, y) => {
         for (let x = 0; x < row.length; x++) {
-          const color = GUERRIER_PALETTE[row[x]];
+          const color = palette[row[x]];
           if (color) {
             g.fillStyle = color;
             g.fillRect(x, y, 1, 1);
@@ -206,7 +284,11 @@ export class StairsScene {
     let flame = light;
     const flicker = Math.sin(this.time / 70) * 1.2 + Math.sin(this.time / 23) * 0.6;
     const fallen = this.fall && this.phase !== "walk";
-    if (!fallen) light = flame = this.drawWalkingHero();
+    if (!fallen) {
+      const held = this.drawWalkingHero();
+      light = flame = held ?? { x: HERO_X + 9, y: HERO_Y + 4 };
+      if (!held) flame = { x: -99, y: -99 }; // la flûte : pas de torche, une petite lueur autour de lui
+    }
     else {
       this.drawTorch(this.torch.x, this.torch.y, this.torch.angle);
       this.drawTumblingHero();
@@ -217,7 +299,7 @@ export class StairsScene {
     }
 
     // Le noir tout autour, sauf le halo de la torche.
-    const radius = 42 + flicker;
+    const radius = (this.variant === "flute" ? 32 : 42) + flicker;
     const halo = g.createRadialGradient(light.x, light.y, 2, light.x, light.y, radius);
     halo.addColorStop(0, "rgba(5,3,7,0)");
     halo.addColorStop(0.5, "rgba(5,3,7,0.2)");
@@ -233,7 +315,16 @@ export class StairsScene {
     g.fillRect(0, 0, W, H);
     g.globalCompositeOperation = "source-over";
     // La flamme par-dessus le noir.
-    this.drawFlame(flame.x, flame.y + 3);
+    if (flame.x > -50) this.drawFlame(flame.x, flame.y + 3);
+    // Notes de musique dorées, qui montent en ondulant et luisent dans le noir.
+    for (const n of this.notes) this.drawNote(n.x + n.age * 0.012 + Math.sin(n.age / 160) * 2, n.y - n.age * 0.02, 1 - n.age / 1400);
+    // Le « ! » du Kobold surpris.
+    if (this.metAt >= 0 && this.time - this.metAt < 700) {
+      const kx = Math.round(HERO_X + (this.koboldStep() - this.hop) * STEP_W + 6);
+      g.fillStyle = "#ffe27a";
+      g.fillRect(kx, HERO_Y - 9, 1, 4);
+      g.fillRect(kx, HERO_Y - 4, 1, 1);
+    }
 
     // Fondus d'entrée et de sortie.
     let fade = 0;
@@ -317,26 +408,170 @@ export class StairsScene {
     }
   }
 
-  /** Le héros qui saute de marche en marche. Renvoie la position de la flamme. */
-  private drawWalkingHero(): { x: number; y: number } {
+  /** Le héros qui saute de marche en marche (ou glisse, ou se balance). Renvoie la position de la flamme (sans torche : null). */
+  private drawWalkingHero(): { x: number; y: number } | null {
     const g = this.g;
+    const hops = this.hops();
     const u = this.hop - Math.floor(this.hop);
     const rising = this.direction === "up";
+    const frames = GUERRIER.walkSide;
+    const still = this.hop >= hops;
+    const frame = bare(still ? GUERRIER.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length]);
+    if (this.variant === "kobold") this.drawKobold();
+    if (this.variant === "vines") return this.drawSwinging();
+    if (this.variant === "basin") return this.drawBasin(u);
     // Un petit bond : plus haut en montant.
-    const lift = this.hop >= HOPS ? 0 : Math.sin(Math.PI * u) * (rising ? 6 : 4);
+    const lift = still ? 0 : Math.sin(Math.PI * u) * (rising ? 6 : 4);
     // Pendant le saut, la caméra suit : le héros reste au même endroit de l'écran, l'escalier défile.
     const x = HERO_X;
     const y = HERO_Y - lift;
-    const frames = GUERRIER.walkSide;
-    const frame = this.hop >= HOPS ? GUERRIER.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length];
     // Ombre sur la marche.
     g.fillStyle = "rgba(0,0,0,0.45)";
     g.fillRect(x + 4, HERO_Y + 15, 8, 1);
     g.drawImage(this.spriteOf(frame), Math.round(x), Math.round(y));
+    if (this.variant === "flute") {
+      // La flûte, tenue à la bouche, pointée vers l'avant et un peu vers le bas.
+      const fx = Math.round(x) + 11;
+      const fy = Math.round(y) + 8;
+      g.fillStyle = "#18121e";
+      g.fillRect(fx - 1, fy - 1, 8, 4);
+      g.fillStyle = "#c89a5a";
+      g.fillRect(fx, fy, 6, 1);
+      g.fillStyle = "#8a6238";
+      g.fillRect(fx, fy + 1, 6, 1);
+      g.fillStyle = "#3a2410";
+      g.fillRect(fx + 2, fy, 1, 1);
+      g.fillRect(fx + 4, fy, 1, 1);
+      return null;
+    }
     const tx = x + 12;
     const ty = y + 9;
     this.drawTorch(tx, ty, -0.35 + Math.sin(this.time / 90) * 0.08);
     return { x: tx + 1, y: ty - 6 };
+  }
+
+  /** Le Kobold croisé : il monte en sautillant à la rencontre du héros, tourné vers lui, et file derrière lui. */
+  private drawKobold(): void {
+    const k = this.koboldStep();
+    const rel = k - this.hop;
+    if (rel > 6 || rel < -5) return;
+    const sign = this.direction === "down" ? 1 : -1;
+    const u = k - Math.floor(k);
+    const x = HERO_X + rel * STEP_W + 1;
+    const y = HERO_Y + 1 + sign * rel * STEP_H - Math.abs(Math.sin(Math.PI * u)) * 3;
+    const frames = SCHRAT.walkSide;
+    const frame = frames[Math.floor(this.time / 120) % frames.length];
+    const g = this.g;
+    g.fillStyle = "rgba(0,0,0,0.45)";
+    g.fillRect(Math.round(x) + 4, Math.round(HERO_Y + 16 + sign * rel * STEP_H) - 1, 8, 1);
+    g.save();
+    // Vu de profil, tourné vers la gauche (vers le héros).
+    g.translate(Math.round(x) + 16, Math.round(y));
+    g.scale(-1, 1);
+    g.drawImage(this.spriteOf(frame, SCHRAT_PALETTE), 0, 0);
+    g.restore();
+  }
+
+  /** Les lianes : le héros se balance de l'une à l'autre au-dessus des marches, torche à la main. */
+  private drawSwinging(): { x: number; y: number } {
+    const g = this.g;
+    // Une liane toutes les deux marches, accrochée au plafond (hors cadre).
+    const vineX = (i: number) => HERO_X + 10 + (i - this.hop) * STEP_W;
+    const held = 2 * Math.round(this.hop / 2);
+    const off = (this.hop - held) / 1; // -1 … 1
+    const hx = HERO_X + 9;
+    const hy = HERO_Y - 14 + 4 * (1 - off * off);
+    for (let i = held - 6; i <= held + 8; i += 2) {
+      const ax = vineX(i);
+      if (ax < -10 || ax > W + 10) continue;
+      const toX = i === held ? hx : ax + Math.sin(this.time / 400 + i) * 2;
+      const toY = i === held ? hy : HERO_Y - 4 + ((i * 7) % 5);
+      this.drawVine(ax, -2, toX, toY);
+    }
+    // Le héros pend sous sa main, incliné comme la liane.
+    const angle = Math.atan2(hx - vineX(held), hy + 2);
+    g.save();
+    g.translate(Math.round(hx), Math.round(hy));
+    g.rotate(-angle * 0.8);
+    // Le bras levé qui tient la liane (peau, contour sombre), puis le héros qui pend dessous.
+    g.drawImage(this.spriteOf(bare(GUERRIER.idleSide[0])), -9, 4);
+    g.fillStyle = "#18121e";
+    g.fillRect(-1, -1, 3, 8);
+    g.fillStyle = "#eebe91";
+    g.fillRect(0, 0, 1, 7);
+    g.restore();
+    const tx = hx + 3 + Math.sin(-angle) * 9;
+    const ty = hy + 14;
+    this.drawTorch(tx, ty, -0.5 - angle * 0.8);
+    return { x: tx + 1, y: ty - 6 };
+  }
+
+  /** Une liane : une corde verte qui ondule un peu, avec des feuilles. */
+  private drawVine(ax: number, ay: number, bx: number, by: number): void {
+    const g = this.g;
+    const n = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay)));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = Math.round(ax + (bx - ax) * t + Math.sin(t * 6 + this.time / 300) * 0.6);
+      const y = Math.round(ay + (by - ay) * t);
+      g.fillStyle = "#2e5a1e";
+      g.fillRect(x, y, 1, 1);
+      if (i % 7 === 3) {
+        g.fillStyle = "#5e9a32";
+        g.fillRect(x + (i % 2 ? 1 : -2), y, 2, 1);
+      }
+    }
+  }
+
+  /** La bassine : le héros, assis dedans, glisse de marche en marche, torche levée. */
+  private drawBasin(u: number): { x: number; y: number } {
+    const g = this.g;
+    // À chaque rebord, la bassine pique du nez et rebondit d'un pixel.
+    const bump = this.hop >= this.hops() ? 0 : u < 0.25 ? 1 : 0;
+    const x = HERO_X;
+    const y = HERO_Y + 3 + bump;
+    // Le héros assis : seulement le haut du corps dépasse.
+    const sprite = this.spriteOf(bare(GUERRIER.idleSide[0]));
+    g.drawImage(sprite, 0, 0, 16, 10, Math.round(x), Math.round(y - 1), 16, 10);
+    // La bassine de bois cerclée de fer, vue de profil.
+    const bx = Math.round(x) - 1;
+    const by = Math.round(y) + 8;
+    g.fillStyle = "#18121e";
+    g.fillRect(bx, by - 1, 18, 7);
+    g.fillStyle = "#8a6238";
+    g.fillRect(bx + 1, by, 16, 5);
+    g.fillStyle = "#b0824a";
+    g.fillRect(bx + 1, by, 16, 1);
+    g.fillStyle = "#6e7594";
+    g.fillRect(bx + 1, by + 2, 16, 1);
+    g.fillStyle = "#5a3a1c";
+    for (let i = 3; i < 17; i += 4) g.fillRect(bx + i, by + 3, 1, 2);
+    g.fillStyle = "rgba(0,0,0,0.45)";
+    g.fillRect(bx + 2, HERO_Y + 15, 14, 1);
+    // Des étincelles quand le fer racle la pierre.
+    if (bump && this.hop < this.hops()) {
+      g.fillStyle = "#ffe27a";
+      g.fillRect(bx - 1, by + 5, 1, 1);
+      g.fillRect(bx - 3, by + 4, 1, 1);
+    }
+    const tx = x + 12;
+    const ty = y + 2;
+    this.drawTorch(tx, ty, -0.15 + Math.sin(this.time / 90) * 0.1);
+    return { x: tx + 1, y: ty - 6 };
+  }
+
+  /** Une croche dorée qui luit (flûte). */
+  private drawNote(x: number, y: number, alpha: number): void {
+    const g = this.g;
+    const cx = Math.round(x);
+    const cy = Math.round(y);
+    g.globalAlpha = Math.max(0, alpha);
+    g.fillStyle = "#ffd84a";
+    g.fillRect(cx, cy, 2, 2);
+    g.fillRect(cx + 1, cy - 4, 1, 4);
+    g.fillRect(cx + 2, cy - 4, 1, 1);
+    g.fillRect(cx + 3, cy - 3, 1, 1);
+    g.globalAlpha = 1;
   }
 
   /** Le héros qui dégringole, en tournant sur lui-même. */
@@ -347,7 +582,7 @@ export class StairsScene {
     g.save();
     g.translate(Math.round(t.x + 8), Math.round(t.y + 8));
     g.rotate(Math.round(t.angle / (Math.PI / 4)) * (Math.PI / 4));
-    g.drawImage(this.spriteOf(GUERRIER.hurt[0]), -8, -8);
+    g.drawImage(this.spriteOf(bare(GUERRIER.hurt[0])), -8, -8);
     g.restore();
   }
 

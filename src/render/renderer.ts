@@ -65,6 +65,8 @@ import { COLORS, TilePainter } from "./tiles";
 
 /** Pincement : la taille des cases est prise quand les doigts ne bougent plus depuis ce temps (ms). */
 const ZOOM_SETTLE_MS = 180;
+/** Cases redessinées au plus par image après un changement de taille (zoom) : le reste suit aux images suivantes. */
+const CELL_BUDGET = 60;
 
 /** Nombre de cases visibles en largeur (écran portrait) : valeur de départ et limites du zoom. */
 const COLUMNS = 11;
@@ -232,6 +234,7 @@ export class Renderer {
     this.zoomAt = performance.now();
   }
   private zoomAt = 0;
+  private cellBudget = CELL_BUDGET;
 
   /** Fait glisser la vue de quelques pixels ; elle reste décalée jusqu'au recentrage. */
   panBy(dxPixels: number, dyPixels: number): void {
@@ -318,6 +321,9 @@ export class Renderer {
     this.heroFacing = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
   }
 
+  /** Nombre de petites images créées (pour les mesures : il doit rester stable une fois l'étage affiché). */
+  spriteMisses = 0;
+
   /** Une image de sprite (rangées de lettres) peinte une fois pour toutes sur un petit canevas 16×16. */
   private sprite(rows: readonly string[], palette: Record<string, string> = GUERRIER_PALETTE): HTMLCanvasElement {
     let byRows = this.spriteCache.get(palette);
@@ -327,6 +333,7 @@ export class Renderer {
     }
     let c = byRows.get(rows);
     if (!c) {
+      this.spriteMisses++;
       c = document.createElement("canvas");
       c.width = rows[0].length;
       c.height = rows.length;
@@ -393,29 +400,49 @@ export class Renderer {
 
   private smoke: { x: number; y: number; age: number; life: number; drift: number; size: number }[] = [];
   /** Petits nuages « Pouf ! » (Gluck qui disparaît) : une case, environ 0,6 s. */
-  private puffs: { x: number; y: number; age: number }[] = [];
+  private puffs: { x: number; y: number; age: number; poison?: boolean }[] = [];
+  /** Cases dont le feu ou le gaz ne doit apparaître qu'à l'éclatement de la fiole (clé « x,y » → instant). */
+  private held = new Map<string, number>();
 
-  addPuff(x: number, y: number): void {
-    this.puffs.push({ x, y, age: 0 });
+  /** La fiole vole encore : son feu ou son gaz n'apparaît qu'à l'éclatement (Thomas, 2026-11-12). */
+  holdEffects(cells: { x: number; y: number }[], ms: number): void {
+    for (const c of cells) this.held.set(`${c.x},${c.y}`, this.time + ms);
+  }
+
+  private isHeld(x: number, y: number): boolean {
+    const until = this.held.get(`${x},${y}`);
+    if (until === undefined) return false;
+    if (this.time >= until) {
+      this.held.delete(`${x},${y}`);
+      return false;
+    }
+    return true;
+  }
+
+  addPuff(x: number, y: number, poison = false): void {
+    this.puffs.push({ x, y, age: 0, poison });
   }
 
   /** Un nuage blanc-gris qui gonfle d'un coup, en boules, puis s'effiloche et s'efface. */
   private drawPuffs(ox: number, oy: number, dt: number): void {
     const { ctx, tile } = this;
-    const LIFE = 650;
-    this.puffs = this.puffs.filter((p) => (p.age += dt) < LIFE);
+    this.puffs = this.puffs.filter((p) => (p.age += dt) < (p.poison ? 1100 : 650));
     for (const p of this.puffs) {
-      const t = p.age / LIFE;
+      const t = p.age / (p.poison ? 1100 : 650);
+      const k = p.poison ? 1.6 : 1;
       const grow = 1 - Math.pow(1 - Math.min(1, t * 2.2), 3);
       const alpha = t < 0.35 ? 0.95 : 0.95 * (1 - (t - 0.35) / 0.65);
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.45) * tile - t * tile * 0.25;
       const blobs = [[0, 0, 0.3], [-0.26, 0.08, 0.2], [0.27, 0.06, 0.21], [-0.13, -0.2, 0.19], [0.15, -0.19, 0.2], [0, 0.2, 0.18]];
-      for (const [layer, color] of [[1.18, `rgba(60,54,70,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(236,232,244,${alpha.toFixed(3)})`]] as const) {
+      const colors = p.poison
+        ? [[1.18, `rgba(30,70,24,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(150,214,96,${(alpha * 0.92).toFixed(3)})`]] as const
+        : [[1.18, `rgba(60,54,70,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(236,232,244,${alpha.toFixed(3)})`]] as const;
+      for (const [layer, color] of colors) {
         ctx.fillStyle = color;
         for (const [bx, by, br] of blobs) {
           ctx.beginPath();
-          ctx.arc(cx + bx * tile * (0.6 + grow * 0.6), cy + by * tile * (0.6 + grow * 0.6), br * tile * grow * layer, 0, Math.PI * 2);
+          ctx.arc(cx + bx * k * tile * (0.6 + grow * 0.6), cy + by * k * tile * (0.6 + grow * 0.6), br * k * tile * grow * layer, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -446,7 +473,7 @@ export class Renderer {
   }
 
   /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
-  /** `stage` : âge du feu (0 haut et vif, 1 normal, 2 braises ; Thomas, 2026-11-12 : « feu C et durée de vie »). */
+  /** `stage` : âge du feu (0 haut et vif, 1 normal, 2 braises, 3 personnage en feu, option B ; Thomas, 2026-11-12 : « feu C et durée de vie »). */
   private drawFlames(gx: number, gy: number, seed: number, alpha: number, stage = 1): void {
     const { ctx, tile } = this;
     const frames = FIRE_STAGES[stage];
@@ -976,6 +1003,7 @@ export class Renderer {
    * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
    */
   draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null, aimTarget: Actor | null = null): void {
+    this.cellBudget = CELL_BUDGET;
     const target = this.snapTile();
     if (target !== this.tile && performance.now() - this.zoomAt > ZOOM_SETTLE_MS) this.tile = target;
     const zs = target / this.tile;
@@ -1316,7 +1344,7 @@ export class Renderer {
         }
         this.drawMonster(m, cx, cy, progress);
         const burning = !!m.burning || game.isBurning(m.x, m.y);
-        if (m.burning && !game.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.8);
+        if (m.burning && !game.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
         this.drawStatusBubbles(m, cx, cy, burning);
       } else {
       ctx.fillStyle = MONSTERS[m.defId as keyof typeof MONSTERS]?.color ?? "#c04040";
@@ -1391,13 +1419,13 @@ export class Renderer {
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.
-    if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
+    if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);
     // Meubles qui cachent un personnage placé derrière eux (sur une rangée au-dessus) : dessinés après lui (Thomas).
     this.drawFurniture(game, ox, oy, flicker, "late");
     // Cases en feu (potion de feu, meubles) : trois images de flammes qui alternent (planche art/objets_v3.png),
     // dessinées DEVANT les personnages (Thomas : le feu ne passe pas derrière), puis la fumée qui monte.
     for (const f of game.fires) {
-      if (!game.isVisible(f.x, f.y)) continue;
+      if (!game.isVisible(f.x, f.y) || this.isHeld(f.x, f.y)) continue;
       // Haut les deux premiers tours d'un feu de 5, normal ensuite, braises au dernier tour.
       const stage = f.turns <= 1 ? 2 : f.turns >= 4 ? 0 : 1;
       this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95, stage);
@@ -1405,15 +1433,17 @@ export class Renderer {
     this.drawSmoke(game, ox, oy, dt);
     this.drawPuffs(ox, oy, dt);
     // Gaz empoisonné (piège à gaz) : des volutes vertes, translucides, qui ondulent sur leurs cases.
+    // Nuage ÉPAIS (Thomas, 2026-11-12 : « bien plus épaisse ») : six volutes plus grandes et plus opaques par case.
     for (const g of game.gas) {
-      if (!game.isVisible(g.x, g.y)) continue;
-      for (let i = 0; i < 4; i++) {
-        const t = this.time / 700 + i * 1.7 + g.x * 0.9 + g.y * 1.3;
-        const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.22) * tile;
-        const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.18) * tile;
-        const r = tile * (0.32 + 0.08 * Math.sin(t * 0.8));
+      if (!game.isVisible(g.x, g.y) || this.isHeld(g.x, g.y)) continue;
+      for (let i = 0; i < 6; i++) {
+        const t = this.time / 700 + i * 1.1 + g.x * 0.9 + g.y * 1.3;
+        const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.26) * tile;
+        const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.22) * tile;
+        const r = tile * (0.46 + 0.1 * Math.sin(t * 0.8));
         const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-        grad.addColorStop(0, `rgba(150,220,110,${0.22 * Math.min(1, g.turns / 2)})`);
+        grad.addColorStop(0, `rgba(120,200,80,${0.42 * Math.min(1, g.turns / 2)})`);
+        grad.addColorStop(0.6, `rgba(110,180,70,${0.22 * Math.min(1, g.turns / 2)})`);
         grad.addColorStop(1, "rgba(150,220,110,0)");
         ctx.fillStyle = grad;
         ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
@@ -1611,6 +1641,17 @@ export class Renderer {
     const index = game.map.index(x, y);
     const stamp = game.map.changed[index];
     let entry = this.cellCache.get(index);
+    // Après un zoom, toutes les cases changent de taille : on ne les redessine pas toutes dans la même image (à-coup),
+    // mais quelques dizaines par image ; les autres montrent en attendant leur ancien dessin, agrandi ou réduit.
+    const resizedOnly = !!entry && entry.stamp === stamp && entry.key !== key;
+    if (resizedOnly && this.cellBudget <= 0) {
+      const smooth0 = this.ctx.imageSmoothingEnabled;
+      this.ctx.imageSmoothingEnabled = false;
+      this.ctx.drawImage(entry!.canvas, rx, ry, rw, rh);
+      this.ctx.imageSmoothingEnabled = smooth0;
+      return;
+    }
+    if (resizedOnly) this.cellBudget--;
     if (!entry || entry.key !== key || entry.stamp !== stamp) {
       const canvas = entry?.canvas ?? document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(rw * dpr));

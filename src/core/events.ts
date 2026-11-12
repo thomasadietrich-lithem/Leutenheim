@@ -27,7 +27,7 @@ export type GameEvent =
   | { type: "pickup"; item: ItemId; count: number }
   | { type: "death"; actor: Actor }
   /** Coup de l'arme du héros qui tue net un monstre intact (Thomas : « sentir la différence »), ou qui l'assomme (arme lourde). */
-  | { type: "heavyBlow"; actor: Actor; kind: "oneShot" | "stun" }
+  | { type: "heavyBlow"; actor: Actor; kind: "oneShot" | "stun" | "knockback"; fromX?: number; fromY?: number }
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
   /** Le sac est plein : l'objet reste au sol. */
@@ -38,7 +38,7 @@ export type GameEvent =
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
   /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
-  | { type: "npc"; who: "gluck" | "soeur"; what: "talk" | "leave"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
+  | { type: "npc"; who: "gluck" | "soeur"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
   /** Une statue : on la regarde (`look`), ou on frappe la statue creuse (jet de force ; réussi : elle s'effondre). */
   | { type: "statue"; x: number; y: number; look?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
@@ -121,7 +121,7 @@ export type GameEvent =
   | { type: "lastStand" }
   | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
-  | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number }
+  | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[] }
   | { type: "burn"; actor: Actor; damage: number }
   | { type: "potion"; potion: "youth" | "poison" | "haste"; points?: number }
   | { type: "slowed"; actor: Actor }

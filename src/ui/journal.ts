@@ -87,7 +87,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       const name = e.who === "gluck" ? "Gluck" : "Sœur Osseuse";
       const apples = (e.drops ?? []).some((d) => d.item === "pomme");
       const gold = (e.drops ?? []).some((d) => d.item === "or");
-      return `Pouf ! ${name} disparaît dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
+      const why = e.fled === "fire" ? (e.who === "gluck" ? " Gluck détale, la queue en feu : « Aïe aïe aïe ! » —" : " « Mes os ! Mon voile ! » Sœur Osseuse s'enfuit en flammes —")
+        : e.fled === "gas" ? (e.who === "gluck" ? " Gluck s'étrangle, tousse et file —" : " Sœur Osseuse tousse… sans poumons, mais elle s'en va —") : "";
+      return `${why ? why.trim() + " " : ""}Pouf ! ${name} disparaît dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
     }
     case "statue":
       if (e.look) return "Une statue de pierre. Froide, lourde… et pleine, on dirait.";
@@ -124,7 +126,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "infight":
       return null;
     case "heavyBlow":
-      return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : `D'un seul coup !`;
+      return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.`
+        : e.kind === "knockback" ? `Coup critique : ${e.actor.name} est projeté en arrière !` : `D'un seul coup !`;
     case "bounce":
       return `Sac plein : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombe par terre.`;
     case "bagFull":

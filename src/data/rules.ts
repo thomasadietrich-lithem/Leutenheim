@@ -220,6 +220,8 @@ export const RULES = {
   weaponPoisonHits: 15,
   hasteTurns: 4,
   fireTurns: 5,
+  /** Un coup critique du héros projette le monstre d'une case (Thomas, 2026-11-12). */
+  critKnockback: true,
   /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
   burnAfter: 2,
   // ---- Niveau d'alerte (ex-« Tocsin », 2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----

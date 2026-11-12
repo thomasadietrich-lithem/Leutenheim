@@ -1102,6 +1102,19 @@ function recolor<T extends Record<string, string[]>>(set: T, map: Record<string,
   return out as T;
 }
 
+/**
+ * Recoloriage gardé en mémoire : TOUJOURS les mêmes rangées pour une couleur. Sans cela, chaque image redessinait
+ * chaque tache avec de nouvelles rangées, que le cache des dessins ne reconnaissait pas : une nouvelle petite image
+ * à chaque fois, et le jeu ralentissait à mesure que les taches s'accumulaient (Thomas, 2026-11-12 : « le frame rate
+ * chute complètement »).
+ */
+const MEMO_COLORS = new Map<string, Record<string, string[]>>();
+function memoColor<T extends Record<string, string[]>>(name: string, set: T, map: Record<string, string>): T {
+  let out = MEMO_COLORS.get(name);
+  if (!out) MEMO_COLORS.set(name, (out = recolor(set, map)));
+  return out as T;
+}
+
 /** Petites projections de sang : rouge (héros), jaune (Kobolds), noir (araignées), vert (anciennes sauvegardes). */
 export const BLOOD = {
   red: {
@@ -1218,26 +1231,26 @@ export const BLOOD = {
   },
   // Sang jaune des Kobolds et noir des araignées (Thomas, 2026-11-12) : les mêmes formes que le vert, autres couleurs.
   get yellow() {
-    return recolor(this.green, { "4": "m", "5": "N", "6": "y" });
+    return memoColor("yellow", this.green, { "4": "m", "5": "N", "6": "y" });
   },
   get black() {
-    return recolor(this.green, { "4": "0", "5": "9", "6": "k" });
+    return memoColor("black", this.green, { "4": "0", "5": "9", "6": "k" });
   },
   // Suie laissée par le feu (Thomas, 2026-11-12) et flaques des potions jetées, de leur couleur.
   get soot() {
-    return recolor(this.green, { "4": "0", "5": "8", "6": "9" });
+    return memoColor("soot", this.green, { "4": "0", "5": "8", "6": "9" });
   },
   get pYouth() {
-    return recolor(this.green, { "4": "f", "5": "G", "6": "Y" });
+    return memoColor("pYouth", this.green, { "4": "f", "5": "G", "6": "Y" });
   },
   get pPoison() {
-    return recolor(this.green, { "4": "e", "5": "E", "6": "A" });
+    return memoColor("pPoison", this.green, { "4": "e", "5": "E", "6": "A" });
   },
   get pHaste() {
-    return recolor(this.green, { "4": "i", "5": "I", "6": "V" });
+    return memoColor("pHaste", this.green, { "4": "i", "5": "I", "6": "V" });
   },
   get pFire() {
-    return recolor(this.green, { "4": "x", "5": "O", "6": "X" });
+    return memoColor("pFire", this.green, { "4": "x", "5": "O", "6": "X" });
   },
 };
 
@@ -1749,23 +1762,24 @@ const UI_ICONS = {
   ],
   /** Ouvrir la roue d'actions. */
   // Barre d'actions (Thomas, 2026-11-12 : « nouveau picto pour le menu ») : trois cases, loupe, feu, poussée.
+  // Bouton de la barre d'actions (Thomas, 2026-11-12 : « garde juste une loupe, avec un + doré à côté »).
   actions: [
-    "................",
-    "................",
-    "................",
-    "KKKKKKKKKKKKKKKK",
-    "KnVVnKnnOnKnnnnK",
-    "KVWVVKnOXnKRnnnK",
-    "KVVVVKOXXOKRRnnK",
-    "KnVVnKOXYOKRRRnK",
-    "KnnGnKnOXnKRRnnK",
-    "KnnnGKnnnnKRnnnK",
-    "KKKKKKKKKKKKKKKK",
-    ".KbbbbbbbbbbbbK.",
-    "..KKKKKKKKKKKK..",
-    "................",
-    "................",
-    "................",
+    "...........KKK..",
+    "...........KGK..",
+    ".........KKKGKKK",
+    "...KKKK..KGGYGGK",
+    ".KKGGGGKKKKKGKKK",
+    ".KGVVVVGK..KGK..",
+    "KGVWWVVUgK.KKK..",
+    "KGVWVVUUgK......",
+    "KGVVVUUUgK......",
+    "KGVVUUUUgK......",
+    ".KGUUUUgK.......",
+    ".KKggggKTK......",
+    "...KKKK.KBK.....",
+    ".........KBK....",
+    "..........KBK...",
+    "...........K....",
   ],
   /** Pousser : le crâne (l'ennemi) à droite ; la flèche rouge le frappe. */
   push: [

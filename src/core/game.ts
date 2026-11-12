@@ -978,7 +978,14 @@ export class Game {
    * Chemin du héros : il évite les pièges et le feu ; il contourne aussi le gravier quand le détour est court
    * (au plus `gravelDetour` pas de plus). On peut toujours y marcher exprès (case d'arrivée sur le gravier).
    */
-  private heroPath(to: Point, known?: (x: number, y: number) => boolean): Point[] | null {
+  private heroPath(to: Point, known0?: (x: number, y: number) => boolean): Point[] | null {
+    // Un escalier se prend en marchant dessus : le chemin le contourne toujours, sauf s'il est la destination
+    // (Thomas, 2026-11-12 : « quand le chemin ne termine pas sur un escalier, il le contourne »).
+    const stairs = (x: number, y: number) => {
+      const t = this.map.get(x, y);
+      return (t === Tile.StairsDown || t === Tile.StairsUp) && !(x === to.x && y === to.y) && !(x === this.hero.x && y === this.hero.y);
+    };
+    const known = (x: number, y: number) => (!known0 || known0(x, y)) && !stairs(x, y);
     const plain0 = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
     // Nichée : le héros suit les sentiers sans toile quand le détour reste court (chaque toile coûte un tour).
     let plain = plain0;
@@ -1931,7 +1938,7 @@ export class Game {
       }
       this.gasPoison();
       for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
-      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
       return;
     }
     const cells = [...cross, extra]
@@ -1942,7 +1949,7 @@ export class Game {
       if (old) old.turns = RULES.fireTurns;
       else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
     }
-    this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
+    this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
     this.events.push({ type: "fire", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
     // Les monstres touchés par l'éclaboussure se réveillent.
     for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
@@ -2759,6 +2766,7 @@ export class Game {
     this.merchantAct();
     this.burn();
     this.gasTick();
+    this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
     for (const gk of [this.current.gluck, this.current.soeur]) {
@@ -3444,6 +3452,22 @@ export class Game {
     g.drops = 0;
     g.gold = 0;
     this.events.push({ type: "npc", what: "leave", who: id, x: g.x, y: g.y, drops });
+  }
+
+  /**
+   * Un PNJ de quête pris dans le feu ou le gaz toxique s'enfuit (« Pouf ! ») et la rencontre est perdue
+   * (Thomas, 2026-11-12 : « les persos de quête devraient disparaître si effet négatif sur eux »).
+   */
+  private npcsFlee(): void {
+    for (const id of ["gluck", "soeur"] as const) {
+      const g = this.npc(id);
+      if (!g) continue;
+      const fled = this.isBurning(g.x, g.y) ? "fire" : this.isGassed(g.x, g.y) ? "gas" : null;
+      if (!fled) continue;
+      this.npcLeaves(id, g, id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters);
+      const ev = this.events[this.events.length - 1];
+      if (ev.type === "npc") ev.fled = fled;
+    }
   }
 
   /** Un jet de dialogue : d20 + caractéristique contre une difficulté cachée. La Chance relance un 1 naturel. */
@@ -4206,6 +4230,8 @@ export class Game {
       this.events.push({ type: "heavyBlow", actor: monster, kind: "stun" });
     }
     if (result.hit && intact && monster.hp <= 0 && !monster.boss) this.events.push({ type: "heavyBlow", actor: monster, kind: "oneShot" });
+    // Coup critique : le monstre est PROJETÉ d'une case en arrière (Thomas, 2026-11-12), s'il reste debout.
+    if (RULES.critKnockback && result.critical && monster.hp > 0 && !monster.boss) this.knockBack(monster);
     if (result.damage > 0) this.bleed(monster, this.hero);
     this.raiseAlarm(RULES.alarmCombat, monster);
     this.wakeNear(monster);
@@ -4224,6 +4250,21 @@ export class Game {
     }
     // Potion de vitesse : un second coup, s'il reste debout.
     if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
+  }
+
+  /** Projeté par un coup critique : une case dans l'axe du héros, si elle est libre ; il peut tomber sur un piège. */
+  private knockBack(m: Actor): void {
+    const dx = Math.sign(m.x - this.hero.x);
+    const dy = Math.sign(m.y - this.hero.y);
+    const to = { x: m.x + dx, y: m.y + dy };
+    const free = this.map.isWalkable(to.x, to.y) && this.map.get(to.x, to.y) !== Tile.DoorClosed && !this.actorAt(to.x, to.y) &&
+      canStep(this.map, m.x, m.y, dx, dy) && !this.npcAt(to.x, to.y);
+    if (!free) return;
+    const from = { x: m.x, y: m.y };
+    m.x = to.x;
+    m.y = to.y;
+    this.events.push({ type: "heavyBlow", actor: m, kind: "knockback", fromX: from.x, fromY: from.y });
+    this.springTrap(m);
   }
 
   /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */

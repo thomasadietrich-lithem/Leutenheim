@@ -685,6 +685,8 @@
     constructor() {
       this.enabled = true;
       this.ctx = null;
+      /** Où en est l'air de flûte (passage d'escalier) : une note par marche. */
+      this.fluteAt = 0;
       this.fireDebt = 0;
       this.fireBedDebt = 0;
     }
@@ -809,6 +811,25 @@
           case "stairStep":
             this.noise(0.04, 0.09, 600);
             this.noise(0.03, 0.03, 4200, 0.02);
+            break;
+          case "flute": {
+            const tune = [784, 880, 988, 880, 784, 659, 587, 659, 784];
+            const f = tune[this.fluteAt++ % tune.length];
+            this.tone(f, f * 1.01, 0.2, "sine", 0.13);
+            this.tone(f * 2, f * 2, 0.12, "sine", 0.025, 0.01);
+            break;
+          }
+          case "whoosh":
+            this.noise(0.22, 0.07, 900);
+            this.noise(0.16, 0.04, 2200, 0.05);
+            break;
+          case "slide":
+            this.noise(0.06, 0.1, 1800);
+            this.tone(320, 240, 0.06, "square", 0.025);
+            break;
+          case "squeak":
+            this.tone(900, 1500, 0.09, "square", 0.05);
+            this.tone(1500, 1100, 0.08, "square", 0.04, 0.1);
             break;
           case "tumble":
             for (let i = 0; i < 7; i++) this.noise(0.05, 0.22 - i * 0.025, 900 - i * 60, i * 0.11);
@@ -1969,6 +1990,8 @@
     weaponPoisonHits: 15,
     hasteTurns: 4,
     fireTurns: 5,
+    /** Un coup critique du héros projette le monstre d'une case (Thomas, 2026-11-12). */
+    critKnockback: true,
     /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */
     burnAfter: 2,
     // ---- Niveau d'alerte (ex-« Tocsin », 2026-11-11) : le donjon se réveille si l'on s'attarde ou si l'on fait du bruit. Valeurs (C). ----
@@ -5170,7 +5193,12 @@
      * Chemin du héros : il évite les pièges et le feu ; il contourne aussi le gravier quand le détour est court
      * (au plus `gravelDetour` pas de plus). On peut toujours y marcher exprès (case d'arrivée sur le gravier).
      */
-    heroPath(to, known) {
+    heroPath(to, known0) {
+      const stairs = (x, y) => {
+        const t = this.map.get(x, y);
+        return (t === Tile.StairsDown || t === Tile.StairsUp) && !(x === to.x && y === to.y) && !(x === this.hero.x && y === this.hero.y);
+      };
+      const known = (x, y) => (!known0 || known0(x, y)) && !stairs(x, y);
       const plain0 = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
       let plain = plain0;
       if (plain0 && this.current.boss) {
@@ -6000,7 +6028,7 @@
           m.alerted = true;
           m.asleep = false;
         }
-        this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
+        this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: cells2 });
         return;
       }
       const cells = [...cross, extra].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
@@ -6009,7 +6037,7 @@
         if (old) old.turns = RULES.fireTurns;
         else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
       }
-      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
       this.events.push({ type: "fire", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
       for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) {
         m.alerted = true;
@@ -6733,6 +6761,7 @@
       this.merchantAct();
       this.burn();
       this.gasTick();
+      this.npcsFlee();
       this.counterChatter();
       for (const gk of [this.current.gluck, this.current.soeur]) {
         if (gk && gk.gone && gk.backAt !== void 0 && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
@@ -7339,6 +7368,21 @@
       g.gold = 0;
       this.events.push({ type: "npc", what: "leave", who: id, x: g.x, y: g.y, drops });
     }
+    /**
+     * Un PNJ de quête pris dans le feu ou le gaz toxique s'enfuit (« Pouf ! ») et la rencontre est perdue
+     * (Thomas, 2026-11-12 : « les persos de quête devraient disparaître si effet négatif sur eux »).
+     */
+    npcsFlee() {
+      for (const id of ["gluck", "soeur"]) {
+        const g = this.npc(id);
+        if (!g) continue;
+        const fled = this.isBurning(g.x, g.y) ? "fire" : this.isGassed(g.x, g.y) ? "gas" : null;
+        if (!fled) continue;
+        this.npcLeaves(id, g, id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters);
+        const ev = this.events[this.events.length - 1];
+        if (ev.type === "npc") ev.fled = fled;
+      }
+    }
     /** Un jet de dialogue : d20 + caractéristique contre une difficulté cachée. La Chance relance un 1 naturel. */
     dialogueRoll(stat, dc) {
       const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
@@ -7875,11 +7919,11 @@
           const below = this.furnitureAt(p.x, p.y + 1);
           return below !== null && FURNITURE_KINDS[below.kind]?.blocks || p.x === this.hero.x && p.y + 1 === this.hero.y;
         };
-        const bare = (p) => (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y) && hasLineOfSight(this.map, { x, y }, p);
+        const bare2 = (p) => (this.map.get(p.x, p.y) === Tile.Floor || this.map.get(p.x, p.y) === Tile.Gravel) && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.isTrap(p.x, p.y) && hasLineOfSight(this.map, { x, y }, p);
         const ring = (r, strict2) => {
           const out = [];
           for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) out.push({ x: x + dx, y: y + dy });
-          return out.filter((p) => bare(p) && (!strict2 || !hidden(p)));
+          return out.filter((p) => bare2(p) && (!strict2 || !hidden(p)));
         };
         const near = ring(1, true);
         const strict = near.length >= 2 ? near : [...near, ...ring(2, true)];
@@ -8028,6 +8072,7 @@
         this.events.push({ type: "heavyBlow", actor: monster, kind: "stun" });
       }
       if (result.hit && intact && monster.hp <= 0 && !monster.boss) this.events.push({ type: "heavyBlow", actor: monster, kind: "oneShot" });
+      if (RULES.critKnockback && result.critical && monster.hp > 0 && !monster.boss) this.knockBack(monster);
       if (result.damage > 0) this.bleed(monster, this.hero);
       this.raiseAlarm(RULES.alarmCombat, monster);
       this.wakeNear(monster);
@@ -8043,6 +8088,19 @@
         this.perks().doubleStrikes = Math.min(this.rank("double_frappe"), this.perks().doubleStrikes + 1);
       }
       if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
+    }
+    /** Projeté par un coup critique : une case dans l'axe du héros, si elle est libre ; il peut tomber sur un piège. */
+    knockBack(m) {
+      const dx = Math.sign(m.x - this.hero.x);
+      const dy = Math.sign(m.y - this.hero.y);
+      const to = { x: m.x + dx, y: m.y + dy };
+      const free = this.map.isWalkable(to.x, to.y) && this.map.get(to.x, to.y) !== Tile.DoorClosed && !this.actorAt(to.x, to.y) && canStep(this.map, m.x, m.y, dx, dy) && !this.npcAt(to.x, to.y);
+      if (!free) return;
+      const from = { x: m.x, y: m.y };
+      m.x = to.x;
+      m.y = to.y;
+      this.events.push({ type: "heavyBlow", actor: m, kind: "knockback", fromX: from.x, fromY: from.y });
+      this.springTrap(m);
     }
     /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
     removeIfDead(monster, byHero = true) {
@@ -10103,6 +10161,62 @@
         "..odawadorwhdo..",
         "..goewreohwdh.g."
       ]
+    ],
+    [
+      [
+        "................",
+        "........o.......",
+        ".......odo......",
+        "......odro......",
+        "......odao......",
+        "......orado.....",
+        "......orado.....",
+        "......oaydo.....",
+        ".....odayro.....",
+        "....ooryyro.....",
+        "...odrryyrro....",
+        "...odyrwydyo....",
+        "...odwdwarwdo...",
+        "....owowaowo....",
+        ".....o.oo.o.....",
+        "................"
+      ],
+      [
+        "................",
+        "................",
+        "......oo........",
+        ".....oddo.......",
+        ".....odro.......",
+        ".....odao.......",
+        ".....orydo......",
+        ".....oryro......",
+        ".....oryado.....",
+        ".....oryaddo....",
+        "....odrwyrrdo...",
+        "....oyrwydyro...",
+        "...orwdwydwdo...",
+        "....owowaowo....",
+        ".....o.oo.o.....",
+        "................"
+      ],
+      [
+        "........o.......",
+        ".......oro......",
+        ".......oro......",
+        "......odro......",
+        "......orro......",
+        "......oaro......",
+        ".....odyro......",
+        ".....oryro......",
+        ".....orwro......",
+        "....odawado.....",
+        "....orawaddo....",
+        "....oarwadao....",
+        "...odwrwadwdo...",
+        "....owowaowo....",
+        ".....o.oo.o.....",
+        "................"
+      ]
     ]
   ];
 
@@ -11136,6 +11250,12 @@
     for (const [k, rows] of Object.entries(set)) out[k] = rows.map((r) => r.replace(/./g, (c) => map[c] ?? c));
     return out;
   }
+  var MEMO_COLORS = /* @__PURE__ */ new Map();
+  function memoColor(name, set, map) {
+    let out = MEMO_COLORS.get(name);
+    if (!out) MEMO_COLORS.set(name, out = recolor(set, map));
+    return out;
+  }
   var BLOOD = {
     red: {
       sol1: [
@@ -11251,26 +11371,26 @@
     },
     // Sang jaune des Kobolds et noir des araignées (Thomas, 2026-11-12) : les mêmes formes que le vert, autres couleurs.
     get yellow() {
-      return recolor(this.green, { "4": "m", "5": "N", "6": "y" });
+      return memoColor("yellow", this.green, { "4": "m", "5": "N", "6": "y" });
     },
     get black() {
-      return recolor(this.green, { "4": "0", "5": "9", "6": "k" });
+      return memoColor("black", this.green, { "4": "0", "5": "9", "6": "k" });
     },
     // Suie laissée par le feu (Thomas, 2026-11-12) et flaques des potions jetées, de leur couleur.
     get soot() {
-      return recolor(this.green, { "4": "0", "5": "8", "6": "9" });
+      return memoColor("soot", this.green, { "4": "0", "5": "8", "6": "9" });
     },
     get pYouth() {
-      return recolor(this.green, { "4": "f", "5": "G", "6": "Y" });
+      return memoColor("pYouth", this.green, { "4": "f", "5": "G", "6": "Y" });
     },
     get pPoison() {
-      return recolor(this.green, { "4": "e", "5": "E", "6": "A" });
+      return memoColor("pPoison", this.green, { "4": "e", "5": "E", "6": "A" });
     },
     get pHaste() {
-      return recolor(this.green, { "4": "i", "5": "I", "6": "V" });
+      return memoColor("pHaste", this.green, { "4": "i", "5": "I", "6": "V" });
     },
     get pFire() {
-      return recolor(this.green, { "4": "x", "5": "O", "6": "X" });
+      return memoColor("pFire", this.green, { "4": "x", "5": "O", "6": "X" });
     }
   };
   var STATUS_ICONS = {
@@ -11770,23 +11890,24 @@
     ],
     /** Ouvrir la roue d'actions. */
     // Barre d'actions (Thomas, 2026-11-12 : « nouveau picto pour le menu ») : trois cases, loupe, feu, poussée.
+    // Bouton de la barre d'actions (Thomas, 2026-11-12 : « garde juste une loupe, avec un + doré à côté »).
     actions: [
-      "................",
-      "................",
-      "................",
-      "KKKKKKKKKKKKKKKK",
-      "KnVVnKnnOnKnnnnK",
-      "KVWVVKnOXnKRnnnK",
-      "KVVVVKOXXOKRRnnK",
-      "KnVVnKOXYOKRRRnK",
-      "KnnGnKnOXnKRRnnK",
-      "KnnnGKnnnnKRnnnK",
-      "KKKKKKKKKKKKKKKK",
-      ".KbbbbbbbbbbbbK.",
-      "..KKKKKKKKKKKK..",
-      "................",
-      "................",
-      "................"
+      "...........KKK..",
+      "...........KGK..",
+      ".........KKKGKKK",
+      "...KKKK..KGGYGGK",
+      ".KKGGGGKKKKKGKKK",
+      ".KGVVVVGK..KGK..",
+      "KGVWWVVUgK.KKK..",
+      "KGVWVVUUgK......",
+      "KGVVVUUUgK......",
+      "KGVVUUUUgK......",
+      ".KGUUUUgK.......",
+      ".KKggggKTK......",
+      "...KKKK.KBK.....",
+      ".........KBK....",
+      "..........KBK...",
+      "...........K...."
     ],
     /** Pousser : le crâne (l'ennemi) à droite ; la flèche rouge le frappe. */
     push: [
@@ -16698,6 +16819,7 @@
   );
   var SALLES2 = { ...SALLES, ...ATELIERS, ...BOSS };
   var ZOOM_SETTLE_MS = 180;
+  var CELL_BUDGET = 60;
   var COLUMNS = 11;
   var MIN_COLUMNS = 6;
   var MAX_COLUMNS = 28;
@@ -16755,12 +16877,17 @@
        * des couleurs différentes (Thomas : « un Kobold tireur vert » — le cache ne regardait que les lignes). */
       this.spriteCache = /* @__PURE__ */ new WeakMap();
       this.zoomAt = 0;
+      this.cellBudget = CELL_BUDGET;
       /** Le héros vient d'être blessé. */
       /** Moment où chaque piège (par case « x,y ») s'est déclenché : il se montre « déclenché » un instant. */
       this.trapFlash = /* @__PURE__ */ new Map();
+      /** Nombre de petites images créées (pour les mesures : il doit rester stable une fois l'étage affiché). */
+      this.spriteMisses = 0;
       this.smoke = [];
       /** Petits nuages « Pouf ! » (Gluck qui disparaît) : une case, environ 0,6 s. */
       this.puffs = [];
+      /** Cases dont le feu ou le gaz ne doit apparaître qu'à l'éclatement de la fiole (clé « x,y » → instant). */
+      this.held = /* @__PURE__ */ new Map();
       /** Fait voler une flèche d'une case à une autre. */
       /** Objets qui rebondissent du héros vers le sol (sac plein) : un arc, puis un petit rebond. */
       this.hops = [];
@@ -16895,6 +17022,7 @@
       }
       let c = byRows.get(rows);
       if (!c) {
+        this.spriteMisses++;
         c = document.createElement("canvas");
         c.width = rows[0].length;
         c.height = rows.length;
@@ -16953,26 +17081,40 @@
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth2;
     }
-    addPuff(x, y) {
-      this.puffs.push({ x, y, age: 0 });
+    /** La fiole vole encore : son feu ou son gaz n'apparaît qu'à l'éclatement (Thomas, 2026-11-12). */
+    holdEffects(cells, ms) {
+      for (const c of cells) this.held.set(`${c.x},${c.y}`, this.time + ms);
+    }
+    isHeld(x, y) {
+      const until = this.held.get(`${x},${y}`);
+      if (until === void 0) return false;
+      if (this.time >= until) {
+        this.held.delete(`${x},${y}`);
+        return false;
+      }
+      return true;
+    }
+    addPuff(x, y, poison = false) {
+      this.puffs.push({ x, y, age: 0, poison });
     }
     /** Un nuage blanc-gris qui gonfle d'un coup, en boules, puis s'effiloche et s'efface. */
     drawPuffs(ox, oy, dt) {
       const { ctx, tile } = this;
-      const LIFE = 650;
-      this.puffs = this.puffs.filter((p) => (p.age += dt) < LIFE);
+      this.puffs = this.puffs.filter((p) => (p.age += dt) < (p.poison ? 1100 : 650));
       for (const p of this.puffs) {
-        const t = p.age / LIFE;
+        const t = p.age / (p.poison ? 1100 : 650);
+        const k = p.poison ? 1.6 : 1;
         const grow = 1 - Math.pow(1 - Math.min(1, t * 2.2), 3);
         const alpha = t < 0.35 ? 0.95 : 0.95 * (1 - (t - 0.35) / 0.65);
         const cx = ox + (p.x + 0.5) * tile;
         const cy = oy + (p.y + 0.45) * tile - t * tile * 0.25;
         const blobs = [[0, 0, 0.3], [-0.26, 0.08, 0.2], [0.27, 0.06, 0.21], [-0.13, -0.2, 0.19], [0.15, -0.19, 0.2], [0, 0.2, 0.18]];
-        for (const [layer, color] of [[1.18, `rgba(60,54,70,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(236,232,244,${alpha.toFixed(3)})`]]) {
+        const colors = p.poison ? [[1.18, `rgba(30,70,24,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(150,214,96,${(alpha * 0.92).toFixed(3)})`]] : [[1.18, `rgba(60,54,70,${(alpha * 0.8).toFixed(3)})`], [1, `rgba(236,232,244,${alpha.toFixed(3)})`]];
+        for (const [layer, color] of colors) {
           ctx.fillStyle = color;
           for (const [bx, by, br] of blobs) {
             ctx.beginPath();
-            ctx.arc(cx + bx * tile * (0.6 + grow * 0.6), cy + by * tile * (0.6 + grow * 0.6), br * tile * grow * layer, 0, Math.PI * 2);
+            ctx.arc(cx + bx * k * tile * (0.6 + grow * 0.6), cy + by * k * tile * (0.6 + grow * 0.6), br * k * tile * grow * layer, 0, Math.PI * 2);
             ctx.fill();
           }
         }
@@ -17001,7 +17143,7 @@
       }
     }
     /** Des flammes sur une case (cases en feu, ou personnage qui brûle). */
-    /** `stage` : âge du feu (0 haut et vif, 1 normal, 2 braises ; Thomas, 2026-11-12 : « feu C et durée de vie »). */
+    /** `stage` : âge du feu (0 haut et vif, 1 normal, 2 braises, 3 personnage en feu, option B ; Thomas, 2026-11-12 : « feu C et durée de vie »). */
     drawFlames(gx, gy, seed, alpha, stage = 1) {
       const { ctx, tile } = this;
       const frames = FIRE_STAGES[stage];
@@ -17468,6 +17610,7 @@
      * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
      */
     draw(game2, progress, dt, ghosts2 = [], aimRange = null, aimTarget2 = null) {
+      this.cellBudget = CELL_BUDGET;
       const target = this.snapTile();
       if (target !== this.tile && performance.now() - this.zoomAt > ZOOM_SETTLE_MS) this.tile = target;
       const zs = target / this.tile;
@@ -17747,7 +17890,7 @@
           }
           this.drawMonster(m, cx, cy, progress);
           const burning = !!m.burning || game2.isBurning(m.x, m.y);
-          if (m.burning && !game2.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.8);
+          if (m.burning && !game2.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
           this.drawStatusBubbles(m, cx, cy, burning);
         } else {
           ctx.fillStyle = MONSTERS[m.defId]?.color ?? "#c04040";
@@ -17812,24 +17955,25 @@
       this.drawSoeur(game2, ox, oy);
       this.drawStatueGlints(game2, ox, oy);
       this.drawHero(game2, hero, ox, oy, progress);
-      if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.8);
+      if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);
       this.drawFurniture(game2, ox, oy, flicker, "late");
       for (const f of game2.fires) {
-        if (!game2.isVisible(f.x, f.y)) continue;
+        if (!game2.isVisible(f.x, f.y) || this.isHeld(f.x, f.y)) continue;
         const stage = f.turns <= 1 ? 2 : f.turns >= 4 ? 0 : 1;
         this.drawFlames(ox + f.x * tile, oy + f.y * tile, f.x + f.y, 0.95, stage);
       }
       this.drawSmoke(game2, ox, oy, dt);
       this.drawPuffs(ox, oy, dt);
       for (const g of game2.gas) {
-        if (!game2.isVisible(g.x, g.y)) continue;
-        for (let i = 0; i < 4; i++) {
-          const t = this.time / 700 + i * 1.7 + g.x * 0.9 + g.y * 1.3;
-          const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.22) * tile;
-          const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.18) * tile;
-          const r = tile * (0.32 + 0.08 * Math.sin(t * 0.8));
+        if (!game2.isVisible(g.x, g.y) || this.isHeld(g.x, g.y)) continue;
+        for (let i = 0; i < 6; i++) {
+          const t = this.time / 700 + i * 1.1 + g.x * 0.9 + g.y * 1.3;
+          const gx = ox + (g.x + 0.5 + Math.cos(t) * 0.26) * tile;
+          const gy = oy + (g.y + 0.45 + Math.sin(t * 1.3) * 0.22) * tile;
+          const r = tile * (0.46 + 0.1 * Math.sin(t * 0.8));
           const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-          grad.addColorStop(0, `rgba(150,220,110,${0.22 * Math.min(1, g.turns / 2)})`);
+          grad.addColorStop(0, `rgba(120,200,80,${0.42 * Math.min(1, g.turns / 2)})`);
+          grad.addColorStop(0.6, `rgba(110,180,70,${0.22 * Math.min(1, g.turns / 2)})`);
           grad.addColorStop(1, "rgba(150,220,110,0)");
           ctx.fillStyle = grad;
           ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
@@ -18006,6 +18150,15 @@
       const index = game2.map.index(x, y);
       const stamp = game2.map.changed[index];
       let entry = this.cellCache.get(index);
+      const resizedOnly = !!entry && entry.stamp === stamp && entry.key !== key;
+      if (resizedOnly && this.cellBudget <= 0) {
+        const smooth0 = this.ctx.imageSmoothingEnabled;
+        this.ctx.imageSmoothingEnabled = false;
+        this.ctx.drawImage(entry.canvas, rx, ry, rw, rh);
+        this.ctx.imageSmoothingEnabled = smooth0;
+        return;
+      }
+      if (resizedOnly) this.cellBudget--;
       if (!entry || entry.key !== key || entry.stamp !== stamp) {
         const canvas2 = entry?.canvas ?? document.createElement("canvas");
         canvas2.width = Math.max(1, Math.round(rw * dpr));
@@ -18196,18 +18349,56 @@
   };
 
   // src/render/stairsScene.ts
+  function stripGear(rows) {
+    const g = rows.map((r) => r.split(""));
+    const H2 = g.length;
+    const W2 = g[0].length;
+    for (let y = 0; y < H2; y++)
+      for (let x = 0; x < W2; x++) {
+        const c = g[y][x];
+        if (c === "U" || c === "u") g[y][x] = ".";
+        else if ((c === "M" || c === "m" || c === "b") && x >= 11) g[y][x] = ".";
+        else if (c === "Q") g[y][x] = "W";
+      }
+    const colored = (x, y) => x >= 0 && y >= 0 && x < W2 && y < H2 && g[y][x] !== "." && g[y][x] !== "O";
+    for (let y = 0; y < H2; y++)
+      for (let x = 0; x < W2; x++) {
+        if (g[y][x] !== "O") continue;
+        let near = false;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && colored(x + dx, y + dy)) near = true;
+        if (!near) g[y][x] = ".";
+      }
+    const add = [];
+    for (let y = 0; y < H2; y++)
+      for (let x = 0; x < W2; x++)
+        if (g[y][x] === "." && (colored(x + 1, y) || colored(x - 1, y) || colored(x, y + 1) || colored(x, y - 1))) add.push([x, y]);
+    for (const [x, y] of add) g[y][x] = "O";
+    return g.map((r) => r.join(""));
+  }
+  var STRIPPED = /* @__PURE__ */ new Map();
+  function bare(rows) {
+    let r = STRIPPED.get(rows);
+    if (!r) STRIPPED.set(rows, r = stripGear(rows));
+    return r;
+  }
   var W = 96;
   var H = 64;
   var STEP_W = 12;
   var STEP_H = 6;
   var HOP_MS = 210;
   var HOPS = 7;
+  var BASIN_HOP_MS = 120;
+  var BASIN_HOPS = 10;
   var FADE_IN = 220;
   var FADE_OUT = 380;
   var HERO_X = 36;
   var HERO_Y = 34;
   var StairsScene = class {
-    constructor(direction, fall, label) {
+    constructor(direction, variant, label) {
+      /** Notes de musique (flûte) : elles montent et s'effacent. */
+      this.notes = [];
+      /** Le Kobold croisé : instant de la rencontre (le « ! » s'affiche un moment). */
+      this.metAt = -1;
       /** Vrai si le héros a vraiment dégringolé (pour le journal). */
       this.tumbled = false;
       this.sprites = /* @__PURE__ */ new Map();
@@ -18225,7 +18416,8 @@
       /** Sons demandés depuis le dernier appel à `update` (« marche » à chaque marche, « chute » au début de la chute). */
       this.sounds = [];
       this.direction = direction;
-      this.fall = fall && direction === "down";
+      this.variant = direction === "up" && (variant === "vines" || variant === "basin" || variant === "tumble") ? "normal" : variant;
+      this.fall = this.variant === "tumble";
       this.label = label;
       this.buffer = document.createElement("canvas");
       this.buffer.width = W;
@@ -18250,16 +18442,38 @@
         this.phaseTime = 0;
       }
     }
+    /** Nombre de marches du passage. */
+    hops() {
+      return this.variant === "basin" ? BASIN_HOPS : HOPS;
+    }
+    /** Le Kobold qui monte (en marches, comme `hop`) : il part loin devant et vient à la rencontre du héros. */
+    koboldStep() {
+      return 8.5 - 1.3 * this.hop;
+    }
     update(dt) {
       this.time += dt;
       this.phaseTime += dt;
+      for (const n of this.notes) n.age += dt;
+      this.notes = this.notes.filter((n) => n.age < 1400);
       if (this.phase === "walk") {
-        const hopsDone = Math.floor(this.phaseTime / HOP_MS);
-        while (this.landed < hopsDone) {
+        const hopMs = this.variant === "basin" ? BASIN_HOP_MS : HOP_MS;
+        const hops = this.hops();
+        const hopsDone = Math.floor(this.phaseTime / hopMs);
+        while (this.landed < hopsDone && this.landed < hops) {
           this.landed++;
-          this.sounds.push("stairStep");
+          if (this.variant === "flute") {
+            this.sounds.push("flute");
+            this.notes.push({ x: HERO_X + 15, y: HERO_Y + 4, age: 0, drift: this.landed % 2 ? 6e-3 : -4e-3 });
+          } else if (this.variant === "vines") {
+            if (this.landed % 2 === 1) this.sounds.push("whoosh");
+          } else if (this.variant === "basin") this.sounds.push("slide");
+          else this.sounds.push("stairStep");
         }
-        this.hop = Math.min(HOPS, this.phaseTime / HOP_MS);
+        this.hop = Math.min(hops, this.phaseTime / hopMs);
+        if (this.variant === "kobold" && this.metAt < 0 && Math.abs(this.koboldStep() - this.hop) < 0.6) {
+          this.metAt = this.time;
+          this.sounds.push("squeak");
+        }
         this.cameraStep = this.hop;
         if (this.fall && this.hop >= 3.6) {
           this.phase = "tumble";
@@ -18268,7 +18482,7 @@
           this.sounds.push("tumble");
           this.tumble = { x: HERO_X, y: HERO_Y, vx: 0.03, vy: -0.05, angle: 0, bounces: 0 };
           this.torch = { x: HERO_X + 13, y: HERO_Y + 5, vx: -0.02, vy: -0.09, angle: 0 };
-        } else if (this.hop >= HOPS) {
+        } else if (this.hop >= hops) {
           this.phase = "out";
           this.phaseTime = 0;
         }
@@ -18322,7 +18536,7 @@
       const sign = this.direction === "down" ? 1 : -1;
       return HERO_Y + 16 - sign * this.cameraStep * STEP_H;
     }
-    spriteOf(rows) {
+    spriteOf(rows, palette = GUERRIER_PALETTE) {
       let c = this.sprites.get(rows);
       if (!c) {
         c = document.createElement("canvas");
@@ -18331,7 +18545,7 @@
         const g = c.getContext("2d");
         rows.forEach((row, y) => {
           for (let x = 0; x < row.length; x++) {
-            const color = GUERRIER_PALETTE[row[x]];
+            const color = palette[row[x]];
             if (color) {
               g.fillStyle = color;
               g.fillRect(x, y, 1, 1);
@@ -18364,15 +18578,18 @@
       let flame = light;
       const flicker = Math.sin(this.time / 70) * 1.2 + Math.sin(this.time / 23) * 0.6;
       const fallen = this.fall && this.phase !== "walk";
-      if (!fallen) light = flame = this.drawWalkingHero();
-      else {
+      if (!fallen) {
+        const held = this.drawWalkingHero();
+        light = flame = held ?? { x: HERO_X + 9, y: HERO_Y + 4 };
+        if (!held) flame = { x: -99, y: -99 };
+      } else {
         this.drawTorch(this.torch.x, this.torch.y, this.torch.angle);
         this.drawTumblingHero();
         const t = this.tumble;
         flame = this.flameOfTorch();
         light = this.phase === "tumble" && t.x < W + 4 ? { x: (t.x + 8 + flame.x) / 2, y: (t.y + 8 + flame.y) / 2 } : flame;
       }
-      const radius = 42 + flicker;
+      const radius = (this.variant === "flute" ? 32 : 42) + flicker;
       const halo = g.createRadialGradient(light.x, light.y, 2, light.x, light.y, radius);
       halo.addColorStop(0, "rgba(5,3,7,0)");
       halo.addColorStop(0.5, "rgba(5,3,7,0.2)");
@@ -18386,7 +18603,14 @@
       g.fillStyle = warm;
       g.fillRect(0, 0, W, H);
       g.globalCompositeOperation = "source-over";
-      this.drawFlame(flame.x, flame.y + 3);
+      if (flame.x > -50) this.drawFlame(flame.x, flame.y + 3);
+      for (const n of this.notes) this.drawNote(n.x + n.age * 0.012 + Math.sin(n.age / 160) * 2, n.y - n.age * 0.02, 1 - n.age / 1400);
+      if (this.metAt >= 0 && this.time - this.metAt < 700) {
+        const kx = Math.round(HERO_X + (this.koboldStep() - this.hop) * STEP_W + 6);
+        g.fillStyle = "#ffe27a";
+        g.fillRect(kx, HERO_Y - 9, 1, 4);
+        g.fillRect(kx, HERO_Y - 4, 1, 1);
+      }
       let fade = 0;
       if (this.time < FADE_IN) fade = 1 - this.time / FADE_IN;
       if (this.phase === "out") fade = Math.min(1, this.phaseTime / FADE_OUT);
@@ -18460,23 +18684,153 @@
         b.fillRect(x + STEP_W / 2, y + 4, 1, STEP_H - 2);
       }
     }
-    /** Le héros qui saute de marche en marche. Renvoie la position de la flamme. */
+    /** Le héros qui saute de marche en marche (ou glisse, ou se balance). Renvoie la position de la flamme (sans torche : null). */
     drawWalkingHero() {
       const g = this.g;
+      const hops = this.hops();
       const u = this.hop - Math.floor(this.hop);
       const rising = this.direction === "up";
-      const lift = this.hop >= HOPS ? 0 : Math.sin(Math.PI * u) * (rising ? 6 : 4);
+      const frames = GUERRIER.walkSide;
+      const still = this.hop >= hops;
+      const frame2 = bare(still ? GUERRIER.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length]);
+      if (this.variant === "kobold") this.drawKobold();
+      if (this.variant === "vines") return this.drawSwinging();
+      if (this.variant === "basin") return this.drawBasin(u);
+      const lift = still ? 0 : Math.sin(Math.PI * u) * (rising ? 6 : 4);
       const x = HERO_X;
       const y = HERO_Y - lift;
-      const frames = GUERRIER.walkSide;
-      const frame2 = this.hop >= HOPS ? GUERRIER.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length];
       g.fillStyle = "rgba(0,0,0,0.45)";
       g.fillRect(x + 4, HERO_Y + 15, 8, 1);
       g.drawImage(this.spriteOf(frame2), Math.round(x), Math.round(y));
+      if (this.variant === "flute") {
+        const fx = Math.round(x) + 11;
+        const fy = Math.round(y) + 8;
+        g.fillStyle = "#18121e";
+        g.fillRect(fx - 1, fy - 1, 8, 4);
+        g.fillStyle = "#c89a5a";
+        g.fillRect(fx, fy, 6, 1);
+        g.fillStyle = "#8a6238";
+        g.fillRect(fx, fy + 1, 6, 1);
+        g.fillStyle = "#3a2410";
+        g.fillRect(fx + 2, fy, 1, 1);
+        g.fillRect(fx + 4, fy, 1, 1);
+        return null;
+      }
       const tx = x + 12;
       const ty = y + 9;
       this.drawTorch(tx, ty, -0.35 + Math.sin(this.time / 90) * 0.08);
       return { x: tx + 1, y: ty - 6 };
+    }
+    /** Le Kobold croisé : il monte en sautillant à la rencontre du héros, tourné vers lui, et file derrière lui. */
+    drawKobold() {
+      const k = this.koboldStep();
+      const rel = k - this.hop;
+      if (rel > 6 || rel < -5) return;
+      const sign = this.direction === "down" ? 1 : -1;
+      const u = k - Math.floor(k);
+      const x = HERO_X + rel * STEP_W + 1;
+      const y = HERO_Y + 1 + sign * rel * STEP_H - Math.abs(Math.sin(Math.PI * u)) * 3;
+      const frames = SCHRAT.walkSide;
+      const frame2 = frames[Math.floor(this.time / 120) % frames.length];
+      const g = this.g;
+      g.fillStyle = "rgba(0,0,0,0.45)";
+      g.fillRect(Math.round(x) + 4, Math.round(HERO_Y + 16 + sign * rel * STEP_H) - 1, 8, 1);
+      g.save();
+      g.translate(Math.round(x) + 16, Math.round(y));
+      g.scale(-1, 1);
+      g.drawImage(this.spriteOf(frame2, SCHRAT_PALETTE), 0, 0);
+      g.restore();
+    }
+    /** Les lianes : le héros se balance de l'une à l'autre au-dessus des marches, torche à la main. */
+    drawSwinging() {
+      const g = this.g;
+      const vineX = (i) => HERO_X + 10 + (i - this.hop) * STEP_W;
+      const held = 2 * Math.round(this.hop / 2);
+      const off = (this.hop - held) / 1;
+      const hx = HERO_X + 9;
+      const hy = HERO_Y - 14 + 4 * (1 - off * off);
+      for (let i = held - 6; i <= held + 8; i += 2) {
+        const ax = vineX(i);
+        if (ax < -10 || ax > W + 10) continue;
+        const toX = i === held ? hx : ax + Math.sin(this.time / 400 + i) * 2;
+        const toY = i === held ? hy : HERO_Y - 4 + i * 7 % 5;
+        this.drawVine(ax, -2, toX, toY);
+      }
+      const angle = Math.atan2(hx - vineX(held), hy + 2);
+      g.save();
+      g.translate(Math.round(hx), Math.round(hy));
+      g.rotate(-angle * 0.8);
+      g.drawImage(this.spriteOf(bare(GUERRIER.idleSide[0])), -9, 4);
+      g.fillStyle = "#18121e";
+      g.fillRect(-1, -1, 3, 8);
+      g.fillStyle = "#eebe91";
+      g.fillRect(0, 0, 1, 7);
+      g.restore();
+      const tx = hx + 3 + Math.sin(-angle) * 9;
+      const ty = hy + 14;
+      this.drawTorch(tx, ty, -0.5 - angle * 0.8);
+      return { x: tx + 1, y: ty - 6 };
+    }
+    /** Une liane : une corde verte qui ondule un peu, avec des feuilles. */
+    drawVine(ax, ay, bx, by) {
+      const g = this.g;
+      const n = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay)));
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const x = Math.round(ax + (bx - ax) * t + Math.sin(t * 6 + this.time / 300) * 0.6);
+        const y = Math.round(ay + (by - ay) * t);
+        g.fillStyle = "#2e5a1e";
+        g.fillRect(x, y, 1, 1);
+        if (i % 7 === 3) {
+          g.fillStyle = "#5e9a32";
+          g.fillRect(x + (i % 2 ? 1 : -2), y, 2, 1);
+        }
+      }
+    }
+    /** La bassine : le héros, assis dedans, glisse de marche en marche, torche levée. */
+    drawBasin(u) {
+      const g = this.g;
+      const bump = this.hop >= this.hops() ? 0 : u < 0.25 ? 1 : 0;
+      const x = HERO_X;
+      const y = HERO_Y + 3 + bump;
+      const sprite = this.spriteOf(bare(GUERRIER.idleSide[0]));
+      g.drawImage(sprite, 0, 0, 16, 10, Math.round(x), Math.round(y - 1), 16, 10);
+      const bx = Math.round(x) - 1;
+      const by = Math.round(y) + 8;
+      g.fillStyle = "#18121e";
+      g.fillRect(bx, by - 1, 18, 7);
+      g.fillStyle = "#8a6238";
+      g.fillRect(bx + 1, by, 16, 5);
+      g.fillStyle = "#b0824a";
+      g.fillRect(bx + 1, by, 16, 1);
+      g.fillStyle = "#6e7594";
+      g.fillRect(bx + 1, by + 2, 16, 1);
+      g.fillStyle = "#5a3a1c";
+      for (let i = 3; i < 17; i += 4) g.fillRect(bx + i, by + 3, 1, 2);
+      g.fillStyle = "rgba(0,0,0,0.45)";
+      g.fillRect(bx + 2, HERO_Y + 15, 14, 1);
+      if (bump && this.hop < this.hops()) {
+        g.fillStyle = "#ffe27a";
+        g.fillRect(bx - 1, by + 5, 1, 1);
+        g.fillRect(bx - 3, by + 4, 1, 1);
+      }
+      const tx = x + 12;
+      const ty = y + 2;
+      this.drawTorch(tx, ty, -0.15 + Math.sin(this.time / 90) * 0.1);
+      return { x: tx + 1, y: ty - 6 };
+    }
+    /** Une croche dorée qui luit (flûte). */
+    drawNote(x, y, alpha) {
+      const g = this.g;
+      const cx = Math.round(x);
+      const cy = Math.round(y);
+      g.globalAlpha = Math.max(0, alpha);
+      g.fillStyle = "#ffd84a";
+      g.fillRect(cx, cy, 2, 2);
+      g.fillRect(cx + 1, cy - 4, 1, 4);
+      g.fillRect(cx + 2, cy - 4, 1, 1);
+      g.fillRect(cx + 3, cy - 3, 1, 1);
+      g.globalAlpha = 1;
     }
     /** Le héros qui dégringole, en tournant sur lui-même. */
     drawTumblingHero() {
@@ -18486,7 +18840,7 @@
       g.save();
       g.translate(Math.round(t.x + 8), Math.round(t.y + 8));
       g.rotate(Math.round(t.angle / (Math.PI / 4)) * (Math.PI / 4));
-      g.drawImage(this.spriteOf(GUERRIER.hurt[0]), -8, -8);
+      g.drawImage(this.spriteOf(bare(GUERRIER.hurt[0])), -8, -8);
       g.restore();
     }
     /** Bout du manche de la torche tombée, là où brûle la flamme. */
@@ -18587,7 +18941,8 @@
         const name = e.who === "gluck" ? "Gluck" : "S\u0153ur Osseuse";
         const apples = (e.drops ?? []).some((d) => d.item === "pomme");
         const gold = (e.drops ?? []).some((d) => d.item === "or");
-        return `Pouf ! ${name} dispara\xEEt dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
+        const why = e.fled === "fire" ? e.who === "gluck" ? " Gluck d\xE9tale, la queue en feu : \xAB A\xEFe a\xEFe a\xEFe ! \xBB \u2014" : " \xAB Mes os ! Mon voile ! \xBB S\u0153ur Osseuse s'enfuit en flammes \u2014" : e.fled === "gas" ? e.who === "gluck" ? " Gluck s'\xE9trangle, tousse et file \u2014" : " S\u0153ur Osseuse tousse\u2026 sans poumons, mais elle s'en va \u2014" : "";
+        return `${why ? why.trim() + " " : ""}Pouf ! ${name} dispara\xEEt dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
       }
       case "statue":
         if (e.look) return "Une statue de pierre. Froide, lourde\u2026 et pleine, on dirait.";
@@ -18617,7 +18972,7 @@
       case "infight":
         return null;
       case "heavyBlow":
-        return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : `D'un seul coup !`;
+        return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : e.kind === "knockback" ? `Coup critique : ${e.actor.name} est projet\xE9 en arri\xE8re !` : `D'un seul coup !`;
       case "bounce":
         return `Sac plein : ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` \xD7${e.count}` : ""} tombe par terre.`;
       case "bagFull":
@@ -18860,6 +19215,7 @@
   var wheelOpen = false;
   var jumpMode = false;
   var throwUid = null;
+  var THROW_LAND_MS = 420;
   var quickNote = "";
   var LONG_PRESS_MS2 = 450;
   var pushMode = false;
@@ -19082,17 +19438,21 @@
       openShop(e.line);
     } else if (e.type === "potionThrown") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
+      renderer.holdEffects(e.cells, THROW_LAND_MS);
       window.setTimeout(() => {
         renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.fire);
         sfx.play("glass");
-      }, 420);
+        if (e.potion === "poison") for (const c of e.cells) renderer.addPuff(c.x, c.y, true);
+      }, THROW_LAND_MS);
     } else if (e.type === "shatter") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
+      renderer.holdEffects([{ x: e.x, y: e.y }], THROW_LAND_MS);
       window.setTimeout(() => {
         renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.youth);
         renderer.addFloatingText(e.x, e.y, "Cling !", "#e8f4ff");
         sfx.play("glass");
-      }, 420);
+        if (e.potion === "poison") renderer.addPuff(e.x, e.y, true);
+      }, THROW_LAND_MS);
     } else if (e.type === "luck") {
       renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
     } else if (e.type === "statue") {
@@ -19168,8 +19528,10 @@
       for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
       renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
     } else if (e.type === "fire") {
-      renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
-      sfx.play("break");
+      window.setTimeout(() => {
+        renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
+        sfx.play("break");
+      }, THROW_LAND_MS);
     } else if (e.type === "burn") {
       if (e.actor.kind === "hero") {
         renderer.heroHurt();
@@ -19241,8 +19603,8 @@
         renderer.addFloatingText(e.x, e.y, "Sac plein", "#ff8a7a");
       }
     } else if (e.type === "heavyBlow") {
-      renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assomm\xE9 !" : "Net !", e.kind === "stun" ? "#ffd75e" : "#ffffff");
-      if (e.kind === "stun") sfx.play("thud");
+      renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assomm\xE9 !" : e.kind === "knockback" ? "Projet\xE9 !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
+      if (e.kind !== "oneShot") sfx.play("thud");
     } else if (e.type === "stairs") {
       shownHp = game.hero.hp;
       sfx.play("descend");
@@ -20954,12 +21316,26 @@
   });
   var gravelCrik = true;
   var stairsScene = null;
-  function beginStairs(forceFall) {
+  var sandboxStairs = 0;
+  var STAIRS_ORDER = ["normal", "tumble", "kobold", "flute", "vines", "basin"];
+  function beginStairs(force) {
     const direction = game.pendingStairs;
     if (!direction || game.over || stairsScene) return;
     const target = game.depth + (direction === "down" ? 1 : -1);
     if (target < 1) return;
-    stairsScene = new StairsScene(direction, direction === "down" && (forceFall ?? Math.random() < 1 / 8), `\xC9TAGE ${target}`);
+    let variant = "normal";
+    if (force) variant = force;
+    else if (game.sandbox) variant = STAIRS_ORDER[sandboxStairs++ % STAIRS_ORDER.length];
+    else {
+      const r = Math.random();
+      const table = direction === "down" ? [["tumble", 1 / 12], ["kobold", 1 / 20], ["flute", 1 / 20], ["vines", 1 / 20], ["basin", 1 / 20]] : [["kobold", 1 / 20], ["flute", 1 / 20]];
+      let acc = 0;
+      for (const [v, p] of table) if (r < (acc += p)) {
+        variant = v;
+        break;
+      }
+    }
+    stairsScene = new StairsScene(direction, variant, `\xC9TAGE ${target}`);
   }
   function advanceStairs(dt) {
     const scene = stairsScene;
@@ -21107,7 +21483,7 @@
     game: () => game,
     renderer: () => renderer,
     /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
-    stairs: (fall) => beginStairs(fall),
+    stairs: (variant) => beginStairs(variant),
     /** Pour les captures : montre les événements en attente (comme après un toucher). */
     flush: () => collectEvents()
   };

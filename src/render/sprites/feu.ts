@@ -1,5 +1,5 @@
 // FICHIER GÉNÉRÉ par art/flammes_v1.py export : ne pas modifier à la main.
-/** Flammes C (art/flammes_v1.png), par âge du feu : [0] haut et vif, [1] normal, [2] braises ; 3 images chacun. */
+/** Flammes C (art/flammes_v1.png), par âge du feu : [0] haut et vif, [1] normal, [2] braises ; [3] personnage en feu (option B) ; 3 images chacun. */
 export const FIRE_PALETTE: Record<string, string> = {"o": "#3a0e0a", "d": "#8e1e16", "r": "#d23e1e", "a": "#fa8e2a", "y": "#ffde60", "w": "#fffad6", "b": "#ffbe46", "c": "#fff0a0", "e": "#ff963c", "g": "#ffc85a", "h": "#c85028"};
 export const FIRE_STAGES: string[][][] = [
  [
@@ -168,6 +168,62 @@ export const FIRE_STAGES: string[][][] = [
    "...oayro.oaro...",
    "..odawadorwhdo..",
    "..goewreohwdh.g."
+  ]
+ ],
+ [
+  [
+   "................",
+   "........o.......",
+   ".......odo......",
+   "......odro......",
+   "......odao......",
+   "......orado.....",
+   "......orado.....",
+   "......oaydo.....",
+   ".....odayro.....",
+   "....ooryyro.....",
+   "...odrryyrro....",
+   "...odyrwydyo....",
+   "...odwdwarwdo...",
+   "....owowaowo....",
+   ".....o.oo.o.....",
+   "................"
+  ],
+  [
+   "................",
+   "................",
+   "......oo........",
+   ".....oddo.......",
+   ".....odro.......",
+   ".....odao.......",
+   ".....orydo......",
+   ".....oryro......",
+   ".....oryado.....",
+   ".....oryaddo....",
+   "....odrwyrrdo...",
+   "....oyrwydyro...",
+   "...orwdwydwdo...",
+   "....owowaowo....",
+   ".....o.oo.o.....",
+   "................"
+  ],
+  [
+   "........o.......",
+   ".......oro......",
+   ".......oro......",
+   "......odro......",
+   "......orro......",
+   "......oaro......",
+   ".....odyro......",
+   ".....oryro......",
+   ".....orwro......",
+   "....odawado.....",
+   "....orawaddo....",
+   "....oarwadao....",
+   "...odwrwadwdo...",
+   "....owowaowo....",
+   ".....o.oo.o.....",
+   "................"
   ]
  ]
 ];

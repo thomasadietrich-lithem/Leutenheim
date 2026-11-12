@@ -17,7 +17,7 @@ import { bindInput } from "./input/pointer";
 import { GLUCK_PALETTE, Renderer } from "./render/renderer";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
-import { StairsScene } from "./render/stairsScene";
+import { StairsScene, StairsVariant } from "./render/stairsScene";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
@@ -111,6 +111,8 @@ let wheelOpen = false;
 let jumpMode = false;
 /** Potion de feu sortie du sac : on attend la case où la lancer. */
 let throwUid: number | null = null;
+/** Une fiole lancée touche le sol au bout de ce temps (les ¾ de son vol). */
+const THROW_LAND_MS = 420;
 /** Message d'un appui long dans le sac (raccourci choisi ou retiré), montré une fois sur la fiche. */
 let quickNote = "";
 /** Durée d'un appui long dans le sac. */
@@ -403,18 +405,23 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "potionThrown") {
     // On voit la fiole voler, puis éclater au sol (Thomas, 2026-11-12).
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
+    // Le feu ou le gaz n'apparaît qu'à l'éclatement (Thomas, 2026-11-12) ; le poison fait une grosse bouffée verte.
+    renderer.holdEffects(e.cells, THROW_LAND_MS);
     window.setTimeout(() => {
       renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.fire);
       sfx.play("glass");
-    }, 420);
+      if (e.potion === "poison") for (const c of e.cells) renderer.addPuff(c.x, c.y, true);
+    }, THROW_LAND_MS);
   } else if (e.type === "shatter") {
     // La fiole vole, se brise : « Cling ! », des éclats de sa couleur.
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
+    renderer.holdEffects([{ x: e.x, y: e.y }], THROW_LAND_MS);
     window.setTimeout(() => {
       renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.youth);
       renderer.addFloatingText(e.x, e.y, "Cling !", "#e8f4ff");
       sfx.play("glass");
-    }, 420);
+      if (e.potion === "poison") renderer.addPuff(e.x, e.y, true);
+    }, THROW_LAND_MS);
   } else if (e.type === "luck") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
   } else if (e.type === "statue") {
@@ -498,8 +505,11 @@ function reveal(e: GameEvent): void {
     for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
     renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
   } else if (e.type === "fire") {
-    renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
-    sfx.play("break");
+    // Après l'éclatement de la fiole.
+    window.setTimeout(() => {
+      renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
+      sfx.play("break");
+    }, THROW_LAND_MS);
   } else if (e.type === "burn") {
     if (e.actor.kind === "hero") {
       renderer.heroHurt();
@@ -574,8 +584,8 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(e.x, e.y, "Sac plein", "#ff8a7a");
     }
   } else if (e.type === "heavyBlow") {
-    renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : "Net !", e.kind === "stun" ? "#ffd75e" : "#ffffff");
-    if (e.kind === "stun") sfx.play("thud");
+    renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : e.kind === "knockback" ? "Projeté !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
+    if (e.kind !== "oneShot") sfx.play("thud");
   } else if (e.type === "stairs") {
     shownHp = game.hero.hp;
     sfx.play("descend");
@@ -2536,13 +2546,29 @@ let gravelCrik = true;
 /** La petite scène dans le noir entre deux étages (Thomas, 2026-11-12) ; `null` hors passage. */
 let stairsScene: StairsScene | null = null;
 
-function beginStairs(forceFall?: boolean): void {
+/** Salle d'essai : les scènes d'escalier défilent dans l'ordre, pour toutes les voir. */
+let sandboxStairs = 0;
+const STAIRS_ORDER: StairsVariant[] = ["normal", "tumble", "kobold", "flute", "vines", "basin"];
+
+function beginStairs(force?: StairsVariant): void {
   const direction = game.pendingStairs;
   if (!direction || game.over || stairsScene) return;
   const target = game.depth + (direction === "down" ? 1 : -1);
   if (target < 1) return;
-  // Une fois sur huit environ, en descendant, il se prend les pieds dans une marche (décor seulement).
-  stairsScene = new StairsScene(direction, direction === "down" && (forceFall ?? Math.random() < 1 / 8), `ÉTAGE ${target}`);
+  // Scènes rares (Thomas, 2026-11-12 ; décor seulement) : en descendant, dégringolade 1 fois sur 12, Kobold croisé,
+  // flûte, lianes et bassine 1 fois sur 20 chacune (C) ; en montant, Kobold et flûte seulement.
+  let variant: StairsVariant = "normal";
+  if (force) variant = force;
+  else if (game.sandbox) variant = STAIRS_ORDER[sandboxStairs++ % STAIRS_ORDER.length];
+  else {
+    const r = Math.random();
+    const table: [StairsVariant, number][] = direction === "down"
+      ? [["tumble", 1 / 12], ["kobold", 1 / 20], ["flute", 1 / 20], ["vines", 1 / 20], ["basin", 1 / 20]]
+      : [["kobold", 1 / 20], ["flute", 1 / 20]];
+    let acc = 0;
+    for (const [v, p] of table) if (r < (acc += p)) { variant = v; break; }
+  }
+  stairsScene = new StairsScene(direction, variant, `ÉTAGE ${target}`);
 }
 
 function advanceStairs(dt: number): void {
@@ -2724,7 +2750,7 @@ requestAnimationFrame(frame);
   game: () => game,
   renderer: () => renderer,
   /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
-  stairs: (fall: boolean) => beginStairs(fall),
+  stairs: (variant?: StairsVariant) => beginStairs(variant),
   /** Pour les captures : montre les événements en attente (comme après un toucher). */
   flush: () => collectEvents(),
 };

@@ -31,13 +31,19 @@ export type SoundName =
   | "heavy"
   | "shoulder"
   | "stairStep"
-  | "tumble";
+  | "tumble"
+  | "flute"
+  | "whoosh"
+  | "slide"
+  | "squeak";
 
 type Wave = OscillatorType;
 
 export class Sfx {
   enabled = true;
   private ctx: AudioContext | null = null;
+  /** Où en est l'air de flûte (passage d'escalier) : une note par marche. */
+  private fluteAt = 0;
 
   /** Le contexte audio (partagé avec la musique), une fois débloqué par un geste du joueur. */
   context(): AudioContext | null {
@@ -173,6 +179,25 @@ export class Sfx {
         case "stairStep": // un pas sur une marche de pierre, avec le cliquetis de l'équipement
           this.noise(0.04, 0.09, 600);
           this.noise(0.03, 0.03, 4200, 0.02);
+          break;
+        case "flute": { // le héros joue de la flûte dans l'escalier : une petite mélodie, une note par marche
+          const tune = [784, 880, 988, 880, 784, 659, 587, 659, 784];
+          const f = tune[this.fluteAt++ % tune.length];
+          this.tone(f, f * 1.01, 0.2, "sine", 0.13);
+          this.tone(f * 2, f * 2, 0.12, "sine", 0.025, 0.01);
+          break;
+        }
+        case "whoosh": // une liane qui fend l'air
+          this.noise(0.22, 0.07, 900);
+          this.noise(0.16, 0.04, 2200, 0.05);
+          break;
+        case "slide": // la bassine qui racle une marche
+          this.noise(0.06, 0.1, 1800);
+          this.tone(320, 240, 0.06, "square", 0.025);
+          break;
+        case "squeak": // le Kobold surpris : un petit couinement
+          this.tone(900, 1500, 0.09, "square", 0.05);
+          this.tone(1500, 1100, 0.08, "square", 0.04, 0.1);
           break;
         case "tumble": // la dégringolade : chocs en cascade qui s'éloignent
           for (let i = 0; i < 7; i++) this.noise(0.05, 0.22 - i * 0.025, 900 - i * 60, i * 0.11);

@@ -3,7 +3,7 @@ peut-être un feu depuis le centre de la tuile »). Flammes du feu C. python3 ar
 import re
 from PIL import Image, ImageDraw
 from pix import font, up
-from flammes_v1 import render, tongue, langues_stage, floor_tile, YEL, ORA, WHI, RED
+from flammes_v1 import body_flame, render, tongue, langues_stage, floor_tile, YEL, ORA, WHI, RED
 
 SRC = open("../src/render/sprites/schrat.ts").read()
 PAL = dict(re.findall(r'(\w): "(#[0-9a-f]{6})"', SRC.split("SCHRAT_PALETTE")[1].split("};")[0]))
@@ -39,9 +39,7 @@ def opt_a(f):
 def opt_b(f):
     """Depuis le centre : une flamme qui part du ventre et monte au-dessus de la tête ; les pieds et le visage restent lisibles."""
     base = kobold()
-    fl = render(lambda x, y: max(tongue(x, y, 7.8, 13.5, 0.5 + [0, 1, 0.5][f], 2.3, 0.9, f),
-                                 tongue(x, y, 5.5, 13.5, 9 + f % 2, 1.3, 0.6, f + 1),
-                                 tongue(x, y, 10.5, 13.5, 8.5 + (f + 1) % 2, 1.3, 0.6, f + 2)))
+    fl = body_flame(f)
     base.alpha_composite(fade(fl, 0.85))
     return base
 

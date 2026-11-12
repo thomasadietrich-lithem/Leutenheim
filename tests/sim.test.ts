@@ -2312,6 +2312,16 @@ function monsterAttacksPerHeroAttack(weapon: "epee" | "epee_longue" | "cimeterre
 }
 
 test("vitesse d'attaque : lente = 1,5 attaque des monstres par coup, rapide = ¾, normale = 1", () => {
+  // Le critique qui projette le monstre l'éloigne : on mesure ici la seule vitesse.
+  (RULES as { critKnockback: boolean }).critKnockback = false;
+  try {
+    speedChecks();
+  } finally {
+    (RULES as { critKnockback: boolean }).critKnockback = true;
+  }
+});
+
+function speedChecks(): void {
   assert.equal(monsterAttacksPerHeroAttack("epee"), 1);
   // L'épée longue assomme parfois (le monstre perd un tour) : on mesure ici la seule vitesse, sans cet effet.
   const longsword = ITEMS.epee_longue as { stunOn?: number };
@@ -2323,7 +2333,7 @@ test("vitesse d'attaque : lente = 1,5 attaque des monstres par coup, rapide = ¾
     longsword.stunOn = stunOn;
   }
   assert.equal(monsterAttacksPerHeroAttack("cimeterre"), 0.75);
-});
+}
 
 test("lance : frappe un ennemi à deux cases sans bouger", () => {
   const { game, m } = foeAt(2);
@@ -3619,4 +3629,61 @@ test("raccourci « Objet » : seulement ce qui se consomme, compte le sac, gard�
   assert.ok(game.useItem(game.quickStack()!.uid));
   game.tick();
   assert.equal(game.quickStack()?.count, 2);
+});
+
+test("coup critique : le monstre est projeté d'une case", () => {
+  const { game, m } = foeAt(2);
+  const h = game.hero;
+  const dx = Math.sign(m.x - h.x), dy = Math.sign(m.y - h.y);
+  for (let k = 0; k < 300; k++) {
+    m.x = m.fromX = h.x + dx;
+    m.y = m.fromY = h.y + dy;
+    m.hp = 999;
+    m.stunned = 1;
+    game.events.length = 0;
+    assert.ok(game.strike());
+    game.tick();
+    const crit = game.events.some((e) => e.type === "attack" && e.attacker === h && e.result.critical);
+    if (!crit) continue;
+    const kb = game.events.find((e) => e.type === "heavyBlow" && e.kind === "knockback");
+    assert.ok(kb && kb.type === "heavyBlow");
+    assert.deepEqual([kb.fromX, kb.fromY], [h.x + dx, h.y + dy]);
+    return;
+  }
+  assert.fail("aucun critique en 300 coups");
+});
+
+test("PNJ de quête : pris dans le feu ou le gaz, il s'enfuit (Pouf !)", () => {
+  const game = new Game(4, undefined, undefined, undefined, true);
+  const g = game.npc("gluck") ?? game.npc("soeur");
+  assert.ok(g, "salle d'essai : un PNJ présent");
+  const who = game.npc("gluck") ? "gluck" : "soeur";
+  game.fires.push({ x: g.x, y: g.y, turns: 5 });
+  game.events.length = 0;
+  game.wait();
+  game.tick();
+  assert.equal(game.npc(who), null);
+  assert.ok(game.events.some((e) => e.type === "npc" && e.what === "leave" && e.fled === "fire"));
+});
+
+test("chemin : il contourne un escalier qui n'est pas la destination", () => {
+  for (let seed = 1; seed < 60; seed++) {
+    const game = new Game(seed);
+    const map = game.map;
+    let stairs: { x: number; y: number } | null = null;
+    for (let y = 0; y < map.height && !stairs; y++) for (let x = 0; x < map.width; x++) if (map.get(x, y) === 2) { stairs = { x, y }; break; }
+    if (!stairs) continue;
+    // Destination de l'autre côté de l'escalier, en ligne droite ; le chemin ne doit pas passer dessus.
+    for (const [dx, dy] of [[1, 0], [0, 1]]) {
+      const a = { x: stairs.x - dx, y: stairs.y - dy }, b = { x: stairs.x + dx, y: stairs.y + dy };
+      if (!map.isWalkable(a.x, a.y) || !map.isWalkable(b.x, b.y)) continue;
+      game.hero.x = a.x;
+      game.hero.y = a.y;
+      const path = (game as unknown as { heroPath(to: { x: number; y: number }): { x: number; y: number }[] | null }).heroPath(b);
+      if (!path) continue;
+      assert.ok(!path.some((p) => p.x === stairs!.x && p.y === stairs!.y), "le chemin passe sur l'escalier");
+      return;
+    }
+  }
+  assert.fail("aucun escalier testable");
 });

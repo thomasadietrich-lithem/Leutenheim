@@ -77,6 +77,13 @@ def langues_stage(f, stage):
     return render(lambda x, y: max(tongue(x, y, cx, 15.5, top, w, 0.6, f + i) for i, (cx, top, w) in enumerate(hs)), sparks=sparks)
 
 
+def body_flame(f):
+    """Personnage en feu (Thomas, 2026-11-12 : option B) : une flamme étroite qui part du centre du corps."""
+    return render(lambda x, y: max(tongue(x, y, 7.8, 13.5, 0.5 + [0, 1, 0.5][f], 2.3, 0.9, f),
+                                   tongue(x, y, 5.5, 13.5, 9 + f % 2, 1.3, 0.6, f + 1),
+                                   tongue(x, y, 10.5, 13.5, 8.5 + (f + 1) % 2, 1.3, 0.6, f + 2)))
+
+
 def frames_of(fn, n=3):
     return [fn(f) for f in range(n)]
 
@@ -182,11 +189,11 @@ if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
             out.append(line)
         return out
     pal = {v: "#%02x%02x%02x" % k for k, v in cols.items()}
-    stages = [[rows(langues_stage(f, st)) for f in range(3)] for st in range(3)]
+    stages = [[rows(langues_stage(f, st)) for f in range(3)] for st in range(3)] + [[rows(body_flame(f)) for f in range(3)]]
     import json
     with open("../src/render/sprites/feu.ts", "w") as fh:
         fh.write("// FICHIER GÉNÉRÉ par art/flammes_v1.py export : ne pas modifier à la main.\n")
-        fh.write("/** Flammes C (art/flammes_v1.png), par âge du feu : [0] haut et vif, [1] normal, [2] braises ; 3 images chacun. */\n")
+        fh.write("/** Flammes C (art/flammes_v1.png), par âge du feu : [0] haut et vif, [1] normal, [2] braises ; [3] personnage en feu (option B) ; 3 images chacun. */\n")
         fh.write("export const FIRE_PALETTE: Record<string, string> = " + json.dumps(pal) + ";\n")
         fh.write("export const FIRE_STAGES: string[][][] = " + json.dumps(stages, indent=1) + ";\n")
     print("src/render/sprites/feu.ts")

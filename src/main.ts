@@ -247,6 +247,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   shownHp = game.hero.hp;
   orbHp = null;
   capNoted = false;
+  alarmBefore = null;
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
@@ -2005,6 +2006,39 @@ function alarmWaves(stage: number): void {
   pulse($("alarm-bell"), "ring");
 }
 
+/**
+ * L'alerte redescend (Thomas, 2026-11-12 : « quand le niveau baisse, des billes qui tombent, de la couleur du tocsin ») :
+ * des billes de la couleur du palier quittent le morceau de jauge perdu et tombent ; la cloche se balance doucement.
+ * Aussi en changeant d'étage vers un étage plus calme.
+ */
+let alarmBefore: { level: number; stage: number } | null = null;
+function alarmDrops(fromLevel: number, toLevel: number, stage: number): void {
+  const bar = $("alarm-fill").parentElement!.getBoundingClientRect();
+  const color = BELL_COLORS[stage]?.L ?? "#ffd75e";
+  const count = Math.max(3, Math.min(9, Math.round((fromLevel - toLevel) / 4)));
+  const from = bar.left + (bar.width * toLevel) / 100;
+  const to = bar.left + (bar.width * fromLevel) / 100;
+  for (let i = 0; i < count; i++) {
+    const orb = document.createElement("div");
+    orb.className = "alarm-orb";
+    orb.style.background = color;
+    orb.style.color = color;
+    const sx = from + (to - from) * Math.random();
+    orb.style.left = `${sx}px`;
+    orb.style.top = `${bar.top + bar.height / 2}px`;
+    document.body.append(orb);
+    const drift = (Math.random() - 0.5) * 30;
+    orb.animate(
+      [
+        { transform: "translate(0, 0) scale(1)", opacity: 1 },
+        { transform: `translate(${drift * 0.4}px, -7px) scale(1)`, opacity: 1, offset: 0.15 },
+        { transform: `translate(${drift}px, ${55 + Math.random() * 40}px) scale(0.6)`, opacity: 0 },
+      ],
+      { duration: 750 + Math.random() * 250, delay: i * 50, easing: "cubic-bezier(.4,0,.9,.6)", fill: "forwards" },
+    ).onfinish = () => orb.remove();
+  }
+}
+
 let alarmShown = "";
 function renderAlarm(): void {
   const { level, stage } = game.alarm();
@@ -2012,9 +2046,16 @@ function renderAlarm(): void {
   const key = `${level}|${stage}|${off}`;
   if (key === alarmShown) return;
   alarmShown = key;
+  const before = alarmBefore;
+  alarmBefore = { level, stage };
+  if (before && level < before.level && !off && started) {
+    alarmDrops(before.level, level, before.stage);
+    if (stage < before.stage) pulse($("alarm-bell"), "ring");
+  }
   // Étage du boss : la cloche d'alerte disparaît du haut de l'écran (et le bouton « + Alerte » de la salle d'essai).
   $("alarm-badge").style.visibility = off ? "hidden" : "";
   $("alarm-up").hidden = off;
+  $("alarm-down").hidden = off;
   if (off && statusOpen === "tocsin") statusOpen = null;
   $("alarm-bell").replaceChildren(buildIcon(BELL, BELL_COLORS[stage]));
   const fill = $("alarm-fill");
@@ -2570,6 +2611,10 @@ button("peace", () => {
 });
 button("alarm-up", () => {
   game.raiseAlarm(25);
+  collectEvents();
+});
+button("alarm-down", () => {
+  game.lowerAlarm(25);
   collectEvents();
 });
 button("level-up", () => {

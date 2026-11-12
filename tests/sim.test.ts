@@ -1028,6 +1028,9 @@ test("porte du Kobold qui compte : il compte, met le doigt dans l'œil, et sort 
     assert.ok(c.opened, "la porte a cédé");
     const kobold = game.monsters.find((m) => m.name === "Kobold qui compte");
     assert.ok(kobold && kobold.purse === c.n);
+    // De l'autre côté de la porte, jamais derrière le héros.
+    const d2 = (p: { x: number; y: number }) => (p.x - game.hero.x) ** 2 + (p.y - game.hero.y) ** 2;
+    assert.ok(d2(kobold) > d2(c), "le Kobold est apparu du côté du héros");
     assert.ok(heard || true);
   }
   assert.ok(found >= 3, `portes du compteur trouvées : ${found}`);
@@ -3704,4 +3707,37 @@ test("niveau maximal : 5 avant le boss de la section, l'XP rebondit ; le boss va
   assert.ok(!game.xpBlocked());
   g.gainXp(3);
   assert.equal(game.xp, 3);
+});
+
+test("alerte qui redescend : le palier suit, un événement le signale", () => {
+  const game = new Game(2);
+  game.raiseAlarm(60);
+  assert.equal(game.alarm().stage, 2);
+  game.events.length = 0;
+  game.lowerAlarm(40);
+  assert.deepEqual(game.alarm(), { level: 20, stage: 0 });
+  assert.ok(game.events.some((e) => e.type === "alarmDown" && e.stage === 0));
+});
+
+test("porte du Kobold qui compte : forcée depuis l'un ou l'autre côté, il sort de l'AUTRE côté", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 200 && checked < 4; seed++) {
+    for (const side of [0, 1]) {
+      const game = new Game(seed);
+      const c = (game as unknown as { current: { counter?: { x: number; y: number; n: number; opened: boolean; inside: { x: number; y: number } } } }).current.counter;
+      if (!c) break;
+      game.monsters.splice(0);
+      const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.x + dx, y: c.y + dy })).filter((p) => game.map.isWalkable(p.x, p.y));
+      if (sides.length < 2) break;
+      game.hero.x = sides[side].x;
+      game.hero.y = sides[side].y;
+      (game as unknown as { releaseCounter(c: unknown): void }).releaseCounter(c);
+      const k = game.monsters.find((m) => m.name === "Kobold qui compte");
+      assert.ok(k);
+      const d2 = (p: { x: number; y: number }) => (p.x - game.hero.x) ** 2 + (p.y - game.hero.y) ** 2;
+      assert.ok(d2(k) > d2(c), `graine ${seed}, côté ${side} : le Kobold est du côté du héros`);
+      checked++;
+    }
+  }
+  assert.ok(checked >= 4);
 });

@@ -135,6 +135,8 @@ export type GameEvent =
   | { type: "poisoned"; actor: Actor }
   | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number; blocked?: boolean }
+  /** L'alerte de l'étage redescend d'un palier. */
+  | { type: "alarmDown"; stage: number }
   | { type: "levelup"; level: number }
   | {
       type: "door";

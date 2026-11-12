@@ -104,6 +104,7 @@
   .rarity-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: inline-block; vertical-align: middle; margin: 0 6px 2px 0; flex: none; }
   .title-demo { text-shadow: none; display: block; font-size: 0.4em; letter-spacing: 0.3em; color: var(--dim); margin-top: 2px; text-transform: lowercase; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
+  .alarm-orb { position: fixed; width: 6px; height: 6px; margin: -3px 0 0 -3px; box-shadow: 0 0 5px 1px currentColor, inset -1px -1px 0 rgba(0,0,0,0.45); pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
   #shop { justify-content: flex-start; overflow-y: auto; text-align: center; }
   #shop .hero-tabs { justify-content: center; margin-right: 0; width: 100%; }
@@ -425,7 +426,7 @@
     <button id="recenter" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
+    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
     <div id="wheel" hidden><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
@@ -4788,8 +4789,12 @@
     /** La porte s'ouvre (crochetée, enfoncée ou à la clef) : le Kobold est là, surpris, sa bourse pleine. */
     releaseCounter(c) {
       c.opened = true;
-      const spot = [c.inside, ...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.inside.x + dx, y: c.inside.y + dy }))].find(
-        (p) => this.map.isWalkable(p.x, p.y) && !this.actorAt(p.x, p.y) && !(p.x === c.x && p.y === c.y)
+      const d2 = (p) => (p.x - this.hero.x) ** 2 + (p.y - this.hero.y) ** 2;
+      const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.x + dx, y: c.y + dy })).filter((p) => this.map.isWalkable(p.x, p.y));
+      const far = sides.sort((a, b) => d2(b) - d2(a))[0] ?? c.inside;
+      const doorD = d2(c);
+      const spot = [far, ...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: far.x + dx, y: far.y + dy }))].find(
+        (p) => this.map.isWalkable(p.x, p.y) && !this.actorAt(p.x, p.y) && !(p.x === c.x && p.y === c.y) && d2(p) > doorD
       );
       if (!spot) return;
       const kobold = this.newMonster(MONSTERS.schrat, spot.x, spot.y, false);
@@ -5173,6 +5178,21 @@
           }
           this.reveal();
         }
+      }
+    }
+    /**
+     * L'alerte redescend (quêtes à venir ; salle d'essai : bouton « − Alerte ») : le palier suit le niveau. Un palier
+     * perdu ne fait rien partir (les monstres déjà alertés le restent).
+     */
+    lowerAlarm(points) {
+      const state = this.current;
+      if (points <= 0 || this.over || state.boss) return;
+      state.alarm = Math.max(0, state.alarm - points);
+      let stage = 0;
+      while (stage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[stage]) stage++;
+      if (stage < state.alarmStage) {
+        state.alarmStage = stage;
+        this.events.push({ type: "alarmDown", stage });
       }
     }
     /** Des traqueurs arrivent par l'entrée de l'étage (hors de vue) et foncent sur le héros. */
@@ -19147,6 +19167,8 @@
         return e.actor.kind === "hero" ? `Vous br\xFBlez : ${e.damage} d\xE9g\xE2ts.` : `${e.actor.name} br\xFBle : ${e.damage} d\xE9g\xE2ts.`;
       case "potion":
         return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+      case "alarmDown":
+        return ["Le donjon se calme.", "Le donjon se calme un peu : il n'est plus qu'agit\xE9.", "La traque s'essouffle : l'\xE9tage reste en alerte."][e.stage] ?? null;
       case "alarm":
         return [
           "",
@@ -19365,6 +19387,7 @@
     shownHp = game.hero.hp;
     orbHp = null;
     capNoted = false;
+    alarmBefore = null;
     logLines = lines ?? (sandbox ? [
       "Salle d'essai : les derni\xE8res nouveaut\xE9s, toujours au m\xEAme endroit.",
       "Ici : les nouveaux objets (vous \xEAtes niveau 4) et, dans le coin en bas \xE0 droite, L'ESCALIER DU BOSS : il descend \xE0 l'\xE9tage 2, la nich\xE9e de la Tisseuse (un plan diff\xE9rent \xE0 chaque partie). \xC0 l'est : colonnes, un Kobold qui fait sa ronde, cache \xE0 fouiller, pi\xE8ge \xE0 pointes, puis la CUISINE et la FORGE. Au sud-est : Kobolds \xE0 pousser, pi\xE8ge \xE0 gaz, un autre escalier vers le boss, puis la SALLE DE PRI\xC8RE et l'ALCHIMISTE. Plus au sud : l'antre de l'araign\xE9e (aiguille empoisonn\xE9e), puis la SALLE DE TORTURE (sarcophages). Au sud-ouest : un Kobold en ronde, une fosse, le dortoir. Bouton \xAB R\xE9veiller \xBB : tous les monstres foncent sur vous."
@@ -20898,6 +20921,33 @@
     }
     pulse($("alarm-bell"), "ring");
   }
+  var alarmBefore = null;
+  function alarmDrops(fromLevel, toLevel, stage) {
+    const bar = $("alarm-fill").parentElement.getBoundingClientRect();
+    const color = BELL_COLORS[stage]?.L ?? "#ffd75e";
+    const count = Math.max(3, Math.min(9, Math.round((fromLevel - toLevel) / 4)));
+    const from = bar.left + bar.width * toLevel / 100;
+    const to = bar.left + bar.width * fromLevel / 100;
+    for (let i = 0; i < count; i++) {
+      const orb = document.createElement("div");
+      orb.className = "alarm-orb";
+      orb.style.background = color;
+      orb.style.color = color;
+      const sx = from + (to - from) * Math.random();
+      orb.style.left = `${sx}px`;
+      orb.style.top = `${bar.top + bar.height / 2}px`;
+      document.body.append(orb);
+      const drift = (Math.random() - 0.5) * 30;
+      orb.animate(
+        [
+          { transform: "translate(0, 0) scale(1)", opacity: 1 },
+          { transform: `translate(${drift * 0.4}px, -7px) scale(1)`, opacity: 1, offset: 0.15 },
+          { transform: `translate(${drift}px, ${55 + Math.random() * 40}px) scale(0.6)`, opacity: 0 }
+        ],
+        { duration: 750 + Math.random() * 250, delay: i * 50, easing: "cubic-bezier(.4,0,.9,.6)", fill: "forwards" }
+      ).onfinish = () => orb.remove();
+    }
+  }
   var alarmShown = "";
   function renderAlarm() {
     const { level, stage } = game.alarm();
@@ -20905,8 +20955,15 @@
     const key = `${level}|${stage}|${off}`;
     if (key === alarmShown) return;
     alarmShown = key;
+    const before = alarmBefore;
+    alarmBefore = { level, stage };
+    if (before && level < before.level && !off && started) {
+      alarmDrops(before.level, level, before.stage);
+      if (stage < before.stage) pulse($("alarm-bell"), "ring");
+    }
     $("alarm-badge").style.visibility = off ? "hidden" : "";
     $("alarm-up").hidden = off;
+    $("alarm-down").hidden = off;
     if (off && statusOpen === "tocsin") statusOpen = null;
     $("alarm-bell").replaceChildren(buildIcon(BELL, BELL_COLORS[stage]));
     const fill = $("alarm-fill");
@@ -21389,6 +21446,10 @@
   });
   button("alarm-up", () => {
     game.raiseAlarm(25);
+    collectEvents();
+  });
+  button("alarm-down", () => {
+    game.lowerAlarm(25);
     collectEvents();
   });
   button("level-up", () => {

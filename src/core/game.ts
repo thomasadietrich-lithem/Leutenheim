@@ -503,8 +503,16 @@ export class Game {
   /** La porte s'ouvre (crochetée, enfoncée ou à la clef) : le Kobold est là, surpris, sa bourse pleine. */
   private releaseCounter(c: CounterDoor): void {
     c.opened = true;
-    const spot = [c.inside, ...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.inside.x + dx, y: c.inside.y + dy }))].find(
-      (p) => this.map.isWalkable(p.x, p.y) && !this.actorAt(p.x, p.y) && !(p.x === c.x && p.y === c.y),
+    // Il est de l'AUTRE côté de la porte que le héros (Thomas, 2026-11-12 : « le mob est arrivé derrière moi » : le héros
+    // avait forcé la porte depuis la salle, et le Kobold apparaissait de son côté).
+    const d2 = (p: Point) => (p.x - this.hero.x) ** 2 + (p.y - this.hero.y) ** 2;
+    const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+      .map(([dx, dy]) => ({ x: c.x + dx, y: c.y + dy }))
+      .filter((p) => this.map.isWalkable(p.x, p.y));
+    const far = sides.sort((a, b) => d2(b) - d2(a))[0] ?? c.inside;
+    const doorD = d2(c);
+    const spot = [far, ...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: far.x + dx, y: far.y + dy }))].find(
+      (p) => this.map.isWalkable(p.x, p.y) && !this.actorAt(p.x, p.y) && !(p.x === c.x && p.y === c.y) && d2(p) > doorD,
     );
     if (!spot) return;
     const kobold = this.newMonster(MONSTERS.schrat, spot.x, spot.y, false);
@@ -936,6 +944,22 @@ export class Game {
         }
         this.reveal();
       }
+    }
+  }
+
+  /**
+   * L'alerte redescend (quêtes à venir ; salle d'essai : bouton « − Alerte ») : le palier suit le niveau. Un palier
+   * perdu ne fait rien partir (les monstres déjà alertés le restent).
+   */
+  lowerAlarm(points: number): void {
+    const state = this.current;
+    if (points <= 0 || this.over || state.boss) return;
+    state.alarm = Math.max(0, state.alarm - points);
+    let stage = 0;
+    while (stage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[stage]) stage++;
+    if (stage < state.alarmStage) {
+      state.alarmStage = stage;
+      this.events.push({ type: "alarmDown", stage });
     }
   }
 

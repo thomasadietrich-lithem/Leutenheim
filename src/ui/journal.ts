@@ -281,6 +281,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
           : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "alarmDown":
+      return ["Le donjon se calme.", "Le donjon se calme un peu : il n'est plus qu'agité.", "La traque s'essouffle : l'étage reste en alerte."][e.stage] ?? null;
     case "alarm":
       return [
         "",

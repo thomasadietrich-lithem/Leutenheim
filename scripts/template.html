@@ -104,6 +104,7 @@
   .rarity-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: inline-block; vertical-align: middle; margin: 0 6px 2px 0; flex: none; }
   .title-demo { text-shadow: none; display: block; font-size: 0.4em; letter-spacing: 0.3em; color: var(--dim); margin-top: 2px; text-transform: lowercase; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
+  .alarm-orb { position: fixed; width: 6px; height: 6px; margin: -3px 0 0 -3px; box-shadow: 0 0 5px 1px currentColor, inset -1px -1px 0 rgba(0,0,0,0.45); pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
   #shop { justify-content: flex-start; overflow-y: auto; text-align: center; }
   #shop .hero-tabs { justify-content: center; margin-right: 0; width: 100%; }
@@ -425,7 +426,7 @@
     <button id="recenter" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
+    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
     <div id="wheel" hidden><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>

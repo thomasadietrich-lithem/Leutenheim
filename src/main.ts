@@ -511,7 +511,11 @@ function reveal(e: GameEvent): void {
     if (e.points >= RULES.alarmBreak) renderer.addNoise(e.x, e.y, e.points);
   } else if (e.type === "alarm") {
     // La cloche d'alerte sonne une fois par palier atteint (une, deux, trois fois).
-    for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
+    for (let k = 0; k < e.stage; k++)
+      setTimeout(() => {
+        sfx.play("bell");
+        alarmWaves(e.stage);
+      }, k * 650);
     renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
   } else if (e.type === "fire") {
     // Après l'éclatement de la fiole.
@@ -1978,6 +1982,29 @@ const ALARM_DETAILS = [
   "Les renforts arrivent plus vite.",
   "L'étage sait où vous êtes.",
 ];
+/**
+ * Ondes sonores autour de la cloche d'alerte quand le palier change (Thomas, 2026-11-12 : « génère des ondes sonores
+ * pour attirer l'attention sur le picto ») : trois anneaux de la couleur du palier s'élargissent depuis la cloche,
+ * qui se balance.
+ */
+function alarmWaves(stage: number): void {
+  const badge = $("alarm-badge");
+  if (badge.style.visibility === "hidden") return;
+  const r = $("alarm-bell").getBoundingClientRect();
+  const color = BELL_COLORS[stage]?.L ?? "#ffd75e";
+  for (let i = 0; i < 3; i++) {
+    const w = document.createElement("div");
+    w.className = "alarm-wave";
+    w.style.left = `${r.left + r.width / 2}px`;
+    w.style.top = `${r.top + r.height / 2}px`;
+    w.style.borderColor = color;
+    w.style.animationDelay = `${i * 160}ms`;
+    document.body.append(w);
+    w.addEventListener("animationend", () => w.remove());
+  }
+  pulse($("alarm-bell"), "ring");
+}
+
 let alarmShown = "";
 function renderAlarm(): void {
   const { level, stage } = game.alarm();

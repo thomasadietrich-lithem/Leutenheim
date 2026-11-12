@@ -40,6 +40,12 @@
   /* Jauges de vie et d'expérience, avec le bouton du menu à leur droite. */
   .gauges { display: flex; gap: 6px; align-items: stretch; }
   .gauges-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  /* Ondes autour de la cloche d'alerte quand le palier change (Thomas, 2026-11-12). */
+  .alarm-wave { position: fixed; width: 20px; height: 20px; margin: -12px 0 0 -12px; border: 2px solid; border-radius: 50%; pointer-events: none; z-index: 60; opacity: 0;
+    animation: alarmWave 0.9s steps(8) forwards; box-shadow: 0 0 6px currentColor; }
+  @keyframes alarmWave { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(3.4); opacity: 0; } }
+  #alarm-bell.ring { animation: bellRing 0.6s steps(6); transform-origin: 50% 10%; }
+  @keyframes bellRing { 0% { transform: rotate(0); } 20% { transform: rotate(-22deg); } 45% { transform: rotate(18deg); } 70% { transform: rotate(-10deg); } 100% { transform: rotate(0); } }
   #alarm-badge { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 2px; background: none; box-shadow: none; }
   #alarm-bell svg { width: 30px; height: 30px; display: block; }
   .alarm-bar { display: block; width: 30px; height: 5px; background: #281e14; }
@@ -19578,7 +19584,11 @@
     } else if (e.type === "noise") {
       if (e.points >= RULES.alarmBreak) renderer.addNoise(e.x, e.y, e.points);
     } else if (e.type === "alarm") {
-      for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
+      for (let k = 0; k < e.stage; k++)
+        setTimeout(() => {
+          sfx.play("bell");
+          alarmWaves(e.stage);
+        }, k * 650);
       renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
     } else if (e.type === "fire") {
       window.setTimeout(() => {
@@ -20871,6 +20881,23 @@
     "Les renforts arrivent plus vite.",
     "L'\xE9tage sait o\xF9 vous \xEAtes."
   ];
+  function alarmWaves(stage) {
+    const badge = $("alarm-badge");
+    if (badge.style.visibility === "hidden") return;
+    const r = $("alarm-bell").getBoundingClientRect();
+    const color = BELL_COLORS[stage]?.L ?? "#ffd75e";
+    for (let i = 0; i < 3; i++) {
+      const w = document.createElement("div");
+      w.className = "alarm-wave";
+      w.style.left = `${r.left + r.width / 2}px`;
+      w.style.top = `${r.top + r.height / 2}px`;
+      w.style.borderColor = color;
+      w.style.animationDelay = `${i * 160}ms`;
+      document.body.append(w);
+      w.addEventListener("animationend", () => w.remove());
+    }
+    pulse($("alarm-bell"), "ring");
+  }
   var alarmShown = "";
   function renderAlarm() {
     const { level, stage } = game.alarm();

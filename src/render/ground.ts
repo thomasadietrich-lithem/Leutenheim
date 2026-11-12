@@ -149,7 +149,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -164,6 +164,22 @@ function kitchenTiles(px: number, py: number): RGB {
   if (fbm(px, py, 20, 604, 2) < 0.38) c = scale(c, 0.82);
   // Un peu plus sombre que la planche : la salle est éclairée comme le reste du donjon.
   return scale(c, 0.78);
+}
+
+/** Carrelage noir et blanc de la salle de bain du Kobold (planche art/salle_bain_v1.png). */
+function bathTiles(px: number, py: number): RGB {
+  const cell = 8;
+  const cx = Math.floor(px / cell);
+  const cy = Math.floor(py / cell);
+  const lx = px % cell;
+  const ly = py % cell;
+  if (lx === 0 || ly === 0) return hex("#55505e");
+  const white = (cx + cy) % 2 === 0;
+  if (white && hash2(cx, cy, 91) > 0.86 && lx === ly) return hex("#8a8490");
+  let c = scale(hex(white ? "#d8d4cc" : "#2a2630"), 0.94 + 0.08 * hash2(cx, cy, 77));
+  if (lx === 1 || ly === 1) c = scale(c, 1.06);
+  if (hash2(Math.floor(px / 2), Math.floor(py / 2), 13) > 0.93) c = scale(c, 0.82);
+  return scale(c, 0.8);
 }
 
 function tortureFloor(px: number, py: number): RGB {
@@ -209,7 +225,7 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : floorB(px, py);
+      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

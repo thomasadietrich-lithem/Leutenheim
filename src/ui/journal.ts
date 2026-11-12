@@ -289,6 +289,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           : e.potion === "urchin"
             ? "Des piquants vous hérissent la peau : qui vous frappe s'y pique."
             : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "bath":
+      return e.what === "splash"
+        ? "SPLASH ! Le Kobold bondit hors de son bain, couvert de mousse, une serviette à la main."
+        : e.what === "scratch"
+          ? "Scrrratch ! Le disque s'arrête. Dans la baignoire, quelqu'un grogne."
+          : e.what === "towel"
+            ? "Un coup de serviette en pleine figure : votre prochain coup sera moins précis."
+            : "« AU SECOURS ! ON M'ATTAQUE DANS MON BAIN ! » Le Kobold s'enfuit en glissant.";
     case "thorns":
       return `${capFirst(e.actor.name)} se pique : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
     case "lullaby":
@@ -329,6 +337,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "torchOut":
       return "Votre torche s'éteint.";
     case "poisoned":
+      if (e.immune) return `${capFirst(e.actor.name)} ne craint pas le poison.`;
       return e.actor.kind === "hero" ? "Vous êtes empoisonné !" : `${e.actor.name} est empoisonné.`;
     case "poison":
       return e.actor.kind === "hero"

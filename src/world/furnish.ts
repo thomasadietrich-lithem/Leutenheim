@@ -213,7 +213,7 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
  * dans des salles ordinaires assez grandes ; puis des trainards (tonneaux, caisses) dans les salles ordinaires, et dès
  * l'étage 3 des toiles dans les coins des salles sans torche. Hasards à part.
  */
-export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false): { furniture: Furniture[]; themes: RoomTheme[] } {
+export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false, bath = false): { furniture: Furniture[]; themes: RoomTheme[] } {
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
@@ -232,8 +232,23 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
       }
     }
   }
+  // Salle de bain du Kobold (truc fun, Thomas 2026-11-13) : la plus petite salle qui convient (4 × 4 au moins).
+  if (bath) {
+    const candidates = floor.rooms
+      .map((room, index) => ({ room, index }))
+      .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && room.w >= 4 && room.h >= 4)
+      .sort((a, b) => a.room.w * a.room.h - b.room.w * b.room.h);
+    for (const { room, index } of candidates) {
+      if (furnishBath(floor, room, new Rng(seed ^ 0xba7b), furniture)) {
+        themes.push({ room: index, id: "bain" });
+        break;
+      }
+    }
+  }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
+  // Pas de salle qui convienne au bain : la cloche prend sa place (il y a toujours un truc fun dans la section).
+  if (bath && !themes.some((t) => t.id === "bain")) bell = true;
   if (bell) placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
   if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
   return { furniture, themes };
@@ -366,6 +381,26 @@ function roomPlacer(floor: Floor, room: Room) {
     return true;
   };
   return { tryPlace, reserve, chest, undo, allFloor, alongBackWall, placed, free, inside, gutter };
+}
+
+/**
+ * SALLE DE BAIN DU KOBOLD (Thomas, 2026-11-13 ; planche art/salle_bain_v1.png) : la baignoire (2 cases) et le
+ * porte-serviettes le long du mur du fond, le tourne-disque contre le mur aussi, la table basse à bougies devant, le tapis
+ * de bain devant la baignoire. Carrelage noir et blanc (voir `Game.floorStyle`). Le Kobold endormi est géré par la partie.
+ */
+export function furnishBath(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  P.alongBackWall(rng.chance(0.5) ? ["tub", "towelRack", "gramophone"] : ["gramophone", "tub", "towelRack"]);
+  const tub = P.placed.find((f) => f.kind === "tub");
+  if (!tub || !P.placed.some((f) => f.kind === "gramophone")) {
+    P.undo();
+    return false;
+  }
+  P.tryPlace({ x: tub.x, y: tub.y + 1, kind: "bathMat" });
+  for (const x of [tub.x + 2, tub.x - 1, tub.x + 1]) if (P.tryPlace({ x, y: tub.y + 1, kind: "lowTable" })) break;
+  out.push(...P.placed);
+  return true;
 }
 
 function shuffle<T>(rng: Rng, list: T[]): T[] {

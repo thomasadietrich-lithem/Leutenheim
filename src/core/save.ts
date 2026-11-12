@@ -60,6 +60,7 @@ export interface SavedFloor {
   /** Sœur Osseuse (facultatif). */
   soeur?: GluckSpot;
   krik?: GluckSpot;
+  bath?: import("./floor").BathState;
 }
 
 export interface SaveData {

@@ -3254,7 +3254,7 @@ test("nichée de la Tisseuse : 300 plans variés, tout accessible, sentiers sans
     assert.equal(map.get(boss.chest.x, boss.chest.y), Tile.Chest, `graine ${seed} : coffre`);
     assert.ok(f.furniture.some((o) => o.kind === "sealedStairs" && o.x === boss.seal.x && o.y === boss.seal.y));
     assert.equal(f.furniture.filter((o) => o.kind === "anchor").length, 4);
-    for (const p of boss.pillars) assert.equal(map.get(p.x, p.y), Tile.Pillar, `graine ${seed} : amarre sans colonne`);
+    for (const p of boss.pillars) assert.equal(map.get(p.x, p.y), Tile.Wall, `graine ${seed} : amarre hors du mur`);
     assert.equal(f.furniture.filter((o) => o.kind.startsWith("webHub")).length, 9);
     assert.ok(boss.breaches.length >= 4 && boss.breaches.length <= 6, `graine ${seed} : ${boss.breaches.length} brèches`);
     assert.ok(f.furniture.filter((o) => o.kind.startsWith("cocoon")).length >= 3, `graine ${seed} : cocons`);
@@ -3953,4 +3953,36 @@ test("sac : assez de place mais pas d'un seul tenant, le message le dit (Thomas,
   game.inventory.items.splice(0);
   for (let y = 0; y < game.inventory.rows; y++) for (let x = 0; x < game.inventory.cols; x++) game.inventory.items.push({ uid: 2000 + y * 10 + x, defId: "pomme", count: 1, x, y } as never);
   assert.ok(!game.inventory.fitsIfTidied("pomme"), "plein pour de bon");
+});
+
+test("salle de bain du Kobold : il dort dans son bain ; on l'attaque, il sort de l'eau savonneux ; vaincu, sa dague tombe (Thomas, 2026-11-13)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  const b = game.bath()!;
+  assert.ok(b && !b.out, "la baignoire, et lui dedans");
+  assert.equal(game.floorStyle(b.x, b.y + 1), "bath", "carrelage noir et blanc");
+  assert.equal(game.bathTargetAt(b.x, b.y), "tub");
+  game.monsters.splice(0);
+  const spot = [[0, 1], [1, 1], [-1, 0], [-1, 1], [2, 1]].map(([dx, dy]) => ({ x: b.x + dx, y: b.y + dy })).find((p) => game.map.isWalkable(p.x, p.y))!;
+  game.hero.x = game.hero.fromX = spot.x;
+  game.hero.y = game.hero.fromY = spot.y;
+  assert.ok(game.setDestination(b.x, b.y, true));
+  for (let i = 0; i < 3 && !game.bath()!.out; i++) game.tick();
+  assert.ok(game.bath()!.out, "il est sorti");
+  assert.ok(game.events.some((e) => e.type === "bath" && e.what === "splash"));
+  const k = game.monsters.find((m) => m.bather)!;
+  assert.ok(k, "le Kobold mouillé");
+  assert.ok((k.soapy ?? 0) > 0, "savonneux");
+  k.hp = 0;
+  (game as unknown as { removeIfDead(m: unknown): void }).removeIfDead(k);
+  assert.ok(game.bath()!.beaten);
+  assert.ok(game.ground.some((g) => g.item === "dague"), "sa dague tombe du porte-serviettes");
+});
+
+test("la Tisseuse ne craint pas le poison", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  const m = game.monsters[0];
+  m.boss = { phase: "lurk" } as never;
+  (game as unknown as { poisonActor(a: unknown, p: unknown): void }).poisonActor(m, { damage: 1, turns: 4 });
+  assert.equal(m.poison, undefined);
+  assert.ok(game.events.some((e) => e.type === "poisoned" && e.immune));
 });

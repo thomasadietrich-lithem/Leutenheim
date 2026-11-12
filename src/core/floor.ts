@@ -63,6 +63,17 @@ export interface FloorState {
   soeur?: GluckSpot;
   /** Krik, le Kobold qui ne sait plus mentir (quête 03), s'il est sur cet étage. */
   krik?: GluckSpot;
+  /** La salle de bain du Kobold (truc fun, Thomas 2026-11-13), s'il y en a une sur cet étage. */
+  bath?: BathState;
+}
+
+/** La salle de bain : la baignoire (sa case de gauche), le Kobold sorti de l'eau ou non, la musique, vaincu ou non. */
+export interface BathState {
+  x: number;
+  y: number;
+  out: boolean;
+  music: boolean;
+  beaten: boolean;
 }
 
 /** Gluck sur un étage : sa case, s'il est parti, et où en est la conversation. */

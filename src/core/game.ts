@@ -283,7 +283,7 @@ export class Game {
         : bossFloor
           ? { furniture: bossFloor.furniture, themes: [] }
           : RULES.themedRoomsInDungeon
-          ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell")
+          ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell", this.funOf(depth) === "bath")
           : { furniture: [], themes: [] };
       // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
       // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
@@ -320,6 +320,8 @@ export class Game {
         motifs,
         boss: bossFloor?.boss,
       };
+      const tub = furnished.furniture.find((f) => f.kind === "tub");
+      if (tub) state.bath = { x: tub.x, y: tub.y, out: false, music: true, beaten: false };
       if (bossFloor) for (const sec of bossFloor.secrets) state.secrets.push({ ...sec, found: false });
       // Le Colporteur : dans la salle d'essai, et au 4e étage de chaque section (Thomas, 2026-11-12).
       if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
@@ -486,13 +488,15 @@ export class Game {
    * UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur quel étage de la section, et lequel (cloche ou porte du
    * compteur). Tiré une fois pour toutes d'après la graine de la partie ; jamais à l'étage du boss, ni en salle d'essai.
    */
-  funOf(depth: number): "bell" | "counter" | null {
+  funOf(depth: number): "bell" | "counter" | "bath" | null {
     if (this.sandbox && depth === 1) return null;
     const section = Math.floor((depth - 1) / RULES.floorsPerSection);
     const rng = new Rng((this.runSeed ^ Math.imul(section + 1, 0x9e3779b1)) >>> 0);
     const floor = section * RULES.floorsPerSection + rng.int(1, RULES.funMaxFloor);
     if (floor !== depth) return null;
-    return rng.chance(0.5) ? "bell" : "counter";
+    // Thomas, 2026-11-13 : la salle de bain du Kobold rejoint la cloche et la porte du compteur (un tiers chacune).
+    const pick = rng.int(0, 2);
+    return pick === 0 ? "bell" : pick === 1 ? "counter" : "bath";
   }
 
   /** La porte du compteur à cette case (encore fermée), s'il y en a une. */
@@ -635,6 +639,18 @@ export class Game {
 
   /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
   private resolveBreak(at: Point): void {
+    const bathTarget = this.bathTargetAt(at.x, at.y);
+    if (bathTarget === "tub") {
+      this.wakeBath(true);
+      return;
+    }
+    if (bathTarget === "gramophone") {
+      // On arrête le disque : sans musique, il se réveille, de mauvaise humeur.
+      this.current.bath!.music = false;
+      this.events.push({ type: "bath", what: "scratch", x: at.x, y: at.y });
+      this.wakeBath(false);
+      return;
+    }
     const bell = this.bellAt(at.x, at.y);
     if (bell) {
       this.ringBell(bell);
@@ -1154,6 +1170,11 @@ export class Game {
 
   /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
   private poisonActor(actor: Actor, poison: { damage: number; turns: number }): void {
+    // La Tisseuse ne craint pas le poison (Thomas, 2026-11-13) ; le feu, si.
+    if (actor.boss) {
+      this.events.push({ type: "poisoned", actor, immune: true });
+      return;
+    }
     actor.poison = { ...poison };
     this.events.push({ type: "poisoned", actor });
   }
@@ -1164,6 +1185,8 @@ export class Game {
   fog: { x: number; y: number; turns: number }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
+  /** Coup de serviette reçu : le prochain coup du héros a le désavantage. */
+  towelBlind = 0;
 
   isGassed(x: number, y: number): boolean {
     return this.gas.some((g) => g.x === x && g.y === y);
@@ -1173,7 +1196,7 @@ export class Game {
   private gasPoison(): void {
     const poison = TRAPS.gas.poison!;
     for (const a of [this.hero, ...this.monsters]) {
-      if (!this.isGassed(a.x, a.y) || (a.poison && a.poison.turns >= poison.turns)) continue;
+      if (a.boss || !this.isGassed(a.x, a.y) || (a.poison && a.poison.turns >= poison.turns)) continue;
       this.poisonActor(a, poison);
     }
   }
@@ -1338,9 +1361,9 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | undefined {
     const id = this.themeAt(x, y);
-    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : undefined;
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : undefined;
   }
 
   /** Thème de la salle qui contient cette case (null hors des salles à thème). */
@@ -1417,6 +1440,7 @@ export class Game {
       gluck: f.gluck,
       soeur: f.soeur,
       krik: f.krik,
+      bath: f.bath,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1513,6 +1537,7 @@ export class Game {
         gluck: f.gluck,
         soeur: f.soeur,
         krik: f.krik,
+        bath: f.bath,
       });
     }
     game.turn = saved.turn;
@@ -2430,7 +2455,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
     const statue = this.statueAt(x, y);
     if (statue && this.isExplored(x, y)) {
@@ -4570,7 +4595,67 @@ export class Game {
   }
 
   /** Le bruit d'un combat réveille les dormeurs proches : ils se lèvent et viennent (Thomas). */
+  /** La baignoire où le Kobold dort encore, ou le tourne-disque qui joue, sur cette case. */
+  bathTargetAt(x: number, y: number): "tub" | "gramophone" | null {
+    const b = this.current.bath;
+    if (!b || b.out) return null;
+    if (y === b.y && (x === b.x || x === b.x + 1)) return "tub";
+    if (b.music && this.current.furniture.some((f) => f.kind === "gramophone" && f.x === x && f.y === y)) return "gramophone";
+    return null;
+  }
+
+  /** La salle de bain de cet étage (pour le dessin). */
+  bath(): Readonly<import("./floor").BathState> | null {
+    return this.current.bath ?? null;
+  }
+
+  /** Le tourne-disque joue, et le héros est assez près pour l'entendre. */
+  bathMusicNear(): boolean {
+    const b = this.current.bath;
+    if (!b || !b.music) return false;
+    const g = this.current.furniture.find((f) => f.kind === "gramophone");
+    return !!g && gapBetween(g, this.hero) <= RULES.bathMusicRange && this.isExplored(g.x, g.y);
+  }
+
+  /**
+   * Le Kobold sort de son bain (Thomas, 2026-11-13) : SPLASH, il bondit sur une case à côté (de préférence à côté du
+   * héros), mouillé et savonneux (désavantage 2 tours), sans dague ni cotte (restées au porte-serviettes) : il se bat à la
+   * serviette. Si on l'a attaqué, le premier coup part tout de suite, avec l'avantage (il dormait).
+   */
+  private wakeBath(attack: boolean): void {
+    const b = this.current.bath;
+    if (!b || b.out) return;
+    b.out = true;
+    const around: Point[] = [];
+    for (let y = b.y - 1; y <= b.y + 1; y++) {
+      for (let x = b.x - 1; x <= b.x + 2; x++) {
+        if (this.map.isWalkable(x, y) && !this.actorAt(x, y) && !this.npcAt(x, y) && !this.isTrap(x, y)) around.push({ x, y });
+      }
+    }
+    if (around.length === 0) return;
+    around.sort((p, q) => gapBetween(p, this.hero) - gapBetween(q, this.hero));
+    const at = around[0];
+    const def = MONSTERS.schrat as MonsterDef;
+    const m = this.newMonster(def, at.x, at.y, false);
+    m.name = "Kobold mouillé";
+    m.bather = true;
+    m.soapy = RULES.soapyTurns + 1;
+    m.armorClass -= 2;
+    m.attackBonus = 0;
+    m.damage = { count: 1, sides: 1, bonus: 0 };
+    m.purse = this.rng.int(8, 15);
+    m.alerted = false;
+    m.asleep = false;
+    this.monsters.push(m);
+    this.events.push({ type: "bath", what: "splash", x: at.x, y: at.y });
+    this.raiseAlarm(RULES.bathAlarm, at);
+    if (attack && gapBetween(m, this.hero) <= 1) this.heroAttacks(m);
+    if (this.monsters.includes(m)) m.alerted = !this.peaceful;
+  }
+
   private wakeNear(at: Point): void {
+    const b = this.current.bath;
+    if (b && !b.out && gapBetween(b, at) <= RULES.combatWakeRadius) this.wakeBath(false);
     for (const m of this.monsters) {
       if (!m.asleep || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
       m.asleep = false;
@@ -4838,7 +4923,10 @@ export class Game {
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
     const critFrom = 20 - this.rank("coup_puissant");
     const advantaged = this.heroHasAdvantageOn(monster);
-    const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom, () => this.useLuck());
+    // Un coup de serviette dans la figure (le Kobold du bain) : le coup suivant a le désavantage.
+    const blinded = this.towelBlind > 0;
+    this.towelBlind = 0;
+    const result = rollAttack(this.rng, attacker, monster, advantaged && !blinded ? "advantage" : blinded && !advantaged ? "disadvantage" : "normal", critFrom, () => this.useLuck());
     this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
     this.noteHeroAttack(result.hit);
     if (!extra) {
@@ -4866,8 +4954,7 @@ export class Game {
     // Arme enduite de poison (potion) : le coup qui porte empoisonne.
     if (result.hit && this.weaponPoison > 0 && monster.hp > 0) {
       this.weaponPoison--;
-      monster.poison = { damage: 1, turns: 4 };
-      this.events.push({ type: "poisoned", actor: monster });
+      this.poisonActor(monster, { damage: 1, turns: 4 });
     }
     const wasAlive = this.monsters.includes(monster);
     this.removeIfDead(monster);
@@ -4907,6 +4994,16 @@ export class Game {
     else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
     // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
     if (monster.boss) this.bossDefeated();
+    // Le Kobold du bain vaincu : sa dague tombe du porte-serviettes.
+    if (monster.bather && this.current.bath) {
+      this.current.bath.beaten = true;
+      const rack = this.current.furniture.find((f) => f.kind === "towelRack");
+      if (rack) {
+        const at = this.landingCell(rack, "dague", rack);
+        this.dropItem(at.x, at.y, "dague", 1);
+        this.map.touch(rack.x, rack.y);
+      }
+    }
     if (def && byHero) {
       // XP encore divisée par deux (Thomas, 2026-11-12, soir : « je monte trop vite ») : les demi-points s'accumulent.
       this.xpCarry += this.rng.int(def.xpMin, def.xpMax) * RULES.xpGainFactor;
@@ -4982,8 +5079,7 @@ export class Game {
       hit = result.hit;
       if (hit && poison && victim.hp > 0) {
         // Un nouveau poison remet le compteur à zéro, il ne s'ajoute pas (C).
-        victim.poison = { ...poison };
-        this.events.push({ type: "poisoned", actor: victim });
+        this.poisonActor(victim, poison);
       }
       if (hit) {
         keepChance = RULES.arrowKeepOnHit;
@@ -5083,6 +5179,23 @@ export class Game {
         if (m.slowed % 2 === 0) continue;
       }
       if (m.feud !== undefined && this.feudAct(m)) continue;
+      if (m.soapy) m.soapy--;
+      // Le Kobold du bain, blessé : il s'enfuit en hurlant, et ses camarades accourent (Thomas, 2026-11-13).
+      if (m.bather && !m.fleeing && m.alerted && m.hp * 2 < m.maxHp) {
+        m.fleeing = true;
+        this.raiseAlarm(RULES.bathFleeAlarm, m);
+        this.callFoes(m, "schrat", 1);
+        this.events.push({ type: "bath", what: "flee", x: m.x, y: m.y });
+      }
+      if (m.fleeing) {
+        const away = this.stepAway(m);
+        if (away) {
+          this.faceToward(m, away);
+          m.x = away.x;
+          m.y = away.y;
+        }
+        continue;
+      }
       const dx = this.hero.x - m.x;
       const dy = this.hero.y - m.y;
       const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -5122,7 +5235,14 @@ export class Game {
         // Jamais deux avantages de suite sur le héros (Thomas) : après un coup avec avantage, il se reprend.
         const ambush = m.lastAdvantageOn !== this.hero.id && (this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero));
         this.faceToward(m, this.hero);
-        const result = rollAttack(this.rng, m, this.hero, ambush ? "advantage" : "normal");
+        // Savonneux (sorti du bain) : il glisse, désavantage.
+        const soapy = (m.soapy ?? 0) > 0;
+        const result = rollAttack(this.rng, m, this.hero, ambush && !soapy ? "advantage" : soapy && !ambush ? "disadvantage" : "normal");
+        if (m.bather && result.hit && this.rng.chance(RULES.towelBlindChance)) {
+          // Un coup de serviette dans la figure : le prochain coup du héros a le désavantage.
+          this.towelBlind = 1;
+          this.events.push({ type: "bath", what: "towel", x: this.hero.x, y: this.hero.y });
+        }
         m.lastAdvantageOn = ambush ? this.hero.id : undefined;
         // Morsure d'araignée : parfois elle englue (le héros perd son prochain déplacement).
         const bite = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;

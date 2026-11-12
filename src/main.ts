@@ -473,6 +473,23 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "doused") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
     sfx.play("splash");
+  } else if (e.type === "poisoned" && e.immune) {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "Immunisée", "#9fe060");
+  } else if (e.type === "bath") {
+    if (e.what === "splash") {
+      renderer.addFloatingText(e.x, e.y, "SPLASH !", "#d6e4f4");
+      renderer.addPuff(e.x, e.y);
+      sfx.play("splash");
+    } else if (e.what === "scratch") {
+      renderer.addFloatingText(e.x, e.y, "Scrrratch !", "#ffd75e");
+      sfx.play("click");
+    } else if (e.what === "towel") {
+      renderer.addFloatingText(e.x, e.y, "Clac !", "#ff8a7a");
+      sfx.play("hit");
+    } else {
+      renderer.addFloatingText(e.x, e.y, "AU SECOURS !", "#ff8a7a");
+      sfx.play("notice");
+    }
   } else if (e.type === "thorns") {
     renderer.addFloatingText(e.actor.x, e.actor.y, `Piqué ! −${e.damage}`, "#d8a060");
     sfx.play("hit");
@@ -1010,6 +1027,7 @@ function manualNodes(): HTMLElement[] {
 
 /** Le bandeau de la tâche de quête, sous les jauges : l'objectif, puis « revenir voir… » (il clignote quand c'est fait). */
 let questShown = "";
+let recordClock = 0;
 let questWasDone = false;
 function renderQuest(): void {
   const banner = $("quest-banner");
@@ -3006,6 +3024,14 @@ function frame(now: number): void {
   renderAlarm();
   renderHeroStatus();
   renderQuest();
+  // Le tourne-disque de la salle de bain : une note de temps en temps, quand on est assez près.
+  if (game.bathMusicNear() && !menuOpen) {
+    recordClock += dt;
+    if (recordClock > 650) {
+      recordClock = 0;
+      sfx.play("record");
+    }
+  }
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;

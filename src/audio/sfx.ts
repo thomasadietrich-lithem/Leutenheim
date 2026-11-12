@@ -35,7 +35,8 @@ export type SoundName =
   | "flute"
   | "whoosh"
   | "slide"
-  | "squeak";
+  | "squeak"
+  | "record";
 
 type Wave = OscillatorType;
 
@@ -44,6 +45,7 @@ export class Sfx {
   private ctx: AudioContext | null = null;
   /** Où en est l'air de flûte (passage d'escalier) : une note par marche. */
   private fluteAt = 0;
+  private recordAt = 0;
 
   /** Le contexte audio (partagé avec la musique), une fois débloqué par un geste du joueur. */
   context(): AudioContext | null {
@@ -185,6 +187,14 @@ export class Sfx {
           const f = tune[this.fluteAt++ % tune.length];
           this.tone(f, f * 1.01, 0.2, "sine", 0.13);
           this.tone(f * 2, f * 2, 0.12, "sine", 0.025, 0.01);
+          break;
+        }
+        case "record": { // le tourne-disque de la salle de bain : une note douce et grave, un peu de craquement
+          const tune = [392, 440, 494, 440, 392, 330, 294, 330, 392, 494, 523, 494];
+          const f = tune[this.recordAt++ % tune.length];
+          this.tone(f, f, 0.5, "triangle", 0.05);
+          this.tone(f / 2, f / 2, 0.6, "sine", 0.04);
+          this.noise(0.05, 0.012, 3000);
           break;
         }
         case "whoosh": // une liane qui fend l'air

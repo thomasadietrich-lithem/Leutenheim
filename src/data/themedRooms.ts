@@ -95,6 +95,12 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   crateStack: { blocks: true, w: 1, h: 1, burns: true },
   // Cloche d'alarme sur son support de bois (Thomas, 2026-11-12) : la sonner fait monter l'alerte, et on se moque de vous.
   bell: { blocks: true, w: 1, h: 1, burns: true },
+  // Salle de bain du Kobold (Thomas, 2026-11-13 ; planche art/salle_bain_v1.png).
+  tub: { blocks: true, w: 2, h: 1, burns: false },
+  lowTable: { blocks: true, w: 1, h: 1, burns: true },
+  gramophone: { blocks: true, w: 1, h: 1, burns: true },
+  towelRack: { blocks: true, w: 1, h: 1, burns: true },
+  bathMat: { blocks: false, w: 1, h: 1, burns: true },
   /** Statue de pierre (Thomas, 2026-11-12) : bloque, on se cache derrière ; une creuse cache un trésor (voir Gluck). */
   statue: { blocks: true, w: 1, h: 1, burns: false },
   statueBroken: { blocks: false, w: 1, h: 1, burns: false },

@@ -131,6 +131,8 @@ export type GameEvent =
   | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin"; points?: number }
   /** Potion d'oursin : l'attaquant se pique et perd des PV. */
   | { type: "thorns"; actor: Actor; damage: number }
+  /** Salle de bain du Kobold : il sort de l'eau, le disque s'arrête, coup de serviette, il s'enfuit. */
+  | { type: "bath"; what: "splash" | "scratch" | "towel" | "flee"; x: number; y: number }
   /** Flûte de pan : quelques notes, un ennemi s'endort. */
   | { type: "lullaby"; actor: Actor }
   | { type: "slowed"; actor: Actor }
@@ -141,7 +143,7 @@ export type GameEvent =
   | { type: "alarm"; stage: number }
   /** Du bruit à cet endroit (porte enfoncée, coups échangés) : il fait monter le tocsin. */
   | { type: "noise"; x: number; y: number; points: number }
-  | { type: "poisoned"; actor: Actor }
+  | { type: "poisoned"; actor: Actor; immune?: boolean }
   | { type: "poison"; actor: Actor; damage: number }
   | { type: "xp"; amount: number; blocked?: boolean }
   /** Un personnage en feu entre dans l'eau : il s'éteint. */

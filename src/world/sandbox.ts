@@ -1,6 +1,6 @@
 import { ItemId } from "../data/items";
 import { Rng } from "../core/rng";
-import { furnishAlchemist, furnishChapel, furnishDortoir, furnishForge, furnishKitchen, furnishTorture, Furniture, RoomTheme } from "./furnish";
+import { furnishAlchemist, furnishBath, furnishChapel, furnishDortoir, furnishForge, furnishKitchen, furnishTorture, Furniture, RoomTheme } from "./furnish";
 import { Motif } from "./grounds";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
@@ -38,7 +38,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 17;
+export const SANDBOX_LAYOUT = 18;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
@@ -121,7 +121,12 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     map.set(x, 7, Tile.Floor);
     map.set(x, 13, Tile.Floor);
   }
-  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture, forgeRoom, alchemy];
+  // Salle de bain du Kobold (Thomas, 2026-11-13) : 5 × 4 cases, à l'est de la salle de torture.
+  const bathRoom: Room = { x: 41, y: 24, w: 5, h: 4 };
+  carve(bathRoom);
+  for (let x = 38; x <= 40; x++) map.set(x, 25, Tile.Floor);
+  map.set(40, 25, Tile.DoorClosed);
+  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture, forgeRoom, alchemy, bathRoom];
   const floorPlan: Floor = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
   const furniture: Furniture[] = [];
   furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);
@@ -132,6 +137,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   furnishTorture(floorPlan, torture, new Rng(seeds.torture), furniture);
   furnishForge(floorPlan, forgeRoom, new Rng(seeds.forge), furniture);
   furnishAlchemist(floorPlan, alchemy, new Rng(seeds.alchemist), furniture);
+  furnishBath(floorPlan, bathRoom, new Rng(2), furniture);
   const themes: RoomTheme[] = [
     { room: 4, id: "dortoir" },
     { room: 6, id: "cuisine" },
@@ -139,6 +145,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     { room: 8, id: "torture" },
     { room: 9, id: "forge" },
     { room: 10, id: "alchimiste" },
+    { room: 11, id: "bain" },
   ];
   // Toiles de l'antre, et des trainards (tonneau, caisses) contre le mur gauche de la salle des colonnes.
   furniture.push({ x: 17, y: 23, kind: "webTL" }, { x: 25, y: 23, kind: "webTR" }, { x: 25, y: 28, kind: "webBR" });

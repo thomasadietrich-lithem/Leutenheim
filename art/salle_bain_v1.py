@@ -49,7 +49,7 @@ def checker_floor(xs, ys):
     return out
 
 
-def tub(frame=0):
+def tub(frame=0, kobold=True):
     """Baignoire à pattes de lion, 2 cases de large : émail blanc, bord épais, mousse qui déborde, le Kobold endormi
     (grosse tête appuyée sur une serviette, cornes, museau, œil fermé), un canard ; `frame` : les bulles bougent."""
     s = Sprite(34, 28)
@@ -66,19 +66,20 @@ def tub(frame=0):
     # Bord supérieur, et l'eau mousseuse dedans.
     s.r(1, 9, 32, 4, "enamel").r(1, 9, 32, 1, "foam").r(1, 12, 32, 1, "enamel_s")
     s.r(3, 8, 28, 3, "foam_s")
-    # Serviette roulée sous la nuque.
-    s.r(1, 6, 7, 4, "red").r(1, 6, 7, 1, "red_l").r(1, 9, 7, 1, "red_d")
-    # La tête du Kobold, penchée en arrière : cornes, crâne, œil fermé, museau, narine, sourire.
-    s.r(4, 3, 9, 7, "scale")
-    s.r(4, 9, 9, 1, "scale_d").r(4, 3, 1, 6, "scale_d")
-    s.r(12, 5, 5, 4, "belly").r(12, 8, 5, 1, "scale_d").p(16, 5, "scale_d")  # museau
-    s.p(15, 6, "vinyl")  # narine
-    s.r(8, 5, 3, 1, "vinyl").p(8, 4, "scale_d").p(10, 4, "scale_d")  # paupière fermée
-    s.r(12, 8, 3, 1, "belly")  # sourire
-    s.r(5, 1, 2, 2, "horn").p(4, 0, "horn").r(9, 1, 2, 2, "horn").p(10, 0, "horn")  # cornes
-    s.p(6, 2, "straw_d").p(10, 2, "straw_d")
-    # Un bras posé sur le bord, la griffe pendante.
-    s.r(15, 9, 6, 2, "scale").r(15, 10, 6, 1, "scale_d").r(20, 11, 2, 2, "scale").p(21, 12, "scale_d")
+    if kobold:
+        # Serviette roulée sous la nuque.
+        s.r(1, 6, 7, 4, "red").r(1, 6, 7, 1, "red_l").r(1, 9, 7, 1, "red_d")
+        # La tête du Kobold, penchée en arrière : cornes, crâne, œil fermé, museau, narine, sourire.
+        s.r(4, 3, 9, 7, "scale")
+        s.r(4, 9, 9, 1, "scale_d").r(4, 3, 1, 6, "scale_d")
+        s.r(12, 5, 5, 4, "belly").r(12, 8, 5, 1, "scale_d").p(16, 5, "scale_d")  # museau
+        s.p(15, 6, "vinyl")  # narine
+        s.r(8, 5, 3, 1, "vinyl").p(8, 4, "scale_d").p(10, 4, "scale_d")  # paupière fermée
+        s.r(12, 8, 3, 1, "belly")  # sourire
+        s.r(5, 1, 2, 2, "horn").p(4, 0, "horn").r(9, 1, 2, 2, "horn").p(10, 0, "horn")  # cornes
+        s.p(6, 2, "straw_d").p(10, 2, "straw_d")
+        # Un bras posé sur le bord, la griffe pendante.
+        s.r(15, 9, 6, 2, "scale").r(15, 10, 6, 1, "scale_d").r(20, 11, 2, 2, "scale").p(21, 12, "scale_d")
     # Grosse mousse (devant le cou et dans toute la cuve), qui déborde sur le flanc.
     blobs = [(9, 9, 4), (14, 7, 3), (19, 7, 4), (23, 8, 5), (28, 7, 4), (25, 10, 3), (12, 10, 3), (30, 10, 3)]
     for i, (bx, by, r) in enumerate(blobs):
@@ -165,16 +166,65 @@ def bath_mat():
     return s.done(outline=False)
 
 
-def towel_rack():
-    """Porte-serviettes contre le mur : barre de laiton, serviette rayée."""
-    s = Sprite(16, 22)
-    s.r(2, 4, 12, 1, "brass").r(2, 4, 1, 3, "brass_d").r(13, 4, 1, 3, "brass_d")
-    s.r(4, 5, 8, 12, "sheet_w").r(4, 9, 8, 2, "red").r(4, 14, 8, 1, "red").r(11, 5, 1, 12, "sheet_s")
-    s.r(4, 17, 8, 1, "sheet_s")
+def towel_rack(variant="full"):
+    """Porte-serviettes contre le mur : barre de laiton ; « full » : la serviette rayée, la dague et la petite cotte du
+    Kobold pendues ; « gear » : il a pris la serviette ; « empty » : plus rien (il a été vaincu)."""
+    s = Sprite(16, 24)
+    s.r(1, 24 - 2, 14, 2, "shadow")
+    s.r(2, 3, 1, 19, "brass_d").r(13, 3, 1, 19, "brass_d").r(2, 3, 12, 1, "brass").r(2, 21, 12, 1, "brass_d")
+    if variant == "full":
+        s.r(4, 4, 6, 12, "sheet_w").r(4, 8, 6, 2, "red").r(4, 13, 6, 1, "red").r(9, 4, 1, 12, "sheet_s")
+    if variant in ("full", "gear"):
+        # La petite cotte de mailles et la dague, pendues au crochet de droite.
+        s.r(10, 4, 3, 6, "stone_l").p(11, 5, "stone").p(10, 7, "stone").p(12, 8, "stone").r(10, 9, 3, 1, "stone_d")
+        s.r(11, 11, 1, 5, "iron_l").r(10, 11, 3, 1, "brass").p(11, 16, "iron")
     return s.done()
 
 
-if __name__ == "__main__":
+EXPORT = {
+    **{f"tub{f}": lambda f=f: tub(f) for f in range(3)},
+    **{f"tubOut{f}": lambda f=f: tub(f, kobold=False) for f in range(3)},
+    **{f"zzz{f}": lambda f=f: zzz(f) for f in range(3)},
+    **{f"lowTable{f}": lambda f=f: low_table(f) for f in range(3)},
+    **{f"gramophone{f}": lambda f=f: gramophone(f) for f in range(3)},
+    **{f"notes{f}": lambda f=f: notes(f) for f in range(3)},
+    "rackFull": lambda: towel_rack("full"),
+    "rackGear": lambda: towel_rack("gear"),
+    "rackEmpty": lambda: towel_rack("empty"),
+    "bathMat": bath_mat,
+}
+
+
+def export():
+    """Écrit src/render/sprites/bain.ts : lignes de lettres + une palette par dessin."""
+    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    out = "// FICHIER GÉNÉRÉ par art/salle_bain_v1.py export : ne pas modifier à la main.\n"
+    out += "/** Salle de bain du Kobold (planche art/salle_bain_v1.png, Thomas 2026-11-13). Noms finissant par 0, 1, 2 : animation. */\n"
+    out += "export const BAIN: Record<string, { rows: string[]; palette: Record<string, string> }> = {\n"
+    for name, make in EXPORT.items():
+        a = make().a
+        pal, rows = {}, []
+        for y in range(a.shape[0]):
+            row = ""
+            for x in range(a.shape[1]):
+                r, g, b, al = (int(v) for v in a[y, x])
+                if al == 0:
+                    row += "."
+                    continue
+                col = "#%02x%02x%02x" % (r, g, b)
+                if col not in pal:
+                    pal[col] = letters[len(pal)]
+                row += pal[col]
+            rows.append(row)
+        palette = {v: k for k, v in pal.items()}
+        out += f"  {name}: {{ palette: " + str(palette).replace("'", '"') + ", rows: [\n" + "".join(f'    "{r}",\n' for r in rows) + "  ] },\n"
+    out += "};\n"
+    open(os.path.join(os.path.dirname(__file__), "..", "src", "render", "sprites", "bain.ts"), "w").write(out)
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+elif __name__ == "__main__":
     IW, IH = 5, 4
     W, H = (IW + 2) * T, (IH + 2) * T
     xs, ys = grid(W, H)
@@ -191,7 +241,7 @@ if __name__ == "__main__":
             room.alpha_composite(im, (cx * T + ox, cy * T + T - im.height + oy))
 
         put(bath_mat(), 2, 3, oy=-3)
-        put(towel_rack(), 4, 1, oy=-6)
+        put(towel_rack(), 4, 1, oy=-2)
         put(tub(frame), 1, 2, ox=-1, oy=-1)
         put(zzz(frame), 1, 1, ox=6, oy=-13)
         put(low_table(frame), 3, 3, oy=-1)
@@ -210,7 +260,8 @@ if __name__ == "__main__":
             ("Tourne-disque ×3", [gramophone(f).img() for f in range(3)]),
             ("Notes ×3", [notes(f).img() for f in range(3)]),
             ("Tapis de bain", [bath_mat().img()]),
-            ("Porte-serviettes", [towel_rack().img()]),
+            ("Porte-serviettes : plein, sans serviette, vide", [towel_rack(v).img() for v in ("full", "gear", "empty")]),
+            ("Baignoire vide (il est sorti) ×3", [tub(f, kobold=False).img() for f in range(3)]),
             ("Salle, image 2 / 3", [rooms[1], rooms[2]]),
         ],
         os.path.join(os.path.dirname(__file__), "salle_bain_v1.png"),

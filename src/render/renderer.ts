@@ -65,6 +65,7 @@ const MERCHANT_GHOSTS: Record<string, string[][]> = Object.fromEntries(
 /** Dessins des salles à thème récentes (cuisine, prière, torture, forge, alchimiste). */
 const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS, ...BOSS };
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
+import { BAIN } from "./sprites/bain";
 import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
@@ -622,6 +623,9 @@ export class Renderer {
     if (burning) icons.push("feu");
     if (m.slowed) icons.push("ralenti");
     if (m.stunned) icons.push("sonne");
+    // La Tisseuse : le picto du poison, barré (elle y est insensible ; Thomas, 2026-11-13).
+    const immune = !!m.boss;
+    if (immune) icons.unshift("poison");
     if (icons.length === 0) return;
     const s = Math.max(10, Math.round(tile * 0.36));
     const gap = 3;
@@ -637,6 +641,14 @@ export class Renderer {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x - 2, y - 2, s + 4, s + 4);
       ctx.drawImage(this.sprite(STATUS_ICONS[id], ICON_PALETTE), x, y, s, s);
+      if (immune && id === "poison" && x === Math.round(cx - total / 2)) {
+        ctx.strokeStyle = "#ff3a3a";
+        ctx.lineWidth = Math.max(2, s * 0.14);
+        ctx.beginPath();
+        ctx.moveTo(x - 1, y + s + 1);
+        ctx.lineTo(x + s + 1, y - 1);
+        ctx.stroke();
+      }
       x += s + gap;
     }
     ctx.imageSmoothingEnabled = smooth;
@@ -1981,8 +1993,17 @@ export class Renderer {
       const apples = f.kind === "basket" ? game.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
       // Cloche d'alarme : elle se balance (à gauche, à droite) pendant un peu plus d'une seconde après le coup.
       const swing = f.kind === "bell" ? this.bellSwing(f.x, f.y) : 0;
-      const name = f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind;
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name];
+      // Salle de bain du Kobold : la baignoire avec ou sans lui, le disque qui tourne ou non, le porte-serviettes.
+      const bath = game.bath();
+      const bathName =
+        f.kind === "tub" ? (bath && !bath.out ? `tub${visible ? (frame + f.x) % 3 : 0}` : `tubOut${visible ? (frame + f.x) % 3 : 0}`)
+        : f.kind === "gramophone" ? `gramophone${bath?.music && visible ? frame : 0}`
+        : f.kind === "lowTable" ? `lowTable${visible ? (frame + f.x) % 3 : 0}`
+        : f.kind === "towelRack" ? (!bath || !bath.out ? "rackFull" : bath.beaten ? "rackEmpty" : "rackGear")
+        : f.kind === "bathMat" ? "bathMat"
+        : null;
+      const name = bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name];
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -1993,7 +2014,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (SALLES[name]) {
+      } else if (SALLES[name] || BAIN[name]) {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
@@ -2009,6 +2030,15 @@ export class Renderer {
       const x = this.snap(ox + px * u);
       const y = this.snap(oy + py * u);
       ctx.drawImage(img, x, y, this.snap(ox + (px + w) * u) - x, this.snap(oy + (py + h) * u) - y);
+      // Au-dessus : les « Z » du Kobold endormi, les croches du tourne-disque.
+      const over = !visible ? null : f.kind === "tub" && bath && !bath.out ? `zzz${frame}` : f.kind === "gramophone" && bath?.music ? `notes${frame}` : null;
+      const extra = over ? BAIN[over] : undefined;
+      if (extra) {
+        const ex = f.kind === "tub" ? px + 6 : px - 4;
+        const ey = py - extra.rows.length + (f.kind === "tub" ? 4 : 2);
+        const oimg = this.sprite(extra.rows, extra.palette);
+        ctx.drawImage(oimg, this.snap(ox + ex * u), this.snap(oy + ey * u), this.snap(extra.rows[0].length * u), this.snap(extra.rows.length * u));
+      }
       ctx.imageSmoothingEnabled = smooth;
     }
   }

@@ -48,6 +48,13 @@ export const RULES = {
   /** Œil de chauve-souris (bibelot) : ombres des monstres à 10 cases en vue dégagée, 3 à travers un mur (Thomas). */
   batRange: 10,
   batWallRange: 3,
+  /** Salle de bain du Kobold (Thomas, 2026-11-13 ; valeurs C) : tours savonneux (désavantage), coup de serviette qui
+   * aveugle, alerte au plouf et à la fuite, distance où l'on entend le tourne-disque. */
+  soapyTurns: 2,
+  towelBlindChance: 0.3,
+  bathAlarm: 3,
+  bathFleeAlarm: 10,
+  bathMusicRange: 7,
   /** Après une cachette réussie, les monstres qui le traquaient restent sur place tant de tours (Thomas, 2026-11-12 :
    * « les Kobolds archers essayent de s'approcher si on se cache »). */
   hideLostTurns: 6,

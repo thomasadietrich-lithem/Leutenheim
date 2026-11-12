@@ -110,7 +110,26 @@ export function buildBossFloor(seed: number): BossFloor {
     { x: hub.x + 1 - px, y: hub.y + 1 + py },
     { x: hub.x + 1 + px, y: hub.y + 1 + py },
   ].map((p) => ({ x: Math.max(lair.x + 2, Math.min(lair.x + NW - 3, p.x)), y: Math.max(lair.y + 2, Math.min(lair.y + NH - 3, p.y)) }));
-  for (const p of pillars) map.set(p.x, p.y, Tile.Pillar);
+  // Plus de colonnes (Thomas, 2026-11-13 : « retire les poteaux du boss, ils n'apportent rien ») : les quatre amarres
+  // sont nouées au MUR de la nichée, dans le prolongement des diagonales de la grande toile. On les tranche depuis la
+  // case voisine, comme avant.
+  for (const p of pillars) {
+    const sx = Math.sign(p.x - (hub.x + 1)) || 1;
+    const sy = Math.sign(p.y - (hub.y + 1)) || 1;
+    let x = p.x;
+    let y = p.y;
+    for (let k = 0; k < 40 && map.get(x, y) !== Tile.Wall; k++) {
+      // On avance en diagonale tant qu'on reste dans la nichée, puis tout droit vers le mur le plus proche.
+      if (x + sx >= lair.x && x + sx < lair.x + NW) x += sx;
+      else if (y + sy >= lair.y && y + sy < lair.y + NH) y += sy;
+      else {
+        x += sx;
+        if (map.get(x, y) !== Tile.Wall) y += sy;
+      }
+    }
+    p.x = x;
+    p.y = y;
+  }
 
   const furniture: Furniture[] = [];
   const taken = new Set<number>();

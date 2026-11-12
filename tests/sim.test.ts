@@ -858,7 +858,7 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const foe = game.monsters[0];
   assert.ok(foe);
   game.monsters.splice(1);
-  // Trois victoires (3 à 5 points chacune) : passage au niveau 2 (5 points) ; un point à placer par niveau, pas de PV automatiques.
+  // Trois victoires (1 à 3 points chacune) : passage au niveau 2 (6 points) ; un point à placer par niveau, pas de PV automatiques.
   const maxHp = game.hero.maxHp;
   let kills = 0;
   game.xp = 0;
@@ -876,10 +876,10 @@ test("expérience, niveaux et or : vaincre rapporte de l'expérience, le coffre 
   const gains = game.events.flatMap((e) => (e.type === "xp" ? [e.amount] : []));
   assert.ok(gains.every((g) => g >= 1 && g <= 3), "un Kobold rapporte 1 à 3 points d'expérience (divisé par deux, Thomas 2026-11-12)");
   const total = gains.reduce((a, b) => a + b, 0);
-  // Niveau 2 à 4 points, niveau 3 à 9 (4 + 5) : trois victoires (3 à 9 points) mènent au niveau 1, 2 ou 3.
-  const level = total >= 9 ? 3 : total >= 4 ? 2 : 1;
-  const left = total - (level === 3 ? 9 : level === 2 ? 4 : 0);
-  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, [4, 5, 7][level - 1], maxHp]);
+  // Niveau 2 à 6 points (Thomas 2026-11-12 : plus d'XP par niveau) : trois victoires (3 à 9 points) mènent au niveau 1 ou 2.
+  const level = total >= 6 ? 2 : 1;
+  const left = total - (level === 2 ? 6 : 0);
+  assert.deepEqual([game.level, game.xp, game.xpToNext(), game.hero.maxHp], [level, left, [6, 8][level - 1], maxHp]);
   if (level >= 2) assert.ok(game.events.some((e) => e.type === "levelup" && e.level === 2));
   assert.equal(game.points, level - 1);
   assert.equal(game.events.filter((e) => e.type === "xp").length, 3);
@@ -1886,7 +1886,7 @@ test("expérience : chaque niveau demande un peu plus que le précédent (4, 5, 
     game.level = level;
     return game.xpToNext();
   });
-  assert.deepEqual(needs, [4, 5, 7, 8, 9]);
+  assert.deepEqual(needs, [6, 8, 10, 12, 14]);
 });
 
 test("salle d'essai : les Schrats en ronde restent dans leur salle ; « Réveiller » les lance sur le héros", () => {

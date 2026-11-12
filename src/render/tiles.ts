@@ -1,5 +1,6 @@
 import { Game } from "../core/game";
 import { Tile } from "../world/map";
+import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { groundImage } from "./ground";
 import { DORTOIR } from "./sprites/dortoir";
@@ -394,7 +395,7 @@ export class TilePainter {
     ctx.restore();
   }
 
-  /** Escalier, fontaine et coffre, dessinés par-dessus le sol. */
+  /** Escalier, autel et coffre, dessinés par-dessus le sol. */
   drawFeature(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
     // Escaliers et coffres : dessins en pixels validés par Thomas (`src/render/sprites/decor.ts`).
@@ -412,23 +413,11 @@ export class TilePainter {
     } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
       this.drawDoor(game, t, x, y, sx, sy);
     } else if (t === Tile.Fountain || t === Tile.FountainDry) {
-      // Fontaine : une vasque de pierre, pleine d'eau claire ou à sec.
-      const cx = sx + tile / 2;
-      const cy = sy + tile / 2;
-      ctx.fillStyle = "#8a8ea8";
-      ctx.beginPath();
-      ctx.arc(cx, cy, tile * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = t === Tile.Fountain ? "#4fb4e8" : "#3a3c4e";
-      ctx.beginPath();
-      ctx.arc(cx, cy, tile * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-      if (t === Tile.Fountain) {
-        ctx.fillStyle = "#c8ecff";
-        ctx.beginPath();
-        ctx.arc(cx - tile * 0.08, cy - tile * 0.08, tile * 0.08, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // L'autel de pierre à la pomme dorée (Thomas, 2026-11-12, à la place de la fontaine) ; vide une fois croquée.
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(t === Tile.Fountain ? AUTEL.full : AUTEL.dry, AUTEL_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.imageSmoothingEnabled = smooth;
     }
   }
 }

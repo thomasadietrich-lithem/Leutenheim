@@ -860,6 +860,94 @@ test("épée longue : un grand d20 assomme la cible", () => {
   assert.fail("aucun coup assommant en 400 parties");
 });
 
+test("querelle : deux monstres qui se bloquent face à face dans un couloir se battent (Thomas, 2026-11-12)", () => {
+  for (let seed = 1; seed < 200; seed++) {
+    const game = new Game(seed);
+    const map = game.map;
+    // Un couloir horizontal d'au moins 6 cases, murs dessus et dessous, loin du héros.
+    let run: { x: number; y: number }[] | null = null;
+    for (let y = 1; y < map.height - 1 && !run; y++) {
+      for (let x = 1; x < map.width - 7 && !run; x++) {
+        const cells = Array.from({ length: 6 }, (_, i) => ({ x: x + i, y }));
+        const ok = cells.every((c) => map.get(c.x, c.y) === Tile.Floor && !map.isWalkable(c.x, c.y - 1) && !map.isWalkable(c.x, c.y + 1));
+        if (ok && Math.abs(x - game.hero.x) + Math.abs(y - game.hero.y) > 14) run = cells;
+      }
+    }
+    if (!run || game.monsters.length < 2) continue;
+    const [a, b] = game.monsters;
+    game.monsters.splice(2);
+    game.hidden = true;
+    Object.assign(a, { x: run[2].x, y: run[2].y, hp: 50, maxHp: 50, asleep: false, alerted: false, patrol: undefined, goal: { x: run[5].x, y: run[5].y } });
+    Object.assign(b, { x: run[3].x, y: run[3].y, hp: 50, maxHp: 50, asleep: false, alerted: false, patrol: undefined, goal: { x: run[0].x, y: run[0].y } });
+    let feud = false;
+    let blows = 0;
+    for (let turn = 0; turn < 30 && !game.over; turn++) {
+      game.wait();
+      game.tick();
+      feud ||= game.events.some((e) => e.type === "feud");
+      blows += game.events.filter((e) => e.type === "infight").length;
+    }
+    assert.ok(feud, "les deux monstres finissent par se quereller");
+    assert.ok(blows > 0, "ils échangent des coups");
+    return;
+  }
+  assert.fail("aucun couloir trouvé");
+});
+
+test("frondeur : un monstre sur la trajectoire prend la pierre à la place du héros", () => {
+  for (let seed = 1; seed < 300; seed++) {
+    const game = new Game(seed);
+    const map = game.map;
+    const h = game.hero;
+    // Trois cases libres alignées à droite du héros : le Kobold au milieu, le frondeur au bout.
+    const line = [1, 2, 3, 4].map((i) => ({ x: h.x + i, y: h.y }));
+    if (!line.every((c) => map.isWalkable(c.x, c.y) && !map.blocksSight(c.x, c.y))) continue;
+    const kobold = game.monsters.find((m) => m.defId === "schrat");
+    if (!kobold) continue;
+    game.monsters.splice(0, game.monsters.length, kobold);
+    const slinger = { ...kobold, id: 900, defId: "frondeur", name: "Kobold frondeur", x: line[3].x, y: line[3].y, hp: 30, maxHp: 30, alerted: true, asleep: false };
+    game.monsters.push(slinger);
+    Object.assign(kobold, { x: line[1].x, y: line[1].y, hp: 50, maxHp: 50, alerted: false, asleep: false, stunned: 5 });
+    for (let turn = 0; turn < 20; turn++) {
+      game.wait();
+      game.tick();
+      const shot = game.events.find((e) => e.type === "infight" && e.ranged);
+      if (shot && shot.type === "infight") {
+        assert.equal(shot.target, kobold);
+        assert.equal(shot.attacker.id, 900);
+        return;
+      }
+      assert.ok(!game.events.some((e) => e.type === "attack" && e.ranged && e.target === game.hero), "la pierre ne passe pas à travers le Kobold");
+    }
+  }
+  assert.fail("aucune pierre tirée à travers un Kobold");
+});
+
+test("autel à la pomme dorée : soigne tout et bénit (+1 attaque, +1 CA)", () => {
+  const game = new Game(4);
+  game.monsters.splice(0);
+  const h = game.hero;
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor)!;
+  game.map.set(spot.x, spot.y, Tile.Fountain);
+  h.hp = 3;
+  const ac = h.armorClass;
+  const atk = h.attackBonus;
+  assert.ok(game.setDestination(spot.x, spot.y, true));
+  for (let i = 0; i < 5 && game.map.get(spot.x, spot.y) === Tile.Fountain; i++) game.tick();
+  assert.equal(game.map.get(spot.x, spot.y), Tile.FountainDry);
+  assert.equal(h.hp, h.maxHp);
+  assert.equal(h.armorClass, ac + 1);
+  assert.equal(h.attackBonus, atk + 1);
+  game.peaceful = true; // les renforts ne doivent pas interrompre la mesure
+  for (let i = 0; i < RULES.blessTurns * 2 && game.blessTurns > 0; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.equal(game.blessTurns, 0);
+  assert.equal(h.armorClass, ac);
+  assert.equal(h.attackBonus, atk);
+});
+
 test("porte : après un échec, la même méthode n'est plus proposée", () => {
   for (const action of ["pick", "break"] as const) {
     let found = false;

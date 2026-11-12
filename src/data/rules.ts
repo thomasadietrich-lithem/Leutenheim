@@ -54,6 +54,16 @@ export const RULES = {
   /** Sols spéciaux (planche art/sols_v1.png validée le 2026-11-11) : plaques de gravier et flaques par étage. */
   groundsInDungeon: true,
   gravelPatches: [0, 2] as [number, number],
+  /** Le gravier augmente avec la profondeur : +1 plaque (et des plaques plus grandes) tous les tant d'étages, au plus `gravelPatchesMax`. */
+  gravelGrowth: 2,
+  /** Autel à la pomme dorée (Thomas, 2026-11-12) : bénédiction de +1 au jet d'attaque et +1 CA pendant tant de tours (C). */
+  /** Querelles (Thomas, 2026-11-12) : deux monstres bloqués l'un par l'autre depuis tant de tours se battent (C). */
+  feudBlockedTurns: 2,
+  /** Un monstre touché par la pierre d'un frondeur se retourne contre lui une fois sur tant (C). */
+  feudShotChance: 0.5,
+  blessBonus: 1,
+  blessTurns: 150,
+  gravelPatchesMax: 6,
   /** Motifs gravés au sol (rosace, rose des vents, runes, croix, spirale) : de tant à tant par étage (décor). */
   motifsPerFloor: [0, 2] as [number, number],
   gravelSize: [3, 8] as [number, number],

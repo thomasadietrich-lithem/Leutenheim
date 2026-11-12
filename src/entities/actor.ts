@@ -45,6 +45,11 @@ export interface Actor {
   goal?: { x: number; y: number };
   /** Taille en cases (2 : un carré de 2 × 2 dont `x, y` est la case du haut à gauche). 1 par défaut. */
   size?: number;
+  /** Bloqué face à un autre monstre (numéro) depuis tant de tours : deux monstres qui se bloquent finissent par se battre. */
+  blockedBy?: number;
+  blockedTurns?: number;
+  /** Querelle (Thomas, 2026-11-12) : il se bat contre ce monstre (numéro) jusqu'à ce que l'un des deux tombe. */
+  feud?: number;
   /** Boss : où il en est de son combat (avance, recule, tapi…), voir `src/core/boss.ts`. */
   boss?: BossState;
 }

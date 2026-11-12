@@ -14,7 +14,13 @@ export interface JournalContext {
   depth: number;
   /** Il ne reste plus aucune méthode pour ouvrir la porte : il faudra une clef. */
   doorHopeless: boolean;
+  /** Le héros voit-il ce personnage ? (Une querelle hors de vue ne s'écrit pas.) */
+  sees?: (a: { x: number; y: number }) => boolean;
 }
+
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+/** « le Kobold », « l'araignée », « la Tisseuse ». */
+const the = (n: string): string => (/^(la |le |l')/i.test(n) ? n : /^[aeiouyéh]/i.test(n) ? `l'${n.toLowerCase()}` : `le ${n}`);
 
 /** « + 3 » ou « − 5 » : le bonus tel qu'on l'écrit sous le dé. */
 function signed(bonus: number): string {
@@ -76,6 +82,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+    case "feud":
+      return ctx.sees?.(e.a) || ctx.sees?.(e.b)
+        ? e.reason === "shot"
+          ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !`
+          : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage… et en viennent aux mains !`
+        : null;
+    case "infight":
+      return null;
     case "heavyBlow":
       return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : `D'un seul coup !`;
     case "bounce":
@@ -190,7 +204,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           ? "Repos interrompu : un ennemi approche !"
           : `Vous vous êtes reposé : +${e.healed} PV.`;
     case "fountain":
-      return e.healed > 0 ? `Vous buvez à la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez à la fontaine. Elle se tarit.";
+      return `Vous croquez la pomme dorée de l'autel${e.healed > 0 ? ` : +${e.healed} PV` : ""}. Une douce chaleur vous enveloppe : vous êtes béni (+1 à l'attaque, +1 CA).`;
+    case "blessEnd":
+      return "La bénédiction de l'autel s'estompe.";
     case "maiden": {
       const how = e.action === "pick" ? "Vous désamorcez le sarcophage" : "Vous forcez le sarcophage";
       const outcome = e.success ? "réussi, il s'ouvre sans mal." : `raté, une pointe jaillit : ${e.damage} dégâts. Il s'ouvre quand même.`;

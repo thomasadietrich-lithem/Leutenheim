@@ -1543,6 +1543,16 @@
     /** Sols spéciaux (planche art/sols_v1.png validée le 2026-11-11) : plaques de gravier et flaques par étage. */
     groundsInDungeon: true,
     gravelPatches: [0, 2],
+    /** Le gravier augmente avec la profondeur : +1 plaque (et des plaques plus grandes) tous les tant d'étages, au plus `gravelPatchesMax`. */
+    gravelGrowth: 2,
+    /** Autel à la pomme dorée (Thomas, 2026-11-12) : bénédiction de +1 au jet d'attaque et +1 CA pendant tant de tours (C). */
+    /** Querelles (Thomas, 2026-11-12) : deux monstres bloqués l'un par l'autre depuis tant de tours se battent (C). */
+    feudBlockedTurns: 2,
+    /** Un monstre touché par la pierre d'un frondeur se retourne contre lui une fois sur tant (C). */
+    feudShotChance: 0.5,
+    blessBonus: 1,
+    blessTurns: 150,
+    gravelPatchesMax: 6,
     /** Motifs gravés au sol (rosace, rose des vents, runes, croix, spirale) : de tant à tant par étage (décor). */
     motifsPerFloor: [0, 2],
     gravelSize: [3, 8],
@@ -2039,7 +2049,7 @@
 
   // src/data/specialRooms.ts
   var SPECIAL_ROOMS = [
-    { id: "fontaine", name: "Salle de la fontaine", weight: 1, feature: Tile.Fountain },
+    { id: "fontaine", name: "Salle de l'autel", weight: 1, feature: Tile.Fountain },
     { id: "tresor", name: "Salle au tr\xE9sor", weight: 1, feature: Tile.Chest }
   ];
 
@@ -3561,7 +3571,7 @@
   var MOTIF_KINDS = Object.keys(MOTIF_SIZE);
 
   // src/world/grounds.ts
-  function placeGrounds(floor, seed) {
+  function placeGrounds(floor, seed, depth = 1) {
     const rng = new Rng(seed ^ 981225961);
     const { map } = floor;
     const far = (p, q) => Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)) > 2;
@@ -3584,7 +3594,9 @@
         return;
       }
     };
-    for (let i = rng.int(RULES.gravelPatches[0], RULES.gravelPatches[1]); i > 0; i--) patch(Tile.Gravel, rng.int(RULES.gravelSize[0], RULES.gravelSize[1]));
+    const extra = Math.floor((depth - 1) / RULES.gravelGrowth);
+    const patches = rng.int(Math.min(RULES.gravelPatches[0] + extra, RULES.gravelPatchesMax), Math.min(RULES.gravelPatches[1] + extra, RULES.gravelPatchesMax));
+    for (let i = patches; i > 0; i--) patch(Tile.Gravel, rng.int(RULES.gravelSize[0] + extra, RULES.gravelSize[1] + 2 * extra));
     for (let i = rng.int(RULES.puddles[0], RULES.puddles[1]); i > 0; i--) patch(Tile.Water, rng.int(RULES.puddleSize[0], RULES.puddleSize[1]));
   }
   function placeMotifs(floor, seed) {
@@ -4002,6 +4014,8 @@
       /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
       this.weaponPoison = 0;
       this.hasteTurns = 0;
+      /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
+      this.blessTurns = 0;
       /** Cases en feu (potion de feu), sur l'étage courant. */
       this.fires = [];
       /** Salle d'essai : combats coupés (bouton « Combats »), pour visiter tranquillement. Pas sauvegardé. */
@@ -4110,7 +4124,7 @@
         const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
         if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
         const furnished = sandboxFloor ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes } : bossFloor ? { furniture: bossFloor.furniture, themes: [] } : RULES.themedRoomsInDungeon ? furnishFloor(floor, seed, depth) : { furniture: [], themes: [] };
-        if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
+        if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
         const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
         state = {
           map: floor.map,
@@ -4548,8 +4562,8 @@
       if (this.turn < state.nextRespawn || this.peaceful || state.boss) return;
       const stage = Math.min(state.alarmStage, 2);
       state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
-      const cap = state.population + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
-      if (this.monsters.length >= cap || this.rooms.length === 0) return;
+      const cap2 = state.population + [0, RULES.agitatedExtraPopulation, RULES.alertExtraPopulation][stage];
+      if (this.monsters.length >= cap2 || this.rooms.length === 0) return;
       const spawns = spawnsForDepth(this.depth);
       let pick = this.rng.next() * spawns.entries.reduce((sum, e) => sum + e.weight, 0);
       const entry = spawns.entries.find((e) => (pick -= e.weight) < 0) ?? spawns.entries[0];
@@ -4908,6 +4922,7 @@
         floorPerks: this.floorPerks,
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
+        blessTurns: this.blessTurns,
         fires: this.fires,
         gas: this.gas,
         bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
@@ -4992,6 +5007,7 @@
       }
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
+      game2.blessTurns = saved.blessTurns ?? 0;
       game2.inventory.cols = saved.bagSize.cols;
       game2.inventory.rows = saved.bagSize.rows;
       game2.torchTurns = saved.torchTurns ?? 0;
@@ -5103,12 +5119,13 @@
     /** L'attaque du héros vient de son arme de mêlée (ou de ses poings), sa classe d'armure de son armure. */
     refreshStats() {
       const melee = this.weapon("melee");
-      this.hero.attackBonus = melee?.attackBonus ?? UNARMED.attackBonus;
+      const blessed = this.blessTurns > 0 ? RULES.blessBonus : 0;
+      this.hero.attackBonus = (melee?.attackBonus ?? UNARMED.attackBonus) + blessed;
       const base = melee?.damage ?? UNARMED.damage;
       this.hero.damage = { ...base, bonus: base.bonus + this.alloc.force };
       const armor = this.equipment.armor;
       const hat = this.equipment.hat;
-      this.hero.armorClass = (armor && ITEMS[armor.defId].armorClass || UNARMORED_AC) + (hat && ITEMS[hat.defId].acBonus || 0) + this.rank("peau_dure") + Math.floor(this.alloc.agilite / RULES.agilityPerDodge);
+      this.hero.armorClass = (armor && ITEMS[armor.defId].armorClass || UNARMORED_AC) + (hat && ITEMS[hat.defId].acBonus || 0) + this.rank("peau_dure") + Math.floor(this.alloc.agilite / RULES.agilityPerDodge) + blessed;
     }
     /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
     tooLow(def) {
@@ -6080,6 +6097,13 @@
       this.burn();
       this.gasTick();
       if (this.hasteTurns > 0) this.hasteTurns--;
+      if (this.blessTurns > 0) {
+        this.blessTurns--;
+        if (this.blessTurns === 0) {
+          this.refreshStats();
+          this.events.push({ type: "blessEnd" });
+        }
+      }
       if (resting) this.afterRestTurn();
       if (wasSearching) this.afterSearchTurn();
       return true;
@@ -6518,13 +6542,15 @@
       this.map.set(x, y, Tile.DoorClosed);
       this.refreshLight();
     }
-    /** Ce qui se déclenche quand le héros marche sur une case particulière (fontaine, coffre). */
+    /** Ce qui se déclenche quand le héros marche sur une case particulière (autel à la pomme dorée, coffre). */
     useFeatureAt(x, y) {
       const t = this.map.get(x, y);
       if (t === Tile.Fountain) {
         const healed = this.hero.maxHp - this.hero.hp;
         this.hero.hp = this.hero.maxHp;
         this.map.set(x, y, Tile.FountainDry);
+        this.blessTurns = RULES.blessTurns;
+        this.refreshStats();
         this.events.push({ type: "fountain", healed });
       } else if (t === Tile.Chest) {
         this.map.set(x, y, Tile.ChestOpen);
@@ -6704,14 +6730,16 @@
       }
       if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
     }
-    removeIfDead(monster) {
+    /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
+    removeIfDead(monster, byHero = true) {
       if (monster.hp > 0) return;
       this.monsters.splice(this.monsters.indexOf(monster), 1);
       this.closeDoorAt(monster.x, monster.y);
       this.events.push({ type: "death", actor: monster });
       const def = MONSTERS[monster.defId];
       if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
-      if (def) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+      if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+      for (const o of this.monsters) if (o.feud === monster.id) o.feud = void 0;
       if (monster.boss) this.bossDefeated();
     }
     /**
@@ -6819,7 +6847,7 @@
       const taken = pile.count - left;
       pile.count = left;
       if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
-      else this.events.push({ type: "bagFull" });
+      else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y });
       this.ground = this.ground.filter((g) => g.count > 0);
       return left === 0 && this.itemsHere().some((g) => g.item === item);
     }
@@ -6839,6 +6867,7 @@
           m.slowed--;
           if (m.slowed % 2 === 0) continue;
         }
+        if (m.feud !== void 0 && this.feudAct(m)) continue;
         const dx = this.hero.x - m.x;
         const dy = this.hero.y - m.y;
         const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -6905,6 +6934,17 @@
       }
       if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y)) return false;
       this.faceToward(m, hero);
+      const inTheWay = this.lineCells(m, hero).map((c) => this.monsterAt(c.x, c.y)).find((o) => o && o !== m && !o.boss);
+      if (inTheWay) {
+        const shot = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, inTheWay, "normal");
+        inTheWay.hp -= shot.damage;
+        inTheWay.asleep = false;
+        this.events.push({ type: "infight", attacker: m, target: inTheWay, hit: shot.hit, damage: shot.damage, ranged: true });
+        if (shot.damage > 0) this.bleed(inTheWay, m);
+        if (inTheWay.hp <= 0) this.removeIfDead(inTheWay, false);
+        else if (shot.hit && inTheWay.feud === void 0 && m.feud === void 0 && this.rng.chance(RULES.feudShotChance)) this.startFeud(inTheWay, m, "shot");
+        return true;
+      }
       const covered = this.hasCover(hero) && !this.inReach(m, hero);
       const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, hero, covered ? "disadvantage" : "normal");
       this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
@@ -6912,6 +6952,31 @@
       this.raiseAlarm(RULES.alarmCombat, hero);
       this.hurtHero(result.damage, this.killerName(m));
       return true;
+    }
+    /** Les cases traversées en ligne droite de `a` à `b`, sans les deux bouts (tracé de Bresenham). */
+    lineCells(a, b) {
+      const cells = [];
+      let x = a.x;
+      let y = a.y;
+      const dx = Math.abs(b.x - a.x);
+      const dy = -Math.abs(b.y - a.y);
+      const sx = a.x < b.x ? 1 : -1;
+      const sy = a.y < b.y ? 1 : -1;
+      let err = dx + dy;
+      for (let guard = 0; guard < 64; guard++) {
+        const e2 = 2 * err;
+        if (e2 >= dy) {
+          err += dy;
+          x += sx;
+        }
+        if (e2 <= dx) {
+          err += dx;
+          y += sy;
+        }
+        if (x === b.x && y === b.y) break;
+        cells.push({ x, y });
+      }
+      return cells;
     }
     /** Une case voisine qui éloigne le monstre du héros, de préférence collée à un abri (colonne, meuble). */
     stepAway(m) {
@@ -6959,6 +7024,12 @@
     stepToward(m, target) {
       const step = findPath(this.map, m, target, this.avoidTraps(target, void 0, m))?.[0];
       if (!step) return false;
+      const blocker = this.monsterAt(step.x, step.y);
+      if (blocker && blocker !== m) this.noteBlocked(m, blocker);
+      else {
+        m.blockedBy = void 0;
+        m.blockedTurns = 0;
+      }
       if (!this.actorAt(step.x, step.y)) {
         const left = { x: m.x, y: m.y };
         const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
@@ -6968,6 +7039,51 @@
         this.openDoorAt(m.x, m.y);
         this.closeDoorAt(left.x, left.y);
         if (doorMoved) this.updateVision();
+      }
+      return true;
+    }
+    /**
+     * Deux monstres qui se bloquent mutuellement (face à face dans un couloir) finissent par se battre (Thomas,
+     * 2026-11-12). Pas le boss, pas un monstre qui traque le héros au contact.
+     */
+    noteBlocked(m, other) {
+      m.blockedTurns = m.blockedBy === other.id ? (m.blockedTurns ?? 0) + 1 : 1;
+      m.blockedBy = other.id;
+      if (m.boss || other.boss || m.feud !== void 0 || other.feud !== void 0) return;
+      if (other.blockedBy === m.id && (m.blockedTurns ?? 0) >= RULES.feudBlockedTurns && (other.blockedTurns ?? 0) >= RULES.feudBlockedTurns - 1) {
+        this.startFeud(m, other, "blocked");
+      }
+    }
+    startFeud(a, b, reason) {
+      a.feud = b.id;
+      b.feud = a.id;
+      a.blockedBy = b.blockedBy = void 0;
+      a.blockedTurns = b.blockedTurns = 0;
+      this.events.push({ type: "feud", a, b, reason });
+    }
+    /** Tour d'un monstre en pleine querelle : il frappe son rival s'il le touche, sinon il va vers lui. */
+    feudAct(m) {
+      const foe = this.monsters.find((o) => o.id === m.feud);
+      if (!foe) {
+        m.feud = void 0;
+        return false;
+      }
+      if (m.alerted && this.inReach(m, this.hero)) return false;
+      if (!this.inReach(m, foe)) {
+        if (!this.stepToward(m, foe)) m.feud = void 0;
+        return true;
+      }
+      this.faceToward(m, foe);
+      const result = rollAttack(this.rng, m, foe, "normal");
+      foe.hp -= result.damage;
+      foe.asleep = false;
+      if (foe.feud === void 0) foe.feud = m.id;
+      this.events.push({ type: "infight", attacker: m, target: foe, hit: result.hit, damage: result.damage });
+      if (result.damage > 0) this.bleed(foe, m);
+      this.raiseAlarm(RULES.alarmCombat, foe);
+      if (foe.hp <= 0) {
+        this.removeIfDead(foe, false);
+        m.feud = void 0;
       }
       return true;
     }
@@ -9571,6 +9687,24 @@
       "................",
       "................",
       "................",
+      "................",
+      "................"
+    ],
+    beni: [
+      "......YYYY......",
+      ".....Y....Y.....",
+      "......YYYY......",
+      "........K.......",
+      ".......KbK......",
+      ".....KKKgKK.....",
+      "....KFFFFFfK....",
+      "...KFYFFFFFfK...",
+      "...KFYFFFFFfK...",
+      "...KFFFFFFFfK...",
+      "...KFFFFFFffK...",
+      "....KfFFFFffK...",
+      ".....KffffK.....",
+      "......KKKK......",
       "................",
       "................"
     ],
@@ -14054,6 +14188,47 @@
     bubble: [".KKKKKKKKKK.", "K##########K", "K####GG####K", "K###GGGG###K", "K###GlGG###K", "K####GG####K", "K##########K", ".KKKK##KKKK.", ".....K#K....", "......K....."]
   };
 
+  // src/render/sprites/autel.ts
+  var AUTEL_PALETTE = { "K": "#120d08", "L": "#c4bed0", "M": "#9a94aa", "D": "#6c667c", "d": "#4a4558", "F": "#ffd84a", "f": "#c89a14", "Y": "#fff6b0", "E": "#5cc860", "e": "#2e7a38", "b": "#5a3817", "o": "#7a5418" };
+  var AUTEL = {
+    full: [
+      "..........e.....",
+      "........bEE.....",
+      "......KKbK......",
+      ".....KFKFFK.....",
+      "....KFYYFFfK....",
+      "....KFYFFffK....",
+      "....KFFFFffK....",
+      ".KKKKKFFffKKKKK.",
+      ".KDLLLLLLLLLLdK.",
+      ".KDLLLLLLLLLLdK.",
+      ".KDDDDDDDDDDDdK.",
+      ".KDMMDMffoMMMdK.",
+      ".KDMMMoffMDMMdK.",
+      ".KDMMMMMMMMMMdK.",
+      ".KDDDDDDDDDDDdK.",
+      "KddddddddddddddK"
+    ],
+    dry: [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "..KKKKKKKKKKKK..",
+      ".KDLLLfLLLLLLdK.",
+      ".KDLLLLLLoLLLdK.",
+      ".KDDDDDDDDDDDdK.",
+      ".KDMMDMffoMMMdK.",
+      ".KDMMMoffMDMMdK.",
+      ".KDMMMMMMMMMMdK.",
+      ".KDDDDDDDDDDDdK.",
+      "KddddddddddddddK"
+    ]
+  };
+
   // src/render/motifs.ts
   var hypot = Math.hypot;
   var MOTIFS = {
@@ -14659,7 +14834,7 @@
       }
       ctx.restore();
     }
-    /** Escalier, fontaine et coffre, dessinés par-dessus le sol. */
+    /** Escalier, autel et coffre, dessinés par-dessus le sol. */
     drawFeature(game2, t, x, y, sx, sy) {
       const { ctx, tile } = this;
       const decor = t === Tile.StairsDown ? DECOR.stairsDown : t === Tile.StairsUp ? DECOR.stairsUp : t === Tile.Chest ? DECOR.chest : t === Tile.ChestOpen ? DECOR.chestOpen : null;
@@ -14671,22 +14846,10 @@
       } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
         this.drawDoor(game2, t, x, y, sx, sy);
       } else if (t === Tile.Fountain || t === Tile.FountainDry) {
-        const cx = sx + tile / 2;
-        const cy = sy + tile / 2;
-        ctx.fillStyle = "#8a8ea8";
-        ctx.beginPath();
-        ctx.arc(cx, cy, tile * 0.4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = t === Tile.Fountain ? "#4fb4e8" : "#3a3c4e";
-        ctx.beginPath();
-        ctx.arc(cx, cy, tile * 0.28, 0, Math.PI * 2);
-        ctx.fill();
-        if (t === Tile.Fountain) {
-          ctx.fillStyle = "#c8ecff";
-          ctx.beginPath();
-          ctx.arc(cx - tile * 0.08, cy - tile * 0.08, tile * 0.08, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        const smooth = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.sprite(t === Tile.Fountain ? AUTEL.full : AUTEL.dry, AUTEL_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+        ctx.imageSmoothingEnabled = smooth;
       }
     }
   };
@@ -16056,11 +16219,15 @@
       this.buffer.height = H;
       this.resize(H);
       this.g = this.buffer.getContext("2d");
+      this.backBuffer = document.createElement("canvas");
+      this.backBuffer.width = W + 2;
+      this.b = this.backBuffer.getContext("2d");
     }
     resize(height) {
       H = Math.max(64, Math.min(160, height));
       HERO_Y = Math.round(H / 2) - 12;
       if (this.buffer.height !== H) this.buffer.height = H;
+      if (this.backBuffer && this.backBuffer.height !== H + 2) this.backBuffer.height = H + 2;
     }
     /** Toucher l'écran pendant le passage : on file directement au fondu de fin. */
     skip() {
@@ -16166,11 +16333,20 @@
     draw(target) {
       this.resize(Math.round(W * target.height / Math.max(1, target.width)));
       const g = this.g;
+      const sign = this.direction === "down" ? 1 : -1;
+      const camX = this.cameraStep * STEP_W;
+      const camY = this.cameraStep * STEP_H;
+      const ix = Math.floor(camX);
+      const iy = Math.floor(camY);
+      const b = this.b;
+      b.setTransform(1, 0, 0, 1, 1, 1);
+      b.fillStyle = "#050307";
+      b.fillRect(-1, -1, W + 2, H + 2);
+      this.drawWall(b, ix, iy * sign);
+      this.drawStairs(b, HERO_X + 2 - ix, HERO_Y + 16 - sign * iy);
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.globalCompositeOperation = "source-over";
-      g.fillStyle = "#050307";
-      g.fillRect(0, 0, W, H);
-      this.drawStairs();
+      g.clearRect(0, 0, W, H);
       let light = { x: HERO_X + 13, y: HERO_Y + 4 };
       let flame = light;
       const flicker = Math.sin(this.time / 70) * 1.2 + Math.sin(this.time / 23) * 0.6;
@@ -16216,6 +16392,14 @@
       const dx = Math.floor((target.width - dw) / 2);
       const dy = Math.floor((target.height - dh) / 2);
       ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(dx, dy, dw, dh);
+      ctx.clip();
+      const fx = (camX - ix) * scale2;
+      const fy = -sign * (camY - iy) * scale2;
+      ctx.drawImage(this.backBuffer, Math.round(dx - scale2 - fx), Math.round(dy - scale2 + fy), (W + 2) * scale2, (H + 2) * scale2);
+      ctx.restore();
       ctx.drawImage(this.buffer, dx, dy, dw, dh);
       if (this.phase === "out" || this.phase === "dark") {
         const alpha = this.phase === "dark" ? 0.9 : Math.min(1, 0.4 + this.phaseTime / FADE_OUT);
@@ -16228,40 +16412,39 @@
       }
       ctx.restore();
     }
-    /** Les marches de pierre : dessus clair, contremarche plus sombre, joints, quelques éclats. */
-    drawStairs() {
-      const g = this.g;
-      const sign = this.direction === "down" ? 1 : -1;
-      const ox = this.originX();
-      const oy = this.originY();
-      for (let i = -6; i < 16; i++) {
-        const x = Math.round(ox + i * STEP_W);
-        const y = Math.round(oy + i * sign * STEP_H);
-        if (x > W + STEP_W || x < -STEP_W * 2) continue;
-        g.fillStyle = "#463e4e";
-        g.fillRect(x, y + 2, STEP_W, H - y + 10);
-        g.fillStyle = "#332c3a";
-        g.fillRect(x, y + 2, STEP_W, STEP_H);
-        g.fillStyle = "#8a8092";
-        g.fillRect(x, y, STEP_W, 2);
-        g.fillStyle = "#a69cae";
-        g.fillRect(x + 3, y, STEP_W - 6, 1);
-        g.fillStyle = "#1e1a24";
-        g.fillRect(x, y, 1, STEP_H + 2);
-        g.fillRect(x + (i * 5 & 7) + 2, y + 4, 1, STEP_H - 2);
-        if (i * 7 % 3 === 0) {
-          g.fillStyle = "#4e4656";
-          g.fillRect(x + 7, y + 3, 2, 1);
+    /** Le mur du fond, à peine deviné : des briques régulières qui défilent avec l'escalier. */
+    drawWall(b, ix, iy) {
+      b.fillStyle = "#1c1722";
+      const ox = (-ix % 14 + 14) % 14;
+      const oy = (-iy % 14 + 14) % 14;
+      for (let r = -2; r < Math.ceil(H / 7) + 2; r++) {
+        const shift = (r % 2 + 2) % 2 === 0 ? 0 : 7;
+        for (let c = -2; c < 10; c++) {
+          const bx = ox + c * 14 + shift;
+          const by = oy + r * 7;
+          b.fillRect(bx, by, 14, 1);
+          b.fillRect(bx, by, 1, 7);
         }
       }
-      g.fillStyle = "#1c1722";
-      for (let r = 0; r < Math.ceil(H / 7) + 1; r++) {
-        for (let c = -1; c < 10; c++) {
-          const bx = ((c * 14 + (r & 1) * 7 - Math.round(this.cameraStep * STEP_W * 0.5)) % 140 + 140) % 140 - 14;
-          const by = r * 7 - Math.round(sign * this.cameraStep * STEP_H * 0.5) % 7;
-          g.fillRect(bx, by, 13, 1);
-          g.fillRect(bx, by, 1, 6);
-        }
+    }
+    /** Les marches de pierre, toutes pareilles : dessus clair usé au milieu, contremarche sombre, un joint au milieu. */
+    drawStairs(b, ox, oy) {
+      const sign = this.direction === "down" ? 1 : -1;
+      for (let i = -6; i < 16; i++) {
+        const x = ox + i * STEP_W;
+        const y = oy + i * sign * STEP_H;
+        if (x > W + STEP_W || x < -STEP_W * 2) continue;
+        b.fillStyle = "#463e4e";
+        b.fillRect(x, y + 2, STEP_W, H - y + 10);
+        b.fillStyle = "#332c3a";
+        b.fillRect(x, y + 2, STEP_W, STEP_H);
+        b.fillStyle = "#8a8092";
+        b.fillRect(x, y, STEP_W, 2);
+        b.fillStyle = "#a69cae";
+        b.fillRect(x + 3, y, STEP_W - 6, 1);
+        b.fillStyle = "#1e1a24";
+        b.fillRect(x, y, 1, STEP_H + 2);
+        b.fillRect(x + STEP_W / 2, y + 4, 1, STEP_H - 2);
       }
     }
     /** Le héros qui saute de marche en marche. Renvoie la position de la flamme. */
@@ -16338,6 +16521,8 @@
   };
 
   // src/ui/journal.ts
+  var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  var the = (n) => /^(la |le |l')/i.test(n) ? n : /^[aeiouyéh]/i.test(n) ? `l'${n.toLowerCase()}` : `le ${n}`;
   function signed(bonus) {
     return bonus >= 0 ? `+ ${bonus}` : `\u2212 ${-bonus}`;
   }
@@ -16384,6 +16569,10 @@
         return `Niveau ${e.level} ! Un point \xE0 attribuer (touchez votre portrait).`;
       case "death":
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
+      case "feud":
+        return ctx.sees?.(e.a) || ctx.sees?.(e.b) ? e.reason === "shot" ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !` : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage\u2026 et en viennent aux mains !` : null;
+      case "infight":
+        return null;
       case "heavyBlow":
         return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.` : `D'un seul coup !`;
       case "bounce":
@@ -16472,7 +16661,9 @@
       case "rest":
         return e.phase === "start" ? "Vous vous installez pour vous reposer\u2026" : e.phase === "interrupted" ? "Repos interrompu : un ennemi approche !" : `Vous vous \xEAtes repos\xE9 : +${e.healed} PV.`;
       case "fountain":
-        return e.healed > 0 ? `Vous buvez \xE0 la fontaine : +${e.healed} PV. Elle se tarit.` : "Vous buvez \xE0 la fontaine. Elle se tarit.";
+        return `Vous croquez la pomme dor\xE9e de l'autel${e.healed > 0 ? ` : +${e.healed} PV` : ""}. Une douce chaleur vous enveloppe : vous \xEAtes b\xE9ni (+1 \xE0 l'attaque, +1 CA).`;
+      case "blessEnd":
+        return "La b\xE9n\xE9diction de l'autel s'estompe.";
       case "maiden": {
         const how = e.action === "pick" ? "Vous d\xE9samorcez le sarcophage" : "Vous forcez le sarcophage";
         const outcome = e.success ? "r\xE9ussi, il s'ouvre sans mal." : `rat\xE9, une pointe jaillit : ${e.damage} d\xE9g\xE2ts. Il s'ouvre quand m\xEAme.`;
@@ -16790,7 +16981,7 @@
     }
   }
   function reveal(e) {
-    const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0 });
+    const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0, sees: (a) => game.isVisible(a.x, a.y) });
     if (line) logLines.push(line);
     if (e.type === "attack") {
       const r = e.result;
@@ -16862,7 +17053,7 @@
       discover([e.item]);
       const found = ITEMS[e.item];
       sfx.play("pickup");
-      if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or \xD7${e.count}`, "#f0c850");
+      if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.count} or`, "#f0c850");
       else if (found.kind === "gem") renderer.addFloatingText(game.hero.x, game.hero.y, `+${(found.value ?? 0) * e.count} or`, "#f0c850");
       else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` \xD7${e.count}` : ""}`, "#fff3c8");
     } else if (e.type === "xp") {
@@ -16893,7 +17084,7 @@
       if (e.points >= RULES.alarmBreak) renderer.addNoise(e.x, e.y, e.points);
     } else if (e.type === "alarm") {
       for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
-      renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Agit\xE9", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
+      renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
     } else if (e.type === "fire") {
       renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
       sfx.play("break");
@@ -16928,7 +17119,29 @@
     } else if (e.type === "noticed") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
+    } else if (e.type === "feud") {
+      if (game.isVisible(e.a.x, e.a.y) || game.isVisible(e.b.x, e.b.y)) {
+        renderer.addFloatingText(e.a.x, e.a.y, "Grr !", "#ff8a7a");
+        renderer.addFloatingText(e.b.x, e.b.y, e.reason === "shot" ? "H\xE9 !" : "Grr !", "#ff8a7a");
+        sfx.play("notice");
+      }
+    } else if (e.type === "infight") {
+      if (game.isVisible(e.attacker.x, e.attacker.y) || game.isVisible(e.target.x, e.target.y)) {
+        if (e.ranged) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
+        else renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, "#ff8a7a");
+        renderer.addFloatingText(e.target.x, e.target.y, e.hit ? `-${e.damage}` : "Rat\xE9", e.hit ? "#ffb08a" : "#a8a2c0");
+        if (e.hit) {
+          renderer.monsterHurt(e.target.id);
+          const bloodColor = MONSTERS[e.target.defId]?.blood ?? "red";
+          if (e.damage > 0) renderer.addBloodBurst(e.target.x, e.target.y, e.attacker.x, e.attacker.y, bloodColor);
+        }
+        sfx.play(e.hit ? "hit" : "miss");
+      }
     } else if (e.type === "bagFull") {
+      if (e.item && e.x !== void 0 && e.y !== void 0) {
+        renderer.addHop(e.item, e.x, e.y, e.x, e.y);
+        renderer.addFloatingText(e.x, e.y, "Sac plein", "#ff8a7a");
+      }
     } else if (e.type === "heavyBlow") {
       renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assomm\xE9 !" : "Net !", e.kind === "stun" ? "#ffd75e" : "#ffffff");
       if (e.kind === "stun") sfx.play("thud");
@@ -16941,7 +17154,8 @@
       if (!e.success) sfx.play("miss");
     } else if (e.type === "gravel") {
       sfx.play("gravel");
-      renderer.addFloatingText(e.x, e.y, "Crac", "#c8c0d4");
+      renderer.addFloatingText(e.x, e.y, gravelCrik ? "Crik" : "Crak", "#c8c0d4");
+      gravelCrik = !gravelCrik;
     } else if (e.type === "revealed") {
     } else if (e.type === "jump") {
       landDie(e.d20, e.success ? "hit" : "miss", false);
@@ -16985,6 +17199,7 @@
     } else if (e.type === "fountain") {
       shownHp = game.hero.hp;
       sfx.play("heal");
+      renderer.addFloatingText(game.hero.x, game.hero.y, "B\xE9ni !", "#ffe27a");
     } else if (e.type === "chest") {
       sfx.play("unlock");
     }
@@ -17071,11 +17286,28 @@
     }
   }
   var lastKill = null;
+  var xpInFlight = 0;
+  function xpNeed(level) {
+    const table = RULES.xpLevels;
+    const n = level - 1;
+    return n < table.length ? table[n] : table[table.length - 1] + (n - table.length + 1) * RULES.xpLevelStep;
+  }
+  function shownXp() {
+    let level = game.level;
+    let xp = game.xp - xpInFlight;
+    while (xp < 0 && level > 1) {
+      level--;
+      xp += xpNeed(level);
+    }
+    return { level, xp: Math.max(0, xp), need: xpNeed(level) };
+  }
   function xpOrbs(cell, amount) {
     const box = canvas.getBoundingClientRect();
     const c = renderer.tileCenter(cell.x, cell.y);
     const bar = xpBar.getBoundingClientRect();
     const count = Math.max(3, Math.min(8, amount));
+    const shares = Array.from({ length: count }, (_, i) => Math.floor((i + 1) * amount / count) - Math.floor(i * amount / count));
+    xpInFlight += amount;
     for (let i = 0; i < count; i++) {
       const orb = document.createElement("div");
       orb.className = "xp-orb";
@@ -17096,6 +17328,7 @@
         { duration: 650, delay, easing: "ease-in", fill: "forwards" }
       ).onfinish = () => {
         orb.remove();
+        xpInFlight = Math.max(0, xpInFlight - shares[i]);
         pulse(xpBar, "gain");
       };
     }
@@ -17872,6 +18105,7 @@
     if (game.hero.stuck) list.push({ id: "ralenti", name: "Englu\xE9", detail: "Votre prochain pas servira \xE0 vous d\xE9gager. Vous pouvez encore frapper." });
     if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allum\xE9e", detail: `Vous \xE9clairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
     if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonn\xE9e", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
+    if (game.blessTurns > 0) list.push({ id: "beni", name: "B\xE9ni", detail: `La pomme dor\xE9e de l'autel : +1 \xE0 l'attaque et +1 classe d'armure. Encore ${game.blessTurns} tours.` });
     if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Acc\xE9l\xE9r\xE9", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
     const rampart = game.rank("dernier_rempart");
     if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
@@ -18386,6 +18620,7 @@
     sfx.play("click");
     showScreen("settings");
   });
+  var gravelCrik = true;
   var stairsScene = null;
   function beginStairs(forceFall) {
     const direction = game.pendingStairs;
@@ -18473,8 +18708,9 @@
     hpOrbs();
     renderHere();
     $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
-    $("xp-fill").style.width = `${100 * game.xp / game.xpToNext()}%`;
-    $("xp-label").textContent = `Niv ${game.level} \xB7 XP ${game.xp}/${game.xpToNext()}`;
+    const xpShown = shownXp();
+    $("xp-fill").style.width = `${100 * xpShown.xp / xpShown.need}%`;
+    $("xp-label").textContent = `Niv ${xpShown.level} \xB7 XP ${xpShown.xp}/${xpShown.need}`;
     const doorOptions = game.doorOptions();
     doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
     $("door-key").hidden = !doorOptions.includes("key");

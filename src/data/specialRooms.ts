@@ -10,6 +10,6 @@ export interface SpecialRoomDef {
 }
 
 export const SPECIAL_ROOMS: SpecialRoomDef[] = [
-  { id: "fontaine", name: "Salle de la fontaine", weight: 1, feature: Tile.Fountain },
+  { id: "fontaine", name: "Salle de l'autel", weight: 1, feature: Tile.Fountain },
   { id: "tresor", name: "Salle au trésor", weight: 1, feature: Tile.Chest },
 ];

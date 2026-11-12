@@ -31,10 +31,15 @@ export type GameEvent =
   | { type: "noticed"; actor: Actor }
   | { type: "stairs"; direction: "down" | "up"; healed: number }
   /** Le sac est plein : l'objet reste au sol. */
-  | { type: "bagFull" }
+  | { type: "bagFull"; item?: ItemId; x?: number; y?: number }
   | { type: "bounce"; item: ItemId; count: number; fromX: number; fromY: number; x: number; y: number }
   | { type: "opened"; x: number; y: number }
   | { type: "fountain"; healed: number }
+  | { type: "blessEnd" }
+  /** Deux monstres se querellent : bloqués face à face dans un couloir, ou touchés par la pierre d'un frondeur. */
+  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" }
+  /** Un monstre en frappe un autre (sans dé à l'écran : le héros regarde). */
+  | { type: "infight"; attacker: Actor; target: Actor; hit: boolean; damage: number; ranged?: boolean }
   /** Se cacher : le jet au d20, et s'il a réussi. */
   | { type: "hide"; d20: number; bonus: number; total: number; success: boolean }
   /** Le héros sort de sa cachette (il attaque, quitte l'abri d'un obstacle, fait du bruit). */

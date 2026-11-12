@@ -332,7 +332,7 @@ function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean, 
 
 /** Le résultat d'un événement est montré : texte, son, effets. */
 function reveal(e: GameEvent): void {
-  const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0 });
+  const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0, sees: (a) => game.isVisible(a.x, a.y) });
   if (line) logLines.push(line);
   if (e.type === "attack") {
     const r = e.result;
@@ -408,7 +408,7 @@ function reveal(e: GameEvent): void {
     const found: ItemDef = ITEMS[e.item];
     sfx.play("pickup");
     // Ce qu'on ramasse s'affiche au-dessus de la tête du héros (demande de Thomas).
-    if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `Or ×${e.count}`, "#f0c850");
+    if (found.kind === "gold") renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.count} or`, "#f0c850");
     else if (found.kind === "gem") renderer.addFloatingText(game.hero.x, game.hero.y, `+${(found.value ?? 0) * e.count} or`, "#f0c850");
     else renderer.addFloatingText(game.hero.x, game.hero.y, `${found.name}${e.count > 1 ? ` ×${e.count}` : ""}`, "#fff3c8");
     // Ramasser n'ouvre jamais la fiche : seul le bouton « ? » de la languette la montre (demande de Thomas).
@@ -444,7 +444,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "alarm") {
     // La cloche d'alerte sonne une fois par palier atteint (une, deux, trois fois).
     for (let k = 0; k < e.stage; k++) setTimeout(() => sfx.play("bell"), k * 650);
-    renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Agité", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
+    renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
   } else if (e.type === "fire") {
     renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
     sfx.play("break");
@@ -479,7 +479,30 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
+  } else if (e.type === "feud") {
+    // Deux monstres se querellent : « Grr ! » au-dessus des deux.
+    if (game.isVisible(e.a.x, e.a.y) || game.isVisible(e.b.x, e.b.y)) {
+      renderer.addFloatingText(e.a.x, e.a.y, "Grr !", "#ff8a7a");
+      renderer.addFloatingText(e.b.x, e.b.y, e.reason === "shot" ? "Hé !" : "Grr !", "#ff8a7a");
+      sfx.play("notice");
+    }
+  } else if (e.type === "infight") {
+    if (game.isVisible(e.attacker.x, e.attacker.y) || game.isVisible(e.target.x, e.target.y)) {
+      if (e.ranged) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
+      else renderer.addSlash(e.attacker.id, e.attacker.x, e.attacker.y, e.target.x, e.target.y, "#ff8a7a");
+      renderer.addFloatingText(e.target.x, e.target.y, e.hit ? `-${e.damage}` : "Raté", e.hit ? "#ffb08a" : "#a8a2c0");
+      if (e.hit) {
+        renderer.monsterHurt(e.target.id);
+        const bloodColor = MONSTERS[e.target.defId as keyof typeof MONSTERS]?.blood ?? "red";
+        if (e.damage > 0) renderer.addBloodBurst(e.target.x, e.target.y, e.attacker.x, e.attacker.y, bloodColor);
+      }
+      sfx.play(e.hit ? "hit" : "miss");
+    }
   } else if (e.type === "bagFull") {
+    if (e.item && e.x !== undefined && e.y !== undefined) {
+      renderer.addHop(e.item, e.x, e.y, e.x, e.y);
+      renderer.addFloatingText(e.x, e.y, "Sac plein", "#ff8a7a");
+    }
   } else if (e.type === "heavyBlow") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : "Net !", e.kind === "stun" ? "#ffd75e" : "#ffffff");
     if (e.kind === "stun") sfx.play("thud");
@@ -492,7 +515,9 @@ function reveal(e: GameEvent): void {
     if (!e.success) sfx.play("miss");
   } else if (e.type === "gravel") {
     sfx.play("gravel");
-    renderer.addFloatingText(e.x, e.y, "Crac", "#c8c0d4");
+    // « Crik », puis « Crak », pas après pas (Thomas, 2026-11-12).
+    renderer.addFloatingText(e.x, e.y, gravelCrik ? "Crik" : "Crak", "#c8c0d4");
+    gravelCrik = !gravelCrik;
   } else if (e.type === "revealed") {
   } else if (e.type === "jump") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
@@ -536,6 +561,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "fountain") {
     shownHp = game.hero.hp;
     sfx.play("heal");
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Béni !", "#ffe27a");
   } else if (e.type === "chest") {
     sfx.play("unlock");
   }
@@ -636,6 +662,25 @@ function hpOrbs(): void {
 
 /** Dernier monstre vaincu (sa case) : c'est de là que partent les billes d'expérience. */
 let lastKill: { x: number; y: number } | null = null;
+/** Points d'XP encore en vol (billes bleues pas arrivées) : la jauge ne les compte qu'à leur arrivée (Thomas, 2026-11-12). */
+let xpInFlight = 0;
+
+function xpNeed(level: number): number {
+  const table = RULES.xpLevels as readonly number[];
+  const n = level - 1;
+  return n < table.length ? table[n] : table[table.length - 1] + (n - table.length + 1) * RULES.xpLevelStep;
+}
+
+/** Niveau et XP montrés par la jauge : ceux du héros, moins les billes encore en vol. */
+function shownXp(): { level: number; xp: number; need: number } {
+  let level = game.level;
+  let xp = game.xp - xpInFlight;
+  while (xp < 0 && level > 1) {
+    level--;
+    xp += xpNeed(level);
+  }
+  return { level, xp: Math.max(0, xp), need: xpNeed(level) };
+}
 
 /** Billes d'expérience : de petites perles bleues qui partent du monstre et volent jusqu'à la jauge, qui s'allume. */
 function xpOrbs(cell: { x: number; y: number }, amount: number): void {
@@ -643,6 +688,9 @@ function xpOrbs(cell: { x: number; y: number }, amount: number): void {
   const c = renderer.tileCenter(cell.x, cell.y);
   const bar = xpBar.getBoundingClientRect();
   const count = Math.max(3, Math.min(8, amount));
+  // Chaque bille porte sa part de l'XP gagnée ; la jauge avance quand elle arrive.
+  const shares = Array.from({ length: count }, (_, i) => Math.floor(((i + 1) * amount) / count) - Math.floor((i * amount) / count));
+  xpInFlight += amount;
   for (let i = 0; i < count; i++) {
     const orb = document.createElement("div");
     orb.className = "xp-orb";
@@ -664,6 +712,7 @@ function xpOrbs(cell: { x: number; y: number }, amount: number): void {
       { duration: 650, delay, easing: "ease-in", fill: "forwards" },
     ).onfinish = () => {
       orb.remove();
+      xpInFlight = Math.max(0, xpInFlight - shares[i]);
       pulse(xpBar, "gain");
     };
   }
@@ -1542,6 +1591,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.hero.stuck) list.push({ id: "ralenti", name: "Englué", detail: "Votre prochain pas servira à vous dégager. Vous pouvez encore frapper." });
   if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
+  if (game.blessTurns > 0) list.push({ id: "beni", name: "Béni", detail: `La pomme dorée de l'autel : +1 à l'attaque et +1 classe d'armure. Encore ${game.blessTurns} tours.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
   const rampart = game.rank("dernier_rempart");
   if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
@@ -2133,6 +2183,8 @@ button("settings-sound", () => {
   showScreen("settings");
 });
 
+let gravelCrik = true;
+
 // ---------- Passage d'un étage à l'autre ----------
 
 /** La petite scène dans le noir entre deux étages (Thomas, 2026-11-12) ; `null` hors passage. */
@@ -2238,8 +2290,9 @@ function frame(now: number): void {
   hpOrbs();
   renderHere();
   $("hp-label").textContent = `PV ${shownHp}/${game.hero.maxHp}`;
-  $("xp-fill").style.width = `${(100 * game.xp) / game.xpToNext()}%`;
-  $("xp-label").textContent = `Niv ${game.level} · XP ${game.xp}/${game.xpToNext()}`;
+  const xpShown = shownXp();
+  $("xp-fill").style.width = `${(100 * xpShown.xp) / xpShown.need}%`;
+  $("xp-label").textContent = `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`;
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
   // Avec la clef de l'étage, rien à choisir : elle sert toute seule.

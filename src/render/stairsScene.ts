@@ -30,8 +30,12 @@ export class StairsScene {
   /** Vrai si le héros a vraiment dégringolé (pour le journal). */
   tumbled = false;
   private readonly label: string;
+  /** Calque du devant (héros, torche, noir autour, fondus) : fixe à l'écran. */
   private readonly buffer: HTMLCanvasElement;
   private readonly g: CanvasRenderingContext2D;
+  /** Calque du décor (mur, marches) : une marge d'un pixel, posé au sous-pixel près pour glisser sans trembler. */
+  private readonly backBuffer: HTMLCanvasElement;
+  private readonly b: CanvasRenderingContext2D;
   private readonly sprites = new Map<readonly string[], HTMLCanvasElement>();
   private time = 0;
   private phase: Phase = "walk";
@@ -56,12 +60,16 @@ export class StairsScene {
     this.buffer.height = H;
     this.resize(H);
     this.g = this.buffer.getContext("2d")!;
+    this.backBuffer = document.createElement("canvas");
+    this.backBuffer.width = W + 2;
+    this.b = this.backBuffer.getContext("2d")!;
   }
 
   private resize(height: number): void {
     H = Math.max(64, Math.min(160, height));
     HERO_Y = Math.round(H / 2) - 12;
     if (this.buffer.height !== H) this.buffer.height = H;
+    if (this.backBuffer && this.backBuffer.height !== H + 2) this.backBuffer.height = H + 2;
   }
 
   /** Toucher l'écran pendant le passage : on file directement au fondu de fin. */
@@ -176,11 +184,22 @@ export class StairsScene {
   draw(target: HTMLCanvasElement): void {
     this.resize(Math.round((W * target.height) / Math.max(1, target.width)));
     const g = this.g;
+    // Décor : caméra arrondie au pixel de la scène ; le reste (la fraction) est rattrapé au moment de l'agrandir.
+    const sign = this.direction === "down" ? 1 : -1;
+    const camX = this.cameraStep * STEP_W;
+    const camY = this.cameraStep * STEP_H;
+    const ix = Math.floor(camX);
+    const iy = Math.floor(camY);
+    const b = this.b;
+    b.setTransform(1, 0, 0, 1, 1, 1);
+    b.fillStyle = "#050307";
+    b.fillRect(-1, -1, W + 2, H + 2);
+    this.drawWall(b, ix, iy * sign);
+    this.drawStairs(b, HERO_X + 2 - ix, HERO_Y + 16 - sign * iy);
+
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "source-over";
-    g.fillStyle = "#050307";
-    g.fillRect(0, 0, W, H);
-    this.drawStairs();
+    g.clearRect(0, 0, W, H);
 
     // Où est la flamme (la lumière suit la torche).
     let light = { x: HERO_X + 13, y: HERO_Y + 4 };
@@ -237,6 +256,15 @@ export class StairsScene {
     const dx = Math.floor((target.width - dw) / 2);
     const dy = Math.floor((target.height - dh) / 2);
     ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(dx, dy, dw, dh);
+    ctx.clip();
+    // Le décor glisse au pixel d'écran près (et non au gros pixel de la scène) : plus de tremblement.
+    const fx = (camX - ix) * scale;
+    const fy = -sign * (camY - iy) * scale;
+    ctx.drawImage(this.backBuffer, Math.round(dx - scale - fx), Math.round(dy - scale + fy), (W + 2) * scale, (H + 2) * scale);
+    ctx.restore();
     ctx.drawImage(this.buffer, dx, dy, dw, dh);
     // Le numéro de l'étage où l'on arrive, en bas, sur le fondu de fin.
     if (this.phase === "out" || this.phase === "dark") {
@@ -251,46 +279,41 @@ export class StairsScene {
     ctx.restore();
   }
 
-  /** Les marches de pierre : dessus clair, contremarche plus sombre, joints, quelques éclats. */
-  private drawStairs(): void {
-    const g = this.g;
-    const sign = this.direction === "down" ? 1 : -1;
-    const ox = this.originX();
-    const oy = this.originY();
-    for (let i = -6; i < 16; i++) {
-      const x = Math.round(ox + i * STEP_W);
-      const y = Math.round(oy + i * sign * STEP_H);
-      if (x > W + STEP_W || x < -STEP_W * 2) continue;
-      // Le bloc de la marche descend jusqu'en bas de l'écran (on ne voit pas sous l'escalier).
-      g.fillStyle = "#463e4e";
-      g.fillRect(x, y + 2, STEP_W, H - y + 10);
-      // Contremarche : face avant de la marche, du côté où l'on va.
-      g.fillStyle = "#332c3a";
-      g.fillRect(x, y + 2, STEP_W, STEP_H);
-      // Dessus de la marche, usé au milieu.
-      g.fillStyle = "#8a8092";
-      g.fillRect(x, y, STEP_W, 2);
-      g.fillStyle = "#a69cae";
-      g.fillRect(x + 3, y, STEP_W - 6, 1);
-      // Joints des pierres.
-      g.fillStyle = "#1e1a24";
-      g.fillRect(x, y, 1, STEP_H + 2);
-      g.fillRect(x + ((i * 5) & 7) + 2, y + 4, 1, STEP_H - 2);
-      // Un éclat ici et là.
-      if ((i * 7) % 3 === 0) {
-        g.fillStyle = "#4e4656";
-        g.fillRect(x + 7, y + 3, 2, 1);
+  /** Le mur du fond, à peine deviné : des briques régulières qui défilent avec l'escalier. */
+  private drawWall(b: CanvasRenderingContext2D, ix: number, iy: number): void {
+    b.fillStyle = "#1c1722";
+    const ox = ((-ix % 14) + 14) % 14;
+    const oy = ((-iy % 14) + 14) % 14;
+    for (let r = -2; r < Math.ceil(H / 7) + 2; r++) {
+      const shift = ((r % 2) + 2) % 2 === 0 ? 0 : 7;
+      for (let c = -2; c < 10; c++) {
+        const bx = ox + c * 14 + shift;
+        const by = oy + r * 7;
+        b.fillRect(bx, by, 14, 1);
+        b.fillRect(bx, by, 1, 7);
       }
     }
-    // Le mur du fond, à peine deviné : quelques briques.
-    g.fillStyle = "#1c1722";
-    for (let r = 0; r < Math.ceil(H / 7) + 1; r++) {
-      for (let c = -1; c < 10; c++) {
-        const bx = ((c * 14 + (r & 1) * 7 - Math.round(this.cameraStep * STEP_W * 0.5)) % 140 + 140) % 140 - 14;
-        const by = r * 7 - Math.round(sign * this.cameraStep * STEP_H * 0.5) % 7;
-        g.fillRect(bx, by, 13, 1);
-        g.fillRect(bx, by, 1, 6);
-      }
+  }
+
+  /** Les marches de pierre, toutes pareilles : dessus clair usé au milieu, contremarche sombre, un joint au milieu. */
+  private drawStairs(b: CanvasRenderingContext2D, ox: number, oy: number): void {
+    const sign = this.direction === "down" ? 1 : -1;
+    for (let i = -6; i < 16; i++) {
+      const x = ox + i * STEP_W;
+      const y = oy + i * sign * STEP_H;
+      if (x > W + STEP_W || x < -STEP_W * 2) continue;
+      // Le bloc de la marche descend jusqu'en bas de l'écran (on ne voit pas sous l'escalier).
+      b.fillStyle = "#463e4e";
+      b.fillRect(x, y + 2, STEP_W, H - y + 10);
+      b.fillStyle = "#332c3a";
+      b.fillRect(x, y + 2, STEP_W, STEP_H);
+      b.fillStyle = "#8a8092";
+      b.fillRect(x, y, STEP_W, 2);
+      b.fillStyle = "#a69cae";
+      b.fillRect(x + 3, y, STEP_W - 6, 1);
+      b.fillStyle = "#1e1a24";
+      b.fillRect(x, y, 1, STEP_H + 2);
+      b.fillRect(x + STEP_W / 2, y + 4, 1, STEP_H - 2);
     }
   }
 

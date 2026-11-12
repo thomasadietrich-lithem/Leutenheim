@@ -8,7 +8,7 @@ import { MOTIF_KINDS, MOTIF_SIZE, MotifKind } from "../data/motifs";
  * Sols spéciaux (2026-11-11) : quelques plaques de gravier et quelques flaques, d'une seule tenue (cases voisines),
  * posées sur du sol ordinaire, loin du point d'arrivée et des escaliers. Hasard à part, pour ne rien changer au reste.
  */
-export function placeGrounds(floor: Floor, seed: number): void {
+export function placeGrounds(floor: Floor, seed: number, depth = 1): void {
   const rng = new Rng(seed ^ 0x3a7c51e9);
   const { map } = floor;
   const far = (p: Point, q: Point) => Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)) > 2;
@@ -33,7 +33,11 @@ export function placeGrounds(floor: Floor, seed: number): void {
       return;
     }
   };
-  for (let i = rng.int(RULES.gravelPatches[0], RULES.gravelPatches[1]); i > 0; i--) patch(Tile.Gravel, rng.int(RULES.gravelSize[0], RULES.gravelSize[1]));
+  // Le gravier gagne du terrain en descendant (Thomas, 2026-11-12 : « augmente petit à petit ») :
+  // une plaque de plus tous les `gravelGrowth` étages, et des plaques un peu plus grandes.
+  const extra = Math.floor((depth - 1) / RULES.gravelGrowth);
+  const patches = rng.int(Math.min(RULES.gravelPatches[0] + extra, RULES.gravelPatchesMax), Math.min(RULES.gravelPatches[1] + extra, RULES.gravelPatchesMax));
+  for (let i = patches; i > 0; i--) patch(Tile.Gravel, rng.int(RULES.gravelSize[0] + extra, RULES.gravelSize[1] + 2 * extra));
   for (let i = rng.int(RULES.puddles[0], RULES.puddles[1]); i > 0; i--) patch(Tile.Water, rng.int(RULES.puddleSize[0], RULES.puddleSize[1]));
 }
 

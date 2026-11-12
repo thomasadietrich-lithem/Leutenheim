@@ -78,6 +78,8 @@ export interface SaveData {
   floorPerks: Record<number, { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number }>;
   weaponPoison: number;
   hasteTurns: number;
+  /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
+  blessTurns?: number;
   fires: { x: number; y: number; turns: number; gen?: number }[];
   /** Nuages de gaz empoisonné (absent des sauvegardes d'avant les pièges v3). */
   gas?: { x: number; y: number; turns: number }[];

@@ -95,6 +95,8 @@ export class Game {
   /** Potions : coups empoisonnés qui restent sur l'arme, tours d'accélération qui restent. */
   weaponPoison = 0;
   hasteTurns = 0;
+  /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
+  blessTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
   fires: { x: number; y: number; turns: number; gen?: number }[] = [];
   /** Salle d'essai : combats coupés (bouton « Combats »), pour visiter tranquillement. Pas sauvegardé. */
@@ -216,7 +218,7 @@ export class Game {
           ? furnishFloor(floor, seed, depth)
           : { furniture: [], themes: [] };
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
-      if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed);
+      if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
       const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
       state = {
         map: floor.map,
@@ -1109,6 +1111,7 @@ export class Game {
       floorPerks: this.floorPerks,
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
+      blessTurns: this.blessTurns,
       fires: this.fires,
       gas: this.gas,
       bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
@@ -1194,6 +1197,7 @@ export class Game {
     }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
+    game.blessTurns = saved.blessTurns ?? 0;
     game.inventory.cols = saved.bagSize.cols;
     game.inventory.rows = saved.bagSize.rows;
     game.torchTurns = saved.torchTurns ?? 0;
@@ -1327,7 +1331,8 @@ export class Game {
   /** L'attaque du héros vient de son arme de mêlée (ou de ses poings), sa classe d'armure de son armure. */
   private refreshStats(): void {
     const melee = this.weapon("melee");
-    this.hero.attackBonus = melee?.attackBonus ?? UNARMED.attackBonus;
+    const blessed = this.blessTurns > 0 ? RULES.blessBonus : 0;
+    this.hero.attackBonus = (melee?.attackBonus ?? UNARMED.attackBonus) + blessed;
     // Chaque point de Force ajoute 1 aux dégâts au contact.
     const base = melee?.damage ?? UNARMED.damage;
     this.hero.damage = { ...base, bonus: base.bonus + this.alloc.force };
@@ -1339,7 +1344,8 @@ export class Game {
       ((armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC) +
       ((hat && (ITEMS[hat.defId] as ItemDef).acBonus) || 0) +
       this.rank("peau_dure") +
-      Math.floor(this.alloc.agilite / RULES.agilityPerDodge);
+      Math.floor(this.alloc.agilite / RULES.agilityPerDodge) +
+      blessed;
   }
 
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
@@ -2446,6 +2452,13 @@ export class Game {
     this.burn();
     this.gasTick();
     if (this.hasteTurns > 0) this.hasteTurns--;
+    if (this.blessTurns > 0) {
+      this.blessTurns--;
+      if (this.blessTurns === 0) {
+        this.refreshStats();
+        this.events.push({ type: "blessEnd" });
+      }
+    }
     if (resting) this.afterRestTurn();
     if (wasSearching) this.afterSearchTurn();
     return true;
@@ -2941,13 +2954,16 @@ export class Game {
     this.refreshLight();
   }
 
-  /** Ce qui se déclenche quand le héros marche sur une case particulière (fontaine, coffre). */
+  /** Ce qui se déclenche quand le héros marche sur une case particulière (autel à la pomme dorée, coffre). */
   private useFeatureAt(x: number, y: number): void {
     const t = this.map.get(x, y);
     if (t === Tile.Fountain) {
+      // L'AUTEL À LA POMME DORÉE (Thomas, 2026-11-12, à la place de la fontaine) : la croquer soigne tout et bénit.
       const healed = this.hero.maxHp - this.hero.hp;
       this.hero.hp = this.hero.maxHp;
       this.map.set(x, y, Tile.FountainDry);
+      this.blessTurns = RULES.blessTurns;
+      this.refreshStats();
       this.events.push({ type: "fountain", healed });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
@@ -3161,7 +3177,8 @@ export class Game {
     if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
   }
 
-  private removeIfDead(monster: Actor): void {
+  /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
+  private removeIfDead(monster: Actor, byHero = true): void {
     if (monster.hp > 0) return;
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
@@ -3169,7 +3186,8 @@ export class Game {
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
-    if (def) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+    if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+    for (const o of this.monsters) if (o.feud === monster.id) o.feud = undefined;
     if (monster.boss) this.bossDefeated();
   }
 
@@ -3299,7 +3317,8 @@ export class Game {
     const taken = pile.count - left;
     pile.count = left;
     if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
-    else this.events.push({ type: "bagFull" });
+    // Sac plein : l'objet saute sur place et retombe (Thomas, 2026-11-12).
+    else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y });
     this.ground = this.ground.filter((g) => g.count > 0);
     return left === 0 && this.itemsHere().some((g) => g.item === item);
   }
@@ -3322,6 +3341,7 @@ export class Game {
         m.slowed--;
         if (m.slowed % 2 === 0) continue;
       }
+      if (m.feud !== undefined && this.feudAct(m)) continue;
       const dx = this.hero.x - m.x;
       const dy = this.hero.y - m.y;
       const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -3407,6 +3427,18 @@ export class Game {
     }
     if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y)) return false;
     this.faceToward(m, hero);
+    // Un autre monstre sur la trajectoire (Thomas, 2026-11-12) : c'est lui qui prend la pierre, et il peut le prendre mal.
+    const inTheWay = this.lineCells(m, hero).map((c) => this.monsterAt(c.x, c.y)).find((o) => o && o !== m && !o.boss);
+    if (inTheWay) {
+      const shot = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, inTheWay, "normal");
+      inTheWay.hp -= shot.damage;
+      inTheWay.asleep = false;
+      this.events.push({ type: "infight", attacker: m, target: inTheWay, hit: shot.hit, damage: shot.damage, ranged: true });
+      if (shot.damage > 0) this.bleed(inTheWay, m);
+      if (inTheWay.hp <= 0) this.removeIfDead(inTheWay, false);
+      else if (shot.hit && inTheWay.feud === undefined && m.feud === undefined && this.rng.chance(RULES.feudShotChance)) this.startFeud(inTheWay, m, "shot");
+      return true;
+    }
     // Le héros caché derrière une colonne ou un meuble, ou dans le noir : la pierre a du mal à l'atteindre.
     const covered = this.hasCover(hero) && !this.inReach(m, hero);
     const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, hero, covered ? "disadvantage" : "normal");
@@ -3415,6 +3447,32 @@ export class Game {
     this.raiseAlarm(RULES.alarmCombat, hero);
     this.hurtHero(result.damage, this.killerName(m));
     return true;
+  }
+
+  /** Les cases traversées en ligne droite de `a` à `b`, sans les deux bouts (tracé de Bresenham). */
+  private lineCells(a: Point, b: Point): Point[] {
+    const cells: Point[] = [];
+    let x = a.x;
+    let y = a.y;
+    const dx = Math.abs(b.x - a.x);
+    const dy = -Math.abs(b.y - a.y);
+    const sx = a.x < b.x ? 1 : -1;
+    const sy = a.y < b.y ? 1 : -1;
+    let err = dx + dy;
+    for (let guard = 0; guard < 64; guard++) {
+      const e2 = 2 * err;
+      if (e2 >= dy) {
+        err += dy;
+        x += sx;
+      }
+      if (e2 <= dx) {
+        err += dx;
+        y += sy;
+      }
+      if (x === b.x && y === b.y) break;
+      cells.push({ x, y });
+    }
+    return cells;
   }
 
   /** Une case voisine qui éloigne le monstre du héros, de préférence collée à un abri (colonne, meuble). */
@@ -3466,6 +3524,12 @@ export class Game {
   private stepToward(m: Actor, target: Point): boolean {
     const step = findPath(this.map, m, target, this.avoidTraps(target, undefined, m))?.[0];
     if (!step) return false;
+    const blocker = this.monsterAt(step.x, step.y);
+    if (blocker && blocker !== m) this.noteBlocked(m, blocker);
+    else {
+      m.blockedBy = undefined;
+      m.blockedTurns = 0;
+    }
     if (!this.actorAt(step.x, step.y)) {
       const left = { x: m.x, y: m.y };
       const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
@@ -3475,6 +3539,55 @@ export class Game {
       this.openDoorAt(m.x, m.y);
       this.closeDoorAt(left.x, left.y);
       if (doorMoved) this.updateVision();
+    }
+    return true;
+  }
+
+  /**
+   * Deux monstres qui se bloquent mutuellement (face à face dans un couloir) finissent par se battre (Thomas,
+   * 2026-11-12). Pas le boss, pas un monstre qui traque le héros au contact.
+   */
+  private noteBlocked(m: Actor, other: Actor): void {
+    m.blockedTurns = m.blockedBy === other.id ? (m.blockedTurns ?? 0) + 1 : 1;
+    m.blockedBy = other.id;
+    if (m.boss || other.boss || m.feud !== undefined || other.feud !== undefined) return;
+    if (other.blockedBy === m.id && (m.blockedTurns ?? 0) >= RULES.feudBlockedTurns && (other.blockedTurns ?? 0) >= RULES.feudBlockedTurns - 1) {
+      this.startFeud(m, other, "blocked");
+    }
+  }
+
+  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot"): void {
+    a.feud = b.id;
+    b.feud = a.id;
+    a.blockedBy = b.blockedBy = undefined;
+    a.blockedTurns = b.blockedTurns = 0;
+    this.events.push({ type: "feud", a, b, reason });
+  }
+
+  /** Tour d'un monstre en pleine querelle : il frappe son rival s'il le touche, sinon il va vers lui. */
+  private feudAct(m: Actor): boolean {
+    const foe = this.monsters.find((o) => o.id === m.feud);
+    if (!foe) {
+      m.feud = undefined;
+      return false;
+    }
+    // Le héros au contact et repéré : on règle d'abord son compte au héros.
+    if (m.alerted && this.inReach(m, this.hero)) return false;
+    if (!this.inReach(m, foe)) {
+      if (!this.stepToward(m, foe)) m.feud = undefined;
+      return true;
+    }
+    this.faceToward(m, foe);
+    const result = rollAttack(this.rng, m, foe, "normal");
+    foe.hp -= result.damage;
+    foe.asleep = false;
+    if (foe.feud === undefined) foe.feud = m.id;
+    this.events.push({ type: "infight", attacker: m, target: foe, hit: result.hit, damage: result.damage });
+    if (result.damage > 0) this.bleed(foe, m);
+    this.raiseAlarm(RULES.alarmCombat, foe);
+    if (foe.hp <= 0) {
+      this.removeIfDead(foe, false);
+      m.feud = undefined;
     }
     return true;
   }

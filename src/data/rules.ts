@@ -36,7 +36,7 @@ export const RULES = {
   hideDc: 9,
   /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */
   xpGainFactor: 0.5,
-  /** Potion de brouillard (Thomas, 2026-11-12, soir) : croix de 2 cases de chaque côté (5 de large), durée en tours (C). */
+  /** Potion de brouillard (Thomas, 2026-11-13, dessin) : losange de rayon 2 (rangées de 1, 3, 5, 3, 1 cases), durée en tours (C). */
   fogArm: 2,
   fogTurns: 8,
   /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */

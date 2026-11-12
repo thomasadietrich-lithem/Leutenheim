@@ -1682,7 +1682,7 @@
     potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps \xE0 corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
     potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "\xC0 lancer : la case vis\xE9e et ses quatre voisines br\xFBlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
     potion_fumee: { id: "potion_fumee", name: "Fiole de fum\xE9e", kind: "use", description: "\xC0 lancer : un nuage gris ; les monstres tout pr\xE8s (2 cases) perdent votre trace et restent un tour h\xE9b\xE9t\xE9s. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
-    potion_brouillard: { id: "potion_brouillard", name: "Potion de brouillard", kind: "use", description: "Noire et \xE9paisse. \xC0 lancer : une nappe de brouillard en croix, cinq cases de large. Personne n'y voit : de quoi fuir.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fog", throwRange: 5 },
+    potion_brouillard: { id: "potion_brouillard", name: "Potion de brouillard", kind: "use", description: "Noire et \xE9paisse. \xC0 lancer : une nappe de brouillard en losange, cinq cases de large. Personne n'y voit : de quoi fuir.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fog", throwRange: 5 },
     potion_oursin: { id: "potion_oursin", name: "Potion d'oursin", kind: "use", description: "Brune et piquante. Pendant 40 tours, 15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "urchin" },
     // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
     oeil_chauve_souris: { id: "oeil_chauve_souris", name: "\u0152il de chauve-souris", kind: "artifact", description: "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
@@ -1922,7 +1922,7 @@
     hideDc: 9,
     /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */
     xpGainFactor: 0.5,
-    /** Potion de brouillard (Thomas, 2026-11-12, soir) : croix de 2 cases de chaque côté (5 de large), durée en tours (C). */
+    /** Potion de brouillard (Thomas, 2026-11-13, dessin) : losange de rayon 2 (rangées de 1, 3, 5, 3, 1 cases), durée en tours (C). */
     fogArm: 2,
     fogTurns: 8,
     /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
@@ -5604,13 +5604,18 @@
       for (const f of this.fog) f.turns--;
       this.fog = this.fog.filter((f) => f.turns > 0);
     }
-    /** Une nappe de brouillard autour de `at` : la case et `arm` cases dans chaque direction. */
+    /**
+     * Une nappe de brouillard autour de `at` : un LOSANGE de `arm` cases de rayon (Thomas, 2026-11-13, dessin : « une croix
+     * de 5 » = rangées de 1, 3, 5, 3, 1 cases), sans traverser les murs.
+     */
     spreadFog(at, arm) {
-      const cells = [{ x: at.x, y: at.y }];
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        for (let k = 1; k <= arm; k++) {
-          const c = { x: at.x + dx * k, y: at.y + dy * k };
-          if (!this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Furniture) break;
+      const cells = [];
+      for (let dy = -arm; dy <= arm; dy++) {
+        for (let dx = -arm; dx <= arm; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) > arm) continue;
+          const c = { x: at.x + dx, y: at.y + dy };
+          if (!this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Furniture) continue;
+          if ((dx !== 0 || dy !== 0) && !hasLineOfSight(this.map, at, c)) continue;
           cells.push(c);
         }
       }
@@ -12065,7 +12070,7 @@
     "Toucher la cloche du haut": "Tapping the top bell",
     "Elle dit ce que fait le palier en cours.": "It tells you what the current stage does.",
     "Potion de brouillard": "Fog potion",
-    "Noire et \xE9paisse. \xC0 lancer : une nappe de brouillard en croix, cinq cases de large. Personne n'y voit : de quoi fuir.": "Black and thick. To throw: a cross of fog five squares wide. Nobody can see in it: time to run.",
+    "Noire et \xE9paisse. \xC0 lancer : une nappe de brouillard en losange, cinq cases de large. Personne n'y voit : de quoi fuir.": "Black and thick. To throw: a diamond of fog five squares wide. Nobody can see in it: time to run.",
     "Potion d'oursin": "Urchin potion",
     "Brune et piquante. Pendant 40 tours, 15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant.": "Brown and prickly. For 40 turns, 15% of melee damage you take goes back to the attacker.",
     "\u0152il de chauve-souris": "Bat eye",

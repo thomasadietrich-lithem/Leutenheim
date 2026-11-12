@@ -1037,7 +1037,7 @@ export const EN: Record<string, string> = {
   "Toucher la cloche du haut": "Tapping the top bell",
   "Elle dit ce que fait le palier en cours.": "It tells you what the current stage does.",
   "Potion de brouillard": "Fog potion",
-  "Noire et épaisse. À lancer : une nappe de brouillard en croix, cinq cases de large. Personne n'y voit : de quoi fuir.": "Black and thick. To throw: a cross of fog five squares wide. Nobody can see in it: time to run.",
+  "Noire et épaisse. À lancer : une nappe de brouillard en losange, cinq cases de large. Personne n'y voit : de quoi fuir.": "Black and thick. To throw: a diamond of fog five squares wide. Nobody can see in it: time to run.",
   "Potion d'oursin": "Urchin potion",
   "Brune et piquante. Pendant 40 tours, 15 % des dégâts reçus au contact reviennent à l'attaquant.": "Brown and prickly. For 40 turns, 15% of melee damage you take goes back to the attacker.",
   "Œil de chauve-souris": "Bat eye",

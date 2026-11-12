@@ -3891,14 +3891,14 @@ test("l'eau ne brûle pas, et éteint un personnage en feu", () => {
   assert.equal(game.fires.length, 0);
 });
 
-test("potion de brouillard : lancée, une croix de 5 de large ; le monstre qui traquait le héros perd sa trace (Thomas, 2026-11-12)", () => {
+test("potion de brouillard : lancée, un losange de 5 de large ; le monstre qui traquait le héros perd sa trace (Thomas, 2026-11-12)", () => {
   const { game, m } = foeAt(3);
   game.inventory.add("potion_brouillard", 1);
   const uid = game.inventory.items.find((i) => i.defId === "potion_brouillard")!.uid;
   assert.ok(game.throwPotion(uid, game.hero.x, game.hero.y) || game.throwPotion(uid, m.x, m.y));
   game.tick();
   assert.ok(game.fog.length >= 3, "une nappe de plusieurs cases");
-  assert.ok(game.fog.length <= 9, "une croix, pas plus");
+  assert.ok(game.fog.length <= 13, "un losange de 13 cases au plus");
   assert.ok(game.fogAt(game.hero.x, game.hero.y) || game.fogAt(m.x, m.y));
   if (game.fogAt(game.hero.x, game.hero.y) && Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)) > 1) assert.equal(m.alerted, false, "il ne voit plus le héros");
 });

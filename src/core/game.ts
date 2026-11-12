@@ -1216,13 +1216,18 @@ export class Game {
     this.fog = this.fog.filter((f) => f.turns > 0);
   }
 
-  /** Une nappe de brouillard autour de `at` : la case et `arm` cases dans chaque direction. */
+  /**
+   * Une nappe de brouillard autour de `at` : un LOSANGE de `arm` cases de rayon (Thomas, 2026-11-13, dessin : « une croix
+   * de 5 » = rangées de 1, 3, 5, 3, 1 cases), sans traverser les murs.
+   */
   private spreadFog(at: Point, arm: number): Point[] {
-    const cells: Point[] = [{ x: at.x, y: at.y }];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      for (let k = 1; k <= arm; k++) {
-        const c = { x: at.x + dx * k, y: at.y + dy * k };
-        if (!this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Furniture) break;
+    const cells: Point[] = [];
+    for (let dy = -arm; dy <= arm; dy++) {
+      for (let dx = -arm; dx <= arm; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) > arm) continue;
+        const c = { x: at.x + dx, y: at.y + dy };
+        if (!this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Furniture) continue;
+        if ((dx !== 0 || dy !== 0) && !hasLineOfSight(this.map, at, c)) continue;
         cells.push(c);
       }
     }

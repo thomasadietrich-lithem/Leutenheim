@@ -15,6 +15,8 @@ export const KRIK = {
   /** Ses caches (réussi) : de l'or, plus un objet du butin de l'étage. */
   cacheGoldMin: 10,
   cacheGoldMax: 20,
+  /** Tâche « magot » ratée : on descend avec le magot, il vaut tant d'or (C). */
+  keptMagot: 15,
   /** Menace ratée : il crie (+10 d'alerte) et un Kobold frondeur accourt. */
   shoutAlarm: 10,
   /** Diversion réussie : des fioles de fumée. */

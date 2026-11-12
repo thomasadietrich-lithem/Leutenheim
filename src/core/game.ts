@@ -1,3 +1,4 @@
+import { QUEST_TASKS, type QuestTask, type QuestTaskId } from "../data/quests";
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
@@ -158,6 +159,8 @@ export class Game {
   luck = 0;
   /** Raccourci « Objet » de la barre d'actions : la sorte d'objet choisie (appui long dans le sac, Thomas 2026-11-12). */
   quickItem: ItemId | null = null;
+  /** La tâche de quête en cours (une seule à la fois ; Thomas, 2026-11-12). */
+  quest: QuestTask | null = null;
   /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
   blessTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -1353,6 +1356,7 @@ export class Game {
       gluck: this.gluckMemory,
       soeur: this.soeurMemory,
       krik: this.krikMemory,
+      quest: this.quest,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
       blessTurns: this.blessTurns,
       quickItem: this.quickItem,
@@ -1449,6 +1453,7 @@ export class Game {
     game.blessTurns = saved.blessTurns ?? 0;
     game.soeurMemory = saved.soeur ?? { met: 0 };
     game.krikMemory = saved.krik ?? { met: 0 };
+    game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.protectTurns = saved.blessings?.protect ?? 0;
     game.clarityDepth = saved.blessings?.clarity ?? 0;
     game.curseDepth = saved.blessings?.curse ?? 0;
@@ -1534,7 +1539,7 @@ export class Game {
     const item = this.inventory.get(uid);
     if (!item) return false;
     const kind = ITEMS[item.defId].kind;
-    if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem") return false;
+    if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem" || kind === "quest") return false;
     if (this.tooLow(ITEMS[item.defId])) return false;
     // Arme à deux mains (Thomas, 2026-11-11) : pas tant qu'une torche brûle dans l'autre main.
     if ((ITEMS[item.defId] as ItemDef).twoHanded && this.torchTurns > 0) return false;
@@ -3354,6 +3359,7 @@ export class Game {
     if (!success) return;
     f.kind = "statueBroken";
     this.map.set(f.x, f.y, Tile.Floor);
+    if (this.quest?.id === "gluck_statue" && this.quest.depth === this.depth) this.quest.got = this.quest.need;
     const gold = this.rng.int(10, 20) + this.depth * 3;
     this.spillLoot(f.x, f.y, gold, rollLoot(this.rng, this.depth + RULES.floorsPerSection));
   }
@@ -3364,6 +3370,7 @@ export class Game {
     this.gluckMemory = { met: 0, mood: 0, invested: 0 };
     this.soeurMemory = { met: 0 };
     this.krikMemory = { met: 0 };
+    this.quest = null;
     for (const g of [this.current.gluck, this.current.soeur, this.current.krik]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
@@ -3531,10 +3538,12 @@ export class Game {
 
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
+    if (this.questWith(id)) return this.questScene(id);
     return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
+    if (this.questWith(id)) return this.questChoose(id, choice);
     return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : this.krikChoose(choice);
   }
 
@@ -3583,6 +3592,10 @@ export class Game {
       this.npcLeaves(id, g, this.npcMax(id));
       const ev = this.events[this.events.length - 1];
       if (ev.type === "npc") ev.fled = fled;
+      if (this.questWith(id)) {
+        this.events.push({ type: "quest", what: "lost", id: this.quest!.id });
+        this.quest = null;
+      }
     }
   }
 
@@ -3691,6 +3704,10 @@ export class Game {
       case "kind":
         if (test()) {
           mood(1);
+          // Tâche (Thomas, 2026-11-12) : son sac perdu, à lui rapporter. Il attend sur place.
+          if (this.giveTask("gluck_sac")) {
+            return { lines: ["« Ah ! Enfin quelqu'un de gentil. »", "« Mon sac de pommes ? Perdu en fuyant les autres. Ramène-le-moi, on partagera. »", "(Sa salle apparaît sur la carte.)"], roll, done: true };
+          }
           this.gluckDrops(2);
           return end(["« Ah ! Enfin quelqu'un de gentil. Tiens, ma réserve. »"]);
         }
@@ -3714,8 +3731,11 @@ export class Game {
         return end(["« Au secours ! »", "Il détale en lâchant une pomme."]);
       case "deal":
         if (test()) {
+          // Le secret (Thomas, 2026-11-12) : la statue creuse de l'étage ; à défaut, l'escalier. Tâche : la briser, puis revenir.
+          if (!this.quest && this.current.furniture.some((o) => o.kind === "statue" && o.hollow && !o.hinted) && this.hintStatue() && this.giveTask("gluck_statue")) {
+            return { lines: ["« Marché conclu : un secret. La statue de pierre, sur cet étage… elle sonne creux. Un bon coup, et hop ! »", "« Reviens me dire ce qu'il y avait dedans. »", "(Une fissure apparaît sur la statue. Touchez-la pour la briser.)"], roll, done: true };
+          }
           this.gluckDrops(1);
-          // Le secret (Thomas, 2026-11-12) : la statue creuse de l'étage ; à défaut, l'escalier.
           if (this.hintStatue()) {
             return end(["« Marché conclu : une pomme, et un secret. La statue de pierre, sur cet étage… elle sonne creux. Un bon coup, et hop ! »", "(Une fissure apparaît sur la statue. Touchez-la pour la briser.)"]);
           }
@@ -3914,6 +3934,9 @@ export class Game {
       case "punish":
         if (test()) {
           this.curseDepth = this.depth;
+          if (this.giveTask("soeur_kobolds")) {
+            return { lines: ["« Oui. OUI. Que leurs écailles tombent. »", "« Punissez-les. Puis revenez me raconter. »", "(Malédiction des Kobolds : +2 dégâts contre eux, sur cet étage.)"], roll, done: true };
+          }
           return end(["« Oui. OUI. Que leurs écailles tombent. »", "(Malédiction des Kobolds : +2 dégâts contre eux, sur cet étage.)"]);
         }
         return end(["« Vous manquez de conviction. »"]);
@@ -4105,6 +4128,12 @@ export class Game {
         return { lines: ["« Tu reviendras. C'est vrai, je le sais : je ne peux pas mentir. »"], done: true };
       case "protect":
         if (test()) {
+          if (!this.quest) {
+            this.callFoes(g, "schrat", 2);
+            if (this.giveTask("krik_traqueurs")) {
+              return { lines: ["« Tu me protégerais ? Moi ? … Tu mens mieux que moi. Mais d'accord. »", "« Deux de mes anciens camarades me cherchent. Tiens, les voilà. »", "(Deux Kobolds accourent.)"], roll, done: true };
+            }
+          }
           this.revealKoboldRooms();
           leaves("pomme");
           return end([
@@ -4117,6 +4146,9 @@ export class Game {
         return end(["« Toi ? Tu ne protégerais pas une pomme. »", "« Tiens, prends ça et laisse-moi tranquille. C'est tout ce que je vaux. »", "(Il laisse quelques pièces.)"]);
       case "caches":
         if (test()) {
+          if (this.giveTask("krik_magot")) {
+            return { lines: ["« Ma cache ? Dans une autre salle. Pourquoi je te le dis ? … Je ne peux pas m'en empêcher. »", "« Rapporte-la-moi, on partage. »", "(La salle du magot apparaît sur la carte.)"], roll, done: true };
+          }
           g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
           const l = loot();
           leaves(l.item, l.count);
@@ -4189,6 +4221,159 @@ export class Game {
       default:
         return { lines: [], done: false };
     }
+  }
+
+  // ---------- Tâches de quête (Thomas, 2026-11-12) ----------
+
+  /** La tâche en cours vient-elle de ce PNJ, sur cet étage ? (Il attend alors le héros.) */
+  questWith(id: NpcId): boolean {
+    const q = this.quest;
+    return !!q && q.depth === this.depth && QUEST_TASKS[q.id].npc === id;
+  }
+
+  /** L'objectif est-il rempli ? (Rapporter : l'objet est dans le sac.) */
+  questDone(): boolean {
+    const q = this.quest;
+    if (!q) return false;
+    const def = QUEST_TASKS[q.id];
+    return def.kind === "fetch" ? this.inventory.count(def.item!) > 0 : q.got >= q.need;
+  }
+
+  /** Le texte du bandeau : l'objectif et où on en est, ou « revenir voir… » quand c'est fait. */
+  questLine(): { text: string; done: boolean } | null {
+    const q = this.quest;
+    if (!q) return null;
+    const def = QUEST_TASKS[q.id];
+    const done = this.questDone();
+    return { text: done ? def.back : def.goal.replace("{0}", String(Math.min(q.got, q.need))).replace("{1}", String(q.need)), done };
+  }
+
+  /**
+   * Donner une tâche : l'objectif n'existe qu'à partir de maintenant (l'objet à rapporter apparaît sur l'étage, sa salle se
+   * montre sur la carte). Faux si elle est impossible ici (une tâche déjà en cours, pas de Kobold, pas de place).
+   */
+  private giveTask(id: QuestTaskId): boolean {
+    if (this.quest) return false;
+    const def = QUEST_TASKS[id];
+    let need = 1;
+    if (def.kind === "kill") {
+      need = Math.min(def.count ?? 1, this.monsters.filter((m) => isKobold(m) && !m.boss).length);
+      if (need <= 0) return false;
+    }
+    if (def.kind === "fetch") {
+      const at = this.questSpot();
+      if (!at) return false;
+      this.dropItem(at.x, at.y, def.item!, 1);
+      this.revealRoomAt(at);
+    }
+    this.quest = { id, depth: this.depth, got: 0, need };
+    this.events.push({ type: "quest", what: "start", id });
+    return true;
+  }
+
+  /** Où poser l'objet à rapporter : une case libre d'une autre salle, à 8 cases au moins, que le héros peut atteindre. */
+  private questSpot(): Point | null {
+    const map = this.map;
+    const seen = new Uint8Array(map.width * map.height);
+    const queue: Point[] = [{ x: this.hero.x, y: this.hero.y }];
+    seen[map.index(this.hero.x, this.hero.y)] = 1;
+    const cells: Point[] = [];
+    const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    const heroRoom = this.current.rooms.find((r) => inside(r, this.hero));
+    while (queue.length > 0) {
+      const p = queue.shift()!;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = p.x + dx;
+        const y = p.y + dy;
+        if (!map.inBounds(x, y) || seen[map.index(x, y)] || !map.isWalkable(x, y)) continue;
+        seen[map.index(x, y)] = 1;
+        queue.push({ x, y });
+        const far = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) >= 8;
+        const room = this.current.rooms.find((r) => inside(r, { x, y }));
+        if (far && room && room !== heroRoom && this.npcFree(this.current, x, y) && !this.isTrap(x, y)) cells.push({ x, y });
+      }
+    }
+    return cells.length > 0 ? cells[this.rng.int(0, cells.length - 1)] : null;
+  }
+
+  /** La salle autour de cette case apparaît sur la carte. */
+  private revealRoomAt(p: Point): void {
+    const r = this.current.rooms.find((o) => p.x >= o.x && p.x < o.x + o.w && p.y >= o.y && p.y < o.y + o.h);
+    const box = r ?? { x: p.x - 1, y: p.y - 1, w: 3, h: 3 };
+    for (let y = box.y - 1; y <= box.y + box.h; y++) for (let x = box.x - 1; x <= box.x + box.w; x++) if (this.map.inBounds(x, y)) this.explored[this.map.index(x, y)] = 1;
+  }
+
+  /** Revenir voir le PNJ : il attend tant que ce n'est pas fait ; sinon on lui rend la tâche. */
+  private questScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
+    const def = QUEST_TASKS[this.quest!.id];
+    if (!this.questDone()) return { lines: [def.waiting], choices: [{ id: "leave", label: "Partir" }] };
+    return { lines: [this.questLine()!.text + "."], choices: [{ id: "turnin", label: "C'est fait !" }, { id: "leave", label: "Plus tard" }] };
+  }
+
+  private questChoose(id: NpcId, choice: string): GluckResult {
+    const g = this.npc(id);
+    if (!g || !this.canTalk(id)) return { lines: [], done: true };
+    if (choice !== "turnin" || !this.questDone()) return { lines: [], done: true };
+    const q = this.quest!;
+    const def = QUEST_TASKS[q.id];
+    if (def.kind === "fetch") this.inventory.take(def.item!, 1);
+    const leaves = (item: ItemId, count = 1) => (g.items ??= []).push({ item, count });
+    switch (q.id) {
+      case "gluck_sac":
+        g.drops = (g.drops ?? 0) + 3;
+        this.gluckMemory.mood = Math.min(1, this.gluckMemory.mood + 1);
+        break;
+      case "gluck_statue":
+        g.drops = (g.drops ?? 0) + 2;
+        this.gluckMemory.mood = Math.min(1, this.gluckMemory.mood + 1);
+        break;
+      case "soeur_kobolds":
+        this.grantProtection();
+        this.grantLuck();
+        break;
+      case "krik_magot": {
+        g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
+        const l = this.floorLoot();
+        leaves(l.item, l.count);
+        break;
+      }
+      case "krik_traqueurs": {
+        this.revealKoboldRooms();
+        leaves("pomme");
+        const l = this.floorLoot();
+        leaves(l.item, l.count);
+        break;
+      }
+    }
+    this.quest = null;
+    this.events.push({ type: "quest", what: "complete", id: q.id });
+    this.npcLeaves(id, g, this.npcMax(id));
+    return { lines: def.thanks, done: true };
+  }
+
+  /** Descendre sans être revenu : la tâche est ratée, le PNJ s'en va. Le magot de Krik, lui, est gardé (en or). */
+  private failQuest(): void {
+    const q = this.quest!;
+    const def = QUEST_TASKS[q.id];
+    let gold: number | undefined;
+    if (def.kind === "fetch" && this.inventory.take(def.item!, 1) && q.id === "krik_magot") {
+      gold = KRIK.keptMagot;
+      this.gold += gold;
+    }
+    const g = this.current[def.npc];
+    if (g) g.gone = true;
+    if (def.npc === "gluck") this.gluckMemory.mood = Math.max(-1, this.gluckMemory.mood - 1);
+    this.quest = null;
+    this.events.push({ type: "quest", what: "fail", id: q.id, gold });
+  }
+
+  /** Un objet du butin de l'étage (jamais d'or) ; `rarer` : celui de la section suivante. */
+  private floorLoot(rarer = false): { item: ItemId; count: number } {
+    for (let k = 0; k < 8; k++) {
+      const l = rollLoot(this.rng, this.depth + (rarer ? RULES.floorsPerSection : 0));
+      if (l.item !== "or") return l;
+    }
+    return { item: "pomme", count: 1 };
   }
 
   /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
@@ -4612,6 +4797,8 @@ export class Game {
     // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
     if (monster.boss) this.bossDefeated();
     if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+    const q = this.quest;
+    if (byHero && q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) q.got++;
     for (const o of this.monsters) if (o.feud === monster.id) o.feud = undefined;
   }
 
@@ -5172,9 +5359,16 @@ export class Game {
     const target = this.depth + (direction === "down" ? 1 : -1);
     if (target < 1) return false;
     const healed = 0;
+    // Descendre sans être revenu voir le PNJ : la tâche est ratée (Thomas, 2026-11-12 : il reste sur l'étage).
+    if (direction === "down" && this.quest && this.quest.depth === this.depth) this.failQuest();
     this.enterFloor(target, direction);
     this.events.push({ type: "stairs", direction, healed });
     if (direction === "down") this.settleKrik();
     return true;
   }
+}
+
+/** Un Kobold (ou un frondeur) : la famille que punit Sœur Osseuse et que fuit Krik. */
+function isKobold(m: Actor): boolean {
+  return m.defId === "schrat" || m.defId === "frondeur";
 }

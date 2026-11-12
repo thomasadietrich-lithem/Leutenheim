@@ -20,7 +20,7 @@ export interface ItemDef {
   id: string;
   name: string;
   /** Les six premiers sont aussi des emplacements d'équipement ; munitions et clefs restent dans le sac. */
-  kind: Slot | "ammo" | "key" | "gold" | "use" | "gem";
+  kind: Slot | "ammo" | "key" | "gold" | "use" | "gem" | "quest";
   /** Une phrase de description, affichée sur la fiche de l'objet. */
   description: string;
   /** Place occupée dans le sac, en cases (largeur × hauteur). */
@@ -359,6 +359,9 @@ export const ITEMS = {
   potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps à corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
   potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "À lancer : la case visée et ses quatre voisines brûlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
   potion_fumee: { id: "potion_fumee", name: "Fiole de fumée", kind: "use", description: "À lancer : un nuage gris ; les monstres tout près (2 cases) perdent votre trace et restent un tour hébétés. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
+  // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
+  sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. À rapporter à Gluck.", w: 1, h: 1, maxStack: 1 },
+  magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. À rapporter à Krik… ou pas.", w: 1, h: 1, maxStack: 1 },
   robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'étude. Elle ne protège guère.", w: 2, h: 2, maxStack: 1, armorClass: 11 },
 } satisfies Record<string, ItemDef>;
 
@@ -381,4 +384,5 @@ export const KIND_LABELS: Record<ItemDef["kind"], string> = {
   use: "À utiliser",
   gem: "Pierre précieuse",
   bag: "Sac",
+  quest: "Objet de quête",
 };

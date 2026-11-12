@@ -10,6 +10,7 @@ import { Point } from "../world/map";
 import { BloodStain, Debris, GroundItem, Secret, Trap } from "./floor";
 import type { Merchant } from "./merchant";
 import type { CounterDoor, GluckSpot } from "./floor";
+import type { QuestTask } from "../data/quests";
 import type { GluckMemory, KrikMemory, SoeurMemory } from "./game";
 
 /**
@@ -93,6 +94,8 @@ export interface SaveData {
   soeur?: SoeurMemory;
   /** Krik : ce qu'il sait du héros (absent des anciennes sauvegardes). */
   krik?: KrikMemory;
+  /** La tâche de quête en cours (absente des anciennes sauvegardes). */
+  quest?: QuestTask | null;
   blessings?: { protect: number; clarity: number; curse: number; luck: number };
   /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
   blessTurns?: number;

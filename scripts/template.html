@@ -158,7 +158,27 @@
   #manual-list .manual-intro { color: var(--dim); font-size: 16px; margin: 0 0 6px; }
   #manual-list .manual-entry { margin: 6px 0; font-size: 17px; line-height: 1.25; }
   #manual-list .manual-entry b { color: var(--gold); font-weight: normal; }
+  /* Gestionnaire de sauvegardes (Thomas, 2026-11-12) : une carte par partie, pictos de race et de classe. */
+  #saves-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+  .save-card { display: flex; align-items: center; gap: 8px; background: var(--panel); padding: 8px; box-shadow: inset 0 0 0 1px var(--panel-hi); text-align: left; }
+  .save-card .save-pictos { display: flex; gap: 3px; flex: none; }
+  .save-card .save-pictos svg { width: 34px; height: 34px; shape-rendering: crispEdges; }
+  .save-card .save-text { flex: 1; min-width: 0; font-size: 16px; line-height: 1.15; }
+  .save-card .save-title { color: var(--gold); font-size: 18px; }
+  .save-card .save-when { color: var(--dim); }
+  .save-card .save-buttons { display: flex; flex-direction: column; gap: 4px; flex: none; }
+  .save-card .save-buttons button { min-width: 0; margin: 0; padding: 4px 8px; font-size: 16px; }
+  .save-card .save-buttons button.danger { background: #3a1414; color: #ff9a9a; }
+  .save-card .save-buttons button.danger.armed { background: #8e1f28; color: #fff; }
   #records-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  /* Bandeau de la tâche de quête (Thomas, 2026-11-12) : sous les jauges, en haut de la carte. */
+  #quest-banner { position: absolute; top: 6px; left: 6px; right: 44px; z-index: 2; padding: 3px 8px; text-align: left; font-size: 17px; line-height: 1.1; color: var(--gold); background: rgba(12, 9, 6, 0.86); border: 1px solid var(--panel-hi); box-shadow: inset 0 0 0 1px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #quest-banner::before { content: "◆ "; color: var(--dim); }
+  #quest-banner.done { color: #fff1b8; border-color: var(--gold); }
+  #quest-banner.done::before { color: var(--gold); }
+  #quest-banner.flash { animation: quest-flash 0.9s ease-out 2; }
+  @keyframes quest-flash { 0% { background: #8a6a26; } 100% { background: rgba(12, 9, 6, 0.86); } }
+  #quest-banner:not([hidden]) ~ #hero-status { top: 34px; }
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
@@ -430,6 +450,7 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <button id="quest-banner" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
@@ -535,6 +556,7 @@
       <h1>CAVE ROLLER<small class="title-demo">démo</small></h1>
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
+      <button id="menu-saves" type="button">Sauvegardes</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
       <button id="menu-manual" type="button">Manuel</button>
@@ -556,6 +578,11 @@
       <div id="class-cards" class="cards"></div>
       <button id="new-start" type="button">Commencer</button>
       <button id="new-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-saves" hidden>
+      <h2>Sauvegardes</h2>
+      <div id="saves-list"></div>
+      <button id="saves-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-manual" hidden>
       <h2>Manuel</h2>

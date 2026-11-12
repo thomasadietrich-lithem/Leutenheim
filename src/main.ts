@@ -305,7 +305,7 @@ function renderLog(): void {
   log.replaceChildren(
     ...logLines.map((line) => {
       const p = document.createElement("div");
-      p.textContent = tr(line);
+      p.textContent = capFirst(tr(line));
       return p;
     }),
   );
@@ -473,6 +473,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "doused") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
     sfx.play("splash");
+  } else if (e.type === "quest") {
+    if (e.what === "start") renderer.addFloatingText(game.hero.x, game.hero.y, "Nouvelle quête !", "#ffd75e");
+    if (e.what === "fail" && e.gold) renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#f0c850");
   } else if (e.type === "krikReturn") {
     if (e.amount > 0) {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} or`, "#f0c850");
@@ -909,6 +912,80 @@ function showDeath(): void {
   over.hidden = false;
 }
 
+/**
+ * Gestionnaire de sauvegardes (Thomas, 2026-11-12 : « rappel des pictos de race et classe, étage, dernière connexion ;
+ * option pour supprimer ») : une carte par emplacement (donjon, salle d'essai), Reprendre ou Supprimer (deux touchers).
+ */
+function renderSaves(): void {
+  const list = $("saves-list");
+  list.replaceChildren();
+  const slots = PUBLIC_BUILD ? [false] : [false, true];
+  let any = false;
+  for (const sandbox of slots) {
+    let data: { race?: string; heroClass?: string; depth?: number; level?: number; savedAt?: string } | null = null;
+    try {
+      const text = localStorage.getItem(saveSlot(sandbox));
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (!data) continue;
+    any = true;
+    const card = el("div", "save-card");
+    const pictos = el("div", "save-pictos");
+    for (const id of [data.race, data.heroClass]) {
+      const p = id ? PICTOS[id] : undefined;
+      if (p) pictos.append(buildIcon(p.rows, p.palette));
+    }
+    const race = RACES[data.race as keyof typeof RACES]?.name ?? "";
+    const cls = CLASSES[data.heroClass as keyof typeof CLASSES]?.name ?? "";
+    const text = el("div", "save-text");
+    const title = el("div", "save-title");
+    title.textContent = `${tr(race)} ${tr(cls)}${sandbox ? ` · ${tr("Salle d'essai")}` : ""}`;
+    const when = data.savedAt ? new Date(data.savedAt) : null;
+    const whenText =
+      when && !isNaN(when.getTime())
+        ? new Intl.DateTimeFormat(options.lang === "en" ? "en-GB" : "fr-FR", { dateStyle: "short", timeStyle: "short" }).format(when)
+        : "?";
+    text.append(title, el("div", "", `Étage ${data.depth ?? 1} · Niv ${data.level ?? 1}`), el("div", "save-when", `Dernière partie : ${whenText}`));
+    const buttons = el("div", "save-buttons");
+    const resume = el("button", "", "Reprendre");
+    resume.addEventListener("click", () => {
+      sfx.play("click");
+      try {
+        const saved = Game.restore(JSON.parse(localStorage.getItem(saveSlot(sandbox)) ?? "null"));
+        if (!saved) throw new Error("illisible");
+        resumeRun(saved);
+        savedRun = null;
+        showScreen(null);
+      } catch {
+        logLines.push("Sauvegarde illisible.");
+        renderLog();
+      }
+    });
+    const erase = el("button", "danger", "Supprimer");
+    let armed = false;
+    erase.addEventListener("click", () => {
+      sfx.play("click");
+      if (!armed) {
+        armed = true;
+        erase.classList.add("armed");
+        erase.textContent = tr("Sûr ?");
+        return;
+      }
+      eraseSave(sandbox);
+      // La partie en cours, si c'est elle : elle s'arrête (sinon elle se réécrirait aussitôt).
+      if (started && !game.over && game.sandbox === sandbox) started = false;
+      if (savedRun && savedRun.sandbox === sandbox) savedRun = null;
+      showScreen("saves");
+    });
+    buttons.append(resume, erase);
+    card.append(pictos, text, buttons);
+    list.append(card);
+  }
+  if (!any) list.append(el("p", "", "Aucune sauvegarde."));
+}
+
 /** Le manuel : les caractéristiques, l'avantage et le désavantage (src/data/manual.ts). */
 function renderManual(): void {
   const list = $("manual-list");
@@ -923,6 +1000,34 @@ function renderManual(): void {
       list.append(div);
     }
   }
+}
+
+/** Le bandeau de la tâche de quête, sous les jauges : l'objectif, puis « revenir voir… » (il clignote quand c'est fait). */
+let questShown = "";
+let questWasDone = false;
+function renderQuest(): void {
+  const banner = $("quest-banner");
+  const q = game.over ? null : game.questLine();
+  banner.hidden = !q;
+  if (!q) {
+    questShown = "";
+    questWasDone = false;
+    return;
+  }
+  const text = tr(q.text);
+  if (text !== questShown) {
+    banner.textContent = text;
+    questShown = text;
+  }
+  banner.classList.toggle("done", q.done);
+  if (q.done && !questWasDone) {
+    banner.classList.remove("flash");
+    void banner.offsetWidth;
+    banner.classList.add("flash");
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Objectif rempli !", "#ffd75e");
+    sfx.play("advantage");
+  }
+  questWasDone = q.done;
 }
 
 function renderRecords(): void {
@@ -1802,7 +1907,7 @@ function renderBag(): void {
   else if (!selectedSlot && item.defId === game.quickItem) card.append(el("div", "quick-note", "Raccourci « Objet » de la barre d'actions."));
   quickNote = "";
   info.replaceChildren(card);
-  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
+  const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem" && def.kind !== "quest";
   // Le sac porté ne s'enlève pas : on le remplace par un autre.
   action.hidden = (!wearable && def.kind !== "use") || selectedSlot === "bag";
   // Potions (Thomas, 2026-11-12) : celle de feu se LANCE, celle de poison s'ENDUIT (et se lance aussi, bouton à part),
@@ -2388,7 +2493,7 @@ function renderCodex(): void {
       ["Sacs", ["bag"]],
       ["Potions et vivres", ["use"]],
       ["Pierres précieuses et or", ["gem", "gold"]],
-      ["Divers", ["key"]],
+      ["Divers", ["key", "quest"]],
     ];
     for (const [title, kinds] of groups) {
       const all = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
@@ -2435,12 +2540,12 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "records" | "manual";
+type Screen = "main" | "new" | "settings" | "codex" | "records" | "manual" | "saves";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex", "records", "manual"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "records", "manual", "saves"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
@@ -2451,6 +2556,7 @@ function showScreen(screen: Screen | null): void {
   if (screen === "codex") renderCodex();
   if (screen === "records") renderRecords();
   if (screen === "manual") renderManual();
+  if (screen === "saves") renderSaves();
 }
 
 interface Card {
@@ -2658,7 +2764,17 @@ button("menu-settings", () => {
 });
 button("menu-codex", () => showScreen("codex"));
 button("menu-records", () => showScreen("records"));
+// Toucher le bandeau de quête : l'objectif en entier au journal (le bandeau peut être coupé).
+button("quest-banner", () => {
+  const q = game.questLine();
+  if (q) {
+    logLines.push(q.text);
+    renderLog();
+  }
+});
 button("menu-manual", () => showScreen("manual"));
+button("menu-saves", () => showScreen("saves"));
+button("saves-back", () => showScreen("main"));
 button("manual-back", () => showScreen("main"));
 button("records-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
@@ -2868,7 +2984,7 @@ function frame(now: number): void {
   diceBox.classList.toggle("ready", !game.over && game.meleeTarget() !== null);
   if (!cue && queue.length === 0 && die.textContent === "") {
     const hint = game.meleeTarget() && !game.over ? "Frapper" : "";
-    if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = tr(hint);
+    if (dieWho.textContent !== tr(hint) && (hint || dieWho.textContent === tr("Frapper"))) dieWho.textContent = tr(hint);
   }
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.shotProfile()?.range ?? null) : null;
@@ -2878,6 +2994,7 @@ function frame(now: number): void {
   $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
   renderAlarm();
   renderHeroStatus();
+  renderQuest();
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
   hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
@@ -2958,3 +3075,8 @@ requestAnimationFrame(frame);
   /** Pour les captures : montre les événements en attente (comme après un toucher). */
   flush: () => collectEvents(),
 };
+
+/** Une ligne du journal commence par une majuscule (en anglais, « jet de force » devient « strength roll »…). */
+function capFirst(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

@@ -58,4 +58,12 @@ export const MANUAL: ManualSection[] = [
       { title: "Les deux à la fois", lines: ["Ils s'annulent : un seul d20."] },
     ],
   },
+  {
+    title: "Attaque d'opportunité",
+    intro: "S'éloigner d'un monstre qui vous a repéré lui offre un coup gratuit, et votre déplacement s'arrête.",
+    entries: [
+      { title: "Passer une porte", lines: ["En y entrant ou en en sortant : pas de coup."] },
+      { title: "Se dégager", lines: ["Dans la barre d'actions : un saut de deux cases, sans coup. Il faut réussir un jet d'Agilité."] },
+    ],
+  },
 ];

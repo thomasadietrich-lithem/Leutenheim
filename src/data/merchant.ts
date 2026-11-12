@@ -45,7 +45,7 @@ const SPECIAL: Partial<Record<ItemId, number>> = {
 /** Prix normal d'un exemplaire ; null si cela ne se vend pas (or, gemmes, clef). */
 export function basePrice(id: ItemId): number | null {
   const def: ItemDef = ITEMS[id];
-  if (def.kind === "gold" || def.kind === "gem" || def.kind === "key") return null;
+  if (def.kind === "gold" || def.kind === "gem" || def.kind === "key" || def.kind === "quest") return null;
   return SPECIAL[id] ?? (def.rarity ? BY_RARITY[def.rarity] : 4);
 }
 

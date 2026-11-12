@@ -3762,6 +3762,75 @@ test("un objet qui tombe sur un escalier rebondit à côté", () => {
   assert.ok(game.events.some((e) => e.type === "stairsBounce"));
 });
 
+/** Le héros à côté d'un PNJ de quête de la salle d'essai, monstres calmés. */
+function besideNpc(game: Game, id: "gluck" | "soeur" | "krik"): void {
+  const k = game.npc(id)!;
+  const spots = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: k.x + dx, y: k.y + dy })).filter((p) => game.map.isWalkable(p.x, p.y) && !game.npcAt(p.x, p.y) && !game.monsterAt(p.x, p.y));
+  game.hero.x = game.hero.fromX = spots[0].x;
+  game.hero.y = game.hero.fromY = spots[0].y;
+  for (const m of game.monsters) m.alerted = false;
+}
+
+test("tâches de quête : Krik donne son magot à rapporter ; l'objet n'existe qu'après ; on revient le lui rendre (Thomas, 2026-11-12)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  game.peaceful = true;
+  besideNpc(game, "krik");
+  game.alloc.intelligence = 40;
+  assert.ok(!game.ground.some((g) => g.item === "magot_krik"), "le magot n'existe pas avant la quête");
+  const r = game.npcChoose("krik", "caches");
+  assert.ok(r.roll?.success, "jet réussi (Intelligence 40)");
+  assert.equal(game.quest?.id, "krik_magot");
+  assert.ok(game.npc("krik"), "Krik reste sur l'étage");
+  const spot = game.ground.find((g) => g.item === "magot_krik");
+  assert.ok(spot, "le magot apparaît sur l'étage");
+  assert.ok(Math.max(Math.abs(spot.x - game.hero.x), Math.abs(spot.y - game.hero.y)) >= 8, "loin du héros");
+  assert.equal(game.questLine()?.text, "Krik : récupérer son magot");
+  // Revenir trop tôt : il attend.
+  const wait = game.npcScene("krik");
+  assert.ok(!wait.choices.some((c) => c.id === "turnin"));
+  // Le magot ramassé : on revient le rendre.
+  game.ground.splice(game.ground.indexOf(spot), 1);
+  game.inventory.add("magot_krik", 1);
+  assert.ok(game.questDone());
+  assert.equal(game.questLine()?.text, "Rapporter le magot à Krik");
+  const back = game.npcScene("krik");
+  assert.ok(back.choices.some((c) => c.id === "turnin"));
+  const done = game.npcChoose("krik", "turnin");
+  assert.ok(done.done);
+  assert.equal(game.quest, null);
+  assert.equal(game.inventory.count("magot_krik"), 0);
+  assert.equal(game.npc("krik"), null, "Krik part, la quête rendue");
+  assert.ok(game.events.some((e) => e.type === "quest" && e.what === "complete"));
+});
+
+test("tâches de quête : Sœur Osseuse compte les Kobolds punis ; descendre sans revenir rate la tâche", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.peaceful = true;
+  besideNpc(game, "soeur");
+  game.alloc.force = 40;
+  const kobolds = () => game.monsters.filter((m) => m.defId === "schrat" || m.defId === "frondeur");
+  assert.ok(kobolds().length > 0);
+  const r = game.npcChoose("soeur", "punish");
+  assert.ok(r.roll?.success);
+  const q = game.quest!;
+  assert.equal(q.id, "soeur_kobolds");
+  assert.equal(q.need, Math.min(3, kobolds().length));
+  assert.match(game.questLine()!.text, /0\/\d$/);
+  const remove = game as unknown as { removeIfDead(m: unknown, byHero?: boolean): void };
+  for (const m of kobolds().slice(0, q.need)) {
+    m.hp = 0;
+    remove.removeIfDead(m);
+  }
+  assert.equal(q.got, q.need);
+  assert.ok(game.questDone());
+  // Descendre sans être revenu : ratée, elle ne sera plus là.
+  game.pendingStairs = "down";
+  assert.ok(game.takeStairs());
+  assert.equal(game.quest, null);
+  assert.ok(game.events.some((e) => e.type === "quest" && e.what === "fail"));
+});
+
 test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investissement (Thomas, 2026-11-12)", () => {
   const game = new Game(2, undefined, undefined, undefined, true);
   game.monsters.splice(0);

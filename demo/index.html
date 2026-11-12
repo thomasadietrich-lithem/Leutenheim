@@ -158,7 +158,27 @@
   #manual-list .manual-intro { color: var(--dim); font-size: 16px; margin: 0 0 6px; }
   #manual-list .manual-entry { margin: 6px 0; font-size: 17px; line-height: 1.25; }
   #manual-list .manual-entry b { color: var(--gold); font-weight: normal; }
+  /* Gestionnaire de sauvegardes (Thomas, 2026-11-12) : une carte par partie, pictos de race et de classe. */
+  #saves-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+  .save-card { display: flex; align-items: center; gap: 8px; background: var(--panel); padding: 8px; box-shadow: inset 0 0 0 1px var(--panel-hi); text-align: left; }
+  .save-card .save-pictos { display: flex; gap: 3px; flex: none; }
+  .save-card .save-pictos svg { width: 34px; height: 34px; shape-rendering: crispEdges; }
+  .save-card .save-text { flex: 1; min-width: 0; font-size: 16px; line-height: 1.15; }
+  .save-card .save-title { color: var(--gold); font-size: 18px; }
+  .save-card .save-when { color: var(--dim); }
+  .save-card .save-buttons { display: flex; flex-direction: column; gap: 4px; flex: none; }
+  .save-card .save-buttons button { min-width: 0; margin: 0; padding: 4px 8px; font-size: 16px; }
+  .save-card .save-buttons button.danger { background: #3a1414; color: #ff9a9a; }
+  .save-card .save-buttons button.danger.armed { background: #8e1f28; color: #fff; }
   #records-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  /* Bandeau de la tâche de quête (Thomas, 2026-11-12) : sous les jauges, en haut de la carte. */
+  #quest-banner { position: absolute; top: 6px; left: 6px; right: 44px; z-index: 2; padding: 3px 8px; text-align: left; font-size: 17px; line-height: 1.1; color: var(--gold); background: rgba(12, 9, 6, 0.86); border: 1px solid var(--panel-hi); box-shadow: inset 0 0 0 1px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #quest-banner::before { content: "◆ "; color: var(--dim); }
+  #quest-banner.done { color: #fff1b8; border-color: var(--gold); }
+  #quest-banner.done::before { color: var(--gold); }
+  #quest-banner.flash { animation: quest-flash 0.9s ease-out 2; }
+  @keyframes quest-flash { 0% { background: #8a6a26; } 100% { background: rgba(12, 9, 6, 0.86); } }
+  #quest-banner:not([hidden]) ~ #hero-status { top: 34px; }
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
@@ -430,6 +450,7 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <button id="quest-banner" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
@@ -535,6 +556,7 @@
       <h1>CAVE ROLLER<small class="title-demo">démo</small></h1>
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
+      <button id="menu-saves" type="button">Sauvegardes</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
       <button id="menu-manual" type="button">Manuel</button>
@@ -556,6 +578,11 @@
       <div id="class-cards" class="cards"></div>
       <button id="new-start" type="button">Commencer</button>
       <button id="new-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-saves" hidden>
+      <h2>Sauvegardes</h2>
+      <div id="saves-list"></div>
+      <button id="saves-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-manual" hidden>
       <h2>Manuel</h2>
@@ -1213,6 +1240,67 @@
     return perAttack / (speed === "slow" ? slowTurns : speed === "fast" ? fastTurns : 1);
   }
 
+  // src/data/quests.ts
+  var QUEST_TASKS = {
+    gluck_sac: {
+      npc: "gluck",
+      kind: "fetch",
+      item: "sac_pommes",
+      goal: "Gluck : retrouver son sac de pommes",
+      back: "Rapporter le sac de pommes \xE0 Gluck",
+      waiting: "\xAB Mon sac est quelque part sur l'\xE9tage. Je t'attends ici. Je ne bouge pas. Promis. \xBB",
+      thanks: ["\xAB MON SAC ! Tu l'as rapport\xE9 ! \xBB", "\xAB On partage : trois pour toi. Bon\u2026 deux. Allez, trois. \xBB", "(Il laisse 3 pommes.)"],
+      failed: "Quelque part au-dessus, Gluck attend toujours son sac de pommes."
+    },
+    gluck_statue: {
+      npc: "gluck",
+      kind: "statue",
+      goal: "Gluck : briser la statue creuse",
+      back: "Retourner voir Gluck",
+      waiting: "\xAB La statue ! Un bon coup, et hop ! Moi, je surveille. \xBB",
+      thanks: ["\xAB Alors ? Il y avait quoi ? \u2026 Garde tout. Les cailloux, \xE7a me fait peur. \xBB", "\xAB Une pomme pour le travail, une pour le courage. \xBB", "(Il laisse 2 pommes.)"],
+      failed: "Gluck ne saura jamais ce que cachait la statue."
+    },
+    soeur_kobolds: {
+      npc: "soeur",
+      kind: "kill",
+      count: 3,
+      goal: "S\u0153ur Osseuse : Kobolds punis {0}/{1}",
+      back: "Retourner voir S\u0153ur Osseuse",
+      waiting: "\xAB Je compte. Vous, vous frappez. \xBB",
+      thanks: [
+        "\xAB J'ai entendu leurs cris d'ici. C'\xE9tait\u2026 \xE9difiant. \xBB",
+        "\xAB Allez en paix, mon enfant. Et avec un peu de chance. \xBB",
+        "(Protection : +1 classe d'armure pendant 150 tours. Chance : vos 3 prochains 1 au d\xE9 seront relanc\xE9s.)"
+      ],
+      failed: "S\u0153ur Osseuse attendait le r\xE9cit de votre croisade. Elle ne l'aura pas."
+    },
+    krik_magot: {
+      npc: "krik",
+      kind: "fetch",
+      item: "magot_krik",
+      goal: "Krik : r\xE9cup\xE9rer son magot",
+      back: "Rapporter le magot \xE0 Krik",
+      waiting: "\xAB Le magot est l\xE0 o\xF9 je l'ai dit. Je ne mens pas : je ne peux pas. \xBB",
+      thanks: ["\xAB Tout est l\xE0 ! M\xEAme la pi\xE8ce tordue. \xBB", "\xAB Moiti\xE9-moiti\xE9. Ta moiti\xE9 est plus grosse. C'est vrai, je l'ai mesur\xE9e. \xBB", "(Il laisse de l'or et un objet.)"],
+      failed: "Vous gardez le magot de Krik : +{0} or. Quelque part, un Kobold qui ne sait pas mentir raconte partout que vous \xEAtes un voleur."
+    },
+    krik_traqueurs: {
+      npc: "krik",
+      kind: "kill",
+      count: 2,
+      goal: "Krik : chasser ses poursuivants {0}/{1}",
+      back: "Retourner voir Krik",
+      waiting: "\xAB Ils sont encore l\xE0. Je les entends. C'est vrai. \xBB",
+      thanks: [
+        "\xAB Ils sont partis ? Vraiment ? \u2026 Je te crois. Je n'ai pas le choix, mais je te crois. \xBB",
+        "\xAB Mes camarades dorment l\xE0, l\xE0 et l\xE0. \xBB",
+        "(Les repaires des Kobolds de l'\xE9tage apparaissent sur la carte. Il laisse une pomme et un objet.)"
+      ],
+      failed: "Krik a d\xFB fuir seul. Il racontera que vous l'avez abandonn\xE9. C'est vrai."
+    }
+  };
+
   // src/data/classes.ts
   var CLASSES = {
     guerrier: {
@@ -1600,6 +1688,9 @@
     potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps \xE0 corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
     potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "\xC0 lancer : la case vis\xE9e et ses quatre voisines br\xFBlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
     potion_fumee: { id: "potion_fumee", name: "Fiole de fum\xE9e", kind: "use", description: "\xC0 lancer : un nuage gris ; les monstres tout pr\xE8s (2 cases) perdent votre trace et restent un tour h\xE9b\xE9t\xE9s. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
+    // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
+    sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. \xC0 rapporter \xE0 Gluck.", w: 1, h: 1, maxStack: 1 },
+    magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. \xC0 rapporter \xE0 Krik\u2026 ou pas.", w: 1, h: 1, maxStack: 1 },
     robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'\xE9tude. Elle ne prot\xE8ge gu\xE8re.", w: 2, h: 2, maxStack: 1, armorClass: 11 }
   };
   var UNARMED = { attackBonus: 2, damage: { count: 1, sides: 2, bonus: 0 } };
@@ -1615,7 +1706,8 @@
     gold: "Monnaie",
     use: "\xC0 utiliser",
     gem: "Pierre pr\xE9cieuse",
-    bag: "Sac"
+    bag: "Sac",
+    quest: "Objet de qu\xEAte"
   };
 
   // src/data/skills.ts
@@ -2142,6 +2234,8 @@
     /** Ses caches (réussi) : de l'or, plus un objet du butin de l'étage. */
     cacheGoldMin: 10,
     cacheGoldMax: 20,
+    /** Tâche « magot » ratée : on descend avec le magot, il vaut tant d'or (C). */
+    keptMagot: 15,
     /** Menace ratée : il crie (+10 d'alerte) et un Kobold frondeur accourt. */
     shoutAlarm: 10,
     /** Diversion réussie : des fioles de fumée. */
@@ -4421,7 +4515,7 @@
   };
   function basePrice(id) {
     const def = ITEMS[id];
-    if (def.kind === "gold" || def.kind === "gem" || def.kind === "key") return null;
+    if (def.kind === "gold" || def.kind === "gem" || def.kind === "key" || def.kind === "quest") return null;
     return SPECIAL[id] ?? (def.rarity ? BY_RARITY[def.rarity] : 4);
   }
   function buyBackPrice(id) {
@@ -4536,6 +4630,8 @@
       this.luck = 0;
       /** Raccourci « Objet » de la barre d'actions : la sorte d'objet choisie (appui long dans le sac, Thomas 2026-11-12). */
       this.quickItem = null;
+      /** La tâche de quête en cours (une seule à la fois ; Thomas, 2026-11-12). */
+      this.quest = null;
       /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
       this.blessTurns = 0;
       /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -5601,6 +5697,7 @@
         gluck: this.gluckMemory,
         soeur: this.soeurMemory,
         krik: this.krikMemory,
+        quest: this.quest,
         blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
         blessTurns: this.blessTurns,
         quickItem: this.quickItem,
@@ -5696,6 +5793,7 @@
       game2.blessTurns = saved.blessTurns ?? 0;
       game2.soeurMemory = saved.soeur ?? { met: 0 };
       game2.krikMemory = saved.krik ?? { met: 0 };
+      game2.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
       game2.protectTurns = saved.blessings?.protect ?? 0;
       game2.clarityDepth = saved.blessings?.clarity ?? 0;
       game2.curseDepth = saved.blessings?.curse ?? 0;
@@ -5768,7 +5866,7 @@
       const item = this.inventory.get(uid);
       if (!item) return false;
       const kind = ITEMS[item.defId].kind;
-      if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem") return false;
+      if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem" || kind === "quest") return false;
       if (this.tooLow(ITEMS[item.defId])) return false;
       if (ITEMS[item.defId].twoHanded && this.torchTurns > 0) return false;
       if (kind === "ranged" && this.twoHanded()) return false;
@@ -7353,6 +7451,7 @@
       if (!success) return;
       f.kind = "statueBroken";
       this.map.set(f.x, f.y, Tile.Floor);
+      if (this.quest?.id === "gluck_statue" && this.quest.depth === this.depth) this.quest.got = this.quest.need;
       const gold = this.rng.int(10, 20) + this.depth * 3;
       this.spillLoot(f.x, f.y, gold, rollLoot(this.rng, this.depth + RULES.floorsPerSection));
     }
@@ -7362,6 +7461,7 @@
       this.gluckMemory = { met: 0, mood: 0, invested: 0 };
       this.soeurMemory = { met: 0 };
       this.krikMemory = { met: 0 };
+      this.quest = null;
       for (const g of [this.current.gluck, this.current.soeur, this.current.krik]) {
         if (!g) continue;
         Object.assign(g, { gone: false, backAt: void 0, opened: false, intro: void 0, pending: void 0, pendingLines: void 0, haggled: false, drumDone: false, drops: 0, gold: 0 });
@@ -7511,9 +7611,11 @@
     }
     /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
     npcScene(id) {
+      if (this.questWith(id)) return this.questScene(id);
       return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : this.krikScene();
     }
     npcChoose(id, choice) {
+      if (this.questWith(id)) return this.questChoose(id, choice);
       return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : this.krikChoose(choice);
     }
     /**
@@ -7560,6 +7662,10 @@
         this.npcLeaves(id, g, this.npcMax(id));
         const ev = this.events[this.events.length - 1];
         if (ev.type === "npc") ev.fled = fled;
+        if (this.questWith(id)) {
+          this.events.push({ type: "quest", what: "lost", id: this.quest.id });
+          this.quest = null;
+        }
       }
     }
     /** Un jet de dialogue : d20 + caractéristique contre une difficulté cachée. La Chance relance un 1 naturel. */
@@ -7661,6 +7767,9 @@
         case "kind":
           if (test()) {
             mood(1);
+            if (this.giveTask("gluck_sac")) {
+              return { lines: ["\xAB Ah ! Enfin quelqu'un de gentil. \xBB", "\xAB Mon sac de pommes ? Perdu en fuyant les autres. Ram\xE8ne-le-moi, on partagera. \xBB", "(Sa salle appara\xEEt sur la carte.)"], roll: roll2, done: true };
+            }
             this.gluckDrops(2);
             return end(["\xAB Ah ! Enfin quelqu'un de gentil. Tiens, ma r\xE9serve. \xBB"]);
           }
@@ -7684,6 +7793,9 @@
           return end(["\xAB Au secours ! \xBB", "Il d\xE9tale en l\xE2chant une pomme."]);
         case "deal":
           if (test()) {
+            if (!this.quest && this.current.furniture.some((o) => o.kind === "statue" && o.hollow && !o.hinted) && this.hintStatue() && this.giveTask("gluck_statue")) {
+              return { lines: ["\xAB March\xE9 conclu : un secret. La statue de pierre, sur cet \xE9tage\u2026 elle sonne creux. Un bon coup, et hop ! \xBB", "\xAB Reviens me dire ce qu'il y avait dedans. \xBB", "(Une fissure appara\xEEt sur la statue. Touchez-la pour la briser.)"], roll: roll2, done: true };
+            }
             this.gluckDrops(1);
             if (this.hintStatue()) {
               return end(["\xAB March\xE9 conclu : une pomme, et un secret. La statue de pierre, sur cet \xE9tage\u2026 elle sonne creux. Un bon coup, et hop ! \xBB", "(Une fissure appara\xEEt sur la statue. Touchez-la pour la briser.)"]);
@@ -7876,6 +7988,9 @@
         case "punish":
           if (test()) {
             this.curseDepth = this.depth;
+            if (this.giveTask("soeur_kobolds")) {
+              return { lines: ["\xAB Oui. OUI. Que leurs \xE9cailles tombent. \xBB", "\xAB Punissez-les. Puis revenez me raconter. \xBB", "(Mal\xE9diction des Kobolds : +2 d\xE9g\xE2ts contre eux, sur cet \xE9tage.)"], roll: roll2, done: true };
+            }
             return end(["\xAB Oui. OUI. Que leurs \xE9cailles tombent. \xBB", "(Mal\xE9diction des Kobolds : +2 d\xE9g\xE2ts contre eux, sur cet \xE9tage.)"]);
           }
           return end(["\xAB Vous manquez de conviction. \xBB"]);
@@ -8050,6 +8165,12 @@
           return { lines: ["\xAB Tu reviendras. C'est vrai, je le sais : je ne peux pas mentir. \xBB"], done: true };
         case "protect":
           if (test()) {
+            if (!this.quest) {
+              this.callFoes(g, "schrat", 2);
+              if (this.giveTask("krik_traqueurs")) {
+                return { lines: ["\xAB Tu me prot\xE9gerais ? Moi ? \u2026 Tu mens mieux que moi. Mais d'accord. \xBB", "\xAB Deux de mes anciens camarades me cherchent. Tiens, les voil\xE0. \xBB", "(Deux Kobolds accourent.)"], roll: roll2, done: true };
+              }
+            }
             this.revealKoboldRooms();
             leaves("pomme");
             return end([
@@ -8062,6 +8183,9 @@
           return end(["\xAB Toi ? Tu ne prot\xE9gerais pas une pomme. \xBB", "\xAB Tiens, prends \xE7a et laisse-moi tranquille. C'est tout ce que je vaux. \xBB", "(Il laisse quelques pi\xE8ces.)"]);
         case "caches":
           if (test()) {
+            if (this.giveTask("krik_magot")) {
+              return { lines: ["\xAB Ma cache ? Dans une autre salle. Pourquoi je te le dis ? \u2026 Je ne peux pas m'en emp\xEAcher. \xBB", "\xAB Rapporte-la-moi, on partage. \xBB", "(La salle du magot appara\xEEt sur la carte.)"], roll: roll2, done: true };
+            }
             g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
             const l = loot();
             leaves(l.item, l.count);
@@ -8134,6 +8258,148 @@
         default:
           return { lines: [], done: false };
       }
+    }
+    // ---------- Tâches de quête (Thomas, 2026-11-12) ----------
+    /** La tâche en cours vient-elle de ce PNJ, sur cet étage ? (Il attend alors le héros.) */
+    questWith(id) {
+      const q = this.quest;
+      return !!q && q.depth === this.depth && QUEST_TASKS[q.id].npc === id;
+    }
+    /** L'objectif est-il rempli ? (Rapporter : l'objet est dans le sac.) */
+    questDone() {
+      const q = this.quest;
+      if (!q) return false;
+      const def = QUEST_TASKS[q.id];
+      return def.kind === "fetch" ? this.inventory.count(def.item) > 0 : q.got >= q.need;
+    }
+    /** Le texte du bandeau : l'objectif et où on en est, ou « revenir voir… » quand c'est fait. */
+    questLine() {
+      const q = this.quest;
+      if (!q) return null;
+      const def = QUEST_TASKS[q.id];
+      const done = this.questDone();
+      return { text: done ? def.back : def.goal.replace("{0}", String(Math.min(q.got, q.need))).replace("{1}", String(q.need)), done };
+    }
+    /**
+     * Donner une tâche : l'objectif n'existe qu'à partir de maintenant (l'objet à rapporter apparaît sur l'étage, sa salle se
+     * montre sur la carte). Faux si elle est impossible ici (une tâche déjà en cours, pas de Kobold, pas de place).
+     */
+    giveTask(id) {
+      if (this.quest) return false;
+      const def = QUEST_TASKS[id];
+      let need = 1;
+      if (def.kind === "kill") {
+        need = Math.min(def.count ?? 1, this.monsters.filter((m) => isKobold(m) && !m.boss).length);
+        if (need <= 0) return false;
+      }
+      if (def.kind === "fetch") {
+        const at = this.questSpot();
+        if (!at) return false;
+        this.dropItem(at.x, at.y, def.item, 1);
+        this.revealRoomAt(at);
+      }
+      this.quest = { id, depth: this.depth, got: 0, need };
+      this.events.push({ type: "quest", what: "start", id });
+      return true;
+    }
+    /** Où poser l'objet à rapporter : une case libre d'une autre salle, à 8 cases au moins, que le héros peut atteindre. */
+    questSpot() {
+      const map = this.map;
+      const seen = new Uint8Array(map.width * map.height);
+      const queue2 = [{ x: this.hero.x, y: this.hero.y }];
+      seen[map.index(this.hero.x, this.hero.y)] = 1;
+      const cells = [];
+      const inside = (r, p) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+      const heroRoom = this.current.rooms.find((r) => inside(r, this.hero));
+      while (queue2.length > 0) {
+        const p = queue2.shift();
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const x = p.x + dx;
+          const y = p.y + dy;
+          if (!map.inBounds(x, y) || seen[map.index(x, y)] || !map.isWalkable(x, y)) continue;
+          seen[map.index(x, y)] = 1;
+          queue2.push({ x, y });
+          const far = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) >= 8;
+          const room = this.current.rooms.find((r) => inside(r, { x, y }));
+          if (far && room && room !== heroRoom && this.npcFree(this.current, x, y) && !this.isTrap(x, y)) cells.push({ x, y });
+        }
+      }
+      return cells.length > 0 ? cells[this.rng.int(0, cells.length - 1)] : null;
+    }
+    /** La salle autour de cette case apparaît sur la carte. */
+    revealRoomAt(p) {
+      const r = this.current.rooms.find((o) => p.x >= o.x && p.x < o.x + o.w && p.y >= o.y && p.y < o.y + o.h);
+      const box = r ?? { x: p.x - 1, y: p.y - 1, w: 3, h: 3 };
+      for (let y = box.y - 1; y <= box.y + box.h; y++) for (let x = box.x - 1; x <= box.x + box.w; x++) if (this.map.inBounds(x, y)) this.explored[this.map.index(x, y)] = 1;
+    }
+    /** Revenir voir le PNJ : il attend tant que ce n'est pas fait ; sinon on lui rend la tâche. */
+    questScene(id) {
+      const def = QUEST_TASKS[this.quest.id];
+      if (!this.questDone()) return { lines: [def.waiting], choices: [{ id: "leave", label: "Partir" }] };
+      return { lines: [this.questLine().text + "."], choices: [{ id: "turnin", label: "C'est fait !" }, { id: "leave", label: "Plus tard" }] };
+    }
+    questChoose(id, choice) {
+      const g = this.npc(id);
+      if (!g || !this.canTalk(id)) return { lines: [], done: true };
+      if (choice !== "turnin" || !this.questDone()) return { lines: [], done: true };
+      const q = this.quest;
+      const def = QUEST_TASKS[q.id];
+      if (def.kind === "fetch") this.inventory.take(def.item, 1);
+      const leaves = (item, count = 1) => (g.items ?? (g.items = [])).push({ item, count });
+      switch (q.id) {
+        case "gluck_sac":
+          g.drops = (g.drops ?? 0) + 3;
+          this.gluckMemory.mood = Math.min(1, this.gluckMemory.mood + 1);
+          break;
+        case "gluck_statue":
+          g.drops = (g.drops ?? 0) + 2;
+          this.gluckMemory.mood = Math.min(1, this.gluckMemory.mood + 1);
+          break;
+        case "soeur_kobolds":
+          this.grantProtection();
+          this.grantLuck();
+          break;
+        case "krik_magot": {
+          g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
+          const l = this.floorLoot();
+          leaves(l.item, l.count);
+          break;
+        }
+        case "krik_traqueurs": {
+          this.revealKoboldRooms();
+          leaves("pomme");
+          const l = this.floorLoot();
+          leaves(l.item, l.count);
+          break;
+        }
+      }
+      this.quest = null;
+      this.events.push({ type: "quest", what: "complete", id: q.id });
+      this.npcLeaves(id, g, this.npcMax(id));
+      return { lines: def.thanks, done: true };
+    }
+    /** Descendre sans être revenu : la tâche est ratée, le PNJ s'en va. Le magot de Krik, lui, est gardé (en or). */
+    failQuest() {
+      const q = this.quest;
+      const def = QUEST_TASKS[q.id];
+      let gold;
+      if (def.kind === "fetch" && this.inventory.take(def.item, 1) && q.id === "krik_magot") {
+        gold = KRIK.keptMagot;
+        this.gold += gold;
+      }
+      const g = this.current[def.npc];
+      if (g) g.gone = true;
+      if (def.npc === "gluck") this.gluckMemory.mood = Math.max(-1, this.gluckMemory.mood - 1);
+      this.quest = null;
+      this.events.push({ type: "quest", what: "fail", id: q.id, gold });
+    }
+    /** Un objet du butin de l'étage (jamais d'or) ; `rarer` : celui de la section suivante. */
+    floorLoot(rarer = false) {
+      for (let k = 0; k < 8; k++) {
+        const l = rollLoot(this.rng, this.depth + (rarer ? RULES.floorsPerSection : 0));
+        if (l.item !== "or") return l;
+      }
+      return { item: "pomme", count: 1 };
     }
     /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
     smokeBurst(at, radius) {
@@ -8497,6 +8763,8 @@
       else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
       if (monster.boss) this.bossDefeated();
       if (def && byHero) this.gainXp(this.rng.int(def.xpMin, def.xpMax));
+      const q = this.quest;
+      if (byHero && q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) q.got++;
       for (const o of this.monsters) if (o.feud === monster.id) o.feud = void 0;
     }
     /**
@@ -8980,12 +9248,16 @@
       const target = this.depth + (direction === "down" ? 1 : -1);
       if (target < 1) return false;
       const healed = 0;
+      if (direction === "down" && this.quest && this.quest.depth === this.depth) this.failQuest();
       this.enterFloor(target, direction);
       this.events.push({ type: "stairs", direction, healed });
       if (direction === "down") this.settleKrik();
       return true;
     }
   };
+  function isKobold(m) {
+    return m.defId === "schrat" || m.defId === "frondeur";
+  }
 
   // src/render/sprites/soeur.ts
   var SOEUR_SPRITE = [
@@ -11576,7 +11848,79 @@
     "Une pierre de fronde contre un h\xE9ros abrit\xE9 derri\xE8re une colonne ou un meuble.": "A sling stone against a hero sheltered behind a pillar or furniture.",
     "Les deux \xE0 la fois": "Both at once",
     "Ils s'annulent : un seul d20.": "They cancel out: a single d20.",
-    "Manuel": "Manual"
+    "Manuel": "Manual",
+    "\xAB Ah ! Enfin quelqu'un de gentil. \xBB": "\u201CAh! Finally someone nice.\u201D",
+    "\xAB Mon sac de pommes ? Perdu en fuyant les autres. Ram\xE8ne-le-moi, on partagera. \xBB": "\u201CMy apple sack? Lost it running from the others. Bring it back and we'll share.\u201D",
+    "(Sa salle appara\xEEt sur la carte.)": "(Its room appears on your map.)",
+    "\xAB March\xE9 conclu : un secret. La statue de pierre, sur cet \xE9tage\u2026 elle sonne creux. Un bon coup, et hop ! \xBB": "\u201CDeal: a secret. The stone statue on this floor\u2026 it sounds hollow. One good hit, and presto!\u201D",
+    "\xAB Reviens me dire ce qu'il y avait dedans. \xBB": "\u201CCome back and tell me what was inside.\u201D",
+    "\xAB Punissez-les. Puis revenez me raconter. \xBB": "\u201CPunish them. Then come back and tell me.\u201D",
+    "\xAB Deux de mes anciens camarades me cherchent. Tiens, les voil\xE0. \xBB": "\u201CTwo of my old comrades are after me. Oh look, here they come.\u201D",
+    "(Deux Kobolds accourent.)": "(Two Kobolds come running.)",
+    "\xAB Ma cache ? Dans une autre salle. Pourquoi je te le dis ? \u2026 Je ne peux pas m'en emp\xEAcher. \xBB": "\u201CMy stash? In another room. Why am I telling you? \u2026 I can't help it.\u201D",
+    "\xAB Rapporte-la-moi, on partage. \xBB": "\u201CBring it back and we'll share.\u201D",
+    "(La salle du magot appara\xEEt sur la carte.)": "(The stash's room appears on your map.)",
+    "C'est fait !": "Done!",
+    "Plus tard": "Later",
+    "Sac de pommes de Gluck": "Gluck's apple sack",
+    "Un sac de toile plein de pommes. \xC0 rapporter \xE0 Gluck.": "A canvas sack full of apples. Bring it back to Gluck.",
+    "Magot de Krik": "Krik's stash",
+    "Un coffret lourd qui tinte. \xC0 rapporter \xE0 Krik\u2026 ou pas.": "A heavy little box that jingles. Bring it back to Krik\u2026 or don't.",
+    "Objet de qu\xEAte": "Quest item",
+    "Gluck : retrouver son sac de pommes": "Gluck: find his apple sack",
+    "Rapporter le sac de pommes \xE0 Gluck": "Bring the apple sack back to Gluck",
+    "\xAB Mon sac est quelque part sur l'\xE9tage. Je t'attends ici. Je ne bouge pas. Promis. \xBB": "\u201CMy sack is somewhere on this floor. I'll wait here. I won't move. Promise.\u201D",
+    "\xAB MON SAC ! Tu l'as rapport\xE9 ! \xBB": "\u201CMY SACK! You brought it back!\u201D",
+    "\xAB On partage : trois pour toi. Bon\u2026 deux. Allez, trois. \xBB": "\u201CLet's share: three for you. Well\u2026 two. Oh fine, three.\u201D",
+    "(Il laisse 3 pommes.)": "(He leaves 3 apples.)",
+    "Quelque part au-dessus, Gluck attend toujours son sac de pommes.": "Somewhere above, Gluck is still waiting for his apple sack.",
+    "Gluck : briser la statue creuse": "Gluck: smash the hollow statue",
+    "Retourner voir Gluck": "Go back to Gluck",
+    "\xAB La statue ! Un bon coup, et hop ! Moi, je surveille. \xBB": "\u201CThe statue! One good hit, and presto! I'll keep watch.\u201D",
+    "\xAB Alors ? Il y avait quoi ? \u2026 Garde tout. Les cailloux, \xE7a me fait peur. \xBB": "\u201CSo? What was in it? \u2026 Keep it all. Rocks scare me.\u201D",
+    "\xAB Une pomme pour le travail, une pour le courage. \xBB": "\u201COne apple for the work, one for the courage.\u201D",
+    "(Il laisse 2 pommes.)": "(He leaves 2 apples.)",
+    "Gluck ne saura jamais ce que cachait la statue.": "Gluck will never know what the statue was hiding.",
+    "S\u0153ur Osseuse : Kobolds punis {0}/{1}": "Sister Bones: Kobolds punished {0}/{1}",
+    "S\u0153ur Osseuse : Kobolds punis": "Sister Bones: punish the Kobolds",
+    "Retourner voir S\u0153ur Osseuse": "Go back to Sister Bones",
+    "\xAB Je compte. Vous, vous frappez. \xBB": "\u201CI count. You strike.\u201D",
+    "\xAB J'ai entendu leurs cris d'ici. C'\xE9tait\u2026 \xE9difiant. \xBB": "\u201CI heard their screams from here. Most\u2026 edifying.\u201D",
+    "\xAB Allez en paix, mon enfant. Et avec un peu de chance. \xBB": "\u201CGo in peace, my child. And with a little luck.\u201D",
+    "(Protection : +1 classe d'armure pendant 150 tours. Chance : vos 3 prochains 1 au d\xE9 seront relanc\xE9s.)": "(Protection: +1 armor class for 150 turns. Luck: your next 3 rolls of 1 will be rerolled.)",
+    "S\u0153ur Osseuse attendait le r\xE9cit de votre croisade. Elle ne l'aura pas.": "Sister Bones was waiting for the tale of your crusade. She won't get it.",
+    "Krik : r\xE9cup\xE9rer son magot": "Krik: fetch his stash",
+    "Rapporter le magot \xE0 Krik": "Bring the stash back to Krik",
+    "\xAB Le magot est l\xE0 o\xF9 je l'ai dit. Je ne mens pas : je ne peux pas. \xBB": "\u201CThe stash is where I said. I'm not lying: I can't.\u201D",
+    "\xAB Tout est l\xE0 ! M\xEAme la pi\xE8ce tordue. \xBB": "\u201CIt's all there! Even the bent coin.\u201D",
+    "\xAB Moiti\xE9-moiti\xE9. Ta moiti\xE9 est plus grosse. C'est vrai, je l'ai mesur\xE9e. \xBB": "\u201CHalf and half. Your half is bigger. It's true, I measured it.\u201D",
+    "(Il laisse de l'or et un objet.)": "(He leaves gold and an item.)",
+    "Vous gardez le magot de Krik : +{0} or. Quelque part, un Kobold qui ne sait pas mentir raconte partout que vous \xEAtes un voleur.": "You keep Krik's stash: +{0} gold. Somewhere, a Kobold who can't lie is telling everyone you're a thief.",
+    "Krik : chasser ses poursuivants {0}/{1}": "Krik: drive off his pursuers {0}/{1}",
+    "Krik : chasser ses poursuivants": "Krik: drive off his pursuers",
+    "Retourner voir Krik": "Go back to Krik",
+    "\xAB Ils sont encore l\xE0. Je les entends. C'est vrai. \xBB": "\u201CThey're still here. I can hear them. It's true.\u201D",
+    "\xAB Ils sont partis ? Vraiment ? \u2026 Je te crois. Je n'ai pas le choix, mais je te crois. \xBB": "\u201CThey're gone? Really? \u2026 I believe you. I have no choice, but I believe you.\u201D",
+    "\xAB Mes camarades dorment l\xE0, l\xE0 et l\xE0. \xBB": "\u201CMy comrades sleep there, there and there.\u201D",
+    "(Les repaires des Kobolds de l'\xE9tage apparaissent sur la carte. Il laisse une pomme et un objet.)": "(The Kobold lairs on this floor appear on your map. He leaves an apple and an item.)",
+    "Krik a d\xFB fuir seul. Il racontera que vous l'avez abandonn\xE9. C'est vrai.": "Krik had to flee alone. He'll tell everyone you abandoned him. It's true.",
+    "Nouvelle qu\xEAte !": "New quest!",
+    "Objectif rempli !": "Objective complete!",
+    "Qu\xEAte perdue : la personne qui l'avait donn\xE9e s'est enfuie.": "Quest lost: the one who gave it ran away.",
+    "Nouvelle qu\xEAte \u2014 {0}.": "New quest \u2014 {0}.",
+    "Krik attendra son magot longtemps.": "Krik will be waiting a long time for his stash.",
+    "Attaque d'opportunit\xE9": "Attack of opportunity",
+    "S'\xE9loigner d'un monstre qui vous a rep\xE9r\xE9 lui offre un coup gratuit, et votre d\xE9placement s'arr\xEAte.": "Moving away from a monster that has spotted you gives it a free hit, and stops your move.",
+    "Passer une porte": "Going through a door",
+    "En y entrant ou en en sortant : pas de coup.": "Stepping into or out of a doorway: no free hit.",
+    "Dans la barre d'actions : un saut de deux cases, sans coup. Il faut r\xE9ussir un jet d'Agilit\xE9.": "In the action bar: a two-square leap, no free hit. It takes a successful Agility roll.",
+    "\xC9tage {0} \xB7 Niv {1}": "Floor {0} \xB7 Lv {1}",
+    "Derni\xE8re partie : {0}": "Last played: {0}",
+    "Sauvegarde illisible.": "Unreadable save.",
+    "Supprimer": "Delete",
+    "S\xFBr ?": "Sure?",
+    "Aucune sauvegarde.": "No saves.",
+    "Sauvegardes": "Saves"
   };
 
   // src/i18n/i18n.ts
@@ -12558,6 +12902,44 @@
       "....KcOOxxcK....",
       ".....KccccK.....",
       "......KKKK......",
+      "................"
+    ],
+    // Sac de pommes de Gluck (tâche de quête) : le sac de toile, des pommes qui dépassent.
+    sac_pommes: [
+      "................",
+      "....KKK..KKK....",
+      "...KRWRK.KRRK...",
+      "..KRRRRKKRRrK...",
+      "..KrRRrKRKrrK...",
+      "...KKKKzZKKK....",
+      "....KzZZZZzK....",
+      "...KZZZZZZZzK...",
+      "..KZZZzZZZZZzK..",
+      "..KZZZZZzZZZzK..",
+      "..KZzZZZZZZZzK..",
+      "..KZZZZZZzZZzK..",
+      "..KZZZZZZZZzzK..",
+      "...KzZZZZZzzK...",
+      "....KzzzzzzK....",
+      ".....KKKKKK....."
+    ],
+    // Magot de Krik (tâche de quête) : un coffret de bois cerclé de mauve, des pièces qui brillent.
+    magot_krik: [
+      "................",
+      "................",
+      "....Y...F..Y....",
+      "...KKKKKKKKKK...",
+      "..KTTTTTTTTTTK..",
+      "..KTBBBBBBBBTK..",
+      "..KBBBBBBBBBbK..",
+      "..KPPPPGGPPPPK..",
+      "..KppppGgppppK..",
+      "..KBBBBBBBBBbK..",
+      "..KBBBBBBBBBbK..",
+      "..KBBBBBBBBBbK..",
+      "..KbbbbbbbbbbK..",
+      "..KKKKKKKKKKKK..",
+      "................",
       "................"
     ],
     // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
@@ -20444,6 +20826,14 @@
         },
         { title: "Les deux \xE0 la fois", lines: ["Ils s'annulent : un seul d20."] }
       ]
+    },
+    {
+      title: "Attaque d'opportunit\xE9",
+      intro: "S'\xE9loigner d'un monstre qui vous a rep\xE9r\xE9 lui offre un coup gratuit, et votre d\xE9placement s'arr\xEAte.",
+      entries: [
+        { title: "Passer une porte", lines: ["En y entrant ou en en sortant : pas de coup."] },
+        { title: "Se d\xE9gager", lines: ["Dans la barre d'actions : un saut de deux cases, sans coup. Il faut r\xE9ussir un jet d'Agilit\xE9."] }
+      ]
     }
   ];
 
@@ -20668,6 +21058,12 @@
         return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
       case "doused":
         return e.actor.kind === "hero" ? "Pschh ! L'eau \xE9teint vos flammes." : null;
+      case "quest":
+        if (e.what === "fail" && e.id === "krik_magot" && !e.gold) return "Krik attendra son magot longtemps.";
+        if (e.what === "fail") return QUEST_TASKS[e.id].failed.replace("{0}", String(e.gold ?? 0));
+        if (e.what === "lost") return "Qu\xEAte perdue : la personne qui l'avait donn\xE9e s'est enfuie.";
+        if (e.what === "start") return `Nouvelle qu\xEAte \u2014 ${QUEST_TASKS[e.id].goal.replace(/ \{0\}\/\{1\}$/, "")}.`;
+        return null;
       case "krikReturn":
         return e.amount > 0 ? `Un petit Kobold coursier vous rattrape : \xAB De la part de Krik. \xBB ${e.amount} pi\xE8ces ! Il avait dit vrai.` : "Un petit Kobold coursier vous rattrape : \xAB De la part de Krik : il a tout revendu trois fois. D\xE9sol\xE9. \xBB Votre investissement est perdu.";
       case "alarmDown":
@@ -20942,7 +21338,7 @@
     log.replaceChildren(
       ...logLines.map((line) => {
         const p = document.createElement("div");
-        p.textContent = tr(line);
+        p.textContent = capFirst2(tr(line));
         return p;
       })
     );
@@ -21078,6 +21474,9 @@
     } else if (e.type === "doused") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
       sfx.play("splash");
+    } else if (e.type === "quest") {
+      if (e.what === "start") renderer.addFloatingText(game.hero.x, game.hero.y, "Nouvelle qu\xEAte !", "#ffd75e");
+      if (e.what === "fail" && e.gold) renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#f0c850");
     } else if (e.type === "krikReturn") {
       if (e.amount > 0) {
         renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} or`, "#f0c850");
@@ -21474,6 +21873,71 @@
     over.append(again);
     over.hidden = false;
   }
+  function renderSaves() {
+    const list = $("saves-list");
+    list.replaceChildren();
+    const slots = PUBLIC_BUILD ? [false] : [false, true];
+    let any = false;
+    for (const sandbox of slots) {
+      let data = null;
+      try {
+        const text2 = localStorage.getItem(saveSlot(sandbox));
+        data = text2 ? JSON.parse(text2) : null;
+      } catch {
+        data = null;
+      }
+      if (!data) continue;
+      any = true;
+      const card = el("div", "save-card");
+      const pictos = el("div", "save-pictos");
+      for (const id of [data.race, data.heroClass]) {
+        const p = id ? PICTOS[id] : void 0;
+        if (p) pictos.append(buildIcon(p.rows, p.palette));
+      }
+      const race = RACES[data.race]?.name ?? "";
+      const cls = CLASSES[data.heroClass]?.name ?? "";
+      const text = el("div", "save-text");
+      const title = el("div", "save-title");
+      title.textContent = `${tr(race)} ${tr(cls)}${sandbox ? ` \xB7 ${tr("Salle d'essai")}` : ""}`;
+      const when = data.savedAt ? new Date(data.savedAt) : null;
+      const whenText = when && !isNaN(when.getTime()) ? new Intl.DateTimeFormat(options.lang === "en" ? "en-GB" : "fr-FR", { dateStyle: "short", timeStyle: "short" }).format(when) : "?";
+      text.append(title, el("div", "", `\xC9tage ${data.depth ?? 1} \xB7 Niv ${data.level ?? 1}`), el("div", "save-when", `Derni\xE8re partie : ${whenText}`));
+      const buttons = el("div", "save-buttons");
+      const resume = el("button", "", "Reprendre");
+      resume.addEventListener("click", () => {
+        sfx.play("click");
+        try {
+          const saved = Game.restore(JSON.parse(localStorage.getItem(saveSlot(sandbox)) ?? "null"));
+          if (!saved) throw new Error("illisible");
+          resumeRun(saved);
+          savedRun = null;
+          showScreen(null);
+        } catch {
+          logLines.push("Sauvegarde illisible.");
+          renderLog();
+        }
+      });
+      const erase = el("button", "danger", "Supprimer");
+      let armed = false;
+      erase.addEventListener("click", () => {
+        sfx.play("click");
+        if (!armed) {
+          armed = true;
+          erase.classList.add("armed");
+          erase.textContent = tr("S\xFBr ?");
+          return;
+        }
+        eraseSave(sandbox);
+        if (started && !game.over && game.sandbox === sandbox) started = false;
+        if (savedRun && savedRun.sandbox === sandbox) savedRun = null;
+        showScreen("saves");
+      });
+      buttons.append(resume, erase);
+      card.append(pictos, text, buttons);
+      list.append(card);
+    }
+    if (!any) list.append(el("p", "", "Aucune sauvegarde."));
+  }
   function renderManual() {
     const list = $("manual-list");
     list.replaceChildren();
@@ -21487,6 +21951,32 @@
         list.append(div);
       }
     }
+  }
+  var questShown = "";
+  var questWasDone = false;
+  function renderQuest() {
+    const banner = $("quest-banner");
+    const q = game.over ? null : game.questLine();
+    banner.hidden = !q;
+    if (!q) {
+      questShown = "";
+      questWasDone = false;
+      return;
+    }
+    const text = tr(q.text);
+    if (text !== questShown) {
+      banner.textContent = text;
+      questShown = text;
+    }
+    banner.classList.toggle("done", q.done);
+    if (q.done && !questWasDone) {
+      banner.classList.remove("flash");
+      void banner.offsetWidth;
+      banner.classList.add("flash");
+      renderer.addFloatingText(game.hero.x, game.hero.y, "Objectif rempli !", "#ffd75e");
+      sfx.play("advantage");
+    }
+    questWasDone = q.done;
   }
   function renderRecords() {
     const list = $("records-list");
@@ -22255,7 +22745,7 @@
     else if (!selectedSlot && item.defId === game.quickItem) card.append(el("div", "quick-note", "Raccourci \xAB\xA0Objet\xA0\xBB de la barre d'actions."));
     quickNote = "";
     info.replaceChildren(card);
-    const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
+    const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem" && def.kind !== "quest";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
     action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
     action.textContent = tr(action.textContent ?? "");
@@ -22765,7 +23255,7 @@
         ["Sacs", ["bag"]],
         ["Potions et vivres", ["use"]],
         ["Pierres pr\xE9cieuses et or", ["gem", "gold"]],
-        ["Divers", ["key"]]
+        ["Divers", ["key", "quest"]]
       ];
       for (const [title, kinds] of groups) {
         const all = Object.values(ITEMS).filter((d) => kinds.includes(d.kind));
@@ -22808,7 +23298,7 @@
   function showScreen(screen) {
     menuOpen = screen !== null;
     menu.hidden = !menuOpen;
-    for (const name of ["main", "new", "settings", "codex", "records", "manual"]) $(`screen-${name}`).hidden = screen !== name;
+    for (const name of ["main", "new", "settings", "codex", "records", "manual", "saves"]) $(`screen-${name}`).hidden = screen !== name;
     $("detail").hidden = true;
     $("menu-resume").hidden = (!started || game.over) && savedRun === null;
     $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
@@ -22818,6 +23308,7 @@
     if (screen === "codex") renderCodex();
     if (screen === "records") renderRecords();
     if (screen === "manual") renderManual();
+    if (screen === "saves") renderSaves();
   }
   var signedBonus = (n) => n >= 0 ? `+${n}` : `${n}`;
   function raceCard(r) {
@@ -22995,7 +23486,16 @@
   });
   button("menu-codex", () => showScreen("codex"));
   button("menu-records", () => showScreen("records"));
+  button("quest-banner", () => {
+    const q = game.questLine();
+    if (q) {
+      logLines.push(q.text);
+      renderLog();
+    }
+  });
   button("menu-manual", () => showScreen("manual"));
+  button("menu-saves", () => showScreen("saves"));
+  button("saves-back", () => showScreen("main"));
   button("manual-back", () => showScreen("main"));
   button("records-back", () => showScreen("main"));
   button("codex-back", () => showScreen("main"));
@@ -23171,7 +23671,7 @@
     diceBox.classList.toggle("ready", !game.over && game.meleeTarget() !== null);
     if (!cue && queue.length === 0 && die.textContent === "") {
       const hint = game.meleeTarget() && !game.over ? "Frapper" : "";
-      if (dieWho.textContent !== hint && (hint || dieWho.textContent === "Frapper")) dieWho.textContent = tr(hint);
+      if (dieWho.textContent !== tr(hint) && (hint || dieWho.textContent === tr("Frapper"))) dieWho.textContent = tr(hint);
     }
     if (started) discoverSurroundings();
     const aimRange = aimMode && game.arrows() > 0 ? game.shotProfile()?.range ?? null : null;
@@ -23181,6 +23681,7 @@
     $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
     renderAlarm();
     renderHeroStatus();
+    renderQuest();
     const floorText = String(game.depth);
     if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
     hpFill.style.width = `${100 * shownHp / game.hero.maxHp}%`;
@@ -23247,6 +23748,9 @@
     /** Pour les captures : montre les événements en attente (comme après un toucher). */
     flush: () => collectEvents()
   };
+  function capFirst2(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
 })();
 
 </script>

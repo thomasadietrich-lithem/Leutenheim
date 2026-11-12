@@ -1,3 +1,4 @@
+import { QUEST_TASKS } from "../data/quests";
 import { GameEvent } from "../core/game";
 import { ITEMS } from "../data/items";
 import { PATHS } from "../data/skills";
@@ -286,6 +287,12 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
     case "doused":
       return e.actor.kind === "hero" ? "Pschh ! L'eau éteint vos flammes." : null;
+    case "quest":
+      if (e.what === "fail" && e.id === "krik_magot" && !e.gold) return "Krik attendra son magot longtemps.";
+      if (e.what === "fail") return QUEST_TASKS[e.id].failed.replace("{0}", String(e.gold ?? 0));
+      if (e.what === "lost") return "Quête perdue : la personne qui l'avait donnée s'est enfuie.";
+      if (e.what === "start") return `Nouvelle quête — ${QUEST_TASKS[e.id].goal.replace(/ \{0\}\/\{1\}$/, "")}.`;
+      return null;
     case "krikReturn":
       return e.amount > 0
         ? `Un petit Kobold coursier vous rattrape : « De la part de Krik. » ${e.amount} pièces ! Il avait dit vrai.`

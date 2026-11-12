@@ -2318,8 +2318,15 @@ function renderCharacter(): void {
   who.append(head, document.createTextNode(tr(`${game.heroClass.name} · Niv ${game.level}`)));
   $("char-who").replaceChildren(who);
   $("char-xp").textContent = tr(`XP ${game.xp}/${game.xpToNext()}`);
-  $("char-points").textContent =
-    game.points > 0 ? tr(`${game.points} point${game.points > 1 ? "s" : ""} à attribuer${game.inCombat() ? " (pas en combat)" : ""}`) : "";
+  // Le ruban reste toujours là (Thomas, 2026-11-13) : points de caractéristique et de compétence à attribuer, 0 compris.
+  const pathLeft = game.voie ? game.pathPoints() : 0;
+  const ribbon = $("char-points");
+  ribbon.replaceChildren(
+    el("div", "", `Points à attribuer : ${game.points}`),
+    el("div", "", `Compétences à attribuer : ${pathLeft}`),
+    ...(game.inCombat() && game.points + pathLeft > 0 ? [el("div", "char-points-note", "Pas en combat")] : []),
+  );
+  ribbon.classList.toggle("idle", game.points + pathLeft === 0);
 
   // Caractéristiques sur deux colonnes (l'écran tient sans défiler).
   const row = (name: string, value: string, stat?: StatId, wide = false) => {

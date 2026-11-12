@@ -1054,4 +1054,7 @@ export const EN: Record<string, string> = {
   "Sac à ranger": "Tidy your bag",
   "Pas de place d'un seul tenant : {0}{1} tombe par terre. Rangez le sac pour lui faire un trou.": "No room in one piece: {0}{1} falls to the ground. Tidy your bag to make a gap.",
   "Il reste de la place, mais pas d'un seul tenant : rangez le sac (touchez un objet, puis une case libre).": "There's room left, but not in one piece: tidy your bag (tap an item, then an empty square).",
+  "Points à attribuer : {0}": "Points to spend: {0}",
+  "Compétences à attribuer : {0}": "Skill points to spend: {0}",
+  "Pas en combat": "Not in combat",
 };

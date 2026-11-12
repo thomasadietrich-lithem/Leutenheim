@@ -385,7 +385,9 @@
   .char-head { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .char-head svg { width: 44px; height: 25px; }
   #char-points { width: min(100%, 318px); padding: 6px 8px; color: #ffd75e; font-size: 20px; text-transform: uppercase; box-shadow: inset 0 0 0 2px var(--gold); background: #2a2010; text-align: center; }
-  #char-points:empty { display: none; }
+  #char-points { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 14px; font-size: 17px; }
+  #char-points.idle { color: var(--dim); box-shadow: inset 0 0 0 1px var(--panel-hi); background: transparent; }
+  #char-points .char-points-note { width: 100%; font-size: 14px; color: var(--dim); }
   #char-stats { width: min(100%, 318px); }
   .char-stat { display: flex; align-items: center; gap: 8px; font-size: 20px; text-transform: uppercase; color: var(--dim); margin: 3px 0; }
   .char-stat .n { flex: 1; text-align: left; }
@@ -12079,7 +12081,10 @@
     "Quelques notes de fl\xFBte\u2026 {0} s'endort.": "A few flute notes\u2026 {0} falls asleep.",
     "Sac \xE0 ranger": "Tidy your bag",
     "Pas de place d'un seul tenant : {0}{1} tombe par terre. Rangez le sac pour lui faire un trou.": "No room in one piece: {0}{1} falls to the ground. Tidy your bag to make a gap.",
-    "Il reste de la place, mais pas d'un seul tenant : rangez le sac (touchez un objet, puis une case libre).": "There's room left, but not in one piece: tidy your bag (tap an item, then an empty square)."
+    "Il reste de la place, mais pas d'un seul tenant : rangez le sac (touchez un objet, puis une case libre).": "There's room left, but not in one piece: tidy your bag (tap an item, then an empty square).",
+    "Points \xE0 attribuer : {0}": "Points to spend: {0}",
+    "Comp\xE9tences \xE0 attribuer : {0}": "Skill points to spend: {0}",
+    "Pas en combat": "Not in combat"
   };
 
   // src/i18n/i18n.ts
@@ -23546,7 +23551,14 @@
     who.append(head, document.createTextNode(tr(`${game.heroClass.name} \xB7 Niv ${game.level}`)));
     $("char-who").replaceChildren(who);
     $("char-xp").textContent = tr(`XP ${game.xp}/${game.xpToNext()}`);
-    $("char-points").textContent = game.points > 0 ? tr(`${game.points} point${game.points > 1 ? "s" : ""} \xE0 attribuer${game.inCombat() ? " (pas en combat)" : ""}`) : "";
+    const pathLeft = game.voie ? game.pathPoints() : 0;
+    const ribbon = $("char-points");
+    ribbon.replaceChildren(
+      el("div", "", `Points \xE0 attribuer : ${game.points}`),
+      el("div", "", `Comp\xE9tences \xE0 attribuer : ${pathLeft}`),
+      ...game.inCombat() && game.points + pathLeft > 0 ? [el("div", "char-points-note", "Pas en combat")] : []
+    );
+    ribbon.classList.toggle("idle", game.points + pathLeft === 0);
     const row = (name, value, stat, wide = false) => {
       const node = el("div", `r${wide ? " wide" : ""}`);
       node.append(el("span", "", name), el("b", "", value));

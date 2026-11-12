@@ -30,10 +30,16 @@ export function rollAttack(
   mode: RollMode = "normal",
   /** Coup critique à partir de ce d20 (20 d'ordinaire ; 19 avec « Coup puissant »). */
   critFrom = 20,
+  /** Chance (Sœur Osseuse) : appelé sur un 1 naturel ; s'il répond oui, le dé est relancé. */
+  reroll?: () => boolean,
 ): AttackResult {
   const rolls = [rng.int(1, 20)];
   if (mode !== "normal") rolls.push(rng.int(1, 20));
-  const d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
+  let d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
+  if (d20 === 1 && reroll?.()) {
+    d20 = rng.int(1, 20);
+    rolls[rolls.indexOf(1)] = d20;
+  }
   const total = d20 + attacker.attackBonus;
   const critical = d20 >= critFrom;
   const hit = critical || (d20 !== 1 && total >= defender.armorClass);

@@ -1,7 +1,7 @@
 import { ItemId } from "../data/items";
 
 /** Palette commune aux icônes : une lettre par couleur, « . » pour le vide. */
-export const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50" };
+export const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
 
 /**
  * Icônes en pixels des objets : chaque ligne de texte est une rangée de pixels. Les objets d'une case font
@@ -1095,7 +1095,14 @@ export const FIRE_FRAMES = [
   ],
 ];
 
-/** Petites projections de sang : rouge (héros), vert (Schrats) ; deux formes au sol, une sur un mur. */
+/** Les mêmes rangées de pixels, couleurs remplacées. */
+function recolor<T extends Record<string, string[]>>(set: T, map: Record<string, string>): T {
+  const out: Record<string, string[]> = {};
+  for (const [k, rows] of Object.entries(set)) out[k] = rows.map((r) => r.replace(/./g, (c) => map[c] ?? c));
+  return out as T;
+}
+
+/** Petites projections de sang : rouge (héros), jaune (Kobolds), noir (araignées), vert (anciennes sauvegardes). */
 export const BLOOD = {
   red: {
     sol1: [
@@ -1208,6 +1215,13 @@ export const BLOOD = {
       "................",
       "................",
     ],
+  },
+  // Sang jaune des Kobolds et noir des araignées (Thomas, 2026-11-12) : les mêmes formes que le vert, autres couleurs.
+  get yellow() {
+    return recolor(this.green, { "4": "m", "5": "N", "6": "y" });
+  },
+  get black() {
+    return recolor(this.green, { "4": "0", "5": "9", "6": "k" });
   },
 };
 
@@ -1371,6 +1385,79 @@ export const STATUS_ICONS = {
     ".......K........",
     "................",
     "................",
+    "................",
+    "................",
+    "................",
+  ],
+  // Bénédictions de Sœur Osseuse (quête 02, 2026-11-12).
+  protection: [
+    "................",
+    "...KKKKKKKKKK...",
+    "...KUUUWWUUuK...",
+    "...KUUUWWUUuK...",
+    "...KUWWWWWWuK...",
+    "...KUWWWWWWuK...",
+    "...KUUUWWUUuK...",
+    "...KUUUWWUUuK...",
+    "....KUUWWUuK....",
+    ".....KUUUuK.....",
+    "......KuuK......",
+    ".......KK.......",
+    "................",
+    "................",
+    "................",
+    "................",
+  ],
+  clarte: [
+    "................",
+    ".......K........",
+    "......KVK.......",
+    ".....KVVVK......",
+    "....KVWVVVK.....",
+    "...KVWVVVVIK....",
+    "...KVWVVVIIK....",
+    "...KVVVVIIIK....",
+    "....KVVIIIK.....",
+    ".....KKKKK......",
+    "................",
+    "...W.......W....",
+    "..WWW.....WWW...",
+    "...W.......W....",
+    "................",
+    "................",
+  ],
+  malediction: [
+    "................",
+    "..K..........K..",
+    ".KyK........KyK.",
+    ".KNyK......KyNK.",
+    "..KNyKKKKKKyNK..",
+    "...KNNNNNNNNK...",
+    "..KNN3NNNN3NNK..",
+    "..KNN3NNNN3NNK..",
+    "..KNNNNNNNNNNK..",
+    "...KNNKKKKNNK...",
+    "....KNKmmKNK....",
+    ".....KKKKKK.....",
+    "..3........3....",
+    "...3......3.....",
+    "....3....3......",
+    "................",
+  ],
+  chance: [
+    "................",
+    "....KKK..KKK....",
+    "...KEEEKKEEEK...",
+    "...KEJEEKEJEK...",
+    "...KEEEEKEEEK...",
+    "....KKEEEEKK....",
+    "...KEEEEKEEEK...",
+    "...KEJEEKEJEK...",
+    "...KEEEKKEEEK...",
+    "....KKKeeKKK....",
+    "........KeK.....",
+    ".........KeK....",
+    "..........KK....",
     "................",
     "................",
     "................",

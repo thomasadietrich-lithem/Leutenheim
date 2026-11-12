@@ -7,6 +7,7 @@ import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
 import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
+import { SOEUR, SOEUR_OPENING } from "../data/soeur";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
@@ -54,6 +55,18 @@ export interface GluckMemory {
   lastReward?: string;
 }
 
+/** Les PNJ de quête : Gluck (quête 01) et Sœur Osseuse (quête 02). */
+export type NpcId = "gluck" | "soeur";
+
+/** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
+export interface SoeurMemory {
+  met: number;
+  /** On lui a reparlé de la cloche (rencontre 2) : elle s'en souvient. */
+  grudge?: boolean;
+  /** Dernier cadeau (rencontres 2 et 4), pour ne pas redonner le même. */
+  lastReward?: string;
+}
+
 /** Ce que rend un choix du dialogue de Gluck : ses répliques, le jet s'il y en a eu un, et si la scène est finie. */
 export interface GluckResult {
   lines: string[];
@@ -82,8 +95,8 @@ export class Game {
   pendingDoor: Point | null = null;
   /** On marche vers le Colporteur : sa boutique s'ouvrira en arrivant à côté de lui. */
   private shopTarget = false;
-  /** Le héros va parler à Gluck : la conversation s'ouvre en arrivant à côté de lui. */
-  private talkTarget = false;
+  /** Le héros va parler à un PNJ de quête (Gluck, Sœur Osseuse) : la conversation s'ouvre en arrivant à côté de lui. */
+  private talkTarget: NpcId | null = null;
   /** Le sac du héros, et à part ce qu'il porte sur lui : un objet par emplacement. */
   inventory = new Inventory();
   equipment: Record<Slot, BagItem | null> = { amulet: null, hat: null, artifact: null, armor: null, melee: null, ranged: null, bag: null };
@@ -119,6 +132,14 @@ export class Game {
   hasteTurns = 0;
   /** Gluck, le Kobold aux pommes : ce qu'il sait du héros dans cette partie. */
   gluckMemory: GluckMemory = { met: 0, mood: 0, invested: 0 };
+  /** Sœur Osseuse : ce qu'elle sait du héros dans cette partie. */
+  soeurMemory: SoeurMemory = { met: 0 };
+  /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
+   *  valent), Chance (1 naturels encore à relancer). */
+  protectTurns = 0;
+  clarityDepth = 0;
+  curseDepth = 0;
+  luck = 0;
   /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
   blessTurns = 0;
   /** Cases en feu (potion de feu), sur l'étage courant. */
@@ -336,7 +357,7 @@ export class Game {
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
       placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
     }
-    if (fresh && !state.boss) state.gluck = this.placeGluck(state, depth) ?? undefined;
+    if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     for (const m of this.monsters) {
       m.fromX = m.x;
       m.fromY = m.y;
@@ -593,7 +614,7 @@ export class Game {
     // Dans un cocon, il reste parfois quelques pièces de la victime.
     if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
     // Du sang (Thomas : « pense au sang ») : rouge pour la proie du cocon, vert pour les œufs.
-    if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "green" : "red");
+    if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "black" : "red");
     // Les œufs écrasés laissent leurs coquilles et une flaque au sol (Thomas).
     if (f.kind === "eggSac") this.current.furniture.push({ x: f.x, y: f.y, kind: "eggSmash" });
     const queen = this.bossActor();
@@ -1238,6 +1259,7 @@ export class Game {
       merchant: f.merchant,
       counter: f.counter,
       gluck: f.gluck,
+      soeur: f.soeur,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1264,6 +1286,8 @@ export class Game {
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
       gluck: this.gluckMemory,
+      soeur: this.soeurMemory,
+      blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
       blessTurns: this.blessTurns,
       fires: this.fires,
       gas: this.gas,
@@ -1324,6 +1348,7 @@ export class Game {
         merchant: f.merchant,
         counter: f.counter,
         gluck: f.gluck,
+        soeur: f.soeur,
       });
     }
     game.turn = saved.turn;
@@ -1354,6 +1379,11 @@ export class Game {
     game.hasteTurns = saved.hasteTurns;
     game.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
     game.blessTurns = saved.blessTurns ?? 0;
+    game.soeurMemory = saved.soeur ?? { met: 0 };
+    game.protectTurns = saved.blessings?.protect ?? 0;
+    game.clarityDepth = saved.blessings?.clarity ?? 0;
+    game.curseDepth = saved.blessings?.curse ?? 0;
+    game.luck = saved.blessings?.luck ?? 0;
     game.inventory.cols = saved.bagSize.cols;
     game.inventory.rows = saved.bagSize.rows;
     game.torchTurns = saved.torchTurns ?? 0;
@@ -1501,7 +1531,8 @@ export class Game {
       ((hat && (ITEMS[hat.defId] as ItemDef).acBonus) || 0) +
       this.rank("peau_dure") +
       Math.floor(this.alloc.agilite / RULES.agilityPerDodge) +
-      blessed;
+      blessed +
+      (this.protectTurns > 0 ? SOEUR.protectBonus : 0);
   }
 
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
@@ -1604,6 +1635,26 @@ export class Game {
     const item = this.inventory.get(uid);
     if (!item || this.over) return false;
     this.inventory.removeItem(uid);
+    // Une potion jetée se casse sur les dalles, à côté du héros (Thomas, 2026-11-12) : elle est perdue, et son contenu
+    // se répand sur la case : le feu y prend, le poison y fait un petit nuage (3 tours) ; les autres s'évaporent.
+    const potion = (ITEMS[item.defId] as ItemDef).potion;
+    if (potion) {
+      const at = this.landingCell(this.hero, item.defId);
+      if (potion === "fire" && this.map.get(at.x, at.y) !== Tile.Water) {
+        const old = this.fires.find((f) => f.x === at.x && f.y === at.y);
+        if (old) old.turns = RULES.fireTurns;
+        else this.fires.push({ x: at.x, y: at.y, turns: RULES.fireTurns });
+        this.igniteFurniture();
+      }
+      if (potion === "poison") {
+        const old = this.gas.find((g) => g.x === at.x && g.y === at.y);
+        if (old) old.turns = Math.max(old.turns, RULES.brokenPoisonGasTurns);
+        else this.gas.push({ x: at.x, y: at.y, turns: RULES.brokenPoisonGasTurns });
+        this.gasPoison();
+      }
+      this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
+      return true;
+    }
     this.dropItem(this.hero.x, this.hero.y, item.defId, item.count);
     this.events.push({ type: "dropped", item: item.defId, count: item.count });
     return true;
@@ -2027,7 +2078,7 @@ export class Game {
   }
 
   /** Une tache de sang posée sur une case (cocon ou œufs crevés). */
-  private stain(x: number, y: number, color: "red" | "green"): void {
+  private stain(x: number, y: number, color: "red" | "green" | "yellow" | "black"): void {
     const stains = this.current.blood;
     const same = stains.findIndex((b) => b.x === x && b.y === y);
     if (same >= 0) stains.splice(same, 1);
@@ -2125,8 +2176,8 @@ export class Game {
     // Le Colporteur : on va à côté de lui, puis sa boutique s'ouvre (pas pendant un combat, pas s'il se cache).
     const merchant = this.merchantAt(x, y);
     if (merchant && this.isVisible(x, y) && !merchant.hidden) return this.approachMerchant(merchant);
-    const gluck = this.gluckAt(x, y);
-    if (gluck && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachGluck(gluck);
+    const npcHere = this.npcAt(x, y);
+    if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
     if ((this.breakableAt(x, y) || this.bellAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     const seen = this.monsterAt(x, y);
@@ -2520,16 +2571,18 @@ export class Game {
       // Le Colporteur sur le chemin : si on allait le voir, on s'arrête et sa boutique s'ouvre ; sinon il s'écarte
       // (il prend la place du héros) et on passe.
       // Gluck sur le chemin : on s'arrête à côté de lui (la conversation s'ouvre) ; sinon il s'écarte, comme le Colporteur.
-      const gluck = this.gluckAt(next.x, next.y);
-      if (gluck && this.talkTarget) {
+      const npcOnPath = this.npcAt(next.x, next.y);
+      if (npcOnPath && this.talkTarget) {
+        const who = this.talkTarget;
         this.path = [];
-        this.talkTarget = false;
-        if (this.nextToGluck()) this.events.push({ type: "gluck", what: "talk" });
+        this.talkTarget = null;
+        if (this.nextToNpc(who)) this.events.push({ type: "npc", what: "talk", who });
         return false;
       }
-      if (gluck) {
-        gluck.x = this.hero.x;
-        gluck.y = this.hero.y;
+      if (npcOnPath) {
+        const spot = this.npc(npcOnPath)!;
+        spot.x = this.hero.x;
+        spot.y = this.hero.y;
       }
       const peddler = this.merchantAt(next.x, next.y);
       if (peddler && this.shopTarget) {
@@ -2588,8 +2641,9 @@ export class Game {
           if (this.nextToMerchant()) this.openShop();
         }
         if (this.path.length === 0 && this.talkTarget) {
-          this.talkTarget = false;
-          if (this.nextToGluck()) this.events.push({ type: "gluck", what: "talk" });
+          const who = this.talkTarget;
+          this.talkTarget = null;
+          if (this.nextToNpc(who)) this.events.push({ type: "npc", what: "talk", who });
         }
         if (this.path.length === 0 && this.doorTarget) {
           // Arrivé devant la porte verrouillée : au joueur de décider.
@@ -2636,12 +2690,17 @@ export class Game {
     this.burn();
     this.gasTick();
     this.counterChatter();
-    // Salle d'essai : Gluck revient quelques tours après être parti, pour montrer la scène suivante.
-    const gk = this.current.gluck;
-    if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
-      Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false });
+    // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
+    for (const gk of [this.current.gluck, this.current.soeur]) {
+      if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
+        Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
+      }
     }
     if (this.hasteTurns > 0) this.hasteTurns--;
+    if (this.protectTurns > 0) {
+      this.protectTurns--;
+      if (this.protectTurns === 0) this.refreshStats();
+    }
     if (this.blessTurns > 0) {
       this.blessTurns--;
       if (this.blessTurns === 0) {
@@ -2823,7 +2882,8 @@ export class Game {
   private heroPoisonTick(): void {
     if (!this.hero.poison || this.over) return;
     const damage = this.hero.poison.damage;
-    this.hero.poison.turns--;
+    // Clarté (Sœur Osseuse) : le poison s'use deux fois plus vite.
+    this.hero.poison.turns -= this.clarityActive() ? 2 : 1;
     if (this.hero.poison.turns <= 0) this.hero.poison = undefined;
     this.events.push({ type: "poison", actor: this.hero, damage });
     this.hurtHero(damage, "le poison");
@@ -3063,20 +3123,43 @@ export class Game {
   // ---------- Quête 01 : Gluck, le Kobold aux pommes (Thomas, 2026-11-12) ----------
 
   /**
-   * Gluck se montre sur un étage 1 à 4 d'une section (jamais celui du boss), une fois sur trois environ, tant qu'on ne
-   * l'a pas vu 4 fois. Il se tient dans une salle ordinaire (de préférence un dortoir ou une forge), loin de l'arrivée.
-   * Salle d'essai : toujours, dans la salle des colonnes.
+   * Un PNJ de quête au plus par étage (`claude/QUETES.md` §2) : sur un étage 1 à 4 d'une section (jamais celui du boss),
+   * une fois sur trois environ, Gluck ou Sœur Osseuse (au hasard parmi ceux qu'on n'a pas encore vus 4 fois).
+   * Salle d'essai : les deux, toujours (Gluck dans la salle des colonnes, Sœur Osseuse dans la salle de prière).
    */
-  private placeGluck(state: FloorState, depth: number): GluckSpot | null {
-    const free = (x: number, y: number) =>
+  private placeQuestNpc(state: FloorState, depth: number): void {
+    if (this.sandbox) {
+      if (depth !== 1) return;
+      state.gluck = this.placeGluck(state, depth) ?? undefined;
+      state.soeur = this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0)) ?? undefined;
+      return;
+    }
+    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
+    if ((depth - 1) % RULES.floorsPerSection > 3 || !rng.chance(GLUCK.chance)) return;
+    const who = (["gluck", "soeur"] as const).filter((id) => this.npcMemory(id).met < (id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters));
+    if (who.length === 0) return;
+    const pick = who[rng.int(0, who.length - 1)];
+    if (pick === "gluck") state.gluck = this.placeGluck(state, depth, rng) ?? undefined;
+    else state.soeur = this.placeSoeur(state, rng) ?? undefined;
+  }
+
+  /** Une case où un PNJ peut se tenir : du sol nu, sans monstre, meuble, objet ni Colporteur. */
+  private npcFree(state: FloorState, x: number, y: number): boolean {
+    return (
       state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) &&
-      !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y);
+      !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) &&
+      !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y)
+    );
+  }
+
+  /** Gluck se tient dans une salle ordinaire (de préférence un dortoir ou une forge), loin de l'arrivée. */
+  private placeGluck(state: FloorState, depth: number, rng?: Rng): GluckSpot | null {
+    const free = (x: number, y: number) => this.npcFree(state, x, y);
     if (this.sandbox && depth === 1) {
       for (const [x, y] of [[20, 5], [21, 5], [20, 6], [22, 6]]) if (free(x, y)) return { x, y, gone: false };
       return null;
     }
-    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
-    if ((depth - 1) % RULES.floorsPerSection > 3 || this.gluckMemory.met >= GLUCK.maxEncounters || !rng.chance(GLUCK.chance)) return null;
+    rng ??= new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
     const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
     const rooms = state.rooms.filter((r, i) => i > 0 && !inside(r, state.start) && !inside(r, state.stairs));
     const themed = rooms.filter((r) => (state.themes ?? []).some((t) => (t.id === "dortoir" || t.id === "forge") && state.rooms[t.room] === r));
@@ -3091,10 +3174,39 @@ export class Game {
     return null;
   }
 
+  /**
+   * Sœur Osseuse se tient dans la salle de prière, au plus près du milieu (dans l'allée) ; sinon dans une salle calme,
+   * sans monstre, loin de l'arrivée.
+   */
+  private placeSoeur(state: FloorState, rng: Rng): GluckSpot | null {
+    const free = (x: number, y: number) => this.npcFree(state, x, y);
+    const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    const chapel = (state.themes ?? []).find((t) => t.id === "priere");
+    if (chapel) {
+      const r = state.rooms[chapel.room];
+      const cx = r.x + (r.w - 1) / 2;
+      const cy = r.y + (r.h - 1) / 2;
+      let best: Point | null = null;
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) {
+          if (free(x, y) && (!best || Math.hypot(x - cx, y - cy) < Math.hypot(best.x - cx, best.y - cy))) best = { x, y };
+        }
+      }
+      if (best) return { ...best, gone: false };
+    }
+    const calm = state.rooms.filter((r, i) => i > 0 && !inside(r, state.start) && !inside(r, state.stairs) && !this.monsters.some((m) => inside(r, m)));
+    for (let attempt = 0; attempt < 60 && calm.length > 0; attempt++) {
+      const r = calm[rng.int(0, calm.length - 1)];
+      const x = rng.int(r.x, r.x + r.w - 1);
+      const y = rng.int(r.y, r.y + r.h - 1);
+      if (free(x, y)) return { x, y, gone: false };
+    }
+    return null;
+  }
+
   /** Gluck sur cet étage (pas encore parti), s'il y est. */
   gluck(): GluckSpot | null {
-    const g = this.current.gluck;
-    return g && !g.gone ? g : null;
+    return this.npc("gluck");
   }
 
   gluckAt(x: number, y: number): GluckSpot | null {
@@ -3102,36 +3214,104 @@ export class Game {
     return g && g.x === x && g.y === y ? g : null;
   }
 
-  private nextToGluck(): boolean {
-    const g = this.gluck();
+  /** Un PNJ de quête sur cet étage (pas encore parti). */
+  npc(id: NpcId): GluckSpot | null {
+    const g = this.current[id];
+    return g && !g.gone ? g : null;
+  }
+
+  /** Le PNJ de quête qui se tient sur cette case, s'il y en a un. */
+  npcAt(x: number, y: number): NpcId | null {
+    for (const id of ["gluck", "soeur"] as const) {
+      const g = this.npc(id);
+      if (g && g.x === x && g.y === y) return id;
+    }
+    return null;
+  }
+
+  private nextToNpc(id: NpcId): boolean {
+    const g = this.npc(id);
     return !!g && Math.max(Math.abs(g.x - this.hero.x), Math.abs(g.y - this.hero.y)) === 1;
   }
 
-  /** Peut-on parler à Gluck maintenant ? À côté de lui, et pas en plein combat. */
-  canTalk(): boolean {
-    return !this.over && this.nextToGluck() && !this.inCombat();
+  /** Ce que ce PNJ sait du héros dans cette partie. */
+  npcMemory(id: NpcId): { met: number } {
+    return id === "gluck" ? this.gluckMemory : this.soeurMemory;
   }
 
-  private approachGluck(g: GluckSpot): boolean {
+  /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
+  canTalk(id: NpcId = "gluck"): boolean {
+    return !this.over && this.nextToNpc(id) && !this.inCombat();
+  }
+
+  private approachNpc(id: NpcId): boolean {
+    const g = this.npc(id)!;
     this.clearDoorOrders();
     this.targetId = null;
     this.waiting = false;
-    if (this.nextToGluck()) {
+    if (this.nextToNpc(id)) {
       this.path = [];
-      if (!this.inCombat()) this.events.push({ type: "gluck", what: "talk" });
+      if (!this.inCombat()) this.events.push({ type: "npc", what: "talk", who: id });
       return true;
     }
     let best: Point[] | null = null;
     for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       const to = { x: g.x + dx, y: g.y + dy };
-      if (!this.map.isWalkable(to.x, to.y) || this.monsterAt(to.x, to.y)) continue;
-      const path = this.heroPath(to, (cx, cy) => this.isKnown(cx, cy) && !(cx === g.x && cy === g.y));
+      if (!this.map.isWalkable(to.x, to.y) || this.monsterAt(to.x, to.y) || this.npcAt(to.x, to.y)) continue;
+      const path = this.heroPath(to, (cx, cy) => this.isKnown(cx, cy) && !this.npcAt(cx, cy));
       if (path && (!best || path.length < best.length)) best = path;
     }
     if (!best) return false;
     this.path = best;
-    this.talkTarget = true;
+    this.talkTarget = id;
     return true;
+  }
+
+  /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
+  npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
+    return id === "gluck" ? this.gluckScene() : this.soeurScene();
+  }
+
+  npcChoose(id: NpcId, choice: string): GluckResult {
+    return id === "gluck" ? this.gluckChoose(choice) : this.soeurChoose(choice);
+  }
+
+  /**
+   * Un PNJ de quête s'en va (« Pouf ! ») : ce qu'il laisse tombe par terre autour de lui, une pomme par case, et l'or en
+   * un tas (Thomas, 2026-11-12). Salle d'essai : il revient 3 tours plus tard, pour la scène suivante.
+   */
+  private npcLeaves(id: NpcId, g: GluckSpot, max: number): void {
+    const mem = this.npcMemory(id);
+    mem.met++;
+    g.gone = true;
+    g.pending = undefined;
+    if (this.sandbox && mem.met < max) g.backAt = this.turn + 3;
+    const drops: { item: ItemId; x: number; y: number; count: number }[] = [];
+    for (let i = 0; i < (g.drops ?? 0); i++) {
+      const at = this.landingCell(g, "pomme", g);
+      this.dropItem(at.x, at.y, "pomme", 1);
+      drops.push({ item: "pomme", x: at.x, y: at.y, count: 1 });
+    }
+    if (g.gold) {
+      const at = this.landingCell(g, "or", g);
+      this.dropItem(at.x, at.y, "or", g.gold);
+      drops.push({ item: "or", x: at.x, y: at.y, count: g.gold });
+    }
+    g.drops = 0;
+    g.gold = 0;
+    this.events.push({ type: "npc", what: "leave", who: id, x: g.x, y: g.y, drops });
+  }
+
+  /** Un jet de dialogue : d20 + caractéristique contre une difficulté cachée. La Chance relance un 1 naturel. */
+  private dialogueRoll(stat: StatId, dc: number): NonNullable<GluckResult["roll"]> {
+    const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
+    let d20 = this.rng.int(1, 20);
+    if (d20 === 1 && this.useLuck()) d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= dc);
+    const roll = { stat: STAT_NAMES[stat] ?? stat, d20, bonus, total, success };
+    this.events.push({ type: "npcRoll", ...roll });
+    return roll;
   }
 
   /** La scène en cours : 1 déserteur, 2 commerçant, 3 chef d'entreprise, 4 philosophe. */
@@ -3209,35 +3389,14 @@ export class Game {
   /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
   gluckChoose(id: string): GluckResult {
     const g = this.gluck();
-    if (!g || !this.canTalk()) return { lines: [], done: true };
+    if (!g || !this.canTalk("gluck")) return { lines: [], done: true };
     const mem = this.gluckMemory;
     const choice = this.gluckScene().choices.find((c) => c.id === id);
     if (!choice || choice.off) return { lines: [], done: false };
     let roll: GluckResult["roll"];
-    const test = (): boolean => {
-      const stat = choice.stat!;
-      const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
-      const d20 = this.rng.int(1, 20);
-      const total = d20 + bonus;
-      const success = d20 === 20 || (d20 !== 1 && total >= GLUCK.dc[choice.dc!]);
-      roll = { stat: STAT_NAMES[stat] ?? stat, d20, bonus, total, success };
-      this.events.push({ type: "gluckRoll", stat: roll.stat, d20, bonus, total, success });
-      return success;
-    };
+    const test = (): boolean => (roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!])).success;
     const end = (lines: string[]): GluckResult => {
-      mem.met++;
-      g.gone = true;
-      g.pending = undefined;
-      if (this.sandbox && mem.met < GLUCK.maxEncounters) g.backAt = this.turn + 3;
-      // « Pouf ! » : ce qu'il laisse tombe par terre autour de lui, une pomme par case (Thomas, 2026-11-12).
-      const drops: { item: ItemId; x: number; y: number; count: number }[] = [];
-      for (let i = 0; i < (g.drops ?? 0); i++) {
-        const at = this.landingCell(g, "pomme", g);
-        this.dropItem(at.x, at.y, "pomme", 1);
-        drops.push({ item: "pomme", x: at.x, y: at.y, count: 1 });
-      }
-      g.drops = 0;
-      this.events.push({ type: "gluck", what: "leave", x: g.x, y: g.y, drops });
+      this.npcLeaves("gluck", g, GLUCK.maxEncounters);
       return { lines, roll, done: true };
     };
     const stay = (lines: string[]): GluckResult => ({ lines, roll, done: false });
@@ -3348,6 +3507,209 @@ export class Game {
         return end(["« Excellent choix ! Reviens me voir plus bas : ça va rapporter. »"]);
       }
     }
+  }
+
+  // ---------- Quête 02 : Sœur Osseuse et la cloche disparue (Thomas, 2026-11-12) ----------
+
+  soeur(): GluckSpot | null {
+    return this.npc("soeur");
+  }
+
+  /** La scène en cours : 1 la colère, 2 la reconstruction, 3 la nouvelle religion, 4 la sérénité (le tambour). */
+  soeurStage(): 1 | 2 | 3 | 4 {
+    return Math.min(4, this.soeurMemory.met + 1) as 1 | 2 | 3 | 4;
+  }
+
+  /** Ce que dit Sœur Osseuse en ce moment, et les choix proposés. */
+  soeurScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.soeur();
+    if (!g) return { lines: [], choices: [] };
+    const stage = this.soeurStage();
+    if (!g.opened) {
+      g.opened = true;
+      // Rencontre 4 : BOUM ! Chaque coup de tambour fait monter l'alerte.
+      if (stage === 4 && !g.drumDone) {
+        g.drumDone = true;
+        this.raiseAlarm(SOEUR.drumAlarm, g);
+      }
+    }
+    const lines = SOEUR_OPENING[stage](!!this.soeurMemory.grudge);
+    const leave = { id: "leave", label: "Partir" };
+    if (stage === 1) {
+      return {
+        lines,
+        choices: [
+          { id: "console", label: "La consoler", stat: "charisme", dc: "medium" },
+          { id: "explain", label: "Lui dire que la cloche est perdue (fondue pour son métal)", stat: "intelligence", dc: "medium" },
+          { id: "punish", label: "Proposer de punir les Kobolds", stat: "force", dc: "easy" },
+          { id: "craft", label: "Lui fabriquer une cloche de fortune", stat: "agilite", dc: "medium" },
+          leave,
+        ],
+      };
+    }
+    if (stage === 2) {
+      return {
+        lines,
+        choices: [
+          { id: "silence", label: "Respecter son silence" },
+          { id: "joke", label: "Lui raconter une histoire drôle", stat: "charisme", dc: "hard" },
+          { id: "curse", label: "Proposer de maudire les Kobolds" },
+          { id: "bell", label: "Parler de la cloche" },
+        ],
+      };
+    }
+    if (stage === 3) {
+      return {
+        lines,
+        choices: [
+          { id: "encourage", label: "L'encourager" },
+          { id: "warn", label: "La mettre en garde", stat: "intelligence", dc: "medium" },
+          { id: "donation", label: "Demander une donation", stat: "charisme", dc: "medium" },
+          leave,
+        ],
+      };
+    }
+    return { lines, choices: [{ id: "bless", label: "« Une bénédiction, ma sœur ? »" }, { id: "drum", label: "« Encore un peu de tambour ! »" }, leave] };
+  }
+
+  /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
+  soeurChoose(id: string): GluckResult {
+    const g = this.soeur();
+    if (!g || !this.canTalk("soeur")) return { lines: [], done: true };
+    const mem = this.soeurMemory;
+    const choice = this.soeurScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    let roll: GluckResult["roll"];
+    const test = (): boolean => (roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!])).success;
+    const end = (lines: string[]): GluckResult => {
+      this.npcLeaves("soeur", g, SOEUR.maxEncounters);
+      return { lines, roll, done: true };
+    };
+    /** Un petit cadeau au hasard, jamais deux fois le même de suite. */
+    const gift = (pool: string[]): string[] => {
+      const left = pool.filter((r) => r !== mem.lastReward);
+      const pick = left[this.rng.int(0, left.length - 1)];
+      mem.lastReward = pick;
+      if (pick === "apple") {
+        g.drops = (g.drops ?? 0) + 1;
+        return ["« Tenez. Une pomme. Elle était sur l'autel, mais je ne mange plus. »"];
+      }
+      if (pick === "gold") {
+        g.gold = (g.gold ?? 0) + this.rng.int(8, 16);
+        return ["« Prenez ceci. La quête, c'est fait pour ça. »", "(Elle laisse quelques pièces derrière elle.)"];
+      }
+      if (pick === "luck") {
+        this.grantLuck();
+        return ["« Que la chance vous accompagne. Vous en aurez besoin. »", "(Chance : vos 3 prochains 1 au dé seront relancés.)"];
+      }
+      this.grantProtection();
+      return ["« Allez en paix, mon enfant. »", "(Protection : +1 classe d'armure pendant 150 tours.)"];
+    };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Allez. Et ne courez pas. »"], done: true };
+      case "console":
+        if (test()) {
+          this.grantProtection();
+          return end(["« … Merci. Vous êtes moins grossier que vous n'en avez l'air. »", "(Protection : +1 classe d'armure pendant 150 tours.)"]);
+        }
+        return end(["« Vous êtes particulièrement mauvais en consolation. »"]);
+      case "explain":
+        if (test()) {
+          this.clarityDepth = this.depth;
+          return end(["« Fondue… Bien. Au moins, c'est clair. »", "(Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"]);
+        }
+        return end(["« Je préfère croire qu'ils savent jouer de la musique. »"]);
+      case "punish":
+        if (test()) {
+          this.curseDepth = this.depth;
+          return end(["« Oui. OUI. Que leurs écailles tombent. »", "(Malédiction des Kobolds : +2 dégâts contre eux, sur cet étage.)"]);
+        }
+        return end(["« Vous manquez de conviction. »"]);
+      case "craft":
+        if (test()) {
+          this.grantLuck();
+          return end(["Vous assemblez une gamelle, une cuillère et un bout de ficelle. Ding !", "« … C'est presque joli. »", "(Chance : vos 3 prochains 1 au dé seront relancés.)"]);
+        }
+        this.raiseAlarm(SOEUR.craftAlarm, g);
+        return end(["Vous assemblez une gamelle, une cuillère et un bout de ficelle. CLONK !", "« Ce n'est pas une cloche. C'est une insulte. »"]);
+      case "silence":
+        this.grantProtection();
+        return end(["Vous ne dites rien. Elle hoche le crâne, très digne.", "(Protection : +1 classe d'armure pendant 150 tours.)"]);
+      case "joke":
+        if (test()) return end(["« … Pfff. Hi. Hi hi. »", ...gift(["apple", "gold", "luck"])]);
+        return end(["« … Non. »"]);
+      case "curse":
+        this.curseDepth = this.depth;
+        return end(["« Voilà enfin une idée sensée. »", "(Malédiction des Kobolds : +2 dégâts contre eux, sur cet étage.)"]);
+      case "bell":
+        mem.grudge = true;
+        return end(["« DEHORS ! »", "Elle vous chasse d'un revers de manche. Elle s'en souviendra."]);
+      case "encourage":
+        this.grantProtection();
+        return end(["« Merci. Ils progressent. Hier, l'un d'eux a lu un mot entier. »", "(Protection : +1 classe d'armure pendant 150 tours.)"]);
+      case "warn":
+        if (test()) {
+          this.grantProtection();
+          this.clarityDepth = this.depth;
+          this.faithfulLeave();
+          return end(["« Vous avez raison. Mes enfants : allez prêcher ailleurs. »", "Les deux Kobolds s'en vont, et emmènent des amis.", "(Protection et Clarté. Deux Kobolds quittent l'étage.)"]);
+        }
+        return end(["« Vous êtes jaloux de leur foi. »"]);
+      case "donation":
+        if (test()) {
+          g.gold = (g.gold ?? 0) + this.rng.int(SOEUR.donationMin, SOEUR.donationMax);
+          return end(["« Pour les œuvres. Ne dépensez pas tout en pommes. »", "(Elle laisse une bourse derrière elle.)"]);
+        }
+        return end(["« La quête, c'est MOI qui la fais. »"]);
+      case "bless":
+        return end(gift(["protection", "apple", "gold", "luck"]));
+      case "drum":
+        this.raiseAlarm(SOEUR.drumAlarm, g);
+        return { lines: ["BOUM ! BOUM ! BOUM !", "« Magnifique, n'est-ce pas ? »", "(Tout l'étage a entendu.)"], roll, done: false };
+      default:
+        return { lines: [], done: false };
+    }
+  }
+
+  /** Mise en garde réussie : ses Kobolds fidèles quittent l'étage (les plus loin du héros, jamais un boss). */
+  private faithfulLeave(): void {
+    const kobolds = this.monsters
+      .filter((m) => !m.boss && (m.defId === "schrat" || m.defId === "frondeur"))
+      .sort((a, b) => Math.hypot(b.x - this.hero.x, b.y - this.hero.y) - Math.hypot(a.x - this.hero.x, a.y - this.hero.y));
+    for (const m of kobolds.slice(0, SOEUR.faithfulLeave)) this.monsters.splice(this.monsters.indexOf(m), 1);
+  }
+
+  /** PROTECTION : +1 classe d'armure pendant 150 tours (un nouveau don remet le compteur). */
+  private grantProtection(): void {
+    this.protectTurns = SOEUR.protectTurns;
+    this.refreshStats();
+  }
+
+  private grantLuck(): void {
+    this.luck = SOEUR.luckRerolls;
+  }
+
+  /** CHANCE : un 1 naturel du héros est relancé, tant qu'il en reste. */
+  private useLuck(): boolean {
+    if (this.luck <= 0) return false;
+    this.luck--;
+    this.events.push({ type: "luck" });
+    return true;
+  }
+
+  /** Bénédictions d'étage : Clarté (poison deux fois plus court) et Malédiction des Kobolds (+2 dégâts). */
+  clarityActive(): boolean {
+    return this.clarityDepth === this.depth && this.depth > 0;
+  }
+
+  curseActive(): boolean {
+    return this.curseDepth === this.depth && this.depth > 0;
+  }
+
+  /** Malédiction des Kobolds : les dégâts en plus contre ce monstre. */
+  private curseBonusOn(m: Actor): number {
+    return this.curseActive() && (m.defId === "schrat" || m.defId === "frondeur") ? SOEUR.curseBonus : 0;
   }
 
   /** Des pommes que Gluck laissera tomber autour de lui en partant (ses cadeaux ; ce qu'on achète ou vole va au sac). */
@@ -3669,10 +4031,11 @@ export class Game {
     let damageBonus = 0;
     // Rage (voie rouge) : plus de dégâts sous la moitié des PV.
     if (this.rank("rage") > 0 && this.hero.hp * 2 < this.hero.maxHp) damageBonus += this.rank("rage");
+    damageBonus += this.curseBonusOn(monster);
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
     const critFrom = 20 - this.rank("coup_puissant");
     const advantaged = this.heroHasAdvantageOn(monster);
-    const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom);
+    const result = rollAttack(this.rng, attacker, monster, advantaged ? "advantage" : "normal", critFrom, () => this.useLuck());
     this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
     this.noteHeroAttack(result.hit);
     if (!extra) {
@@ -3778,7 +4141,8 @@ export class Game {
       const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
       // L'arc (ou la main qui lance) donne le jet ; la flèche (ou la javeline) donne les dégâts (Thomas, 2026-11-11).
       const attackBonus = profile.attackBonus + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
-      const result = rollAttack(this.rng, { attackBonus, damage: (ITEMS[ammo] as ItemDef).damage ?? UNARMED.damage }, victim, mode);
+      const ammoDamage = (ITEMS[ammo] as ItemDef).damage ?? UNARMED.damage;
+      const result = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) } }, victim, mode, 20, () => this.useLuck());
       this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : undefined;
       this.noteHeroAttack(result.hit);
       victim.alerted = true;
@@ -3948,6 +4312,15 @@ export class Game {
    */
   private slingerAct(m: Actor, sling: NonNullable<MonsterDef["sling"]>, distance: number): boolean {
     const hero = this.hero;
+    // Le héros hors de vue (derrière une porte, un coin de mur) mais pas loin (Thomas, 2026-11-12 : « il essaye de me
+    // suivre derrière une porte ») : le frondeur ne le poursuit pas au corps à corps, il garde sa place et attend qu'il
+    // se remontre, la fronde prête. Plus loin que sa portée, il se rapproche comme les autres.
+    const sees = hasLineOfSight(this.map, m, hero) && this.isVisible(m.x, m.y);
+    if (!sees && !this.inReach(m, hero)) {
+      if (distance > sling.range) return false;
+      this.faceToward(m, hero);
+      return true;
+    }
     if (distance < sling.keep) {
       const away = this.stepAway(m);
       if (away) {
@@ -4067,7 +4440,7 @@ export class Game {
       m.blockedTurns = 0;
     }
     // Gluck (quête 01) occupe sa case : les monstres le contournent.
-    if (!this.actorAt(step.x, step.y) && !this.gluckAt(step.x, step.y)) {
+    if (!this.actorAt(step.x, step.y) && !this.npcAt(step.x, step.y)) {
       const left = { x: m.x, y: m.y };
       const doorMoved = this.map.get(step.x, step.y) === Tile.DoorClosed || this.map.get(left.x, left.y) === Tile.DoorOpen;
       this.faceToward(m, step);

@@ -21,7 +21,8 @@ export interface MonsterDef {
   noticeChance: number;
   color: string;
   /** Couleur du sang (le Schrat saigne vert). */
-  blood?: "red" | "green";
+  /** Couleur du sang (Thomas, 2026-11-12) : jaune pour les Kobolds, noir pour les araignées. */
+  blood?: "red" | "green" | "yellow" | "black";
   /** Pas par tour quand il fonce sur le héros (l'araignée en fait deux). */
   chaseSteps?: number;
   /** Chance qu'une morsure qui porte englue le héros (il perd son prochain déplacement). */
@@ -53,7 +54,7 @@ export const MONSTERS = {
     goldMax: 4,
     noticeChance: 0.4,
     color: "#d9763a",
-    blood: "green",
+    blood: "yellow",
   },
   // KOBOLD FRONDEUR (Thomas, 2026-11-11 : « Kobold frondeur ok » ; planche art/frondeur_v1.png). Valeurs (C).
   frondeur: {
@@ -72,7 +73,7 @@ export const MONSTERS = {
     goldMax: 4,
     noticeChance: 0.45,
     color: "#a87c4a",
-    blood: "green",
+    blood: "yellow",
     sling: { range: 6, attackBonus: 3, damage: { count: 1, sides: 4, bonus: 0 }, keep: 3 },
   },
   araignee: {
@@ -92,7 +93,7 @@ export const MONSTERS = {
     goldMax: 0,
     noticeChance: 0.45,
     color: "#5a4466",
-    blood: "green",
+    blood: "black",
     chaseSteps: 2,
     webBite: 1 / 3,
   },
@@ -114,7 +115,7 @@ export const MONSTERS = {
     goldMax: 0,
     noticeChance: 1,
     color: "#d8d2c0",
-    blood: "green",
+    blood: "black",
     poisonBite: { chance: 1 / 4, damage: 1, turns: 3 },
     size: 2,
     boss: true,

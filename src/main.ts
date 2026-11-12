@@ -3,7 +3,8 @@ import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { diceLabel } from "./core/dice";
 import { expectedDamagePerTurn } from "./core/combat";
-import { DoorAction, Game, GameEvent, GluckResult } from "./core/game";
+import { DoorAction, Game, GameEvent, GluckResult, NpcId } from "./core/game";
+import { SOEUR_PALETTE, SOEUR_SPRITE } from "./render/sprites/soeur";
 import { CLASSES, ClassDef } from "./data/classes";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
@@ -264,9 +265,9 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "gluckRoll" }> =>
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "npcRoll" }> =>
   e.type === "attack" ||
-  e.type === "gluckRoll" ||
+  e.type === "npcRoll" ||
   e.type === "hide" ||
   e.type === "jump" ||
   e.type === "searched" ||
@@ -305,7 +306,7 @@ function startRoll(e: GameEvent): void {
   dieWho.textContent = mode === "advantage" ? `${who} · avantage` : mode === "disadvantage" ? `${who} · désavantage` : who;
   dieWho.className = mode === "normal" ? "" : mode;
   // Jet de dialogue (Gluck) : on dit quelle caractéristique est jetée.
-  if (e.type === "gluckRoll") dieWho.textContent = e.stat;
+  if (e.type === "npcRoll") dieWho.textContent = e.stat;
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
   if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
@@ -384,10 +385,20 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "shop") {
     openShop(e.line);
-  } else if (e.type === "gluckRoll") {
+  } else if (e.type === "shatter") {
+    // La fiole vole, se brise : « Cling ! », des éclats de sa couleur.
+    renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
+    window.setTimeout(() => {
+      renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.youth);
+      renderer.addFloatingText(e.x, e.y, "Cling !", "#e8f4ff");
+      sfx.play("glass");
+    }, 420);
+  } else if (e.type === "luck") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
+  } else if (e.type === "npcRoll") {
     landDie(e.d20, e.success ? "hit" : "miss", false);
-  } else if (e.type === "gluck") {
-    if (e.what === "talk") openTalk();
+  } else if (e.type === "npc") {
+    if (e.what === "talk") openTalk(e.who);
     // Il part : nuage et « Pouf ! » (la conversation est fermée : voir `talkLater`).
     else gluckPouf(e);
   } else if (e.type === "bounce") {
@@ -1256,12 +1267,22 @@ let talkLast: GluckResult | null = null;
 
 /** Le départ de Gluck (et sa ligne de journal), gardé pour la fermeture de la conversation : on le voit alors partir. */
 let talkLater: GameEvent[] = [];
+/** Couleurs des éclats d'une potion qui se brise (fiole jaune, verte, bleue, orange). */
+const POTION_SHADES: Record<string, string[]> = {
+  youth: ["#ffe27a", "#f0c050", "#fff6c8"],
+  poison: ["#5cc860", "#b8e05a", "#2e7a38"],
+  haste: ["#6ad0ff", "#4a8fd0", "#cfeeff"],
+  fire: ["#ff9a3a", "#e8782a", "#ffd84a"],
+};
+
+/** À qui l'on parle : Gluck (quête 01) ou Sœur Osseuse (quête 02). */
+let talkWho: NpcId = "gluck";
 /** Combien de répliques imposées du héros (« Vous : … ») le joueur a déjà touchées dans cette scène. */
 let talkSaid = 0;
 /** Un jet est en train de rouler : les réponses attendent que le dé tombe. */
 let talkBusy = false;
 
-function gluckPouf(e: Extract<GameEvent, { type: "gluck" }>): void {
+function gluckPouf(e: Extract<GameEvent, { type: "npc" }>): void {
   if (e.x === undefined || e.y === undefined) return;
   renderer.addPuff(e.x, e.y);
   renderer.addFloatingText(e.x, e.y, "Pouf !", "#e8e2f4");
@@ -1269,8 +1290,9 @@ function gluckPouf(e: Extract<GameEvent, { type: "gluck" }>): void {
   for (const d of e.drops ?? []) renderer.addHop(d.item, e.x, e.y, d.x, d.y);
 }
 
-function openTalk(): void {
-  if (!game.canTalk()) return;
+function openTalk(who: NpcId): void {
+  if (!game.canTalk(who)) return;
+  talkWho = who;
   talkOpen = true;
   talkLast = null;
   talkSaid = 0;
@@ -1278,7 +1300,8 @@ function openTalk(): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-face").replaceChildren(buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE));
+  $("talk-name").textContent = who === "gluck" ? "Gluck" : "Sœur Osseuse";
+  $("talk-face").replaceChildren(who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE));
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
   document.body.classList.add("talk-open");
   renderer.resize();
@@ -1300,7 +1323,7 @@ function renderTalk(): void {
   const choices = $("talk-choices");
   lines.replaceChildren();
   choices.replaceChildren();
-  const scene = game.gluckScene();
+  const scene = game.npcScene(talkWho);
   let shown = talkLast ? talkLast.lines : scene.lines;
   // Espaces insécables autour des guillemets et avant « ! ? : » : jamais un « » » tout seul en bout de ligne.
   const glue = (t: string) => t.replace(/« /g, "«\u00a0").replace(/ ([»!?:;])/g, "\u00a0$1");
@@ -1327,7 +1350,7 @@ function renderTalk(): void {
     choices.append(b);
     return;
   }
-  if (talkLast?.done || !game.gluck()) {
+  if (talkLast?.done || !game.npc(talkWho)) {
     const b = el("button", "talk-choice", "Continuer");
     b.addEventListener("click", closeTalk);
     choices.append(b);
@@ -1342,9 +1365,9 @@ function renderTalk(): void {
     } else if (c.stat) b.append(el("span", "talk-stat", `Jet de ${(STAT_NAMES[c.stat] ?? c.stat).toLowerCase()}`));
     b.addEventListener("click", () => {
       if (talkBusy || c.off) return;
-      talkLast = game.gluckChoose(c.id);
-      talkLater.push(...game.events.filter((e) => e.type === "gluck" && e.what === "leave"));
-      game.events = game.events.filter((e) => !(e.type === "gluck" && e.what === "leave"));
+      talkLast = game.npcChoose(talkWho, c.id);
+      talkLater.push(...game.events.filter((e) => e.type === "npc" && e.what === "leave"));
+      game.events = game.events.filter((e) => !(e.type === "npc" && e.what === "leave"));
       collectEvents();
       if (!talkLast.roll) {
         sfx.play("click");
@@ -1741,6 +1764,10 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
   if (game.blessTurns > 0) list.push({ id: "beni", name: "Béni", detail: `La pomme dorée de l'autel : +1 à l'attaque et +1 classe d'armure. Encore ${game.blessTurns} tours.` });
+  if (game.protectTurns > 0) list.push({ id: "protection", name: "Protection", detail: `La bénédiction de Sœur Osseuse : +1 classe d'armure. Encore ${game.protectTurns} tours.` });
+  if (game.clarityActive()) list.push({ id: "clarte", name: "Clarté", detail: "Le poison vous ronge deux fois moins longtemps, sur cet étage." });
+  if (game.curseActive()) list.push({ id: "malediction", name: "Malédiction des Kobolds", detail: "+2 dégâts contre les Kobolds, sur cet étage." });
+  if (game.luck > 0) list.push({ id: "chance", name: "Chance", detail: `Vos ${game.luck > 1 ? `${game.luck} prochains 1` : "prochain 1"} au dé ${game.luck > 1 ? "seront relancés" : "sera relancé"}.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
   const rampart = game.rank("dernier_rempart");
   if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {

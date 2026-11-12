@@ -38,9 +38,11 @@ export type GameEvent =
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
   /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
-  | { type: "gluck"; what: "talk" | "leave"; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
-  /** Un jet de dialogue avec Gluck (d20 + caractéristique). */
-  | { type: "gluckRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
+  | { type: "npc"; who: "gluck" | "soeur"; what: "talk" | "leave"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
+  /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
+  | { type: "luck" }
+  /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */
+  | { type: "npcRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */
   | { type: "counter"; what: "count" | "poke" | "caught"; n: number; x: number; y: number; first?: boolean }
   /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */
@@ -120,6 +122,8 @@ export type GameEvent =
   | { type: "potion"; potion: "youth" | "poison" | "haste"; points?: number }
   | { type: "slowed"; actor: Actor }
   | { type: "dropped"; item: ItemId; count: number }
+  /** Une potion jetée se casse sur les dalles (Thomas, 2026-11-12). */
+  | { type: "shatter"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number }
   /** Niveau d'alerte : l'étage passe au palier suivant (1 agité, 2 alerte, 3 traque). */
   | { type: "alarm"; stage: number }
   /** Du bruit à cet endroit (porte enfoncée, coups échangés) : il fait monter le tocsin. */

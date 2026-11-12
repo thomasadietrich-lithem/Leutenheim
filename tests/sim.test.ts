@@ -1050,8 +1050,8 @@ test("quête 01, Gluck : quatre scènes, des pommes, un jet par choix risqué (T
   const r1 = game.gluckChoose("threaten");
   assert.ok(r1.roll && r1.done);
   // Il disparaît (« Pouf ! ») et ses pommes tombent par terre AUTOUR de lui, jamais sur sa case ni sous le héros (Thomas).
-  const leave = game.events.find((e) => e.type === "gluck" && e.what === "leave");
-  assert.ok(leave && leave.type === "gluck" && leave.drops && leave.drops.length >= 1);
+  const leave = game.events.find((e) => e.type === "npc" && e.what === "leave");
+  assert.ok(leave && leave.type === "npc" && leave.drops && leave.drops.length >= 1);
   assert.ok(game.ground.filter((it) => it.item === "pomme" && near(it)).length > before);
   for (const d of leave.drops!) {
     assert.ok(!(d.x === g.x && d.y === g.y) && !(d.x === game.hero.x && d.y === game.hero.y));
@@ -1126,18 +1126,152 @@ test("Gluck : « donne-moi une pomme d'abord » est grisé faute de pomme, puis 
   assert.equal(game.ground.filter((it) => it.item === "pomme" && Math.max(Math.abs(it.x - g.x), Math.abs(it.y - g.y)) <= 3).length >= 2, true, "il en rend deux, par terre autour de lui");
 });
 
-test("Gluck dans le donjon : parfois aux étages 1 à 4 d'une section, jamais à l'étage du boss", () => {
-  let seen = 0;
-  for (let seed = 1; seed <= 150; seed++) {
+test("PNJ de quête dans le donjon : un au plus par étage (Gluck ou Sœur Osseuse), jamais à l'étage du boss", () => {
+  let gluck = 0;
+  let soeur = 0;
+  for (let seed = 1; seed <= 200; seed++) {
     const game = new Game(seed);
-    if (game.gluck()) {
-      seen++;
-      const g = game.gluck()!;
+    assert.ok(!(game.gluck() && game.soeur()), "jamais les deux sur le même étage");
+    for (const g of [game.gluck(), game.soeur()]) {
+      if (!g) continue;
       assert.equal(game.map.get(g.x, g.y), Tile.Floor);
       assert.ok(!game.monsters.some((m) => m.x === g.x && m.y === g.y));
     }
+    if (game.gluck()) gluck++;
+    if (game.soeur()) soeur++;
   }
-  assert.ok(seen > 25 && seen < 90, `Gluck à l'étage 1 dans ${seen} parties sur 150`);
+  assert.ok(gluck + soeur > 40 && gluck + soeur < 110, `un PNJ à l'étage 1 dans ${gluck + soeur} parties sur 200`);
+  assert.ok(gluck > 10 && soeur > 10, `Gluck ${gluck}, Sœur Osseuse ${soeur}`);
+});
+
+test("quête 02, Sœur Osseuse : quatre scènes et ses bénédictions (Thomas, 2026-11-12)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  game.peaceful = true;
+  const s0 = game.soeur()!;
+  assert.ok(s0, "Sœur Osseuse est dans la salle d'essai");
+  const cur = (game as unknown as { current: { themes: { id: string; room: number }[]; rooms: { x: number; y: number; w: number; h: number }[] } }).current;
+  const chapel = cur.themes.find((t) => t.id === "priere")!;
+  const r = cur.rooms[chapel.room];
+  assert.ok(s0.x >= r.x && s0.x < r.x + r.w && s0.y >= r.y && s0.y < r.y + r.h, "dans la salle de prière");
+  const goNext = () => {
+    for (let i = 0; i < 6 && !game.soeur(); i++) {
+      game.wait();
+      game.tick();
+    }
+    const g = game.soeur()!;
+    const spot = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: g.x + dx, y: g.y + dy })).find((p) => game.map.isWalkable(p.x, p.y) && !game.furnitureAt(p.x, p.y))!;
+    Object.assign(game.hero, spot);
+    assert.ok(game.canTalk("soeur"));
+    return g;
+  };
+  goNext();
+  // Scène 1 : la colère. Réponses avec jet ; l'imposée « Vous : … » est dans l'ouverture.
+  assert.equal(game.soeurStage(), 1);
+  assert.ok(game.soeurScene().lines.some((l) => l.startsWith("Vous : ")));
+  assert.deepEqual(game.soeurScene().choices.map((c) => c.id), ["console", "explain", "punish", "craft", "leave"]);
+  const r1 = game.npcChoose("soeur", "punish");
+  assert.ok(r1.roll && r1.done && game.soeur() === null);
+  // Scène 2 : se taire = Protection (+1 classe d'armure, 150 tours).
+  goNext();
+  assert.equal(game.soeurStage(), 2);
+  const ac = game.hero.armorClass;
+  game.npcChoose("soeur", "silence");
+  assert.equal(game.hero.armorClass, ac + 1);
+  assert.equal(game.protectTurns, 150);
+  // Scène 3 : la donation, ou rien ; scène 4 : le tambour fait monter l'alerte.
+  goNext();
+  assert.equal(game.soeurStage(), 3);
+  game.npcChoose("soeur", "encourage");
+  goNext();
+  assert.equal(game.soeurStage(), 4);
+  const alarm = game.alarm().level;
+  game.npcScene("soeur");
+  assert.ok(game.alarm().level >= alarm + 3, "BOUM : +3 d'alerte");
+  assert.ok(game.npcChoose("soeur", "bless").done);
+  assert.equal(game.soeurMemory.met, 4);
+});
+
+test("bénédictions de Sœur Osseuse : malédiction des Kobolds (+2), clarté (poison deux fois plus court), chance (1 relancé)", () => {
+  const game = new Game(5);
+  game.monsters.splice(0);
+  game.peaceful = true;
+  // Clarté : le poison s'use deux fois plus vite.
+  game.clarityDepth = game.depth;
+  game.hero.poison = { damage: 1, turns: 4 };
+  game.hero.hp = game.hero.maxHp = 50;
+  game.wait();
+  game.tick();
+  assert.ok(!game.hero.poison || game.hero.poison.turns <= 2);
+  // Chance : un 1 naturel du héros est relancé (tant qu'il en reste).
+  game.luck = 3;
+  let rerolled = 0;
+  for (let i = 0; i < 400 && game.luck > 0; i++) {
+    const before = game.luck;
+    (game as unknown as { dialogueRoll(s: string, dc: number): unknown }).dialogueRoll("charisme", 12);
+    if (game.luck < before) rerolled++;
+  }
+  assert.equal(rerolled, 3);
+  assert.ok(game.events.some((e) => e.type === "luck"));
+  // Malédiction : +2 dégâts contre un Kobold, pas contre une araignée.
+  game.curseDepth = game.depth;
+  const k = { defId: "schrat", boss: false } as never;
+  const a = { defId: "araignee", boss: false } as never;
+  const bonus = (m: never) => (game as unknown as { curseBonusOn(m: never): number }).curseBonusOn(m);
+  assert.equal(bonus(k), 2);
+  assert.equal(bonus(a), 0);
+  game.curseDepth = 0;
+  assert.equal(bonus(k), 0, "seulement sur l'étage où elle a été donnée");
+});
+
+test("potion jetée : elle se casse à côté du héros (feu : le feu prend ; poison : un petit nuage)", () => {
+  const game = new Game(4);
+  game.monsters.splice(0);
+  for (const [id, check] of [
+    ["potion_feu", (x: number, y: number) => game.fires.some((f) => f.x === x && f.y === y)],
+    ["potion_poison", (x: number, y: number) => game.gas.some((g) => g.x === x && g.y === y)],
+    ["potion_vitesse", () => true],
+  ] as const) {
+    game.inventory.add(id, 1);
+    const item = game.inventory.snapshot().items.find((it) => it.defId === id)!;
+    assert.ok(game.dropFromBag(item.uid));
+    const e = game.events.find((ev) => ev.type === "shatter");
+    assert.ok(e && e.type === "shatter", `${id} se casse`);
+    assert.ok(!(e.x === game.hero.x && e.y === game.hero.y), "à côté du héros, pas sur lui");
+    assert.ok(check(e.x, e.y));
+    assert.ok(!game.ground.some((g) => g.item === id), "la potion est perdue");
+    game.events.length = 0;
+  }
+});
+
+test("frondeur : le héros hors de vue (derrière une porte) et à portée, il garde sa place au lieu de le suivre", () => {
+  const base = new Game(2, undefined, undefined, undefined, true);
+  const m0 = base.monsters.find((x) => x.defId === "frondeur")!;
+  assert.ok(m0, "un frondeur dans la salle d'essai");
+  const spots: { x: number; y: number }[] = [];
+  for (let dy = -5; dy <= 5; dy++) {
+    for (let dx = -5; dx <= 5; dx++) {
+      const p = { x: m0.x + dx, y: m0.y + dy };
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (d >= 2 && base.map.isWalkable(p.x, p.y) && !base.monsterAt(p.x, p.y) && !hasLineOfSight(base.map, m0, p)) spots.push(p);
+    }
+  }
+  assert.ok(spots.length > 0);
+  let checked = 0;
+  for (const spot of spots.slice(0, 6)) {
+    const game = new Game(2, undefined, undefined, undefined, true);
+    const m = game.monsters.find((x) => x.defId === "frondeur")!;
+    game.monsters.splice(0, game.monsters.length, m);
+    Object.assign(game.hero, spot);
+    m.alerted = true;
+    m.asleep = false;
+    const at = { x: m.x, y: m.y };
+    game.wait();
+    game.tick();
+    assert.deepEqual({ x: m.x, y: m.y }, at, `héros en ${spot.x},${spot.y} : il attend`);
+    checked++;
+  }
+  assert.ok(checked >= 1);
 });
 
 test("porte : après un échec, la même méthode n'est plus proposée", () => {
@@ -2442,14 +2576,14 @@ test("jeter un objet : il tombe aux pieds du héros ; Intelligence et Charisme p
   assert.equal(game.alloc.intelligence, 1);
 });
 
-test("sang : un coup qui porte laisse une tache (verte pour un Schrat) ; le feu suit celui qui en sort", () => {
+test("sang : un coup qui porte laisse une tache (jaune pour un Kobold) ; le feu suit celui qui en sort", () => {
   const { game, m } = foeAt(1);
   game.hero.hp = game.hero.maxHp = 100000;
   for (let k = 0; k < 20 && game.bloodStains().length === 0; k++) {
     assert.ok(game.setDestination(m.x, m.y));
     game.tick();
   }
-  assert.ok(game.bloodStains().some((b) => b.color === "green"), "pas de sang vert");
+  assert.ok(game.bloodStains().some((b) => b.color === "yellow"), "pas de sang jaune (Kobold)");
   assert.ok(game.bloodStains().every((b) => b.shape !== 2 || game.map.get(b.x, b.y) === Tile.Wall), "tache de mur hors d'un mur");
   // Brûlure : posé dans le feu puis sorti, il brûle encore 2 tours.
   const g2 = new Game(7);

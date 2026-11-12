@@ -1,3 +1,4 @@
+import { SOEUR_BUBBLE_ICON, SOEUR_PALETTE, SOEUR_SPRITE } from "./sprites/soeur";
 import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
@@ -516,27 +517,43 @@ export class Renderer {
   private drawGluck(game: Game, ox: number, oy: number): void {
     const g = game.gluck();
     if (!g || !game.isVisible(g.x, g.y)) return;
-    const { ctx, tile } = this;
+    const { tile } = this;
     const cx = Math.round(ox + (g.x + 0.5) * tile);
     const cy = Math.round(oy + (g.y + 0.5) * tile);
     const hero = game.hero;
     const frames = SCHRAT.idleDown;
     const rows = frames[Math.floor(Math.abs(this.time) / 420) % frames.length];
     this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GLUCK_PALETTE);
-    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) {
-      // Bulle de BD au-dessus de sa tête (Thomas, 2026-11-12) : contour sombre, fond crème, pointe vers lui.
-      const bw = Math.round(tile * 0.95);
-      const bh = Math.round((bw * 12) / 14);
-      const bob = Math.round(Math.sin(this.time / 260) * tile * 0.04);
-      const bx = Math.round(cx - bw / 2 + tile * 0.12);
-      const by = Math.round(cy - tile * 0.42 - bh + bob);
-      const smooth = ctx.imageSmoothingEnabled;
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.sprite(GLUCK_BUBBLE, GLUCK_BUBBLE_PALETTE), bx, by, bw, bh);
-      const s = Math.round((bw * 8) / 14);
-      ctx.drawImage(this.sprite(itemIconRows("pomme"), ICON_PALETTE), Math.round(bx + (bw - s) / 2), Math.round(by + bh * (1.2 / 12)), s, s);
-      ctx.imageSmoothingEnabled = smooth;
-    }
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("pomme"), ICON_PALETTE);
+  }
+
+  /** Sœur Osseuse (quête 02) : le squelette en voile de nonne, une croix d'os dans sa bulle quand le héros approche. */
+  private drawSoeur(game: Game, ox: number, oy: number): void {
+    const g = game.soeur();
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { tile } = this;
+    const cx = Math.round(ox + (g.x + 0.5) * tile);
+    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const hero = game.hero;
+    const rows = SOEUR_SPRITE[Math.floor(Math.abs(this.time) / 520) % SOEUR_SPRITE.length];
+    this.drawMonsterSprite(rows, cx, cy, false, true, SOEUR_PALETTE);
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, SOEUR_BUBBLE_ICON, { K: "#1a1410", W: "#e6dcc0" });
+  }
+
+  /** Bulle de BD au-dessus de la tête d'un PNJ (Thomas, 2026-11-12) : contour sombre, fond crème, pointe vers lui. */
+  private drawNpcBubble(cx: number, cy: number, icon: readonly string[], palette: Record<string, string>): void {
+    const { ctx, tile } = this;
+    const bw = Math.round(tile * 0.95);
+    const bh = Math.round((bw * 12) / 14);
+    const bob = Math.round(Math.sin(this.time / 260) * tile * 0.04);
+    const bx = Math.round(cx - bw / 2 + tile * 0.12);
+    const by = Math.round(cy - tile * 0.42 - bh + bob);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.sprite(GLUCK_BUBBLE, GLUCK_BUBBLE_PALETTE), bx, by, bw, bh);
+    const s = Math.round((bw * 8) / 14);
+    ctx.drawImage(this.sprite(icon, palette), Math.round(bx + (bw - s) / 2), Math.round(by + bh * (1.2 / 12)), s, s);
+    ctx.imageSmoothingEnabled = smooth;
   }
 
   private drawMonster(m: Actor, cx: number, cy: number, progress: number): void {
@@ -749,11 +766,15 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
-  /** Un personnage est touché : quelques gouttes jaillissent et retombent (rouge, ou vert pour un Schrat). */
-  addBloodBurst(x: number, y: number, fromX: number, fromY: number, color: "red" | "green"): void {
+  /** Un personnage est touché : quelques gouttes jaillissent et retombent (rouge ; jaune pour un Kobold, noir pour une araignée). */
+  addBloodBurst(x: number, y: number, fromX: number, fromY: number, color: "red" | "green" | "yellow" | "black"): void {
     const dx = Math.sign(x - fromX) || (Math.random() - 0.5);
     const dy = Math.sign(y - fromY) || (Math.random() - 0.5);
-    const shades = color === "green" ? ["#4f8e1e", "#8ccc3a", "#2a5a12"] : ["#b0202a", "#e04048", "#7a0e14"];
+    const shades =
+      color === "green" ? ["#4f8e1e", "#8ccc3a", "#2a5a12"]
+      : color === "yellow" ? ["#c8a818", "#f0d84a", "#8a7210"]
+      : color === "black" ? ["#2a2630", "#5a5466", "#0c0a0e"]
+      : ["#b0202a", "#e04048", "#7a0e14"];
     for (let i = 0; i < 9; i++) {
       const spread = (Math.random() - 0.5) * 1.6;
       this.drops.push({
@@ -786,10 +807,23 @@ export class Renderer {
 
   /** Fait voler une flèche d'une case à une autre. */
   /** Objets qui rebondissent du héros vers le sol (sac plein) : un arc, puis un petit rebond. */
-  private hops: { item: ItemId; fromX: number; fromY: number; x: number; y: number; age: number }[] = [];
+  private hops: { item: ItemId; fromX: number; fromY: number; x: number; y: number; age: number; breaks?: boolean }[] = [];
 
-  addHop(item: ItemId, fromX: number, fromY: number, x: number, y: number): void {
-    this.hops.push({ item, fromX, fromY, x, y, age: 0 });
+  addHop(item: ItemId, fromX: number, fromY: number, x: number, y: number, breaks = false): void {
+    this.hops.push({ item, fromX, fromY, x, y, age: 0, breaks });
+  }
+
+  /** Éclats d'une fiole qui se brise : des gouttes de sa couleur jaillissent et retombent (comme le sang). */
+  addSplash(x: number, y: number, shades: string[]): void {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + Math.random() * 0.4;
+      const v = 1.2 + Math.random() * 1.4;
+      this.drops.push({
+        x: x + 0.5, y: y + 0.55,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6 - 1.4,
+        color: shades[i % shades.length], age: 0, life: 300 + Math.random() * 200,
+      });
+    }
   }
 
   addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false): void {
@@ -826,7 +860,8 @@ export class Renderer {
     shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
     if (part !== "back") {
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
-      shape(poisoned ? "#b8e05a" : "#eef2ff", [[L / 2, 0], [L * 0.2, -w * 2.3], [L * 0.2, w * 2.3]]);
+      // Pointe affinée (Thomas, 2026-11-12) : plus longue, plus étroite.
+      shape(poisoned ? "#b8e05a" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
     }
     ctx.restore();
   }
@@ -920,7 +955,7 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
 
     // Taches de sang de l'étage, par case (dessinées sur la case, sous l'ombre).
-    const stains = new Map<number, { color: "red" | "green"; shape: 0 | 1 | 2; turn?: number }>();
+    const stains = new Map<number, { color: "red" | "green" | "yellow" | "black"; shape: 0 | 1 | 2; turn?: number }>();
     for (const b of game.bloodStains()) stains.set(game.map.index(b.x, b.y), b);
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
@@ -1258,6 +1293,7 @@ export class Renderer {
 
     this.drawMerchant(game, ox, oy, progress);
     this.drawGluck(game, ox, oy);
+    this.drawSoeur(game, ox, oy);
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);
     // Le héros qui brûle encore après être sorti des flammes.
@@ -1366,6 +1402,8 @@ export class Renderer {
     this.hops = this.hops.filter((h) => (h.age += dt) < 550);
     for (const h of this.hops) {
       const t = h.age / 550;
+      // Une fiole jetée ne rebondit pas : elle se brise en touchant le sol.
+      if (h.breaks && t >= 0.75) continue;
       const along = Math.min(1, t / 0.75);
       const lift = t < 0.75 ? Math.sin(Math.PI * along) * 0.9 : Math.sin(Math.PI * ((t - 0.75) / 0.25)) * 0.22;
       const gx = ox + (h.fromX + (h.x - h.fromX) * along) * tile;

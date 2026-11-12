@@ -82,10 +82,16 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Niveau ${e.level} ! Un point à attribuer (touchez votre portrait).`;
     case "death":
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
-    case "gluck":
+    case "npc": {
       if (e.what !== "leave") return null;
-      return e.drops && e.drops.length > 0 ? "Pouf ! Gluck disparaît dans un petit nuage. Des pommes roulent par terre." : "Pouf ! Gluck disparaît dans un petit nuage.";
-    case "gluckRoll":
+      const name = e.who === "gluck" ? "Gluck" : "Sœur Osseuse";
+      const apples = (e.drops ?? []).some((d) => d.item === "pomme");
+      const gold = (e.drops ?? []).some((d) => d.item === "or");
+      return `Pouf ! ${name} disparaît dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
+    }
+    case "luck":
+      return "Chance ! Votre 1 est relancé.";
+    case "npcRoll":
       return `Jet de ${e.stat.toLowerCase()} : d20 ${e.d20} ${e.bonus < 0 ? "−" : "+"} ${Math.abs(e.bonus)} = ${e.total} — ${e.success ? "réussi" : "raté"}.`;
     case "counter":
       if (e.what === "count") return e.first ? `Derrière cette porte, une petite voix compte : « ${e.n}… ${e.n}… ${e.n}… »` : null;
@@ -274,6 +280,12 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         "La cloche sonne encore : alerte.",
         "Traque ! L'étage sait où vous êtes.",
       ][e.stage] ?? null;
+    case "shatter":
+      return e.potion === "fire"
+        ? "La fiole se brise sur les dalles : le feu prend !"
+        : e.potion === "poison"
+          ? "La fiole se brise sur les dalles : un petit nuage vert s'en échappe."
+          : "La fiole se brise sur les dalles. Quel gâchis.";
     case "dropped":
       return `Vous jetez : ${ITEMS[e.item].name}${e.count > 1 ? ` ×${e.count}` : ""}.`;
     case "slowed":

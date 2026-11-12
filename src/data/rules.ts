@@ -63,6 +63,8 @@ export const RULES = {
   feudShotChance: 0.5,
   blessBonus: 1,
   blessTurns: 150,
+  /** Potion de poison jetée (cassée) : un petit nuage sur sa case, tant de tours (C). */
+  brokenPoisonGasTurns: 3,
   gravelPatchesMax: 6,
   /** Motifs gravés au sol (rosace, rose des vents, runes, croix, spirale) : de tant à tant par étage (décor). */
   motifsPerFloor: [0, 2] as [number, number],

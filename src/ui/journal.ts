@@ -84,11 +84,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
     case "npc": {
       if (e.what !== "leave") return null;
-      const name = e.who === "gluck" ? "Gluck" : "Sœur Osseuse";
+      const name = e.who === "gluck" ? "Gluck" : e.who === "soeur" ? "Sœur Osseuse" : "Krik";
       const apples = (e.drops ?? []).some((d) => d.item === "pomme");
       const gold = (e.drops ?? []).some((d) => d.item === "or");
-      const why = e.fled === "fire" ? (e.who === "gluck" ? " Gluck détale, la queue en feu : « Aïe aïe aïe ! » —" : " « Mes os ! Mon voile ! » Sœur Osseuse s'enfuit en flammes —")
-        : e.fled === "gas" ? (e.who === "gluck" ? " Gluck s'étrangle, tousse et file —" : " Sœur Osseuse tousse… sans poumons, mais elle s'en va —") : "";
+      const why = e.fled === "fire"
+        ? (e.who === "gluck" ? " Gluck détale, la queue en feu : « Aïe aïe aïe ! » —" : e.who === "soeur" ? " « Mes os ! Mon voile ! » Sœur Osseuse s'enfuit en flammes —" : " « Je brûle ! C'est vrai, en plus ! » Krik détale —")
+        : e.fled === "gas"
+          ? (e.who === "gluck" ? " Gluck s'étrangle, tousse et file —" : e.who === "soeur" ? " Sœur Osseuse tousse… sans poumons, mais elle s'en va —" : " « C'est du poison ! Je le sais, je l'ai volé ! » Krik file —")
+          : "";
       return `${why ? why.trim() + " " : ""}Pouf ! ${name} disparaît dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
     }
     case "statue":
@@ -281,6 +284,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
           : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+    case "krikReturn":
+      return e.amount > 0
+        ? `Un petit Kobold coursier vous rattrape : « De la part de Krik. » ${e.amount} pièces ! Il avait dit vrai.`
+        : "Un petit Kobold coursier vous rattrape : « De la part de Krik : il a tout revendu trois fois. Désolé. » Votre investissement est perdu.";
     case "alarmDown":
       return ["Le donjon se calme.", "Le donjon se calme un peu : il n'est plus qu'agité.", "La traque s'essouffle : l'étage reste en alerte."][e.stage] ?? null;
     case "alarm":

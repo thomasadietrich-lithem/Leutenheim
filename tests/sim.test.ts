@@ -3753,3 +3753,44 @@ test("un objet qui tombe sur un escalier rebondit à côté", () => {
   assert.ok(!game.ground.some((g) => g.x === st!.x && g.y === st!.y), "la pomme est restée sur l'escalier");
   assert.ok(game.events.some((e) => e.type === "stairsBounce"));
 });
+
+test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investissement (Thomas, 2026-11-12)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  game.peaceful = true;
+  const k = game.krik();
+  assert.ok(k, "salle d'essai : Krik est là");
+  // Le héros à côté de lui.
+  const spots = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: k.x + dx, y: k.y + dy })).filter((p) => game.map.isWalkable(p.x, p.y) && !game.npcAt(p.x, p.y));
+  game.hero.x = spots[0].x;
+  game.hero.y = spots[0].y;
+  assert.ok(game.canTalk("krik"));
+  const s1 = game.krikScene();
+  assert.equal(s1.choices.length, 5);
+  assert.ok(s1.lines.some((l) => l.includes("ne peux plus mentir")));
+  const r = game.krikChoose("divert");
+  assert.ok(r.roll && r.done);
+  if (r.roll.success) assert.ok(game.inventory.count("potion_fumee") >= 1);
+  assert.equal(game.krikMemory.met, 1);
+  // Scène 3 : investir, puis descendre : rendu ou perdu.
+  game.krikMemory.met = 2;
+  k.gone = false;
+  k.opened = false;
+  game.gold = 100;
+  const s3 = game.krikScene();
+  assert.ok(s3.choices.some((c) => c.id === "invest" && !c.off));
+  game.krikChoose("invest");
+  assert.equal(game.gold, 80);
+  assert.equal(game.krikMemory.invested, 20);
+});
+
+test("fiole de fumée : lancée, les monstres tout près perdent la trace du héros", () => {
+  const { game, m } = foeAt(3);
+  game.inventory.add("potion_fumee", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "potion_fumee")!.uid;
+  m.alerted = true;
+  assert.ok(game.throwPotion(uid, m.x, m.y));
+  game.tick();
+  assert.equal(m.alerted, false);
+  assert.equal(game.inventory.count("potion_fumee"), 0);
+});

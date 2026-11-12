@@ -61,6 +61,8 @@ export interface FloorState {
   gluck?: GluckSpot;
   /** Sœur Osseuse (quête 02), si elle est sur cet étage. */
   soeur?: GluckSpot;
+  /** Krik, le Kobold qui ne sait plus mentir (quête 03), s'il est sur cet étage. */
+  krik?: GluckSpot;
 }
 
 /** Gluck sur un étage : sa case, s'il est parti, et où en est la conversation. */
@@ -80,6 +82,8 @@ export interface GluckSpot {
   backAt?: number;
   /** Les pommes qu'il laisse en partant : elles tombent par terre autour de lui (Thomas, 2026-11-12). */
   drops?: number;
+  /** Les objets qu'il laisse en partant (Krik) : ils tombent par terre autour de lui. */
+  items?: { item: ItemId; count: number }[];
   /** L'or qu'il laisse en partant (donation de Sœur Osseuse), en un tas à côté de lui. */
   gold?: number;
   /** Sœur Osseuse, rencontre 4 : le tambour a déjà résonné à l'ouverture. */

@@ -14,7 +14,7 @@ import { RULES } from "./data/rules";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
-import { GLUCK_PALETTE, Renderer } from "./render/renderer";
+import { GLUCK_PALETTE, KRIK_PALETTE, Renderer } from "./render/renderer";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
@@ -413,6 +413,7 @@ function reveal(e: GameEvent): void {
       renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.fire);
       sfx.play("glass");
       if (e.potion === "poison") for (const c of e.cells) renderer.addPuff(c.x, c.y, true);
+      if (e.potion === "smoke") for (const c of e.cells) renderer.addPuff(c.x, c.y);
     }, THROW_LAND_MS);
   } else if (e.type === "shatter") {
     // La fiole vole, se brise : « Cling ! », des éclats de sa couleur.
@@ -423,6 +424,7 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(e.x, e.y, "Cling !", "#e8f4ff");
       sfx.play("glass");
       if (e.potion === "poison") renderer.addPuff(e.x, e.y, true);
+      if (e.potion === "smoke") renderer.addPuff(e.x, e.y);
     }, THROW_LAND_MS);
   } else if (e.type === "luck") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
@@ -438,6 +440,11 @@ function reveal(e: GameEvent): void {
     if (e.what === "talk") openTalk(e.who);
     // Il part : nuage et « Pouf ! » (la conversation est fermée : voir `talkLater`).
     else gluckPouf(e);
+  } else if (e.type === "krikReturn") {
+    if (e.amount > 0) {
+      renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} or`, "#f0c850");
+      sfx.play("coin");
+    }
   } else if (e.type === "stairsBounce") {
     renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
   } else if (e.type === "bounce") {
@@ -1085,7 +1092,7 @@ function useQuickItem(): void {
     logLines.push(`Il faut être niveau ${def.level} pour cela.`);
     return;
   }
-  if (def.potion === "fire") {
+  if (def.potion === "fire" || def.potion === "smoke") {
     throwUid = stack.uid;
     renderer.jumpCells = throwCells(stack.uid);
     logLines.push("Touchez la case où lancer la potion.");
@@ -1397,6 +1404,7 @@ const POTION_SHADES: Record<string, string[]> = {
   poison: ["#5cc860", "#b8e05a", "#2e7a38"],
   haste: ["#6ad0ff", "#4a8fd0", "#cfeeff"],
   fire: ["#ff9a3a", "#e8782a", "#ffd84a"],
+  smoke: ["#c3cbe0", "#7f88a6", "#e8ecf4"],
 };
 
 /** À qui l'on parle : Gluck (quête 01) ou Sœur Osseuse (quête 02). */
@@ -1424,8 +1432,10 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = who === "gluck" ? "Gluck" : "Sœur Osseuse";
-  $("talk-face").replaceChildren(who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE));
+  $("talk-name").textContent = who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : "Krik";
+  $("talk-face").replaceChildren(
+    who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : who === "soeur" ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE) : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
+  );
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
   document.body.classList.add("talk-open");
   renderer.resize();
@@ -1750,7 +1760,7 @@ function renderBag(): void {
   // les autres se BOIVENT.
   action.textContent = selectedSlot
     ? "Retirer"
-    : def.potion === "fire" ? "Lancer"
+    : def.potion === "fire" || def.potion === "smoke" ? "Lancer"
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
     : def.kind === "use" ? "Consommer" : "Équiper";
@@ -1851,7 +1861,7 @@ button("bag-equip", () => {
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
     logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
-  } else if (chosen && chosenDef?.potion === "fire") {
+  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke")) {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;
     renderer.jumpCells = throwCells(chosen.uid);
@@ -2646,7 +2656,7 @@ button("settings-lang", () => {
 // Salle d'essai : Gluck et Sœur Osseuse reprennent à leur première scène (Thomas, 2026-11-12).
 button("reset-talks", () => {
   game.resetDialogues();
-  logLines.push("Dialogues remis à zéro : Gluck et Sœur Osseuse reprennent depuis le début.");
+  logLines.push("Dialogues remis à zéro : Gluck, Sœur Osseuse et Krik reprennent depuis le début.");
   renderLog();
 });
 button("settings-sound", () => {

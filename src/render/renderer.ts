@@ -30,6 +30,11 @@ const GLUCK_BUBBLE = [
   ".......K......",
 ];
 const GLUCK_BUBBLE_PALETTE: Record<string, string> = { K: "#1a1410", "#": "#f4ecd2", o: "#d8ccae" };
+/**
+ * Krik (quête 03) : le dessin du Kobold, recoloré (C, à valider) : écailles mauves, œil vert qui luit (l'expérience ratée
+ * du laboratoire), cotte rouillée.
+ */
+export const KRIK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#9a86c8", a: "#5e4a8e", Y: "#7affa0", L: "#d8cce8", C: "#a0785a", c: "#6a4a32", M: "#8e9a54", m: "#b8c070" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
@@ -608,6 +613,21 @@ export class Renderer {
     const rows = SOEUR_SPRITE[Math.floor(Math.abs(this.time) / 520) % SOEUR_SPRITE.length];
     this.drawMonsterSprite(rows, cx, cy, false, true, SOEUR_PALETTE);
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, SOEUR_BUBBLE_ICON, { K: "#1a1410", W: "#e6dcc0" });
+  }
+
+  /** Krik (quête 03) : un Kobold mauve à l'œil vert ; une fiole de fumée dans sa bulle quand le héros approche. */
+  private drawKrik(game: Game, ox: number, oy: number): void {
+    const g = game.krik();
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { tile } = this;
+    const cx = Math.round(ox + (g.x + 0.5) * tile);
+    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const hero = game.hero;
+    // Nerveux : il piétine (images de marche) en regardant de tous les côtés.
+    const frames = SCHRAT.walkDown;
+    const rows = frames[Math.floor(Math.abs(this.time) / 300) % frames.length];
+    this.drawMonsterSprite(rows, cx, cy, Math.floor(this.time / 900) % 2 === 0, false, KRIK_PALETTE);
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("potion_fumee"), ICON_PALETTE);
   }
 
   /** La statue creuse dont Gluck a parlé : un éclat doré scintille dans sa fissure, pour qu'on la repère. */
@@ -1457,6 +1477,7 @@ export class Renderer {
     this.drawMerchant(game, ox, oy, progress);
     this.drawGluck(game, ox, oy);
     this.drawSoeur(game, ox, oy);
+    this.drawKrik(game, ox, oy);
     this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
     this.drawHero(game, hero, ox, oy, progress);

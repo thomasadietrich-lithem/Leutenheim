@@ -57,7 +57,7 @@ export interface ItemDef {
   bagCols?: number;
   bagRows?: number;
   /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
-  potion?: "youth" | "poison" | "haste" | "fire";
+  potion?: "youth" | "poison" | "haste" | "fire" | "smoke";
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
   throwRange?: number;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
@@ -358,6 +358,7 @@ export const ITEMS = {
   potion_poison: { id: "potion_poison", name: "Potion de poison", kind: "use", description: "Enduire : vos 15 prochains coups qui portent empoisonnent. Lancer : un nuage empoisonné en croix.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "poison", throwRange: 5 },
   potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps à corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
   potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "À lancer : la case visée et ses quatre voisines brûlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
+  potion_fumee: { id: "potion_fumee", name: "Fiole de fumée", kind: "use", description: "À lancer : un nuage gris ; les monstres tout près (2 cases) perdent votre trace et restent un tour hébétés. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
   robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'étude. Elle ne protège guère.", w: 2, h: 2, maxStack: 1, armorClass: 11 },
 } satisfies Record<string, ItemDef>;
 

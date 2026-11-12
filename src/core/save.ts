@@ -10,7 +10,7 @@ import { Point } from "../world/map";
 import { BloodStain, Debris, GroundItem, Secret, Trap } from "./floor";
 import type { Merchant } from "./merchant";
 import type { CounterDoor, GluckSpot } from "./floor";
-import type { GluckMemory, SoeurMemory } from "./game";
+import type { GluckMemory, KrikMemory, SoeurMemory } from "./game";
 
 /**
  * Sauvegarde d'une partie : de simples données (texte JSON), écrites sur l'appareil à chaque tour.
@@ -58,6 +58,7 @@ export interface SavedFloor {
   gluck?: GluckSpot;
   /** Sœur Osseuse (facultatif). */
   soeur?: GluckSpot;
+  krik?: GluckSpot;
 }
 
 export interface SaveData {
@@ -90,6 +91,8 @@ export interface SaveData {
   gluck?: GluckMemory;
   /** Sœur Osseuse : ce qu'elle sait du héros ; ses bénédictions en cours (absents des anciennes sauvegardes). */
   soeur?: SoeurMemory;
+  /** Krik : ce qu'il sait du héros (absent des anciennes sauvegardes). */
+  krik?: KrikMemory;
   blessings?: { protect: number; clarity: number; curse: number; luck: number };
   /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
   blessTurns?: number;

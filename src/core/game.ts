@@ -8,6 +8,7 @@ import { RACES, RaceDef } from "../data/races";
 import { RULES } from "../data/rules";
 import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { SOEUR, SOEUR_OPENING } from "../data/soeur";
+import { KRIK, KRIK_OPENING } from "../data/krik";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
@@ -55,11 +56,22 @@ export interface GluckMemory {
   lastReward?: string;
 }
 
-/** Les PNJ de quête : Gluck (quête 01) et Sœur Osseuse (quête 02). */
-export type NpcId = "gluck" | "soeur";
+/** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
+export type NpcId = "gluck" | "soeur" | "krik";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik"];
+
+/** Ce que Krik sait du héros, le temps d'une partie. */
+export interface KrikMemory {
+  met: number;
+  /** On l'a dénoncé à ses anciens camarades (rencontre 2). */
+  denounced?: boolean;
+  /** Or investi dans son commerce (rencontre 3), et l'étage où on l'a investi. */
+  invested?: number;
+  investDepth?: number;
+}
 
 /** La flaque qu'une potion laisse en éclatant : sa couleur. */
-const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire" };
+const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot" };
 
 /** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
 export interface SoeurMemory {
@@ -137,6 +149,7 @@ export class Game {
   gluckMemory: GluckMemory = { met: 0, mood: 0, invested: 0 };
   /** Sœur Osseuse : ce qu'elle sait du héros dans cette partie. */
   soeurMemory: SoeurMemory = { met: 0 };
+  krikMemory: KrikMemory = { met: 0 };
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -1311,6 +1324,7 @@ export class Game {
       counter: f.counter,
       gluck: f.gluck,
       soeur: f.soeur,
+      krik: f.krik,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1338,6 +1352,7 @@ export class Game {
       hasteTurns: this.hasteTurns,
       gluck: this.gluckMemory,
       soeur: this.soeurMemory,
+      krik: this.krikMemory,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
       blessTurns: this.blessTurns,
       quickItem: this.quickItem,
@@ -1401,6 +1416,7 @@ export class Game {
         counter: f.counter,
         gluck: f.gluck,
         soeur: f.soeur,
+        krik: f.krik,
       });
     }
     game.turn = saved.turn;
@@ -1432,6 +1448,7 @@ export class Game {
     game.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
     game.blessTurns = saved.blessTurns ?? 0;
     game.soeurMemory = saved.soeur ?? { met: 0 };
+    game.krikMemory = saved.krik ?? { met: 0 };
     game.protectTurns = saved.blessings?.protect ?? 0;
     game.clarityDepth = saved.blessings?.clarity ?? 0;
     game.curseDepth = saved.blessings?.curse ?? 0;
@@ -1659,7 +1676,7 @@ export class Game {
     // Une torche se tient d'une main : impossible avec une arme à deux mains (Thomas, 2026-11-11).
     if (def.lightTurns && this.twoHanded()) return false;
     // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
-    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire") return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -1724,6 +1741,7 @@ export class Game {
         else this.gas.push({ x: at.x, y: at.y, turns: RULES.brokenPoisonGasTurns });
         this.gasPoison();
       }
+      if (potion === "smoke") this.smokeBurst(at, 1);
       // Une flaque de sa couleur reste au sol (Thomas, 2026-11-12).
       if (this.map.get(at.x, at.y) !== Tile.Water) this.stain(at.x, at.y, POTION_STAIN[potion] ?? "pYouth");
       this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
@@ -1951,6 +1969,13 @@ export class Game {
     const extra = splash[this.rng.int(0, splash.length - 1)];
     // La flaque de sa couleur, là où la fiole éclate (Thomas, 2026-11-12).
     if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+    if (potion === "smoke") {
+      // Fiole de fumée (quête 03, Krik) : un nuage gris ; les monstres tout près perdent la trace du héros.
+      const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      this.smokeBurst(order, 2);
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
+      return;
+    }
     if (potion === "poison") {
       // Potion de poison lancée (Thomas, 2026-11-12 : « lancer devrait faire quelque chose ») : un nuage vert en croix,
       // qui empoisonne qui s'y tient (comme le piège à gaz).
@@ -2812,7 +2837,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -3257,19 +3282,26 @@ export class Game {
       if (depth !== 1) return;
       state.gluck = this.placeGluck(state, depth) ?? undefined;
       state.soeur = this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0)) ?? undefined;
+      state.krik = this.placeKrik(state, new Rng(this.runSeed ^ 0x6b1c)) ?? undefined;
       this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
       return;
     }
     const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
     if ((depth - 1) % RULES.floorsPerSection > 3 || !rng.chance(GLUCK.chance)) return;
-    const who = (["gluck", "soeur"] as const).filter((id) => this.npcMemory(id).met < (id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters));
+    const who = NPC_IDS.filter((id) => this.npcMemory(id).met < this.npcMax(id));
     if (who.length === 0) return;
     const pick = who[rng.int(0, who.length - 1)];
     if (pick === "gluck") {
       state.gluck = this.placeGluck(state, depth, rng) ?? undefined;
       if (state.gluck) this.placeHollowStatue(state, rng);
     }
-    else state.soeur = this.placeSoeur(state, rng) ?? undefined;
+    else if (pick === "soeur") state.soeur = this.placeSoeur(state, rng) ?? undefined;
+    else state.krik = this.placeKrik(state, rng) ?? undefined;
+  }
+
+  /** Combien de fois on peut croiser ce PNJ dans une partie. */
+  npcMax(id: NpcId): number {
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -3279,7 +3311,7 @@ export class Game {
     const floor = state as unknown as Parameters<typeof placeBell>[0];
     // Ni sur un PNJ, ni sur un objet, un monstre, un motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.merchant].some((p) => p && p.x === x && p.y === y) ||
+      [state.gluck, state.soeur, state.krik, state.merchant].some((p) => p && p.x === x && p.y === y) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -3326,7 +3358,8 @@ export class Game {
     if (!this.sandbox) return;
     this.gluckMemory = { met: 0, mood: 0, invested: 0 };
     this.soeurMemory = { met: 0 };
-    for (const g of [this.current.gluck, this.current.soeur]) {
+    this.krikMemory = { met: 0 };
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -3347,7 +3380,8 @@ export class Game {
     return (
       state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) &&
       !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) &&
-      !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y)
+      !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) &&
+      !(state.krik && state.krik.x === x && state.krik.y === y)
     );
   }
 
@@ -3403,6 +3437,30 @@ export class Game {
     return null;
   }
 
+  /**
+   * Krik se tient dans une forge ou un dortoir, sinon n'importe où sur du sol nu, salle ou COULOIR (fiche de Thomas),
+   * loin de l'arrivée et de l'escalier.
+   */
+  private placeKrik(state: FloorState, rng: Rng): GluckSpot | null {
+    const free = (x: number, y: number) => this.npcFree(state, x, y);
+    const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    const themed = state.rooms.filter((r) => (state.themes ?? []).some((t) => (t.id === "forge" || t.id === "dortoir") && state.rooms[t.room] === r));
+    for (let attempt = 0; attempt < 40 && themed.length > 0; attempt++) {
+      const r = themed[rng.int(0, themed.length - 1)];
+      const x = rng.int(r.x, r.x + r.w - 1);
+      const y = rng.int(r.y, r.y + r.h - 1);
+      if (free(x, y)) return { x, y, gone: false };
+    }
+    const startRoom = state.rooms.find((r) => inside(r, state.start));
+    const far = (x: number, y: number) => Math.hypot(x - state.start.x, y - state.start.y) > 8 && Math.hypot(x - state.stairs.x, y - state.stairs.y) > 3;
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const x = rng.int(1, state.map.width - 2);
+      const y = rng.int(1, state.map.height - 2);
+      if (free(x, y) && far(x, y) && !(startRoom && inside(startRoom, { x, y }))) return { x, y, gone: false };
+    }
+    return null;
+  }
+
   /** Gluck sur cet étage (pas encore parti), s'il y est. */
   gluck(): GluckSpot | null {
     return this.npc("gluck");
@@ -3421,7 +3479,7 @@ export class Game {
 
   /** Le PNJ de quête qui se tient sur cette case, s'il y en a un. */
   npcAt(x: number, y: number): NpcId | null {
-    for (const id of ["gluck", "soeur"] as const) {
+    for (const id of NPC_IDS) {
       const g = this.npc(id);
       if (g && g.x === x && g.y === y) return id;
     }
@@ -3435,7 +3493,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : this.soeurMemory;
+    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -3468,11 +3526,11 @@ export class Game {
 
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
-    return id === "gluck" ? this.gluckScene() : this.soeurScene();
+    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
-    return id === "gluck" ? this.gluckChoose(choice) : this.soeurChoose(choice);
+    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -3491,6 +3549,12 @@ export class Game {
       this.dropItem(at.x, at.y, "pomme", 1);
       drops.push({ item: "pomme", x: at.x, y: at.y, count: 1 });
     }
+    for (const it of g.items ?? []) {
+      const at = this.landingCell(g, it.item, g);
+      this.dropItem(at.x, at.y, it.item, it.count);
+      drops.push({ item: it.item, x: at.x, y: at.y, count: it.count });
+    }
+    g.items = [];
     if (g.gold) {
       const at = this.landingCell(g, "or", g);
       this.dropItem(at.x, at.y, "or", g.gold);
@@ -3506,12 +3570,12 @@ export class Game {
    * (Thomas, 2026-11-12 : « les persos de quête devraient disparaître si effet négatif sur eux »).
    */
   private npcsFlee(): void {
-    for (const id of ["gluck", "soeur"] as const) {
+    for (const id of NPC_IDS) {
       const g = this.npc(id);
       if (!g) continue;
       const fled = this.isBurning(g.x, g.y) ? "fire" : this.isGassed(g.x, g.y) ? "gas" : null;
       if (!fled) continue;
-      this.npcLeaves(id, g, id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters);
+      this.npcLeaves(id, g, this.npcMax(id));
       const ev = this.events[this.events.length - 1];
       if (ev.type === "npc") ev.fled = fled;
     }
@@ -3947,6 +4011,213 @@ export class Game {
     if (left > 0) this.bounceFromHero("pomme", left);
   }
 
+  // ---------- Quête 03 : Krik, le Kobold qui ne sait plus mentir (Thomas, 2026-11-12) ----------
+
+  krik(): GluckSpot | null {
+    return this.npc("krik");
+  }
+
+  /** La scène en cours : 1 la confession, 2 le retour du menteur, 3 le grand commerçant. */
+  krikStage(): 1 | 2 | 3 {
+    return Math.min(3, this.krikMemory.met + 1) as 1 | 2 | 3;
+  }
+
+  /** Ce que dit Krik en ce moment, et les choix proposés. */
+  krikScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.krik();
+    if (!g) return { lines: [], choices: [] };
+    g.opened = true;
+    const stage = this.krikStage();
+    const lines = KRIK_OPENING[stage](!!this.krikMemory.denounced);
+    const leave = { id: "leave", label: "Partir" };
+    const poor = (n: number) => (this.gold < n ? "Pas assez d'or" : undefined);
+    if (stage === 1) {
+      return {
+        lines,
+        choices: [
+          { id: "protect", label: "Proposer de le protéger", stat: "charisme", dc: "medium" },
+          { id: "caches", label: "Lui demander ses caches", stat: "intelligence", dc: "medium" },
+          { id: "threaten", label: "Le menacer", stat: "force", dc: "easy" },
+          { id: "divert", label: "Lui apprendre à faire diversion", stat: "agilite", dc: "medium" },
+          leave,
+        ],
+      };
+    }
+    if (stage === 2) {
+      return {
+        lines,
+        choices: [
+          { id: "buy", label: `Acheter un objet (${KRIK.sellPrice} or)`, off: poor(KRIK.sellPrice) },
+          { id: "lie", label: "Lui demander de mentir aux monstres pour vous" },
+          { id: "denounce", label: "Le dénoncer à ses anciens camarades" },
+          leave,
+        ],
+      };
+    }
+    return {
+      lines,
+      choices: [
+        { id: "discount", label: `Acheter à prix cassé (${KRIK.discountPrice} or)`, off: poor(KRIK.discountPrice) },
+        { id: "rare", label: `Négocier un objet rare (${KRIK.rarePrice} or)`, stat: "charisme", dc: "hard", off: poor(KRIK.rarePrice) },
+        { id: "invest", label: `Investir ${KRIK.investStake} or dans son commerce`, off: poor(KRIK.investStake) },
+        leave,
+      ],
+    };
+  }
+
+  /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
+  krikChoose(id: string): GluckResult {
+    const g = this.krik();
+    if (!g || !this.canTalk("krik")) return { lines: [], done: true };
+    const mem = this.krikMemory;
+    const choice = this.krikScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    let roll: GluckResult["roll"];
+    const test = (): boolean => (roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!])).success;
+    const end = (lines: string[]): GluckResult => {
+      this.npcLeaves("krik", g, KRIK.maxEncounters);
+      return { lines, roll, done: true };
+    };
+    const leaves = (item: ItemId, count = 1) => (g.items ??= []).push({ item, count });
+    const pay = (n: number) => {
+      this.gold -= n;
+    };
+    const toBag = (item: ItemId, count = 1) => {
+      const left = this.inventory.add(item, count);
+      if (count - left > 0) this.events.push({ type: "pickup", item, count: count - left });
+      if (left > 0) this.bounceFromHero(item, left);
+    };
+    /** Un objet du butin de l'étage (jamais d'or) ; `rarer` : celui de la section suivante. */
+    const loot = (rarer = false): { item: ItemId; count: number } => {
+      for (let k = 0; k < 8; k++) {
+        const l = rollLoot(this.rng, this.depth + (rarer ? RULES.floorsPerSection : 0));
+        if (l.item !== "or") return l;
+      }
+      return { item: "pomme", count: 1 };
+    };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Tu reviendras. C'est vrai, je le sais : je ne peux pas mentir. »"], done: true };
+      case "protect":
+        if (test()) {
+          this.revealKoboldRooms();
+          leaves("pomme");
+          return end([
+            "« Tu me protégerais ? Moi ? … Tu mens mieux que moi. Mais d'accord. »",
+            "« Mes camarades dorment là, là et là. Le butin, je l'ai caché sous ma langue. Non, ça c'est faux. Ah si, c'est vrai. »",
+            "(Les repaires des Kobolds de l'étage apparaissent sur la carte. Il laisse une pomme.)",
+          ]);
+        }
+        g.gold = (g.gold ?? 0) + this.rng.int(KRIK.hushMin, KRIK.hushMax);
+        return end(["« Toi ? Tu ne protégerais pas une pomme. »", "« Tiens, prends ça et laisse-moi tranquille. C'est tout ce que je vaux. »", "(Il laisse quelques pièces.)"]);
+      case "caches":
+        if (test()) {
+          g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
+          const l = loot();
+          leaves(l.item, l.count);
+          return end(["« Ma cache ? Sous le troisième tonneau. Pourquoi je te le dis ? … Je ne peux pas m'en empêcher. »", "(Il laisse de l'or et un objet derrière lui.)"]);
+        }
+        return end(["« La cache de l'escalier. Elle est vide. Je l'ai vidée hier. »", "« Je t'avais dit que j'étais malade, pas que j'étais stupide. »"]);
+      case "threaten":
+        if (test()) {
+          const l = loot();
+          leaves(l.item, l.count);
+          return end(["« D'accord, d'accord ! Prends ça ! C'était volé de toute façon. »", "(Il lâche une partie de sa marchandise.)"]);
+        }
+        this.raiseAlarm(KRIK.shoutAlarm, g);
+        this.callSlinger(g);
+        return end(["« AU SECOURS ! UN AVENTURIER ME MENACE ! … C'est vrai, en plus. »", "(Un Kobold frondeur accourt.)"]);
+      case "divert":
+        if (test()) {
+          toBag("potion_fumee", KRIK.smokeFlasks);
+          return end([
+            "Vous lui montrez : on pointe le doigt ailleurs, on crie « Là-bas ! », on file.",
+            "« Là-bas ! … Ça marche ! Même sur moi ! »",
+            `« Tiens, pour toi : des fioles de fumée. Volées. »`,
+            `(${KRIK.smokeFlasks} fioles de fumée dans le sac : lancée, elle fait perdre votre trace aux monstres tout près.)`,
+          ]);
+        }
+        this.callFoes(g, "schrat", KRIK.pursuers);
+        return end(["« Là-bas ! … C'est moi qui ai trahi tout le monde ! »", "« Oh non. Je l'ai dit trop fort. »", "(Ses anciens camarades accourent.)"]);
+      case "buy": {
+        pay(KRIK.sellPrice);
+        if (this.rng.chance(KRIK.sellLie)) {
+          toBag("pomme");
+          return end(["« Un objet magnifique ! »", "(C'est une pomme.)", "« J'ai menti. Ça m'avait manqué. »"]);
+        }
+        const l = loot();
+        toBag(l.item, l.count);
+        return end(["« Un objet magnifique ! » Pour une fois, c'est vrai.", `(${ITEMS[l.item].name}${l.count > 1 ? ` ×${l.count}` : ""}.)`]);
+      }
+      case "lie":
+        for (const m of this.monsters) {
+          if (m.boss) continue;
+          m.alerted = false;
+          m.wary = false;
+        }
+        this.lowerAlarm(KRIK.lieAlarm);
+        return end(["Krik file voir ses anciens camarades. « L'aventurier ? Il est parti par là-bas. Très loin. Il a peur de vous. »", "« … Ils m'ont cru ! »", "(Les monstres perdent votre trace ; l'étage se calme.)"]);
+      case "denounce":
+        mem.denounced = true;
+        g.gold = (g.gold ?? 0) + this.rng.int(KRIK.bountyMin, KRIK.bountyMax);
+        return end(["« HÉ ! IL EST LÀ ! » crie-t-on. Krik détale.", "Un Kobold vous jette une bourse : « La prime. Merci, l'humain. »", "(Krik s'en souviendra.)"]);
+      case "discount": {
+        pay(KRIK.discountPrice);
+        const pool: ItemId[] = ["pomme", "torche", "potion_vitesse", "potion_fumee"];
+        const item = pool[this.rng.int(0, pool.length - 1)];
+        toBag(item);
+        return end(["« Prix cassé. Comme l'objet. Non : l'objet va bien. Je crois. »", `(${ITEMS[item].name}.)`]);
+      }
+      case "rare":
+        if (test()) {
+          pay(KRIK.rarePrice);
+          const l = loot(true);
+          toBag(l.item, l.count);
+          return end(["« Bon. Pour toi. Je l'ai vendu deux fois déjà, mais celui-là est le vrai. »", `(${ITEMS[l.item].name}.)`]);
+        }
+        return end(["« Celui-là, je le garde. C'est le seul que je n'ai pas encore vendu. »"]);
+      case "invest":
+        pay(KRIK.investStake);
+        mem.invested = KRIK.investStake;
+        mem.investDepth = this.depth;
+        return end(["« Excellent placement. Tu seras remboursé à l'étage suivant. »", "« Je le pense vraiment. Pour l'instant. »"]);
+      default:
+        return { lines: [], done: false };
+    }
+  }
+
+  /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
+  private smokeBurst(at: Point, radius: number): void {
+    for (const m of this.monsters) {
+      if (m.boss || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > radius) continue;
+      m.alerted = false;
+      m.wary = false;
+      m.asleep = false;
+      m.stunned = Math.max(m.stunned ?? 0, 1);
+    }
+  }
+
+  /** Krik montre les repaires de ses anciens camarades : les salles où se trouvent des Kobolds apparaissent sur la carte. */
+  private revealKoboldRooms(): void {
+    for (const m of this.monsters) {
+      if (m.defId !== "schrat" && m.defId !== "frondeur") continue;
+      const r = this.current.rooms.find((o) => m.x >= o.x && m.x < o.x + o.w && m.y >= o.y && m.y < o.y + o.h);
+      if (!r) continue;
+      for (let y = r.y - 1; y <= r.y + r.h; y++) for (let x = r.x - 1; x <= r.x + r.w; x++) if (this.map.inBounds(x, y)) this.explored[this.map.index(x, y)] = 1;
+    }
+  }
+
+  /** L'investissement chez Krik, en descendant : rendu ×2, ou perdu (il a vendu le stock trois fois). */
+  private settleKrik(): void {
+    const mem = this.krikMemory;
+    if (!mem.invested || mem.investDepth === undefined || this.depth <= mem.investDepth) return;
+    const stake = mem.invested;
+    mem.invested = 0;
+    const amount = this.rng.chance(KRIK.investLoss) ? 0 : stake * 2;
+    this.gold += amount;
+    this.events.push({ type: "krikReturn", amount });
+  }
+
   /** L'escalier qui descend apparaît sur la carte (il est noté comme déjà vu, avec ses voisines). */
   private revealStairs(): void {
     const s = this.current.stairs;
@@ -3955,6 +4226,15 @@ export class Game {
 
   /** Vol raté : un Kobold frondeur accourt (il arrive hors de vue, à quelques cases, et sait où est le héros). */
   private callSlinger(from: Point): void {
+    this.callFoes(from, "frondeur", 1);
+  }
+
+  /** Des Kobolds alertés arrivent hors de vue, à quelques cases, et savent où est le héros (vol raté, Krik trahi…). */
+  private callFoes(from: Point, kind: "frondeur" | "schrat", count: number): void {
+    for (let n = 0; n < count; n++) this.callOne(from, kind);
+  }
+
+  private callOne(from: Point, kind: "frondeur" | "schrat"): void {
     let spot: Point | null = null;
     for (let r = 4; r <= 9 && !spot; r++) {
       for (let dy = -r; dy <= r && !spot; dy++) {
@@ -3967,7 +4247,7 @@ export class Game {
       }
     }
     if (!spot) return;
-    const m = this.newMonster(MONSTERS.frondeur, spot.x, spot.y, false);
+    const m = this.newMonster(MONSTERS[kind], spot.x, spot.y, false);
     m.alerted = true;
     this.monsters.push(m);
   }
@@ -4878,6 +5158,7 @@ export class Game {
     const healed = 0;
     this.enterFloor(target, direction);
     this.events.push({ type: "stairs", direction, healed });
+    if (direction === "down") this.settleKrik();
     return true;
   }
 }

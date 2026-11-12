@@ -1587,6 +1587,7 @@
     potion_poison: { id: "potion_poison", name: "Potion de poison", kind: "use", description: "Enduire : vos 15 prochains coups qui portent empoisonnent. Lancer : un nuage empoisonn\xE9 en croix.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "poison", throwRange: 5 },
     potion_vitesse: { id: "potion_vitesse", name: "Potion de vitesse", kind: "use", description: "Pendant 4 tours, chaque attaque au corps \xE0 corps frappe deux fois.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "haste" },
     potion_feu: { id: "potion_feu", name: "Potion de feu", kind: "use", description: "\xC0 lancer : la case vis\xE9e et ses quatre voisines br\xFBlent pendant 5 tours.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "fire", throwRange: 5 },
+    potion_fumee: { id: "potion_fumee", name: "Fiole de fum\xE9e", kind: "use", description: "\xC0 lancer : un nuage gris ; les monstres tout pr\xE8s (2 cases) perdent votre trace et restent un tour h\xE9b\xE9t\xE9s. Un cadeau de Krik.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "smoke", throwRange: 5 },
     robe: { id: "robe", name: "Robe", kind: "armor", description: "Une robe d'\xE9tude. Elle ne prot\xE8ge gu\xE8re.", w: 2, h: 2, maxStack: 1, armorClass: 11 }
   };
   var UNARMED = { attackBonus: 2, damage: { count: 1, sides: 2, bonus: 0 } };
@@ -2113,6 +2114,62 @@
       "\xAB J'ai maintenant un tambour. Il est beaucoup plus bruyant. \xBB",
       "Vous : \xAB Et la cloche ? \xBB",
       "\xAB Quelle cloche ? \xBB"
+    ]
+  };
+
+  // src/data/krik.ts
+  var KRIK = {
+    name: "Krik",
+    maxEncounters: 3,
+    /** Échec de « le protéger » : il achète sa tranquillité avec un peu d'or. */
+    hushMin: 5,
+    hushMax: 10,
+    /** Ses caches (réussi) : de l'or, plus un objet du butin de l'étage. */
+    cacheGoldMin: 10,
+    cacheGoldMax: 20,
+    /** Menace ratée : il crie (+10 d'alerte) et un Kobold frondeur accourt. */
+    shoutAlarm: 10,
+    /** Diversion réussie : des fioles de fumée. */
+    smokeFlasks: 2,
+    /** Diversion ratée : ses poursuivants arrivent (Kobolds alertés). */
+    pursuers: 2,
+    /** Rencontre 2 : un objet « garanti » pour ce prix… une fois sur 4, c'est une pomme. */
+    sellPrice: 15,
+    sellLie: 0.25,
+    /** Rencontre 2 : il ment aux monstres pour vous ; l'alerte baisse d'autant. */
+    lieAlarm: 20,
+    /** Rencontre 2 : la prime des Kobolds quand on le dénonce. */
+    bountyMin: 20,
+    bountyMax: 30,
+    /** Rencontre 3 : un objet à consommer à prix cassé ; un objet rare après marchandage. */
+    discountPrice: 8,
+    rarePrice: 40,
+    /** Rencontre 3 : investir ; rendu ×2 à l'étage suivant, sauf s'il a « tout revendu trois fois » (1 fois sur 3). */
+    investStake: 20,
+    investLoss: 1 / 3
+  };
+  var KRIK_OPENING = {
+    1: () => [
+      "\xAB Bonjour aventurier ! \xBB",
+      "Vous : \xAB Tu vends quelque chose ? \xBB",
+      "\xAB Oui. Des objets vol\xE9s \xE0 mes camarades. \xBB",
+      "Vous : \xAB Tu es honn\xEAte, au moins. \xBB",
+      "\xAB Non. Je suis malade. Une exp\xE9rience rat\xE9e, au laboratoire. Depuis, je ne peux plus mentir. \xBB",
+      "\xAB Mes camarades savent que je les ai trahis. \xBB",
+      "Vous : \xAB Pourquoi les avoir trahis ? \xBB",
+      "\xAB Parce que je voulais garder tout le butin. Maintenant, ils veulent me tuer. Tu peux m'aider ? \xBB"
+    ],
+    2: (denounced) => [
+      denounced ? "\xAB Toi ! Tu m'as\u2026 non, je suis ravi de te voir. Vraiment. \xBB" : "\xAB Je vais beaucoup mieux ! \xBB",
+      "Vous : \xAB Tu mens ? \xBB",
+      "\xAB Non. \xBB",
+      "Vous : \xAB Donc tu mens. \xBB",
+      "\xAB \u2026 \xBB"
+    ],
+    3: (denounced) => [
+      denounced ? "\xAB Ah. Le d\xE9lateur. Les affaires sont les affaires : entre. \xBB" : "\xAB J'ai fait fortune ! \xBB",
+      "Vous : \xAB Comment ? \xBB",
+      "\xAB En vendant les m\xEAmes objets trois fois. \xBB"
     ]
   };
 
@@ -4395,7 +4452,8 @@
   }
 
   // src/core/game.ts
-  var POTION_STAIN = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire" };
+  var NPC_IDS = ["gluck", "soeur", "krik"];
+  var POTION_STAIN = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot" };
   var Game = class _Game {
     constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR, sandbox = false) {
       this.runSeed = runSeed;
@@ -4454,6 +4512,7 @@
       this.gluckMemory = { met: 0, mood: 0, invested: 0 };
       /** Sœur Osseuse : ce qu'elle sait du héros dans cette partie. */
       this.soeurMemory = { met: 0 };
+      this.krikMemory = { met: 0 };
       /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
        *  valent), Chance (1 naturels encore à relancer). */
       this.protectTurns = 0;
@@ -5496,7 +5555,8 @@
         merchant: f.merchant,
         counter: f.counter,
         gluck: f.gluck,
-        soeur: f.soeur
+        soeur: f.soeur,
+        krik: f.krik
       }));
       return clone({
         version: SAVE_VERSION,
@@ -5525,6 +5585,7 @@
         hasteTurns: this.hasteTurns,
         gluck: this.gluckMemory,
         soeur: this.soeurMemory,
+        krik: this.krikMemory,
         blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
         blessTurns: this.blessTurns,
         quickItem: this.quickItem,
@@ -5586,7 +5647,8 @@
           merchant: f.merchant,
           counter: f.counter,
           gluck: f.gluck,
-          soeur: f.soeur
+          soeur: f.soeur,
+          krik: f.krik
         });
       }
       game2.turn = saved.turn;
@@ -5618,6 +5680,7 @@
       game2.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
       game2.blessTurns = saved.blessTurns ?? 0;
       game2.soeurMemory = saved.soeur ?? { met: 0 };
+      game2.krikMemory = saved.krik ?? { met: 0 };
       game2.protectTurns = saved.blessings?.protect ?? 0;
       game2.clarityDepth = saved.blessings?.clarity ?? 0;
       game2.curseDepth = saved.blessings?.curse ?? 0;
@@ -5799,7 +5862,7 @@
       if (this.over || !item) return false;
       const def = ITEMS[item.defId];
       if (def.lightTurns && this.twoHanded()) return false;
-      if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire") return false;
+      if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke") return false;
       if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
       this.wait();
       this.waiting = false;
@@ -5857,6 +5920,7 @@
           else this.gas.push({ x: at.x, y: at.y, turns: RULES.brokenPoisonGasTurns });
           this.gasPoison();
         }
+        if (potion === "smoke") this.smokeBurst(at, 1);
         if (this.map.get(at.x, at.y) !== Tile.Water) this.stain(at.x, at.y, POTION_STAIN[potion] ?? "pYouth");
         this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
         return true;
@@ -6052,6 +6116,12 @@
       const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
       const extra = splash[this.rng.int(0, splash.length - 1)];
       if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+      if (potion === "smoke") {
+        const cells2 = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+        this.smokeBurst(order, 2);
+        this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: cells2 });
+        return;
+      }
       if (potion === "poison") {
         const cells2 = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) || this.map.get(c.x, c.y) === Tile.Furniture);
         for (const c of cells2) {
@@ -6815,7 +6885,7 @@
       this.gasTick();
       this.npcsFlee();
       this.counterChatter();
-      for (const gk of [this.current.gluck, this.current.soeur]) {
+      for (const gk of [this.current.gluck, this.current.soeur, this.current.krik]) {
         if (gk && gk.gone && gk.backAt !== void 0 && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
           Object.assign(gk, { gone: false, backAt: void 0, opened: false, intro: void 0, pending: void 0, pendingLines: void 0, haggled: false, drumDone: false });
         }
@@ -7208,25 +7278,31 @@
         if (depth !== 1) return;
         state.gluck = this.placeGluck(state, depth) ?? void 0;
         state.soeur = this.placeSoeur(state, new Rng(this.runSeed ^ 20704)) ?? void 0;
+        state.krik = this.placeKrik(state, new Rng(this.runSeed ^ 27420)) ?? void 0;
         this.placeHollowStatue(state, new Rng(this.runSeed ^ 22439));
         return;
       }
       const rng = new Rng(floorSeed(this.runSeed, depth) ^ 1780165693);
       if ((depth - 1) % RULES.floorsPerSection > 3 || !rng.chance(GLUCK.chance)) return;
-      const who = ["gluck", "soeur"].filter((id) => this.npcMemory(id).met < (id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters));
+      const who = NPC_IDS.filter((id) => this.npcMemory(id).met < this.npcMax(id));
       if (who.length === 0) return;
       const pick = who[rng.int(0, who.length - 1)];
       if (pick === "gluck") {
         state.gluck = this.placeGluck(state, depth, rng) ?? void 0;
         if (state.gluck) this.placeHollowStatue(state, rng);
-      } else state.soeur = this.placeSoeur(state, rng) ?? void 0;
+      } else if (pick === "soeur") state.soeur = this.placeSoeur(state, rng) ?? void 0;
+      else state.krik = this.placeKrik(state, rng) ?? void 0;
+    }
+    /** Combien de fois on peut croiser ce PNJ dans une partie. */
+    npcMax(id) {
+      return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : KRIK.maxEncounters;
     }
     /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
     placeHollowStatue(state, rng) {
       const furniture = state.furniture ?? (state.furniture = []);
       const special = new Set((state.themes ?? []).map((t) => t.room));
       const floor = state;
-      const avoid = (x, y) => [state.gluck, state.soeur, state.merchant].some((p) => p && p.x === x && p.y === y) || state.ground.some((g) => g.x === x && g.y === y) || this.monsters.some((m) => m.x === x && m.y === y) || (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
+      const avoid = (x, y) => [state.gluck, state.soeur, state.krik, state.merchant].some((p) => p && p.x === x && p.y === y) || state.ground.some((g) => g.x === x && g.y === y) || this.monsters.some((m) => m.x === x && m.y === y) || (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
       if (placeBell(floor, rng, furniture, special, "statue", avoid)) furniture[furniture.length - 1].hollow = true;
     }
     /** La statue (debout) sur cette case, s'il y en a une. */
@@ -7266,7 +7342,8 @@
       if (!this.sandbox) return;
       this.gluckMemory = { met: 0, mood: 0, invested: 0 };
       this.soeurMemory = { met: 0 };
-      for (const g of [this.current.gluck, this.current.soeur]) {
+      this.krikMemory = { met: 0 };
+      for (const g of [this.current.gluck, this.current.soeur, this.current.krik]) {
         if (!g) continue;
         Object.assign(g, { gone: false, backAt: void 0, opened: false, intro: void 0, pending: void 0, pendingLines: void 0, haggled: false, drumDone: false, drops: 0, gold: 0 });
       }
@@ -7283,7 +7360,7 @@
     }
     /** Une case où un PNJ peut se tenir : du sol nu, sans monstre, meuble, objet ni Colporteur. */
     npcFree(state, x, y) {
-      return state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) && !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) && !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y);
+      return state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) && !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) && !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) && !(state.krik && state.krik.x === x && state.krik.y === y);
     }
     /** Gluck se tient dans une salle ordinaire (de préférence un dortoir ou une forge), loin de l'arrivée. */
     placeGluck(state, depth, rng) {
@@ -7335,6 +7412,29 @@
       }
       return null;
     }
+    /**
+     * Krik se tient dans une forge ou un dortoir, sinon n'importe où sur du sol nu, salle ou COULOIR (fiche de Thomas),
+     * loin de l'arrivée et de l'escalier.
+     */
+    placeKrik(state, rng) {
+      const free = (x, y) => this.npcFree(state, x, y);
+      const inside = (r, p) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+      const themed = state.rooms.filter((r) => (state.themes ?? []).some((t) => (t.id === "forge" || t.id === "dortoir") && state.rooms[t.room] === r));
+      for (let attempt = 0; attempt < 40 && themed.length > 0; attempt++) {
+        const r = themed[rng.int(0, themed.length - 1)];
+        const x = rng.int(r.x, r.x + r.w - 1);
+        const y = rng.int(r.y, r.y + r.h - 1);
+        if (free(x, y)) return { x, y, gone: false };
+      }
+      const startRoom = state.rooms.find((r) => inside(r, state.start));
+      const far = (x, y) => Math.hypot(x - state.start.x, y - state.start.y) > 8 && Math.hypot(x - state.stairs.x, y - state.stairs.y) > 3;
+      for (let attempt = 0; attempt < 400; attempt++) {
+        const x = rng.int(1, state.map.width - 2);
+        const y = rng.int(1, state.map.height - 2);
+        if (free(x, y) && far(x, y) && !(startRoom && inside(startRoom, { x, y }))) return { x, y, gone: false };
+      }
+      return null;
+    }
     /** Gluck sur cet étage (pas encore parti), s'il y est. */
     gluck() {
       return this.npc("gluck");
@@ -7350,7 +7450,7 @@
     }
     /** Le PNJ de quête qui se tient sur cette case, s'il y en a un. */
     npcAt(x, y) {
-      for (const id of ["gluck", "soeur"]) {
+      for (const id of NPC_IDS) {
         const g = this.npc(id);
         if (g && g.x === x && g.y === y) return id;
       }
@@ -7362,7 +7462,7 @@
     }
     /** Ce que ce PNJ sait du héros dans cette partie. */
     npcMemory(id) {
-      return id === "gluck" ? this.gluckMemory : this.soeurMemory;
+      return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : this.krikMemory;
     }
     /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
     canTalk(id = "gluck") {
@@ -7392,10 +7492,10 @@
     }
     /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
     npcScene(id) {
-      return id === "gluck" ? this.gluckScene() : this.soeurScene();
+      return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : this.krikScene();
     }
     npcChoose(id, choice) {
-      return id === "gluck" ? this.gluckChoose(choice) : this.soeurChoose(choice);
+      return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : this.krikChoose(choice);
     }
     /**
      * Un PNJ de quête s'en va (« Pouf ! ») : ce qu'il laisse tombe par terre autour de lui, une pomme par case, et l'or en
@@ -7413,6 +7513,12 @@
         this.dropItem(at.x, at.y, "pomme", 1);
         drops.push({ item: "pomme", x: at.x, y: at.y, count: 1 });
       }
+      for (const it of g.items ?? []) {
+        const at = this.landingCell(g, it.item, g);
+        this.dropItem(at.x, at.y, it.item, it.count);
+        drops.push({ item: it.item, x: at.x, y: at.y, count: it.count });
+      }
+      g.items = [];
       if (g.gold) {
         const at = this.landingCell(g, "or", g);
         this.dropItem(at.x, at.y, "or", g.gold);
@@ -7427,12 +7533,12 @@
      * (Thomas, 2026-11-12 : « les persos de quête devraient disparaître si effet négatif sur eux »).
      */
     npcsFlee() {
-      for (const id of ["gluck", "soeur"]) {
+      for (const id of NPC_IDS) {
         const g = this.npc(id);
         if (!g) continue;
         const fled = this.isBurning(g.x, g.y) ? "fire" : this.isGassed(g.x, g.y) ? "gas" : null;
         if (!fled) continue;
-        this.npcLeaves(id, g, id === "gluck" ? GLUCK.maxEncounters : SOEUR.maxEncounters);
+        this.npcLeaves(id, g, this.npcMax(id));
         const ev = this.events[this.events.length - 1];
         if (ev.type === "npc") ev.fled = fled;
       }
@@ -7841,6 +7947,204 @@
       if (n - left > 0) this.events.push({ type: "pickup", item: "pomme", count: n - left });
       if (left > 0) this.bounceFromHero("pomme", left);
     }
+    // ---------- Quête 03 : Krik, le Kobold qui ne sait plus mentir (Thomas, 2026-11-12) ----------
+    krik() {
+      return this.npc("krik");
+    }
+    /** La scène en cours : 1 la confession, 2 le retour du menteur, 3 le grand commerçant. */
+    krikStage() {
+      return Math.min(3, this.krikMemory.met + 1);
+    }
+    /** Ce que dit Krik en ce moment, et les choix proposés. */
+    krikScene() {
+      const g = this.krik();
+      if (!g) return { lines: [], choices: [] };
+      g.opened = true;
+      const stage = this.krikStage();
+      const lines = KRIK_OPENING[stage](!!this.krikMemory.denounced);
+      const leave = { id: "leave", label: "Partir" };
+      const poor = (n) => this.gold < n ? "Pas assez d'or" : void 0;
+      if (stage === 1) {
+        return {
+          lines,
+          choices: [
+            { id: "protect", label: "Proposer de le prot\xE9ger", stat: "charisme", dc: "medium" },
+            { id: "caches", label: "Lui demander ses caches", stat: "intelligence", dc: "medium" },
+            { id: "threaten", label: "Le menacer", stat: "force", dc: "easy" },
+            { id: "divert", label: "Lui apprendre \xE0 faire diversion", stat: "agilite", dc: "medium" },
+            leave
+          ]
+        };
+      }
+      if (stage === 2) {
+        return {
+          lines,
+          choices: [
+            { id: "buy", label: `Acheter un objet (${KRIK.sellPrice} or)`, off: poor(KRIK.sellPrice) },
+            { id: "lie", label: "Lui demander de mentir aux monstres pour vous" },
+            { id: "denounce", label: "Le d\xE9noncer \xE0 ses anciens camarades" },
+            leave
+          ]
+        };
+      }
+      return {
+        lines,
+        choices: [
+          { id: "discount", label: `Acheter \xE0 prix cass\xE9 (${KRIK.discountPrice} or)`, off: poor(KRIK.discountPrice) },
+          { id: "rare", label: `N\xE9gocier un objet rare (${KRIK.rarePrice} or)`, stat: "charisme", dc: "hard", off: poor(KRIK.rarePrice) },
+          { id: "invest", label: `Investir ${KRIK.investStake} or dans son commerce`, off: poor(KRIK.investStake) },
+          leave
+        ]
+      };
+    }
+    /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
+    krikChoose(id) {
+      const g = this.krik();
+      if (!g || !this.canTalk("krik")) return { lines: [], done: true };
+      const mem = this.krikMemory;
+      const choice = this.krikScene().choices.find((c) => c.id === id);
+      if (!choice || choice.off) return { lines: [], done: false };
+      let roll2;
+      const test = () => (roll2 = this.dialogueRoll(choice.stat, GLUCK.dc[choice.dc])).success;
+      const end = (lines) => {
+        this.npcLeaves("krik", g, KRIK.maxEncounters);
+        return { lines, roll: roll2, done: true };
+      };
+      const leaves = (item, count = 1) => (g.items ?? (g.items = [])).push({ item, count });
+      const pay = (n) => {
+        this.gold -= n;
+      };
+      const toBag = (item, count = 1) => {
+        const left = this.inventory.add(item, count);
+        if (count - left > 0) this.events.push({ type: "pickup", item, count: count - left });
+        if (left > 0) this.bounceFromHero(item, left);
+      };
+      const loot = (rarer = false) => {
+        for (let k = 0; k < 8; k++) {
+          const l = rollLoot(this.rng, this.depth + (rarer ? RULES.floorsPerSection : 0));
+          if (l.item !== "or") return l;
+        }
+        return { item: "pomme", count: 1 };
+      };
+      switch (id) {
+        case "leave":
+          return { lines: ["\xAB Tu reviendras. C'est vrai, je le sais : je ne peux pas mentir. \xBB"], done: true };
+        case "protect":
+          if (test()) {
+            this.revealKoboldRooms();
+            leaves("pomme");
+            return end([
+              "\xAB Tu me prot\xE9gerais ? Moi ? \u2026 Tu mens mieux que moi. Mais d'accord. \xBB",
+              "\xAB Mes camarades dorment l\xE0, l\xE0 et l\xE0. Le butin, je l'ai cach\xE9 sous ma langue. Non, \xE7a c'est faux. Ah si, c'est vrai. \xBB",
+              "(Les repaires des Kobolds de l'\xE9tage apparaissent sur la carte. Il laisse une pomme.)"
+            ]);
+          }
+          g.gold = (g.gold ?? 0) + this.rng.int(KRIK.hushMin, KRIK.hushMax);
+          return end(["\xAB Toi ? Tu ne prot\xE9gerais pas une pomme. \xBB", "\xAB Tiens, prends \xE7a et laisse-moi tranquille. C'est tout ce que je vaux. \xBB", "(Il laisse quelques pi\xE8ces.)"]);
+        case "caches":
+          if (test()) {
+            g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
+            const l = loot();
+            leaves(l.item, l.count);
+            return end(["\xAB Ma cache ? Sous le troisi\xE8me tonneau. Pourquoi je te le dis ? \u2026 Je ne peux pas m'en emp\xEAcher. \xBB", "(Il laisse de l'or et un objet derri\xE8re lui.)"]);
+          }
+          return end(["\xAB La cache de l'escalier. Elle est vide. Je l'ai vid\xE9e hier. \xBB", "\xAB Je t'avais dit que j'\xE9tais malade, pas que j'\xE9tais stupide. \xBB"]);
+        case "threaten":
+          if (test()) {
+            const l = loot();
+            leaves(l.item, l.count);
+            return end(["\xAB D'accord, d'accord ! Prends \xE7a ! C'\xE9tait vol\xE9 de toute fa\xE7on. \xBB", "(Il l\xE2che une partie de sa marchandise.)"]);
+          }
+          this.raiseAlarm(KRIK.shoutAlarm, g);
+          this.callSlinger(g);
+          return end(["\xAB AU SECOURS ! UN AVENTURIER ME MENACE ! \u2026 C'est vrai, en plus. \xBB", "(Un Kobold frondeur accourt.)"]);
+        case "divert":
+          if (test()) {
+            toBag("potion_fumee", KRIK.smokeFlasks);
+            return end([
+              "Vous lui montrez : on pointe le doigt ailleurs, on crie \xAB L\xE0-bas ! \xBB, on file.",
+              "\xAB L\xE0-bas ! \u2026 \xC7a marche ! M\xEAme sur moi ! \xBB",
+              `\xAB Tiens, pour toi : des fioles de fum\xE9e. Vol\xE9es. \xBB`,
+              `(${KRIK.smokeFlasks} fioles de fum\xE9e dans le sac : lanc\xE9e, elle fait perdre votre trace aux monstres tout pr\xE8s.)`
+            ]);
+          }
+          this.callFoes(g, "schrat", KRIK.pursuers);
+          return end(["\xAB L\xE0-bas ! \u2026 C'est moi qui ai trahi tout le monde ! \xBB", "\xAB Oh non. Je l'ai dit trop fort. \xBB", "(Ses anciens camarades accourent.)"]);
+        case "buy": {
+          pay(KRIK.sellPrice);
+          if (this.rng.chance(KRIK.sellLie)) {
+            toBag("pomme");
+            return end(["\xAB Un objet magnifique ! \xBB", "(C'est une pomme.)", "\xAB J'ai menti. \xC7a m'avait manqu\xE9. \xBB"]);
+          }
+          const l = loot();
+          toBag(l.item, l.count);
+          return end(["\xAB Un objet magnifique ! \xBB Pour une fois, c'est vrai.", `(${ITEMS[l.item].name}${l.count > 1 ? ` \xD7${l.count}` : ""}.)`]);
+        }
+        case "lie":
+          for (const m of this.monsters) {
+            if (m.boss) continue;
+            m.alerted = false;
+            m.wary = false;
+          }
+          this.lowerAlarm(KRIK.lieAlarm);
+          return end(["Krik file voir ses anciens camarades. \xAB L'aventurier ? Il est parti par l\xE0-bas. Tr\xE8s loin. Il a peur de vous. \xBB", "\xAB \u2026 Ils m'ont cru ! \xBB", "(Les monstres perdent votre trace ; l'\xE9tage se calme.)"]);
+        case "denounce":
+          mem.denounced = true;
+          g.gold = (g.gold ?? 0) + this.rng.int(KRIK.bountyMin, KRIK.bountyMax);
+          return end(["\xAB H\xC9 ! IL EST L\xC0 ! \xBB crie-t-on. Krik d\xE9tale.", "Un Kobold vous jette une bourse : \xAB La prime. Merci, l'humain. \xBB", "(Krik s'en souviendra.)"]);
+        case "discount": {
+          pay(KRIK.discountPrice);
+          const pool = ["pomme", "torche", "potion_vitesse", "potion_fumee"];
+          const item = pool[this.rng.int(0, pool.length - 1)];
+          toBag(item);
+          return end(["\xAB Prix cass\xE9. Comme l'objet. Non : l'objet va bien. Je crois. \xBB", `(${ITEMS[item].name}.)`]);
+        }
+        case "rare":
+          if (test()) {
+            pay(KRIK.rarePrice);
+            const l = loot(true);
+            toBag(l.item, l.count);
+            return end(["\xAB Bon. Pour toi. Je l'ai vendu deux fois d\xE9j\xE0, mais celui-l\xE0 est le vrai. \xBB", `(${ITEMS[l.item].name}.)`]);
+          }
+          return end(["\xAB Celui-l\xE0, je le garde. C'est le seul que je n'ai pas encore vendu. \xBB"]);
+        case "invest":
+          pay(KRIK.investStake);
+          mem.invested = KRIK.investStake;
+          mem.investDepth = this.depth;
+          return end(["\xAB Excellent placement. Tu seras rembours\xE9 \xE0 l'\xE9tage suivant. \xBB", "\xAB Je le pense vraiment. Pour l'instant. \xBB"]);
+        default:
+          return { lines: [], done: false };
+      }
+    }
+    /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
+    smokeBurst(at, radius) {
+      for (const m of this.monsters) {
+        if (m.boss || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > radius) continue;
+        m.alerted = false;
+        m.wary = false;
+        m.asleep = false;
+        m.stunned = Math.max(m.stunned ?? 0, 1);
+      }
+    }
+    /** Krik montre les repaires de ses anciens camarades : les salles où se trouvent des Kobolds apparaissent sur la carte. */
+    revealKoboldRooms() {
+      for (const m of this.monsters) {
+        if (m.defId !== "schrat" && m.defId !== "frondeur") continue;
+        const r = this.current.rooms.find((o) => m.x >= o.x && m.x < o.x + o.w && m.y >= o.y && m.y < o.y + o.h);
+        if (!r) continue;
+        for (let y = r.y - 1; y <= r.y + r.h; y++) for (let x = r.x - 1; x <= r.x + r.w; x++) if (this.map.inBounds(x, y)) this.explored[this.map.index(x, y)] = 1;
+      }
+    }
+    /** L'investissement chez Krik, en descendant : rendu ×2, ou perdu (il a vendu le stock trois fois). */
+    settleKrik() {
+      const mem = this.krikMemory;
+      if (!mem.invested || mem.investDepth === void 0 || this.depth <= mem.investDepth) return;
+      const stake = mem.invested;
+      mem.invested = 0;
+      const amount = this.rng.chance(KRIK.investLoss) ? 0 : stake * 2;
+      this.gold += amount;
+      this.events.push({ type: "krikReturn", amount });
+    }
     /** L'escalier qui descend apparaît sur la carte (il est noté comme déjà vu, avec ses voisines). */
     revealStairs() {
       const s = this.current.stairs;
@@ -7848,6 +8152,13 @@
     }
     /** Vol raté : un Kobold frondeur accourt (il arrive hors de vue, à quelques cases, et sait où est le héros). */
     callSlinger(from) {
+      this.callFoes(from, "frondeur", 1);
+    }
+    /** Des Kobolds alertés arrivent hors de vue, à quelques cases, et savent où est le héros (vol raté, Krik trahi…). */
+    callFoes(from, kind, count) {
+      for (let n = 0; n < count; n++) this.callOne(from, kind);
+    }
+    callOne(from, kind) {
       let spot = null;
       for (let r = 4; r <= 9 && !spot; r++) {
         for (let dy = -r; dy <= r && !spot; dy++) {
@@ -7860,7 +8171,7 @@
         }
       }
       if (!spot) return;
-      const m = this.newMonster(MONSTERS.frondeur, spot.x, spot.y, false);
+      const m = this.newMonster(MONSTERS[kind], spot.x, spot.y, false);
       m.alerted = true;
       this.monsters.push(m);
     }
@@ -8644,6 +8955,7 @@
       const healed = 0;
       this.enterFloor(target, direction);
       this.events.push({ type: "stairs", direction, healed });
+      if (direction === "down") this.settleKrik();
       return true;
     }
   };
@@ -11190,6 +11502,25 @@
       "..KcXXXOOOxxcK..",
       "...KcXOOOxxcK...",
       "....KcOOxxcK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
+    ],
+    // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
+    potion_fumee: [
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      ".....KcSScK.....",
+      ".....KKcSKK.....",
+      "....KcSSSScK....",
+      "...KcSSSSSScK...",
+      "..KcSWSSSSDDcK..",
+      "..KcSWSSSDDDcK..",
+      "..KcSSSSDDDHHK..",
+      "..KcSSSDDDHHcK..",
+      "...KcSDDDHHcK...",
+      "....KcDDHHcK....",
       ".....KccccK.....",
       "......KKKK......",
       "................"
@@ -16891,6 +17222,7 @@
     ".......K......"
   ];
   var GLUCK_BUBBLE_PALETTE = { K: "#1a1410", "#": "#f4ecd2", o: "#d8ccae" };
+  var KRIK_PALETTE = { ...SCHRAT_PALETTE, A: "#9a86c8", a: "#5e4a8e", Y: "#7affa0", L: "#d8cce8", C: "#a0785a", c: "#6a4a32", M: "#8e9a54", m: "#b8c070" };
   var GLUCK_PALETTE = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
   var FRONDEUR_PALETTE = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
   var MERCHANT_GHOST_PALETTE = { g: "rgba(190,210,255,0.75)", Y: "rgba(244,224,74,0.55)" };
@@ -17354,6 +17686,19 @@
       const rows = SOEUR_SPRITE[Math.floor(Math.abs(this.time) / 520) % SOEUR_SPRITE.length];
       this.drawMonsterSprite(rows, cx, cy, false, true, SOEUR_PALETTE);
       if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, SOEUR_BUBBLE_ICON, { K: "#1a1410", W: "#e6dcc0" });
+    }
+    /** Krik (quête 03) : un Kobold mauve à l'œil vert ; une fiole de fumée dans sa bulle quand le héros approche. */
+    drawKrik(game2, ox, oy) {
+      const g = game2.krik();
+      if (!g || !game2.isVisible(g.x, g.y)) return;
+      const { tile } = this;
+      const cx = Math.round(ox + (g.x + 0.5) * tile);
+      const cy = Math.round(oy + (g.y + 0.5) * tile);
+      const hero = game2.hero;
+      const frames = SCHRAT.walkDown;
+      const rows = frames[Math.floor(Math.abs(this.time) / 300) % frames.length];
+      this.drawMonsterSprite(rows, cx, cy, Math.floor(this.time / 900) % 2 === 0, false, KRIK_PALETTE);
+      if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("potion_fumee"), PALETTE3);
     }
     /** La statue creuse dont Gluck a parlé : un éclat doré scintille dans sa fissure, pour qu'on la repère. */
     drawStatueGlints(game2, ox, oy) {
@@ -18072,6 +18417,7 @@
       this.drawMerchant(game2, ox, oy, progress);
       this.drawGluck(game2, ox, oy);
       this.drawSoeur(game2, ox, oy);
+      this.drawKrik(game2, ox, oy);
       this.drawStatueGlints(game2, ox, oy);
       this.drawHero(game2, hero, ox, oy, progress);
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);
@@ -19058,10 +19404,10 @@
         return e.actor.kind === "hero" ? null : `${e.actor.name.charAt(0).toUpperCase()}${e.actor.name.slice(1)} est vaincu${e.actor.name.endsWith("e") ? "e" : ""}.`;
       case "npc": {
         if (e.what !== "leave") return null;
-        const name = e.who === "gluck" ? "Gluck" : "S\u0153ur Osseuse";
+        const name = e.who === "gluck" ? "Gluck" : e.who === "soeur" ? "S\u0153ur Osseuse" : "Krik";
         const apples = (e.drops ?? []).some((d) => d.item === "pomme");
         const gold = (e.drops ?? []).some((d) => d.item === "or");
-        const why = e.fled === "fire" ? e.who === "gluck" ? " Gluck d\xE9tale, la queue en feu : \xAB A\xEFe a\xEFe a\xEFe ! \xBB \u2014" : " \xAB Mes os ! Mon voile ! \xBB S\u0153ur Osseuse s'enfuit en flammes \u2014" : e.fled === "gas" ? e.who === "gluck" ? " Gluck s'\xE9trangle, tousse et file \u2014" : " S\u0153ur Osseuse tousse\u2026 sans poumons, mais elle s'en va \u2014" : "";
+        const why = e.fled === "fire" ? e.who === "gluck" ? " Gluck d\xE9tale, la queue en feu : \xAB A\xEFe a\xEFe a\xEFe ! \xBB \u2014" : e.who === "soeur" ? " \xAB Mes os ! Mon voile ! \xBB S\u0153ur Osseuse s'enfuit en flammes \u2014" : " \xAB Je br\xFBle ! C'est vrai, en plus ! \xBB Krik d\xE9tale \u2014" : e.fled === "gas" ? e.who === "gluck" ? " Gluck s'\xE9trangle, tousse et file \u2014" : e.who === "soeur" ? " S\u0153ur Osseuse tousse\u2026 sans poumons, mais elle s'en va \u2014" : " \xAB C'est du poison ! Je le sais, je l'ai vol\xE9 ! \xBB Krik file \u2014" : "";
         return `${why ? why.trim() + " " : ""}Pouf ! ${name} dispara\xEEt dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
       }
       case "statue":
@@ -19216,6 +19562,8 @@
         return e.actor.kind === "hero" ? `Vous br\xFBlez : ${e.damage} d\xE9g\xE2ts.` : `${e.actor.name} br\xFBle : ${e.damage} d\xE9g\xE2ts.`;
       case "potion":
         return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+      case "krikReturn":
+        return e.amount > 0 ? `Un petit Kobold coursier vous rattrape : \xAB De la part de Krik. \xBB ${e.amount} pi\xE8ces ! Il avait dit vrai.` : "Un petit Kobold coursier vous rattrape : \xAB De la part de Krik : il a tout revendu trois fois. D\xE9sol\xE9. \xBB Votre investissement est perdu.";
       case "alarmDown":
         return ["Le donjon se calme.", "Le donjon se calme un peu : il n'est plus qu'agit\xE9.", "La traque s'essouffle : l'\xE9tage reste en alerte."][e.stage] ?? null;
       case "alarm":
@@ -19567,6 +19915,7 @@
         renderer.addSplash(e.x, e.y, POTION_SHADES[e.potion] ?? POTION_SHADES.fire);
         sfx.play("glass");
         if (e.potion === "poison") for (const c of e.cells) renderer.addPuff(c.x, c.y, true);
+        if (e.potion === "smoke") for (const c of e.cells) renderer.addPuff(c.x, c.y);
       }, THROW_LAND_MS);
     } else if (e.type === "shatter") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y, true);
@@ -19576,6 +19925,7 @@
         renderer.addFloatingText(e.x, e.y, "Cling !", "#e8f4ff");
         sfx.play("glass");
         if (e.potion === "poison") renderer.addPuff(e.x, e.y, true);
+        if (e.potion === "smoke") renderer.addPuff(e.x, e.y);
       }, THROW_LAND_MS);
     } else if (e.type === "luck") {
       renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
@@ -19590,6 +19940,11 @@
     } else if (e.type === "npc") {
       if (e.what === "talk") openTalk(e.who);
       else gluckPouf(e);
+    } else if (e.type === "krikReturn") {
+      if (e.amount > 0) {
+        renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.amount} or`, "#f0c850");
+        sfx.play("coin");
+      }
     } else if (e.type === "stairsBounce") {
       renderer.addHop(e.item, e.fromX, e.fromY, e.x, e.y);
     } else if (e.type === "bounce") {
@@ -20161,7 +20516,7 @@
       logLines.push(`Il faut \xEAtre niveau ${def.level} pour cela.`);
       return;
     }
-    if (def.potion === "fire") {
+    if (def.potion === "fire" || def.potion === "smoke") {
       throwUid = stack.uid;
       renderer.jumpCells = throwCells(stack.uid);
       logLines.push("Touchez la case o\xF9 lancer la potion.");
@@ -20437,7 +20792,8 @@
     youth: ["#ffe27a", "#f0c050", "#fff6c8"],
     poison: ["#5cc860", "#b8e05a", "#2e7a38"],
     haste: ["#6ad0ff", "#4a8fd0", "#cfeeff"],
-    fire: ["#ff9a3a", "#e8782a", "#ffd84a"]
+    fire: ["#ff9a3a", "#e8782a", "#ffd84a"],
+    smoke: ["#c3cbe0", "#7f88a6", "#e8ecf4"]
   };
   var talkWho = "gluck";
   var talkSaid = 0;
@@ -20459,8 +20815,10 @@
     talkLater = [];
     $("talk").hidden = false;
     $("talk").scrollTop = 0;
-    $("talk-name").textContent = who === "gluck" ? "Gluck" : "S\u0153ur Osseuse";
-    $("talk-face").replaceChildren(who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE));
+    $("talk-name").textContent = who === "gluck" ? "Gluck" : who === "soeur" ? "S\u0153ur Osseuse" : "Krik";
+    $("talk-face").replaceChildren(
+      who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : who === "soeur" ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE) : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE)
+    );
     document.body.classList.add("talk-open");
     renderer.resize();
     sfx.play("click");
@@ -20747,7 +21105,7 @@
     info.replaceChildren(card);
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
-    action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
+    action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
     $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
     $("bag-drop").hidden = selectedSlot !== null;
   }
@@ -20840,7 +21198,7 @@
     const chosenDef = chosen ? ITEMS[chosen.defId] : void 0;
     if (chosen && chosenDef && game.tooLow(chosenDef)) {
       logLines.push(`Il faut \xEAtre niveau ${chosenDef.level} pour cela.`);
-    } else if (chosen && chosenDef?.potion === "fire") {
+    } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke")) {
       throwUid = chosen.uid;
       renderer.jumpCells = throwCells(chosen.uid);
       logLines.push("Touchez la case o\xF9 lancer la potion.");
@@ -21528,7 +21886,7 @@
   });
   button("reset-talks", () => {
     game.resetDialogues();
-    logLines.push("Dialogues remis \xE0 z\xE9ro : Gluck et S\u0153ur Osseuse reprennent depuis le d\xE9but.");
+    logLines.push("Dialogues remis \xE0 z\xE9ro : Gluck, S\u0153ur Osseuse et Krik reprennent depuis le d\xE9but.");
     renderLog();
   });
   button("settings-sound", () => {

@@ -915,6 +915,25 @@ const ICONS: Record<ItemId, string[]> = {
     "......KKKK......",
     "................",
   ],
+  // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
+  potion_fumee: [
+    ".......KK.......",
+    "......KbBK......",
+    "......KBbK......",
+    ".....KcSScK.....",
+    ".....KKcSKK.....",
+    "....KcSSSScK....",
+    "...KcSSSSSScK...",
+    "..KcSWSSSSDDcK..",
+    "..KcSWSSSDDDcK..",
+    "..KcSSSSDDDHHK..",
+    "..KcSSSDDDHHcK..",
+    "...KcSDDDHHcK...",
+    "....KcDDHHcK....",
+    ".....KccccK.....",
+    "......KKKK......",
+    "................",
+  ],
 };
 
 /** Tas d'or posés au sol : petit, moyen, gros (planche art/objets_v1.png). */

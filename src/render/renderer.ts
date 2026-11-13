@@ -2223,8 +2223,8 @@ export class Renderer {
         if (pl) {
           const pw = pl.rows[0].length;
           const ph = pl.rows.length;
-          const plx = (f.x + 1) * 16 + (16 - pw) / 2 + 2;
-          const ply = py + 3 - Math.max(0, ph - 12);
+          const plx = (f.x + 1) * 16 + (16 - pw) / 2 - 3;
+          const ply = py + 4 - Math.max(0, ph - 12);
           const pimg = this.shadedSprite(f.plate > 0 ? "plateFull" : "plate", pl.rows, pl.palette, dark, warm);
           ctx.drawImage(pimg, this.snap(ox + plx * u), this.snap(oy + ply * u), this.snap(pw * u), this.snap(ph * u));
         }

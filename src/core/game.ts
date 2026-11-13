@@ -6087,7 +6087,7 @@ export class Game {
   private speciesBrawl(): void {
     const st = this.current;
     if (this.over || st.boss || this.peaceful || (st.brawls ?? 0) >= RULES.speciesBrawlsPerFloor) return;
-    const free = (m: Actor) => !m.boss && m.feud === undefined && !m.petrified && this.isVisible(m.x, m.y) && !(m.alerted && this.inReach(m, this.hero));
+    const free = (m: Actor) => !m.boss && !m.bather && m.feud === undefined && !m.petrified && this.isVisible(m.x, m.y) && !(m.alerted && this.inReach(m, this.hero));
     const spiders = this.monsters.filter((m) => MONSTERS[m.defId as keyof typeof MONSTERS]?.family === "araignées" && free(m));
     const kobolds = this.monsters.filter((m) => MONSTERS[m.defId as keyof typeof MONSTERS]?.family === "kobolds" && free(m));
     for (const s of spiders) {

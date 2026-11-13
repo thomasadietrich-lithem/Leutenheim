@@ -800,7 +800,8 @@ function reveal(e: GameEvent): void {
     // Deux monstres se querellent : « Grr ! » au-dessus des deux.
     if (game.isVisible(e.a.x, e.a.y) || game.isVisible(e.b.x, e.b.y)) {
       renderer.addFloatingText(e.a.x, e.a.y, "Grr !", "#ff8a7a");
-      renderer.addFloatingText(e.b.x, e.b.y, e.reason === "shot" ? "Hé !" : "Grr !", "#ff8a7a");
+      renderer.addFloatingText(e.b.x, e.b.y, e.reason === "shot" ? "Hé !" : e.reason === "species" ? "Iiik !" : "Grr !", "#ff8a7a");
+      if (e.reason === "species") renderer.addFloatingText(e.a.x, e.a.y, "Sssss !", "#c8a8f0");
       sfx.play("notice");
     }
   } else if (e.type === "infight") {
@@ -863,7 +864,7 @@ function reveal(e: GameEvent): void {
     landDie(e.d20, e.success ? "hit" : "miss", false);
     renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, e.target.x, e.target.y, "", false);
     if (e.slam > 0) renderer.addFloatingText(e.target.x, e.target.y, `BAM ! −${e.slam}`, "#ffd75e");
-    else renderer.addFloatingText(e.target.x, e.target.y, e.success ? "Poussé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
+    else renderer.addFloatingText(e.target.x, e.target.y, e.prone ? "À terre !" : e.success ? "Poussé !" : "Raté", e.success ? "#ffd75e" : "#ff6b7a");
     sfx.play(!e.success ? "miss" : e.slam > 0 ? "thud" : "hit");
   } else if (e.type === "trap") {
     const hero = e.victim.kind === "hero";

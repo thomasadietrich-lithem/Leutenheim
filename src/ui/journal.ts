@@ -145,6 +145,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !`
           : e.reason === "discord"
           ? `La potion de discorde éclate : ${the(e.a.name)} et ${the(e.b.name)} se jettent l'un sur l'autre !`
+          : e.reason === "species"
+          ? `${cap(the(e.a.name))} se jette sur ${the(e.b.name)} ! Entre araignées et Kobolds, ce n'est pas l'amour fou.`
           : e.reason === "fog"
           ? `Dans le brouillard, ${the(e.a.name)} et ${the(e.b.name)} se cognent… et se battent !`
           : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage… et en viennent aux mains !`
@@ -237,15 +239,19 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;
+    case "getUp":
+      return null;
     case "push": {
       const name = e.target.name;
       const outcome = !e.success
         ? `${name} ne bouge pas.`
         : e.slam > 0
-          ? `${name} heurte le mur : ${e.slam} dégâts, il est sonné.`
-          : e.moved
-            ? `${name} recule, sonné.`
-            : `${name} est bloqué, mais sonné.`;
+          ? `${name} heurte le mur : ${e.slam} dégâts, il tombe à la renverse.`
+          : e.prone
+            ? `${name} tombe à la renverse !`
+            : e.moved
+              ? `${name} recule, sonné.`
+              : `${name} est bloqué, mais sonné.`;
       return `Vous poussez ${name} : ${roll(e.d20, e.bonus, e.total)} — ${outcome}`;
     }
     case "trap": {

@@ -1734,6 +1734,25 @@ export const STATUS_ICONS = {
     "................",
     "................",
   ],
+  // À terre (2026-11-13) : un petit tourbillon rouge (il tourne à l'écran) ; le monstre a la tête qui tourne.
+  a_terre: [
+    "................",
+    "......KKKK......",
+    "....KKRRRRKK....",
+    "...KRRKKKKRRK...",
+    "..KRK......KRK..",
+    "..KRK..KK...KRK.",
+    ".KRK..KRRK..KRK.",
+    ".KRK.KRKKRK.KRK.",
+    ".KRK.KRK.RK.KRK.",
+    ".KRK..K.KRK.KRK.",
+    "..KRK..KRK..KRK.",
+    "..KRK.KRK..KRK..",
+    "...KRRRKK.KRK...",
+    "....KKK..KRK....",
+    ".......KRRK.....",
+    "........KK......",
+  ],
   // Potion de géant (2026-11-13) : une grande flèche violette vers le haut, au-dessus d'un petit bonhomme.
   geant: [
     ".......KK.......",

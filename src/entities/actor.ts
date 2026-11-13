@@ -31,6 +31,11 @@ export interface Actor {
   fleeing?: boolean;
   /** Un Kobold blessé qui détale : tours de fuite restants ; le tirage n'a lieu qu'une fois. */
   fleeTurns?: number;
+  /** Position au début du tour précédent (pour savoir d'où il venait à son dernier pas : règle de l'avantage). */
+  prevX?: number;
+  prevY?: number;
+  /** À terre (renversé par une poussée, Thomas 2026-11-13) : il perd son tour à se relever ; on le frappe avec l'avantage. */
+  prone?: number;
   /** Agrandi (potion d'agrandissement, Thomas 2026-11-13) : tours restants ; dégâts doublés, il ne passe plus les portes. */
   grown?: number;
   /** Glissant (potion glissante, Thomas 2026-11-13) : pour toujours ; chaque coup reçu le fait glisser et rebondir. */

@@ -43,6 +43,7 @@ export interface SavedFloor {
   alarm?: number;
   alarmStage?: number;
   rested: boolean;
+  brawls?: number;
   rests?: number;
   secrets: Secret[];
   traps: Trap[];

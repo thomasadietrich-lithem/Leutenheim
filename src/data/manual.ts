@@ -43,8 +43,19 @@ export const MANUAL: ManualSection[] = [
         title: "Avantage",
         lines: [
           "On lance deux d20 et on garde le meilleur.",
-          "Contre un monstre qui ne vous a pas remarqué, ou pris dans une porte.",
+          "Surprise : contre un monstre qui ne vous a pas remarqué.",
+          "À terre : contre un ennemi renversé par une poussée.",
+          "Embrasure : contre un ennemi qui se tient dans une porte (et vous non).",
+          "Embuscade : vous n'avez pas bougé, et l'ennemi débouche d'un angle, d'une porte ou d'une colonne d'où il ne vous voyait pas.",
           "Jamais deux fois de suite contre la même cible.",
+        ],
+      },
+      {
+        title: "Les monstres aussi",
+        lines: [
+          "Les mêmes règles valent pour eux : ne vous arrêtez pas dans une porte, ne foncez pas à l'aveugle derrière un angle.",
+          "Un anneau doré sous un monstre : vous avez l'avantage. Un anneau rouge autour de vous : c'est lui.",
+          "Jamais les deux camps à la fois : si chacun a une raison, elles s'annulent.",
         ],
       },
       {

@@ -1682,6 +1682,7 @@ export class Game {
       alarmStage: f.alarmStage,
       rested: f.rested,
       rests: f.rests,
+      brawls: f.brawls,
       secrets: f.secrets,
       traps: f.traps,
       searched: [...f.searched],
@@ -1785,6 +1786,7 @@ export class Game {
         alarmStage: f.alarmStage ?? 0,
         rested: f.rested,
         rests: f.rests,
+        brawls: f.brawls,
         secrets: f.secrets,
         traps: f.traps,
         searched: new Set(f.searched),
@@ -3172,6 +3174,8 @@ export class Game {
   tick(): boolean {
     if (this.over) return false;
     for (const a of [this.hero, ...this.monsters]) {
+      a.prevX = a.fromX;
+      a.prevY = a.fromY;
       a.fromX = a.x;
       a.fromY = a.y;
     }
@@ -3387,6 +3391,7 @@ export class Game {
     if (this.urchinTurns > 0) this.urchinTurns--;
     if ((this.hero.grown ?? 0) > 0 && --this.hero.grown! === 0) this.events.push({ type: "grow", actor: this.hero, back: true });
     this.fluteTick();
+    this.speciesBrawl();
     this.moveHens();
     if (this.protectTurns > 0) {
       this.protectTurns--;
@@ -3472,9 +3477,14 @@ export class Game {
           break;
         }
       }
-      m.stunned = 1;
     }
-    this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam });
+    // À TERRE (Thomas, 2026-11-13 : « pousser peut faire coucher par terre un ennemi ») : contre un mur, ou au hasard
+    // (plus souvent avec la Bousculade). Renversé, il perd son tour à se relever, et on le frappe avec l'avantage.
+    // Sinon il est seulement sonné (il perd son tour).
+    const prone = success && !m.boss && (slam > 0 || this.rng.chance(RULES.pushProneChance + RULES.pushProneBonus * shove));
+    if (prone) m.prone = 1;
+    else if (success) m.stunned = 1;
+    this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam, prone });
     if (m.hp <= 0) {
       this.removeIfDead(m);
       return;
@@ -3609,23 +3619,51 @@ export class Game {
   }
 
   /** Vrai si `a` et `b` se touchent en diagonale autour d'un coin de mur : celui qui frappe surprend l'autre. */
-  private aroundCorner(a: Point, b: Point): boolean {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    if (Math.abs(dx) !== 1 || Math.abs(dy) !== 1) return false;
-    return this.map.isWalkable(a.x + dx, a.y) !== this.map.isWalkable(a.x, a.y + dy);
+  /**
+   * AVANTAGE (Thomas, 2026-11-13 : « une mécanique centrale ; lisible et prévisible ; jamais les deux camps à la fois »).
+   * L'attaquant A a l'avantage sur le défenseur D si l'une de ces situations est vraie, ET si elle ne l'est pas aussi
+   * dans l'autre sens (sinon elles s'annulent) :
+   *  1. SURPRISE : D ne l'a pas remarqué (monstre qui dort ou se promène).
+   *  2. À TERRE : D est renversé (poussée), ou la Tisseuse est sur le dos.
+   *  3. EMBRASURE : D se tient dans une porte, A non.
+   *  4. EMBUSCADE : A n'a pas bougé à son dernier tour, et D vient d'arriver d'une case d'où il ne voyait pas A
+   *     (il passe une porte, contourne une colonne, un meuble ou un angle de mur) : celui qui attend frappe le premier.
+   * Et jamais deux avantages de suite d'A sur D. Le monstre « sur ses gardes » (semé par une porte) ne se laisse plus
+   * prendre à l'embrasure ni à l'embuscade.
+   */
+  hasEdge(a: Actor, d: Actor): boolean {
+    if (a.lastAdvantageOn === d.id) return false;
+    const mine = this.edgeReasons(a, d);
+    if (mine.length === 0) return false;
+    // Celui qui est à terre ne menace personne : sa propre situation ne compte pas.
+    if (mine.includes("prone")) return true;
+    return this.edgeReasons(d, a).length === 0;
+  }
+
+  /** Les raisons pour lesquelles A aurait l'avantage sur D (sans tenir compte de l'autre sens). */
+  edgeReasons(a: Actor, d: Actor): ("surprise" | "prone" | "door" | "ambush")[] {
+    const out: ("surprise" | "prone" | "door" | "ambush")[] = [];
+    if (d !== this.hero && !d.alerted) out.push("surprise");
+    if ((d.prone ?? 0) > 0 || (d.boss && d.boss.fallen > 0)) out.push("prone");
+    const guarded = d !== this.hero && !!d.wary;
+    if (!guarded && cellsOf(d).some((c) => this.map.isDoor(c.x, c.y)) && !cellsOf(a).some((c) => this.map.isDoor(c.x, c.y))) out.push("door");
+    if (!guarded && this.lastStepFrom(a) === null) {
+      const from = this.lastStepFrom(d);
+      if (from && !hasLineOfSight(this.map, from, a)) out.push("ambush");
+    }
+    return out;
+  }
+
+  /** D'où ce personnage est parti à son dernier pas (ce tour-ci, ou au tour précédent) ; null s'il n'a pas bougé. */
+  private lastStepFrom(a: Actor): Point | null {
+    if (a.fromX !== a.x || a.fromY !== a.y) return { x: a.fromX, y: a.fromY };
+    if (a.prevX !== undefined && a.prevY !== undefined && (a.prevX !== a.fromX || a.prevY !== a.fromY)) return { x: a.prevX, y: a.prevY };
+    return null;
   }
 
   /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
   heroHasAdvantageOn(monster: Actor): boolean {
-    // Jamais deux avantages de suite sur la même cible (Thomas) : après un coup avec avantage, elle se reprend.
-    if (this.hero.lastAdvantageOn === monster.id) return false;
-    // La Tisseuse renversée sur le dos : on la frappe avec avantage.
-    if (monster.boss && monster.boss.fallen > 0) return true;
-    if (!monster.alerted) return true;
-    // Un avantage à la fois : le monstre semé en passant une porte s'attend à l'embuscade.
-    if (monster.wary) return false;
-    return this.map.isDoor(monster.x, monster.y) || this.aroundCorner(this.hero, monster);
+    return this.hasEdge(this.hero, monster);
   }
 
   /**
@@ -5134,7 +5172,7 @@ export class Game {
   /** Le héros est-il en mauvaise posture ? (dans une porte, ou un ennemi alerté le guette au coin d'un mur) */
   heroExposed(): boolean {
     const foes = this.monsters.filter((m) => m.alerted);
-    return (foes.length > 0 && this.map.isDoor(this.hero.x, this.hero.y)) || foes.some((m) => this.aroundCorner(m, this.hero));
+    return foes.some((m) => gapBetween(m, this.hero) <= 2 && this.hasEdge(m, this.hero));
   }
 
   /** Chaque monstre que le héros vient de quitter l'attaque une fois. Renvoie vrai s'il y a eu au moins une attaque. */
@@ -5559,7 +5597,7 @@ export class Game {
       // Une cible qu'on ne voit pas (tir à l'aveugle) : jamais d'avantage, et désavantage.
       const blind = !this.isVisible(victim.x, victim.y);
       const favoured =
-        !blind && this.hero.lastAdvantageOn !== victim.id && (!victim.alerted || (!victim.wary && this.map.isDoor(victim.x, victim.y)));
+        !blind && this.hasEdge(this.hero, victim);
       const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
@@ -5675,6 +5713,12 @@ export class Game {
           continue;
         }
         this.bossAct(m);
+        continue;
+      }
+      if (m.prone) {
+        // Renversé : il passe son tour à se relever.
+        m.prone--;
+        if (m.prone === 0) this.events.push({ type: "getUp", actor: m });
         continue;
       }
       if (m.stunned) {
@@ -5794,7 +5838,7 @@ export class Game {
       if (this.inReach(m, this.hero)) {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.
         // Jamais deux avantages de suite sur le héros (Thomas) : après un coup avec avantage, il se reprend.
-        const ambush = m.lastAdvantageOn !== this.hero.id && (this.map.isDoor(this.hero.x, this.hero.y) || this.aroundCorner(m, this.hero));
+        const ambush = this.hasEdge(m, this.hero);
         this.faceToward(m, this.hero);
         // Savonneux (sorti du bain) : il glisse, désavantage.
         const soapy = (m.soapy ?? 0) > 0;
@@ -6035,7 +6079,28 @@ export class Game {
     }
   }
 
-  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog" | "discord"): void {
+  /**
+   * Araignées contre Kobolds (Thomas, 2026-11-13 : « mettre en scène, que le joueur le voie ») : de temps en temps, quand
+   * le héros voit une araignée et un Kobold proches l'un de l'autre, l'araignée se jette sur lui. Au plus
+   * `speciesBrawlsPerFloor` fois par étage ; jamais un monstre qui traque le héros au contact.
+   */
+  private speciesBrawl(): void {
+    const st = this.current;
+    if (this.over || st.boss || this.peaceful || (st.brawls ?? 0) >= RULES.speciesBrawlsPerFloor) return;
+    const free = (m: Actor) => !m.boss && m.feud === undefined && !m.petrified && this.isVisible(m.x, m.y) && !(m.alerted && this.inReach(m, this.hero));
+    const spiders = this.monsters.filter((m) => MONSTERS[m.defId as keyof typeof MONSTERS]?.family === "araignées" && free(m));
+    const kobolds = this.monsters.filter((m) => MONSTERS[m.defId as keyof typeof MONSTERS]?.family === "kobolds" && free(m));
+    for (const s of spiders) {
+      const k = kobolds.find((o) => gapBetween(o, s) <= RULES.speciesBrawlRange);
+      if (!k || !this.rng.chance(RULES.speciesBrawlChance)) continue;
+      st.brawls = (st.brawls ?? 0) + 1;
+      s.asleep = k.asleep = false;
+      this.startFeud(s, k, "species");
+      return;
+    }
+  }
+
+  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog" | "discord" | "species"): void {
     a.feud = b.id;
     b.feud = a.id;
     a.blockedBy = b.blockedBy = undefined;

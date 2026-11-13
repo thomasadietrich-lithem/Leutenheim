@@ -1,0 +1,91 @@
+{
+ "date": "2026-11-13T21:49:59.899Z",
+ "commit": "752edd1",
+ "runs": 150,
+ "note": "nouvelle règle d'avantage (surprise, à terre, embrasure, embuscade ; jamais les deux camps) ; poussée qui renverse ; potions de géant et glissante ; araignées contre Kobolds ; plus de malus de discrétion",
+ "levels": {
+  "debutant": {
+   "floor": 2.5,
+   "deathFloor1": 19,
+   "reach": {
+    "2": 81,
+    "3": 48,
+    "4": 14,
+    "5": 3
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 135.7,
+   "gold": 3.3,
+   "kills": 5.3,
+   "questsStarted": 0.1,
+   "questsDone": 0,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 99,
+    "un Kobold frondeur": 23,
+    "la Tisseuse": 5,
+    "une Araignée": 18,
+    "un piège à pointes": 3,
+    "une aiguille empoisonnée": 1,
+    "une chute dans une fosse": 1
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 20,
+   "reach": {
+    "2": 80,
+    "3": 63,
+    "4": 39,
+    "5": 22
+   },
+   "boss": 1,
+   "dead": 97,
+   "heroLevel": 2.2,
+   "turns": 290.7,
+   "gold": 31.2,
+   "kills": 11.4,
+   "questsStarted": 0.3,
+   "questsDone": 0.3,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 30,
+    "un Kobold": 77,
+    "un Kobold frondeur": 16,
+    "la Tisseuse": 19,
+    "le poison": 2,
+    "un piège à pointes": 1,
+    "une chute dans une fosse": 1
+   }
+  },
+  "maitrise": {
+   "floor": 3.7,
+   "deathFloor1": 2,
+   "reach": {
+    "2": 97,
+    "3": 80,
+    "4": 56,
+    "5": 37
+   },
+   "boss": 25,
+   "dead": 67,
+   "heroLevel": 3.8,
+   "turns": 718.7,
+   "gold": 59.3,
+   "kills": 28.9,
+   "questsStarted": 0.5,
+   "questsDone": 0.4,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold": 42,
+    "un Kobold frondeur": 20,
+    "la Tisseuse": 11,
+    "une Araignée": 25,
+    "un piège à pointes": 1,
+    "le poison": 1
+   }
+  }
+ }
+}

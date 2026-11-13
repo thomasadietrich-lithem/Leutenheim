@@ -41,6 +41,8 @@ export interface FloorState {
   alarmStage: number;
   /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
   rested: boolean;
+  /** Bagarres araignée contre Kobold déjà montrées sur cet étage (Thomas, 2026-11-13). */
+  brawls?: number;
   /** Repos pris sur cet étage (Récupération au rang 3 : deux) ; absent des anciennes sauvegardes (alors `rested`). */
   rests?: number;
   /** Caches de l'étage (butin enfoui dans une salle) et salles déjà fouillées (une fouille par salle). */

@@ -763,6 +763,7 @@ export class Renderer {
     if (m.slowed) icons.push("ralenti");
     if (m.stunned) icons.push("sonne");
     if (m.petrified) icons.push("pierre");
+    if (m.prone) icons.unshift("a_terre");
     if (m.grown) icons.push("geant");
     if (m.slippery) icons.push("glissant");
     // La Tisseuse insensible au poison : plus de picto barré permanent (Thomas, 2026-11-13 : « exprime sa résistance
@@ -782,7 +783,14 @@ export class Renderer {
       ctx.strokeStyle = "#d6aa54";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x - 2, y - 2, s + 4, s + 4);
-      ctx.drawImage(this.sprite(STATUS_ICONS[id], ICON_PALETTE), x, y, s, s);
+      if (id === "a_terre") {
+        // Le tourbillon tourne sur lui-même (Thomas : « une bulle et un petit tourbillon rouge qui tourne »).
+        ctx.save();
+        ctx.translate(x + s / 2, y + s / 2);
+        ctx.rotate(Math.floor(this.time / 120) * (Math.PI / 4));
+        ctx.drawImage(this.sprite(STATUS_ICONS[id], ICON_PALETTE), -s / 2, -s / 2, s, s);
+        ctx.restore();
+      } else ctx.drawImage(this.sprite(STATUS_ICONS[id], ICON_PALETTE), x, y, s, s);
       if (immune && id === "poison" && x === Math.round(cx - total / 2)) {
         ctx.strokeStyle = "#ff3a3a";
         ctx.lineWidth = Math.max(2, s * 0.14);
@@ -948,13 +956,25 @@ export class Renderer {
     const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
     if (m.defId === "araignee") {
       // L'araignée (planche art/araignee_v1.png) : une seule vue de 3/4, retournée quand elle va à gauche.
-      const name = slash || hurt ? "bite" : moving ? (progress < 0.5 ? "walk0" : "walk1") : m.asleep ? "idle0" : `idle${Math.floor((Math.abs(this.time) + m.id * 170) / 380) % 2}`;
+      const name = slash || hurt ? "bite" : moving ? (progress < 0.5 ? "walk0" : "walk1") : m.asleep || m.prone ? "idle0" : `idle${Math.floor((Math.abs(this.time) + m.id * 170) / 380) % 2}`;
+      if (m.prone) {
+        // Araignée à terre : retournée sur le dos, les pattes en l'air.
+        const { ctx } = this;
+        ctx.save();
+        ctx.translate(0, cy * 2 - this.tile * 0.15);
+        ctx.scale(1, -1);
+        this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", false, ARAIGNEE[name].palette, m.grown ? 1.5 : 1);
+        ctx.restore();
+        return;
+      }
       if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
       this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", true, ARAIGNEE[name].palette, m.grown ? 1.5 : 1);
       return;
     }
     let rows: readonly string[];
-    if (m.asleep) rows = SCHRAT.sleep[0];
+    // À terre : couché sur le dos (le dessin de la mort, mais il bouge encore).
+    if (m.prone) rows = SCHRAT.dead[0];
+    else if (m.asleep) rows = SCHRAT.sleep[0];
     else if (hurt) rows = SCHRAT.hurt[0];
     else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
     else if (moving) rows = SCHRAT[`walk${dir}`][progress < 0.5 ? 0 : 1];

@@ -55,7 +55,7 @@ export type GameEvent =
   /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */
   | { type: "bell"; x: number; y: number; rings: number; joke: number }
   /** Deux monstres se querellent : bloqués face à face dans un couloir, ou touchés par la pierre d'un frondeur. */
-  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" | "fog" | "discord" }
+  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" | "fog" | "discord" | "species" }
   /** Un monstre en frappe un autre (sans dé à l'écran : le héros regarde). */
   | { type: "infight"; attacker: Actor; target: Actor; hit: boolean; damage: number; ranged?: boolean }
   /** Se cacher : le jet au d20, et s'il a réussi. */
@@ -102,7 +102,9 @@ export type GameEvent =
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
   | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
   /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */
-  | { type: "push"; target: Actor; d20: number; bonus: number; total: number; success: boolean; moved: boolean; slam: number }
+  | { type: "push"; target: Actor; d20: number; bonus: number; total: number; success: boolean; moved: boolean; slam: number; prone?: boolean }
+  /** Un monstre renversé se relève (il y passe son tour). */
+  | { type: "getUp"; actor: Actor }
   /** Quelqu'un a marché sur un piège. */
   | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */

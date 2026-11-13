@@ -686,37 +686,33 @@ test("ramasser une flèche au sol la remet dans le sac ; la clef ouvre une porte
   assert.equal(game.actOnDoor("key"), false);
 });
 
-test("coin de mur : on peut frapper en diagonale par-delà, avec l'avantage, dans les deux sens", () => {
+test("avantage (Thomas, 2026-11-13) : qui attend derrière un angle frappe avec l'avantage celui qui débouche ; jamais les deux", () => {
   let checked = 0;
   for (let seed = 1; seed <= 60 && checked < 10; seed++) {
     const game = new Game(seed);
     const foe = game.monsters[0];
     if (!foe) continue;
     const map = game.map;
-    // Deux cases en diagonale, avec un mur d'un seul côté du coin.
-    let pair: { a: { x: number; y: number }; b: { x: number; y: number } } | null = null;
-    for (let y = 1; y < map.height - 1 && !pair; y++) {
-      for (let x = 1; x < map.width - 1 && !pair; x++) {
-        if (map.get(x, y) !== Tile.Floor || map.get(x + 1, y + 1) !== Tile.Floor) continue;
-        if (map.get(x + 1, y) === Tile.Wall && map.get(x, y + 1) === Tile.Floor) pair = { a: { x, y }, b: { x: x + 1, y: y + 1 } };
+    // Le héros en a ; le monstre arrive en b (diagonale, mur d'un côté du coin) depuis c, d'où il ne voyait pas le héros.
+    let spot: { a: { x: number; y: number }; b: { x: number; y: number }; c: { x: number; y: number } } | null = null;
+    for (let y = 1; y < map.height - 1 && !spot; y++) {
+      for (let x = 1; x < map.width - 2 && !spot; x++) {
+        if (map.get(x, y) !== Tile.Floor || map.get(x + 1, y + 1) !== Tile.Floor || map.get(x + 2, y) !== Tile.Floor) continue;
+        if (map.get(x + 1, y) === Tile.Wall && map.get(x, y + 1) === Tile.Floor) spot = { a: { x, y }, b: { x: x + 1, y: y + 1 }, c: { x: x + 2, y } };
       }
     }
-    if (!pair) continue;
+    if (!spot) continue;
     game.monsters = [foe];
-    Object.assign(foe, { ...pair.b, alerted: true, asleep: false, hp: 1000, maxHp: 1000 });
-    Object.assign(game.hero, { ...pair.a, hp: 1000, maxHp: 1000 });
-    game.wait();
-    game.tick(); // met la vision à jour ; le monstre frappe déjà
-    const theirs = game.events.find((e) => e.type === "attack" && e.attacker === foe);
-    assert.ok(theirs && theirs.type === "attack" && theirs.result.mode === "advantage", `graine ${seed} : le monstre n'a pas l'avantage au coin`);
-    game.events.length = 0;
-    assert.ok(game.heroHasAdvantageOn(foe));
-    assert.ok(game.setDestination(foe.x, foe.y, true));
-    const before = { x: game.hero.x, y: game.hero.y };
-    game.tick();
-    const mine = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
-    assert.ok(mine && mine.type === "attack" && mine.result.mode === "advantage", `graine ${seed} : pas d'attaque avec avantage au coin`);
-    assert.deepEqual({ x: game.hero.x, y: game.hero.y }, before, "le héros frappe sans se déplacer");
+    Object.assign(game.hero, { ...spot.a, fromX: spot.a.x, fromY: spot.a.y, prevX: spot.a.x, prevY: spot.a.y, hp: 1000, maxHp: 1000 });
+    // Le monstre vient de déboucher de c (au tour précédent) : le héros, qui attendait, a l'avantage ; lui non.
+    Object.assign(foe, { ...spot.b, fromX: spot.b.x, fromY: spot.b.y, prevX: spot.c.x, prevY: spot.c.y, alerted: true, asleep: false, hp: 1000, maxHp: 1000 });
+    assert.ok(game.heroHasAdvantageOn(foe), `graine ${seed} : l'embuscade donne l'avantage au héros`);
+    assert.equal(game.hasEdge(foe, game.hero), false, "jamais les deux camps");
+    // L'inverse : c'est le héros qui débouche sur un monstre qui l'attendait.
+    Object.assign(game.hero, { ...spot.b, fromX: spot.c.x, fromY: spot.c.y });
+    Object.assign(foe, { ...spot.a, fromX: spot.a.x, fromY: spot.a.y, prevX: spot.a.x, prevY: spot.a.y });
+    assert.ok(game.hasEdge(foe, game.hero), "le monstre qui attendait a l'avantage");
+    assert.equal(game.heroHasAdvantageOn(foe), false);
     checked++;
   }
   assert.ok(checked >= 5);
@@ -1659,7 +1655,7 @@ test("après 3 attaques ratées d'affilée, les suivantes sont aidées jusqu'au 
   game.monsters = [foe];
   // Un monstre intouchable sans aide (sauf 20 naturel), collé au héros.
   const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
-  Object.assign(foe, { x: game.hero.x + side, y: game.hero.y, armorClass: 30, hp: 9999, maxHp: 9999, alerted: true, asleep: false });
+  Object.assign(foe, { x: game.hero.x + side, y: game.hero.y, fromX: game.hero.x + side, fromY: game.hero.y, prevX: game.hero.x + side, prevY: game.hero.y, armorClass: 30, hp: 9999, maxHp: 9999, alerted: true, asleep: false });
   Object.assign(game.hero, { hp: 99999, maxHp: 99999 });
   const base = game.hero.attackBonus;
   const bonuses: number[] = [];
@@ -4398,4 +4394,53 @@ test("la Tisseuse et les potions : pierre 2 tours, discorde qui la mord, géant,
   assert.equal(queen.petrified, 2);
   assert.ok(queen.hp < hp, "la discorde la mord");
   assert.ok((queen.grown ?? 0) > 0 && queen.slippery);
+});
+
+test("araignées contre Kobolds : quand le héros les voit proches, l'araignée se jette sur le Kobold (une fois par étage)", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  const spider = game.monsters.find((m) => m.defId === "araignee")!;
+  const kobold = game.monsters.find((m) => m.defId === "schrat")!;
+  assert.ok(spider && kobold);
+  // On les pose tous deux près du héros, en vue.
+  const spots: { x: number; y: number }[] = [];
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+    const x = game.hero.x + dx, y = game.hero.y + dy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) >= 2 && game.map.isWalkable(x, y) && !game.map.isDoor(x, y) && !game.monsterAt(x, y) && !game.npcAt(x, y) && !(x === game.hero.x && y === game.hero.y)) spots.push({ x, y });
+  }
+  Object.assign(spider, spots[0], { fromX: spots[0].x, fromY: spots[0].y, alerted: false, asleep: false });
+  const near = spots.find((p) => Math.max(Math.abs(p.x - spots[0].x), Math.abs(p.y - spots[0].y)) <= 2 && (p.x !== spots[0].x || p.y !== spots[0].y))!;
+  Object.assign(kobold, near, { fromX: near.x, fromY: near.y, alerted: false, asleep: false });
+  (game as unknown as { updateVision(): void }).updateVision();
+  let started = false;
+  for (let k = 0; k < 60 && !started; k++) {
+    game.events.length = 0;
+    (game as unknown as { speciesBrawl(): void }).speciesBrawl();
+    started = game.events.some((e) => e.type === "feud" && e.reason === "species");
+  }
+  assert.ok(started, "la bagarre éclate");
+  assert.equal(spider.feud, kobold.id);
+  // Une seule par étage.
+  spider.feud = kobold.feud = undefined;
+  game.events.length = 0;
+  for (let k = 0; k < 60; k++) (game as unknown as { speciesBrawl(): void }).speciesBrawl();
+  assert.ok(!game.events.some((e) => e.type === "feud"));
+});
+
+test("poussée : l'ennemi peut tomber à terre ; à terre, il perd son tour et on le frappe avec l'avantage", () => {
+  const { game, m } = foeAt(1);
+  let prone = false;
+  for (let k = 0; k < 40 && !prone; k++) {
+    m.prone = 0;
+    m.stunned = 0;
+    game.events.length = 0;
+    (game as unknown as { resolvePush(t: unknown): void }).resolvePush(m);
+    prone = (m.prone ?? 0) > 0;
+  }
+  assert.ok(prone, "renversé");
+  assert.ok(game.heroHasAdvantageOn(m), "on frappe un ennemi à terre avec l'avantage");
+  const at = { x: m.x, y: m.y };
+  game.wait();
+  game.tick();
+  assert.deepEqual({ x: m.x, y: m.y }, at, "il passe son tour à se relever");
+  assert.equal(m.prone, 0);
 });

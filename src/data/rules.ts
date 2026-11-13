@@ -263,6 +263,13 @@ export const RULES = {
   secondWindHeal: [4, 7, 10],
   /** Potion de géant (Thomas, 2026-11-13) : durée en tours. */
   growTurns: 8,
+  /** Poussée (Thomas, 2026-11-13) : chance de renverser l'ennemi (toujours contre un mur), et en plus par rang de Bousculade. */
+  pushProneChance: 0.35,
+  pushProneBonus: 0.2,
+  /** Araignées contre Kobolds (Thomas, 2026-11-13) : au plus tant de bagarres montrées par étage, chance par tour, portée. */
+  speciesBrawlsPerFloor: 1,
+  speciesBrawlChance: 0.25,
+  speciesBrawlRange: 5,
   /** Potion glissante : nombre de cases glissées après un coup, rebonds au plus, dégâts contre le mur. */
   slipDistance: 4,
   slipBounces: 2,

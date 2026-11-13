@@ -1121,6 +1121,6 @@ export const EN: Record<string, string> = {
   "La pierre se fissure : vous pouvez de nouveau bouger.": "The stone cracks: you can move again.",
   "{0} se change en pierre.": "{0} turns to stone.",
   "{0} redevient chair et os.": "{0} is flesh and bone again.",
-  "Grise et lourde. Bue : vous devenez statue 4 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 3 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 4 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 3 turns, and makes cover to hide behind.",
+  "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 3 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 10 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 3 turns, and makes cover to hide behind.",
   "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lancée, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover.",
 };

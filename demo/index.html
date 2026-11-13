@@ -1697,7 +1697,7 @@
     oeil_chauve_souris: { id: "oeil_chauve_souris", name: "\u0152il de chauve-souris", kind: "artifact", description: "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
     flute_pan: { id: "flute_pan", name: "Fl\xFBte de pan", kind: "artifact", description: "Quelques roseaux li\xE9s. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
     // Thomas, 2026-11-13 : potions de pierre et de discorde.
-    potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 4 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
+    potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
     potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et p\xE9tillante. \xC0 lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
     // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
     noeud_papillon: { id: "noeud_papillon", name: "N\u0153ud papillon de Kobold", kind: "amulet", description: "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
@@ -1951,7 +1951,7 @@
     /** Deux monstres côte à côte dans le brouillard : chance par tour qu'ils se battent (C). */
     fogBrawlChance: 0.25,
     /** Potion de pierre (Thomas, 2026-11-13) : bue, statue tant de tours ; lancée, le monstre pétrifié tant de tours. */
-    stoneTurns: 4,
+    stoneTurns: 10,
     petrifyTurns: 3,
     /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
     urchinReflect: 0.15,
@@ -12464,7 +12464,7 @@
     "La pierre se fissure : vous pouvez de nouveau bouger.": "The stone cracks: you can move again.",
     "{0} se change en pierre.": "{0} turns to stone.",
     "{0} redevient chair et os.": "{0} is flesh and bone again.",
-    "Grise et lourde. Bue : vous devenez statue 4 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 4 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 3 turns, and makes cover to hide behind.",
+    "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 10 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 3 turns, and makes cover to hide behind.",
     "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lanc\xE9e, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover."
   };
 

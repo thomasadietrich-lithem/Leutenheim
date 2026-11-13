@@ -34,6 +34,64 @@ FENCE_V_POST = [
 # montants et ses traverses, d'un bout à l'autre ; on ne passe nulle part.
 FENCE_V_RAIL = FENCE_V_POST
 
+# Clôture verticale v3 (Thomas, 2026-11-13 : « la physique de la rambarde verticale ne marche pas ; de vrais angles ») :
+# vue de 3/4, un pan nord-sud se voit par la tranche : une lisse continue qui file de haut en bas, un poteau par case ;
+# aux coins du bas, le poteau d'angle reçoit la lisse verticale ET les deux lisses horizontales.
+FENCE_V3 = [
+    "......KWBbK.....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+    ".....KKKKKKK....",
+    ".....KWWWBbK....",
+    ".....KWBBBbK....",
+    ".....KWBBBbK....",
+    ".....KWBBBbK....",
+    ".....KWBBBbK....",
+    ".....KWBBBbK....",
+    ".....KWBBBbK....",
+    ".....KWBBBbK....",
+    ".....KKKKKKK....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+]
+FENCE_CORNER_L = [
+    "......KWBbK.....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+    ".....KKKKKKK....",
+    ".....KWWWBbK....",
+    ".....KWBBBbKKKKK",
+    ".....KWBBBbKWWWW",
+    ".....KWBBBbKbbbb",
+    ".....KWBBBbKKKKK",
+    ".....KWBBBbK....",
+    ".....KWBBBbKKKKK",
+    ".....KWBBBbKWWWW",
+    ".....KWBBBbKbbbb",
+    ".....KWBBBbKKKKK",
+    ".....KKKKKKK....",
+]
+FENCE_CORNER_R = [
+    "......KWBbK.....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+    "......KWBbK.....",
+    ".....KKKKKKK....",
+    ".....KWWWBbK....",
+    "KKKKKKWBBBbK....",
+    "WWWWWKWBBBbK....",
+    "bbbbbKWBBBbK....",
+    "KKKKKKWBBBbK....",
+    ".....KWBBBbK....",
+    "KKKKKKWBBBbK....",
+    "WWWWWKWBBBbK....",
+    "bbbbbKWBBBbK....",
+    "KKKKKKWBBBbK....",
+    ".....KKKKKKK....",
+]
+
 # La statue de la POMME : une grosse pomme de pierre bien ronde, sa queue et sa feuille à gauche, sur un socle gravé
 # (pas de bouchée : rien qui rappelle un logo connu).
 STATUE_APPLE = [

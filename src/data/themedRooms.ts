@@ -135,6 +135,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   fenceH: { blocks: true, w: 1, h: 1, burns: true },
   fenceV: { blocks: true, w: 1, h: 1, burns: true },
   fencePost: { blocks: true, w: 1, h: 1, burns: true },
+  fenceCornerL: { blocks: true, w: 1, h: 1, burns: true },
+  fenceCornerR: { blocks: true, w: 1, h: 1, burns: true },
   hoe: { blocks: true, w: 1, h: 1, burns: true },
   fork: { blocks: true, w: 1, h: 1, burns: true },
   hayBale: { blocks: true, w: 1, h: 1, burns: true },

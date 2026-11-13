@@ -876,7 +876,7 @@ export function furnishFarm(floor: Floor, room: Room, rng: Rng, out: Furniture[]
   }
   for (let y = fy; y <= fy + fh; y++) {
     for (const x of [fx - 1, fx + fw]) {
-      const kind = y === fy + fh ? "fencePost" : "fenceV";
+      const kind = y < fy + fh ? "fenceV" : x < fx ? "fenceCornerL" : "fenceCornerR";
       if (!P.tryPlace({ x, y, kind })) {
         P.undo();
         return false;

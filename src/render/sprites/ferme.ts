@@ -85,22 +85,74 @@ export const FERME: Record<string, { palette: Record<string, string>; rows: stri
       "d": "#64401e"
     },
     "rows": [
-      "....aaaaaaa.....",
-      "...abbbbbbca....",
-      "...abcccccda....",
-      "...aaaaaaaaa....",
-      "....aba.aba.....",
-      "...aacaaacaa....",
-      "...abbbbbbca....",
-      "...addddddda....",
-      "...aacaaacaa....",
-      "....aba.aba.....",
-      "....ada.ada.....",
-      "....aba.aba.....",
-      "...aacaaacaa....",
-      "...abbbbbbca....",
-      "...addddddda....",
-      "...aacaaacaa...."
+      "......abcda.....",
+      "......abcda.....",
+      "......abcda.....",
+      "......abcda.....",
+      ".....aaaaaaa....",
+      ".....abbbcda....",
+      ".....abcccda....",
+      ".....abcccda....",
+      ".....abcccda....",
+      ".....abcccda....",
+      ".....abcccda....",
+      ".....abcccda....",
+      ".....abcccda....",
+      ".....aaaaaaa....",
+      "......abcda.....",
+      "......abcda....."
+    ]
+  },
+  "fenceCornerL": {
+    "palette": {
+      "a": "#120d08",
+      "b": "#be8c50",
+      "c": "#9a6836",
+      "d": "#64401e"
+    },
+    "rows": [
+      "......abcda.....",
+      "......abcda.....",
+      "......abcda.....",
+      "......abcda.....",
+      ".....aaaaaaa....",
+      ".....abbbcda....",
+      ".....abcccdaaaaa",
+      ".....abcccdabbbb",
+      ".....abcccdadddd",
+      ".....abcccdaaaaa",
+      ".....abcccda....",
+      ".....abcccdaaaaa",
+      ".....abcccdabbbb",
+      ".....abcccdadddd",
+      ".....abcccdaaaaa",
+      ".....aaaaaaa...."
+    ]
+  },
+  "fenceCornerR": {
+    "palette": {
+      "a": "#120d08",
+      "b": "#be8c50",
+      "c": "#9a6836",
+      "d": "#64401e"
+    },
+    "rows": [
+      "......abcda.....",
+      "......abcda.....",
+      "......abcda.....",
+      "......abcda.....",
+      ".....aaaaaaa....",
+      ".....abbbcda....",
+      "aaaaaabcccda....",
+      "bbbbbabcccda....",
+      "dddddabcccda....",
+      "aaaaaabcccda....",
+      ".....abcccda....",
+      "aaaaaabcccda....",
+      "bbbbbabcccda....",
+      "dddddabcccda....",
+      "aaaaaabcccda....",
+      ".....aaaaaaa...."
     ]
   },
   "fencePost": {

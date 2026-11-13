@@ -1089,7 +1089,7 @@ function showDeath(): void {
   if (!game.sandbox) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills });
+    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn });
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
   }

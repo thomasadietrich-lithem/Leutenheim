@@ -13,6 +13,8 @@ export interface RunRecord {
   date: string;
   /** Boss vaincus pendant la partie (la Tisseuse…). */
   bosses?: number;
+  /** Nombre de tours joués (Thomas, 2026-11-13) ; absent des records plus anciens. */
+  turns?: number;
 }
 
 const KEY = "leutenheim.records";
@@ -42,5 +44,5 @@ export function addRecord(record: RunRecord): number {
 
 /** Une ligne lisible : « 1. Étage 5 · Niv 4 · 32 or — un Kobold (11/11/2026) ». */
 export function recordLine(r: RunRecord, rank: number): string {
-  return `${rank}. Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or${r.bosses ? " · Boss vaincu" : ""} — ${r.cause} (${r.date})`;
+  return `${rank}. Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or${r.turns !== undefined ? ` · ${r.turns} tours` : ""}${r.bosses ? " · Boss vaincu" : ""} — ${r.cause} (${r.date})`;
 }

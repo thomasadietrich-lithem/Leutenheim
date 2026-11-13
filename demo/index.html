@@ -223,8 +223,10 @@
   body:has(#dice-log:not(:empty):not(.fade)) #door-actions,
   body:has(#dice-log:not(:empty):not(.fade)) #test-tools { bottom: 40px; }
   body:has(#dice-log:not(:empty):not(.fade)) #here { margin-bottom: 32px; }
-  #dice-log .sep { flex: none; width: 2px; height: 22px; margin: 0 3px; background: #5a4a30; }
+  #dice-log .sep { flex: none; font-size: 22px; line-height: 1; color: var(--gold); margin: 0 1px; opacity: 0.8; }
   #dice-log .sep, #dice-log .rc { flex: none; }
+  /* Le sens de lecture : les tours sont séparés par un chevron « › » qui pointe vers le plus récent, lui-même cerclé d'or. */
+  #dice-log .rc.last { box-shadow: inset 0 0 0 2px var(--gold); }
   #dice-log .rc { padding: 1px 4px 1px 1px; border-radius: 4px; background: rgba(30, 26, 20, 0.85); transition: opacity 0.3s; }
   #dice-log .rc.foe { background: rgba(100, 18, 12, 0.85); }
   .rc { display: flex; align-items: center; gap: 1px; flex: none; }
@@ -247,11 +249,11 @@
   /* Dés et journal. */
   /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
      (un objet à la fois) ou lire sa fiche. Elle recouvre le bas de la carte et ne déplace rien. */
-  .panel-wrap { position: relative; flex: none; }
+  .panel-wrap { position: relative; z-index: 5; flex: none; }
   .panel-wrap .panel { position: relative; z-index: 1; }
   #here { position: absolute; left: 0; bottom: 100%; z-index: 0; display: flex; align-items: center; gap: 6px; height: 50px; max-width: 100%;
     padding: 4px 6px; background: var(--panel); border: 3px solid var(--panel-hi); border-bottom: none; box-shadow: inset 0 0 0 2px var(--panel-lo);
-    transform: translateY(100%); transition: transform 0.2s steps(5); pointer-events: none; }
+    transform: translateY(100%); transition: transform 0.2s steps(5), margin-bottom 0.2s steps(4); pointer-events: none; }
   #here.open { transform: translateY(0); pointer-events: auto; }
   #here-icon { width: 34px; height: 34px; flex: none; background: #0c0906; padding: 2px; }
   #here-icon svg { width: 100%; height: 100%; }
@@ -22959,11 +22961,14 @@
     if (rollTurn !== -1 && rollTurn !== game.turn) {
       const sep = document.createElement("span");
       sep.className = "sep";
+      sep.textContent = "\u203A";
       diceLog.append(sep);
     }
     rollTurn = game.turn;
     const chip = rollChip(e.result, foe);
     if (foe) chip.classList.add("foe");
+    diceLog.querySelector(".rc.last")?.classList.remove("last");
+    chip.classList.add("last");
     diceLog.append(chip);
     while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild.remove();
     const chips = [...diceLog.children];
@@ -22978,7 +22983,33 @@
       else if (game.turn - rollTurn >= ROLL_QUIET_TURNS + 1) clearRollLog();
     }
   }
+  var rollDown = null;
+  var rollBack;
+  diceLog.addEventListener("pointerdown", (e) => {
+    rollDown = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    clearTimeout(rollBack);
+  });
+  diceLog.addEventListener("pointerup", (e) => {
+    const down = rollDown;
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10) {
+      const init = { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, isPrimary: true, bubbles: true };
+      canvas.dispatchEvent(new PointerEvent("pointerdown", init));
+      canvas.dispatchEvent(new PointerEvent("pointerup", init));
+    }
+    rollRelease();
+  });
+  function rollRelease() {
+    setTimeout(() => rollDown = null, 600);
+    clearTimeout(rollBack);
+    rollBack = setTimeout(() => {
+      rollUnrolled = false;
+      diceLog.classList.remove("open");
+      diceLog.scrollLeft = diceLog.scrollWidth;
+    }, 4e3);
+  }
+  diceLog.addEventListener("touchend", rollRelease);
   diceLog.addEventListener("scroll", () => {
+    if (!rollDown) return;
     rollUnrolled = diceLog.scrollLeft + diceLog.clientWidth < diceLog.scrollWidth - 4;
     diceLog.classList.toggle("open", rollUnrolled);
   });

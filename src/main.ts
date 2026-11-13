@@ -346,11 +346,14 @@ function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   if (rollTurn !== -1 && rollTurn !== game.turn) {
     const sep = document.createElement("span");
     sep.className = "sep";
+    sep.textContent = "›";
     diceLog.append(sep);
   }
   rollTurn = game.turn;
   const chip = rollChip(e.result, foe);
   if (foe) chip.classList.add("foe");
+  diceLog.querySelector(".rc.last")?.classList.remove("last");
+  chip.classList.add("last");
   diceLog.append(chip);
   while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild!.remove();
   const chips = [...diceLog.children] as HTMLElement[];
@@ -368,8 +371,40 @@ function quietRollLog(): void {
   }
 }
 
-// Dérouler la frise du doigt : on relit les anciens jets, nets ; revenue au bout, elle se comporte comme avant.
+// Dérouler la frise du doigt : on relit les anciens jets, nets. Seul un vrai glissement compte ; on lâche, et après
+// quelques secondes elle revient d'elle-même au dernier jet. Un simple toucher passe à la carte en dessous.
+let rollDown: { x: number; y: number; id: number } | null = null;
+let rollBack: ReturnType<typeof setTimeout> | undefined;
+diceLog.addEventListener("pointerdown", (e) => {
+  rollDown = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  clearTimeout(rollBack);
+});
+diceLog.addEventListener("pointerup", (e) => {
+  const down = rollDown;
+  if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10) {
+    // Un toucher, pas un glissement : on le rend à la carte.
+    const init = { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, isPrimary: true, bubbles: true };
+    canvas.dispatchEvent(new PointerEvent("pointerdown", init));
+    canvas.dispatchEvent(new PointerEvent("pointerup", init));
+  }
+  rollRelease();
+});
+/** Le doigt quitte la frise (même quand le navigateur a pris la main pour la faire défiler) : retour au dernier jet
+ *  4 secondes plus tard. */
+function rollRelease(): void {
+  // Le défilement qui suit le lâcher (l'élan) compte encore comme voulu pendant un court instant.
+  setTimeout(() => (rollDown = null), 600);
+  clearTimeout(rollBack);
+  rollBack = setTimeout(() => {
+    rollUnrolled = false;
+    diceLog.classList.remove("open");
+    diceLog.scrollLeft = diceLog.scrollWidth;
+  }, 4000);
+}
+diceLog.addEventListener("touchend", rollRelease);
 diceLog.addEventListener("scroll", () => {
+  // Le défilement voulu par le joueur seulement (pas celui qui suit le dernier jet).
+  if (!rollDown) return;
   rollUnrolled = diceLog.scrollLeft + diceLog.clientWidth < diceLog.scrollWidth - 4;
   diceLog.classList.toggle("open", rollUnrolled);
 });

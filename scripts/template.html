@@ -223,8 +223,10 @@
   body:has(#dice-log:not(:empty):not(.fade)) #door-actions,
   body:has(#dice-log:not(:empty):not(.fade)) #test-tools { bottom: 40px; }
   body:has(#dice-log:not(:empty):not(.fade)) #here { margin-bottom: 32px; }
-  #dice-log .sep { flex: none; width: 2px; height: 22px; margin: 0 3px; background: #5a4a30; }
+  #dice-log .sep { flex: none; font-size: 22px; line-height: 1; color: var(--gold); margin: 0 1px; opacity: 0.8; }
   #dice-log .sep, #dice-log .rc { flex: none; }
+  /* Le sens de lecture : les tours sont séparés par un chevron « › » qui pointe vers le plus récent, lui-même cerclé d'or. */
+  #dice-log .rc.last { box-shadow: inset 0 0 0 2px var(--gold); }
   #dice-log .rc { padding: 1px 4px 1px 1px; border-radius: 4px; background: rgba(30, 26, 20, 0.85); transition: opacity 0.3s; }
   #dice-log .rc.foe { background: rgba(100, 18, 12, 0.85); }
   .rc { display: flex; align-items: center; gap: 1px; flex: none; }
@@ -247,11 +249,11 @@
   /* Dés et journal. */
   /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
      (un objet à la fois) ou lire sa fiche. Elle recouvre le bas de la carte et ne déplace rien. */
-  .panel-wrap { position: relative; flex: none; }
+  .panel-wrap { position: relative; z-index: 5; flex: none; }
   .panel-wrap .panel { position: relative; z-index: 1; }
   #here { position: absolute; left: 0; bottom: 100%; z-index: 0; display: flex; align-items: center; gap: 6px; height: 50px; max-width: 100%;
     padding: 4px 6px; background: var(--panel); border: 3px solid var(--panel-hi); border-bottom: none; box-shadow: inset 0 0 0 2px var(--panel-lo);
-    transform: translateY(100%); transition: transform 0.2s steps(5); pointer-events: none; }
+    transform: translateY(100%); transition: transform 0.2s steps(5), margin-bottom 0.2s steps(4); pointer-events: none; }
   #here.open { transform: translateY(0); pointer-events: auto; }
   #here-icon { width: 34px; height: 34px; flex: none; background: #0c0906; padding: 2px; }
   #here-icon svg { width: 100%; height: 100%; }

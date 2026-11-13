@@ -441,6 +441,7 @@ export const EN: Record<string, string> = {
   "Niveau {0} · {1} pièces d'or": "Level {0} · {1} gold coins",
   "Merci d'avoir joué ! La suite du donjon arrive bientôt.": "Thanks for playing! More of the dungeon is coming soon.",
   "Continuer à explorer": "Keep exploring",
+  "victoire": "victory",
   "Nouvelle partie": "New game",
   "Niveau {0} : le maximum avant d'avoir vaincu le boss de la section.": "Level {0}: the maximum until you beat this section's boss.",
   "Vous êtes mort": "You died",

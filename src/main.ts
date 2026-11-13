@@ -705,7 +705,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "trapDodged") {
     renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");
   } else if (e.type === "boss" && e.what === "dead") {
-    // Thomas (2026-11-11) : la démo s'arrête après la Tisseuse ; on peut continuer à explorer la nichée.
+    // Thomas : la démo s'arrête après la Tisseuse, la partie est bloquée.
     setTimeout(showDemoEnd, 900);
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
@@ -899,26 +899,27 @@ function reveal(e: GameEvent): void {
  * Écran de fin (Thomas, 2026-11-11) : de quoi le héros est mort, plus le nombre de tours ; la partie entre dans les
  * records (sauf en salle d'essai), avec les trois meilleures dessous.
  */
-/** Fin de la démo (Thomas, 2026-11-11) : après la victoire contre la Tisseuse. La partie reste ouverte derrière. */
+/** Fin de la démo (Thomas, 2026-11-11) : après la victoire contre la Tisseuse. La partie est finie (Thomas, 2026-11-13 : « bloque le jeu après le boss »). */
 function showDemoEnd(): void {
   over.replaceChildren();
   over.classList.add("over-win");
   over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", "La Tisseuse est vaincue : la première section du donjon est terminée."));
   over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
   over.append(el("div", "over-sub", "Merci d'avoir joué ! La suite du donjon arrive bientôt."));
-  const stay = el("button", "", "Continuer à explorer") as HTMLButtonElement;
-  stay.type = "button";
-  stay.addEventListener("click", () => {
-    over.hidden = true;
-    over.classList.remove("over-win");
-  });
+  if (!game.sandbox) {
+    const d = new Date();
+    const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause: "victoire", hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn });
+    if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
+    else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
+  }
   const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
   again.type = "button";
   again.addEventListener("click", () => {
     over.classList.remove("over-win");
     showScreen("new");
   });
-  over.append(stay, again);
+  over.append(again);
   over.hidden = false;
 }
 

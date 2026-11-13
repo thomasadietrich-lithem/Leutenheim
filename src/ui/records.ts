@@ -29,7 +29,7 @@ export function loadRecords(): RunRecord[] {
   }
 }
 
-const better = (a: RunRecord, b: RunRecord) => b.deepest - a.deepest || b.level - a.level || b.gold - a.gold;
+const better = (a: RunRecord, b: RunRecord) => (b.bosses ?? 0) - (a.bosses ?? 0) || b.deepest - a.deepest || b.level - a.level || b.gold - a.gold;
 
 /** Ajoute une partie ; renvoie son rang (1 = meilleure), ou 0 si elle n'entre pas dans les dix meilleures. */
 export function addRecord(record: RunRecord): number {

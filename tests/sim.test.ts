@@ -297,7 +297,7 @@ function playRun(seed: number, maxTurns: number): Game {
       }
       assert.ok(a.hp <= a.maxHp && (a.kind === "hero" ? a.hp >= 0 : a.hp > 0));
     }
-    assert.equal(game.over, game.hero.hp === 0);
+    assert.equal(game.over, game.hero.hp === 0 || game.won);
     // Les portes se referment : une porte ouverte a forcément quelqu'un dans son encadrement.
     for (let i = 0; i < game.map.tiles.length; i++) {
       // (Sauf si un objet au sol la cale : Thomas, 2026-11-13.)
@@ -3566,11 +3566,14 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
     game.tick();
   }
   assert.equal(game.bossActor(), undefined, "vaincue");
-  assert.equal(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier est ouvert");
+  // La démo s'arrête : la partie est finie, l'escalier reste scellé.
+  assert.notEqual(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier reste scellé");
+  assert.ok(game.over && game.won, "partie bloquée");
   assert.equal(game.bossKills, 1);
-  // Sauvegarde et reprise gardent la nichée.
-  const again = Game.restore(game.snapshot());
-  assert.ok(again && again.map.get(layout.seal.x, layout.seal.y) === Tile.StairsDown);
+  const hx = game.hero.x;
+  game.setDestination(hx + 1, game.hero.y);
+  game.tick();
+  assert.equal(game.hero.x, hx, "plus aucun ordre");
 });
 
 test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèche dans la toile l'attire, les œufs éclosent", () => {

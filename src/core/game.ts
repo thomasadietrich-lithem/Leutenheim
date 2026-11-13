@@ -94,6 +94,8 @@ export class Game {
   depth = 0;
   turn = 0;
   over = false;
+  /** La partie s'est finie sur la victoire contre le boss (fin de la démo), pas sur la mort du héros. */
+  won = false;
   map!: GameMap;
   hero: Actor;
   monsters: Actor[] = [];
@@ -927,13 +929,17 @@ export class Game {
     this.events.push({ type: "boss", what: onHub ? "fallen" : "hubDown", x: queen.x, y: queen.y });
   }
 
-  /** La Tisseuse est morte : la toile qui scellait l'escalier tombe. */
+  /**
+   * La Tisseuse est morte : la démo s'arrête là (Thomas, 2026-11-13 : « bloque le jeu après le boss »). L'escalier
+   * reste scellé et la partie est finie (plus d'ordre accepté, sauvegarde effacée, record noté).
+   */
   private bossDefeated(): void {
     const layout = this.current.boss;
     this.bossKills++;
     if (!layout) return;
-    this.current.furniture = this.current.furniture.filter((f) => f.kind !== "sealedStairs");
-    this.map.set(layout.seal.x, layout.seal.y, Tile.StairsDown);
+    this.over = true;
+    this.won = true;
+    this.path = [];
     this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y });
   }
 

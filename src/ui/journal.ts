@@ -125,6 +125,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return ctx.sees?.(e.a) || ctx.sees?.(e.b)
         ? e.reason === "shot"
           ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !`
+          : e.reason === "fog"
+          ? `Dans le brouillard, ${the(e.a.name)} et ${the(e.b.name)} se cognent… et se battent !`
           : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage… et en viennent aux mains !`
         : null;
     case "infight":

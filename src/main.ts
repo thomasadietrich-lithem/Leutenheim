@@ -19,6 +19,9 @@ import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
 import { MANUAL } from "./data/manual";
+import { NPC_IDS } from "./core/game";
+import { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } from "./data/codex";
+import { TRAPS } from "./data/traps";
 import { missing as i18nMissing, setLang, tr } from "./i18n/i18n";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
@@ -626,6 +629,7 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
   } else if (e.type === "counter") {
+    discover(["n:compteur"]);
     // Le Kobold qui compte derrière sa porte (Thomas, 2026-11-12).
     // Un nombre par tour, toujours le même (Thomas, 2026-11-12 : « 17, 17, 17 plutôt que plusieurs à la fois »).
     if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}…`, "#c8c0d4");
@@ -2517,18 +2521,7 @@ function renderCodex(): void {
     nodes.push(...cards);
   };
   if (codexTab === "objets") {
-    const groups: [string, ItemDef["kind"][]][] = [
-      ["Armes de corps à corps", ["melee"]],
-      ["Armes à distance et munitions", ["ranged", "ammo"]],
-      ["Armures", ["armor"]],
-      ["Heaumes", ["hat"]],
-      ["Amulettes", ["amulet"]],
-      ["Artefacts", ["artifact"]],
-      ["Sacs", ["bag"]],
-      ["Potions et vivres", ["use"]],
-      ["Pierres précieuses et or", ["gem", "gold"]],
-      ["Divers", ["key", "quest"]],
-    ];
+    const groups = CODEX_ITEM_GROUPS;
     for (const [title, kinds] of groups) {
       const all = (Object.values(ITEMS) as ItemDef[]).filter((d) => kinds.includes(d.kind));
       const cards = all
@@ -2548,7 +2541,29 @@ function renderCodex(): void {
       const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Créature", m.description));
       section(`Famille : ${family}`, members.length, cards);
     }
-  } else nodes.push(...manualNodes());
+    // Les personnages (non hostiles), découverts en les voyant.
+    const people = CODEX_PEOPLE.filter((p) => codex.has(`n:${p.id}`)).map((p) => codexCard("square", p.color, p.name, "Personnage", p.description));
+    section("Personnages", CODEX_PEOPLE.length, people);
+  } else {
+    nodes.push(...manualNodes());
+    // Pièges et états : toujours lisibles (ils servent à comprendre ce qui arrive).
+    nodes.push(el("h3", "", "Pièges"));
+    for (const [kind, text] of Object.entries(CODEX_TRAPS)) {
+      const name = TRAPS[kind as keyof typeof TRAPS].name;
+      nodes.push(codexCard("square", "#8a7656", name.charAt(0).toUpperCase() + name.slice(1), "Piège", text));
+    }
+    nodes.push(el("h3", "", "États"));
+    for (const st of CODEX_STATES) {
+      const card = el("div", "item-card");
+      const picture = el("div", "item-card-icon");
+      const icon = STATUS_ICONS[st.id as keyof typeof STATUS_ICONS];
+      if (icon) picture.append(buildIcon(icon));
+      const body = el("div", "item-card-body");
+      body.append(el("div", "item-card-name", st.name), el("div", "item-card-kind", "État"), el("div", "item-card-desc", st.description));
+      card.append(picture, body);
+      nodes.push(card);
+    }
+  }
   $("codex-list").replaceChildren(...nodes);
   $("codex-tabs").replaceChildren(
     ...([["objets", "Objets"], ["creatures", "Créatures"], ["manuel", "Manuel"]] as const).map(([tab, label]) => {
@@ -2571,6 +2586,15 @@ function discoverSurroundings(): void {
   if (stamp === codexSeenAt) return;
   codexSeenAt = stamp;
   const found: string[] = game.visibleMonsters().map((m) => `m:${m.defId}`);
+  // Personnages : les PNJ de quête, le Colporteur, le Kobold du bain (dans sa baignoire), le Kobold qui compte.
+  for (const id of NPC_IDS) {
+    const g = game.npc(id);
+    if (g && game.isVisible(g.x, g.y)) found.push(`n:${id}`);
+  }
+  const shop = game.merchant();
+  if (shop && game.isVisible(shop.x, shop.y)) found.push("n:colporteur");
+  const tub = game.bath();
+  if (tub && game.isVisible(tub.x, tub.y)) found.push("n:bain");
   discover(found);
 }
 

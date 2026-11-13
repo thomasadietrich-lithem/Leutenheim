@@ -1943,6 +1943,8 @@
     /** Potion de brouillard (Thomas, 2026-11-13, dessin) : losange de rayon 2 (rangées de 1, 3, 5, 3, 1 cases), durée en tours (C). */
     fogArm: 2,
     fogTurns: 8,
+    /** Deux monstres côte à côte dans le brouillard : chance par tour qu'ils se battent (C). */
+    fogBrawlChance: 0.25,
     /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
     urchinReflect: 0.15,
     urchinTurns: 40,
@@ -9218,6 +9220,31 @@
         }
         if (m.feud !== void 0 && this.feudAct(m)) continue;
         if (m.soapy) m.soapy--;
+        if (!m.boss && this.fogAt(m.x, m.y)) {
+          m.alerted = false;
+          m.wary = false;
+          m.goal = void 0;
+          const other = this.monsters.find((o) => o !== m && !o.boss && o.feud === void 0 && this.fogAt(o.x, o.y) && gapBetween(o, m) <= 1);
+          if (other && this.rng.chance(RULES.fogBrawlChance)) {
+            this.startFeud(m, other, "fog");
+            continue;
+          }
+          const steps2 = [];
+          for (let dy2 = -1; dy2 <= 1; dy2++) {
+            for (let dx2 = -1; dx2 <= 1; dx2++) {
+              const x = m.x + dx2;
+              const y = m.y + dy2;
+              if ((dx2 || dy2) && canStep(this.map, m.x, m.y, dx2, dy2) && this.fogAt(x, y) && !this.actorAt(x, y) && !this.npcAt(x, y) && !this.isTrap(x, y) && !this.map.isDoor(x, y)) steps2.push({ x, y });
+            }
+          }
+          if (steps2.length > 0 && this.rng.chance(0.7)) {
+            const to = steps2[this.rng.int(0, steps2.length - 1)];
+            this.faceToward(m, to);
+            m.x = to.x;
+            m.y = to.y;
+          }
+          continue;
+        }
         if (m.bather && !m.fleeing && m.alerted && m.hp * 2 < m.maxHp) {
           m.fleeing = true;
           this.raiseAlarm(RULES.bathFleeAlarm, m);
@@ -12309,7 +12336,43 @@
     "{0} ne craint pas le poison.": "{0} is immune to poison.",
     "Immunis\xE9e": "Immune",
     "Il fuit !": "Fleeing!",
-    "{0} d\xE9tale, la queue entre les jambes !": "{0} bolts, tail between its legs!"
+    "{0} d\xE9tale, la queue entre les jambes !": "{0} bolts, tail between its legs!",
+    "Artefacts et bibelots": "Artifacts and trinkets",
+    "Un Kobold d\xE9serteur, p\xE2le et peureux, qui ne pense qu'aux pommes. Selon ce qu'on lui dit, il vend, donne, investit\u2026 ou confie une t\xE2che.": "A pale, timid Kobold deserter who only thinks about apples. Depending on what you say, he sells, gives, invests\u2026 or hands you a task.",
+    "Une nonne squelette tr\xE8s digne, qui ignore qu'elle est morte. Les Kobolds lui ont vol\xE9 sa cloche. Elle b\xE9nit, ou maudit.": "A very dignified skeleton nun who doesn't know she's dead. The Kobolds stole her bell. She blesses, or curses.",
+    "Un Kobold qui ne peut plus mentir depuis une exp\xE9rience rat\xE9e. Il a trahi ses camarades et vend leur butin.": "A Kobold who can't lie anymore since a failed experiment. He betrayed his comrades and sells their loot.",
+    "Un marchand vo\xFBt\xE9, un par section. Il ach\xE8te et vend, et dispara\xEEt quand le donjon s'agite trop.": "A hunched merchant, one per section. He buys and sells, and vanishes when the dungeon gets too restless.",
+    "Le Kobold qui compte": "The Counting Kobold",
+    "Derri\xE8re une porte perc\xE9e d'un trou, il r\xE9p\xE8te son nombre. Ne regardez pas par le trou.": "Behind a door with a hole in it, he repeats his number. Don't look through the hole.",
+    "Le Kobold du bain": "The Bathing Kobold",
+    "Il dort dans sa baignoire, en musique. R\xE9veill\xE9, il se bat \xE0 la serviette, puis s'enfuit en criant.": "He sleeps in his tub, with music. Woken up, he fights with his towel, then runs off screaming.",
+    "Des pointes jaillissent de la dalle. Un bond d'Agilit\xE9 permet parfois de l'\xE9viter.": "Spikes shoot out of the flagstone. An Agility leap sometimes avoids them.",
+    "La dalle c\xE8de : on tombe, on se blesse, et il faut un tour pour remonter.": "The flagstone gives way: you fall, get hurt, and need a turn to climb out.",
+    "Une aiguille empoisonn\xE9e : une piq\xFBre, puis le poison pendant quelques tours.": "A poisoned needle: a prick, then poison for a few turns.",
+    "Un nuage vert s'\xE9chappe de la grille : qui s'y tient est empoisonn\xE9.": "A green cloud escapes from the grate: whoever stands in it is poisoned.",
+    "On perd des PV \xE0 chaque tour, pendant quelques tours.": "You lose HP every turn, for a few turns.",
+    "1d4 d\xE9g\xE2ts par tour. Sortir des flammes, ou marcher dans l'eau.": "1d4 damage per turn. Get out of the flames, or step into water.",
+    "Englu\xE9 ou ralenti": "Stuck or slowed",
+    "Le prochain pas sert \xE0 se d\xE9gager ; un monstre ralenti ne joue qu'un tour sur deux.": "The next step is spent breaking free; a slowed monster only acts every other turn.",
+    "Sonn\xE9": "Stunned",
+    "Le monstre perd son prochain tour.": "The monster loses its next turn.",
+    "Les monstres ne vous remarquent qu'au contact. Premi\xE8re attaque avec l'avantage.": "Monsters only notice you up close. First attack with advantage.",
+    "Vous \xE9clairez autour de vous, mais on vous voit venir.": "You light up your surroundings, but they see you coming.",
+    "Vos coups qui portent empoisonnent.": "Your hits that land poison.",
+    "La pomme dor\xE9e de l'autel : +1 \xE0 l'attaque et +1 classe d'armure.": "The altar's golden apple: +1 to attack and +1 armor class.",
+    "La b\xE9n\xE9diction de S\u0153ur Osseuse : +1 classe d'armure.": "Sister Bones' blessing: +1 armor class.",
+    "Le poison dure moiti\xE9 moins longtemps, sur l'\xE9tage.": "Poison lasts half as long, on this floor.",
+    "+2 d\xE9g\xE2ts contre les Kobolds, sur l'\xE9tage.": "+2 damage against Kobolds, on this floor.",
+    "Vos prochains 1 au d\xE9 sont relanc\xE9s.": "Your next rolls of 1 are rerolled.",
+    "Une part des d\xE9g\xE2ts re\xE7us au contact revient \xE0 l'attaquant.": "Part of the melee damage you take goes back to the attacker.",
+    "Chaque attaque au contact frappe deux fois.": "Every melee attack strikes twice.",
+    "Un coup qui vous tuerait vous laisse debout.": "A blow that would kill you leaves you standing.",
+    "Personnages": "Characters",
+    "Pi\xE8ges": "Traps",
+    "Pi\xE8ge": "Trap",
+    "\xC9tats": "States",
+    "\xC9tat": "State",
+    "Dans le brouillard, {0} et {1} se cognent\u2026 et se battent !": "In the fog, {0} and {1} bump into each other\u2026 and start fighting!"
   };
 
   // src/i18n/i18n.ts
@@ -22077,6 +22140,51 @@
     }
   ];
 
+  // src/data/codex.ts
+  var CODEX_ITEM_GROUPS = [
+    ["Armes de corps \xE0 corps", ["melee"]],
+    ["Armes \xE0 distance et munitions", ["ranged", "ammo"]],
+    ["Armures", ["armor"]],
+    ["Heaumes", ["hat"]],
+    ["Amulettes", ["amulet"]],
+    ["Artefacts et bibelots", ["artifact"]],
+    ["Sacs", ["bag"]],
+    ["Potions et vivres", ["use"]],
+    ["Pierres pr\xE9cieuses et or", ["gem", "gold"]],
+    ["Divers", ["key", "quest"]]
+  ];
+  var CODEX_PEOPLE = [
+    { id: "gluck", name: "Gluck", color: "#e6dcc0", description: "Un Kobold d\xE9serteur, p\xE2le et peureux, qui ne pense qu'aux pommes. Selon ce qu'on lui dit, il vend, donne, investit\u2026 ou confie une t\xE2che." },
+    { id: "soeur", name: "S\u0153ur Osseuse", color: "#f4f7ff", description: "Une nonne squelette tr\xE8s digne, qui ignore qu'elle est morte. Les Kobolds lui ont vol\xE9 sa cloche. Elle b\xE9nit, ou maudit." },
+    { id: "krik", name: "Krik", color: "#b48ce0", description: "Un Kobold qui ne peut plus mentir depuis une exp\xE9rience rat\xE9e. Il a trahi ses camarades et vend leur butin." },
+    { id: "colporteur", name: "Le Colporteur", color: "#7a5aa0", description: "Un marchand vo\xFBt\xE9, un par section. Il ach\xE8te et vend, et dispara\xEEt quand le donjon s'agite trop." },
+    { id: "compteur", name: "Le Kobold qui compte", color: "#9cb63e", description: "Derri\xE8re une porte perc\xE9e d'un trou, il r\xE9p\xE8te son nombre. Ne regardez pas par le trou." },
+    { id: "bain", name: "Le Kobold du bain", color: "#a8c8ec", description: "Il dort dans sa baignoire, en musique. R\xE9veill\xE9, il se bat \xE0 la serviette, puis s'enfuit en criant." }
+  ];
+  var CODEX_TRAPS = {
+    spikes: "Des pointes jaillissent de la dalle. Un bond d'Agilit\xE9 permet parfois de l'\xE9viter.",
+    pit: "La dalle c\xE8de : on tombe, on se blesse, et il faut un tour pour remonter.",
+    needle: "Une aiguille empoisonn\xE9e : une piq\xFBre, puis le poison pendant quelques tours.",
+    gas: "Un nuage vert s'\xE9chappe de la grille : qui s'y tient est empoisonn\xE9."
+  };
+  var CODEX_STATES = [
+    { id: "poison", name: "Empoisonn\xE9", description: "On perd des PV \xE0 chaque tour, pendant quelques tours." },
+    { id: "feu", name: "En feu", description: "1d4 d\xE9g\xE2ts par tour. Sortir des flammes, ou marcher dans l'eau." },
+    { id: "ralenti", name: "Englu\xE9 ou ralenti", description: "Le prochain pas sert \xE0 se d\xE9gager ; un monstre ralenti ne joue qu'un tour sur deux." },
+    { id: "sonne", name: "Sonn\xE9", description: "Le monstre perd son prochain tour." },
+    { id: "cache", name: "Cach\xE9", description: "Les monstres ne vous remarquent qu'au contact. Premi\xE8re attaque avec l'avantage." },
+    { id: "torche", name: "Torche allum\xE9e", description: "Vous \xE9clairez autour de vous, mais on vous voit venir." },
+    { id: "arme_poison", name: "Arme empoisonn\xE9e", description: "Vos coups qui portent empoisonnent." },
+    { id: "beni", name: "B\xE9ni", description: "La pomme dor\xE9e de l'autel : +1 \xE0 l'attaque et +1 classe d'armure." },
+    { id: "protection", name: "Protection", description: "La b\xE9n\xE9diction de S\u0153ur Osseuse : +1 classe d'armure." },
+    { id: "clarte", name: "Clart\xE9", description: "Le poison dure moiti\xE9 moins longtemps, sur l'\xE9tage." },
+    { id: "malediction", name: "Mal\xE9diction des Kobolds", description: "+2 d\xE9g\xE2ts contre les Kobolds, sur l'\xE9tage." },
+    { id: "chance", name: "Chance", description: "Vos prochains 1 au d\xE9 sont relanc\xE9s." },
+    { id: "oursin", name: "Oursin", description: "Une part des d\xE9g\xE2ts re\xE7us au contact revient \xE0 l'attaquant." },
+    { id: "accelere", name: "Acc\xE9l\xE9r\xE9", description: "Chaque attaque au contact frappe deux fois." },
+    { id: "rempart", name: "Dernier rempart", description: "Un coup qui vous tuerait vous laisse debout." }
+  ];
+
   // src/ui/pictos.ts
   var PICTOS = {
     humain: { rows: ["FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", "FPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPF", "FPFFFFFFFFFPFFFFFPFFFFFPFFFFFFFFPF", "FPFPPFPPPPFPPPPPFPPPPPFPPPPPFPPFPF", "FPFPFFFFPFFPFFPFFPFFPFFPFFPFFFPFPF", "FPFPFPPFPPPPPFPPPPPFPPPPPFPPPFPFPF", "FPFPFPPPPPPPPPPPPPPPPPPPPPPPPFPFPF", "FPFPPPPFFFFFFFFFFFFFFFFFFFFPFFPFPF", "FPFPFFPFPPPPPPPPPPPPPPPPPPFPPPPFPF", "FPFPFPPFPPPPPPPPPPPPPPPPPPFPPFPFPF", "FPPPPPPFPPPPPPPPPPPPPPPPPPFPPFFFPF", "FPFFFPPFPPFPPPPPFFPPPPPFPPFPPPPPPF", "FPFPFPPFPFLFPPPFLLFPPPFLFPFPPFPFPF", "FPFPPPPFPFLFPPPFLLFPPPFLFPFPFFPFPF", "FPFPFFPFPFLLFPFLLLLFPFLLFPFPPPPFPF", "FPFPFPPFPFLLLFLLLLLLFLLLFPFPPFPFPF", "FPPPPPPFPFLLLLLLLLLLLLLLFPFPPFFFPF", "FPFFFPPFPFLLPLLLLLLLLPLLFPFPPPPPPF", "FPFPFPPFPFLLLLLLPPLLLLLLFPFPPFPFPF", "FPFPPPPFPFFFFFFFFFFFFFFFFPFPFFPFPF", "FPFPFFPFPFPPPPPPPPPPPPPPFPFPPPPFPF", "FPFPFPPFPFFFFFFFFFFFFFFFFPFPPFPFPF", "FPPPPPPFPPPPPPPPPPPPPPPPPPFPPFFFPF", "FPFFFPPFPPPPPPPPPPPPPPPPPPFPPPPPPF", "FPFPFPPFPPPPPPPPPPPPPPPPPPFPPFPFPF", "FPFPPPPFPPPPPPPPPPPPPPPPPPFPFFPFPF", "FPFPFFPFFFFFFFFFFFFFFFFFFFFPPPPFPF", "FPFPFPPPPPPPPPPPPPPPPPPPPPPPPFPFPF", "FPFPFPPPFPPPPPFPPPPPFPPPPPFPPFPFPF", "FPFPFFFPFFPFFPFFPFFPFFPFFPFFFFPFPF", "FPFPPFPPPPPFPPPPPFPPPPPFPPPPFPPFPF", "FPFFFFFFFFPFFFFFPFFFFFPFFFFFFFFFPF", "FPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPF", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"], palette: { "F": "#e27070", "L": "#f3c6c6", "P": "#fbf5e6" } },
@@ -22168,7 +22276,7 @@
         return pool[e.joke % pool.length];
       }
       case "feud":
-        return ctx.sees?.(e.a) || ctx.sees?.(e.b) ? e.reason === "shot" ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !` : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage\u2026 et en viennent aux mains !` : null;
+        return ctx.sees?.(e.a) || ctx.sees?.(e.b) ? e.reason === "shot" ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !` : e.reason === "fog" ? `Dans le brouillard, ${the(e.a.name)} et ${the(e.b.name)} se cognent\u2026 et se battent !` : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage\u2026 et en viennent aux mains !` : null;
       case "infight":
         return null;
       case "heavyBlow":
@@ -22869,6 +22977,7 @@
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
       sfx.play("notice");
     } else if (e.type === "counter") {
+      discover(["n:compteur"]);
       if (e.what === "count") renderer.addFloatingText(e.x, e.y, `${e.n}\u2026`, "#c8c0d4");
       else if (e.what === "poke") {
         renderer.addFloatingText(game.hero.x, game.hero.y, "A\xEFe ! L'\u0153il !", "#ff6b7a");
@@ -24530,18 +24639,7 @@
       nodes.push(...cards);
     };
     if (codexTab === "objets") {
-      const groups = [
-        ["Armes de corps \xE0 corps", ["melee"]],
-        ["Armes \xE0 distance et munitions", ["ranged", "ammo"]],
-        ["Armures", ["armor"]],
-        ["Heaumes", ["hat"]],
-        ["Amulettes", ["amulet"]],
-        ["Artefacts", ["artifact"]],
-        ["Sacs", ["bag"]],
-        ["Potions et vivres", ["use"]],
-        ["Pierres pr\xE9cieuses et or", ["gem", "gold"]],
-        ["Divers", ["key", "quest"]]
-      ];
+      const groups = CODEX_ITEM_GROUPS;
       for (const [title, kinds] of groups) {
         const all = Object.values(ITEMS).filter((d) => kinds.includes(d.kind));
         const cards = all.filter((d) => codex.has(d.id)).map((def) => {
@@ -24557,7 +24655,27 @@
         const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Cr\xE9ature", m.description));
         section(`Famille : ${family}`, members.length, cards);
       }
-    } else nodes.push(...manualNodes());
+      const people = CODEX_PEOPLE.filter((p) => codex.has(`n:${p.id}`)).map((p) => codexCard("square", p.color, p.name, "Personnage", p.description));
+      section("Personnages", CODEX_PEOPLE.length, people);
+    } else {
+      nodes.push(...manualNodes());
+      nodes.push(el("h3", "", "Pi\xE8ges"));
+      for (const [kind, text] of Object.entries(CODEX_TRAPS)) {
+        const name = TRAPS[kind].name;
+        nodes.push(codexCard("square", "#8a7656", name.charAt(0).toUpperCase() + name.slice(1), "Pi\xE8ge", text));
+      }
+      nodes.push(el("h3", "", "\xC9tats"));
+      for (const st of CODEX_STATES) {
+        const card = el("div", "item-card");
+        const picture = el("div", "item-card-icon");
+        const icon = STATUS_ICONS[st.id];
+        if (icon) picture.append(buildIcon(icon));
+        const body = el("div", "item-card-body");
+        body.append(el("div", "item-card-name", st.name), el("div", "item-card-kind", "\xC9tat"), el("div", "item-card-desc", st.description));
+        card.append(picture, body);
+        nodes.push(card);
+      }
+    }
     $("codex-list").replaceChildren(...nodes);
     $("codex-tabs").replaceChildren(
       ...[["objets", "Objets"], ["creatures", "Cr\xE9atures"], ["manuel", "Manuel"]].map(([tab, label]) => {
@@ -24578,6 +24696,14 @@
     if (stamp === codexSeenAt) return;
     codexSeenAt = stamp;
     const found = game.visibleMonsters().map((m) => `m:${m.defId}`);
+    for (const id of NPC_IDS) {
+      const g = game.npc(id);
+      if (g && game.isVisible(g.x, g.y)) found.push(`n:${id}`);
+    }
+    const shop = game.merchant();
+    if (shop && game.isVisible(shop.x, shop.y)) found.push("n:colporteur");
+    const tub = game.bath();
+    if (tub && game.isVisible(tub.x, tub.y)) found.push("n:bain");
     discover(found);
   }
   function showScreen(screen) {

@@ -46,6 +46,8 @@ export const RULES = {
   /** Potion de brouillard (Thomas, 2026-11-13, dessin) : losange de rayon 2 (rangées de 1, 3, 5, 3, 1 cases), durée en tours (C). */
   fogArm: 2,
   fogTurns: 8,
+  /** Deux monstres côte à côte dans le brouillard : chance par tour qu'ils se battent (C). */
+  fogBrawlChance: 0.25,
   /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
   urchinReflect: 0.15,
   urchinTurns: 40,

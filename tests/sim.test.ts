@@ -4016,3 +4016,34 @@ test("un Kobold mal en point prend parfois la fuite, puis revient", () => {
   }
   assert.ok(fled > 0, "jamais de fuite");
 });
+
+test("encyclopédie complète : chaque objet, monstre, personnage, piège et état a sa fiche (Thomas, 2026-11-13)", async () => {
+  const { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } = await import("../src/data/codex");
+  const { TRAPS } = await import("../src/data/traps");
+  const { STATUS_ICONS } = await import("../src/ui/icons");
+  const { NPC_IDS } = await import("../src/core/game");
+  const { MONSTERS } = await import("../src/data/monsters");
+  type ItemDef = import("../src/data/items").ItemDef;
+  const kinds = new Set(CODEX_ITEM_GROUPS.flatMap(([, k]) => k));
+  for (const def of Object.values(ITEMS) as ItemDef[]) {
+    assert.ok(kinds.has(def.kind), `objet sans rubrique : ${def.id} (${def.kind})`);
+    assert.ok(def.description && def.description.length > 5, `objet sans description : ${def.id}`);
+  }
+  for (const m of Object.values(MONSTERS) as { id: string; description?: string }[]) assert.ok(m.description, `monstre sans description : ${m.id}`);
+  for (const id of [...NPC_IDS, "colporteur"]) assert.ok(CODEX_PEOPLE.some((p) => p.id === id), `personnage sans fiche : ${id}`);
+  for (const kind of Object.keys(TRAPS)) assert.ok(CODEX_TRAPS[kind as keyof typeof CODEX_TRAPS], `piège sans fiche : ${kind}`);
+  for (const id of Object.keys(STATUS_ICONS)) assert.ok(CODEX_STATES.some((s) => s.id === id), `état sans fiche : ${id}`);
+});
+
+test("brouillard : un monstre dedans erre au hasard et ne frappe pas ; deux qui s'y cognent finissent par se battre", () => {
+  const { game, m } = foeAt(1);
+  game.hero.hp = game.hero.maxHp = 999;
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) game.fog.push({ x: m.x + dx, y: m.y + dy, turns: 50 });
+  for (let i = 0; i < 10; i++) {
+    game.wait();
+    game.tick();
+    assert.ok(!game.events.some((e) => e.type === "attack" && e.attacker === m), "il frappe dans le brouillard");
+    assert.ok(game.fogAt(m.x, m.y), "il est sorti de la nappe");
+    game.events.length = 0;
+  }
+});

@@ -5197,6 +5197,33 @@ export class Game {
       }
       if (m.feud !== undefined && this.feudAct(m)) continue;
       if (m.soapy) m.soapy--;
+      // Pris dans le brouillard (Thomas, 2026-11-13) : il ne voit plus rien, erre au hasard dans la nappe et ne frappe
+      // personne jusqu'à ce qu'elle se dissipe ; deux monstres qui s'y cognent peuvent en venir aux mains.
+      if (!m.boss && this.fogAt(m.x, m.y)) {
+        m.alerted = false;
+        m.wary = false;
+        m.goal = undefined;
+        const other = this.monsters.find((o) => o !== m && !o.boss && o.feud === undefined && this.fogAt(o.x, o.y) && gapBetween(o, m) <= 1);
+        if (other && this.rng.chance(RULES.fogBrawlChance)) {
+          this.startFeud(m, other, "fog");
+          continue;
+        }
+        const steps: Point[] = [];
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = m.x + dx;
+            const y = m.y + dy;
+            if ((dx || dy) && canStep(this.map, m.x, m.y, dx, dy) && this.fogAt(x, y) && !this.actorAt(x, y) && !this.npcAt(x, y) && !this.isTrap(x, y) && !this.map.isDoor(x, y)) steps.push({ x, y });
+          }
+        }
+        if (steps.length > 0 && this.rng.chance(0.7)) {
+          const to = steps[this.rng.int(0, steps.length - 1)];
+          this.faceToward(m, to);
+          m.x = to.x;
+          m.y = to.y;
+        }
+        continue;
+      }
       // Le Kobold du bain, blessé : il s'enfuit en hurlant, et ses camarades accourent (Thomas, 2026-11-13).
       if (m.bather && !m.fleeing && m.alerted && m.hp * 2 < m.maxHp) {
         m.fleeing = true;
@@ -5459,7 +5486,7 @@ export class Game {
     }
   }
 
-  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot"): void {
+  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog"): void {
     a.feud = b.id;
     b.feud = a.id;
     a.blockedBy = b.blockedBy = undefined;

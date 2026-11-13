@@ -232,6 +232,19 @@
   .dice.ready #die-who { color: var(--gold); }
   .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
+  /* Dés de dégâts : petits dés rouges dans les coins bas du d20, sans agrandir la zone ; la forme suit le dé. */
+  .dice-row { position: relative; }
+  .dmg { position: absolute; bottom: -2px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; isolation: isolate;
+    font-size: 13px; color: #ffd9a0; text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+    filter: drop-shadow(1px 0 0 #7a3a22) drop-shadow(-1px 0 0 #7a3a22) drop-shadow(0 1px 0 #7a3a22) drop-shadow(0 -1px 0 #7a3a22); }
+  .dmg[hidden] { display: none; }
+  .dmg::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(160deg, #5a2618, #2a100a); clip-path: inset(8% round 3px); }
+  .dmg.l { left: 0; } .dmg.r { right: 0; }
+  .dmg.d4 { padding-top: 7px; } .dmg.d4::before { clip-path: polygon(50% 4%, 96% 92%, 4% 92%); }
+  .dmg.d8::before { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+  .dmg.d10::before { clip-path: polygon(50% 0, 100% 42%, 50% 100%, 0 42%); }
+  .dmg.d12::before { clip-path: polygon(50% 0, 98% 36%, 80% 96%, 20% 96%, 2% 36%); }
+  .dmg.more { font-size: 11px; }
   .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
@@ -494,7 +507,7 @@
     <button id="here-info" type="button">?</button>
   </div>
   <div class="panel">
-    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
+    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div><div id="dmg1" class="dmg l" hidden></div><div id="dmg2" class="dmg r" hidden></div></div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   </div>
@@ -22693,6 +22706,7 @@
   var die = $("die");
   var die2 = $("die2");
   var dieWho = $("die-who");
+  var dmgDice = [$("dmg1"), $("dmg2")];
   var log = $("log");
   var over = $("over");
   var seedLabel = $("seed");
@@ -22870,6 +22884,16 @@
     die2.hidden = true;
     die.parentElement?.classList.toggle("pair", !die2.hidden);
     dieWho.textContent = tr("");
+    showDamageDice(void 0);
+  }
+  function showDamageDice(roll2) {
+    const faces = roll2?.faces ?? [];
+    const shown = faces.length > 2 ? [String(faces[0]), `+${faces.slice(1).reduce((a, b) => a + b, 0)}`] : faces.map(String);
+    dmgDice.forEach((d, i) => {
+      d.hidden = i >= shown.length;
+      d.textContent = shown[i] ?? "";
+      d.className = `dmg ${i === 0 ? "l" : "r"} d${roll2?.dice.sides ?? 6}${faces.length > 2 && i === 1 ? " more" : ""}`;
+    });
   }
   function renderLog() {
     logLines = logLines.slice(-LOG_LINES);
@@ -22900,6 +22924,7 @@
     const foe = byFoe(e);
     const mode = e.type === "attack" ? e.result.mode : "normal";
     die.className = `die rolling${foe ? " foe" : ""}`;
+    showDamageDice(void 0);
     die2.hidden = mode === "normal";
     die.parentElement?.classList.toggle("pair", !die2.hidden);
     die2.className = `die rolling${foe ? " foe" : ""}`;
@@ -22942,6 +22967,7 @@
       if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunit\xE9 !", "#ffd75e");
       const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : void 0;
       landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
+      showDamageDice(r.hit ? r.damageRoll : void 0);
       renderer.addFloatingText(
         e.target.x,
         e.target.y,

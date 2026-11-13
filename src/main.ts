@@ -64,6 +64,7 @@ function pulse(node: HTMLElement, name: string): void {
 const die = $("die");
 const die2 = $("die2");
 const dieWho = $("die-who");
+const dmgDice = [$("dmg1"), $("dmg2")];
 const log = $("log");
 const over = $("over");
 const seedLabel = $("seed");
@@ -301,6 +302,19 @@ function clearDie(): void {
   die2.hidden = true;
   die.parentElement?.classList.toggle("pair", !die2.hidden);
   dieWho.textContent = tr("");
+  showDamageDice(undefined);
+}
+
+/** Les dés de dégâts, en petit dans les coins bas du d20 : un par dé lancé (deux au plus ; au-delà, le second montre
+ *  la somme des autres, « +9 »). Leur forme suit le dé : triangle d4, carré d6, losange d8… */
+function showDamageDice(roll: { dice: { sides: number }; faces: number[] } | undefined): void {
+  const faces = roll?.faces ?? [];
+  const shown = faces.length > 2 ? [String(faces[0]), `+${faces.slice(1).reduce((a, b) => a + b, 0)}`] : faces.map(String);
+  dmgDice.forEach((d, i) => {
+    d.hidden = i >= shown.length;
+    d.textContent = shown[i] ?? "";
+    d.className = `dmg ${i === 0 ? "l" : "r"} d${roll?.dice.sides ?? 6}${faces.length > 2 && i === 1 ? " more" : ""}`;
+  });
 }
 
 function renderLog(): void {
@@ -351,6 +365,7 @@ function startRoll(e: GameEvent): void {
   const foe = byFoe(e);
   const mode = e.type === "attack" ? e.result.mode : "normal";
   die.className = `die rolling${foe ? " foe" : ""}`;
+  showDamageDice(undefined);
   die2.hidden = mode === "normal";
   die.parentElement?.classList.toggle("pair", !die2.hidden);
   die2.className = `die rolling${foe ? " foe" : ""}`;
@@ -400,6 +415,7 @@ function reveal(e: GameEvent): void {
     if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunité !", "#ffd75e");
     const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
+    showDamageDice(r.hit ? r.damageRoll : undefined);
     renderer.addFloatingText(
       e.target.x,
       e.target.y,

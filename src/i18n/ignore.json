@@ -24,5 +24,6 @@
  "SCRIPT",
  "STYLE",
  "grayscale(1) brightness(1.1)",
- "grayscale(1) brightness(1.15) contrast(0.9)"
+ "grayscale(1) brightness(1.15) contrast(0.9)",
+ "dmg {0} d{1}{2}"
 ]

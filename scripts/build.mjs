@@ -37,8 +37,10 @@ if (process.argv.includes("--tests")) {
   const html = readFileSync("scripts/template.html", "utf8")
     .replace("/*__FONTS__*/", () => fonts)
     .replace("/*__BUNDLE__*/", () => js)
-    // Le logo (l'emblème du d20 et des torches), en base64 dans la page.
-    .replaceAll("__LOGO__", () => `data:image/png;base64,${readFileSync("art/logo_embleme.png").toString("base64")}`);
+    // Le logo (emblème D2 : le dragon au-dessus du d20, dans son médaillon) et le titre « CAVE ROLLER » (T6), en base64
+    // dans la page (fabriqués par `python3 art/logo_d2.py embleme` et `titre`).
+    .replaceAll("__LOGO__", () => `data:image/png;base64,${readFileSync("art/logo_embleme.png").toString("base64")}`)
+    .replaceAll("__TITRE__", () => `data:image/png;base64,${readFileSync("art/logo_titre.png").toString("base64")}`);
   mkdirSync("demo", { recursive: true });
   writeFileSync("demo/index.html", html);
   console.log(`demo/index.html : ${(html.length / 1024).toFixed(1)} Ko`);

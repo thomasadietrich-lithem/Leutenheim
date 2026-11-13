@@ -102,7 +102,10 @@
   #over .over-title { font-size: 34px; color: #ff6b7a; }
   /* Billes d'expérience : du monstre vaincu à la jauge (Thomas). */
   .rarity-pip { width: 12px; height: 12px; shape-rendering: crispEdges; display: inline-block; vertical-align: middle; margin: 0 6px 2px 0; flex: none; }
-  #title-logo { width: 150px; height: 150px; image-rendering: pixelated; display: block; margin: 0 auto -6px; border-radius: 6px; }
+  /* Logo D2 et titre T6 (Thomas, 2026-11-13) : agrandis d'un facteur ENTIER, sans lissage (emblème 64 px ×2, titre
+     100 × 41 px ×3) ; aucun arrondi. */
+  #title-logo { width: 128px; height: 128px; image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+  #title-word { width: 300px; height: 123px; image-rendering: pixelated; display: block; margin: 0 auto; }
   .title-demo { text-shadow: none; display: block; font-size: 0.4em; letter-spacing: 0.3em; color: var(--dim); margin-top: 2px; text-transform: lowercase; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   .alarm-orb { position: fixed; width: 6px; height: 6px; margin: -3px 0 0 -3px; box-shadow: 0 0 5px 1px currentColor, inset -1px -1px 0 rgba(0,0,0,0.45); pointer-events: none; z-index: 50; }
@@ -630,7 +633,7 @@
   <div id="menu" class="overlay">
     <section id="screen-main">
       <img id="title-logo" src="__LOGO__" alt="">
-      <h1>CAVE ROLLER<small class="title-demo">démo</small></h1>
+      <h1><img id="title-word" src="__TITRE__" alt="Cave Roller"><small class="title-demo">démo</small></h1>
       <button id="menu-resume" type="button" hidden>Reprendre</button>
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-saves" type="button">Sauvegardes</button>

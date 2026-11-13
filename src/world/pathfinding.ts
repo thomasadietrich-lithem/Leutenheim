@@ -85,3 +85,22 @@ export function findPath(
   }
   return path;
 }
+
+/**
+ * Case de PASSAGE (Thomas, 2026-11-13 : « les PNJ ne doivent jamais être dans un passage ; mobilier et objets ne doivent
+ * jamais bloquer un passage ») : boucher cette case couperait ses voisines praticables en plusieurs groupes (on tourne
+ * autour d'elle : chaque suite de voisines praticables est un groupe). Une case au milieu d'une salle n'en est pas une ;
+ * une case de couloir, un goulet entre une colonne et un mur, si.
+ */
+export function isChokepoint(map: GameMap, x: number, y: number, walkable: (x: number, y: number) => boolean = (a, b) => map.isWalkable(a, b)): boolean {
+  const ring: [number, number][] = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
+  const open = ring.map(([dx, dy]) => walkable(x + dx, y + dy));
+  // Une diagonale ne relie ses deux voisines droites que si l'une d'elles est praticable : sinon on la compte à part.
+  let groups = 0;
+  for (let i = 0; i < 8; i++) {
+    if (open[i] && !open[(i + 7) % 8]) groups++;
+  }
+  if (groups === 0 && open.every(Boolean)) groups = 1;
+  return groups >= 2;
+}
+

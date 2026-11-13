@@ -3,6 +3,7 @@ import { RULES } from "../data/rules";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Floor, Room } from "./generator";
 import { GameMap, Point, Tile } from "./map";
+import { isChokepoint } from "./pathfinding";
 
 /**
  * Un meuble : `x`, `y` = sa case en haut à gauche ; il couvre `FURNITURE_KINDS[kind].w × h` cases. Ceux qui bloquent
@@ -26,6 +27,22 @@ export interface RoomTheme {
 }
 
 /** Nombre de cases où l'on peut marcher, atteignables depuis `from`. */
+/**
+ * Case de passage DE LA SALLE NUE (Thomas, 2026-11-13 : « les mobilier et objets ne doivent jamais bloquer un passage ») :
+ * un goulet entre murs, colonnes ou portes, comme si aucun meuble n'était encore posé. Les rangées de meubles voulues
+ * (bancs de la chapelle, établi et chaise) restent permises : seul le plan de la pièce compte.
+ */
+function bareChokepoint(map: GameMap, x: number, y: number): boolean {
+  return isChokepoint(map, x, y, (a, b) => {
+    const t = map.get(a, b);
+    return t !== Tile.Wall && t !== Tile.Pillar && t !== Tile.DoorLocked;
+  });
+}
+
+function blocksPassage(map: GameMap, cells: Point[]): boolean {
+  return cells.some((c) => bareChokepoint(map, c.x, c.y));
+}
+
 export function reachable(map: GameMap, from: Point): number {
   const seen = new Uint8Array(map.width * map.height);
   const stack = [from];
@@ -293,7 +310,8 @@ function roomPlacer(floor: Floor, room: Room) {
       if (cells.some((c) => besideOpening(floor, room, c.x, c.y))) return false;
       for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
       const after = reachable(map, floor.start);
-      if (after !== before - cells.length) {
+      // Jamais dans un passage (goulet entre deux obstacles), ni en fermant un avec un meuble voisin : Thomas, 2026-11-13.
+      if (after !== before - cells.length || blocksPassage(map, cells)) {
         for (const c of cells) map.set(c.x, c.y, Tile.Floor);
         return false;
       }
@@ -638,7 +656,7 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
     if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y) || nearHearth(floor, x, y)) continue;
     map.set(x, y, Tile.Furniture);
     const after = reachable(map, floor.start);
-    if (after !== before - 1) {
+    if (after !== before - 1 || blocksPassage(map, [{ x, y }])) {
       map.set(x, y, Tile.Floor);
       continue;
     }
@@ -666,7 +684,7 @@ export function placeBell(floor: Floor, rng: Rng, furniture: Furniture[], specia
     if ((x === floor.stairs.x && y === floor.stairs.y) || (x === floor.start.x && y === floor.start.y)) continue;
     if (avoid?.(x, y)) continue;
     map.set(x, y, Tile.Furniture);
-    if (reachable(map, floor.start) !== before - 1) {
+    if (reachable(map, floor.start) !== before - 1 || blocksPassage(map, [{ x, y }])) {
       map.set(x, y, Tile.Floor);
       continue;
     }

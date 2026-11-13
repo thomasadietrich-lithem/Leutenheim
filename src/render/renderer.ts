@@ -1305,14 +1305,14 @@ export class Renderer {
           continue;
         }
         const t = game.map.get(x, y);
-        const wall = t === Tile.Wall;
+        const wall = t === Tile.Wall || t === Tile.Pillar;
         // Les voiles sont calés sur les pixels entiers : deux cases voisines ne laissent ni jour ni recouvrement.
         const rx = this.snap(sx);
         const ry = this.snap(sy);
         const rw = this.snap(sx + tile) - rx;
         const rh = this.snap(sy + tile) - ry;
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
-        const shade = wall || t === Tile.Pillar ? 0.6 : 1;
+        const shade = wall ? 0.6 : 1;
         if (game.isVisible(x, y)) {
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
           // Un mur ne montre que la lumière qui tombe sur la face qu'on regarde : celle des cases dégagées
@@ -1326,7 +1326,7 @@ export class Renderer {
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
-          veil(wall || t === Tile.Pillar ? "rgba(8,7,14,0.720)" : "rgba(8,7,14,0.820)", rx, ry, rw, rh);
+          veil(wall ? "rgba(8,7,14,0.720)" : "rgba(8,7,14,0.820)", rx, ry, rw, rh);
         }
       }
     }

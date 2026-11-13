@@ -11,7 +11,7 @@ import { Inventory } from "../src/items/inventory";
 import { generateFloor } from "../src/world/generator";
 import { GameMap, Tile } from "../src/world/map";
 import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
-import { canStep, distanceField, findPath } from "../src/world/pathfinding";
+import { canStep, distanceField, findPath, isChokepoint } from "../src/world/pathfinding";
 import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
 import { guaranteedLoot } from "../src/core/floor";
 import { FURNITURE_KINDS } from "../src/data/themedRooms";
@@ -2701,6 +2701,34 @@ test("fuite : un Kobold qui fuit passe les portes", () => {
       }
   }
   assert.fail("aucune porte utilisable");
+});
+
+test("passages : aucun PNJ dans un couloir, devant une porte ou un goulet ; aucun meuble bloquant dans un goulet", () => {
+  let npcs = 0;
+  for (let seed = 1; seed <= 80; seed++) {
+    const game = new Game(seed);
+    for (let d = 0; d < 3; d++) {
+      const map = game.map;
+      for (const g of [game.gluck(), game.soeur(), game.krik()]) {
+        if (!g) continue;
+        npcs++;
+        assert.ok(game.rooms.some((r) => g.x >= r.x && g.y >= r.y && g.x < r.x + r.w && g.y < r.y + r.h), `graine ${seed} : PNJ dans un couloir`);
+        assert.ok(![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => map.isDoor(g.x + dx, g.y + dy)), `graine ${seed} : PNJ devant une porte`);
+        assert.ok(!isChokepoint(map, g.x, g.y), `graine ${seed} : PNJ dans un goulet (${g.x}, ${g.y})`);
+      }
+      for (const f of game.furnitureList()) {
+        if (!FURNITURE_KINDS[f.kind]?.blocks) continue;
+        for (const c of furnitureCells(f)) {
+          // Le plan de la salle nue (murs, colonnes, portes) : la case serait-elle un goulet ?
+          const cut = isChokepoint(map, c.x, c.y, (a, b) => { const t = map.get(a, b); return t !== Tile.Wall && t !== Tile.Pillar && t !== Tile.DoorLocked; });
+          assert.ok(!cut, `graine ${seed} étage ${game.depth} : ${f.kind} bouche un passage en (${c.x}, ${c.y})`);
+        }
+      }
+      game.pendingStairs = "down";
+      game.takeStairs();
+    }
+  }
+  assert.ok(npcs > 0);
 });
 
 test("jeter une partie d'une pile : seul le nombre choisi tombe, le reste reste au sac", () => {

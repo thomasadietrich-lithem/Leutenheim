@@ -395,10 +395,10 @@
      toutes d'un coup ; « Descendre » lance la partie. */
   #intro { z-index: 7; background: #0a0806; gap: 28px; cursor: pointer; }
   #intro-lines { width: min(100%, 330px); display: flex; flex-direction: column; gap: 18px; text-align: left; }
-  #intro-lines p { margin: 0; font-size: 21px; line-height: 1.2; color: var(--ink); opacity: 0; animation: intro-in 0.9s ease-out forwards; }
+  #intro-lines p { margin: 0; font-size: 21px; line-height: 1.2; color: var(--ink); opacity: 0; animation: intro-in 0.5s ease-out forwards; }
   #intro-lines p:last-child { color: var(--gold); }
   #intro.all #intro-lines p { animation: none; opacity: 1; }
-  #intro-go { width: 220px; padding: 10px; font-size: 22px; opacity: 0; animation: intro-in 0.6s ease-out forwards; }
+  #intro-go { width: 220px; padding: 10px; font-size: 22px; opacity: 0; animation: intro-in 0.4s ease-out forwards; }
   #intro.all #intro-go { animation: none; opacity: 1; }
   @keyframes intro-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   #found h2 { margin: 0; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }

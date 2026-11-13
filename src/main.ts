@@ -1173,7 +1173,6 @@ function manualNodes(): HTMLElement[] {
 
 /** Le bandeau de la tâche de quête, sous les jauges : l'objectif, puis « revenir voir… » (il clignote quand c'est fait). */
 let questShown = "";
-let recordClock = 0;
 let questWasDone = false;
 function renderQuest(): void {
   const banner = $("quest-banner");
@@ -3061,19 +3060,19 @@ button("new-start", () => {
   showIntro();
 });
 
-/** Le synopsis (Thomas, 2026-11-13), au début de chaque nouvelle partie : une ligne toutes les 1,6 s. */
-const INTRO_STEP_S = 1.6;
+/** Le synopsis (Thomas, 2026-11-13), au début de chaque nouvelle partie : une ligne toutes les 0,7 s (« accélère »). */
+const INTRO_STEP_S = 0.7;
 function showIntro(): void {
   const box = $("intro");
   box.classList.remove("all");
   $("intro-lines").replaceChildren(
     ...INTRO_LINES.map((line, i) => {
       const p = el("p", "", line);
-      p.style.animationDelay = `${0.3 + i * INTRO_STEP_S}s`;
+      p.style.animationDelay = `${0.2 + i * INTRO_STEP_S}s`;
       return p;
     }),
   );
-  $("intro-go").style.animationDelay = `${0.3 + INTRO_LINES.length * INTRO_STEP_S}s`;
+  $("intro-go").style.animationDelay = `${0.2 + INTRO_LINES.length * INTRO_STEP_S}s`;
   box.hidden = false;
 }
 // Toucher l'écran : tout le texte d'un coup ; le bouton (une fois visible) lance la partie.
@@ -3297,14 +3296,8 @@ function frame(now: number): void {
   renderAlarm();
   renderHeroStatus();
   renderQuest();
-  // Le tourne-disque de la salle de bain : une note de temps en temps, quand on est assez près.
-  if (game.bathMusicNear() && !menuOpen) {
-    recordClock += dt;
-    if (recordClock > 650) {
-      recordClock = 0;
-      sfx.play("record");
-    }
-  }
+  // Le tourne-disque de la salle de bain ne joue plus de son (Thomas, 2026-11-13 : « il écrase la sono du jeu ») ;
+  // seules ses notes dessinées restent.
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
   setWidth(hpFill, `${(100 * shownHp) / game.hero.maxHp}%`);

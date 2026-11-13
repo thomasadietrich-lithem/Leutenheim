@@ -48,31 +48,14 @@ export class TilePainter {
 
   /** Le dessin d'une case : sol, mur, colonne, porte, escalier, coffre… (sans ombre ni lumière). */
   paintCell(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
-    const { ctx, tile } = this;
-    const wall = t === Tile.Wall;
-        if (t === Tile.Pillar) {
-          // Colonne : une dalle de sol, et un fût de pierre rond vu du dessus.
-          this.drawFloor(game, x, y, sx, sy);
-          ctx.fillStyle = "rgba(12,11,18,0.45)";
-          ctx.beginPath();
-          ctx.arc(sx + tile * 0.54, sy + tile * 0.56, tile * 0.4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#6e7290";
-          ctx.beginPath();
-          ctx.arc(sx + tile * 0.5, sy + tile * 0.5, tile * 0.38, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#9296b6";
-          ctx.beginPath();
-          ctx.arc(sx + tile * 0.46, sy + tile * 0.45, tile * 0.25, 0, Math.PI * 2);
-          ctx.fill();
-        } else
-        if (wall) {
-          this.drawWall(game, x, y, sx, sy);
-        } else {
-          this.drawFloor(game, x, y, sx, sy);
-        }
-        if (!wall) this.drawRugs(game, x, y, sx, sy);
-        this.drawFeature(game, t, x, y, sx, sy);
+    // Colonne : dessinée comme un bloc de mur (voir `walls.ts`).
+    const wall = t === Tile.Wall || t === Tile.Pillar;
+    if (wall) this.drawWall(game, x, y, sx, sy);
+    else {
+      this.drawFloor(game, x, y, sx, sy);
+      this.drawRugs(game, x, y, sx, sy);
+    }
+    this.drawFeature(game, t, x, y, sx, sy);
   }
 
   /**

@@ -97,16 +97,22 @@ interface CellInfo {
   w: boolean;
 }
 
+/** Les colonnes se dessinent comme des blocs de mur, raccordés aux murs voisins (Thomas, 2026-11-13 : « remplace les
+ *  colonnes par des blocs de murs adaptés »). Elles restent des colonnes pour le jeu (abri, vue). */
+function isWallLike(t: Tile): boolean {
+  return t === Tile.Wall || t === Tile.Pillar;
+}
+
 class WallReader {
   private readonly info = new Map<number, CellInfo>();
   constructor(private readonly map: GameMap) {}
 
   isWall(x: number, y: number): boolean {
-    return !this.map.inBounds(x, y) || this.map.get(x, y) === Tile.Wall;
+    return !this.map.inBounds(x, y) || isWallLike(this.map.get(x, y));
   }
 
   open(x: number, y: number): boolean {
-    return this.map.inBounds(x, y) && this.map.get(x, y) !== Tile.Wall;
+    return this.map.inBounds(x, y) && !isWallLike(this.map.get(x, y));
   }
 
   /** Un parement : un mur qui touche (même en diagonale) autre chose que du mur. L'intérieur de la roche reste noir. */
@@ -223,7 +229,7 @@ const canvases = new Map<string, HTMLCanvasElement>();
 export function wallImage(map: GameMap, x: number, y: number): HTMLCanvasElement {
   // Le dessin dépend des murs jusqu'à 3 cases autour (liens entre parements, extrémités) : c'est la clé.
   let sig = "";
-  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) sig += !map.inBounds(x + dx, y + dy) || map.get(x + dx, y + dy) === Tile.Wall ? "1" : "0";
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) sig += !map.inBounds(x + dx, y + dy) || isWallLike(map.get(x + dx, y + dy)) ? "1" : "0";
   const key = `${x},${y}|${sig}`;
   const cached = canvases.get(key);
   if (cached) return cached;

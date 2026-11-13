@@ -21,7 +21,7 @@ import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from ".
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
-import { canStep, distanceField, findPath } from "../world/pathfinding";
+import { canStep, distanceField, findPath, isChokepoint } from "../world/pathfinding";
 import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -3610,7 +3610,11 @@ export class Game {
   /** Une case où un PNJ peut se tenir : du sol nu, sans monstre, meuble, objet ni Colporteur. */
   private npcFree(state: FloorState, x: number, y: number): boolean {
     return (
-      state.map.get(x, y) === Tile.Floor && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) &&
+      state.map.get(x, y) === Tile.Floor &&
+      // Jamais dans un passage (Thomas, 2026-11-13) : ni couloir, ni devant une porte, ni goulet entre deux obstacles.
+      state.rooms.some((r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h) &&
+      ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => state.map.isDoor(x + dx, y + dy)) &&
+      !isChokepoint(state.map, x, y, (a, b) => state.map.isWalkable(a, b) && !state.furniture.some((f) => f.x === a && f.y === b && FURNITURE_KINDS[f.kind]?.blocks)) && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) &&
       !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) &&
       !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) &&
       !(state.krik && state.krik.x === x && state.krik.y === y)
@@ -3670,7 +3674,8 @@ export class Game {
   }
 
   /**
-   * Krik se tient dans une forge ou un dortoir, sinon n'importe où sur du sol nu, salle ou COULOIR (fiche de Thomas),
+   * Krik se tient dans une forge ou un dortoir, sinon n'importe où sur du sol nu d'une salle (plus de couloir : jamais
+   * dans un passage, Thomas 2026-11-13) (fiche de Thomas),
    * loin de l'arrivée et de l'escalier.
    */
   private placeKrik(state: FloorState, rng: Rng): GluckSpot | null {

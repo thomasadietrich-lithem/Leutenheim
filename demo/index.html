@@ -25279,6 +25279,7 @@
   var gravelCrik = true;
   var stairsScene = null;
   var sandboxStairs = 0;
+  var stairsGame = null;
   var STAIRS_ORDER = ["normal", "tumble", "kobold", "flute", "vines", "basin"];
   function beginStairs(force) {
     const direction = game.pendingStairs;
@@ -25287,7 +25288,10 @@
     if (target < 1) return;
     let variant = "normal";
     if (force) variant = force;
-    else if (game.sandbox) variant = STAIRS_ORDER[sandboxStairs++ % STAIRS_ORDER.length];
+    else if (game.sandbox) {
+      if (stairsGame !== game) sandboxStairs = 0;
+      variant = STAIRS_ORDER[sandboxStairs++ % STAIRS_ORDER.length];
+    } else if (direction === "down" && game.depth === 1) variant = "normal";
     else {
       const r = Math.random();
       const table = direction === "down" ? [["tumble", 1 / 12], ["kobold", 1 / 20], ["flute", 1 / 20], ["vines", 1 / 20], ["basin", 1 / 20]] : [["kobold", 1 / 20], ["flute", 1 / 20]];
@@ -25297,6 +25301,7 @@
         break;
       }
     }
+    stairsGame = game;
     stairsScene = new StairsScene(direction, variant, tr(`\xC9TAGE ${target}`));
   }
   function advanceStairs(dt) {

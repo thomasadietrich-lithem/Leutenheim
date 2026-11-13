@@ -3000,6 +3000,8 @@ let stairsScene: StairsScene | null = null;
 
 /** Salle d'essai : les scènes d'escalier défilent dans l'ordre, pour toutes les voir. */
 let sandboxStairs = 0;
+/** La partie des derniers escaliers : une nouvelle salle d'essai recommence par la descente ordinaire. */
+let stairsGame: unknown = null;
 const STAIRS_ORDER: StairsVariant[] = ["normal", "tumble", "kobold", "flute", "vines", "basin"];
 
 function beginStairs(force?: StairsVariant): void {
@@ -3011,7 +3013,12 @@ function beginStairs(force?: StairsVariant): void {
   // flûte, lianes et bassine 1 fois sur 20 chacune (C) ; en montant, Kobold et flûte seulement.
   let variant: StairsVariant = "normal";
   if (force) variant = force;
-  else if (game.sandbox) variant = STAIRS_ORDER[sandboxStairs++ % STAIRS_ORDER.length];
+  else if (game.sandbox) {
+    if (stairsGame !== game) sandboxStairs = 0;
+    variant = STAIRS_ORDER[sandboxStairs++ % STAIRS_ORDER.length];
+  }
+  // La toute première descente d'une partie est toujours la descente ordinaire (Thomas, 2026-11-13).
+  else if (direction === "down" && game.depth === 1) variant = "normal";
   else {
     const r = Math.random();
     const table: [StairsVariant, number][] = direction === "down"
@@ -3020,6 +3027,7 @@ function beginStairs(force?: StairsVariant): void {
     let acc = 0;
     for (const [v, p] of table) if (r < (acc += p)) { variant = v; break; }
   }
+  stairsGame = game;
   stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`));
 }
 

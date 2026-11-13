@@ -19,6 +19,8 @@ if (process.argv.includes("--tests")) {
     format: "iife",
     target: "es2020",
     write: false,
+    // Code compacté (audit du 2026-11-13) : 1 047 → 650 Ko de JavaScript, démarrage plus rapide.
+    minify: true,
     // Version publique (GitHub Pages, pour les copains) : sans la salle d'essai (Thomas, 2026-11-12).
     define: { __PUBLIC__: process.argv.includes("--public") ? "true" : "false" },
     logLevel: "warning",

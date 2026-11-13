@@ -23,8 +23,13 @@ export function canStep(map: GameMap, x: number, y: number, dx: number, dy: numb
   return true;
 }
 
-/** Distance en nombre de pas depuis `from` vers chaque case (-1 = inaccessible). */
-export function distanceField(map: GameMap, from: Point, allowed?: (x: number, y: number) => boolean): Int32Array {
+/**
+ * Distance en nombre de pas depuis `from` vers chaque case (-1 = inaccessible). Avec `stop` : on s'arrête dès que
+ * cette case est atteinte (audit du 2026-11-13 : les monstres calculaient tout l'étage à chaque pas ; un tour passe de
+ * 1,9 à 0,7 ms). Les cases plus proches que `stop` ont alors toutes leur distance, ce qui suffit pour y descendre.
+ */
+export function distanceField(map: GameMap, from: Point, allowed?: (x: number, y: number) => boolean, stop?: Point): Int32Array {
+  const stopAt = stop ? map.index(stop.x, stop.y) : -1;
   const dist = new Int32Array(map.width * map.height).fill(-1);
   const queue: number[] = [map.index(from.x, from.y)];
   dist[queue[0]] = 0;
@@ -38,6 +43,7 @@ export function distanceField(map: GameMap, from: Point, allowed?: (x: number, y
       const next = map.index(cx + d.x, cy + d.y);
       if (dist[next] !== -1) continue;
       dist[next] = dist[cur] + 1;
+      if (next === stopAt) return dist;
       queue.push(next);
     }
   }
@@ -57,7 +63,7 @@ export function findPath(
   if (!map.isWalkable(to.x, to.y)) return null;
   if (allowed && !allowed(to.x, to.y)) return null;
   // On calcule les distances depuis l'arrivée, puis on descend la pente depuis le départ.
-  const dist = distanceField(map, to, allowed);
+  const dist = distanceField(map, to, allowed, from);
   if (dist[map.index(from.x, from.y)] === -1) return null;
   const path: Point[] = [];
   let x = from.x;

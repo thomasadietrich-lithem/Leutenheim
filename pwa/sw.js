@@ -11,11 +11,12 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(self.clients.claim());
 });
 
-// Réseau d'abord (la dernière version), sinon ce qui est gardé.
+// Réseau d'abord (la dernière version), sinon ce qui est gardé. « no-cache » : le téléphone demande seulement si le
+// fichier a changé (audit du 2026-11-13 : « no-store » retéléchargeait 300 Ko à chaque ouverture).
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    fetch(e.request, { cache: "no-store" })
+    fetch(e.request, { cache: "no-cache" })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));

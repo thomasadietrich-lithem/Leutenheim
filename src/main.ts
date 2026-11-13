@@ -49,6 +49,17 @@ const LOG_LINES = 3;
 const OPTIONS_KEY = "leutenheim.options";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
+/** N'écrit dans la page que si ça change (audit du 2026-11-13) : réécrire la même chose à chaque image forçait le
+ *  navigateur à tout recalculer, 60 fois par seconde. */
+function setText(node: HTMLElement, text: string): void {
+  if (node.textContent !== text) node.textContent = text;
+}
+function setHidden(node: HTMLElement, hidden: boolean): void {
+  if (node.hidden !== hidden) node.hidden = hidden;
+}
+function setWidth(node: HTMLElement, width: string): void {
+  if (node.style.width !== width) node.style.width = width;
+}
 const canvas = $("game") as HTMLCanvasElement;
 const hpFill = $("hp-fill");
 const hpBar = document.querySelector(".hp:not(.xp)") as HTMLElement;
@@ -1166,7 +1177,7 @@ let questWasDone = false;
 function renderQuest(): void {
   const banner = $("quest-banner");
   const q = game.over ? null : game.questLine();
-  banner.hidden = !q;
+  setHidden(banner, !q);
   if (!q) {
     questShown = "";
     questWasDone = false;
@@ -3242,10 +3253,10 @@ function frame(now: number): void {
   }
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
-  hpFill.style.width = `${(100 * shownHp) / game.hero.maxHp}%`;
+  setWidth(hpFill, `${(100 * shownHp) / game.hero.maxHp}%`);
   hpOrbs();
   renderHere();
-  $("hp-label").textContent = tr(`PV ${shownHp}/${game.hero.maxHp}`);
+  setText($("hp-label"), tr(`PV ${shownHp}/${game.hero.maxHp}`));
   const xpShown = shownXp();
   // Niveau maximal de la section : la jauge est pleine, grisée, avec un petit panneau « stop ».
   const capped = game.xpBlocked() && xpInFlight === 0;
@@ -3254,29 +3265,29 @@ function frame(now: number): void {
     $("xp-stop").hidden = !capped;
     if (capped && !$("xp-stop").firstChild) $("xp-stop").append(uiIcon("stop"));
   }
-  $("xp-fill").style.width = capped ? "100%" : `${(100 * xpShown.xp) / xpShown.need}%`;
-  $("xp-label").textContent = tr(capped ? `Niv ${game.level} · MAX` : `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`);
+  setWidth($("xp-fill"), capped ? "100%" : `${(100 * xpShown.xp) / xpShown.need}%`);
+  setText($("xp-label"), tr(capped ? `Niv ${game.level} · MAX` : `Niv ${xpShown.level} · XP ${xpShown.xp}/${xpShown.need}`));
   // Seules les méthodes encore possibles sur cette porte sont proposées.
   const doorOptions = game.doorOptions();
   // Avec la clef de l'étage, rien à choisir : elle sert toute seule.
-  doorActions.hidden = doorOptions.length === 0 || game.over || cue !== null || game.usingKey();
-  $("door-key").hidden = !doorOptions.includes("key");
-  $("door-peek").hidden = !doorOptions.includes("peek");
-  $("door-pick").hidden = !doorOptions.includes("pick");
+  setHidden(doorActions, doorOptions.length === 0 || game.over || cue !== null || game.usingKey());
+  setHidden($("door-key"), !doorOptions.includes("key"));
+  setHidden($("door-peek"), !doorOptions.includes("peek"));
+  setHidden($("door-pick"), !doorOptions.includes("pick"));
   // Devant un sarcophage à pointes, les deux mêmes boutons : désamorcer (agilité) ou forcer (force).
   const maiden = game.pendingDoor !== null && game.maidenAt(game.pendingDoor.x, game.pendingDoor.y) !== null;
   const pickText = maiden ? "Désamorcer" : "Crocheter";
   const breakText = maiden ? "Forcer" : "Enfoncer";
   if ($("door-pick").textContent !== pickText) $("door-pick").textContent = tr(pickText);
   if ($("door-break").textContent !== breakText) $("door-break").textContent = tr(breakText);
-  $("door-break").hidden = !doorOptions.includes("break");
+  setHidden($("door-break"), !doorOptions.includes("break"));
   // En arrivant devant une porte verrouillée, le héros bute dessus.
   if (game.pendingDoor && !doorWasPending && !game.usingKey()) {
     renderer.addSlash(game.hero.id, game.hero.x, game.hero.y, game.pendingDoor.x, game.pendingDoor.y, "", false);
     sfx.play("knock");
   }
   doorWasPending = game.pendingDoor !== null;
-  $("recenter").hidden = !renderer.isPanned();
+  setHidden($("recenter"), !renderer.isPanned());
   const bow = game.weapon("ranged");
   const aim = $("aim");
   // Le bouton de tir sert aussi à lancer une javeline, même sans arc.

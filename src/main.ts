@@ -352,8 +352,6 @@ function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   rollTurn = game.turn;
   const chip = rollChip(e.result, foe);
   if (foe) chip.classList.add("foe");
-  diceLog.querySelector(".rc.last")?.classList.remove("last");
-  chip.classList.add("last");
   diceLog.append(chip);
   while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild!.remove();
   const chips = [...diceLog.children] as HTMLElement[];

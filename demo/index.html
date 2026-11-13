@@ -223,11 +223,11 @@
   body.frieze-on #wheel-bar { margin-bottom: 38px; }
   body.frieze-on #door-actions,
   body.frieze-on #test-tools { bottom: 40px; }
-  body.frieze-on #here { margin-bottom: 32px; }
+  /* Seulement ouverte : fermée, elle doit rester entièrement cachée sous le panneau (sinon un bout dépasse derrière la frise). */
+  body.frieze-on #here.open { margin-bottom: 32px; }
   #dice-log .sep { flex: none; font-size: 22px; line-height: 1; color: var(--gold); margin: 0 1px; opacity: 0.8; }
   #dice-log .sep, #dice-log .rc { flex: none; }
-  /* Le sens de lecture : les tours sont séparés par un chevron « › » qui pointe vers le plus récent, lui-même cerclé d'or. */
-  #dice-log .rc.last { box-shadow: inset 0 0 0 2px var(--gold); }
+  /* Le sens de lecture : les tours sont séparés par un chevron « › » qui pointe vers le plus récent. */
   #dice-log .rc { padding: 1px 4px 1px 1px; border-radius: 4px; background: rgba(30, 26, 20, 0.85); transition: opacity 0.3s; }
   #dice-log .rc.foe { background: rgba(100, 18, 12, 0.85); }
   .rc { display: flex; align-items: center; gap: 1px; flex: none; }
@@ -22968,8 +22968,6 @@
     rollTurn = game.turn;
     const chip = rollChip(e.result, foe);
     if (foe) chip.classList.add("foe");
-    diceLog.querySelector(".rc.last")?.classList.remove("last");
-    chip.classList.add("last");
     diceLog.append(chip);
     while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild.remove();
     const chips = [...diceLog.children];

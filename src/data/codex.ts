@@ -54,6 +54,8 @@ export const CODEX_STATES: { id: string; name: string; description: string }[] =
   { id: "malediction", name: "Malédiction des Kobolds", description: "+2 dégâts contre les Kobolds, sur l'étage." },
   { id: "chance", name: "Chance", description: "Vos prochains 1 au dé sont relancés." },
   { id: "oursin", name: "Oursin", description: "Une part des dégâts reçus au contact revient à l'attaquant." },
+  { id: "geant", name: "Géant", description: "Potion de géant : deux fois plus grand quelques tours ; les coups font deux fois plus mal, mais on ne passe plus les portes. Marche aussi sur les monstres, le boss compris." },
+  { id: "glissant", name: "Glissant", description: "Potion glissante : pour toujours. Chaque coup reçu fait glisser jusqu'au mur, où l'on rebondit et se cogne." },
   { id: "accelere", name: "Accéléré", description: "Chaque attaque au contact frappe deux fois." },
   { id: "pierre", name: "Statue ou pétrifié", description: "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lancée, le monstre ne bouge plus et sert d'abri." },
   { id: "rempart", name: "Dernier rempart", description: "Un coup qui vous tuerait vous laisse debout." },

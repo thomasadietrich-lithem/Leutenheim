@@ -15,6 +15,8 @@ export interface Furniture {
   kind: string;
   /** Panier à fruits : nombre de pommes posées dedans à la création de l'étage. */
   count?: number;
+  /** Table de cuisine (Thomas, 2026-11-13) : une assiette posée dessus ; 1 = la cuisse y est encore, 0 = assiette vide. */
+  plate?: number;
   /** Statue creuse (Thomas, 2026-11-12) : elle cache quelque chose ; `hinted` : Gluck l'a dit (la fissure se voit). */
   hollow?: boolean;
   hinted?: boolean;
@@ -476,11 +478,18 @@ export function furnishKitchen(floor: Floor, room: Room, rng: Rng, out: Furnitur
     const y = rng.int(room.y + 2, gy - 1);
     if (P.tryPlace({ x, y, kind: "basket", count: rng.int(2, 3) })) break;
   }
-  // Une assiette avec une cuisse de poulet (Thomas, 2026-11-13).
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const x = rng.int(room.x, room.x + room.w - 1);
-    const y = rng.int(room.y + 2, gy - 1);
-    if (P.tryPlace({ x, y, kind: "plate", count: 1 })) break;
+  // Une assiette avec une cuisse de poulet SUR LA TABLE (Thomas, 2026-11-13 : « place l'assiette sur la table ») ; sans
+  // table, au sol comme avant.
+  const table = P.placed.find((f) => f.kind === "table" || f.kind === "tableApple");
+  if (table) {
+    table.kind = "table";
+    table.plate = 1;
+  } else {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      const y = rng.int(room.y + 2, gy - 1);
+      if (P.tryPlace({ x, y, kind: "plate", count: 1 })) break;
+    }
   }
   out.push(...P.placed);
   return true;

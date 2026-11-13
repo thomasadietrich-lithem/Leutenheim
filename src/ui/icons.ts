@@ -60,6 +60,24 @@ const ICONS: Record<ItemId, string[]> = {
     "................",
     "................",
   ],
+  escalope: [
+    "................",
+    "................",
+    "................",
+    "....KKKKKK......",
+    "...KTTtTTTKK....",
+    "..KTtTTTTtTTKK..",
+    "..KTTTxTTTTtTK..",
+    ".KTTtTTTTxTTTTK.",
+    ".KTTTTTtTTTTtTK.",
+    ".KtTTxTTTTTTTK..",
+    "..KTTTTTtTxTTK..",
+    "..KKTTtTTTTTK...",
+    "....KKKTTTKK....",
+    ".......KKK......",
+    "................",
+    "................",
+  ],
   cuisse_poulet: [
     "................",
     "................",
@@ -1156,6 +1174,44 @@ const ICONS: Record<ItemId, string[]> = {
     "......KKKK......",
     "................",
   ],
+  // Potion de géant (2026-11-13) : la même fiole, violette.
+  potion_geant: [
+    ".......KK.......",
+    "......KbBK......",
+    "......KBbK......",
+    ".....KcQQcK.....",
+    ".....KKcQKK.....",
+    "....KcQQQQcK....",
+    "...KcQQQQQQcK...",
+    "..KcQWQQQQppcK..",
+    "..KcQWQQQpppcK..",
+    "..KcQQQQpppppK..",
+    "..KcQQQpppppcK..",
+    "...KcQpppppcK...",
+    "....KcppppcK....",
+    ".....KccccK.....",
+    "......KKKK......",
+    "................",
+  ],
+  // Potion glissante (2026-11-13) : la même fiole, verdâtre et huileuse.
+  potion_glissante: [
+    ".......KK.......",
+    "......KbBK......",
+    "......KBbK......",
+    ".....KcAAcK.....",
+    ".....KKcAKK.....",
+    "....KcAAAAcK....",
+    "...KcAAAAAAcK...",
+    "..KcAWAAAAaacK..",
+    "..KcAWAAAaaacK..",
+    "..KcAAAAaaaaaK..",
+    "..KcAAAaaaaacK..",
+    "...KcAaaaaacK...",
+    "....KcaaaacK....",
+    ".....KccccK.....",
+    "......KKKK......",
+    "................",
+  ],
   // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
   potion_fumee: [
     ".......KK.......",
@@ -1512,6 +1568,22 @@ export const BLOOD = {
   get pFire() {
     return memoColor("pFire", this.green, { "4": "x", "5": "O", "6": "X" });
   },
+  // Chaque potion laisse une flaque de SA couleur (Thomas, 2026-11-13).
+  get pUrchin() {
+    return memoColor("pUrchin", this.green, { "4": "b", "5": "B", "6": "T" });
+  },
+  get pStone() {
+    return memoColor("pStone", this.green, { "4": "D", "5": "c", "6": "S" });
+  },
+  get pDiscord() {
+    return memoColor("pDiscord", this.green, { "4": "q", "5": "M", "6": "L" });
+  },
+  get pGrow() {
+    return memoColor("pGrow", this.green, { "4": "p", "5": "P", "6": "Q" });
+  },
+  get pSlip() {
+    return memoColor("pSlip", this.green, { "4": "a", "5": "A", "6": "Z" });
+  },
 };
 
 /** Pictogrammes des statuts (sous les jauges, et en bulle au-dessus des monstres). */
@@ -1659,6 +1731,44 @@ export const STATUS_ICONS = {
     "..KKKbbbbbKKK...",
     ".K..KKKKKKK..K..",
     ".....K...K......",
+    "................",
+    "................",
+  ],
+  // Potion de géant (2026-11-13) : une grande flèche violette vers le haut, au-dessus d'un petit bonhomme.
+  geant: [
+    ".......KK.......",
+    "......KQQK......",
+    ".....KQQQQK.....",
+    "....KQQPPQQK....",
+    "...KQQKPPKQQK...",
+    "...KKK.PP.KKK...",
+    ".......PP.......",
+    "......KPPK......",
+    ".....KKKKKK.....",
+    ".....KZZZZK.....",
+    ".....KZKKZK.....",
+    ".....KZZZZK.....",
+    "....KPPPPPPK....",
+    "....KPKPPKPK....",
+    "......KK.KK.....",
+    "................",
+  ],
+  // Potion glissante (2026-11-13) : une goutte d'huile verdâtre et deux traits de glissade.
+  glissant: [
+    "................",
+    ".......KK.......",
+    "......KAAK......",
+    ".....KAAAAK.....",
+    "....KAAWAAAK....",
+    "....KAWAAAaK....",
+    "...KAAAAAAaaK...",
+    "...KAAAAAaaaK...",
+    "....KAAAaaaK....",
+    ".....KKKKKK.....",
+    "................",
+    ".KKKKKKKK.......",
+    "..........KKKKK.",
+    "...KKKKKKKKK....",
     "................",
     "................",
   ],

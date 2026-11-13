@@ -59,7 +59,7 @@ export interface ItemDef {
   bagCols?: number;
   bagRows?: number;
   /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
-  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord";
+  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip";
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
   throwRange?: number;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
@@ -68,8 +68,6 @@ export interface ItemDef {
   twoHanded?: boolean;
   /** Armes lourdes : un d20 naturel à partir de ce nombre SONNE la cible (elle perd son prochain tour). */
   stunOn?: number;
-  /** Armures lourdes : malus de discrétion (Thomas, 2026-11-12 : « bruyante »). */
-  stealthPenalty?: number;
 }
 
 export type Rarity = "common" | "uncommon" | "rare";
@@ -190,6 +188,8 @@ export const ITEMS = {
     poison: { damage: 1, turns: 4 },
   },
   // Truc fun du poulet (Thomas, 2026-11-13) : ce qu'il reste de lui après le mur du fond.
+  // Thomas (2026-11-13) : un Kobold mort dans les flammes laisse une escalope.
+  escalope: { id: "escalope", name: "Escalope de Kobold", kind: "use", description: "Bien grillée, un peu écailleuse. Rend 5 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 5 },
   cuisse_poulet: { id: "cuisse_poulet", name: "Cuisse de poulet", kind: "use", description: "Encore tiède. Rend 8 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 8 },
   pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
   torche: {
@@ -338,7 +338,6 @@ export const ITEMS = {
     rarity: "rare",
     level: 5,
     armorClass: 17,
-    stealthPenalty: 3,
   },
   cotte_mailles: {
     id: "cotte_mailles",
@@ -351,7 +350,6 @@ export const ITEMS = {
     rarity: "uncommon",
     level: 3,
     armorClass: 16,
-    stealthPenalty: 2,
   },
   armure_cuir: {
     id: "armure_cuir",
@@ -389,6 +387,9 @@ export const ITEMS = {
   // Thomas, 2026-11-13 : potions de pierre et de discorde.
   potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 10 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
   potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et pétillante. À lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
+  // Thomas, 2026-11-13 : potion d'agrandissement (« comme dans BG3 ») et potion glissante.
+  potion_geant: { id: "potion_geant", name: "Potion de géant", kind: "use", description: "Violette et bouillonnante. Bue : vous doublez de taille 8 tours, vos coups font deux fois plus mal, mais vous ne passez plus les portes. Lancée : c'est le monstre touché qui grandit (le boss aussi).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "grow", throwRange: 5 },
+  potion_glissante: { id: "potion_glissante", name: "Potion glissante", kind: "use", description: "Huileuse et verdâtre. À lancer : le monstre touché devient glissant pour toujours. Chaque coup qu'il reçoit le fait glisser jusqu'au mur, où il rebondit et se cogne.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "slip", throwRange: 5 },
   // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
   noeud_papillon: { id: "noeud_papillon", name: "Nœud papillon de Kobold", kind: "amulet", description: "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
   // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----

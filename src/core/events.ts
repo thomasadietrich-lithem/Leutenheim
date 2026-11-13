@@ -130,7 +130,14 @@ export type GameEvent =
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
   | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[] }
   | { type: "burn"; actor: Actor; damage: number }
-  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin" | "stone"; points?: number }
+  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin" | "stone" | "grow"; points?: number }
+  /** Potion d'agrandissement : un personnage grandit, ou revient à sa taille. Potion glissante : il devient glissant. */
+  | { type: "grow"; actor: Actor; back?: boolean }
+  | { type: "slippery"; actor: Actor }
+  /** Un glissant reçoit un coup : il glisse de (fromX, fromY) à (x, y), en rebondissant `bumps` fois (dégâts `damage`). */
+  | { type: "slide"; actor: Actor; fromX: number; fromY: number; x: number; y: number; bumps: number; damage: number; path: { x: number; y: number }[] }
+  /** Une potion lancée sur la Tisseuse : ce qu'elle lui fait (journal). */
+  | { type: "bossPotion"; potion: string; actor: Actor }
   /** Potion de pierre : le héros redevient chair, un monstre est pétrifié (ou le redevient). */
   | { type: "stone"; what: "heroBack" | "petrified" | "monsterBack"; actor: Actor }
   /** Potion d'oursin : l'attaquant se pique et perd des PV. */

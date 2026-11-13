@@ -242,6 +242,9 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       // Potions de pierre et de discorde (Thomas, 2026-11-13).
       { x: 3, y: 5, item: "potion_pierre", count: 2 },
       { x: 4, y: 5, item: "potion_discorde", count: 2 },
+      // Potions de géant et glissante (Thomas, 2026-11-13).
+      { x: 5, y: 5, item: "potion_geant", count: 2 },
+      { x: 6, y: 5, item: "potion_glissante", count: 2 },
       // Outils de voleur (Thomas, 2026-11-13 : le crochetage réussit à coup sûr).
       { x: 11, y: 5, item: "outils_voleur", count: 1 },
     ],

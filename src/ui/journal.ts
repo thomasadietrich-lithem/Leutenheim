@@ -321,6 +321,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             ? "Votre peau se fige… vous voilà statue. Les monstres ne vous voient plus."
           : e.potion === "urchin"
             ? "Des piquants vous hérissent la peau : qui vous frappe s'y pique."
+          : e.potion === "grow"
+            ? "Vous grandissez d'un coup ! Vos coups font deux fois plus mal… mais les portes sont trop étroites."
             : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
     case "bath":
       return e.what === "splash"
@@ -332,6 +334,29 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             : "« AU SECOURS ! ON M'ATTAQUE DANS MON BAIN ! » Le Kobold s'enfuit en glissant.";
     case "thorns":
       return `${capFirst(e.actor.name)} se pique : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
+    case "grow":
+      if (e.actor.kind === "hero") return e.back ? "Vous rétrécissez : vous repassez les portes." : null;
+      return e.back ? `${capFirst(e.actor.name)} reprend sa taille.` : `${capFirst(e.actor.name)} grandit d'un coup ! Ses coups feront deux fois plus mal, mais il ne passe plus les portes.`;
+    case "slippery":
+      return `${capFirst(e.actor.name)} est couvert d'huile : chaque coup le fera glisser.`;
+    case "slide":
+      return e.bumps > 0
+        ? `${capFirst(e.actor.name)} glisse, rebondit contre le mur${e.bumps > 1 ? " deux fois" : ""} et se cogne (${e.damage} dégâts).`
+        : `${capFirst(e.actor.name)} glisse sur ${e.path.length} cases.`;
+    case "bossPotion":
+      return e.potion === "stone"
+        ? "La carapace de la Tisseuse se fige… mais elle s'en dégage vite (2 tours)."
+        : e.potion === "discord"
+          ? "Prise de folie, la Tisseuse se mord les pattes !"
+          : e.potion === "grow"
+            ? "La Tisseuse grandit encore. Ses morsures feront deux fois plus mal…"
+            : e.potion === "slip"
+              ? "La Tisseuse dérape sur ses propres pattes : chaque coup la fera glisser."
+              : e.potion === "smoke"
+                ? "Dans la fumée, la Tisseuse perd votre piste un instant."
+                : e.potion === "fog"
+                  ? "Dans le brouillard, la Tisseuse ne sent plus que ce qui la touche."
+                  : null;
     case "stone":
       return e.what === "heroBack" ? "La pierre se fissure : vous pouvez de nouveau bouger." : e.what === "petrified" ? `${capFirst(e.actor.name)} se change en pierre.` : `${capFirst(e.actor.name)} redevient chair et os.`;
     case "flee":

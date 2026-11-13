@@ -832,7 +832,8 @@ test("armes et armures en paliers (Thomas, 2026-11-12) : chaque rareté se sent"
   game.inventory.add("harnois", 1);
   assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "harnois")!.uid));
   assert.equal(game.hero.armorClass, 17);
-  assert.equal(game.stealthBonus(), base - 3);
+  // Thomas (2026-11-13) : l'équipement ne touche plus à la discrétion.
+  assert.equal(game.stealthBonus(), base);
 });
 
 test("épée longue : un grand d20 assomme la cible", () => {
@@ -3443,13 +3444,13 @@ test("forge, alchimiste, panier de pommes ; la fouille montre ce qui est interac
   assert.equal(game.floorStyle(45, 5), "forge");
   const kitchen = game.rooms[6];
   assert.ok(game.interactiveIn(kitchen).some((p) => p.x === basket.x && p.y === basket.y), "le panier brille à la fouille");
-  // Arme à deux mains : pas de torche.
+  // Arme à deux mains : la torche a son propre emplacement (Thomas, 2026-11-13), elle s'allume quand même.
   game.inventory.add("epee_longue", 1);
   game.inventory.add("torche", 1);
   const sword = game.inventory.items.find((i) => i.defId === "epee_longue")!;
   assert.ok(game.equip(sword.uid));
   const torch = game.inventory.items.find((i) => i.defId === "torche")!;
-  assert.equal(game.useItem(torch.uid), false);
+  assert.ok(game.useItem(torch.uid));
   // Dans le donjon, forge et alchimiste apparaissent aussi.
   const seen = new Set<string>();
   for (let seed = 1; seed <= 150; seed++) {
@@ -4320,4 +4321,81 @@ test("potion de discorde : les monstres touchés se battent entre eux", () => {
   assert.ok(game.throwPotion(uid, a.x, a.y));
   game.tick();
   assert.ok(game.events.some((e) => e.type === "feud" && e.reason === "discord") || a.feud !== undefined, "ils se battent");
+});
+
+// ---------- 2026-11-13 (nuit) : potions de géant et glissante, potions sur la Tisseuse ----------
+
+test("potion de géant : bue, dégâts doublés et plus de porte ; lancée, le monstre grandit", () => {
+  const { game, m } = foeAt(1);
+  game.inventory.add("potion_geant", 2);
+  assert.ok(game.useItem(game.inventory.items.find((i) => i.defId === "potion_geant")!.uid));
+  game.tick();
+  assert.ok((game.hero.grown ?? 0) > 0, "le héros grandit");
+  // Le chemin du géant évite les portes.
+  const avoid = (game as unknown as { avoidTraps(to: { x: number; y: number }): (x: number, y: number) => boolean }).avoidTraps({ x: 0, y: 0 });
+  let door: { x: number; y: number } | null = null;
+  for (let y = 0; y < game.map.height && !door; y++) for (let x = 0; x < game.map.width && !door; x++) if (game.map.isDoor(x, y)) door = { x, y };
+  if (door) assert.equal(avoid(door.x, door.y), false, "une porte est trop étroite");
+  // Ses coups qui portent font au moins le double du minimum.
+  let hits = 0;
+  for (let k = 0; k < 30 && hits === 0; k++) {
+    game.events.length = 0;
+    (game as unknown as { heroAttacks(t: unknown): void }).heroAttacks(m);
+    const a = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
+    if (a && a.type === "attack" && a.result.hit) {
+      hits++;
+      assert.equal(a.result.damage, a.result.damageRoll!.rolled * 2);
+    }
+  }
+  assert.ok(hits > 0);
+  for (let k = 0; k < 20 && (game.hero.grown ?? 0) > 0 && !game.over; k++) {
+    game.wait();
+    game.tick();
+  }
+  game.hero.grown = 0;
+  game.hero.hp = game.hero.maxHp;
+  game.over = false;
+  const uid = game.inventory.items.find((i) => i.defId === "potion_geant")!.uid;
+  assert.ok(game.throwPotion(uid, m.x, m.y));
+  game.tick();
+  assert.ok((m.grown ?? 0) > 0, "lancée : le monstre grandit");
+});
+
+test("potion glissante : le monstre touché glisse, rebondit contre les murs et se cogne", () => {
+  const { game, m } = foeAt(1);
+  game.inventory.add("potion_glissante", 1);
+  assert.equal(game.useItem(game.inventory.items.find((i) => i.defId === "potion_glissante")!.uid), false, "elle ne se boit pas");
+  assert.ok(game.throwPotion(game.inventory.items.find((i) => i.defId === "potion_glissante")!.uid, m.x, m.y));
+  game.tick();
+  assert.ok(m.slippery, "glissant");
+  let slid = false;
+  for (let k = 0; k < 40 && !slid; k++) {
+    // On le remet au contact à chaque fois.
+    if (Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)) > 1) continue;
+    game.events.length = 0;
+    (game as unknown as { heroAttacks(t: unknown): void }).heroAttacks(m);
+    slid = game.events.some((e) => e.type === "slide");
+  }
+  assert.ok(slid, "un coup qui porte le fait glisser");
+  const e = game.events.find((ev) => ev.type === "slide");
+  assert.ok(e && e.type === "slide" && (e.path.length > 0 || e.bumps > 0));
+  assert.ok(game.map.isWalkable(m.x, m.y), "il finit sur une case libre");
+});
+
+test("la Tisseuse et les potions : pierre 2 tours, discorde qui la mord, géant, glissante, fumée", () => {
+  const game = bossGame(5);
+  const queen = game.bossActor()!;
+  const hp = queen.hp;
+  const near = { x: queen.x - 1, y: queen.y + 1 };
+  game.hero.x = near.x;
+  game.hero.y = near.y;
+  for (const [id, potion] of [["potion_pierre", "stone"], ["potion_discorde", "discord"], ["potion_geant", "grow"], ["potion_glissante", "slip"]] as const) {
+    game.inventory.add(id, 1);
+    game.events.length = 0;
+    (game as unknown as { resolveThrow(o: unknown): void }).resolveThrow({ uid: game.inventory.items.find((i) => i.defId === id)!.uid, x: queen.x, y: queen.y });
+    assert.ok(game.events.some((e) => e.type === "bossPotion" && e.potion === potion), `effet de ${potion} sur la Tisseuse`);
+  }
+  assert.equal(queen.petrified, 2);
+  assert.ok(queen.hp < hp, "la discorde la mord");
+  assert.ok((queen.grown ?? 0) > 0 && queen.slippery);
 });

@@ -72,7 +72,7 @@ export interface KrikMemory {
 }
 
 /** La flaque qu'une potion laisse en éclatant : sa couleur. */
-const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste", stone: "soot", discord: "pYouth" };
+const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pUrchin", stone: "pStone", discord: "pDiscord", grow: "pGrow", slip: "pSlip" };
 
 /** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
 export interface SoeurMemory {
@@ -137,7 +137,6 @@ export class Game {
   /** Éteindre ou rallumer la torche rangée sous l'arc (sans prendre de tour). */
   toggleTorch(): boolean {
     if (this.over || this.torchTurns <= 0) return false;
-    if (this.torchOff && this.twoHanded()) return false;
     this.torchOff = !this.torchOff;
     this.refreshLight();
     if (!this.torchOff) this.reveal();
@@ -310,7 +309,10 @@ export class Game {
         placeBell(floor, new Rng(seed ^ 0x57a7f), furnished.furniture, new Set(furnished.themes.map((t) => t.room)), "statue");
       }
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
-      if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) placeGrounds(floor, seed, depth);
+      if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) {
+        const quiet = furnished.themes.filter((t) => t.id === "bain" || t.id === "ferme").map((t) => floor.rooms[t.room]);
+        placeGrounds(floor, seed, depth, quiet);
+      }
       const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
       state = {
         map: floor.map,
@@ -794,6 +796,11 @@ export class Game {
     return this.current.furniture.find((f) => f.x === x && f.y === y && (f.kind.startsWith("cocoon") || f.kind === "eggSac" || f.kind === "anchor")) ?? null;
   }
 
+  /** La table de cuisine où attend une cuisse de poulet (sur une de ses deux cases). */
+  plateTableAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind === "table" && (f.plate ?? 0) > 0 && f.y === y && (f.x === x || f.x + 1 === x)) ?? null;
+  }
+
   /** La cloche d'alarme sur cette case, s'il y en a une. */
   bellAt(x: number, y: number): Furniture | null {
     return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind === "bell") ?? null;
@@ -863,6 +870,16 @@ export class Game {
       this.current.bath!.music = false;
       this.events.push({ type: "bath", what: "scratch", x: at.x, y: at.y });
       this.wakeBath(false);
+      return;
+    }
+    // L'assiette sur la table : on prend la cuisse (au sac, ou à ses pieds si le sac est plein).
+    const plateTable = this.plateTableAt(at.x, at.y);
+    if (plateTable) {
+      plateTable.plate = 0;
+      this.map.touch(plateTable.x, plateTable.y);
+      this.map.touch(plateTable.x + 1, plateTable.y);
+      if (this.inventory.add("cuisse_poulet", 1) === 0) this.events.push({ type: "pickup", item: "cuisse_poulet", count: 1 });
+      else this.bounceFromHero("cuisse_poulet", 1);
       return;
     }
     const bell = this.bellAt(at.x, at.y);
@@ -1024,6 +1041,11 @@ export class Game {
       return;
     }
     const hero = this.hero;
+    // Dans le brouillard (Thomas, 2026-11-13) : elle ne sent plus que ce qui la touche ; elle attend.
+    if (cellsOf(m).some((c) => this.fogAt(c.x, c.y)) && gapBetween(m, hero) > 1) {
+      st.target = undefined;
+      return;
+    }
     // Ce qu'elle sent : le héros qui marche sur sa toile (les vibrations), ou tout près d'elle. Sinon, un leurre.
     const sensed = this.stickyAt(hero.x, hero.y) || gapBetween(m, hero) <= RULES.bossSenseRange || (st.engaged && this.hidden === false && gapBetween(m, hero) <= 1);
     if (sensed) {
@@ -1252,8 +1274,10 @@ export class Game {
 
   /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
   private avoidTraps(to: Point, base?: (x: number, y: number) => boolean, from: Point = this.hero): (x: number, y: number) => boolean {
+    // Agrandi (potion de géant) : il ne passe plus les portes (Thomas, 2026-11-13).
+    const giant = ((from as Actor).grown ?? 0) > 0;
     // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
-    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero ? this.knownTrap(x, y) : this.isTrap(x, y)) && !this.isBurning(x, y) && !this.isGassed(x, y)));
+    return (x, y) => (!base || base(x, y)) && !(giant && this.map.isDoor(x, y) && !(x === from.x && y === from.y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero ? this.knownTrap(x, y) : this.isTrap(x, y)) && !this.isBurning(x, y) && !this.isGassed(x, y)));
   }
 
   /**
@@ -1913,8 +1937,7 @@ export class Game {
     const kind = ITEMS[item.defId].kind;
     if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem" || kind === "quest") return false;
     if (this.tooLow(ITEMS[item.defId])) return false;
-    // Arme à deux mains (Thomas, 2026-11-11) : pas tant qu'une torche brûle dans l'autre main.
-    if ((ITEMS[item.defId] as ItemDef).twoHanded && this.torchLit()) return false;
+    // La torche a son propre emplacement (Thomas, 2026-11-13) : elle ne gêne plus les armes à deux mains.
     // Pas d'arc tant qu'une arme à deux mains est en main : il faut d'abord la ranger.
     if (kind === "ranged" && this.twoHanded()) return false;
     const previous = this.equipment[kind];
@@ -2050,10 +2073,8 @@ export class Game {
     const item = this.inventory.get(uid);
     if (this.over || !item) return false;
     const def = ITEMS[item.defId] as ItemDef;
-    // Une torche se tient d'une main : impossible avec une arme à deux mains (Thomas, 2026-11-11).
-    if (def.lightTurns && this.twoHanded()) return false;
     // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
-    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord") return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -2091,6 +2112,11 @@ export class Game {
       this.stoneTurns = RULES.stoneTurns;
       for (const m of this.monsters) if (!m.boss) { m.alerted = false; m.wary = false; }
       this.events.push({ type: "potion", potion: "stone" });
+    } else if (def.potion === "grow") {
+      // +1 : le tour où on la boit ne compte pas.
+      this.hero.grown = RULES.growTurns + 1;
+      this.events.push({ type: "potion", potion: "grow" });
+      this.events.push({ type: "grow", actor: this.hero });
     } else if (def.potion === "urchin") {
       this.urchinTurns = RULES.urchinTurns + 1;
       this.events.push({ type: "potion", potion: "urchin" });
@@ -2379,7 +2405,11 @@ export class Game {
     if (potion === "stone") {
       // Lancée : le monstre de la case est pétrifié 3 tours, et sert d'abri (Thomas, 2026-11-13). Pas le boss.
       const m = this.monsterAt(order.x, order.y);
-      if (m && !m.boss) {
+      if (m?.boss) {
+        m.petrified = RULES.bossPetrifyTurns;
+        this.events.push({ type: "bossPotion", potion, actor: m });
+        this.events.push({ type: "stone", what: "petrified", actor: m });
+      } else if (m) {
         m.petrified = RULES.petrifyTurns;
         m.alerted = false;
         m.feud = undefined;
@@ -2388,7 +2418,35 @@ export class Game {
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: [{ x: order.x, y: order.y }] });
       return;
     }
+    if (potion === "grow" || potion === "slip") {
+      // Potion de géant ou glissante lancée (Thomas, 2026-11-13) : le monstre touché, le boss compris.
+      const m = this.monsterAt(order.x, order.y);
+      if (m) {
+        m.alerted = true;
+        m.asleep = false;
+        if (potion === "grow") {
+          m.grown = RULES.growTurns;
+          this.events.push({ type: "grow", actor: m });
+        } else {
+          m.slippery = true;
+          this.events.push({ type: "slippery", actor: m });
+        }
+        if (m.boss) this.events.push({ type: "bossPotion", potion, actor: m });
+      }
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: [{ x: order.x, y: order.y }] });
+      return;
+    }
     if (potion === "discord") {
+      // La Tisseuse n'a pas de rival : prise de folie, elle se mord les pattes et reste sonnée un tour.
+      const queen = this.monsters.find((q) => q.boss && [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => occupies(q, order.x + dx, order.y + dy)));
+      if (queen) {
+        const bite = rollDice(this.rng, RULES.bossDiscordDamage);
+        queen.hp -= bite;
+        queen.stunned = Math.max(queen.stunned ?? 0, 1);
+        this.events.push({ type: "bossPotion", potion, actor: queen });
+        this.events.push({ type: "burn", actor: queen, damage: bite });
+        this.removeIfDead(queen);
+      }
       // Lancée : les monstres de la croix se battent entre eux (Thomas, 2026-11-13 ; les querelles déjà codées).
       const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
       const hit = this.monsters.filter((m) => !m.boss && cells.some((c) => occupies(m, c.x, c.y)));
@@ -2407,6 +2465,8 @@ export class Game {
     if (potion === "fog") {
       // Potion de brouillard (Thomas, 2026-11-12, soir) : une épaisse nappe noire en croix de 5 cases, pour fuir.
       const cells = this.spreadFog(order, RULES.fogArm);
+      const queen = this.monsters.find((q) => q.boss && cellsOf(q).some((c) => cells.some((f) => f.x === c.x && f.y === c.y)));
+      if (queen) this.events.push({ type: "bossPotion", potion, actor: queen });
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
       return;
     }
@@ -2767,7 +2827,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
     const statue = this.statueAt(x, y);
     if (statue && this.isExplored(x, y)) {
@@ -3325,6 +3385,7 @@ export class Game {
     }
     if (this.hasteTurns > 0) this.hasteTurns--;
     if (this.urchinTurns > 0) this.urchinTurns--;
+    if ((this.hero.grown ?? 0) > 0 && --this.hero.grown! === 0) this.events.push({ type: "grow", actor: this.hero, back: true });
     this.fluteTick();
     this.moveHens();
     if (this.protectTurns > 0) {
@@ -3345,8 +3406,8 @@ export class Game {
 
   /** Discrétion du héros : celle de sa classe, moins le malus d'une armure lourde (cotte de mailles, harnois). */
   stealthBonus(): number {
-    const armor = this.equipment.armor;
-    return this.heroClass.stealthBonus - ((armor && (ITEMS[armor.defId] as ItemDef).stealthPenalty) || 0);
+    // Thomas (2026-11-13) : l'équipement ne touche plus à la discrétion.
+    return this.heroClass.stealthBonus;
   }
 
   /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
@@ -4882,7 +4943,16 @@ export class Game {
   /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
   private smokeBurst(at: Point, radius: number): void {
     for (const m of this.monsters) {
-      if (m.boss || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > radius) continue;
+      if (m.boss) {
+        // La Tisseuse dans la fumée (Thomas, 2026-11-13) : elle perd la piste du héros et reste un tour hébétée.
+        if (cellsOf(m).some((c) => Math.max(Math.abs(c.x - at.x), Math.abs(c.y - at.y)) <= radius)) {
+          m.boss.target = undefined;
+          m.stunned = Math.max(m.stunned ?? 0, 1);
+          this.events.push({ type: "bossPotion", potion: "smoke", actor: m });
+        }
+        continue;
+      }
+      if (Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > radius) continue;
       m.alerted = false;
       m.wary = false;
       m.asleep = false;
@@ -5292,7 +5362,7 @@ export class Game {
     // Rage (voie rouge) : plus de dégâts sous la moitié des PV.
     if (this.rank("rage") > 0 && this.hero.hp * 2 < this.hero.maxHp) damageBonus += this.rank("rage");
     damageBonus += this.curseBonusOn(monster);
-    const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
+    const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus }, grown: this.hero.grown };
     const critFrom = this.rank("coup_puissant") > 0 ? 19 - this.rank("coup_puissant") : 20;
     const advantaged = this.heroHasAdvantageOn(monster);
     // Un coup de serviette dans la figure (le Kobold du bain) : le coup suivant a le désavantage.
@@ -5333,9 +5403,63 @@ export class Game {
       this.weaponPoison--;
       this.poisonActor(monster, { damage: 1, turns: 4 });
     }
+    // Potion glissante : le coup le fait glisser jusqu'au mur, où il rebondit et se cogne.
+    if (result.hit && monster.hp > 0 && monster.slippery) this.slide(monster, this.hero);
     this.removeIfDead(monster);
     // Potion de vitesse : un second coup, s'il reste debout.
     if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
+  }
+
+  /**
+   * Potion glissante (Thomas, 2026-11-13) : un coup reçu fait glisser le monstre loin de celui qui frappe, jusqu'à
+   * `slipDistance` cases ; contre un mur (ou une porte fermée) il se cogne (1d4) et rebondit dans l'autre sens, au plus
+   * `slipBounces` fois ; un autre personnage l'arrête net. Il peut finir sur un piège.
+   */
+  private slide(m: Actor, from: Point): void {
+    let dx = Math.sign(m.x - from.x);
+    let dy = Math.sign(m.y - from.y);
+    if ((!dx && !dy) || m.petrified) return;
+    const size = m.size ?? 1;
+    const blockedBy = (x: number, y: number): "wall" | "actor" | null => {
+      for (let j = 0; j < size; j++) {
+        for (let i = 0; i < size; i++) {
+          const cx = x + i;
+          const cy = y + j;
+          if (!this.map.isWalkable(cx, cy) || this.map.get(cx, cy) === Tile.DoorClosed) return "wall";
+          const other = this.actorAt(cx, cy);
+          if ((other && other !== m) || this.npcAt(cx, cy)) return "actor";
+        }
+      }
+      return null;
+    };
+    const start = { x: m.x, y: m.y };
+    const path: Point[] = [];
+    let bumps = 0;
+    let damage = 0;
+    for (let k = 0; k < RULES.slipDistance; k++) {
+      const nx = m.x + dx;
+      const ny = m.y + dy;
+      const stop = blockedBy(nx, ny) ?? (size === 1 && !canStep(this.map, m.x, m.y, dx, dy) ? "wall" : null);
+      if (stop === "actor") break;
+      if (stop === "wall") {
+        bumps++;
+        const d = rollDice(this.rng, RULES.slipWallDamage);
+        damage += d;
+        m.hp -= d;
+        if (m.hp <= 0 || bumps > RULES.slipBounces) break;
+        dx = -dx;
+        dy = -dy;
+        continue;
+      }
+      m.x = nx;
+      m.y = ny;
+      path.push({ x: nx, y: ny });
+    }
+    if (path.length === 0 && bumps === 0) return;
+    this.closeDoorAt(start.x, start.y);
+    this.events.push({ type: "slide", actor: m, fromX: start.x, fromY: start.y, x: m.x, y: m.y, bumps, damage, path });
+    if (damage > 0) this.bleed(m, this.hero);
+    if (m.hp > 0 && (m.x !== start.x || m.y !== start.y)) this.springTrap(m);
   }
 
   /** Projeté par un coup critique : une case dans l'axe du héros, si elle est libre ; il peut tomber sur un piège. */
@@ -5357,6 +5481,10 @@ export class Game {
   /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
   private removeIfDead(monster: Actor, byHero = true): void {
     if (monster.hp > 0) return;
+    // Un Kobold mort dans les flammes laisse une escalope (Thomas, 2026-11-13).
+    if ((monster.burning ?? 0) > 0 && !monster.boss && MONSTERS[monster.defId as keyof typeof MONSTERS]?.family === "kobolds") {
+      this.dropItem(monster.x, monster.y, "escalope", 1);
+    }
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
     this.events.push({ type: "death", actor: monster });
@@ -5440,7 +5568,7 @@ export class Game {
       // L'arc (ou la main qui lance) donne le jet ; la flèche (ou la javeline) donne les dégâts (Thomas, 2026-11-11).
       const attackBonus = profile.attackBonus + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
       const ammoDamage = (ITEMS[ammo] as ItemDef).damage ?? UNARMED.damage;
-      const result = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) } }, victim, mode, 20, () => this.useLuck());
+      const result = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) }, grown: this.hero.grown }, victim, mode, 20, () => this.useLuck());
       this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : undefined;
       this.noteHeroAttack(result.hit);
       victim.alerted = true;
@@ -5449,6 +5577,8 @@ export class Game {
       this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
       if (result.damage > 0) this.bleed(victim, origin);
       hit = result.hit;
+      // Potion glissante : la flèche le fait glisser.
+      if (hit && victim.hp > 0 && victim.slippery) this.slide(victim, this.hero);
       if (hit && poison && victim.hp > 0) {
         // Un nouveau poison remet le compteur à zéro, il ne s'ajoute pas (C).
         this.poisonActor(victim, poison);
@@ -5536,7 +5666,14 @@ export class Game {
     for (const m of [...this.monsters]) {
       if (this.over) return;
       if (!this.monsters.includes(m)) continue;
+      if ((m.grown ?? 0) > 0 && --m.grown! === 0) this.events.push({ type: "grow", actor: m, back: true });
       if (m.boss) {
+        // Potion de pierre lancée sur la Tisseuse : sa carapace se fige un court instant.
+        if (m.petrified) {
+          m.petrified--;
+          if (m.petrified === 0) this.events.push({ type: "stone", what: "monsterBack", actor: m });
+          continue;
+        }
         this.bossAct(m);
         continue;
       }

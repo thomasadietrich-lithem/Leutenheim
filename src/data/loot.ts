@@ -27,7 +27,7 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
     { item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
     { item: "amethyste" }, { item: "masse", minDepth: 2 }, { item: "sac_cuir", minDepth: 5 }, { item: "casque_maille", minDepth: 3 }, { item: "armure_cloutee", minDepth: 2 }, { item: "cotte_mailles", minDepth: 3 },
     { item: "javeline", count: [3, 3], minDepth: 3 }, { item: "arc_puissant", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
-    { item: "potion_brouillard" }, { item: "potion_oursin" }, { item: "potion_pierre", minDepth: 2 }, { item: "potion_discorde", minDepth: 2 }, { item: "flute_pan", minDepth: 2 },
+    { item: "potion_brouillard" }, { item: "potion_oursin" }, { item: "potion_pierre", minDepth: 2 }, { item: "potion_discorde", minDepth: 2 }, { item: "potion_geant", minDepth: 2 }, { item: "potion_glissante", minDepth: 2 }, { item: "flute_pan", minDepth: 2 },
   ],
   rare: [
     { item: "gold" }, { item: "cimeterre" }, { item: "harnois", minDepth: 5 }, { item: "saphir" }, { item: "potion_jouvence" },

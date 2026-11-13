@@ -220,7 +220,7 @@ export class Renderer {
    *  faire en défonçant la porte et en touchant le mur. */
   private chickenRun: { path: { x: number; y: number }[]; start: number; door: number; onDoor: () => void; onCrash: () => void; doorDone: boolean } | null = null;
   /** Plumes qui retombent après le choc. */
-  private feathers: { x: number; y: number; vx: number; vy: number; age: number; spin: number }[] = [];
+  private feathers: { x: number; y: number; vx: number; vy: number; age: number; spin: number; venom?: boolean }[] = [];
   /** Statue (potion de pierre) : l'instant où l'animation du héros s'est figée. */
   private heroStoneAt: number | undefined;
   /** Monstres pétrifiés : l'instant où leur animation s'est figée. */
@@ -449,8 +449,10 @@ export class Renderer {
     ctx.ellipse(cx, cy + tile * 0.4, tile * 0.3, tile * 0.1, 0, 0, Math.PI * 2);
     ctx.fill();
     // Le sprite dépasse un peu de sa case pour que le personnage ait la taille d'un occupant, armes comprises.
-    const size = Math.round(tile * 1.3);
-    const top = Math.round(cy - size / 2 - tile * 0.12);
+    // Potion de géant : une fois et demie plus grand, pieds au même niveau.
+    const giant = (game.hero.grown ?? 0) > 0 ? 1.5 : 1;
+    const size = Math.round(tile * 1.3 * giant);
+    const top = Math.round(cy + tile * 0.53 - size);
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.save();
@@ -524,6 +526,17 @@ export class Renderer {
     }
   }
 
+  /**
+   * Le poison glisse sur la Tisseuse (Thomas, 2026-11-13 : « exprime sa résistance autrement » qu'un picto) : des
+   * gouttes vertes rebondissent sur sa carapace et tombent, avec un petit « ting » (son au choix de l'appelant).
+   */
+  poisonShrug(x: number, y: number, size = 1): void {
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + ((i - 4.5) / 4.5) * 1.2;
+      this.feathers.push({ x: x + size / 2, y: y + size * 0.35, vx: Math.cos(a) * (0.9 + (i % 3) * 0.3), vy: Math.sin(a) * 1.4, age: 0, spin: i, venom: true });
+    }
+  }
+
   /** Un nuage de plumes sur cette case. */
   addFeathers(x: number, y: number): void {
     for (let i = 0; i < 14; i++) {
@@ -594,7 +607,7 @@ export class Renderer {
       const y = p.y + p.vy * s * 0.9 + s * s * 0.9;
       if (!game.isVisible(Math.floor(x), Math.floor(y))) continue;
       ctx.globalAlpha = Math.max(0, 1 - p.age / 1400);
-      ctx.fillStyle = p.spin % 3 === 0 ? "#c9c2ae" : "#f6f2e6";
+      ctx.fillStyle = p.venom ? (p.spin % 2 ? "#8ef05a" : "#3e8a24") : p.spin % 3 === 0 ? "#c9c2ae" : "#f6f2e6";
       const u = Math.max(1, Math.round(tile / 16));
       ctx.fillRect(Math.round(ox + x * tile), Math.round(oy + y * tile), u * 2, u);
       ctx.globalAlpha = 1;
@@ -750,9 +763,11 @@ export class Renderer {
     if (m.slowed) icons.push("ralenti");
     if (m.stunned) icons.push("sonne");
     if (m.petrified) icons.push("pierre");
-    // La Tisseuse : le picto du poison, barré (elle y est insensible ; Thomas, 2026-11-13).
-    const immune = !!m.boss;
-    if (immune) icons.unshift("poison");
+    if (m.grown) icons.push("geant");
+    if (m.slippery) icons.push("glissant");
+    // La Tisseuse insensible au poison : plus de picto barré permanent (Thomas, 2026-11-13 : « exprime sa résistance
+    // autrement ») ; le poison qui glisse sur elle se montre au moment où il la touche (voir `poisonShrug`).
+    const immune = false;
     if (icons.length === 0) return;
     const s = Math.max(10, Math.round(tile * 0.36));
     const gap = 3;
@@ -935,7 +950,7 @@ export class Renderer {
       // L'araignée (planche art/araignee_v1.png) : une seule vue de 3/4, retournée quand elle va à gauche.
       const name = slash || hurt ? "bite" : moving ? (progress < 0.5 ? "walk0" : "walk1") : m.asleep ? "idle0" : `idle${Math.floor((Math.abs(this.time) + m.id * 170) / 380) % 2}`;
       if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
-      this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", true, ARAIGNEE[name].palette);
+      this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", true, ARAIGNEE[name].palette, m.grown ? 1.5 : 1);
       return;
     }
     let rows: readonly string[];
@@ -948,7 +963,7 @@ export class Renderer {
     // ambré s'il ne vous a pas vu, rouge s'il vous traque. Pas de regard quand il dort.
     if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
     // Le profil « touché » regarde à droite : on le retourne s'il regarde à gauche, comme les autres profils.
-    this.drawMonsterSprite(rows, cx, cy, facing === "left", true, m.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE);
+    this.drawMonsterSprite(rows, cx, cy, facing === "left", true, m.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE, m.grown ? 1.5 : 1);
   }
 
   /** La Tisseuse (planche art/boss_v2.png) : repos, marche, morsure ; renversée sur le dos quand sa grande toile tombe. */
@@ -1108,6 +1123,7 @@ export class Renderer {
     mirror: boolean,
     shadow: boolean,
     palette: Record<string, string> = SCHRAT_PALETTE,
+    scale = 1,
   ): void {
     const { ctx, tile } = this;
     if (shadow) {
@@ -1118,7 +1134,7 @@ export class Renderer {
     }
     // Plus petit que le héros (Thomas : « trop gros, trop grand ») : dessiné à la taille de la case, pieds au même niveau.
     // Un dessin de 16 pixels de haut fait une case ; un plus large (l'araignée, 18) déborde un peu sur les côtés.
-    const size = Math.round(tile * 1.0);
+    const size = Math.round(tile * 1.0 * scale);
     const width = Math.round((size * rows[0].length) / rows.length);
     const top = Math.round(cy + tile * 0.5 - size);
     const smooth = ctx.imageSmoothingEnabled;
@@ -2181,6 +2197,18 @@ export class Renderer {
       const x = this.snap(ox + px * u);
       const y = this.snap(oy + py * u);
       ctx.drawImage(img, x, y, this.snap(ox + (px + w) * u) - x, this.snap(oy + (py + h) * u) - y);
+      // Table de cuisine : l'assiette posée dessus, pleine tant que la cuisse y est (Thomas, 2026-11-13).
+      if (f.kind.startsWith("table") && f.plate !== undefined) {
+        const pl = ASSIETTE[f.plate > 0 ? "plateFull" : "plate"];
+        if (pl) {
+          const pw = pl.rows[0].length;
+          const ph = pl.rows.length;
+          const plx = (f.x + 1) * 16 + (16 - pw) / 2 + 2;
+          const ply = py + 3 - Math.max(0, ph - 12);
+          const pimg = this.shadedSprite(f.plate > 0 ? "plateFull" : "plate", pl.rows, pl.palette, dark, warm);
+          ctx.drawImage(pimg, this.snap(ox + plx * u), this.snap(oy + ply * u), this.snap(pw * u), this.snap(ph * u));
+        }
+      }
       // Au-dessus : les « Z » du Kobold endormi, les croches du tourne-disque.
       const over = !visible ? null : f.kind === "tub" && bath && !bath.out ? `zzz${frame}` : f.kind === "gramophone" && bath?.music ? `notes${frame}` : null;
       const extra = over ? BAIN[over] : undefined;

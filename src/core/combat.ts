@@ -25,7 +25,8 @@ export interface AttackResult {
  */
 export function rollAttack(
   rng: Rng,
-  attacker: { attackBonus: number; damage: Dice },
+  /** `grown` : potion d'agrandissement (Thomas, 2026-11-13), les dégâts sont doublés. */
+  attacker: { attackBonus: number; damage: Dice; grown?: number },
   defender: { armorClass: number },
   mode: RollMode = "normal",
   /** Coup critique à partir de ce d20 (20 d'ordinaire ; 19 avec « Coup puissant »). */
@@ -60,7 +61,7 @@ export function rollAttack(
     const faces: number[] = [];
     for (let i = 0; i < count; i++) faces.push(rng.int(1, attacker.damage.sides));
     const rolled = Math.max(1, faces.reduce((a, b) => a + b, 0) + attacker.damage.bonus);
-    result.damage = rolled;
+    result.damage = (attacker.grown ?? 0) > 0 ? rolled * 2 : rolled;
     result.damageRoll = { dice: attacker.damage, faces, rolled };
   }
   return result;

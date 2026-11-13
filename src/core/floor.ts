@@ -170,7 +170,7 @@ export interface Debris {
 /** Un objet posé au sol. */
 /** Taches au sol : sang (rouge héros, jaune Kobolds, noir araignées ; vert des anciennes sauvegardes), SUIE du feu,
  *  flaques de potion (Thomas, 2026-11-12). */
-export type StainColor = "red" | "green" | "yellow" | "black" | "soot" | "pYouth" | "pPoison" | "pHaste" | "pFire";
+export type StainColor = "red" | "green" | "yellow" | "black" | "soot" | "pYouth" | "pPoison" | "pHaste" | "pFire" | "pUrchin" | "pStone" | "pDiscord" | "pGrow" | "pSlip";
 
 export interface BloodStain {
   x: number;

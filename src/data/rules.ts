@@ -261,6 +261,15 @@ export const RULES = {
   hpPerVie: 4,
   /** Second souffle (voie bleue) : PV rendus aux rangs 1, 2, 3. Double frappe : autant de fois par étage que son rang. */
   secondWindHeal: [4, 7, 10],
+  /** Potion de géant (Thomas, 2026-11-13) : durée en tours. */
+  growTurns: 8,
+  /** Potion glissante : nombre de cases glissées après un coup, rebonds au plus, dégâts contre le mur. */
+  slipDistance: 4,
+  slipBounces: 2,
+  slipWallDamage: { count: 1, sides: 4, bonus: 0 },
+  /** La Tisseuse et les potions (Thomas, 2026-11-13) : pétrifiée moins longtemps ; la discorde la fait se mordre. */
+  bossPetrifyTurns: 2,
+  bossDiscordDamage: { count: 1, sides: 8, bonus: 0 },
   /** Double frappe : fois par étage = rang + ce bonus (2, 3, 4 ; équilibrage du 2026-11-13). */
   doubleStrikeBonus: 1,
   /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */

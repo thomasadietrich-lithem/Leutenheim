@@ -8,12 +8,14 @@ import { MOTIF_KINDS, MOTIF_SIZE, MotifKind } from "../data/motifs";
  * Sols spéciaux (2026-11-11) : quelques plaques de gravier et quelques flaques, d'une seule tenue (cases voisines),
  * posées sur du sol ordinaire, loin du point d'arrivée et des escaliers. Hasard à part, pour ne rien changer au reste.
  */
-export function placeGrounds(floor: Floor, seed: number, depth = 1): void {
+export function placeGrounds(floor: Floor, seed: number, depth = 1, avoid: { x: number; y: number; w: number; h: number }[] = []): void {
   const rng = new Rng(seed ^ 0x3a7c51e9);
   const { map } = floor;
   const far = (p: Point, q: Point) => Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)) > 2;
+  // Ni gravier ni flaque dans certaines salles (Thomas, 2026-11-13 : la salle de bain ; aussi la ferme), ni sur leur seuil.
+  const avoided = (x: number, y: number) => avoid.some((r) => x >= r.x - 1 && x <= r.x + r.w && y >= r.y - 1 && y <= r.y + r.h);
   const free = (x: number, y: number) =>
-    map.get(x, y) === Tile.Floor && far({ x, y }, floor.start) && far({ x, y }, floor.stairs);
+    map.get(x, y) === Tile.Floor && far({ x, y }, floor.start) && far({ x, y }, floor.stairs) && !avoided(x, y);
   const patch = (tile: Tile, size: number) => {
     for (let attempt = 0; attempt < 40; attempt++) {
       const seedCell = { x: rng.int(1, map.width - 2), y: rng.int(1, map.height - 2) };

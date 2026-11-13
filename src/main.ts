@@ -612,8 +612,17 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "doused") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
     sfx.play("splash");
+  } else if (e.type === "grow") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, e.back ? "Rétréci" : "Géant !", "#c8a8f0");
+    sfx.play(e.back ? "click" : "heavy");
+  } else if (e.type === "slippery") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "Glissant !", "#b8e05a");
+  } else if (e.type === "slide") {
+    renderer.addFloatingText(e.x, e.y, e.bumps > 0 ? (e.bumps > 1 ? "Bong ! Bong !" : "Bong !") : "Ziiip", "#b8e05a");
+    sfx.play(e.bumps > 0 ? "thud" : "slide");
   } else if (e.type === "poisoned" && e.immune) {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Immunisée", "#9fe060");
+    renderer.poisonShrug(e.actor.x, e.actor.y, e.actor.size ?? 1);
   } else if (e.type === "bath") {
     if (e.what === "splash") {
       renderer.addFloatingText(e.x, e.y, "SPLASH !", "#d6e4f4");
@@ -1443,7 +1452,7 @@ function useQuickItem(): void {
     return;
   }
   if (game.useItem(stack.uid)) stepMs = COMBAT_STEP_MS;
-  else logLines.push(def.lightTurns && game.twoHanded() ? "Votre arme se tient à deux mains : pas de main libre pour la torche." : "Vous êtes déjà en pleine santé.");
+  else logLines.push("Vous êtes déjà en pleine santé.");
 }
 
 // Noms courts sous les pictogrammes (barre d'actions, design C).
@@ -1790,6 +1799,13 @@ const POTION_SHADES: Record<string, string[]> = {
   haste: ["#6ad0ff", "#4a8fd0", "#cfeeff"],
   fire: ["#ff9a3a", "#e8782a", "#ffd84a"],
   smoke: ["#c3cbe0", "#7f88a6", "#e8ecf4"],
+  // Toutes les potions éclatent de leur couleur (Thomas, 2026-11-13 : « vérifie l'éclatement sur toutes »).
+  fog: ["#3a3a50", "#0c0a0e", "#5a5466"],
+  urchin: ["#9a6a34", "#5a3817", "#b9824a"],
+  stone: ["#a4abc8", "#7f88a6", "#d8dce8"],
+  discord: ["#f08ab8", "#b04a7a", "#ffd0e4"],
+  grow: ["#b48ce0", "#7a5aa0", "#e0ccf8"],
+  slip: ["#b8e05a", "#5e8a2a", "#e8f4b0"],
 };
 
 /** À qui l'on parle : Gluck (quête 01) ou Sœur Osseuse (quête 02). */
@@ -1962,9 +1978,8 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.range) rows.push(["Portée", `${def.range} cases`]);
   if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
-  if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; ni javeline, ni torche)"]);
+  if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; pas de javeline)"]);
   if (def.stunOn) rows.push(["Assomme", `sur un ${def.stunOn} ou plus au dé`]);
-  if (def.stealthPenalty) rows.push(["Discrétion", `−${def.stealthPenalty} (bruyante)`]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
@@ -1994,7 +2009,6 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.twoHanded) bits.push("deux mains");
   if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
   if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
-  if (def.stealthPenalty) bits.push(`discrétion −${def.stealthPenalty}`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
   if (def.acBonus) bits.push(`+${def.acBonus} CA`);
@@ -2318,7 +2332,7 @@ button("bag-equip", () => {
   } else if (chosen && chosenDef?.kind === "use") {
     // Utiliser prend un tour : on referme le sac pour le laisser passer.
     if (!game.useItem(chosen.uid)) {
-      logLines.push(chosenDef.lightTurns && game.twoHanded() ? "Votre arme se tient à deux mains : pas de main libre pour la torche." : "Vous êtes déjà en pleine santé.");
+      logLines.push("Vous êtes déjà en pleine santé.");
     }
     bagOpen = false;
     $("bag").hidden = true;
@@ -2330,9 +2344,7 @@ button("bag-equip", () => {
       if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged && !bounced) logLines.push("Arme à deux mains : votre arc retourne dans le sac.");
     } else {
       logLines.push(
-        chosenDef?.twoHanded && game.torchLit()
-          ? "Une arme à deux mains ? Votre torche brûle encore dans l'autre main."
-          : chosenDef?.kind === "ranged" && game.twoHanded()
+        chosenDef?.kind === "ranged" && game.twoHanded()
             ? "Votre arme se tient à deux mains : rangez-la d'abord pour prendre un arc."
             : bagSwap
             ? "Ce sac est trop petit pour tout ce que vous portez."
@@ -2427,6 +2439,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.luck > 0) list.push({ id: "chance", name: "Chance", detail: `Vos ${game.luck > 1 ? `${game.luck} prochains 1` : "prochain 1"} au dé ${game.luck > 1 ? "seront relancés" : "sera relancé"}.` });
   if (game.stoneTurns > 0) list.push({ id: "pierre", name: "Statue", detail: `Rien ne vous blesse, mais vous ne pouvez rien faire. Encore ${game.stoneTurns} tours.` });
   if (game.urchinTurns > 0) list.push({ id: "oursin", name: "Oursin", detail: `15 % des dégâts reçus au contact reviennent à l'attaquant. Encore ${game.urchinTurns} tours.` });
+  if ((game.hero.grown ?? 0) > 0) list.push({ id: "geant", name: "Géant", detail: `Vos coups font deux fois plus mal, mais vous ne passez plus les portes. Encore ${game.hero.grown} tours.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
   const rampart = game.rank("dernier_rempart");
   if (rampart > 0 && game.perks().lastStand < 1) {

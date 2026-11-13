@@ -65,6 +65,22 @@ export interface FloorState {
   krik?: GluckSpot;
   /** La salle de bain du Kobold (truc fun, Thomas 2026-11-13), s'il y en a une sur cet étage. */
   bath?: BathState;
+  /** Le poulet et sa porte qu'on ne peut pas forcer (truc fun). */
+  chicken?: ChickenState;
+}
+
+/**
+ * Truc fun du poulet (Thomas, 2026-11-13) : une salle fermée par une porte qu'aucun jet n'ouvre (`door`), un coffre
+ * dedans ; le poulet attend ailleurs (`x`, `y`). Dérangé, il traverse le donjon, défonce la porte et s'écrase contre le
+ * mur du fond (`crash`) ; il y laisse une cuisse. `done` : c'est arrivé.
+ */
+export interface ChickenState {
+  x: number;
+  y: number;
+  door: Point;
+  crash: Point;
+  room: number;
+  done: boolean;
 }
 
 /** La salle de bain : la baignoire (sa case de gauche), le Kobold sorti de l'eau ou non, la musique, vaincu ou non. */

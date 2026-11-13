@@ -189,6 +189,8 @@ export const ITEMS = {
     damage: { count: 1, sides: 6, bonus: 0 },
     poison: { damage: 1, turns: 4 },
   },
+  // Truc fun du poulet (Thomas, 2026-11-13) : ce qu'il reste de lui après le mur du fond.
+  cuisse_poulet: { id: "cuisse_poulet", name: "Cuisse de poulet", kind: "use", description: "Encore tiède. Le poulet n'a pas souffert longtemps. Rend 8 PV.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", heal: 8 },
   pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
   torche: {
     id: "torche",

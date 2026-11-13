@@ -38,7 +38,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 19;
+export const SANDBOX_LAYOUT = 20;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
@@ -126,7 +126,12 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   carve(bathRoom);
   for (let x = 38; x <= 40; x++) map.set(x, 25, Tile.Floor);
   map.set(40, 25, Tile.DoorClosed);
-  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture, forgeRoom, alchemy, bathRoom];
+  // La salle du poulet (Thomas, 2026-11-13) : derrière la salle de bain, porte qu'on ne peut pas forcer ; le poulet
+  // attend dans la salle de départ (voir `Game.placeChicken`).
+  const chickenRoom: Room = { x: 47, y: 24, w: 4, h: 5 };
+  carve(chickenRoom);
+  map.set(46, 26, Tile.DoorClosed);
+  const rooms = [start, pillars, combat, patrolRoom, dortoir, den, kitchen, chapel, torture, forgeRoom, alchemy, bathRoom, chickenRoom];
   const floorPlan: Floor = { map, rooms, start: { x: 7, y: 6 }, stairs, torches, specials: [] };
   const furniture: Furniture[] = [];
   furnishDortoir(floorPlan, dortoir, new Rng(1), furniture);

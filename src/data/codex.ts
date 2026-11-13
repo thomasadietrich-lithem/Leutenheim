@@ -27,6 +27,7 @@ export const CODEX_PEOPLE: { id: string; name: string; color: string; descriptio
   { id: "krik", name: "Krik", color: "#b48ce0", description: "Un Kobold qui ne peut plus mentir depuis une expérience ratée. Il a trahi ses camarades et vend leur butin." },
   { id: "colporteur", name: "Le Colporteur", color: "#7a5aa0", description: "Un marchand voûté, un par section. Il achète et vend, et disparaît quand le donjon s'agite trop." },
   { id: "compteur", name: "Le Kobold qui compte", color: "#9cb63e", description: "Derrière une porte percée d'un trou, il répète son nombre. Ne regardez pas par le trou." },
+  { id: "poulet", name: "Le poulet", color: "#f6f2e6", description: "Un poulet, seul, dans le donjon. Il ne faut pas lui parler : il panique, détale, et fonce droit dans la porte qu'aucune serrure ni aucun coup n'ouvre." },
   { id: "bain", name: "Le Kobold du bain", color: "#a8c8ec", description: "Il dort dans sa baignoire, en musique. Réveillé, il se bat à la serviette, puis s'enfuit en criant." },
 ];
 

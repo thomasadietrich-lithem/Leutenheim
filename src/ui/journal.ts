@@ -63,11 +63,20 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return describeAttack(e);
     case "door": {
       if (e.action === "key") return "Vous ouvrez la porte avec la clef.";
+      // La porte du poulet : rien n'y fait, jamais.
+      if (e.sealed) {
+        const tried = e.action === "pick" ? "Vous crochetez la serrure" : "Vous enfoncez la porte";
+        return `${tried} : ${roll(e.d20, e.bonus, e.total)} — rien. Elle ne bouge pas d'un pouce. On dirait qu'elle attend quelque chose.`;
+      }
       const what = e.action === "pick" ? "Vous crochetez la serrure" : "Vous enfoncez la porte";
       const outcome = e.action === "pick" ? (e.success ? "elle s'ouvre" : "raté") : e.success ? "elle cède" : "elle résiste";
       const dead = !e.success && ctx.doorHopeless ? " Il vous faudrait une clef." : "";
       return `${what} : ${roll(e.d20, e.bonus, e.total)} — ${outcome}.${dead}`;
     }
+    case "chicken":
+      return e.seen
+        ? "Le poulet prend peur, file à travers le donjon, défonce la porte et s'écrase contre le mur du fond dans un nuage de plumes."
+        : "Le poulet prend peur et détale… Au loin, un fracas. Un poulet semble s'être viandé contre un mur ; il faudrait peut-être investiguer.";
     case "arrow":
       if (!e.kept) return "La flèche se brise.";
       if (!e.hit) return e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.";

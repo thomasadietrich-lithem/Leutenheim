@@ -1,5 +1,6 @@
 import type { StainColor } from "../core/floor";
 import { SOEUR_BUBBLE_ICON, SOEUR_PALETTE, SOEUR_SPRITE } from "./sprites/soeur";
+import { POULET, POULET_PALETTE } from "./sprites/poulet";
 import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
@@ -213,6 +214,11 @@ export class Renderer {
   private lastHeroX: number | null = null;
   private lastHeroY: number | null = null;
   private time = 0;
+  /** La course du poulet (Thomas, 2026-11-13) : son trajet, le moment du départ, la case de la porte, et ce qu'il faut
+   *  faire en défonçant la porte et en touchant le mur. */
+  private chickenRun: { path: { x: number; y: number }[]; start: number; door: number; onDoor: () => void; onCrash: () => void; doorDone: boolean } | null = null;
+  /** Plumes qui retombent après le choc. */
+  private feathers: { x: number; y: number; vx: number; vy: number; age: number; spin: number }[] = [];
   /** Statue (potion de pierre) : l'instant où l'animation du héros s'est figée. */
   private heroStoneAt: number | undefined;
   /** Monstres pétrifiés : l'instant où leur animation s'est figée. */
@@ -477,6 +483,89 @@ export class Renderer {
       return false;
     }
     return true;
+  }
+
+  /** Le poulet détale le long de ce trajet (cases), à toute allure ; `door` : la case de la porte qu'il défonce. */
+  runChicken(path: { x: number; y: number }[], door: { x: number; y: number }, onDoor: () => void, onCrash: () => void): void {
+    const di = path.findIndex((p) => p.x === door.x && p.y === door.y);
+    this.chickenRun = { path, start: performance.now(), door: di < 0 ? path.length - 1 : di, onDoor, onCrash, doorDone: false };
+  }
+
+  /** Un nuage de plumes sur cette case. */
+  addFeathers(x: number, y: number): void {
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      this.feathers.push({ x: x + 0.5, y: y + 0.5, vx: Math.cos(a) * (0.6 + (i % 3) * 0.35), vy: Math.sin(a) * (0.5 + (i % 4) * 0.25) - 0.9, age: 0, spin: i });
+    }
+    this.addPuff(x, y);
+  }
+
+  private static readonly CHICKEN_CELL_MS = 55;
+
+  /** Le poulet : immobile (il picore) avant d'être dérangé ; puis sa course, puis ses plumes. */
+  private drawChicken(game: Game, ox: number, oy: number, dt: number): void {
+    const { ctx, tile } = this;
+    const draw = (rows: readonly string[], px: number, py: number, mirror: boolean) => {
+      const size = Math.round(tile * 0.72);
+      const cx = Math.round(ox + (px + 0.5) * tile);
+      const top = Math.round(oy + (py + 1) * tile - size - tile * 0.06);
+      ctx.fillStyle = "rgba(10,8,16,0.4)";
+      ctx.beginPath();
+      ctx.ellipse(cx, oy + (py + 0.86) * tile, tile * 0.2, tile * 0.07, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.translate(cx, 0);
+      if (mirror) ctx.scale(-1, 1);
+      ctx.drawImage(this.sprite(rows, POULET_PALETTE), -size / 2, top, size, size);
+      ctx.restore();
+      ctx.imageSmoothingEnabled = smooth;
+    };
+    const c = game.chicken();
+    if (c && !c.done && game.isVisible(c.x, c.y)) {
+      // Il picore : la tête plonge de temps en temps.
+      const peck = Math.floor(this.time / 380) % 5 === 0;
+      draw(POULET.idle, c.x, c.y + (peck ? 0.04 : 0), Math.floor(this.time / 2600) % 2 === 1);
+    }
+    const run = this.chickenRun;
+    if (run) {
+      const t = (performance.now() - run.start) / Renderer.CHICKEN_CELL_MS;
+      const i = Math.min(run.path.length - 1, Math.floor(t));
+      if (!run.doorDone && i >= run.door) {
+        run.doorDone = true;
+        run.onDoor();
+      }
+      if (t >= run.path.length - 1) {
+        const end = run.path[run.path.length - 1];
+        this.chickenRun = null;
+        this.addFeathers(end.x, end.y);
+        run.onCrash();
+      } else {
+        const a = run.path[i];
+        const b = run.path[Math.min(run.path.length - 1, i + 1)];
+        const f = t - i;
+        const px = a.x + (b.x - a.x) * f;
+        const py = a.y + (b.y - a.y) * f;
+        if (game.isVisible(Math.round(px), Math.round(py))) {
+          const rows = Math.floor(this.time / 70) % 2 === 0 ? POULET.run : POULET.idle;
+          draw(rows, px, py - Math.abs(Math.sin(t * Math.PI)) * 0.12, b.x > a.x);
+        }
+      }
+    }
+    // Plumes : elles jaillissent, puis retombent en se balançant.
+    this.feathers = this.feathers.filter((p) => (p.age += dt) < 1400);
+    for (const p of this.feathers) {
+      const s = p.age / 1000;
+      const x = p.x + p.vx * s * 0.9 + Math.sin(s * 6 + p.spin) * 0.08;
+      const y = p.y + p.vy * s * 0.9 + s * s * 0.9;
+      if (!game.isVisible(Math.floor(x), Math.floor(y))) continue;
+      ctx.globalAlpha = Math.max(0, 1 - p.age / 1400);
+      ctx.fillStyle = p.spin % 3 === 0 ? "#c9c2ae" : "#f6f2e6";
+      const u = Math.max(1, Math.round(tile / 16));
+      ctx.fillRect(Math.round(ox + x * tile), Math.round(oy + y * tile), u * 2, u);
+      ctx.globalAlpha = 1;
+    }
   }
 
   addPuff(x: number, y: number, poison = false): void {
@@ -1617,6 +1706,7 @@ export class Renderer {
     this.drawGluck(game, ox, oy);
     this.drawSoeur(game, ox, oy);
     this.drawKrik(game, ox, oy);
+    this.drawChicken(game, ox, oy, dt);
     this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
     // Statue (potion de pierre) : le héros est dessiné en pierre grise.

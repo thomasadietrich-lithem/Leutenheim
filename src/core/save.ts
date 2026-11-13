@@ -61,6 +61,7 @@ export interface SavedFloor {
   soeur?: GluckSpot;
   krik?: GluckSpot;
   bath?: import("./floor").BathState;
+  chicken?: import("./floor").ChickenState;
 }
 
 export interface SaveData {

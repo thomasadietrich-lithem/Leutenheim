@@ -107,6 +107,8 @@ export type GameEvent =
   | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */
   | { type: "search"; phase: "start" | "interrupted" }
+  /** Le poulet dérangé : son trajet jusqu'au mur du fond (la porte défoncée en chemin), et si le héros voit la fin. */
+  | { type: "chicken"; path: Point[]; door: Point; crash: Point; seen: boolean }
   | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; traps?: Point[]; room: Room }
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
@@ -171,6 +173,8 @@ export type GameEvent =
       success: boolean;
       /** Nombre de monstres alertés par le bruit. */
       alerted: number;
+      /** La porte du poulet : aucun jet ne l'ouvre. */
+      sealed?: boolean;
     };
 
 /** Pourquoi un tir est refusé. */

@@ -8,6 +8,24 @@ export const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: 
  * 16×16 pixels, ceux de deux cases 16×32, les armures 32×32. Pour retoucher une icône, changer les lettres.
  */
 const ICONS: Record<ItemId, string[]> = {
+  cuisse_poulet: [
+    "................",
+    "................",
+    ".......KKKK.....",
+    "......KTTTTK....",
+    ".....KTTTTTTK...",
+    "....KTTTtTTTTK..",
+    "....KTTTTTTTtK..",
+    "....KTtTTTTTTK..",
+    ".....KTTTTTtK...",
+    "......KTTTTK....",
+    ".......KKWK.....",
+    ".........KWK....",
+    "........KWWWK...",
+    "........KWKWK...",
+    ".........K.K....",
+    "................",
+  ],
   tunique: [
     "................................",
     "................................",

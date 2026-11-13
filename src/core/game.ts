@@ -26,7 +26,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -334,6 +334,14 @@ export class Game {
           placeBell(floor, new Rng(seed ^ 0x5b311e7d), state.furniture ?? [], special);
         }
       }
+      // Le poulet (truc fun, Thomas 2026-11-13) ; sans salle qui convienne, la cloche prend sa place.
+      if (!bossFloor && (sandboxFloor || this.funOf(depth) === "chicken")) {
+        state.chicken = this.placeChicken(floor, state, seed, !!sandboxFloor) ?? undefined;
+        if (!state.chicken && !sandboxFloor) {
+          const special = new Set((state.themes ?? []).map((t) => t.room));
+          placeBell(floor, new Rng(seed ^ 0x5b311e7e), state.furniture ?? [], special);
+        }
+      }
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -458,6 +466,118 @@ export class Game {
    * une salle, qu'on verrouille ; il se tient juste derrière, dans la salle. Jamais une porte dont la fermeture
    * couperait une partie de l'étage (on doit pouvoir passer ailleurs). En salle d'essai : toujours, si possible.
    */
+  /**
+   * Le poulet (Thomas, 2026-11-13) : une salle ordinaire qui n'a qu'une porte ; cette porte se verrouille pour de bon
+   * (aucun jet ne l'ouvre, la clef n'y entre pas) ; un coffre dedans, et le mur du fond où le poulet finira. Le poulet
+   * attend dans une autre salle, loin de l'arrivée. En salle d'essai : la salle derrière la salle de bain.
+   */
+  private placeChicken(floor: { map: GameMap; start: Point; stairs: Point; rooms: Room[] }, state: FloorState, seed: number, sandbox: boolean): ChickenState | null {
+    const rng = new Rng(seed ^ 0x9011e7);
+    const { map, rooms } = floor;
+    const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    const themed = new Set((state.themes ?? []).map((t) => t.room));
+    const open = reachable(map, floor.start);
+    const tryRoom = (index: number, door: Point, spot?: Point): ChickenState | null => {
+      const room = rooms[index];
+      const was = map.get(door.x, door.y);
+      map.set(door.x, door.y, Tile.DoorLocked);
+      const center = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+      const field = distanceField(map, floor.start);
+      const cut = field[map.index(center.x, center.y)] < 0 && field[map.index(floor.stairs.x, floor.stairs.y)] >= 0 && open - reachable(map, floor.start) <= room.w * room.h + 1;
+      if (!cut) {
+        map.set(door.x, door.y, was);
+        return null;
+      }
+      // Le mur du fond : la case de la salle la plus loin de la porte ; le coffre, la plus loin ensuite.
+      const fromDoor = distanceField(map, door, (x, y) => inside(room, { x, y }) || (x === door.x && y === door.y));
+      const cells: { x: number; y: number; d: number }[] = [];
+      for (let y = room.y; y < room.y + room.h; y++)
+        for (let x = room.x; x < room.x + room.w; x++)
+          if (map.get(x, y) === Tile.Floor && fromDoor[map.index(x, y)] > 0) cells.push({ x, y, d: fromDoor[map.index(x, y)] });
+      cells.sort((a, b) => b.d - a.d);
+      const crash = cells[0];
+      const chest = cells.find((c) => Math.max(Math.abs(c.x - crash.x), Math.abs(c.y - crash.y)) >= 2 && c.d >= 2);
+      if (!crash || !chest) {
+        map.set(door.x, door.y, was);
+        return null;
+      }
+      map.set(chest.x, chest.y, Tile.Chest);
+      // Le poulet : ailleurs, dans une salle (jamais dans un passage), atteignable.
+      const free = (x: number, y: number) => this.npcFree(state, x, y) && distanceField(map, floor.start)[map.index(x, y)] >= 0;
+      let at = spot && free(spot.x, spot.y) ? spot : null;
+      for (let attempt = 0; attempt < 80 && !at; attempt++) {
+        const k = rng.int(1, rooms.length - 1);
+        if (k === index || themed.has(k) || inside(rooms[k], floor.start)) continue;
+        const r = rooms[k];
+        const p = { x: rng.int(r.x, r.x + r.w - 1), y: rng.int(r.y, r.y + r.h - 1) };
+        if (free(p.x, p.y)) at = p;
+      }
+      if (!at) {
+        map.set(chest.x, chest.y, Tile.Floor);
+        map.set(door.x, door.y, was);
+        return null;
+      }
+      return { x: at.x, y: at.y, door: { x: door.x, y: door.y }, crash: { x: crash.x, y: crash.y }, room: index, done: false };
+    };
+    if (sandbox) {
+      const index = rooms.findIndex((r) => r.x === 47 && r.y === 24);
+      return index >= 0 ? tryRoom(index, { x: 46, y: 26 }, { x: 7, y: 8 }) : null;
+    }
+    const order = rooms.map((_, i) => i).filter((i) => i > 0 && !themed.has(i) && !inside(rooms[i], floor.start) && !inside(rooms[i], floor.stairs) && rooms[i].w >= 3 && rooms[i].h >= 3);
+    while (order.length > 0) {
+      const index = order.splice(rng.int(0, order.length - 1), 1)[0];
+      const room = rooms[index];
+      // Une seule ouverture sur son pourtour, une porte.
+      const openings: Point[] = [];
+      for (let x = room.x - 1; x <= room.x + room.w; x++)
+        for (let y = room.y - 1; y <= room.y + room.h; y++) {
+          if (inside(room, { x, y })) continue;
+          const onRing = x === room.x - 1 || x === room.x + room.w || y === room.y - 1 || y === room.y + room.h;
+          const corner = (x === room.x - 1 || x === room.x + room.w) && (y === room.y - 1 || y === room.y + room.h);
+          if (onRing && !corner && map.get(x, y) !== Tile.Wall) openings.push({ x, y });
+        }
+      if (openings.length !== 1 || map.get(openings[0].x, openings[0].y) !== Tile.DoorClosed) continue;
+      const done = tryRoom(index, openings[0]);
+      if (done) return done;
+    }
+    return null;
+  }
+
+  /** Le poulet (encore là), s'il est sur cette case. */
+  chickenAt(x: number, y: number): ChickenState | null {
+    const c = this.current.chicken;
+    return c && !c.done && c.x === x && c.y === y ? c : null;
+  }
+
+  chicken(): Readonly<ChickenState> | null {
+    return this.current.chicken ?? null;
+  }
+
+  /** La porte du poulet, tant qu'il ne l'a pas défoncée. */
+  private sealedDoor(x: number, y: number): boolean {
+    const c = this.current.chicken;
+    return !!c && !c.done && c.door.x === x && c.door.y === y;
+  }
+
+  /**
+   * On dérange le poulet : il panique, traverse le donjon, défonce la porte qu'aucun jet n'ouvrait et s'écrase contre
+   * le mur du fond, dans un nuage de plumes ; une cuisse reste au sol. Tout se joue d'un coup ; l'écran rejoue sa course.
+   */
+  private scareChicken(): void {
+    const c = this.current.chicken;
+    if (!c || c.done) return;
+    this.map.set(c.door.x, c.door.y, Tile.Floor);
+    const from = { x: c.x, y: c.y };
+    const path = findPath(this.map, from, c.crash) ?? [c.crash];
+    this.refreshLight();
+    const seen = this.isVisible(c.crash.x, c.crash.y) || this.isVisible(c.door.x, c.door.y);
+    c.done = true;
+    c.x = c.crash.x;
+    c.y = c.crash.y;
+    this.dropItem(c.crash.x, c.crash.y, "cuisse_poulet", 1);
+    this.events.push({ type: "chicken", path: [from, ...path], door: { ...c.door }, crash: { ...c.crash }, seen });
+  }
+
   private placeCounterDoor(floor: { map: GameMap; start: Point; stairs: Point; rooms: Room[] }, state: FloorState, seed: number, sandbox: boolean): CounterDoor | null {
     const rng = new Rng(seed ^ 0x2a7c11e3);
     const { map } = floor;
@@ -488,15 +608,16 @@ export class Game {
    * UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur quel étage de la section, et lequel (cloche ou porte du
    * compteur). Tiré une fois pour toutes d'après la graine de la partie ; jamais à l'étage du boss, ni en salle d'essai.
    */
-  funOf(depth: number): "bell" | "counter" | "bath" | null {
+  funOf(depth: number): "bell" | "counter" | "bath" | "chicken" | null {
     if (this.sandbox && depth === 1) return null;
     const section = Math.floor((depth - 1) / RULES.floorsPerSection);
     const rng = new Rng((this.runSeed ^ Math.imul(section + 1, 0x9e3779b1)) >>> 0);
     const floor = section * RULES.floorsPerSection + rng.int(1, RULES.funMaxFloor);
     if (floor !== depth) return null;
-    // Thomas, 2026-11-13 : la salle de bain du Kobold rejoint la cloche et la porte du compteur (un tiers chacune).
-    const pick = rng.int(0, 2);
-    return pick === 0 ? "bell" : pick === 1 ? "counter" : "bath";
+    // Thomas, 2026-11-13 : la salle de bain du Kobold, puis le poulet, rejoignent la cloche et la porte du compteur
+    // (un quart chacun).
+    const pick = rng.int(0, 3);
+    return pick === 0 ? "bell" : pick === 1 ? "counter" : pick === 2 ? "bath" : "chicken";
   }
 
   /** La porte du compteur à cette case (encore fermée), s'il y en a une. */
@@ -1452,6 +1573,7 @@ export class Game {
       soeur: f.soeur,
       krik: f.krik,
       bath: f.bath,
+      chicken: f.chicken,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1551,6 +1673,7 @@ export class Game {
         soeur: f.soeur,
         krik: f.krik,
         bath: f.bath,
+        chicken: f.chicken,
       });
     }
     game.turn = saved.turn;
@@ -2495,6 +2618,12 @@ export class Game {
    */
   setDestination(x: number, y: number, ignoreFog = false): boolean {
     if (this.over) return false;
+    // Toucher le poulet : il prend peur (Thomas, 2026-11-13).
+    if (this.chickenAt(x, y) && this.isVisible(x, y)) {
+      this.path = [];
+      this.scareChicken();
+      return true;
+    }
     if (x === this.hero.x && y === this.hero.y) {
       // Retoucher sa propre case : ramasser ce qui s'y trouve ; sur un escalier, le prendre (Thomas, 2026-11-12 :
       // « on doit pouvoir monter et descendre au clic ») ; sinon passer un tour.
@@ -2589,7 +2718,7 @@ export class Game {
   /** Devant une porte verrouillée, la clef de l'étage sert d'elle-même : ce sera l'action du prochain tour. */
   private useKeyIfAny(): void {
     if (this.pendingDoor && this.maidenAt(this.pendingDoor.x, this.pendingDoor.y)) return;
-    if (this.inventory.count("clef", this.depth) > 0) this.doorAction = "key";
+    if (this.inventory.count("clef", this.depth) > 0 && !(this.pendingDoor && this.sealedDoor(this.pendingDoor.x, this.pendingDoor.y))) this.doorAction = "key";
   }
 
   /** Vrai quand le héros s'apprête à ouvrir avec sa clef la porte devant lui (rien à choisir). */
@@ -2624,6 +2753,12 @@ export class Game {
     // Sarcophage : désamorcer (« pick ») ou forcer (« break »), toujours possibles ; la clef n'y sert à rien.
     if (this.maidenAt(door.x, door.y)) return ["pick", "break"];
     const options: DoorAction[] = [];
+    // La porte du poulet : on peut s'acharner, rien n'y fait ; la clef n'y entre pas.
+    if (this.sealedDoor(door.x, door.y)) {
+      if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "pick"))) options.push("pick");
+      if (!this.failedDoorAttempts.has(this.doorAttemptKey(door, "break"))) options.push("break");
+      return options;
+    }
     // La porte du compteur : on peut d'abord regarder par le trou (autant de fois qu'on veut…).
     if (this.counterAt(door.x, door.y)) options.push("peek");
     // Une clef n'ouvre que les portes de l'étage où on l'a trouvée.
@@ -2930,6 +3065,12 @@ export class Game {
       // Le Colporteur sur le chemin : si on allait le voir, on s'arrête et sa boutique s'ouvre ; sinon il s'écarte
       // (il prend la place du héros) et on passe.
       // Gluck sur le chemin : on s'arrête à côté de lui (la conversation s'ouvre) ; sinon il s'écarte, comme le Colporteur.
+      // Marcher sur le poulet : il prend peur.
+      if (this.chickenAt(next.x, next.y)) {
+        this.path = [];
+        this.scareChicken();
+        return true;
+      }
       const npcOnPath = this.npcAt(next.x, next.y);
       if (npcOnPath && this.talkTarget) {
         const who = this.talkTarget;
@@ -3617,7 +3758,8 @@ export class Game {
       !isChokepoint(state.map, x, y, (a, b) => state.map.isWalkable(a, b) && !state.furniture.some((f) => f.x === a && f.y === b && FURNITURE_KINDS[f.kind]?.blocks)) && !this.monsters.some((m) => m.x === x && m.y === y) && !state.furniture.some((f) => f.x === x && f.y === y) &&
       !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) &&
       !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) &&
-      !(state.krik && state.krik.x === x && state.krik.y === y)
+      !(state.krik && state.krik.x === x && state.krik.y === y) &&
+      !(state.chicken && !state.chicken.done && state.chicken.x === x && state.chicken.y === y)
     );
   }
 
@@ -4966,7 +5108,8 @@ export class Game {
     const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
-    const success = d20 === 20 || (d20 !== 1 && total >= dc);
+    const sealed = this.sealedDoor(door.x, door.y);
+    const success = !sealed && (d20 === 20 || (d20 !== 1 && total >= dc));
     if (success) {
       // Crochetée, la porte s'ouvre ; enfoncée, elle est détruite.
       this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
@@ -4989,7 +5132,7 @@ export class Game {
         }
       }
     }
-    this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted });
+    this.events.push({ type: "door", action, x: door.x, y: door.y, d20, bonus, total, dc, success, alerted, sealed });
   }
 
   /**
@@ -5689,6 +5832,7 @@ export class Game {
     for (let i = 0; i < this.visible.length; i++) {
       if (this.visible[i]) this.explored[i] = 1;
     }
+    this.revealPillarPockets();
     this.senseBeyond();
     // Un monstre qui entre dans le champ de vision interrompt le déplacement en cours.
     for (const m of this.visibleMonsters()) {
@@ -5697,6 +5841,40 @@ export class Game {
         this.path = [];
         this.targetId = null;
         this.doorTarget = null;
+      }
+    }
+  }
+
+  /**
+   * Recoins derrière une colonne (Thomas, 2026-11-13 : « coin d'une salle qui n'apparaît pas ») : les colonnes se
+   * dessinent en blocs de mur aux coins intérieurs des salles, et la case de coin derrière elles restait un trou noir.
+   * Quand on voit une colonne depuis sa salle, ses cases voisines et les murs qui les bordent se voient aussi (on fait
+   * un pas de côté du regard).
+   */
+  private revealPillarPockets(): void {
+    const room = this.rooms[this.roomIndexAt(this.hero)];
+    if (!room) return;
+    const inside = (x: number, y: number) => x >= room.x && y >= room.y && x < room.x + room.w && y < room.y + room.h;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        if (this.map.get(x, y) !== Tile.Pillar || !this.visible[this.map.index(x, y)]) continue;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const px = x + dx;
+            const py = y + dy;
+            if (!inside(px, py) || this.visible[this.map.index(px, py)]) continue;
+            this.visible[this.map.index(px, py)] = 1;
+            this.explored[this.map.index(px, py)] = 1;
+            // Les murs qui bordent ce recoin.
+            for (let ey = -1; ey <= 1; ey++)
+              for (let ex = -1; ex <= 1; ex++) {
+                if (!this.map.inBounds(px + ex, py + ey) || this.map.get(px + ex, py + ey) !== Tile.Wall) continue;
+                const i = this.map.index(px + ex, py + ey);
+                this.visible[i] = 1;
+                this.explored[i] = 1;
+              }
+          }
+        }
       }
     }
   }

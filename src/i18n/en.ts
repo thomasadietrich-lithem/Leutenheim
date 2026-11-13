@@ -1134,4 +1134,13 @@ export const EN: Record<string, string> = {
   "On vous a donné une épée, dix flèches et une tape dans le dos.": "You were given a sword, ten arrows and a pat on the back.",
   "La cave est par là.": "The cellar is that way.",
   "Descendre": "Go down",
+  "Le poulet": "The chicken",
+  "Un poulet, seul, dans le donjon. Il ne faut pas lui parler : il panique, détale, et fonce droit dans la porte qu'aucune serrure ni aucun coup n'ouvre.": "A chicken, alone in the dungeon. Don't talk to it: it panics, bolts, and charges straight into the door no lock or blow can open.",
+  "Cuisse de poulet": "Chicken leg",
+  "Encore tiède. Le poulet n'a pas souffert longtemps. Rend 8 PV.": "Still warm. The chicken didn't suffer long. Restores 8 HP.",
+  "Côôt ?!": "Bawk?!",
+  "Plof !": "Splat!",
+  "{0} : {1} — rien. Elle ne bouge pas d'un pouce. On dirait qu'elle attend quelque chose.": "{0}: {1} — nothing. It doesn't budge an inch. It seems to be waiting for something.",
+  "Le poulet prend peur, file à travers le donjon, défonce la porte et s'écrase contre le mur du fond dans un nuage de plumes.": "The chicken panics, dashes across the dungeon, smashes through the door and crashes into the far wall in a cloud of feathers.",
+  "Le poulet prend peur et détale… Au loin, un fracas. Un poulet semble s'être viandé contre un mur ; il faudrait peut-être investiguer.": "The chicken panics and bolts… A crash, far away. A chicken seems to have splattered itself against a wall; maybe worth investigating.",
 };

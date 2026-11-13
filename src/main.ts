@@ -813,6 +813,22 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "heavyBlow") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : e.kind === "knockback" ? "Projeté !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
     if (e.kind !== "oneShot") sfx.play("thud");
+  } else if (e.type === "chicken") {
+    // Le poulet (Thomas, 2026-11-13) : un cri, puis sa course à l'écran ; la porte défoncée ; le mur, les plumes.
+    renderer.addFloatingText(e.path[0].x, e.path[0].y, "Côôt ?!", "#fff3c8");
+    sfx.play("squeak");
+    renderer.runChicken(
+      e.path,
+      e.door,
+      () => {
+        if (game.isVisible(e.door.x, e.door.y)) renderer.addFloatingText(e.door.x, e.door.y, "Crac !", "#ffd75e");
+        sfx.play("break");
+      },
+      () => {
+        if (game.isVisible(e.crash.x, e.crash.y)) renderer.addFloatingText(e.crash.x, e.crash.y, "Plof !", "#fff3c8");
+        sfx.play("thud");
+      },
+    );
   } else if (e.type === "stairs") {
     clearRollLog();
     shownHp = game.hero.hp;
@@ -2810,6 +2826,8 @@ function discoverSurroundings(): void {
   if (shop && game.isVisible(shop.x, shop.y)) found.push("n:colporteur");
   const tub = game.bath();
   if (tub && game.isVisible(tub.x, tub.y)) found.push("n:bain");
+  const hen = game.chicken();
+  if (hen && !hen.done && game.isVisible(hen.x, hen.y)) found.push("n:poulet");
   discover(found);
 }
 

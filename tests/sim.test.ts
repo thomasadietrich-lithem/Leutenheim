@@ -1316,7 +1316,7 @@ test("porte : après un échec, la même méthode n'est plus proposée", () => {
       let door: { x: number; y: number } | null = null;
       for (let y = 0; y < game.map.height && !door; y++) {
         for (let x = 0; x < game.map.width; x++) {
-          if (game.map.get(x, y) === Tile.DoorLocked && !game.counterAt(x, y)) {
+          if (game.map.get(x, y) === Tile.DoorLocked && !game.counterAt(x, y) && !(game.chicken()?.door.x === x && game.chicken()?.door.y === y)) {
             door = { x, y };
             break;
           }
@@ -2133,12 +2133,13 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
   for (const r of game.rooms) {
     let ok = false;
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (dist[game.map.index(x, y)] >= 0) ok = true;
-    assert.ok(ok, `salle (${r.x},${r.y}) inaccessible`);
+    // La salle du poulet est fermée exprès (sa porte ne cède pas).
+    assert.ok(ok || (r.x === 47 && r.y === 24), `salle (${r.x},${r.y}) inaccessible`);
   }
   for (let y = 0; y < game.map.height; y++) {
     for (let x = 0; x < game.map.width; x++) {
       if (game.map.get(x, y) !== Tile.DoorLocked) continue;
-      assert.notEqual(dist[game.map.index(x, y - 1)], -1, `porte verrouillée (${x},${y}) inaccessible`);
+      assert.ok([[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => dist[game.map.index(x + dx, y + dy)] >= 0), `porte verrouillée (${x},${y}) inaccessible`);
     }
   }
   assert.equal(game.monsters.length, 6);
@@ -2731,6 +2732,72 @@ test("passages : aucun PNJ dans un couloir, devant une porte ou un goulet ; aucu
   assert.ok(npcs > 0);
 });
 
+test("poulet : porte impossible à forcer ; dérangé, il la défonce, s'écrase au fond et laisse une cuisse", () => {
+  const game = new Game(5, undefined, undefined, undefined, true);
+  const c = game.chicken();
+  assert.ok(c, "un poulet dans la salle d'essai");
+  const door = { ...c!.door };
+  assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
+  // Aucun jet ne l'ouvre (le dé est forcé à 20).
+  const rng = (game as unknown as { rng: { int: (a: number, b: number) => number } }).rng;
+  const int = rng.int.bind(rng);
+  rng.int = (a: number, b: number) => (a === 1 && b === 20 ? 20 : int(a, b));
+  game.monsters.length = 0;
+  game.inventory.add("clef", 1, game.depth);
+  game.hero.x = game.hero.fromX = door.x - 1;
+  game.hero.y = game.hero.fromY = door.y;
+  assert.ok(game.setDestination(door.x, door.y, true));
+  for (let i = 0; i < 3 && game.pendingDoor === null; i++) game.tick();
+  assert.ok(!game.doorOptions().includes("key"), "la clef n'y entre pas");
+  for (const action of ["pick", "break"] as const) {
+    assert.ok(game.actOnDoor(action));
+    game.tick();
+    assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked, `${action} : la porte tient`);
+  }
+  rng.int = int;
+  // On touche le poulet : il détale, défonce la porte et finit contre le mur du fond.
+  const hen = game.chicken()!;
+  game.events.length = 0;
+  assert.ok(game.setDestination(hen.x, hen.y, true) || true);
+  // Hors de vue depuis la porte : on l'appelle directement par la case.
+  if (!game.chicken()!.done) {
+    game.hero.x = game.hero.fromX = hen.x + 1;
+    game.hero.y = game.hero.fromY = hen.y;
+    (game as unknown as { updateVision: () => void }).updateVision();
+    assert.ok(game.setDestination(hen.x, hen.y));
+  }
+  const ev = game.events.find((e) => e.type === "chicken");
+  assert.ok(ev && ev.type === "chicken");
+  assert.ok(game.chicken()!.done);
+  assert.notEqual(game.map.get(door.x, door.y), Tile.DoorLocked, "porte défoncée");
+  const crash = game.chicken()!.crash;
+  assert.ok(game.ground.some((g) => g.item === "cuisse_poulet" && g.x === crash.x && g.y === crash.y));
+  const room = game.rooms[game.chicken()!.room];
+  let chest = false;
+  for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (game.map.get(x, y) === Tile.Chest) chest = true;
+  assert.ok(chest, "un coffre dans la salle");
+  assert.equal(ITEMS.cuisse_poulet.heal, 8);
+});
+
+test("poulet dans le donjon : un truc fun possible, salle fermée par une seule porte, poulet ailleurs", () => {
+  let found = 0;
+  for (let seed = 1; seed <= 120 && found < 3; seed++) {
+    const game = new Game(seed);
+    for (let d = 1; d <= 4; d++) {
+      if (game.funOf(game.depth) === "chicken" && game.chicken()) {
+        const c = game.chicken()!;
+        const room = game.rooms[c.room];
+        assert.ok(!(c.x >= room.x && c.x < room.x + room.w && c.y >= room.y && c.y < room.y + room.h), "le poulet n'est pas enfermé");
+        assert.equal(game.map.get(c.door.x, c.door.y), Tile.DoorLocked);
+        found++;
+      }
+      game.pendingStairs = "down";
+      game.takeStairs();
+    }
+  }
+  assert.ok(found > 0, "aucun poulet en 120 parties");
+});
+
 test("jeter une partie d'une pile : seul le nombre choisi tombe, le reste reste au sac", () => {
   const game = new Game(7);
   game.inventory.add("pomme", 5);
@@ -2826,7 +2893,7 @@ test("dortoir de la salle d'essai : lits contre le mur du haut, table, chaises, 
     for (let x = 0; x < game.map.width; x++) {
       const inSpecial = x <= 12 && y >= 13 && y <= 17;
       // (Le placard du Kobold qui compte, derrière sa porte verrouillée, est fermé exprès.)
-      if (game.map.get(x, y) === Tile.Floor && !inSpecial && !(x === 13 && y === 29)) assert.ok(dist[game.map.index(x, y)] >= 0, `case ${x},${y} coupée`);
+      if (game.map.get(x, y) === Tile.Floor && !inSpecial && !(x === 13 && y === 29) && !(x >= 47 && y >= 24 && y <= 28)) assert.ok(dist[game.map.index(x, y)] >= 0, `case ${x},${y} coupée`);
     }
   }
 });
@@ -3200,7 +3267,8 @@ test("salle d'essai : cuisine, salle de prière et salle de torture, avec tous l
   for (const r of game.rooms) {
     let ok = false;
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (dist[game.map.index(x, y)] >= 0) ok = true;
-    assert.ok(ok, `salle (${r.x},${r.y}) inaccessible`);
+    // La salle du poulet est fermée exprès (sa porte ne cède pas).
+    assert.ok(ok || (r.x === 47 && r.y === 24), `salle (${r.x},${r.y}) inaccessible`);
   }
   const chest = { x: 33, y: 12 };
   assert.equal(game.map.get(chest.x, chest.y), Tile.Chest);

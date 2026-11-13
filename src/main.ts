@@ -359,15 +359,23 @@ function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   const chips = [...diceLog.children] as HTMLElement[];
   chips.forEach((c, i) => (c.style.opacity = String(Math.max(0.15, 1 - (chips.length - 1 - i) * 0.11))));
   diceLog.classList.remove("fade");
+  syncFrieze();
   if (!rollUnrolled) diceLog.scrollLeft = diceLog.scrollWidth;
+}
+
+/** Signale au reste de l'écran que la frise est allumée (la languette et les barres montent au-dessus). */
+function syncFrieze(): void {
+  document.body.classList.toggle("frieze-on", diceLog.childElementCount > 0 && !diceLog.classList.contains("fade"));
 }
 
 /** La frise s'éteint au bout de quelques tours sans jet, et oublie ses jets ; pas tant qu'on la déroule. */
 function quietRollLog(): void {
   if (!diceLog.childElementCount || rollUnrolled) return;
   if (game.turn - rollTurn >= ROLL_QUIET_TURNS) {
-    if (!diceLog.classList.contains("fade")) diceLog.classList.add("fade");
-    else if (game.turn - rollTurn >= ROLL_QUIET_TURNS + 1) clearRollLog();
+    if (!diceLog.classList.contains("fade")) {
+      diceLog.classList.add("fade");
+      syncFrieze();
+    } else if (game.turn - rollTurn >= ROLL_QUIET_TURNS + 1) clearRollLog();
   }
 }
 
@@ -415,6 +423,7 @@ function clearRollLog(): void {
   rollUnrolled = false;
   diceLog.replaceChildren();
   diceLog.classList.remove("fade");
+  syncFrieze();
 }
 
 

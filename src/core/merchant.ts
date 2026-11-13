@@ -48,22 +48,24 @@ export function makeMerchant(at: Point, home: Room, list: { item: ItemId; count:
 }
 
 /**
- * Les 4 articles d'un Colporteur du donjon (C) : un objet à consommer, une arme ou une armure, des munitions, et un
- * objet plus rare ; tirés parmi ce que l'étage peut offrir.
+ * Les 6 articles d'un Colporteur du donjon (Thomas, 2026-11-13) : à coup sûr une cuisse de poulet, une potion et un
+ * équipement ; puis des munitions, un objet plus rare, et un sixième au hasard ; tirés parmi ce que l'étage peut offrir.
  */
 export function rollWares(depth: number, seed: number): { item: ItemId; count: number }[] {
-  const out: { item: ItemId; count: number }[] = [];
+  const out: { item: ItemId; count: number }[] = [{ item: "cuisse_poulet", count: 1 }];
   const pick = (pool: ItemId[], k: number): ItemId | null => {
     const free = pool.filter((id) => !out.some((w) => w.item === id));
     return free.length > 0 ? free[Math.floor(mix(seed, depth, k) * free.length)] : null;
   };
-  const use = pick(lootPool(depth, (kind) => kind === "use"), 1);
-  if (use) out.push({ item: use, count: (ITEMS[use] as ItemDef).heal ? 2 : 1 });
+  const potion = pick(lootPool(depth, (_kind, id) => id.startsWith("potion_")), 1);
+  if (potion) out.push({ item: potion, count: 1 });
   const gear = pick(lootPool(depth, (kind) => ["melee", "ranged", "armor", "hat"].includes(kind)), 2);
   if (gear) out.push({ item: gear, count: 1 });
   const ammo = pick(lootPool(depth, (kind) => kind === "ammo"), 3) ?? "fleche";
   out.push({ item: ammo, count: ammo === "fleche" ? 10 : ammo === "javeline" ? 3 : 5 });
   const rare = pick(lootPool(depth, (kind) => kind !== "gem", "rare"), 4) ?? pick(lootPool(depth, (kind) => kind !== "gem", "uncommon"), 5);
   if (rare) out.push({ item: rare, count: 1 });
+  const extra = pick(lootPool(depth, (kind) => kind !== "gem" && kind !== "gold" && kind !== "ammo" && kind !== "key" && kind !== "quest"), 6);
+  if (extra) out.push({ item: extra, count: (ITEMS[extra] as ItemDef).heal ? 2 : 1 });
   return out;
 }

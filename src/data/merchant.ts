@@ -55,10 +55,12 @@ export function buyBackPrice(id: ItemId): number | null {
   return p === null ? null : Math.max(1, Math.floor(p * MERCHANT.buyBack));
 }
 
-/** Les 4 articles de la salle d'essai (lot entier, prix pour le lot). */
+/** Les 6 articles de la salle d'essai (lot entier, prix pour le lot) : cuisse, potion et équipement compris. */
 export const SANDBOX_WARES: { item: ItemId; count: number }[] = [
+  { item: "cuisse_poulet", count: 1 },
   { item: "potion_feu", count: 1 },
-  { item: "javeline", count: 3 },
   { item: "casque_maille", count: 1 },
+  { item: "javeline", count: 3 },
+  { item: "outils_voleur", count: 1 },
   { item: "pomme", count: 2 },
 ];

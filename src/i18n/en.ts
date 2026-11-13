@@ -1164,4 +1164,6 @@ export const EN: Record<string, string> = {
   "CLONC ! Le donjon applaudit votre sens de la discrétion.": "CLONK! The dungeon applauds your sense of discretion.",
   "CLONC ! La vraie, elle, sonne sous vos pieds. Celle-ci sonne surtout l'alerte.": "CLONK! The real one rings beneath your feet. This one mostly rings the alarm.",
   "Encore tiède. Rend 8 PV.": "Still warm. Restores 8 HP.",
+  "Masse d'arme": "Mace",
+  "Une tête de fer à ailettes au bout d'un manche de chêne. Elle cabosse les armures et assomme : sur un 17 ou plus au dé, l'ennemi touché perd son prochain tour.": "A flanged iron head on an oak haft. It dents armor and stuns: on a 17 or more on the die, the enemy hit loses its next turn.",
 };

@@ -249,6 +249,21 @@ export const ITEMS = {
     attackBonus: 4,
     damage: { count: 1, sides: 10, bonus: 2 },
   },
+  // Masse d'arme (Thomas, 2026-11-13) : une main, lourde ; elle assomme sur les beaux coups.
+  masse: {
+    id: "masse",
+    name: "Masse d'arme",
+    kind: "melee",
+    description: "Une tête de fer à ailettes au bout d'un manche de chêne. Elle cabosse les armures et assomme : sur un 17 ou plus au dé, l'ennemi touché perd son prochain tour.",
+    w: 1,
+    h: 2,
+    maxStack: 1,
+    rarity: "uncommon",
+    level: 2,
+    attackBonus: 3,
+    damage: { count: 1, sides: 8, bonus: 1 },
+    stunOn: 17,
+  },
   cimeterre: {
     id: "cimeterre",
     name: "Cimeterre",

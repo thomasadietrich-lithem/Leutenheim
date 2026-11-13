@@ -3715,7 +3715,7 @@ test("Colporteur (salle d'essai) : on va à côté, la boutique s'ouvre ; achete
   game.setPeaceful(true);
   const m = game.merchant()!;
   assert.ok(m, "le Colporteur est dans la salle d'essai");
-  assert.equal(m.wares.length, 4);
+  assert.equal(m.wares.length, 6);
   // Le toucher : le héros va à côté, puis la boutique s'ouvre.
   assert.ok(game.setDestination(m.x, m.y));
   let opened = false;
@@ -3735,7 +3735,7 @@ test("Colporteur (salle d'essai) : on va à côté, la boutique s'ouvre ; achete
   assert.equal(game.buy(0), "ok");
   assert.equal(game.gold, 500 - ware.price);
   assert.equal(game.inventory.count(ware.item), before + ware.count);
-  assert.equal(m.wares.length, 3);
+  assert.equal(m.wares.length, 5);
   // Vendre : il rachète à 40 % (au moins 1 or), jamais l'or ni les gemmes.
   const it = game.inventory.items.find((x) => x.defId === ware.item)!;
   const price = game.sellPrice(it.uid)!;
@@ -3768,7 +3768,11 @@ test("Colporteur : un par section, au 4e étage, gardé dans la sauvegarde", () 
     }
     assert.deepEqual(at, [4], `graine ${seed}`);
     const m = game.merchant()!;
-    assert.equal(m.wares.length, 4);
+    // 6 articles (Thomas, 2026-11-13), dont à coup sûr une cuisse, une potion et un équipement.
+    assert.equal(m.wares.length, 6);
+    assert.ok(m.wares.some((w) => w.item === "cuisse_poulet"));
+    assert.ok(m.wares.some((w) => w.item.startsWith("potion_")));
+    assert.ok(m.wares.some((w) => ["melee", "ranged", "armor", "hat"].includes(ITEMS[w.item].kind)));
     assert.ok(game.map.isWalkable(m.x, m.y));
     const copy = Game.restore(game.snapshot())!;
     assert.deepEqual(copy.merchant(), m);

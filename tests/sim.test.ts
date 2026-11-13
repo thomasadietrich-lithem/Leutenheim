@@ -4065,7 +4065,9 @@ test("potion de pierre : bue, statue (rien ne blesse, on ne fait rien) ; lancée
   while (game.stoneTurns > 0) game.tick();
   // Lancée sur le monstre : pétrifié, et il fait un abri.
   const uid = game.inventory.items.find((i) => i.defId === "potion_pierre")!.uid;
+  // Le monstre a pu errer pendant la statue : on le remet à deux cases.
   m.x = game.hero.x + (game.map.isWalkable(game.hero.x + 2, game.hero.y) ? 2 : 0);
+  m.y = game.hero.y;
   assert.ok(game.throwPotion(uid, m.x, m.y));
   game.tick();
   assert.ok((m.petrified ?? 0) > 0, "pétrifié");

@@ -1868,10 +1868,13 @@ export class Game {
   }
 
   /** Jeter un objet du sac : il tombe aux pieds du héros (sans prendre de tour). Le sac porté ne se jette pas. */
-  dropFromBag(uid: number): boolean {
+  dropFromBag(uid: number, count?: number): boolean {
     const item = this.inventory.get(uid);
     if (!item || this.over) return false;
-    this.inventory.removeItem(uid);
+    // Une pile : on n'en jette que `count` (Thomas, 2026-11-13 : « on doit choisir combien ») ; le reste reste au sac.
+    const n = Math.max(1, Math.min(count ?? item.count, item.count));
+    if (n < item.count) item.count -= n;
+    else this.inventory.removeItem(uid);
     // Une potion jetée se casse sur les dalles, à côté du héros (Thomas, 2026-11-12) : elle est perdue, et son contenu
     // se répand sur la case : le feu y prend, le poison y fait un petit nuage (3 tours) ; les autres s'évaporent.
     const potion = (ITEMS[item.defId] as ItemDef).potion;
@@ -1896,8 +1899,8 @@ export class Game {
       this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
       return true;
     }
-    this.dropItem(this.hero.x, this.hero.y, item.defId, item.count);
-    this.events.push({ type: "dropped", item: item.defId, count: item.count });
+    this.dropItem(this.hero.x, this.hero.y, item.defId, n);
+    this.events.push({ type: "dropped", item: item.defId, count: n });
     return true;
   }
 

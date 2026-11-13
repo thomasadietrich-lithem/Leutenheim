@@ -266,8 +266,7 @@
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 70px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
-  /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
-  .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
+  /* Un ennemi au contact : toucher le dé frappe au corps à corps (plus de cadre doré autour : Thomas, 2026-11-13). */
   .dice.ready #die-who { color: var(--gold); }
   .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 100%; flex: none; }
   /* Panneau compact : le d20 un peu plus petit, centré, avec de l'air au-dessus et au-dessous. */
@@ -477,6 +476,13 @@
   #bag-info { min-height: 58px; width: min(100%, 318px); font-size: 17px; color: var(--dim); text-align: left; }
   .bag-name { color: #fff3c8; font-size: 21px; text-transform: uppercase; }
   .bag-buttons { display: flex; gap: 8px; }
+  /* Jeter une pile : combien ? (Thomas, 2026-11-13) */
+  #bag-buttons[hidden] { display: none; }
+  #bag-qty { display: flex; gap: 6px; align-items: center; }
+  #bag-qty[hidden] { display: none; }
+  #bag-qty button { flex: none; min-width: 44px; padding: 8px 6px; }
+  #bag-qty #qty-ok { flex: 1; }
+  #qty-n { min-width: 54px; text-align: center; font-size: 22px; color: #fff3c8; }
 </style>
 </head>
 <body>
@@ -577,10 +583,18 @@
       <h3>Sac</h3>
       <div id="bag-grid"></div>
       <div id="bag-info"></div>
-      <div class="bag-buttons">
+      <div id="bag-buttons" class="bag-buttons">
         <button id="bag-equip" type="button" hidden></button>
         <button id="bag-throw" type="button" hidden>Lancer</button>
         <button id="bag-drop" type="button" hidden>Jeter</button>
+      </div>
+      <div id="bag-qty" hidden>
+        <button id="qty-minus" type="button">−</button>
+        <span id="qty-n"></span>
+        <button id="qty-plus" type="button">+</button>
+        <button id="qty-all" type="button">Tout</button>
+        <button id="qty-ok" type="button">Jeter</button>
+        <button id="qty-cancel" type="button">×</button>
       </div>
     </section>
     <section id="pane-char" hidden>

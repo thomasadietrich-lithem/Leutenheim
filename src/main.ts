@@ -1350,8 +1350,8 @@ function openWheel(): void {
   jumpMode = false;
   pushMode = false;
   renderer.jumpCells = [];
-  // La caméra revient d'abord sur le héros, d'un coup (Thomas, 2026-11-12) ; la barre d'actions monte en bas de la carte.
-  renderer.recenterNow(game);
+  // La caméra ne bouge plus à l'ouverture (Thomas, 2026-11-13 : « retire le centrage automatique ») ; la barre
+  // d'actions monte en bas de la carte.
   // Le pouvoir de la voie (bleue, rouge) a désormais son propre bouton dans la barre du bas (Thomas, 2026-11-11).
   const withSkill = false;
   $("wheel-skill").hidden = !withSkill;
@@ -2037,6 +2037,7 @@ function renderBag(): void {
     }),
   );
 
+  showDropQty(false);
   const info = $("bag-info");
   const action = $("bag-equip");
   const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
@@ -2157,9 +2158,41 @@ button("bag-throw", () => {
   selected = null;
   renderLog();
 });
+/** Jeter une pile : le choix du nombre (Thomas, 2026-11-13). */
+let dropQty = 1;
+function showDropQty(open: boolean): void {
+  const item = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
+  const show = open && !!item && item.count > 1;
+  $("bag-qty").hidden = !show;
+  $("bag-buttons").hidden = show;
+  if (show) $("qty-n").textContent = `${dropQty} / ${item!.count}`;
+}
+function stepDropQty(to: number): void {
+  const item = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
+  if (!item) return showDropQty(false);
+  dropQty = Math.max(1, Math.min(item.count, to));
+  showDropQty(true);
+}
+button("qty-minus", () => stepDropQty(dropQty - 1));
+button("qty-plus", () => stepDropQty(dropQty + 1));
+button("qty-all", () => stepDropQty(Infinity));
+button("qty-cancel", () => showDropQty(false));
+button("qty-ok", () => {
+  showDropQty(false);
+  dropSelected(dropQty);
+});
 button("bag-drop", () => {
+  const item = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
+  if (item && item.count > 1) {
+    dropQty = 1;
+    showDropQty(true);
+    return;
+  }
+  dropSelected();
+});
+function dropSelected(count?: number): void {
   if (selected && "uid" in selected) {
-    if (game.dropFromBag(selected.uid)) {
+    if (game.dropFromBag(selected.uid, count)) {
       collectEvents();
       aimShown = "";
     }
@@ -2167,7 +2200,7 @@ button("bag-drop", () => {
   selected = null;
   renderLog();
   renderHeroScreen();
-});
+}
 button("bag-equip", () => {
   const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;

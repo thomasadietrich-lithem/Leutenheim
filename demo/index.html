@@ -266,8 +266,7 @@
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 70px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
-  /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
-  .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
+  /* Un ennemi au contact : toucher le dé frappe au corps à corps (plus de cadre doré autour : Thomas, 2026-11-13). */
   .dice.ready #die-who { color: var(--gold); }
   .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 100%; flex: none; }
   /* Panneau compact : le d20 un peu plus petit, centré, avec de l'air au-dessus et au-dessous. */
@@ -477,6 +476,13 @@
   #bag-info { min-height: 58px; width: min(100%, 318px); font-size: 17px; color: var(--dim); text-align: left; }
   .bag-name { color: #fff3c8; font-size: 21px; text-transform: uppercase; }
   .bag-buttons { display: flex; gap: 8px; }
+  /* Jeter une pile : combien ? (Thomas, 2026-11-13) */
+  #bag-buttons[hidden] { display: none; }
+  #bag-qty { display: flex; gap: 6px; align-items: center; }
+  #bag-qty[hidden] { display: none; }
+  #bag-qty button { flex: none; min-width: 44px; padding: 8px 6px; }
+  #bag-qty #qty-ok { flex: 1; }
+  #qty-n { min-width: 54px; text-align: center; font-size: 22px; color: #fff3c8; }
 </style>
 </head>
 <body>
@@ -577,10 +583,18 @@
       <h3>Sac</h3>
       <div id="bag-grid"></div>
       <div id="bag-info"></div>
-      <div class="bag-buttons">
+      <div id="bag-buttons" class="bag-buttons">
         <button id="bag-equip" type="button" hidden></button>
         <button id="bag-throw" type="button" hidden>Lancer</button>
         <button id="bag-drop" type="button" hidden>Jeter</button>
+      </div>
+      <div id="bag-qty" hidden>
+        <button id="qty-minus" type="button">−</button>
+        <span id="qty-n"></span>
+        <button id="qty-plus" type="button">+</button>
+        <button id="qty-all" type="button">Tout</button>
+        <button id="qty-ok" type="button">Jeter</button>
+        <button id="qty-cancel" type="button">×</button>
       </div>
     </section>
     <section id="pane-char" hidden>
@@ -6318,10 +6332,12 @@
       }
     }
     /** Jeter un objet du sac : il tombe aux pieds du héros (sans prendre de tour). Le sac porté ne se jette pas. */
-    dropFromBag(uid) {
+    dropFromBag(uid, count) {
       const item = this.inventory.get(uid);
       if (!item || this.over) return false;
-      this.inventory.removeItem(uid);
+      const n = Math.max(1, Math.min(count ?? item.count, item.count));
+      if (n < item.count) item.count -= n;
+      else this.inventory.removeItem(uid);
       const potion = ITEMS[item.defId].potion;
       if (potion) {
         const at = this.landingCell(this.hero, item.defId);
@@ -6343,8 +6359,8 @@
         this.events.push({ type: "shatter", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y });
         return true;
       }
-      this.dropItem(this.hero.x, this.hero.y, item.defId, item.count);
-      this.events.push({ type: "dropped", item: item.defId, count: item.count });
+      this.dropItem(this.hero.x, this.hero.y, item.defId, n);
+      this.events.push({ type: "dropped", item: item.defId, count: n });
       return true;
     }
     /** Les munitions présentes dans le sac : celles de l'arc (ordinaires d'abord), puis ce qui se lance à la main (javelines). */
@@ -12510,7 +12526,8 @@
     "{0} se change en pierre.": "{0} turns to stone.",
     "{0} redevient chair et os.": "{0} is flesh and bone again.",
     "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 10 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 10 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 10 turns, and makes cover to hide behind.",
-    "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lanc\xE9e, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover."
+    "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lanc\xE9e, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover.",
+    "Tout": "All"
   };
 
   // src/i18n/i18n.ts
@@ -23844,7 +23861,6 @@
     jumpMode = false;
     pushMode = false;
     renderer.jumpCells = [];
-    renderer.recenterNow(game);
     const withSkill = false;
     $("wheel-skill").hidden = !withSkill;
     if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
@@ -24443,6 +24459,7 @@
         return node;
       })
     );
+    showDropQty(false);
     const info = $("bag-info");
     const action = $("bag-equip");
     const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
@@ -24549,9 +24566,40 @@
     selected = null;
     renderLog();
   });
+  var dropQty = 1;
+  function showDropQty(open) {
+    const item = selected && "uid" in selected ? game.inventory.get(selected.uid) : void 0;
+    const show = open && !!item && item.count > 1;
+    $("bag-qty").hidden = !show;
+    $("bag-buttons").hidden = show;
+    if (show) $("qty-n").textContent = `${dropQty} / ${item.count}`;
+  }
+  function stepDropQty(to) {
+    const item = selected && "uid" in selected ? game.inventory.get(selected.uid) : void 0;
+    if (!item) return showDropQty(false);
+    dropQty = Math.max(1, Math.min(item.count, to));
+    showDropQty(true);
+  }
+  button("qty-minus", () => stepDropQty(dropQty - 1));
+  button("qty-plus", () => stepDropQty(dropQty + 1));
+  button("qty-all", () => stepDropQty(Infinity));
+  button("qty-cancel", () => showDropQty(false));
+  button("qty-ok", () => {
+    showDropQty(false);
+    dropSelected(dropQty);
+  });
   button("bag-drop", () => {
+    const item = selected && "uid" in selected ? game.inventory.get(selected.uid) : void 0;
+    if (item && item.count > 1) {
+      dropQty = 1;
+      showDropQty(true);
+      return;
+    }
+    dropSelected();
+  });
+  function dropSelected(count) {
     if (selected && "uid" in selected) {
-      if (game.dropFromBag(selected.uid)) {
+      if (game.dropFromBag(selected.uid, count)) {
         collectEvents();
         aimShown = "";
       }
@@ -24559,7 +24607,7 @@
     selected = null;
     renderLog();
     renderHeroScreen();
-  });
+  }
   button("bag-equip", () => {
     const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : void 0;
     const chosenDef = chosen ? ITEMS[chosen.defId] : void 0;

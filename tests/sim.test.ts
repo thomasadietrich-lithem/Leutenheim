@@ -2629,6 +2629,14 @@ test("jeter un objet : il tombe aux pieds du héros ; Intelligence et Charisme p
   assert.equal(game.alloc.intelligence, 1);
 });
 
+test("jeter une partie d'une pile : seul le nombre choisi tombe, le reste reste au sac", () => {
+  const game = new Game(7);
+  game.inventory.add("pomme", 5);
+  assert.ok(game.dropFromBag(bagUid(game, "pomme"), 2));
+  assert.equal(game.inventory.count("pomme"), 3);
+  assert.ok(game.ground.some((g) => g.item === "pomme" && g.count === 2 && g.x === game.hero.x && g.y === game.hero.y));
+});
+
 test("sang : un coup qui porte laisse une tache (jaune pour un Kobold) ; le feu suit celui qui en sort", () => {
   const { game, m } = foeAt(1);
   game.hero.hp = game.hero.maxHp = 100000;

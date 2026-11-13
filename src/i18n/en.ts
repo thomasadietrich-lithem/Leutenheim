@@ -1127,4 +1127,5 @@ export const EN: Record<string, string> = {
   "vous découvrez une cache et un piège caché !": "you find a cache and a hidden trap!",
   "vous repérez un piège caché !": "you spot a hidden trap!",
   "« Halte. On ne court pas devant une religieuse. Même loin de sa chapelle. »": "“Halt. No running in front of a nun. Even far from her chapel.”",
+  "Reprendre le trajet": "Resume the walk",
 };

@@ -13,3 +13,6 @@
 | 2026-11-13 00:00 | d6ad2f9 | Débutant | 2.3 | 25 % | 1 % | 0 % | 1.3 | 4.9 | 0.1 / 0 / 0 | + Kobolds blessés qui fuient parfois, repos qui fait sortir de l'ombre |
 | 2026-11-13 00:00 | d6ad2f9 | Moyen | 3 | 19 % | 19 % | 2 % | 2.2 | 12.3 | 0.3 / 0.2 / 0 | + Kobolds blessés qui fuient parfois, repos qui fait sortir de l'ombre |
 | 2026-11-13 00:00 | d6ad2f9 | Maîtrise | 4.1 | 4 % | 30 % | 23 % | 4.4 | 41.7 | 0.5 / 0.4 / 0 | + Kobolds blessés qui fuient parfois, repos qui fait sortir de l'ombre |
+| 2026-11-13 13:23 | bbc828d | Débutant | 2.3 | 23 % | 3 % | 0 % | 1.4 | 4.9 | 0.1 / 0 / 0 | après pièges cachés en crescendo, fuite par les portes, forge v2, audit (chemins plus rapides) |
+| 2026-11-13 13:23 | bbc828d | Moyen | 3 | 19 % | 19 % | 1 % | 2.2 | 13 | 0.3 / 0.3 / 0 | après pièges cachés en crescendo, fuite par les portes, forge v2, audit (chemins plus rapides) |
+| 2026-11-13 13:23 | bbc828d | Maîtrise | 4 | 4 % | 29 % | 21 % | 4.1 | 35.2 | 0.4 / 0.4 / 0 | après pièges cachés en crescendo, fuite par les portes, forge v2, audit (chemins plus rapides) |

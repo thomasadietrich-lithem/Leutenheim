@@ -187,6 +187,10 @@
   #test-tools { position: absolute; bottom: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
   #test-tools button { padding: 4px 8px; font-size: 18px; }
   #recenter { position: absolute; top: 8px; right: 8px; padding: 6px; display: flex; }
+  /* Reprendre un trajet interrompu (Thomas, 2026-11-13) : sous le bouton de recentrage. */
+  #resume { position: absolute; top: 52px; right: 8px; padding: 6px; display: flex; z-index: 2; }
+  #resume[hidden] { display: none; }
+  #resume svg { width: 28px; height: 28px; }
   #recenter:active { transform: translateY(1px); }
   /* Actions (design C, Thomas 2026-11-12) : une barre de grandes touches qui monte au-dessus du dé, nom sous chaque
      pictogramme ; la carte reste visible ; toucher ailleurs referme. */
@@ -497,6 +501,7 @@
   <div class="frame">
     <canvas id="game"></canvas>
     <button id="recenter" type="button" hidden></button>
+    <button id="resume" type="button" hidden></button>
     <button id="quest-banner" type="button" hidden></button>
     <div id="hero-status"></div>
     <div id="dice-log"></div>

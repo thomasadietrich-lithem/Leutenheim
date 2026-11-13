@@ -1,0 +1,88 @@
+{
+ "date": "2026-11-13T13:23:05.298Z",
+ "commit": "bbc828d",
+ "runs": 150,
+ "note": "après pièges cachés en crescendo, fuite par les portes, forge v2, audit (chemins plus rapides)",
+ "levels": {
+  "debutant": {
+   "floor": 2.3,
+   "deathFloor1": 23,
+   "reach": {
+    "2": 77,
+    "3": 46,
+    "4": 8,
+    "5": 3
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 127.9,
+   "gold": 3.2,
+   "kills": 4.9,
+   "questsStarted": 0.1,
+   "questsDone": 0,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold frondeur": 20,
+    "un Kobold": 102,
+    "une Araignée": 20,
+    "la Tisseuse": 4,
+    "un piège à pointes": 1,
+    "le poison": 1,
+    "une chute dans une fosse": 2
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 19,
+   "reach": {
+    "2": 81,
+    "3": 63,
+    "4": 35,
+    "5": 19
+   },
+   "boss": 1,
+   "dead": 97,
+   "heroLevel": 2.2,
+   "turns": 321.1,
+   "gold": 32.8,
+   "kills": 13,
+   "questsStarted": 0.3,
+   "questsDone": 0.3,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 40,
+    "un Kobold": 75,
+    "un Kobold frondeur": 18,
+    "la Tisseuse": 12,
+    "le poison": 1
+   }
+  },
+  "maitrise": {
+   "floor": 4,
+   "deathFloor1": 4,
+   "reach": {
+    "2": 95,
+    "3": 85,
+    "4": 59,
+    "5": 29
+   },
+   "boss": 21,
+   "dead": 82,
+   "heroLevel": 4.1,
+   "turns": 879.4,
+   "gold": 81.1,
+   "kills": 35.2,
+   "questsStarted": 0.4,
+   "questsDone": 0.4,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 33,
+    "un Kobold": 56,
+    "un Kobold frondeur": 24,
+    "la Tisseuse": 8,
+    "le poison": 2
+   }
+  }
+ }
+}

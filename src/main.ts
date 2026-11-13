@@ -1298,6 +1298,7 @@ bindInput(canvas, {
       return;
     }
     if (game.setDestination(t.x, t.y)) stepMs = stepDuration(game.path.length);
+    noteTravel(t.x, t.y);
     // Ce qui arrive sans qu'un tour passe (conversation avec Gluck ou le Colporteur, déjà à côté) : on le montre tout de suite.
     if (game.events.length > 0) collectEvents();
     // Toucher l'escalier sur lequel on se tient : on le prend (Thomas, 2026-11-12).
@@ -1502,6 +1503,35 @@ doorButton("door-break", "break");
 doorButton("door-key", "key");
 button("door-cancel", () => game.cancelDoor());
 button("recenter", () => renderer.recenter());
+
+// ---------- Reprendre un trajet interrompu (Thomas, 2026-11-13) ----------
+/** Le trajet en cours (une case de sol libre touchée de loin), et celui qu'on peut reprendre s'il a été coupé. */
+let travel: { x: number; y: number; depth: number } | null = null;
+let resumeTo: { x: number; y: number; depth: number } | null = null;
+/** Un nouvel ordre au toucher : on retient la destination si c'est un vrai trajet vers une case libre. */
+function noteTravel(x: number, y: number): void {
+  resumeTo = null;
+  const free = game.map.isWalkable(x, y) && !game.monsterAt(x, y) && !game.npcAt(x, y);
+  travel = free && game.path.length > 1 ? { x, y, depth: game.depth } : null;
+}
+/** À chaque image : un trajet qui s'arrête avant sa case devient « à reprendre ». */
+function watchTravel(): void {
+  if (resumeTo && (resumeTo.depth !== game.depth || game.over || (game.hero.x === resumeTo.x && game.hero.y === resumeTo.y))) resumeTo = null;
+  if (travel && !stepping && game.path.length === 0 && queue.length === 0) {
+    const arrived = game.hero.x === travel.x && game.hero.y === travel.y;
+    if (!arrived && travel.depth === game.depth && !game.over) resumeTo = travel;
+    travel = null;
+  }
+  setHidden($("resume"), !resumeTo);
+}
+button("resume", () => {
+  const to = resumeTo;
+  if (!to) return;
+  if (game.setDestination(to.x, to.y)) {
+    stepMs = stepDuration(game.path.length);
+    noteTravel(to.x, to.y);
+  } else resumeTo = null;
+});
 /** Tire une flèche vers une case ; explique le refus s'il y en a un. Une flèche par visée. */
 function fireAt(x: number, y: number): void {
   const refusal = game.shoot(x, y);
@@ -1602,6 +1632,7 @@ for (const [id, icon, label] of [
   ["actions", "actions", "Actions"],
   ["open-menu", "menu", "Menu"],
   ["recenter", "recenter", "Recentrer la vue"],
+  ["resume", "resume", "Reprendre le trajet"],
   ["door-cancel", "cancel", "Ne rien faire"],
 ] as const) {
   $(id).replaceChildren(uiIcon(icon));
@@ -3288,6 +3319,7 @@ function frame(now: number): void {
   }
   doorWasPending = game.pendingDoor !== null;
   setHidden($("recenter"), !renderer.isPanned());
+  watchTravel();
   const bow = game.weapon("ranged");
   const aim = $("aim");
   // Le bouton de tir sert aussi à lancer une javeline, même sans arc.

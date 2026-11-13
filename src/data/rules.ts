@@ -31,7 +31,7 @@ export const RULES = {
   /** …de ce bonus au d20 par raté au-delà (3, puis 6, puis 9…), jusqu'au premier coup qui porte. */
   missStreakBonus: 3,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
-  arrowOvershoot: 4,
+  arrowOvershoot: 1,
   /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
   hideDc: 9,
   /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */

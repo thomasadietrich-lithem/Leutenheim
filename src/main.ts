@@ -65,12 +65,14 @@ const die = $("die");
 const die2 = $("die2");
 const dieWho = $("die-who");
 const diceLog = $("dice-log");
-/** Frise des jets : le tour du dernier jet (un trait sépare les tours), et le temps sans jet. */
+/** Frise des jets : le tour du dernier jet (un trait sépare les tours). */
 let rollTurn = -1;
-let rollIdle = 0;
-/** Jets gardés dans la frise (les plus vieux sortent par la gauche, déjà presque transparents). */
-const ROLL_KEEP = 24;
-const ROLL_CLEAR_MS = 15000;
+/** Jets gardés dans la frise (on peut la faire défiler pour les relire). */
+const ROLL_KEEP = 60;
+/** Tours sans jet avant que la frise s'éteigne, son historique avec (Thomas : « quelques pas »). */
+const ROLL_QUIET_TURNS = 4;
+/** Vrai quand le joueur a fait défiler la frise vers les anciens jets : elle reste alors ouverte. */
+let rollUnrolled = false;
 /** Au plus 4 dés de dégâts montrés par jet ; au-delà, un dernier « +N » fait la somme. */
 const ROLL_DICE = 4;
 const log = $("log");
@@ -337,7 +339,8 @@ function rollChip(r: AttackResult, foe: boolean): HTMLElement {
   return chip;
 }
 
-/** Ajoute un jet d'attaque à droite de la frise ; un trait le sépare du tour précédent ; les anciens pâlissent. */
+/** Ajoute un jet d'attaque au bout de la frise (le premier à gauche, les suivants à sa droite) ; un trait le sépare
+ *  du tour précédent ; les anciens pâlissent ; la frise défile pour montrer le dernier, sauf si on la déroule. */
 function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   const foe = e.attacker.kind === "monster";
   if (rollTurn !== -1 && rollTurn !== game.turn) {
@@ -351,14 +354,30 @@ function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   diceLog.append(chip);
   while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild!.remove();
   const chips = [...diceLog.children] as HTMLElement[];
-  chips.forEach((c, i) => (c.style.opacity = String(Math.max(0.12, 1 - (chips.length - 1 - i) * 0.11))));
+  chips.forEach((c, i) => (c.style.opacity = String(Math.max(0.15, 1 - (chips.length - 1 - i) * 0.11))));
   diceLog.classList.remove("fade");
-  rollIdle = 0;
+  if (!rollUnrolled) diceLog.scrollLeft = diceLog.scrollWidth;
 }
+
+/** La frise s'éteint au bout de quelques tours sans jet, et oublie ses jets ; pas tant qu'on la déroule. */
+function quietRollLog(): void {
+  if (!diceLog.childElementCount || rollUnrolled) return;
+  if (game.turn - rollTurn >= ROLL_QUIET_TURNS) {
+    if (!diceLog.classList.contains("fade")) diceLog.classList.add("fade");
+    else if (game.turn - rollTurn >= ROLL_QUIET_TURNS + 1) clearRollLog();
+  }
+}
+
+// Dérouler la frise du doigt : on relit les anciens jets, nets ; revenue au bout, elle se comporte comme avant.
+diceLog.addEventListener("scroll", () => {
+  rollUnrolled = diceLog.scrollLeft + diceLog.clientWidth < diceLog.scrollWidth - 4;
+  diceLog.classList.toggle("open", rollUnrolled);
+});
 
 /** La frise se vide (nouvelle partie, escalier). */
 function clearRollLog(): void {
   rollTurn = -1;
+  rollUnrolled = false;
   diceLog.replaceChildren();
   diceLog.classList.remove("fade");
 }
@@ -3059,11 +3078,7 @@ function frame(now: number): void {
   advanceCues(dt);
   dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
   if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
-  // Après un moment sans jet, la frise s'efface (elle revient, avec ses jets, au prochain).
-  if (diceLog.childElementCount) {
-    rollIdle += dt;
-    if (rollIdle >= ROLL_CLEAR_MS) diceLog.classList.add("fade");
-  }
+  quietRollLog();
 
   if (stepping) {
     stepTime += dt;

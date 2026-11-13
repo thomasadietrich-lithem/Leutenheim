@@ -208,15 +208,23 @@
   #door-actions #door-cancel { flex: none; width: 52px; padding: 8px; background: var(--btn); display: flex; align-items: center; justify-content: center; }
   #door-cancel svg { width: 100%; height: 100%; }
 
-  /* Frise des jets (Thomas, 2026-11-13) : une bande au pied de la carte, sans fin ; le jet le plus récent arrive à
-     droite et pousse les autres vers la gauche, de plus en plus transparents ; vos jets sur fond sombre, ceux des
-     ennemis sur fond rouge ; un trait sépare les tours. Toute la bande s'efface après un moment sans jet. */
-  #dice-log { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 32px; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; gap: 3px;
-    padding: 0 6px; overflow: hidden; pointer-events: none; background: linear-gradient(to right, transparent, rgba(10, 8, 6, 0.75) 30%); transition: opacity 0.6s; }
+  /* Frise des jets (Thomas, 2026-11-13) : une bande au pied de la carte ; le premier jet se place à gauche, les suivants
+     à sa droite ; quand la bande est pleine, elle défile et les plus vieux, de plus en plus transparents, sortent à
+     gauche. On peut la faire défiler du doigt pour relire les anciens jets (ils redeviennent nets). Quelques pas sans
+     jet et elle s'éteint, son historique avec, sauf si on est en train de la dérouler. */
+  #dice-log { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 32px; display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: 3px;
+    padding: 0 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; background: rgba(10, 8, 6, 0.75); transition: opacity 0.6s; }
+  #dice-log::-webkit-scrollbar { display: none; }
   #dice-log:empty { display: none; }
-  body:has(#here.open) #dice-log { bottom: 50px; }
-  #dice-log.fade { opacity: 0; }
+  #dice-log.fade { opacity: 0; pointer-events: none; }
+  #dice-log.open .rc { opacity: 1 !important; }
+  /* Tout ce qui se pose au pied de la carte monte au-dessus de la frise quand elle est là. */
+  body:has(#dice-log:not(:empty):not(.fade)) #wheel-bar { margin-bottom: 38px; }
+  body:has(#dice-log:not(:empty):not(.fade)) #door-actions,
+  body:has(#dice-log:not(:empty):not(.fade)) #test-tools { bottom: 40px; }
+  body:has(#dice-log:not(:empty):not(.fade)) #here { margin-bottom: 32px; }
   #dice-log .sep { flex: none; width: 2px; height: 22px; margin: 0 3px; background: #5a4a30; }
+  #dice-log .sep, #dice-log .rc { flex: none; }
   #dice-log .rc { padding: 1px 4px 1px 1px; border-radius: 4px; background: rgba(30, 26, 20, 0.85); transition: opacity 0.3s; }
   #dice-log .rc.foe { background: rgba(100, 18, 12, 0.85); }
   .rc { display: flex; align-items: center; gap: 1px; flex: none; }
@@ -1967,7 +1975,7 @@
     /** …de ce bonus au d20 par raté au-delà (3, puis 6, puis 9…), jusqu'au premier coup qui porte. */
     missStreakBonus: 3,
     /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
-    arrowOvershoot: 4,
+    arrowOvershoot: 1,
     /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
     hideDc: 9,
     /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */
@@ -22741,9 +22749,9 @@
   var dieWho = $("die-who");
   var diceLog = $("dice-log");
   var rollTurn = -1;
-  var rollIdle = 0;
-  var ROLL_KEEP = 24;
-  var ROLL_CLEAR_MS = 15e3;
+  var ROLL_KEEP = 60;
+  var ROLL_QUIET_TURNS = 4;
+  var rollUnrolled = false;
   var ROLL_DICE = 4;
   var log = $("log");
   var over = $("over");
@@ -22959,12 +22967,24 @@
     diceLog.append(chip);
     while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild.remove();
     const chips = [...diceLog.children];
-    chips.forEach((c, i) => c.style.opacity = String(Math.max(0.12, 1 - (chips.length - 1 - i) * 0.11)));
+    chips.forEach((c, i) => c.style.opacity = String(Math.max(0.15, 1 - (chips.length - 1 - i) * 0.11)));
     diceLog.classList.remove("fade");
-    rollIdle = 0;
+    if (!rollUnrolled) diceLog.scrollLeft = diceLog.scrollWidth;
   }
+  function quietRollLog() {
+    if (!diceLog.childElementCount || rollUnrolled) return;
+    if (game.turn - rollTurn >= ROLL_QUIET_TURNS) {
+      if (!diceLog.classList.contains("fade")) diceLog.classList.add("fade");
+      else if (game.turn - rollTurn >= ROLL_QUIET_TURNS + 1) clearRollLog();
+    }
+  }
+  diceLog.addEventListener("scroll", () => {
+    rollUnrolled = diceLog.scrollLeft + diceLog.clientWidth < diceLog.scrollWidth - 4;
+    diceLog.classList.toggle("open", rollUnrolled);
+  });
   function clearRollLog() {
     rollTurn = -1;
+    rollUnrolled = false;
     diceLog.replaceChildren();
     diceLog.classList.remove("fade");
   }
@@ -25322,10 +25342,7 @@
     advanceCues(dt);
     dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
     if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
-    if (diceLog.childElementCount) {
-      rollIdle += dt;
-      if (rollIdle >= ROLL_CLEAR_MS) diceLog.classList.add("fade");
-    }
+    quietRollLog();
     if (stepping) {
       stepTime += dt;
       if (stepTime >= stepMs) {

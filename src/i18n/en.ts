@@ -1079,7 +1079,7 @@ export const EN: Record<string, string> = {
   "Derrière une porte percée d'un trou, il répète son nombre. Ne regardez pas par le trou.": "Behind a door with a hole in it, he repeats his number. Don't look through the hole.",
   "Le Kobold du bain": "The Bathing Kobold",
   "Il dort dans sa baignoire, en musique. Réveillé, il se bat à la serviette, puis s'enfuit en criant.": "He sleeps in his tub, with music. Woken up, he fights with his towel, then runs off screaming.",
-  "Des pointes jaillissent de la dalle. Un bond d'Agilité permet parfois de l'éviter.": "Spikes shoot out of the flagstone. An Agility leap sometimes avoids them.",
+  "Des pointes jaillissent de la dalle. Un bond d'Agilité permet parfois de l'éviter. Certains pièges sont cachés, de plus en plus en descendant : une fouille réussie de la salle les révèle.": "Spikes shoot out of the flagstone. An Agility leap sometimes avoids them. Some traps are hidden, more and more as you go down: a successful search of the room reveals them.",
   "La dalle cède : on tombe, on se blesse, et il faut un tour pour remonter.": "The flagstone gives way: you fall, get hurt, and need a turn to climb out.",
   "Une aiguille empoisonnée : une piqûre, puis le poison pendant quelques tours.": "A poisoned needle: a prick, then poison for a few turns.",
   "Un nuage vert s'échappe de la grille : qui s'y tient est empoisonné.": "A green cloud escapes from the grate: whoever stands in it is poisoned.",
@@ -1124,4 +1124,7 @@ export const EN: Record<string, string> = {
   "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 10 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 10 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 10 turns, and makes cover to hide behind.",
   "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lancée, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover.",
   "Tout": "All",
+  "vous découvrez une cache et un piège caché !": "you find a cache and a hidden trap!",
+  "vous repérez un piège caché !": "you spot a hidden trap!",
+  "« Halte. On ne court pas devant une religieuse. Même loin de sa chapelle. »": "“Halt. No running in front of a nun. Even far from her chapel.”",
 };

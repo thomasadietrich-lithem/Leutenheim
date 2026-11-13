@@ -241,7 +241,16 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "search":
       return e.phase === "start" ? "Vous fouillez la salle…" : "Fouille interrompue : un ennemi approche !";
     case "searched": {
-      const outcome = !e.success ? "vous ne trouvez rien." : e.found.length > 0 ? "vous découvrez une cache !" : "rien n'est caché ici.";
+      const traps = e.traps?.length ?? 0;
+      const outcome = !e.success
+        ? "vous ne trouvez rien."
+        : e.found.length > 0 && traps > 0
+          ? "vous découvrez une cache et un piège caché !"
+          : e.found.length > 0
+            ? "vous découvrez une cache !"
+            : traps > 0
+              ? "vous repérez un piège caché !"
+              : "rien n'est caché ici.";
       return `Vous fouillez la salle : ${roll(e.d20, e.bonus, e.total)} — ${outcome}`;
     }
     case "rest":

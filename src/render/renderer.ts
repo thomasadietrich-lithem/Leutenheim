@@ -1423,9 +1423,9 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     // Objets au sol : flèches à ramasser, clef.
-    // Pièges (visibles pour l'instant) : sur les cases déjà vues, estompés hors de vue.
+    // Pièges : sur les cases déjà vues, estompés hors de vue ; les pièges cachés ne se dessinent pas.
     for (const p of game.traps()) {
-      if (!game.isExplored(p.x, p.y)) continue;
+      if (p.hidden || !game.isExplored(p.x, p.y)) continue;
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       ctx.globalAlpha = game.isVisible(p.x, p.y) ? 1 : 0.45;

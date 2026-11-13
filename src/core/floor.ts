@@ -122,6 +122,8 @@ export interface CounterDoor {
 export interface Trap extends Point {
   kind?: TrapKind;
   sprung?: boolean;
+  /** Caché : invisible, et le héros ne le contourne pas, tant qu'une fouille ne l'a pas trouvé ou qu'il n'est pas parti. */
+  hidden?: boolean;
 }
 
 /** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */
@@ -240,9 +242,13 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
   const rng = new Rng(seed ^ 0x51ed2701);
   // La sorte de chaque piège se tire à part : les cases des pièges ne changent pas.
   const kindRng = new Rng(seed ^ 0x7a3c19e5);
+  // Caché ou non : tiré à part aussi (crescendo selon l'étage).
+  const hideRng = new Rng(seed ^ 0x2b9d4e61);
+  const hiddenShare = RULES.trapHiddenByDepth[Math.min(depth, RULES.trapHiddenByDepth.length) - 1];
+  const chance = Math.min(RULES.trapRoomChanceMax, RULES.trapRoomChance + RULES.trapRoomChancePerDepth * (depth - 1));
   const kinds = (Object.keys(TRAPS) as TrapKind[]).filter((k) => TRAPS[k].minDepth <= depth);
   state.rooms.forEach((room, index) => {
-    if (index === 0 || !rng.chance(RULES.trapRoomChance)) return;
+    if (index === 0 || !rng.chance(chance)) return;
     // Pas de piège dans une salle à thème (Thomas, 2026-11-11). Le tirage a eu lieu : le hasard des autres salles ne change pas.
     if (state.themes.some((t) => t.room === index)) return;
     for (let attempt = 0; attempt < 20; attempt++) {
@@ -255,7 +261,9 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
       if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
       let pick = kindRng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
       const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? "spikes";
-      state.traps.push({ x, y, kind });
+      const trap: Trap = { x, y, kind };
+      if (hideRng.chance(hiddenShare)) trap.hidden = true;
+      state.traps.push(trap);
       return;
     }
   });

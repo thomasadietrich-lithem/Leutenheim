@@ -2067,7 +2067,8 @@ test("pièges : jamais dans la salle de départ ; le héros les contourne, sauf 
     for (const t of game.traps()) {
       assert.ok(!(t.x >= start.x && t.x < start.x + start.w && t.y >= start.y && t.y < start.y + start.h), `graine ${seed} : piège dans la salle de départ`);
     }
-    const trap = game.traps()[0];
+    // Un piège visible (les pièges cachés, eux, ne sont pas contournés : voir le test des pièges cachés).
+    const trap = game.traps().find((t) => !t.hidden);
     if (!trap) continue;
     // Une case de l'autre côté du piège, dans la même ligne : le chemin ne doit pas marcher dessus.
     for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
@@ -2627,6 +2628,79 @@ test("jeter un objet : il tombe aux pieds du héros ; Intelligence et Charisme p
   game.levelUpNow();
   assert.ok(game.allocate("intelligence"));
   assert.equal(game.alloc.intelligence, 1);
+});
+
+test("pièges cachés : plus nombreux en descendant ; le héros ne les contourne pas ; une fouille réussie les révèle", () => {
+  // Crescendo : la part de pièges cachés grandit avec l'étage.
+  const share = (depth: number) => {
+    let all = 0;
+    let hidden = 0;
+    for (let seed = 1; seed <= 80; seed++) {
+      const game = new Game(seed);
+      while (game.depth < depth) {
+        game.pendingStairs = "down";
+        game.takeStairs();
+      }
+      for (const t of game.traps()) {
+        all++;
+        if (t.hidden) hidden++;
+      }
+    }
+    return hidden / Math.max(1, all);
+  };
+  assert.ok(share(1) < share(3), `${share(1)} puis ${share(3)}`);
+  // Un piège caché : le chemin du héros passe dessus ; une fouille réussie de sa salle le montre.
+  for (let seed = 1; seed <= 200; seed++) {
+    const game = new Game(seed);
+    const trap = game.traps()[0];
+    if (!trap) continue;
+    trap.hidden = true;
+    const room = game.rooms.findIndex((r) => trap.x >= r.x && trap.y >= r.y && trap.x < r.x + r.w && trap.y < r.y + r.h);
+    if (room < 0 || game.map.get(trap.x - 1, trap.y) !== Tile.Floor || game.map.get(trap.x + 1, trap.y) !== Tile.Floor) continue;
+    game.monsters.length = 0;
+    game.hero.x = game.hero.fromX = trap.x - 1;
+    game.hero.y = game.hero.fromY = trap.y;
+    assert.ok(game.setDestination(trap.x + 1, trap.y, true));
+    assert.ok(game.path.some((p) => p.x === trap.x && p.y === trap.y), "le héros ne connaît pas le piège caché");
+    game.path = [];
+    // Fouille réussie (le dé est forcé à 20).
+    const rng = (game as unknown as { rng: { int: (a: number, b: number) => number } }).rng;
+    const int = rng.int.bind(rng);
+    rng.int = (a: number, b: number) => (a === 1 && b === 20 ? 20 : int(a, b));
+    assert.ok(game.search());
+    for (let i = 0; i < 20 && !game.events.some((e) => e.type === "searched"); i++) game.tick();
+    const done = game.events.find((e) => e.type === "searched");
+    assert.ok(done && done.type === "searched" && done.traps?.some((p) => p.x === trap.x && p.y === trap.y), "la fouille repère le piège");
+    assert.ok(!trap.hidden);
+    return;
+  }
+  assert.fail("aucune graine utilisable");
+});
+
+test("fuite : un Kobold qui fuit passe les portes", () => {
+  for (let seed = 1; seed <= 120; seed++) {
+    const game = new Game(seed);
+    const m = game.monsters.find((a) => a.defId === "schrat");
+    if (!m) continue;
+    // Une porte entre deux sols, dans l'axe horizontal ; le héros de l'autre côté du monstre.
+    for (let y = 1; y < game.map.height - 1; y++)
+      for (let x = 3; x < game.map.width - 3; x++) {
+        if (!game.map.isDoor(x, y) || game.map.get(x - 1, y) !== Tile.Floor || game.map.get(x + 1, y) !== Tile.Floor || game.map.get(x - 2, y) !== Tile.Floor) continue;
+        game.monsters.length = 0;
+        game.monsters.push(m);
+        Object.assign(m, { x: x - 1, y, fromX: x - 1, fromY: y, alerted: true, asleep: false, fleeTurns: 6 });
+        game.hero.x = game.hero.fromX = x - 2;
+        game.hero.y = game.hero.fromY = y;
+        if (game.isTrap(x, y) || game.isTrap(x + 1, y)) continue;
+        for (let i = 0; i < 3; i++) {
+          game.wait();
+          game.tick();
+        }
+        assert.ok(m.x > x, `graine ${seed} : le fuyard est resté du côté du héros (${m.x}, ${m.y}), porte en ${x}, ${y}`);
+        return;
+      }
+  }
+  assert.fail("aucune porte utilisable");
 });
 
 test("jeter une partie d'une pile : seul le nombre choisi tombe, le reste reste au sac", () => {

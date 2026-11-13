@@ -38,7 +38,7 @@ export interface SandboxFloor extends Floor {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 18;
+export const SANDBOX_LAYOUT = 19;
 
 /** Graines des trois salles à thème de l'est (choisies pour que chaque salle montre tous ses meubles). */
 export const SANDBOX_SEEDS = { kitchen: 30, chapel: 7, torture: 33, forge: 30, alchemist: 28 };
@@ -182,11 +182,12 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       { room: fountainRoom, kind: fontaine },
       { room: chestRoom, kind: tresor },
     ],
-    // Les quatre pièges v3 : pointes (colonnes), gaz (salle de combat), fosse (salle de ronde), aiguille (antre).
+    // Les quatre pièges v3 : pointes (colonnes), gaz (salle de combat), fosse CACHÉE (salle de ronde : une fouille la
+    // révèle), aiguille (antre).
     traps: [
       { x: 21, y: 6, kind: "spikes" },
       { x: 21, y: 17, kind: "gas" },
-      { x: 9, y: 20, kind: "pit" },
+      { x: 9, y: 20, kind: "pit", hidden: true },
       { x: 22, y: 25, kind: "needle" },
     ],
     secrets,

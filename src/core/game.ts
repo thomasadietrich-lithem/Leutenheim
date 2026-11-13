@@ -21,7 +21,7 @@ import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from ".
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
-import { canStep, findPath } from "../world/pathfinding";
+import { canStep, distanceField, findPath } from "../world/pathfinding";
 import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -1027,10 +1027,15 @@ export class Game {
     return this.current.traps.some((t) => t.x === x && t.y === y);
   }
 
+  /** Un piège que le héros connaît (visible, ou trouvé) : les pièges cachés ne comptent pas pour lui. */
+  knownTrap(x: number, y: number): boolean {
+    return this.current.traps.some((t) => t.x === x && t.y === y && !t.hidden);
+  }
+
   /** Cases où un chemin peut passer : on contourne les pièges, sauf si l'on veut y aller. */
   private avoidTraps(to: Point, base?: (x: number, y: number) => boolean, from: Point = this.hero): (x: number, y: number) => boolean {
     // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
-    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!this.isTrap(x, y) && !this.isBurning(x, y) && !this.isGassed(x, y)));
+    return (x, y) => (!base || base(x, y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero ? this.knownTrap(x, y) : this.isTrap(x, y)) && !this.isBurning(x, y) && !this.isGassed(x, y)));
   }
 
   /**
@@ -1123,6 +1128,8 @@ export class Game {
   private springTrap(actor: Actor): void {
     const trap = this.current.traps.find((t) => t.x === actor.x && t.y === actor.y);
     if (!trap) return;
+    // Un piège caché se montre en partant (sous le héros ou sous un monstre en vue).
+    if (trap.hidden && (actor.kind === "hero" || this.isVisible(trap.x, trap.y))) trap.hidden = false;
     const kind = trap.kind ?? "spikes";
     const def = TRAPS[kind];
     // Agilité (Thomas, 2026-11-11) : le héros qui marche sur un piège peut l'éviter d'un bond (d20 + agilité).
@@ -3161,6 +3168,7 @@ export class Game {
     const total = d20 + bonus;
     const success = d20 === 20 || (d20 !== 1 && total >= RULES.searchDc);
     const found: Point[] = [];
+    const traps: Point[] = [];
     if (success) {
       for (const s of this.current.secrets) {
         if (s.room !== index || s.found) continue;
@@ -3168,8 +3176,15 @@ export class Game {
         this.dropItem(s.x, s.y, s.item, s.count);
         found.push({ x: s.x, y: s.y });
       }
+      // Pièges cachés de la salle (Thomas, 2026-11-13) : une fouille réussie les révèle.
+      const room = this.rooms[index];
+      for (const t of this.current.traps) {
+        if (!t.hidden || t.x < room.x || t.y < room.y || t.x >= room.x + room.w || t.y >= room.y + room.h) continue;
+        t.hidden = false;
+        traps.push({ x: t.x, y: t.y });
+      }
     }
-    this.events.push({ type: "searched", d20, bonus, total, success, found, room: this.rooms[index] });
+    this.events.push({ type: "searched", d20, bonus, total, success, found, traps, room: this.rooms[index] });
   }
 
   /** Saut pour se dégager : il faut réussir un jet. Réussi, pas d'attaque d'opportunité, mais ceux qu'on quitte restent sur leurs gardes. */
@@ -4049,7 +4064,11 @@ export class Game {
         this.raiseAlarm(SOEUR.drumAlarm, g);
       }
     }
-    const lines = SOEUR_OPENING[stage](!!this.soeurMemory.grudge);
+    const chapel = (this.current.themes ?? []).some((t) => {
+      const r = t.id === "priere" ? this.rooms[t.room] : undefined;
+      return !!r && g.x >= r.x && g.y >= r.y && g.x < r.x + r.w && g.y < r.y + r.h;
+    });
+    const lines = SOEUR_OPENING[stage](!!this.soeurMemory.grudge, chapel);
     const leave = { id: "leave", label: "Partir" };
     if (stage === 1) {
       return {
@@ -5310,7 +5329,7 @@ export class Game {
       }
       if (m.fleeTurns || m.fleeing) {
         if (m.fleeTurns) m.fleeTurns--;
-        const away = this.stepAway(m);
+        const away = this.fleeStep(m) ?? this.stepAway(m);
         if (away) {
           const left = { x: m.x, y: m.y };
           this.faceToward(m, away);
@@ -5473,6 +5492,7 @@ export class Game {
   }
 
   /** Une case voisine qui éloigne le monstre du héros, de préférence collée à un abri (colonne, meuble). */
+  /** Le frondeur recule d'un pas : la case voisine la plus loin du héros à vol d'oiseau (pour garder sa portée). */
   private stepAway(m: Actor): Point | null {
     const d0 = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
     let best: Point | null = null;
@@ -5494,6 +5514,49 @@ export class Game {
       }
     }
     return best;
+  }
+
+  /** Un fuyard s'éloigne d'un pas. */
+  private fleeStep(m: Actor): Point | null {
+    // La fuite passe les portes et contourne les coins (Thomas, 2026-11-13 : « la fuite ne passe pas les portes ») :
+    // on vise, à quelques pas, la case la plus éloignée du héros EN CHEMIN À PIED (pas à vol d'oiseau), puis on fait
+    // le premier pas vers elle.
+    const free = (x: number, y: number) => !this.isTrap(x, y) && !this.isBurning(x, y);
+    const fromHero = distanceField(this.map, this.hero, free);
+    const fromMe = distanceField(this.map, m, (x, y) => free(x, y) && !(x === this.hero.x && y === this.hero.y) && !this.actorAt(x, y));
+    const here = fromHero[this.map.index(m.x, m.y)];
+    let target = -1;
+    let best = here;
+    for (let i = 0; i < fromMe.length; i++) {
+      const steps = fromMe[i];
+      if (steps <= 0 || steps > RULES.fleeLookAhead || fromHero[i] < 0) continue;
+      // Plus loin du héros ; à égalité, le moins de pas.
+      const score = fromHero[i] * 4 - steps;
+      if (fromHero[i] > here && score > best * 4) {
+        best = fromHero[i];
+        target = i;
+      }
+    }
+    if (target < 0) return null;
+    const tx = target % this.map.width;
+    const ty = (target - tx) / this.map.width;
+    const back = distanceField(this.map, { x: tx, y: ty }, (x, y) => free(x, y) && !this.actorAt(x, y) || (x === m.x && y === m.y));
+    let step: Point | null = null;
+    let stepDist = Infinity;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const x = m.x + dx;
+        const y = m.y + dy;
+        if (!canStep(this.map, m.x, m.y, dx, dy) || this.actorAt(x, y) || this.npcAt(x, y) || !free(x, y)) continue;
+        const d = back[this.map.index(x, y)];
+        if (d >= 0 && d < stepDist) {
+          stepDist = d;
+          step = { x, y };
+        }
+      }
+    }
+    return step;
   }
 
   /** Le héros est-il dans l'éventail de regard de ce monstre (devant lui, à moins de `gazeHalfAngle`) ? */

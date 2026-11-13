@@ -32,7 +32,7 @@ export const CODEX_PEOPLE: { id: string; name: string; color: string; descriptio
 
 /** Pièges : chacun a sa fiche (toujours visible). */
 export const CODEX_TRAPS: Record<TrapKind, string> = {
-  spikes: "Des pointes jaillissent de la dalle. Un bond d'Agilité permet parfois de l'éviter.",
+  spikes: "Des pointes jaillissent de la dalle. Un bond d'Agilité permet parfois de l'éviter. Certains pièges sont cachés, de plus en plus en descendant : une fouille réussie de la salle les révèle.",
   pit: "La dalle cède : on tombe, on se blesse, et il faut un tour pour remonter.",
   needle: "Une aiguille empoisonnée : une piqûre, puis le poison pendant quelques tours.",
   gas: "Un nuage vert s'échappe de la grille : qui s'y tient est empoisonné.",

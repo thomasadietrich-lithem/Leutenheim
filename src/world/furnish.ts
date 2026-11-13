@@ -724,50 +724,85 @@ function edgeChests(P: ReturnType<typeof roomPlacer>, floor: Floor, room: Room, 
 }
 
 /**
- * FORGE v1 (planche art/forge_v1.png) : le long du mur du fond, la forge et son soufflet (2 cases), 0 à 3 étagères à
- * outils, 0 à 2 râteliers d'armes et 0 à 2 armures rouillées ; la rangée devant reste libre ; 1 à 2 enclumes, un établi
- * (2 cases) et 0 à 2 chaises, une meule ; 1 à 2 tas de charbon et 0 à 3 tonneaux contre les murs ; une épée rouillée au
- * sol ; 0 à 2 coffres (une arme dedans). Dalles noircies de suie (voir `Game.floorStyle`).
+ * FORGE v2 (Thomas, 2026-11-13 : « redesigne la forge » ; mêmes dessins, nouvelle disposition) : un atelier lisible.
+ * Au mur du fond, la FORGE AU MILIEU, un tas de charbon contre elle, puis étagères à outils, râteliers d'armes et
+ * armures rouillées de part et d'autre ; la rangée devant reste libre ; l'ENCLUME juste devant la forge ; l'ÉTABLI
+ * contre le mur du bas avec une chaise ; la MEULE à l'écart ; tonneaux dans les coins du bas ; 0 à 2 coffres. Aucun
+ * outil (enclume, meule) collé à un autre meuble : leurs dessins se superposaient. Plus d'épée rouillée au sol.
  */
 export function furnishForge(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
   const P = roomPlacer(floor, room);
   if (!P.allFloor()) return false;
-  const back = [
-    "forge",
-    ...Array(rng.int(0, 3)).fill("toolShelf"),
-    ...Array(rng.int(0, 2)).fill("weaponRack"),
-    ...Array.from({ length: rng.int(0, 2) }, () => (rng.chance(0.5) ? "armorStand" : "armorStandB")),
-  ];
-  P.alongBackWall(shuffle(rng, back));
-  if (!P.placed.some((f) => f.kind === "forge")) {
+  // La forge, au plus près du milieu du mur du fond.
+  const mid = room.x + Math.floor((room.w - 2) / 2);
+  let forgeX = -1;
+  for (const dx of [0, -1, 1, -2, 2, -3, 3]) {
+    const x = mid + dx;
+    if (x < room.x || x + 1 >= room.x + room.w || underTorch(floor, x, room.y) || underTorch(floor, x + 1, room.y)) continue;
+    if (P.tryPlace({ x, y: room.y, kind: "forge" })) {
+      forgeX = x;
+      break;
+    }
+  }
+  if (forgeX < 0) {
     P.undo();
     return false;
   }
-  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
-  const inner = () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 2, room.y + room.h - 2) });
-  const edge = () => {
-    const side = rng.chance(0.5);
-    return side
-      ? { x: rng.chance(0.5) ? room.x : room.x + room.w - 1, y: rng.int(room.y + 2, room.y + room.h - 1) }
-      : { x: rng.int(room.x, room.x + room.w - 1), y: room.y + room.h - 1 };
-  };
-  // L'établi, et 0 à 2 chaises à côté.
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const p = inner();
-    if (!P.tryPlace({ x: Math.min(p.x, room.x + room.w - 3), y: p.y, kind: "workbench" })) continue;
-    const seats = rng.int(0, 2);
-    let n = 0;
-    for (const s of [{ x: p.x - 1, y: p.y, kind: "chairR" }, { x: Math.min(p.x, room.x + room.w - 3) + 2, y: p.y, kind: "chairL" }]) {
-      if (n < seats && P.tryPlace(s)) n++;
+  // Un tas de charbon contre la forge, d'un côté.
+  const coalSide = rng.chance(0.5) ? [forgeX - 1, forgeX + 2] : [forgeX + 2, forgeX - 1];
+  for (const x of coalSide) if (!underTorch(floor, x, room.y) && P.tryPlace({ x, y: room.y, kind: rng.chance(0.5) ? "coalL" : "coalM" })) break;
+  // De part et d'autre, en alternant gauche et droite depuis la forge : étagères, râteliers, armures.
+  const wall = shuffle(rng, [
+    ...Array(rng.int(1, 2)).fill("toolShelf"),
+    ...Array(rng.int(1, 2)).fill("weaponRack"),
+    ...Array.from({ length: rng.int(0, 1) }, () => (rng.chance(0.5) ? "armorStand" : "armorStandB")),
+  ]);
+  const left: number[] = [];
+  const right: number[] = [];
+  for (let x = forgeX - 1; x >= room.x; x--) left.push(x);
+  for (let x = forgeX + 2; x < room.x + room.w; x++) right.push(x);
+  const sides = rng.chance(0.5) ? [left, right] : [right, left];
+  wall.forEach((kind, i) => {
+    const cells = sides[i % 2];
+    while (cells.length > 0) {
+      const x = cells.shift()!;
+      if (!underTorch(floor, x, room.y) && P.tryPlace({ x, y: room.y, kind })) break;
     }
+  });
+  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 1);
+  // Rien de collé (8 voisines) à ce qu'on pose : pour l'enclume et la meule.
+  const alone = (x: number, y: number) => !P.placed.some((f) => furnitureCells(f).some((c) => Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1));
+  // L'enclume, juste devant la forge (on ne regarde pas le mur du fond, la rangée libre l'en sépare).
+  const nearBack = (x: number, y: number) => !P.placed.some((f) => f.y > room.y && furnitureCells(f).some((c) => Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1));
+  for (const x of rng.chance(0.5) ? [forgeX, forgeX + 1] : [forgeX + 1, forgeX]) {
+    if (nearBack(x, room.y + 2) && P.tryPlace({ x, y: room.y + 2, kind: "anvil" })) break;
+  }
+  // L'établi contre le mur du bas, d'un côté, et sa chaise à côté.
+  const bottom = room.y + room.h - 1;
+  const benchXs = rng.chance(0.5) ? [room.x + 1, room.x + room.w - 3] : [room.x + room.w - 3, room.x + 1];
+  for (const x of benchXs) {
+    if (!P.tryPlace({ x, y: bottom, kind: "workbench" })) continue;
+    const seat = x === room.x + 1 ? { x: x + 2, y: bottom, kind: "chairL" } : { x: x - 1, y: bottom, kind: "chairR" };
+    if (rng.chance(0.7)) P.tryPlace(seat);
     break;
   }
-  scatter(P, rng, ["anvil"], rng.int(1, 2), inner);
-  scatter(P, rng, ["grindstone"], 1, inner);
-  scatter(P, rng, ["coalS", "coalM", "coalL"], rng.int(1, 2), edge);
-  scatter(P, rng, ["barrel"], rng.int(0, 3), edge);
-  scatter(P, rng, ["rustySword"], 1, inner);
+  // La meule, seule dans un coin libre du milieu de la salle.
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const x = rng.int(room.x + 1, room.x + room.w - 2);
+    const y = rng.int(room.y + 2, room.y + room.h - 2);
+    if (alone(x, y) && P.tryPlace({ x, y, kind: "grindstone" })) break;
+  }
+  // Coffres, puis tonneaux dans les coins du bas (pas sous un meuble ni un coffre : le haut du tonneau le cacherait),
+  // un petit tas de charbon contre un mur.
   edgeChests(P, floor, room, rng, rng.int(0, 2));
+  const above = (x: number, y: number) => floor.map.get(x, y - 1) === Tile.Chest || P.placed.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y - 1));
+  for (const x of shuffle(rng, [room.x, room.x + room.w - 1]).slice(0, rng.int(0, 2))) if (!above(x, bottom)) P.tryPlace({ x, y: bottom, kind: "barrel" });
+  if (rng.chance(0.5)) {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const x = rng.chance(0.5) ? room.x : room.x + room.w - 1;
+      if (P.tryPlace({ x, y: rng.int(room.y + 2, bottom - 1), kind: "coalS" })) break;
+    }
+  }
   out.push(...P.placed);
   return true;
 }

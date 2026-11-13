@@ -26,10 +26,11 @@ export const SOEUR = {
   faithfulLeave: 2,
 } as const;
 
-/** Les répliques d'ouverture, selon la rencontre (1 à 4) ; `grudge` : on lui a reparlé de la cloche. */
-export const SOEUR_OPENING: Record<1 | 2 | 3 | 4, (grudge: boolean) => string[]> = {
-  1: () => [
-    "« Halte. On ne court pas dans une chapelle. »",
+/** Les répliques d'ouverture, selon la rencontre (1 à 4) ; `grudge` : on lui a reparlé de la cloche ; `chapel` : elle
+ *  se tient dans une salle de prière (sinon elle ne parle pas de chapelle : Thomas, 2026-11-13). */
+export const SOEUR_OPENING: Record<1 | 2 | 3 | 4, (grudge: boolean, chapel: boolean) => string[]> = {
+  1: (_grudge, chapel) => [
+    chapel ? "« Halte. On ne court pas dans une chapelle. »" : "« Halte. On ne court pas devant une religieuse. Même loin de sa chapelle. »",
     "Vous : « Vous êtes… un squelette. »",
     "« Quelle grossièreté. »",
     "Vous : « Pourquoi êtes-vous si fâchée ? »",

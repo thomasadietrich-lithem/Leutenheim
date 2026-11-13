@@ -107,7 +107,7 @@ export type GameEvent =
   | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */
   | { type: "search"; phase: "start" | "interrupted" }
-  | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; room: Room }
+  | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; traps?: Point[]; room: Room }
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
   | { type: "shop"; line: number }

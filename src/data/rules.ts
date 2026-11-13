@@ -43,6 +43,8 @@ export const RULES = {
   /** Un Kobold sous le tiers de ses PV prend la fuite une fois sur trois, pendant tant de tours (Thomas ; C). */
   koboldFleeChance: 0.35,
   koboldFleeTurns: 4,
+  /** Fuite : jusqu'où (en pas) le fuyard cherche la case la plus éloignée du héros ; il passe les portes. */
+  fleeLookAhead: 8,
   /** Potion de brouillard (Thomas, 2026-11-13, dessin) : losange de rayon 2 (rangées de 1, 3, 5, 3, 1 cases), durée en tours (C). */
   fogArm: 2,
   fogTurns: 8,
@@ -198,8 +200,15 @@ export const RULES = {
   pushDc: 10,
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
   pushSlamDamage: { count: 1, sides: 6, bonus: 0 },
-  /** Pièges (visibles pour l'instant) : chance qu'une salle (hors départ et salles à thème) en ait un. Sortes et effets : `src/data/traps.ts`. */
+  /** Pièges : chance qu'une salle (hors départ et salles à thème) en ait un. Sortes et effets : `src/data/traps.ts`. */
   trapRoomChance: 0.15,
+  /** …et en plus à chaque étage au-delà du premier (crescendo, Thomas 2026-11-13), jusqu'à `trapRoomChanceMax` (C). */
+  trapRoomChancePerDepth: 0.03,
+  trapRoomChanceMax: 0.3,
+  /** Pièges CACHÉS (Thomas, 2026-11-13 : « invisibles en crescendo, détectés en recherche ») : part des pièges cachés par
+   *  étage (étage 1, 2, 3…, le dernier chiffre vaut ensuite) ; un piège caché ne se voit pas, le héros ne le contourne
+   *  pas ; une fouille réussie de la salle le révèle, ou il se révèle en partant (C). */
+  trapHiddenByDepth: [0.2, 0.35, 0.5, 0.65, 0.8],
   /** Sarcophage à pointes (salle de torture) : difficulté pour désamorcer (agilité) ou forcer (force), pointe si raté, bruit si forcé. */
   maidenDc: 11,
   maidenSpike: { count: 1, sides: 4, bonus: 0 },

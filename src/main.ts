@@ -64,14 +64,12 @@ function pulse(node: HTMLElement, name: string): void {
 const die = $("die");
 const die2 = $("die2");
 const dieWho = $("die-who");
-const dmgDice = [$("dmg1"), $("dmg2")];
 const diceLog = $("dice-log");
-/** Historique des jets : une ligne par tour (vos jets à gauche, ceux des ennemis à droite). */
-interface RollLine { el: HTMLElement; me: HTMLElement; foe: HTMLElement; foes: number; turn: number }
-let rollLines: RollLine[] = [];
-let rollCount = 0;
+/** Frise des jets : le tour du dernier jet (un trait sépare les tours), et le temps sans jet. */
+let rollTurn = -1;
 let rollIdle = 0;
-const ROLL_LINES = 4;
+/** Jets gardés dans la frise (les plus vieux sortent par la gauche, déjà presque transparents). */
+const ROLL_KEEP = 24;
 const ROLL_CLEAR_MS = 15000;
 /** Au plus 4 dés de dégâts montrés par jet ; au-delà, un dernier « +N » fait la somme. */
 const ROLL_DICE = 4;
@@ -313,7 +311,6 @@ function clearDie(): void {
   die2.hidden = true;
   die.parentElement?.classList.toggle("pair", !die2.hidden);
   dieWho.textContent = tr("");
-  showDamageDice(undefined);
 }
 
 /** Un jet dans l'historique : le d20 (vert touché, gris raté, or critique), les dés de dégâts, puis le total. */
@@ -340,54 +337,32 @@ function rollChip(r: AttackResult, foe: boolean): HTMLElement {
   return chip;
 }
 
-/** Range un jet d'attaque dans l'historique : votre jet ouvre une ligne ; la riposte du même tour s'y ajoute à droite. */
+/** Ajoute un jet d'attaque à droite de la frise ; un trait le sépare du tour précédent ; les anciens pâlissent. */
 function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   const foe = e.attacker.kind === "monster";
-  let line = rollLines[rollLines.length - 1];
-  if (!line || !foe || line.turn !== game.turn || line.foes >= 2) {
-    const el = document.createElement("div");
-    el.className = "rl";
-    const n = document.createElement("span");
-    n.className = "n";
-    n.textContent = String(++rollCount);
-    const me = document.createElement("div");
-    me.className = "half";
-    const f = document.createElement("div");
-    f.className = "half foe";
-    el.append(n, me, f);
-    line = { el, me, foe: f, foes: 0, turn: game.turn };
-    rollLines.push(line);
-    diceLog.append(el);
-    while (rollLines.length > ROLL_LINES) rollLines.shift()!.el.remove();
+  if (rollTurn !== -1 && rollTurn !== game.turn) {
+    const sep = document.createElement("span");
+    sep.className = "sep";
+    diceLog.append(sep);
   }
-  if (foe) {
-    line.foe.append(rollChip(e.result, true));
-    line.foes++;
-  } else line.me.append(rollChip(e.result, false));
-  rollLines.forEach((l, i) => (l.el.style.opacity = String([0.3, 0.5, 0.75, 1][ROLL_LINES - rollLines.length + i])));
+  rollTurn = game.turn;
+  const chip = rollChip(e.result, foe);
+  if (foe) chip.classList.add("foe");
+  diceLog.append(chip);
+  while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild!.remove();
+  const chips = [...diceLog.children] as HTMLElement[];
+  chips.forEach((c, i) => (c.style.opacity = String(Math.max(0.12, 1 - (chips.length - 1 - i) * 0.11))));
   diceLog.classList.remove("fade");
   rollIdle = 0;
 }
 
-/** L'historique des jets se vide (nouvelle partie, nouvel étage, ou longtemps sans combat). */
+/** La frise se vide (nouvelle partie, escalier). */
 function clearRollLog(): void {
-  rollLines = [];
-  rollCount = 0;
+  rollTurn = -1;
   diceLog.replaceChildren();
   diceLog.classList.remove("fade");
 }
 
-/** Les dés de dégâts, en petit dans les coins bas du d20 : un par dé lancé (deux au plus ; au-delà, le second montre
- *  la somme des autres, « +9 »). Leur forme suit le dé : triangle d4, carré d6, losange d8… */
-function showDamageDice(roll: { dice: { sides: number }; faces: number[] } | undefined): void {
-  const faces = roll?.faces ?? [];
-  const shown = faces.length > 2 ? [String(faces[0]), `+${faces.slice(1).reduce((a, b) => a + b, 0)}`] : faces.map(String);
-  dmgDice.forEach((d, i) => {
-    d.hidden = i >= shown.length;
-    d.textContent = shown[i] ?? "";
-    d.className = `dmg ${i === 0 ? "l" : "r"} d${roll?.dice.sides ?? 6}${faces.length > 2 && i === 1 ? " more" : ""}`;
-  });
-}
 
 function renderLog(): void {
   logLines = logLines.slice(-LOG_LINES);
@@ -437,7 +412,6 @@ function startRoll(e: GameEvent): void {
   const foe = byFoe(e);
   const mode = e.type === "attack" ? e.result.mode : "normal";
   die.className = `die rolling${foe ? " foe" : ""}`;
-  showDamageDice(undefined);
   die2.hidden = mode === "normal";
   die.parentElement?.classList.toggle("pair", !die2.hidden);
   die2.className = `die rolling${foe ? " foe" : ""}`;
@@ -487,7 +461,6 @@ function reveal(e: GameEvent): void {
     if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunité !", "#ffd75e");
     const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
-    showDamageDice(r.hit ? r.damageRoll : undefined);
     logRoll(e);
     renderer.addFloatingText(
       e.target.x,
@@ -3086,10 +3059,10 @@ function frame(now: number): void {
   advanceCues(dt);
   dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
   if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
-  if (rollLines.length) {
+  // Après un moment sans jet, la frise s'efface (elle revient, avec ses jets, au prochain).
+  if (diceLog.childElementCount) {
     rollIdle += dt;
-    if (rollIdle >= ROLL_CLEAR_MS - 600) diceLog.classList.add("fade");
-    if (rollIdle >= ROLL_CLEAR_MS) clearRollLog();
+    if (rollIdle >= ROLL_CLEAR_MS) diceLog.classList.add("fade");
   }
 
   if (stepping) {

@@ -25,7 +25,5 @@
  "STYLE",
  "grayscale(1) brightness(1.1)",
  "grayscale(1) brightness(1.15) contrast(0.9)",
- "dmg {0} d{1}{2}",
- "sd d{0}{1}{2}",
- "half foe"
+ "sd d{0}{1}{2}"
 ]

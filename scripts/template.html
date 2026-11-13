@@ -208,15 +208,17 @@
   #door-actions #door-cancel { flex: none; width: 52px; padding: 8px; background: var(--btn); display: flex; align-items: center; justify-content: center; }
   #door-cancel svg { width: 100%; height: 100%; }
 
-  /* Historique des jets (Thomas, 2026-11-13) : une ligne par tour, vos jets à gauche, ceux des ennemis en rouge à
-     droite ; 4 lignes au plus, les plus anciennes s'estompent ; tout s'efface après un moment sans combat. */
-  #dice-log { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 4; display: flex; flex-direction: column; gap: 2px; pointer-events: none; transition: opacity 0.6s; }
-  body:has(#here.open) #dice-log { bottom: 58px; }
+  /* Frise des jets (Thomas, 2026-11-13) : une bande au pied de la carte, sans fin ; le jet le plus récent arrive à
+     droite et pousse les autres vers la gauche, de plus en plus transparents ; vos jets sur fond sombre, ceux des
+     ennemis sur fond rouge ; un trait sépare les tours. Toute la bande s'efface après un moment sans jet. */
+  #dice-log { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 32px; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; gap: 3px;
+    padding: 0 6px; overflow: hidden; pointer-events: none; background: linear-gradient(to right, transparent, rgba(10, 8, 6, 0.75) 30%); transition: opacity 0.6s; }
+  #dice-log:empty { display: none; }
+  body:has(#here.open) #dice-log { bottom: 50px; }
   #dice-log.fade { opacity: 0; }
-  .rl { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; background: rgba(14, 12, 10, 0.8); border-radius: 4px; transition: opacity 0.3s; }
-  .rl .n { font-size: 13px; color: #8a8070; width: 16px; flex: none; }
-  .rl .half { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
-  .rl .half.foe { justify-content: flex-end; background: linear-gradient(90deg, transparent, rgba(90, 16, 10, 0.6)); border-radius: 3px; padding-right: 2px; }
+  #dice-log .sep { flex: none; width: 2px; height: 22px; margin: 0 3px; background: #5a4a30; }
+  #dice-log .rc { padding: 1px 4px 1px 1px; border-radius: 4px; background: rgba(30, 26, 20, 0.85); transition: opacity 0.3s; }
+  #dice-log .rc.foe { background: rgba(100, 18, 12, 0.85); }
   .rc { display: flex; align-items: center; gap: 1px; flex: none; }
   .mini { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; font-size: 15px; color: #fff3c8; position: relative; isolation: isolate; flex: none;
     text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
@@ -256,21 +258,10 @@
   /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
   .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
   .dice.ready #die-who { color: var(--gold); }
-  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
+  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 100%; flex: none; }
+  /* Panneau compact : le d20 un peu plus petit, centré, avec de l'air au-dessus et au-dessous. */
+  .dice-row:not(.pair) .die { width: 50px; height: 50px; font-size: 24px; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
-  /* Dés de dégâts : petits dés rouges dans les coins bas du d20, sans agrandir la zone ; la forme suit le dé. */
-  .dice-row { position: relative; }
-  .dmg { position: absolute; bottom: -2px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; isolation: isolate;
-    font-size: 13px; color: #ffd9a0; text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
-    filter: drop-shadow(1px 0 0 #7a3a22) drop-shadow(-1px 0 0 #7a3a22) drop-shadow(0 1px 0 #7a3a22) drop-shadow(0 -1px 0 #7a3a22); }
-  .dmg[hidden] { display: none; }
-  .dmg::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(160deg, #5a2618, #2a100a); clip-path: inset(8% round 3px); }
-  .dmg.l { left: 0; } .dmg.r { right: 0; }
-  .dmg.d4 { padding-top: 7px; } .dmg.d4::before { clip-path: polygon(50% 4%, 96% 92%, 4% 92%); }
-  .dmg.d8::before { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-  .dmg.d10::before { clip-path: polygon(50% 0, 100% 42%, 50% 100%, 0 42%); }
-  .dmg.d12::before { clip-path: polygon(50% 0, 98% 36%, 80% 96%, 20% 96%, 2% 36%); }
-  .dmg.more { font-size: 11px; }
   .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
@@ -535,7 +526,7 @@
     <button id="here-info" type="button">?</button>
   </div>
   <div class="panel">
-    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div><div id="dmg1" class="dmg l" hidden></div><div id="dmg2" class="dmg r" hidden></div></div><div id="die-who"></div></div>
+    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   </div>

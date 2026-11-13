@@ -3786,7 +3786,7 @@ test("tâches de quête : Krik donne son magot à rapporter ; l'objet n'existe q
   const spot = game.ground.find((g) => g.item === "magot_krik");
   assert.ok(spot, "le magot apparaît sur l'étage");
   assert.ok(Math.max(Math.abs(spot.x - game.hero.x), Math.abs(spot.y - game.hero.y)) >= 8, "loin du héros");
-  assert.equal(game.questLine()?.text, "Krik : récupérer son magot");
+  assert.equal(game.questLine()?.text, "Retrouver le magot de Krik");
   // Revenir trop tôt : il attend.
   const wait = game.npcScene("krik");
   assert.ok(!wait.choices.some((c) => c.id === "turnin"));
@@ -3794,7 +3794,7 @@ test("tâches de quête : Krik donne son magot à rapporter ; l'objet n'existe q
   game.ground.splice(game.ground.indexOf(spot), 1);
   game.inventory.add("magot_krik", 1);
   assert.ok(game.questDone());
-  assert.equal(game.questLine()?.text, "Rapporter le magot à Krik");
+  assert.equal(game.questLine()?.text, "Rendre le magot à Krik");
   const back = game.npcScene("krik");
   assert.ok(back.choices.some((c) => c.id === "turnin"));
   const done = game.npcChoose("krik", "turnin");

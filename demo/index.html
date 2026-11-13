@@ -208,15 +208,17 @@
   #door-actions #door-cancel { flex: none; width: 52px; padding: 8px; background: var(--btn); display: flex; align-items: center; justify-content: center; }
   #door-cancel svg { width: 100%; height: 100%; }
 
-  /* Historique des jets (Thomas, 2026-11-13) : une ligne par tour, vos jets à gauche, ceux des ennemis en rouge à
-     droite ; 4 lignes au plus, les plus anciennes s'estompent ; tout s'efface après un moment sans combat. */
-  #dice-log { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 4; display: flex; flex-direction: column; gap: 2px; pointer-events: none; transition: opacity 0.6s; }
-  body:has(#here.open) #dice-log { bottom: 58px; }
+  /* Frise des jets (Thomas, 2026-11-13) : une bande au pied de la carte, sans fin ; le jet le plus récent arrive à
+     droite et pousse les autres vers la gauche, de plus en plus transparents ; vos jets sur fond sombre, ceux des
+     ennemis sur fond rouge ; un trait sépare les tours. Toute la bande s'efface après un moment sans jet. */
+  #dice-log { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 32px; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; gap: 3px;
+    padding: 0 6px; overflow: hidden; pointer-events: none; background: linear-gradient(to right, transparent, rgba(10, 8, 6, 0.75) 30%); transition: opacity 0.6s; }
+  #dice-log:empty { display: none; }
+  body:has(#here.open) #dice-log { bottom: 50px; }
   #dice-log.fade { opacity: 0; }
-  .rl { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; background: rgba(14, 12, 10, 0.8); border-radius: 4px; transition: opacity 0.3s; }
-  .rl .n { font-size: 13px; color: #8a8070; width: 16px; flex: none; }
-  .rl .half { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
-  .rl .half.foe { justify-content: flex-end; background: linear-gradient(90deg, transparent, rgba(90, 16, 10, 0.6)); border-radius: 3px; padding-right: 2px; }
+  #dice-log .sep { flex: none; width: 2px; height: 22px; margin: 0 3px; background: #5a4a30; }
+  #dice-log .rc { padding: 1px 4px 1px 1px; border-radius: 4px; background: rgba(30, 26, 20, 0.85); transition: opacity 0.3s; }
+  #dice-log .rc.foe { background: rgba(100, 18, 12, 0.85); }
   .rc { display: flex; align-items: center; gap: 1px; flex: none; }
   .mini { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; font-size: 15px; color: #fff3c8; position: relative; isolation: isolate; flex: none;
     text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
@@ -256,21 +258,10 @@
   /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
   .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
   .dice.ready #die-who { color: var(--gold); }
-  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 58px; flex: none; }
+  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 100%; flex: none; }
+  /* Panneau compact : le d20 un peu plus petit, centré, avec de l'air au-dessus et au-dessous. */
+  .dice-row:not(.pair) .die { width: 50px; height: 50px; font-size: 24px; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
-  /* Dés de dégâts : petits dés rouges dans les coins bas du d20, sans agrandir la zone ; la forme suit le dé. */
-  .dice-row { position: relative; }
-  .dmg { position: absolute; bottom: -2px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; isolation: isolate;
-    font-size: 13px; color: #ffd9a0; text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
-    filter: drop-shadow(1px 0 0 #7a3a22) drop-shadow(-1px 0 0 #7a3a22) drop-shadow(0 1px 0 #7a3a22) drop-shadow(0 -1px 0 #7a3a22); }
-  .dmg[hidden] { display: none; }
-  .dmg::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(160deg, #5a2618, #2a100a); clip-path: inset(8% round 3px); }
-  .dmg.l { left: 0; } .dmg.r { right: 0; }
-  .dmg.d4 { padding-top: 7px; } .dmg.d4::before { clip-path: polygon(50% 4%, 96% 92%, 4% 92%); }
-  .dmg.d8::before { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-  .dmg.d10::before { clip-path: polygon(50% 0, 100% 42%, 50% 100%, 0 42%); }
-  .dmg.d12::before { clip-path: polygon(50% 0, 98% 36%, 80% 96%, 20% 96%, 2% 36%); }
-  .dmg.more { font-size: 11px; }
   .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
@@ -535,7 +526,7 @@
     <button id="here-info" type="button">?</button>
   </div>
   <div class="panel">
-    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div><div id="dmg1" class="dmg l" hidden></div><div id="dmg2" class="dmg r" hidden></div></div><div id="die-who"></div></div>
+    <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
     <div id="log"></div>
   </div>
   </div>
@@ -1292,8 +1283,8 @@
       npc: "gluck",
       kind: "fetch",
       item: "sac_pommes",
-      goal: "Gluck : retrouver son sac de pommes",
-      back: "Rapporter le sac de pommes \xE0 Gluck",
+      goal: "Retrouver le sac de Gluck",
+      back: "Rendre le sac \xE0 Gluck",
       waiting: "\xAB Mon sac est quelque part sur l'\xE9tage. Je t'attends ici. Je ne bouge pas. Promis. \xBB",
       thanks: ["\xAB MON SAC ! Tu l'as rapport\xE9 ! \xBB", "\xAB On partage : trois pour toi. Bon\u2026 deux. Allez, trois. \xBB", "(Il laisse 3 pommes.)"],
       failed: "Quelque part au-dessus, Gluck attend toujours son sac de pommes."
@@ -1301,8 +1292,8 @@
     gluck_statue: {
       npc: "gluck",
       kind: "statue",
-      goal: "Gluck : briser la statue creuse",
-      back: "Retourner voir Gluck",
+      goal: "Briser la statue creuse",
+      back: "Revoir Gluck",
       waiting: "\xAB La statue ! Un bon coup, et hop ! Moi, je surveille. \xBB",
       thanks: ["\xAB Alors ? Il y avait quoi ? \u2026 Garde tout. Les cailloux, \xE7a me fait peur. \xBB", "\xAB Une pomme pour le travail, une pour le courage. \xBB", "(Il laisse 2 pommes.)"],
       failed: "Gluck ne saura jamais ce que cachait la statue."
@@ -1311,8 +1302,8 @@
       npc: "soeur",
       kind: "kill",
       count: 3,
-      goal: "S\u0153ur Osseuse : Kobolds punis {0}/{1}",
-      back: "Retourner voir S\u0153ur Osseuse",
+      goal: "Punir des Kobolds {0}/{1}",
+      back: "Revoir S\u0153ur Osseuse",
       waiting: "\xAB Je compte. Vous, vous frappez. \xBB",
       thanks: [
         "\xAB J'ai entendu leurs cris d'ici. C'\xE9tait\u2026 \xE9difiant. \xBB",
@@ -1325,8 +1316,8 @@
       npc: "krik",
       kind: "fetch",
       item: "magot_krik",
-      goal: "Krik : r\xE9cup\xE9rer son magot",
-      back: "Rapporter le magot \xE0 Krik",
+      goal: "Retrouver le magot de Krik",
+      back: "Rendre le magot \xE0 Krik",
       waiting: "\xAB Le magot est l\xE0 o\xF9 je l'ai dit. Je ne mens pas : je ne peux pas. \xBB",
       thanks: ["\xAB Tout est l\xE0 ! M\xEAme la pi\xE8ce tordue. \xBB", "\xAB Moiti\xE9-moiti\xE9. Ta moiti\xE9 est plus grosse. C'est vrai, je l'ai mesur\xE9e. \xBB", "(Il laisse de l'or et un objet.)"],
       failed: "Vous gardez le magot de Krik : +{0} or. Quelque part, un Kobold qui ne sait pas mentir raconte partout que vous \xEAtes un voleur."
@@ -1335,8 +1326,8 @@
       npc: "krik",
       kind: "kill",
       count: 2,
-      goal: "Krik : chasser ses poursuivants {0}/{1}",
-      back: "Retourner voir Krik",
+      goal: "Chasser les traqueurs {0}/{1}",
+      back: "Revoir Krik",
       waiting: "\xAB Ils sont encore l\xE0. Je les entends. C'est vrai. \xBB",
       thanks: [
         "\xAB Ils sont partis ? Vraiment ? \u2026 Je te crois. Je n'ai pas le choix, mais je te crois. \xBB",
@@ -12356,38 +12347,38 @@
     "Magot de Krik": "Krik's stash",
     "Un coffret lourd qui tinte. \xC0 rapporter \xE0 Krik\u2026 ou pas.": "A heavy little box that jingles. Bring it back to Krik\u2026 or don't.",
     "Objet de qu\xEAte": "Quest item",
-    "Gluck : retrouver son sac de pommes": "Gluck: find his apple sack",
-    "Rapporter le sac de pommes \xE0 Gluck": "Bring the apple sack back to Gluck",
+    "Retrouver le sac de Gluck": "Find Gluck's sack",
+    "Rendre le sac \xE0 Gluck": "Return the sack to Gluck",
     "\xAB Mon sac est quelque part sur l'\xE9tage. Je t'attends ici. Je ne bouge pas. Promis. \xBB": "\u201CMy sack is somewhere on this floor. I'll wait here. I won't move. Promise.\u201D",
     "\xAB MON SAC ! Tu l'as rapport\xE9 ! \xBB": "\u201CMY SACK! You brought it back!\u201D",
     "\xAB On partage : trois pour toi. Bon\u2026 deux. Allez, trois. \xBB": "\u201CLet's share: three for you. Well\u2026 two. Oh fine, three.\u201D",
     "(Il laisse 3 pommes.)": "(He leaves 3 apples.)",
     "Quelque part au-dessus, Gluck attend toujours son sac de pommes.": "Somewhere above, Gluck is still waiting for his apple sack.",
-    "Gluck : briser la statue creuse": "Gluck: smash the hollow statue",
-    "Retourner voir Gluck": "Go back to Gluck",
+    "Briser la statue creuse": "Smash the hollow statue",
+    "Revoir Gluck": "Back to Gluck",
     "\xAB La statue ! Un bon coup, et hop ! Moi, je surveille. \xBB": "\u201CThe statue! One good hit, and presto! I'll keep watch.\u201D",
     "\xAB Alors ? Il y avait quoi ? \u2026 Garde tout. Les cailloux, \xE7a me fait peur. \xBB": "\u201CSo? What was in it? \u2026 Keep it all. Rocks scare me.\u201D",
     "\xAB Une pomme pour le travail, une pour le courage. \xBB": "\u201COne apple for the work, one for the courage.\u201D",
     "(Il laisse 2 pommes.)": "(He leaves 2 apples.)",
     "Gluck ne saura jamais ce que cachait la statue.": "Gluck will never know what the statue was hiding.",
-    "S\u0153ur Osseuse : Kobolds punis {0}/{1}": "Sister Bones: Kobolds punished {0}/{1}",
-    "S\u0153ur Osseuse : Kobolds punis": "Sister Bones: punish the Kobolds",
-    "Retourner voir S\u0153ur Osseuse": "Go back to Sister Bones",
+    "Punir des Kobolds {0}/{1}": "Punish Kobolds {0}/{1}",
+    "Punir des Kobolds": "Punish Kobolds",
+    "Revoir S\u0153ur Osseuse": "Back to Sister Bones",
     "\xAB Je compte. Vous, vous frappez. \xBB": "\u201CI count. You strike.\u201D",
     "\xAB J'ai entendu leurs cris d'ici. C'\xE9tait\u2026 \xE9difiant. \xBB": "\u201CI heard their screams from here. Most\u2026 edifying.\u201D",
     "\xAB Allez en paix, mon enfant. Et avec un peu de chance. \xBB": "\u201CGo in peace, my child. And with a little luck.\u201D",
     "(Protection : +1 classe d'armure pendant 150 tours. Chance : vos 3 prochains 1 au d\xE9 seront relanc\xE9s.)": "(Protection: +1 armor class for 150 turns. Luck: your next 3 rolls of 1 will be rerolled.)",
     "S\u0153ur Osseuse attendait le r\xE9cit de votre croisade. Elle ne l'aura pas.": "Sister Bones was waiting for the tale of your crusade. She won't get it.",
-    "Krik : r\xE9cup\xE9rer son magot": "Krik: fetch his stash",
-    "Rapporter le magot \xE0 Krik": "Bring the stash back to Krik",
+    "Retrouver le magot de Krik": "Find Krik's stash",
+    "Rendre le magot \xE0 Krik": "Return the stash to Krik",
     "\xAB Le magot est l\xE0 o\xF9 je l'ai dit. Je ne mens pas : je ne peux pas. \xBB": "\u201CThe stash is where I said. I'm not lying: I can't.\u201D",
     "\xAB Tout est l\xE0 ! M\xEAme la pi\xE8ce tordue. \xBB": "\u201CIt's all there! Even the bent coin.\u201D",
     "\xAB Moiti\xE9-moiti\xE9. Ta moiti\xE9 est plus grosse. C'est vrai, je l'ai mesur\xE9e. \xBB": "\u201CHalf and half. Your half is bigger. It's true, I measured it.\u201D",
     "(Il laisse de l'or et un objet.)": "(He leaves gold and an item.)",
     "Vous gardez le magot de Krik : +{0} or. Quelque part, un Kobold qui ne sait pas mentir raconte partout que vous \xEAtes un voleur.": "You keep Krik's stash: +{0} gold. Somewhere, a Kobold who can't lie is telling everyone you're a thief.",
-    "Krik : chasser ses poursuivants {0}/{1}": "Krik: drive off his pursuers {0}/{1}",
-    "Krik : chasser ses poursuivants": "Krik: drive off his pursuers",
-    "Retourner voir Krik": "Go back to Krik",
+    "Chasser les traqueurs {0}/{1}": "Drive off the trackers {0}/{1}",
+    "Chasser les traqueurs": "Drive off the trackers",
+    "Revoir Krik": "Back to Krik",
     "\xAB Ils sont encore l\xE0. Je les entends. C'est vrai. \xBB": "\u201CThey're still here. I can hear them. It's true.\u201D",
     "\xAB Ils sont partis ? Vraiment ? \u2026 Je te crois. Je n'ai pas le choix, mais je te crois. \xBB": "\u201CThey're gone? Really? \u2026 I believe you. I have no choice, but I believe you.\u201D",
     "\xAB Mes camarades dorment l\xE0, l\xE0 et l\xE0. \xBB": "\u201CMy comrades sleep there, there and there.\u201D",
@@ -22748,12 +22739,10 @@
   var die = $("die");
   var die2 = $("die2");
   var dieWho = $("die-who");
-  var dmgDice = [$("dmg1"), $("dmg2")];
   var diceLog = $("dice-log");
-  var rollLines = [];
-  var rollCount = 0;
+  var rollTurn = -1;
   var rollIdle = 0;
-  var ROLL_LINES = 4;
+  var ROLL_KEEP = 24;
   var ROLL_CLEAR_MS = 15e3;
   var ROLL_DICE = 4;
   var log = $("log");
@@ -22934,7 +22923,6 @@
     die2.hidden = true;
     die.parentElement?.classList.toggle("pair", !die2.hidden);
     dieWho.textContent = tr("");
-    showDamageDice(void 0);
   }
   function rollChip(r, foe) {
     const chip = document.createElement("span");
@@ -22960,45 +22948,25 @@
   }
   function logRoll(e) {
     const foe = e.attacker.kind === "monster";
-    let line = rollLines[rollLines.length - 1];
-    if (!line || !foe || line.turn !== game.turn || line.foes >= 2) {
-      const el2 = document.createElement("div");
-      el2.className = "rl";
-      const n = document.createElement("span");
-      n.className = "n";
-      n.textContent = String(++rollCount);
-      const me = document.createElement("div");
-      me.className = "half";
-      const f = document.createElement("div");
-      f.className = "half foe";
-      el2.append(n, me, f);
-      line = { el: el2, me, foe: f, foes: 0, turn: game.turn };
-      rollLines.push(line);
-      diceLog.append(el2);
-      while (rollLines.length > ROLL_LINES) rollLines.shift().el.remove();
+    if (rollTurn !== -1 && rollTurn !== game.turn) {
+      const sep = document.createElement("span");
+      sep.className = "sep";
+      diceLog.append(sep);
     }
-    if (foe) {
-      line.foe.append(rollChip(e.result, true));
-      line.foes++;
-    } else line.me.append(rollChip(e.result, false));
-    rollLines.forEach((l, i) => l.el.style.opacity = String([0.3, 0.5, 0.75, 1][ROLL_LINES - rollLines.length + i]));
+    rollTurn = game.turn;
+    const chip = rollChip(e.result, foe);
+    if (foe) chip.classList.add("foe");
+    diceLog.append(chip);
+    while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild.remove();
+    const chips = [...diceLog.children];
+    chips.forEach((c, i) => c.style.opacity = String(Math.max(0.12, 1 - (chips.length - 1 - i) * 0.11)));
     diceLog.classList.remove("fade");
     rollIdle = 0;
   }
   function clearRollLog() {
-    rollLines = [];
-    rollCount = 0;
+    rollTurn = -1;
     diceLog.replaceChildren();
     diceLog.classList.remove("fade");
-  }
-  function showDamageDice(roll2) {
-    const faces = roll2?.faces ?? [];
-    const shown = faces.length > 2 ? [String(faces[0]), `+${faces.slice(1).reduce((a, b) => a + b, 0)}`] : faces.map(String);
-    dmgDice.forEach((d, i) => {
-      d.hidden = i >= shown.length;
-      d.textContent = shown[i] ?? "";
-      d.className = `dmg ${i === 0 ? "l" : "r"} d${roll2?.dice.sides ?? 6}${faces.length > 2 && i === 1 ? " more" : ""}`;
-    });
   }
   function renderLog() {
     logLines = logLines.slice(-LOG_LINES);
@@ -23029,7 +22997,6 @@
     const foe = byFoe(e);
     const mode = e.type === "attack" ? e.result.mode : "normal";
     die.className = `die rolling${foe ? " foe" : ""}`;
-    showDamageDice(void 0);
     die2.hidden = mode === "normal";
     die.parentElement?.classList.toggle("pair", !die2.hidden);
     die2.className = `die rolling${foe ? " foe" : ""}`;
@@ -23072,7 +23039,6 @@
       if (e.opportunity) renderer.addFloatingText(e.attacker.x, e.attacker.y, "Opportunit\xE9 !", "#ffd75e");
       const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : void 0;
       landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
-      showDamageDice(r.hit ? r.damageRoll : void 0);
       logRoll(e);
       renderer.addFloatingText(
         e.target.x,
@@ -25356,10 +25322,9 @@
     advanceCues(dt);
     dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
     if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
-    if (rollLines.length) {
+    if (diceLog.childElementCount) {
       rollIdle += dt;
-      if (rollIdle >= ROLL_CLEAR_MS - 600) diceLog.classList.add("fade");
-      if (rollIdle >= ROLL_CLEAR_MS) clearRollLog();
+      if (rollIdle >= ROLL_CLEAR_MS) diceLog.classList.add("fade");
     }
     if (stepping) {
       stepTime += dt;

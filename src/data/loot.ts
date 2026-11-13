@@ -19,7 +19,7 @@ export const GOLD_PILES: Record<"small" | "medium" | "large", [number, number]>[
 ];
 
 /** Ce qu'on peut trouver, par rareté. `count` : nombre d'exemplaires (min, max). */
-export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number]; minDepth?: number }[]> = {
+export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number]; minDepth?: number; odds?: number }[]> = {
   common: [{ item: "fleche", count: [2, 5] }, { item: "torche" }, { item: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }, { item: "armure_cuir", minDepth: 2 }],
   uncommon: [
     { item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
@@ -31,6 +31,8 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
     { item: "gold" }, { item: "cimeterre" }, { item: "harnois", minDepth: 5 }, { item: "saphir" }, { item: "potion_jouvence" },
     { item: "emeraude", minDepth: 6 }, { item: "diamant", minDepth: 11 }, { item: "sac_voyage", minDepth: 6 },
     { item: "oeil_chauve_souris" },
+    // Très rare : une fois sur cinq quand il sort, sinon un gros tas d'or.
+    { item: "noeud_papillon", minDepth: 3, odds: 0.2 },
   ],
 };
 

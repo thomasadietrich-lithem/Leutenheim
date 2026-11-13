@@ -39,7 +39,9 @@ export interface ItemDef {
   range?: number;
   ammo?: string;
   /** Rareté : dit à quel point l'objet est difficile à trouver (Thomas, 2026-11-11). Sans rareté : objet de départ. */
-  rarity?: Rarity;
+  rarity?: Rarity | "epic";
+  /** Bonus de Charisme quand on le porte (nœud papillon). */
+  charisma?: number;
   /** Niveau du héros nécessaire pour équiper ou utiliser l'objet (Thomas : « le niveau du héros »). */
   level?: number;
   /** Armes de corps à corps : lente (une attaque prend 1,5 tour) ou rapide (¾ de tour). */
@@ -364,6 +366,8 @@ export const ITEMS = {
   // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
   oeil_chauve_souris: { id: "oeil_chauve_souris", name: "Œil de chauve-souris", kind: "artifact", description: "Desséché, il palpite encore. Vous devinez l'ombre des monstres hors de vue : à 10 cases, et à 3 à travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
   flute_pan: { id: "flute_pan", name: "Flûte de pan", kind: "artifact", description: "Quelques roseaux liés. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
+  // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
+  noeud_papillon: { id: "noeud_papillon", name: "Nœud papillon de Kobold", kind: "amulet", description: "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
   // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
   sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. À rapporter à Gluck.", w: 1, h: 1, maxStack: 1 },
   magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. À rapporter à Krik… ou pas.", w: 1, h: 1, maxStack: 1 },

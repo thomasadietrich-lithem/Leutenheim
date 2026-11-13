@@ -275,7 +275,8 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
   }
   const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth);
   const pick = pool[rng.int(0, pool.length - 1)];
-  if (pick.item === "gold") {
+  // Très rare (nœud papillon) : il ne sort qu'une fois sur `odds`, sinon de l'or.
+  if (pick.item === "gold" || (pick.odds !== undefined && !rng.chance(pick.odds))) {
     const [min, max] = goldRange(depth, GOLD_SIZE[rarity]);
     return { item: "or", count: rng.int(min, max) };
   }

@@ -1696,6 +1696,8 @@
     // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
     oeil_chauve_souris: { id: "oeil_chauve_souris", name: "\u0152il de chauve-souris", kind: "artifact", description: "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
     flute_pan: { id: "flute_pan", name: "Fl\xFBte de pan", kind: "artifact", description: "Quelques roseaux li\xE9s. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
+    // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
+    noeud_papillon: { id: "noeud_papillon", name: "N\u0153ud papillon de Kobold", kind: "amulet", description: "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
     // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
     sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. \xC0 rapporter \xE0 Gluck.", w: 1, h: 1, maxStack: 1 },
     magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. \xC0 rapporter \xE0 Krik\u2026 ou pas.", w: 1, h: 1, maxStack: 1 },
@@ -3949,7 +3951,9 @@
         { x: 5, y: 4, item: "potion_brouillard", count: 2 },
         { x: 7, y: 4, item: "potion_oursin", count: 1 },
         { x: 10, y: 4, item: "oeil_chauve_souris", count: 1 },
-        { x: 11, y: 4, item: "flute_pan", count: 1 }
+        { x: 11, y: 4, item: "flute_pan", count: 1 },
+        // Nœud papillon de Kobold (Thomas, 2026-11-13 : +8 Charisme, très rare).
+        { x: 3, y: 4, item: "noeud_papillon", count: 1 }
       ],
       heroLevel: 4,
       monsters: [
@@ -4388,7 +4392,9 @@
       { item: "emeraude", minDepth: 6 },
       { item: "diamant", minDepth: 11 },
       { item: "sac_voyage", minDepth: 6 },
-      { item: "oeil_chauve_souris" }
+      { item: "oeil_chauve_souris" },
+      // Très rare : une fois sur cinq quand il sort, sinon un gros tas d'or.
+      { item: "noeud_papillon", minDepth: 3, odds: 0.2 }
     ]
   };
   var GOLD_SIZE = { common: "small", uncommon: "medium", rare: "large" };
@@ -4503,7 +4509,7 @@
     }
     const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth);
     const pick = pool[rng.int(0, pool.length - 1)];
-    if (pick.item === "gold") {
+    if (pick.item === "gold" || pick.odds !== void 0 && !rng.chance(pick.odds)) {
       const [min, max] = goldRange(depth, GOLD_SIZE[rarity]);
       return { item: "or", count: rng.int(min, max) };
     }
@@ -4626,7 +4632,7 @@
   function basePrice(id) {
     const def = ITEMS[id];
     if (def.kind === "gold" || def.kind === "gem" || def.kind === "key" || def.kind === "quest") return null;
-    return SPECIAL[id] ?? (def.rarity ? BY_RARITY[def.rarity] : 4);
+    return SPECIAL[id] ?? (def.rarity === "epic" ? 150 : def.rarity ? BY_RARITY[def.rarity] : 4);
   }
   function buyBackPrice(id) {
     const p = basePrice(id);
@@ -6325,6 +6331,10 @@
       return this.rank("second_souffle") >= MAX_RANK ? 2 : 1;
     }
     /** Place un point dans une caractéristique (ne prend pas de tour). */
+    /** Charisme : les points placés, plus ce que donne l'équipement (nœud papillon). */
+    charisma() {
+      return this.alloc.charisme + Object.values(this.equipment).reduce((n, it) => n + (it && ITEMS[it.defId].charisma || 0), 0);
+    }
     allocate(stat) {
       if (this.points <= 0 || this.over || this.inCombat()) return false;
       this.points--;
@@ -7913,7 +7923,7 @@
     }
     /** Un jet de dialogue : d20 + caractéristique contre une difficulté cachée. La Chance relance un 1 naturel. */
     dialogueRoll(stat, dc) {
-      const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
+      const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : stat === "charisme" ? this.charisma() : this.alloc[stat];
       let d20 = this.rng.int(1, 20);
       if (d20 === 1 && this.useLuck()) d20 = this.rng.int(1, 20);
       const total = d20 + bonus;
@@ -12372,7 +12382,9 @@
     "Pi\xE8ge": "Trap",
     "\xC9tats": "States",
     "\xC9tat": "State",
-    "Dans le brouillard, {0} et {1} se cognent\u2026 et se battent !": "In the fog, {0} and {1} bump into each other\u2026 and start fighting!"
+    "Dans le brouillard, {0} et {1} se cognent\u2026 et se battent !": "In the fog, {0} and {1} bump into each other\u2026 and start fighting!",
+    "N\u0153ud papillon de Kobold": "Kobold bow tie",
+    "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.": "Red with white polka dots, a bit crumpled. Very chic. +8 Charisma."
   };
 
   // src/i18n/i18n.ts
@@ -13468,6 +13480,25 @@
       "..KTBKK.........",
       "..KTBK..........",
       "...KK...........",
+      "................"
+    ],
+    // Nœud papillon de Kobold (Thomas, 2026-11-13) : rouge à pois blancs.
+    noeud_papillon: [
+      "................",
+      "................",
+      "................",
+      "..KK........KK..",
+      "..KRK......KRK..",
+      "..KRRK.KK.KRRK..",
+      "..KRWRKRRKRWRK..",
+      "..KRRRKrrKRRRK..",
+      "..KRWRKrrKRWRK..",
+      "..KRRK.KK.KRRK..",
+      "..KRK......KRK..",
+      "..KK........KK..",
+      "................",
+      "................",
+      "................",
       "................"
     ],
     // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
@@ -24518,7 +24549,7 @@
       row("Force", signedBonus(game.pushBonus()), "force"),
       row("Agilit\xE9", signedBonus(game.disengageBonus()), "agilite"),
       row("Intellig.", signedBonus(game.alloc.intelligence), "intelligence"),
-      row("Charisme", signedBonus(game.alloc.charisme), "charisme"),
+      row("Charisme", signedBonus(game.charisma()), "charisme"),
       row("Fouille", signedBonus(c.searchBonus)),
       row("Discr\xE9tion", signedBonus(game.stealthBonus())),
       row("Attaque", signedBonus(game.hero.attackBonus)),

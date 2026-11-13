@@ -46,7 +46,7 @@ const SPECIAL: Partial<Record<ItemId, number>> = {
 export function basePrice(id: ItemId): number | null {
   const def: ItemDef = ITEMS[id];
   if (def.kind === "gold" || def.kind === "gem" || def.kind === "key" || def.kind === "quest") return null;
-  return SPECIAL[id] ?? (def.rarity ? BY_RARITY[def.rarity] : 4);
+  return SPECIAL[id] ?? (def.rarity === "epic" ? 150 : def.rarity ? BY_RARITY[def.rarity] : 4);
 }
 
 /** Ce que le Colporteur donne pour un exemplaire (40 %, au moins 1) ; null s'il n'en veut pas. */

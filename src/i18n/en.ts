@@ -1106,4 +1106,6 @@ export const EN: Record<string, string> = {
   "États": "States",
   "État": "State",
   "Dans le brouillard, {0} et {1} se cognent… et se battent !": "In the fog, {0} and {1} bump into each other… and start fighting!",
+  "Nœud papillon de Kobold": "Kobold bow tie",
+  "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.": "Red with white polka dots, a bit crumpled. Very chic. +8 Charisma.",
 };

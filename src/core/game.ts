@@ -1951,6 +1951,11 @@ export class Game {
   }
 
   /** Place un point dans une caractéristique (ne prend pas de tour). */
+  /** Charisme : les points placés, plus ce que donne l'équipement (nœud papillon). */
+  charisma(): number {
+    return this.alloc.charisme + Object.values(this.equipment).reduce((n, it) => n + ((it && (ITEMS[it.defId] as ItemDef).charisma) || 0), 0);
+  }
+
   allocate(stat: StatId): boolean {
     if (this.points <= 0 || this.over || this.inCombat()) return false;
     this.points--;
@@ -3751,7 +3756,7 @@ export class Game {
 
   /** Un jet de dialogue : d20 + caractéristique contre une difficulté cachée. La Chance relance un 1 naturel. */
   private dialogueRoll(stat: StatId, dc: number): NonNullable<GluckResult["roll"]> {
-    const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : this.alloc[stat];
+    const bonus = stat === "force" ? this.pushBonus() : stat === "agilite" ? this.disengageBonus() : stat === "charisme" ? this.charisma() : this.alloc[stat];
     let d20 = this.rng.int(1, 20);
     if (d20 === 1 && this.useLuck()) d20 = this.rng.int(1, 20);
     const total = d20 + bonus;

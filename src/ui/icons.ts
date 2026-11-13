@@ -1029,6 +1029,25 @@ const ICONS: Record<ItemId, string[]> = {
     "...KK...........",
     "................",
   ],
+  // Nœud papillon de Kobold (Thomas, 2026-11-13) : rouge à pois blancs.
+  noeud_papillon: [
+    "................",
+    "................",
+    "................",
+    "..KK........KK..",
+    "..KRK......KRK..",
+    "..KRRK.KK.KRRK..",
+    "..KRWRKRRKRWRK..",
+    "..KRRRKrrKRRRK..",
+    "..KRWRKrrKRWRK..",
+    "..KRRK.KK.KRRK..",
+    "..KRK......KRK..",
+    "..KK........KK..",
+    "................",
+    "................",
+    "................",
+    "................",
+  ],
   // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
   potion_fumee: [
     ".......KK.......",

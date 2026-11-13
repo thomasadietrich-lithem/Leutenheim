@@ -2405,7 +2405,7 @@ test("butin : rareté selon la section, tas d'or selon la section, jamais dans l
       assert.ok(loot.count >= 3 && loot.count <= 40);
       continue;
     }
-    count[def.rarity!]++;
+    count[def.rarity === "epic" ? "rare" : def.rarity!]++;
   }
   assert.ok(count.common > count.uncommon && count.uncommon > count.rare && count.rare > 0, JSON.stringify(count));
   const old = RULES.lootEnabled;

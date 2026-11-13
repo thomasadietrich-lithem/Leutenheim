@@ -2382,7 +2382,7 @@ function renderCharacter(): void {
     row("Force", signedBonus(game.pushBonus()), "force"),
     row("Agilité", signedBonus(game.disengageBonus()), "agilite"),
     row("Intellig.", signedBonus(game.alloc.intelligence), "intelligence"),
-    row("Charisme", signedBonus(game.alloc.charisme), "charisme"),
+    row("Charisme", signedBonus(game.charisma()), "charisme"),
     row("Fouille", signedBonus(c.searchBonus)),
     row("Discrétion", signedBonus(game.stealthBonus())),
     row("Attaque", signedBonus(game.hero.attackBonus)),

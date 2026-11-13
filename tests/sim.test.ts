@@ -1317,7 +1317,7 @@ test("porte : après un échec, la même méthode n'est plus proposée", () => {
       let door: { x: number; y: number } | null = null;
       for (let y = 0; y < game.map.height && !door; y++) {
         for (let x = 0; x < game.map.width; x++) {
-          if (game.map.get(x, y) === Tile.DoorLocked && !game.counterAt(x, y) && !(game.chicken()?.door.x === x && game.chicken()?.door.y === y)) {
+          if (game.map.get(x, y) === Tile.DoorLocked && !game.counterAt(x, y) && !(game.chicken()?.door?.x === x && game.chicken()?.door?.y === y)) {
             door = { x, y };
             break;
           }
@@ -2746,7 +2746,7 @@ test("poulet : porte impossible à forcer ; dérangé, il la défonce, s'écrase
   const game = new Game(5, undefined, undefined, undefined, true);
   const c = game.chicken();
   assert.ok(c, "un poulet dans la salle d'essai");
-  const door = { ...c!.door };
+  const door = { ...c!.door! };
   assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked);
   // Aucun jet ne l'ouvre (le dé est forcé à 20).
   const rng = (game as unknown as { rng: { int: (a: number, b: number) => number } }).rng;
@@ -2798,7 +2798,7 @@ test("poulet dans le donjon : un truc fun possible, salle fermée par une seule 
         const c = game.chicken()!;
         const room = game.rooms[c.room];
         assert.ok(!(c.x >= room.x && c.x < room.x + room.w && c.y >= room.y && c.y < room.y + room.h), "le poulet n'est pas enfermé");
-        assert.equal(game.map.get(c.door.x, c.door.y), Tile.DoorLocked);
+        assert.equal(game.map.get(c.door!.x, c.door!.y), Tile.DoorLocked);
         found++;
       }
       game.pendingStairs = "down";
@@ -3089,7 +3089,9 @@ test("dortoir : 0 à 2 coffres ; se cacher contre un meuble ; combats coupés en
     const { themes } = furnishFloor(floor, seed);
     const after = floor.map.tiles.filter((t) => t === Tile.Chest).length;
     // Dortoir : 0 à 2 coffres ; salle de prière : 1 (derrière le pupitre).
-    assert.ok(after - before <= 2 + (themes.some((t) => t.id === "priere") ? 1 : 0));
+    // Forge : 0 à 2, alchimiste : 1 à 2.
+    const allow = (id: string) => ({ dortoir: 2, priere: 1, forge: 2, alchimiste: 2 } as Record<string, number>)[id] ?? 0;
+    assert.ok(after - before <= themes.reduce((sum, t) => sum + allow(t.id), 0));
     chests += after - before;
   }
   assert.ok(chests > 0, "des coffres dans les dortoirs");

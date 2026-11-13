@@ -1,4 +1,5 @@
 import { Game } from "../core/game";
+import { FERME } from "./sprites/ferme";
 import { Tile } from "../world/map";
 import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
@@ -69,7 +70,7 @@ export class TilePainter {
       if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
         // Une case : toile d'araignée, rigole, évacuation, morceau de tapis de velours.
         if (f.x !== x || f.y !== y) continue;
-        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind];
+        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind] ?? FERME[f.kind];
         if (!web) continue;
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;

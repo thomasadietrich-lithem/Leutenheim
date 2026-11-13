@@ -818,11 +818,13 @@ function reveal(e: GameEvent): void {
     // Le poulet (Thomas, 2026-11-13) : un cri, puis sa course à l'écran ; la porte défoncée ; le mur, les plumes.
     renderer.addFloatingText(e.path[0].x, e.path[0].y, "Côôt ?!", "#fff3c8");
     sfx.play("squeak");
+    const door = e.door;
     renderer.runChicken(
       e.path,
-      e.door,
+      door,
       () => {
-        if (game.isVisible(e.door.x, e.door.y)) renderer.addFloatingText(e.door.x, e.door.y, "Crac !", "#ffd75e");
+        if (!door) return;
+        if (game.isVisible(door.x, door.y)) renderer.addFloatingText(door.x, door.y, "Crac !", "#ffd75e");
         sfx.play("break");
       },
       () => {

@@ -65,8 +65,10 @@ export interface FloorState {
   krik?: GluckSpot;
   /** La salle de bain du Kobold (truc fun, Thomas 2026-11-13), s'il y en a une sur cet étage. */
   bath?: BathState;
-  /** Le poulet et sa porte qu'on ne peut pas forcer (truc fun). */
+  /** Le poulet et sa porte qu'on ne peut pas forcer (truc fun), ou le poulet échappé de la ferme. */
   chicken?: ChickenState;
+  /** La ferme : les cases du pré, et les poules qui s'y promènent. */
+  farm?: { field: Point[]; hens: { x: number; y: number; fromX: number; fromY: number }[] };
 }
 
 /**
@@ -77,7 +79,8 @@ export interface FloorState {
 export interface ChickenState {
   x: number;
   y: number;
-  door: Point;
+  /** La porte qu'il défonce ; sans porte (le poulet de la ferme), il fonce droit dans un mur. */
+  door?: Point;
   crash: Point;
   room: number;
   done: boolean;

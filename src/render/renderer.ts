@@ -2,6 +2,7 @@ import type { StainColor } from "../core/floor";
 import { SOEUR_BUBBLE_ICON, SOEUR_PALETTE, SOEUR_SPRITE } from "./sprites/soeur";
 import { POULET, POULET_PALETTE } from "./sprites/poulet";
 import { ASSIETTE } from "./sprites/assiette";
+import { FERME } from "./sprites/ferme";
 import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
@@ -487,9 +488,40 @@ export class Renderer {
   }
 
   /** Le poulet détale le long de ce trajet (cases), à toute allure ; `door` : la case de la porte qu'il défonce. */
-  runChicken(path: { x: number; y: number }[], door: { x: number; y: number }, onDoor: () => void, onCrash: () => void): void {
-    const di = path.findIndex((p) => p.x === door.x && p.y === door.y);
+  runChicken(path: { x: number; y: number }[], door: { x: number; y: number } | undefined, onDoor: () => void, onCrash: () => void): void {
+    const di = door ? path.findIndex((p) => p.x === door.x && p.y === door.y) : -1;
     this.chickenRun = { path, start: performance.now(), door: di < 0 ? path.length - 1 : di, onDoor, onCrash, doorDone: false };
+  }
+
+  /** Les poules du pré (ferme) : elles trottinent d'une case à l'autre et picorent. */
+  private drawHens(game: Game, ox: number, oy: number, progress: number): void {
+    const farm = game.farm();
+    if (!farm) return;
+    const { ctx, tile } = this;
+    for (const [i, h] of farm.hens.entries()) {
+      const x = h.fromX + (h.x - h.fromX) * progress;
+      const y = h.fromY + (h.y - h.fromY) * progress;
+      if (!game.isVisible(h.x, h.y)) continue;
+      const moving = progress < 1 && (h.x !== h.fromX || h.y !== h.fromY);
+      const peck = !moving && Math.floor((this.time + i * 700) / 380) % 5 === 0;
+      const rows = moving && Math.floor(this.time / 90) % 2 === 0 ? POULET.run : POULET.idle;
+      const size = Math.round(tile * 0.66);
+      const cx = Math.round(ox + (x + 0.5) * tile);
+      const top = Math.round(oy + (y + 1) * tile - size - tile * 0.08 + (peck ? tile * 0.04 : 0));
+      ctx.fillStyle = "rgba(10,8,16,0.35)";
+      ctx.beginPath();
+      ctx.ellipse(cx, oy + (y + 0.86) * tile, tile * 0.18, tile * 0.06, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.translate(cx, 0);
+      // Elles regardent là où elles vont (le dessin regarde à gauche).
+      if (h.x > h.fromX || (h.x === h.fromX && (i + Math.floor(this.time / 3000)) % 2 === 1)) ctx.scale(-1, 1);
+      ctx.drawImage(this.sprite(rows, POULET_PALETTE), -size / 2, top, size, size);
+      ctx.restore();
+      ctx.imageSmoothingEnabled = smooth;
+    }
   }
 
   /** Un nuage de plumes sur cette case. */
@@ -1709,6 +1741,7 @@ export class Renderer {
     this.drawSoeur(game, ox, oy);
     this.drawKrik(game, ox, oy);
     this.drawChicken(game, ox, oy, dt);
+    this.drawHens(game, ox, oy, progress);
     this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
     // Statue (potion de pierre) : le héros est dessiné en pierre grise.
@@ -2121,7 +2154,7 @@ export class Renderer {
       // Assiette : pleine tant que la cuisse y est.
       const plateName = f.kind === "plate" ? (game.ground.some((g) => g.x === f.x && g.y === f.y && g.item === "cuisse_poulet") ? "plateFull" : "plate") : null;
       const name = plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name];
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2132,7 +2165,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name]) {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name]) {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

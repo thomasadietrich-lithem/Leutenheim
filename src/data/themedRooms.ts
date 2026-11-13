@@ -24,6 +24,16 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
       { item: "couteau_boucher", min: 1, max: 1, weight: 1, minDepth: 2 },
     ],
   },
+  // La ferme (Thomas, 2026-11-13, planches ferme_v1 / ferme_v2) : butin des caches (C).
+  {
+    id: "ferme",
+    name: "Ferme",
+    loot: [
+      { item: "or", min: 6, max: 14, weight: 2 },
+      { item: "cuisse_poulet", min: 1, max: 2, weight: 3 },
+      { item: "pomme", min: 1, max: 3, weight: 2 },
+    ],
+  },
   {
     id: "alchimiste",
     name: "Alchimiste",
@@ -118,6 +128,22 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   grainSack: { blocks: true, w: 1, h: 1, burns: true },
   // Panier à fruits (Thomas, 2026-11-11) : ne bloque pas ; ses 2 à 3 pommes se ramassent (le dessin suit leur nombre).
   basket: { blocks: false, w: 1, h: 1, burns: true },
+  // FERME (planches ferme_v1 / ferme_v2) : le pré de terre battue (il bloque : on n'y entre pas, mais on voit par-dessus),
+  // la clôture pleine, la houe et la fourche contre le mur, la botte de paille, l'épouvantail.
+  soil: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  soil2: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  fenceH: { blocks: true, w: 1, h: 1, burns: true },
+  fenceV: { blocks: true, w: 1, h: 1, burns: true },
+  fencePost: { blocks: true, w: 1, h: 1, burns: true },
+  hoe: { blocks: true, w: 1, h: 1, burns: true },
+  fork: { blocks: true, w: 1, h: 1, burns: true },
+  hayBale: { blocks: true, w: 1, h: 1, burns: true },
+  scarecrow: { blocks: true, w: 1, h: 1, burns: true },
+  // Statues de décor (planches ferme_v1 / ferme_v2).
+  statueApple: { blocks: true, w: 1, h: 1, burns: false },
+  statueKnight: { blocks: true, w: 1, h: 1, burns: false },
+  statueHen: { blocks: true, w: 1, h: 1, burns: false },
+  statueNun: { blocks: true, w: 1, h: 1, burns: false },
   // Assiette avec une cuisse de poulet (cuisine, Thomas 2026-11-13).
   plate: { blocks: false, w: 1, h: 1, burns: false },
   gutterH: { blocks: false, w: 1, h: 1, burns: false, flat: true },

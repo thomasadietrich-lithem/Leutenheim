@@ -234,7 +234,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
-  const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste"];
+  const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme"];
   for (const chance of RULES.themedRoomChances) {
     if (!rng.chance(chance)) break;
     const id = pool.splice(rng.int(0, pool.length - 1), 1)[0];
@@ -272,7 +272,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
 }
 
 /** Taille minimale de chaque salle à thème. */
-const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6] };
+const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7] };
 function fits(id: string, room: Room): boolean {
   return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
 }
@@ -285,6 +285,7 @@ const FURNISHERS: Record<string, Furnisher> = {
   torture: furnishTorture,
   forge: furnishForge,
   alchimiste: furnishAlchemist,
+  ferme: furnishFarm,
 };
 
 /**
@@ -828,6 +829,85 @@ export function furnishForge(floor: Floor, room: Room, rng: Rng, out: Furniture[
     }
   }
   out.push(...P.placed);
+  return true;
+}
+
+/**
+ * LA FERME (Thomas, 2026-11-13, planches ferme_v1 / ferme_v2) : contre le mur du fond, un pré de terre battue de 16 à 30
+ * cases, fermé par une clôture pleine (on n'y entre pas ; on voit par-dessus) ; dedans, l'épouvantail, 1 ou 2 bottes de
+ * paille, et 1 à 3 poules qui se promènent (voir `Game` : `farm`). Autour, un passage d'une case ; la houe et la fourche
+ * contre le mur du fond, 1 ou 2 bottes de paille et 1 ou 2 caisses dehors. Les ouvertures de la salle ne donnent jamais
+ * sur le pré ni sur la clôture.
+ */
+export function furnishFarm(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  // Le pré : collé au mur du fond ; un passage à gauche, à droite et en bas.
+  let fw = room.w - 4;
+  let fh = room.h - 3;
+  while (fw * fh > 30 && fw > 4) fw--;
+  while (fw * fh > 30 && fh > 3) fh--;
+  if (fw * fh < 16 || fw * fh > 30) return false;
+  const fx = room.x + 2 + Math.floor((room.w - 4 - fw) / 2);
+  const fy = room.y;
+  const inField = (x: number, y: number) => x >= fx && x < fx + fw && y >= fy && y < fy + fh;
+  const inFence = (x: number, y: number) =>
+    ((x === fx - 1 || x === fx + fw) && y >= fy && y <= fy + fh) || (y === fy + fh && x >= fx - 1 && x <= fx + fw);
+  // Aucune ouverture de la salle ne donne sur le pré ou sur la clôture.
+  for (let x = room.x - 1; x <= room.x + room.w; x++) {
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      const ring = x === room.x - 1 || x === room.x + room.w || y === room.y - 1 || y === room.y + room.h;
+      if (!ring || floor.map.get(x, y) === Tile.Wall) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ix = x + dx;
+        const iy = y + dy;
+        if (ix >= room.x && ix < room.x + room.w && iy >= room.y && iy < room.y + room.h && (inField(ix, iy) || inFence(ix, iy))) return false;
+      }
+    }
+  }
+  // Le pré d'abord (case par case), puis la clôture : sinon la fermer couperait le pré de l'arrivée.
+  const field: Point[] = [];
+  for (let y = fy; y < fy + fh; y++) for (let x = fx; x < fx + fw; x++) field.push({ x, y });
+  for (const c of field) {
+    if (!P.tryPlace({ x: c.x, y: c.y, kind: rng.chance(0.3) ? "soil2" : "soil" })) {
+      P.undo();
+      return false;
+    }
+  }
+  for (let y = fy; y <= fy + fh; y++) {
+    for (const x of [fx - 1, fx + fw]) {
+      const kind = y === fy + fh ? "fencePost" : "fenceV";
+      if (!P.tryPlace({ x, y, kind })) {
+        P.undo();
+        return false;
+      }
+    }
+  }
+  for (let x = fx; x < fx + fw; x++) {
+    if (!P.tryPlace({ x, y: fy + fh, kind: "fenceH" })) {
+      P.undo();
+      return false;
+    }
+  }
+  // Dans le pré (sur la terre déjà posée) : l'épouvantail au milieu, 1 ou 2 bottes de paille.
+  const inside: Furniture[] = [];
+  const mid = { x: fx + Math.floor(fw / 2), y: fy + Math.floor(fh / 2) };
+  inside.push({ x: mid.x, y: mid.y, kind: "scarecrow" });
+  const spots = field.filter((c) => Math.max(Math.abs(c.x - mid.x), Math.abs(c.y - mid.y)) >= 2);
+  for (let k = rng.int(1, 2); k > 0 && spots.length > 0; k--) {
+    const c = spots.splice(rng.int(0, spots.length - 1), 1)[0];
+    inside.push({ x: c.x, y: c.y, kind: "hayBale" });
+  }
+  // Dehors : la houe et la fourche contre le mur du fond (dans les coins), paille et caisses dans le passage.
+  P.tryPlace({ x: room.x, y: room.y, kind: rng.chance(0.5) ? "hoe" : "fork" });
+  P.tryPlace({ x: room.x + room.w - 1, y: room.y, kind: P.placed.some((f) => f.kind === "hoe") ? "fork" : "hoe" });
+  const edge = () => {
+    const bottom = room.y + room.h - 1;
+    return rng.chance(0.5) ? { x: rng.chance(0.5) ? room.x : room.x + room.w - 1, y: rng.int(room.y + 1, bottom) } : { x: rng.int(room.x, room.x + room.w - 1), y: bottom };
+  };
+  scatter(P, rng, ["hayBale"], rng.int(1, 2), edge);
+  scatter(P, rng, ["crate", "crateStack"], rng.int(1, 2), edge);
+  out.push(...P.placed, ...inside);
   return true;
 }
 

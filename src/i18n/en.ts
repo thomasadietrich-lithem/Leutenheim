@@ -1173,4 +1173,7 @@ export const EN: Record<string, string> = {
   "Une nonne squelette très digne, qui ignore qu'elle est morte. Les Kobolds lui ont volé sa cloche, celle qui réveillait Leutenheim. Elle bénit, ou maudit.": "A very dignified skeleton nun who doesn't know she's dead. The Kobolds stole her bell, the one that woke Leutenheim. She blesses, or curses.",
   "« Parce que je suis contrariée. Les Kobolds ont volé ma cloche. MA cloche. Celle qui réveillait Leutenheim. »": "“Because I am upset. The Kobolds stole my bell. MY bell. The one that woke Leutenheim.”",
   "« Depuis, le boulanger fait la grasse matinée. C'est un scandale. »": "“Since then, the baker sleeps in. It's a scandal.”",
+  "Ferme": "Farm",
+  "Le poulet prend peur, file droit devant et s'écrase contre un mur dans un nuage de plumes.": "The chicken panics, bolts straight ahead and smashes into a wall in a cloud of feathers.",
+  "Le poulet prend peur et détale… Au loin, un choc mou. Un poulet semble s'être viandé contre un mur ; il faudrait peut-être investiguer.": "The chicken panics and bolts… In the distance, a soft thud. A chicken seems to have splattered against a wall; might be worth a look.",
 };

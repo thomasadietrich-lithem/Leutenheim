@@ -13,41 +13,26 @@ from trainards_v3 import crate_stack_v3, crate_v3, hay_bale  # noqa: E402
 # Clôture vue de haut, dans un pan vertical : les deux lisses filent de haut en bas, un poteau (plus haut, on voit son
 # chapeau et sa face) tous les deux pas de clôture ; ici, la case avec le poteau, et la case de lisses seules.
 FENCE_V_POST = [
-    "......KKKK......",
-    ".....KWWWBK.....",
-    ".....KWBBbK.....",
-    "....KKBBBbKK....",
-    "....KWKBBKWK....",
-    "....KWKBbKWK....",
-    "....KWKBbKWK....",
-    "....KbKBbKbK....",
-    "....KWKBbKWK....",
-    "....KWKKKKWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
+    "....KKKKKKK.....",
+    "...KWWWWWWBK....",
+    "...KWBBBBBbK....",
+    "...KKKKKKKKK....",
+    "....KWK.KWK.....",
+    "...KKBKKKBKK....",
+    "...KWWWWWWBK....",
+    "...KbbbbbbbK....",
+    "...KKBKKKBKK....",
+    "....KWK.KWK.....",
+    "....KbK.KbK.....",
+    "....KWK.KWK.....",
+    "...KKBKKKBKK....",
+    "...KWWWWWWBK....",
+    "...KbbbbbbbK....",
+    "...KKBKKKBKK....",
 ]
-FENCE_V_RAIL = [
-    "....KWK..KWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
-    "....KWK..KWK....",
-    "....KbK..KbK....",
-    "....KWK..KWK....",
-]
+# Clôture PLEINE dans un pan vertical (Thomas, 2026-11-13 : « clôture pleine verticale ») : chaque case a ses deux
+# montants et ses traverses, d'un bout à l'autre ; on ne passe nulle part.
+FENCE_V_RAIL = FENCE_V_POST
 
 # La statue de la POMME : une grosse pomme de pierre bien ronde, sa queue et sa feuille à gauche, sur un socle gravé
 # (pas de bouchée : rien qui rappelle un logo connu).

@@ -359,6 +359,9 @@ export class Game {
           placeBell(floor, new Rng(seed ^ 0x5b311e7e), state.furniture ?? [], special);
         }
       }
+      // La ferme (Thomas, 2026-11-13) : 1 à 3 poules dans le pré, et un poulet échappé dehors (s'il n'y a pas déjà le
+      // poulet du truc fun).
+      this.placeFarm(state, seed);
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -561,6 +564,76 @@ export class Game {
     return null;
   }
 
+  private placeFarm(state: FloorState, seed: number): void {
+    const theme = (state.themes ?? []).find((t) => t.id === "ferme");
+    const furniture = state.furniture ?? [];
+    const field = furniture.filter((f) => f.kind === "soil" || f.kind === "soil2").map((f) => ({ x: f.x, y: f.y }));
+    if (!theme || field.length === 0) return;
+    const rng = new Rng(seed ^ 0xfa53e1);
+    const taken = (x: number, y: number) => furniture.some((f) => f.x === x && f.y === y && f.kind !== "soil" && f.kind !== "soil2");
+    const free = field.filter((c) => !taken(c.x, c.y));
+    const hens: { x: number; y: number; fromX: number; fromY: number }[] = [];
+    for (let k = rng.int(1, 3); k > 0 && free.length > 0; k--) {
+      const c = free.splice(rng.int(0, free.length - 1), 1)[0];
+      hens.push({ x: c.x, y: c.y, fromX: c.x, fromY: c.y });
+    }
+    state.farm = { field, hens };
+    if (state.chicken) return;
+    // Le poulet échappé : dans le passage autour du pré ; il ira se viander contre le mur le plus loin, à 12 pas au plus.
+    const room = state.rooms[theme.room];
+    const cells: Point[] = [];
+    for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (this.npcFree(state, x, y)) cells.push({ x, y });
+    while (cells.length > 0) {
+      const at = cells.splice(rng.int(0, cells.length - 1), 1)[0];
+      const dist = distanceField(state.map, at);
+      let best: Point | null = null;
+      let far = 4;
+      for (let y = 1; y < state.map.height - 1; y++)
+        for (let x = 1; x < state.map.width - 1; x++) {
+          const d = dist[state.map.index(x, y)];
+          if (d <= far || d > 12 || state.map.get(x, y) !== Tile.Floor) continue;
+          if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => state.map.get(x + dx, y + dy) === Tile.Wall)) continue;
+          far = d;
+          best = { x, y };
+        }
+      if (best) {
+        state.chicken = { x: at.x, y: at.y, crash: best, room: theme.room, done: false };
+        return;
+      }
+    }
+  }
+
+  /** La ferme de l'étage (le pré, les poules), s'il y en a une. */
+  farm(): Readonly<NonNullable<FloorState["farm"]>> | null {
+    return this.current.farm ?? null;
+  }
+
+  /** Les poules du pré se promènent : une fois sur deux, un pas vers une case libre du pré. */
+  private moveHens(): void {
+    const farm = this.current.farm;
+    if (!farm) return;
+    const rng = new Rng((this.runSeed ^ Math.imul(this.turn + 1, 0x9e3779b1) ^ this.depth) >>> 0);
+    const furniture = this.current.furniture ?? [];
+    const inField = (x: number, y: number) => farm.field.some((c) => c.x === x && c.y === y);
+    const blocked = (x: number, y: number) => furniture.some((f) => f.x === x && f.y === y && f.kind !== "soil" && f.kind !== "soil2");
+    for (const h of farm.hens) {
+      h.fromX = h.x;
+      h.fromY = h.y;
+      if (!rng.chance(0.5)) continue;
+      const steps: Point[] = [];
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const x = h.x + dx;
+          const y = h.y + dy;
+          if ((dx || dy) && inField(x, y) && !blocked(x, y) && !farm.hens.some((o) => o !== h && o.x === x && o.y === y)) steps.push({ x, y });
+        }
+      if (steps.length === 0) continue;
+      const s = steps[rng.int(0, steps.length - 1)];
+      h.x = s.x;
+      h.y = s.y;
+    }
+  }
+
   /** Le poulet (encore là), s'il est sur cette case. */
   chickenAt(x: number, y: number): ChickenState | null {
     const c = this.current.chicken;
@@ -574,7 +647,7 @@ export class Game {
   /** La porte du poulet, tant qu'il ne l'a pas défoncée. */
   private sealedDoor(x: number, y: number): boolean {
     const c = this.current.chicken;
-    return !!c && !c.done && c.door.x === x && c.door.y === y;
+    return !!c && !c.done && !!c.door && c.door.x === x && c.door.y === y;
   }
 
   /**
@@ -584,16 +657,16 @@ export class Game {
   private scareChicken(): void {
     const c = this.current.chicken;
     if (!c || c.done) return;
-    this.map.set(c.door.x, c.door.y, Tile.Floor);
+    if (c.door) this.map.set(c.door.x, c.door.y, Tile.Floor);
     const from = { x: c.x, y: c.y };
     const path = findPath(this.map, from, c.crash) ?? [c.crash];
     this.refreshLight();
-    const seen = this.isVisible(c.crash.x, c.crash.y) || this.isVisible(c.door.x, c.door.y);
+    const seen = this.isVisible(c.crash.x, c.crash.y) || (!!c.door && this.isVisible(c.door.x, c.door.y));
     c.done = true;
     c.x = c.crash.x;
     c.y = c.crash.y;
     this.dropItem(c.crash.x, c.crash.y, "cuisse_poulet", 1);
-    this.events.push({ type: "chicken", path: [from, ...path], door: { ...c.door }, crash: { ...c.crash }, seen });
+    this.events.push({ type: "chicken", path: [from, ...path], door: c.door ? { ...c.door } : undefined, crash: { ...c.crash }, seen });
   }
 
   private placeCounterDoor(floor: { map: GameMap; start: Point; stairs: Point; rooms: Room[] }, state: FloorState, seed: number, sandbox: boolean): CounterDoor | null {
@@ -1592,6 +1665,7 @@ export class Game {
       krik: f.krik,
       bath: f.bath,
       chicken: f.chicken,
+      farm: f.farm,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1693,6 +1767,7 @@ export class Game {
         krik: f.krik,
         bath: f.bath,
         chicken: f.chicken,
+        farm: f.farm,
       });
     }
     game.turn = saved.turn;
@@ -3222,6 +3297,7 @@ export class Game {
     if (this.hasteTurns > 0) this.hasteTurns--;
     if (this.urchinTurns > 0) this.urchinTurns--;
     this.fluteTick();
+    this.moveHens();
     if (this.protectTurns > 0) {
       this.protectTurns--;
       if (this.protectTurns === 0) this.refreshStats();

@@ -74,6 +74,11 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `${what} : ${roll(e.d20, e.bonus, e.total)} — ${outcome}.${dead}`;
     }
     case "chicken":
+      if (!e.door) {
+        return e.seen
+          ? "Le poulet prend peur, file droit devant et s'écrase contre un mur dans un nuage de plumes."
+          : "Le poulet prend peur et détale… Au loin, un choc mou. Un poulet semble s'être viandé contre un mur ; il faudrait peut-être investiguer.";
+      }
       return e.seen
         ? "Le poulet prend peur, file à travers le donjon, défonce la porte et s'écrase contre le mur du fond dans un nuage de plumes."
         : "Le poulet prend peur et détale… Au loin, un fracas. Un poulet semble s'être viandé contre un mur ; il faudrait peut-être investiguer.";

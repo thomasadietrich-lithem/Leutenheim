@@ -1,7 +1,7 @@
 import { ItemId } from "../data/items";
 
 /** Palette commune aux icônes : une lettre par couleur, « . » pour le vide. */
-export const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
+export const PALETTE: Record<string, string> = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466", M: "#f08ab8", q: "#b04a7a" };
 
 /**
  * Icônes en pixels des objets : chaque ligne de texte est une rangée de pixels. Les objets d'une case font
@@ -1048,6 +1048,44 @@ const ICONS: Record<ItemId, string[]> = {
     "................",
     "................",
   ],
+  // Potion de pierre (2026-11-13) : la même fiole, grise.
+  potion_pierre: [
+    ".......KK.......",
+    "......KbBK......",
+    "......KBbK......",
+    ".....KccccK.....",
+    ".....KKccKK.....",
+    "....KccccccK....",
+    "...KccccccccK...",
+    "..KccWccccCCcK..",
+    "..KccWcccCCCcK..",
+    "..KcccccCCC88K..",
+    "..KccccCCC88cK..",
+    "...KccCCC88cK...",
+    "....KcCC88cK....",
+    ".....KccccK.....",
+    "......KKKK......",
+    "................",
+  ],
+  // Potion de discorde (2026-11-13) : la même fiole, rose.
+  potion_discorde: [
+    ".......KK.......",
+    "......KbBK......",
+    "......KBbK......",
+    ".....KcMMcK.....",
+    ".....KKcMKK.....",
+    "....KcMMMMcK....",
+    "...KcMMMMMMcK...",
+    "..KcMWMMMMqqcK..",
+    "..KcMWMMMqqqcK..",
+    "..KcMMMMqqqqqK..",
+    "..KcMMMqqqqqcK..",
+    "...KcMqqqqqcK...",
+    "....KcqqqqcK....",
+    ".....KccccK.....",
+    "......KKKK......",
+    "................",
+  ],
   // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
   potion_fumee: [
     ".......KK.......",
@@ -1514,6 +1552,25 @@ export const STATUS_ICONS = {
     ".....KffffK.....",
     "......KKKK......",
     "................",
+    "................",
+  ],
+  // Statue (potion de pierre) : une tête de pierre fendue sur son socle.
+  pierre: [
+    "................",
+    "................",
+    ".....KKKKKK.....",
+    "....KcccccCK....",
+    "...KcSccccCCK...",
+    "...KcccKcCCCK...",
+    "...KccccKCCCK...",
+    "...KcccKCCCCK...",
+    "...KCccccCC8K...",
+    "....KCCCCC8K....",
+    ".....KCC88K.....",
+    "....KKKKKKKK....",
+    "...KCCCCCCC8K...",
+    "...K88888888K...",
+    "....KKKKKKKK....",
     "................",
   ],
   // Oursin (potion d'oursin) : une boule brune hérissée de piquants.

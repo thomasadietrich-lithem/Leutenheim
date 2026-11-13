@@ -4047,3 +4047,45 @@ test("brouillard : un monstre dedans erre au hasard et ne frappe pas ; deux qui 
     game.events.length = 0;
   }
 });
+
+test("potion de pierre : bue, statue (rien ne blesse, on ne fait rien) ; lancée, le monstre est pétrifié et sert d'abri", () => {
+  const { game, m } = foeAt(1);
+  game.inventory.add("potion_pierre", 2);
+  const hp = game.hero.hp;
+  assert.ok(game.useItem(game.inventory.items.find((i) => i.defId === "potion_pierre")!.uid));
+  game.tick();
+  assert.ok(game.stoneTurns > 0);
+  for (let i = 0; i < 3; i++) {
+    game.setDestination(game.hero.x + 1, game.hero.y);
+    const at = { x: game.hero.x, y: game.hero.y };
+    game.tick();
+    assert.deepEqual({ x: game.hero.x, y: game.hero.y }, at, "une statue ne bouge pas");
+  }
+  assert.ok(game.hero.hp >= hp, "rien ne la blesse");
+  while (game.stoneTurns > 0) game.tick();
+  // Lancée sur le monstre : pétrifié, et il fait un abri.
+  const uid = game.inventory.items.find((i) => i.defId === "potion_pierre")!.uid;
+  m.x = game.hero.x + (game.map.isWalkable(game.hero.x + 2, game.hero.y) ? 2 : 0);
+  assert.ok(game.throwPotion(uid, m.x, m.y));
+  game.tick();
+  assert.ok((m.petrified ?? 0) > 0, "pétrifié");
+});
+
+test("potion de discorde : les monstres touchés se battent entre eux", () => {
+  const game = new Game(2, undefined, undefined, undefined, true);
+  const kobolds = game.monsters.filter((m) => !m.boss);
+  assert.ok(kobolds.length >= 2);
+  const [a, b] = kobolds;
+  // Deux monstres côte à côte, en vue.
+  b.x = a.x + 1;
+  b.y = a.y;
+  game.inventory.add("potion_discorde", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "potion_discorde")!.uid;
+  game.hero.x = a.x - 3;
+  game.hero.y = a.y;
+  (game as unknown as { updateVision(): void }).updateVision();
+  if (game.throwRefusal(uid, a.x, a.y) !== null) return;
+  assert.ok(game.throwPotion(uid, a.x, a.y));
+  game.tick();
+  assert.ok(game.events.some((e) => e.type === "feud" && e.reason === "discord") || a.feud !== undefined, "ils se battent");
+});

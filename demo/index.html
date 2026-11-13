@@ -1696,6 +1696,9 @@
     // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
     oeil_chauve_souris: { id: "oeil_chauve_souris", name: "\u0152il de chauve-souris", kind: "artifact", description: "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
     flute_pan: { id: "flute_pan", name: "Fl\xFBte de pan", kind: "artifact", description: "Quelques roseaux li\xE9s. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
+    // Thomas, 2026-11-13 : potions de pierre et de discorde.
+    potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 4 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
+    potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et p\xE9tillante. \xC0 lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
     // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
     noeud_papillon: { id: "noeud_papillon", name: "N\u0153ud papillon de Kobold", kind: "amulet", description: "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
     // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
@@ -1947,6 +1950,9 @@
     fogTurns: 8,
     /** Deux monstres côte à côte dans le brouillard : chance par tour qu'ils se battent (C). */
     fogBrawlChance: 0.25,
+    /** Potion de pierre (Thomas, 2026-11-13) : bue, statue tant de tours ; lancée, le monstre pétrifié tant de tours. */
+    stoneTurns: 4,
+    petrifyTurns: 3,
     /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
     urchinReflect: 0.15,
     urchinTurns: 40,
@@ -3953,7 +3959,10 @@
         { x: 10, y: 4, item: "oeil_chauve_souris", count: 1 },
         { x: 11, y: 4, item: "flute_pan", count: 1 },
         // Nœud papillon de Kobold (Thomas, 2026-11-13 : +8 Charisme, très rare).
-        { x: 3, y: 4, item: "noeud_papillon", count: 1 }
+        { x: 3, y: 4, item: "noeud_papillon", count: 1 },
+        // Potions de pierre et de discorde (Thomas, 2026-11-13).
+        { x: 3, y: 5, item: "potion_pierre", count: 2 },
+        { x: 4, y: 5, item: "potion_discorde", count: 2 }
       ],
       heroLevel: 4,
       monsters: [
@@ -4381,6 +4390,8 @@
       { item: "potion_feu" },
       { item: "potion_brouillard" },
       { item: "potion_oursin" },
+      { item: "potion_pierre", minDepth: 2 },
+      { item: "potion_discorde", minDepth: 2 },
       { item: "flute_pan", minDepth: 2 }
     ],
     rare: [
@@ -4678,7 +4689,7 @@
 
   // src/core/game.ts
   var NPC_IDS = ["gluck", "soeur", "krik"];
-  var POTION_STAIN = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste" };
+  var POTION_STAIN = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste", stone: "soot", discord: "pYouth" };
   var Game = class _Game {
     constructor(runSeed, race = RACES.humain, heroClass = CLASSES.guerrier, floorConfig = DEFAULT_FLOOR, sandbox = false) {
       this.runSeed = runSeed;
@@ -4809,6 +4820,8 @@
       this.fog = [];
       /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
       this.urchinTurns = 0;
+      /** Potion de pierre bue : tours où le héros est une statue (rien ne le blesse, il ne peut rien faire). */
+      this.stoneTurns = 0;
       /** Tours de repos passés caché (au-delà de `RULES.hideRestTurns`, on sort de l'ombre). */
       this.restHidden = 0;
       /** Coup de serviette reçu : le prochain coup du héros a le désavantage. */
@@ -5916,6 +5929,7 @@
         weaponPoison: this.weaponPoison,
         hasteTurns: this.hasteTurns,
         urchinTurns: this.urchinTurns,
+        stoneTurns: this.stoneTurns,
         restHidden: this.restHidden,
         gluck: this.gluckMemory,
         soeur: this.soeurMemory,
@@ -6016,6 +6030,7 @@
       game2.weaponPoison = saved.weaponPoison;
       game2.hasteTurns = saved.hasteTurns;
       game2.urchinTurns = saved.urchinTurns ?? 0;
+      game2.stoneTurns = saved.stoneTurns ?? 0;
       game2.restHidden = saved.restHidden ?? 0;
       game2.lastGroundTorches = game2.ground.filter((g) => g.item === "torche").length;
       game2.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
@@ -6209,7 +6224,7 @@
       if (this.over || !item) return false;
       const def = ITEMS[item.defId];
       if (def.lightTurns && this.twoHanded()) return false;
-      if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") return false;
+      if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord") return false;
       if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
       this.wait();
       this.waiting = false;
@@ -6239,6 +6254,13 @@
       } else if (def.potion === "haste") {
         this.hasteTurns = RULES.hasteTurns + 1;
         this.events.push({ type: "potion", potion: "haste" });
+      } else if (def.potion === "stone") {
+        this.stoneTurns = RULES.stoneTurns;
+        for (const m of this.monsters) if (!m.boss) {
+          m.alerted = false;
+          m.wary = false;
+        }
+        this.events.push({ type: "potion", potion: "stone" });
       } else if (def.potion === "urchin") {
         this.urchinTurns = RULES.urchinTurns + 1;
         this.events.push({ type: "potion", potion: "urchin" });
@@ -6428,7 +6450,7 @@
       }
     }
     hurtHero(damage, cause = "ses blessures") {
-      if (damage <= 0) return;
+      if (damage <= 0 || this.stoneTurns > 0) return;
       const rampart = this.rank("dernier_rempart");
       if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
         this.perks().lastStand++;
@@ -6471,6 +6493,32 @@
       const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
       const extra = splash[this.rng.int(0, splash.length - 1)];
       if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+      if (potion === "stone") {
+        const m = this.monsterAt(order.x, order.y);
+        if (m && !m.boss) {
+          m.petrified = RULES.petrifyTurns;
+          m.alerted = false;
+          m.feud = void 0;
+          this.events.push({ type: "stone", what: "petrified", actor: m });
+        }
+        this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: [{ x: order.x, y: order.y }] });
+        return;
+      }
+      if (potion === "discord") {
+        const cells2 = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+        const hit = this.monsters.filter((m) => !m.boss && cells2.some((c) => occupies(m, c.x, c.y)));
+        for (const m of hit) {
+          if (m.feud !== void 0) continue;
+          const rivals = this.monsters.filter((o) => o !== m && !o.boss && o.feud === void 0 && gapBetween(o, m) <= 4);
+          if (rivals.length === 0) continue;
+          rivals.sort((a, b) => Number(hit.includes(b)) - Number(hit.includes(a)) || gapBetween(a, m) - gapBetween(b, m));
+          m.asleep = false;
+          rivals[0].asleep = false;
+          this.startFeud(m, rivals[0], "discord");
+        }
+        this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: cells2 });
+        return;
+      }
       if (potion === "fog") {
         const cells2 = this.spreadFog(order, RULES.fogArm);
         this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: cells2 });
@@ -6959,6 +7007,7 @@
         for (let dx = -1; dx <= 1; dx++) {
           const t = this.map.get(p.x + dx, p.y + dy);
           if (t === Tile.Pillar || t === Tile.Furniture) return true;
+          if ((dx || dy) && this.monsterAt(p.x + dx, p.y + dy)?.petrified) return true;
         }
       }
       if ((wall(p.x, p.y - 1) || wall(p.x, p.y + 1)) && (wall(p.x - 1, p.y) || wall(p.x + 1, p.y))) return true;
@@ -7084,6 +7133,12 @@
       if (this.current.merchant) {
         this.current.merchant.fromX = this.current.merchant.x;
         this.current.merchant.fromY = this.current.merchant.y;
+      }
+      if (this.stoneTurns > 0) {
+        this.stoneTurns--;
+        Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
+        this.waiting = true;
+        if (this.stoneTurns === 0) this.events.push({ type: "stone", what: "heroBack", actor: this.hero });
       }
       const wasResting = this.resting > 0;
       const wasSearching = this.searching > 0;
@@ -9228,8 +9283,19 @@
           m.slowed--;
           if (m.slowed % 2 === 0) continue;
         }
+        if (m.petrified) {
+          m.petrified--;
+          if (m.petrified === 0) this.events.push({ type: "stone", what: "monsterBack", actor: m });
+          continue;
+        }
         if (m.feud !== void 0 && this.feudAct(m)) continue;
         if (m.soapy) m.soapy--;
+        if (this.stoneTurns > 0) {
+          m.alerted = false;
+          m.wary = false;
+          if (!m.asleep) this.wander(m);
+          continue;
+        }
         if (!m.boss && this.fogAt(m.x, m.y)) {
           m.alerted = false;
           m.wary = false;
@@ -12384,7 +12450,22 @@
     "\xC9tat": "State",
     "Dans le brouillard, {0} et {1} se cognent\u2026 et se battent !": "In the fog, {0} and {1} bump into each other\u2026 and start fighting!",
     "N\u0153ud papillon de Kobold": "Kobold bow tie",
-    "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.": "Red with white polka dots, a bit crumpled. Very chic. +8 Charisma."
+    "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.": "Red with white polka dots, a bit crumpled. Very chic. +8 Charisma.",
+    "Statue ou p\xE9trifi\xE9": "Statue or petrified",
+    "Potion de pierre": "Stone potion",
+    "Potion de discorde": "Discord potion",
+    "Rose et p\xE9tillante. \xC0 lancer : les monstres de la case et des quatre voisines se battent entre eux.": "Pink and fizzy. To throw: monsters on the square and its four neighbors fight each other.",
+    "P\xE9trifi\xE9 !": "Petrified!",
+    "Crac !": "Crack!",
+    "Statue": "Statue",
+    "Rien ne vous blesse, mais vous ne pouvez rien faire. Encore {0} tours.": "Nothing can hurt you, but you can't do anything. {0} turns left.",
+    "La potion de discorde \xE9clate : {0} et {1} se jettent l'un sur l'autre !": "The discord potion bursts: {0} and {1} leap at each other!",
+    "Votre peau se fige\u2026 vous voil\xE0 statue. Les monstres ne vous voient plus.": "Your skin hardens\u2026 you're a statue now. Monsters no longer see you.",
+    "La pierre se fissure : vous pouvez de nouveau bouger.": "The stone cracks: you can move again.",
+    "{0} se change en pierre.": "{0} turns to stone.",
+    "{0} redevient chair et os.": "{0} is flesh and bone again.",
+    "Grise et lourde. Bue : vous devenez statue 4 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 4 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 3 turns, and makes cover to hide behind.",
+    "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lanc\xE9e, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover."
   };
 
   // src/i18n/i18n.ts
@@ -12459,7 +12540,7 @@
   }
 
   // src/ui/icons.ts
-  var PALETTE3 = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466" };
+  var PALETTE3 = { K: "#120d08", W: "#f4f7ff", S: "#c3cbe0", D: "#7f88a6", G: "#f0c050", g: "#a87c1c", B: "#9a6a34", b: "#5a3817", R: "#d03a44", r: "#8e1f28", L: "#e6dcc0", C: "#6e7594", c: "#a4abc8", T: "#b9824a", t: "#7a5230", P: "#7a5aa0", p: "#4a3266", H: "#3a4058", U: "#4a8fd0", u: "#2a5a94", V: "#9fd0f4", E: "#5cc860", e: "#2e7a38", O: "#e8782a", Y: "#ffe27a", A: "#b8e05a", a: "#5e8a2a", n: "#3c2814", Q: "#b48ce0", J: "#8ef0a0", Z: "#d8c8a0", z: "#a08c64", X: "#ff9a3a", x: "#c03a1a", F: "#ffd84a", f: "#c89a14", I: "#6ad0ff", i: "#2a7ac8", "1": "#7a0e14", "2": "#b0202a", "3": "#e04048", "4": "#2a5a12", "5": "#4f8e1e", "6": "#8ccc3a", "7": "#5a2a10", "8": "#3a3a50", m: "#8a7210", N: "#c8a818", y: "#f0d84a", "0": "#0c0a0e", "9": "#2a2630", k: "#5a5466", M: "#f08ab8", q: "#b04a7a" };
   var ICONS = {
     tunique: [
       "................................",
@@ -13501,6 +13582,44 @@
       "................",
       "................"
     ],
+    // Potion de pierre (2026-11-13) : la même fiole, grise.
+    potion_pierre: [
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      ".....KccccK.....",
+      ".....KKccKK.....",
+      "....KccccccK....",
+      "...KccccccccK...",
+      "..KccWccccCCcK..",
+      "..KccWcccCCCcK..",
+      "..KcccccCCC88K..",
+      "..KccccCCC88cK..",
+      "...KccCCC88cK...",
+      "....KcCC88cK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
+    ],
+    // Potion de discorde (2026-11-13) : la même fiole, rose.
+    potion_discorde: [
+      ".......KK.......",
+      "......KbBK......",
+      "......KBbK......",
+      ".....KcMMcK.....",
+      ".....KKcMKK.....",
+      "....KcMMMMcK....",
+      "...KcMMMMMMcK...",
+      "..KcMWMMMMqqcK..",
+      "..KcMWMMMqqqcK..",
+      "..KcMMMMqqqqqK..",
+      "..KcMMMqqqqqcK..",
+      "...KcMqqqqqcK...",
+      "....KcqqqqcK....",
+      ".....KccccK.....",
+      "......KKKK......",
+      "................"
+    ],
     // Fiole de fumée (quête 03, Krik) : la même fiole, un liquide gris qui tourbillonne.
     potion_fumee: [
       ".......KK.......",
@@ -13890,6 +14009,25 @@
       ".....KffffK.....",
       "......KKKK......",
       "................",
+      "................"
+    ],
+    // Statue (potion de pierre) : une tête de pierre fendue sur son socle.
+    pierre: [
+      "................",
+      "................",
+      ".....KKKKKK.....",
+      "....KcccccCK....",
+      "...KcSccccCCK...",
+      "...KcccKcCCCK...",
+      "...KccccKCCCK...",
+      "...KcccKCCCCK...",
+      "...KCccccCC8K...",
+      "....KCCCCC8K....",
+      ".....KCC88K.....",
+      "....KKKKKKKK....",
+      "...KCCCCCCC8K...",
+      "...K88888888K...",
+      "....KKKKKKKK....",
       "................"
     ],
     // Oursin (potion d'oursin) : une boule brune hérissée de piquants.
@@ -20247,6 +20385,7 @@
       if (burning) icons.push("feu");
       if (m.slowed) icons.push("ralenti");
       if (m.stunned) icons.push("sonne");
+      if (m.petrified) icons.push("pierre");
       const immune = !!m.boss;
       if (immune) icons.unshift("poison");
       if (icons.length === 0) return;
@@ -21024,7 +21163,9 @@
             ctx.ellipse(cx, cy + tile * 0.36, tile * 0.38, tile * 0.14, 0, 0, Math.PI * 2);
             ctx.stroke();
           }
+          if (m.petrified) this.ctx.filter = "grayscale(1) brightness(1.1)";
           this.drawMonster(m, cx, cy, progress);
+          this.ctx.filter = "none";
           const burning = !!m.burning || game2.isBurning(m.x, m.y);
           if (m.burning && !game2.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
           this.drawStatusBubbles(m, cx, cy, burning);
@@ -21091,7 +21232,9 @@
       this.drawSoeur(game2, ox, oy);
       this.drawKrik(game2, ox, oy);
       this.drawStatueGlints(game2, ox, oy);
+      if (game2.stoneTurns > 0) this.ctx.filter = "grayscale(1) brightness(1.15) contrast(0.9)";
       this.drawHero(game2, hero, ox, oy, progress);
+      this.ctx.filter = "none";
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);
       this.drawFurniture(game2, ox, oy, flicker, "late");
       for (const f of game2.fires) {
@@ -22213,6 +22356,7 @@
     { id: "chance", name: "Chance", description: "Vos prochains 1 au d\xE9 sont relanc\xE9s." },
     { id: "oursin", name: "Oursin", description: "Une part des d\xE9g\xE2ts re\xE7us au contact revient \xE0 l'attaquant." },
     { id: "accelere", name: "Acc\xE9l\xE9r\xE9", description: "Chaque attaque au contact frappe deux fois." },
+    { id: "pierre", name: "Statue ou p\xE9trifi\xE9", description: "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lanc\xE9e, le monstre ne bouge plus et sert d'abri." },
     { id: "rempart", name: "Dernier rempart", description: "Un coup qui vous tuerait vous laisse debout." }
   ];
 
@@ -22307,7 +22451,7 @@
         return pool[e.joke % pool.length];
       }
       case "feud":
-        return ctx.sees?.(e.a) || ctx.sees?.(e.b) ? e.reason === "shot" ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !` : e.reason === "fog" ? `Dans le brouillard, ${the(e.a.name)} et ${the(e.b.name)} se cognent\u2026 et se battent !` : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage\u2026 et en viennent aux mains !` : null;
+        return ctx.sees?.(e.a) || ctx.sees?.(e.b) ? e.reason === "shot" ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !` : e.reason === "discord" ? `La potion de discorde \xE9clate : ${the(e.a.name)} et ${the(e.b.name)} se jettent l'un sur l'autre !` : e.reason === "fog" ? `Dans le brouillard, ${the(e.a.name)} et ${the(e.b.name)} se cognent\u2026 et se battent !` : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage\u2026 et en viennent aux mains !` : null;
       case "infight":
         return null;
       case "heavyBlow":
@@ -22436,11 +22580,13 @@
       case "burn":
         return e.actor.kind === "hero" ? `Vous br\xFBlez : ${e.damage} d\xE9g\xE2ts.` : `${e.actor.name} br\xFBle : ${e.damage} d\xE9g\xE2ts.`;
       case "potion":
-        return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : e.potion === "urchin" ? "Des piquants vous h\xE9rissent la peau : qui vous frappe s'y pique." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
+        return e.potion === "youth" ? `Jouvence : vos points vous reviennent (${e.points} \xE0 attribuer).` : e.potion === "poison" ? "Vous enduisez votre arme de poison (15 coups)." : e.potion === "stone" ? "Votre peau se fige\u2026 vous voil\xE0 statue. Les monstres ne vous voient plus." : e.potion === "urchin" ? "Des piquants vous h\xE9rissent la peau : qui vous frappe s'y pique." : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
       case "bath":
         return e.what === "splash" ? "SPLASH ! Le Kobold bondit hors de son bain, couvert de mousse, une serviette \xE0 la main." : e.what === "scratch" ? "Scrrratch ! Le disque s'arr\xEAte. Dans la baignoire, quelqu'un grogne." : e.what === "towel" ? "Un coup de serviette en pleine figure : votre prochain coup sera moins pr\xE9cis." : "\xAB AU SECOURS ! ON M'ATTAQUE DANS MON BAIN ! \xBB Le Kobold s'enfuit en glissant.";
       case "thorns":
         return `${capFirst(e.actor.name)} se pique : ${e.damage} d\xE9g\xE2t${e.damage > 1 ? "s" : ""}.`;
+      case "stone":
+        return e.what === "heroBack" ? "La pierre se fissure : vous pouvez de nouveau bouger." : e.what === "petrified" ? `${capFirst(e.actor.name)} se change en pierre.` : `${capFirst(e.actor.name)} redevient chair et os.`;
       case "flee":
         return `${capFirst(e.actor.name)} d\xE9tale, la queue entre les jambes !`;
       case "lullaby":
@@ -22881,6 +23027,9 @@
         renderer.addFloatingText(e.x, e.y, "AU SECOURS !", "#ff8a7a");
         sfx.play("notice");
       }
+    } else if (e.type === "stone") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "petrified" ? "P\xE9trifi\xE9 !" : e.what === "heroBack" ? "Crac !" : "Crac !", "#c3cbe0");
+      sfx.play(e.what === "petrified" ? "thud" : "break");
     } else if (e.type === "flee") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "Il fuit !", "#ffd75e");
     } else if (e.type === "thorns") {
@@ -23575,7 +23724,7 @@
       logLines.push(`Il faut \xEAtre niveau ${def.level} pour cela.`);
       return;
     }
-    if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") {
+    if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord") {
       throwUid = stack.uid;
       renderer.jumpCells = throwCells(stack.uid);
       logLines.push("Touchez la case o\xF9 lancer la potion.");
@@ -24164,9 +24313,9 @@
     info.replaceChildren(card);
     const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem" && def.kind !== "quest";
     action.hidden = !wearable && def.kind !== "use" || selectedSlot === "bag";
-    action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
+    action.textContent = selectedSlot ? "Retirer" : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" ? "Lancer" : def.potion === "poison" ? "Enduire" : def.potion ? "Boire" : def.kind === "use" ? "Consommer" : "\xC9quiper";
     action.textContent = tr(action.textContent ?? "");
-    $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
+    $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison" && def.potion !== "stone";
     $("bag-drop").hidden = selectedSlot !== null;
   }
   var pressTimer = null;
@@ -24258,7 +24407,7 @@
     const chosenDef = chosen ? ITEMS[chosen.defId] : void 0;
     if (chosen && chosenDef && game.tooLow(chosenDef)) {
       logLines.push(`Il faut \xEAtre niveau ${chosenDef.level} pour cela.`);
-    } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog")) {
+    } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord")) {
       throwUid = chosen.uid;
       renderer.jumpCells = throwCells(chosen.uid);
       logLines.push("Touchez la case o\xF9 lancer la potion.");
@@ -24359,6 +24508,7 @@
     if (game.clarityActive()) list.push({ id: "clarte", name: "Clart\xE9", detail: "Le poison vous ronge deux fois moins longtemps, sur cet \xE9tage." });
     if (game.curseActive()) list.push({ id: "malediction", name: "Mal\xE9diction des Kobolds", detail: "+2 d\xE9g\xE2ts contre les Kobolds, sur cet \xE9tage." });
     if (game.luck > 0) list.push({ id: "chance", name: "Chance", detail: `Vos ${game.luck > 1 ? `${game.luck} prochains 1` : "prochain 1"} au d\xE9 ${game.luck > 1 ? "seront relanc\xE9s" : "sera relanc\xE9"}.` });
+    if (game.stoneTurns > 0) list.push({ id: "pierre", name: "Statue", detail: `Rien ne vous blesse, mais vous ne pouvez rien faire. Encore ${game.stoneTurns} tours.` });
     if (game.urchinTurns > 0) list.push({ id: "oursin", name: "Oursin", detail: `15 % des d\xE9g\xE2ts re\xE7us au contact reviennent \xE0 l'attaquant. Encore ${game.urchinTurns} tours.` });
     if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Acc\xE9l\xE9r\xE9", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
     const rampart = game.rank("dernier_rempart");

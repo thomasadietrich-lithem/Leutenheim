@@ -493,6 +493,9 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(e.x, e.y, "AU SECOURS !", "#ff8a7a");
       sfx.play("notice");
     }
+  } else if (e.type === "stone") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "petrified" ? "Pétrifié !" : e.what === "heroBack" ? "Crac !" : "Crac !", "#c3cbe0");
+    sfx.play(e.what === "petrified" ? "thud" : "break");
   } else if (e.type === "flee") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Il fuit !", "#ffd75e");
   } else if (e.type === "thorns") {
@@ -1276,7 +1279,7 @@ function useQuickItem(): void {
     logLines.push(`Il faut être niveau ${def.level} pour cela.`);
     return;
   }
-  if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") {
+  if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord") {
     throwUid = stack.uid;
     renderer.jumpCells = throwCells(stack.uid);
     logLines.push("Touchez la case où lancer la potion.");
@@ -1944,12 +1947,12 @@ function renderBag(): void {
   // les autres se BOIVENT.
   action.textContent = selectedSlot
     ? "Retirer"
-    : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" ? "Lancer"
+    : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" ? "Lancer"
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
     : def.kind === "use" ? "Consommer" : "Équiper";
   action.textContent = tr(action.textContent ?? "");
-  $("bag-throw").hidden = selectedSlot !== null || def.potion !== "poison";
+  $("bag-throw").hidden = selectedSlot !== null || (def.potion !== "poison" && def.potion !== "stone");
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
 }
@@ -2046,7 +2049,7 @@ button("bag-equip", () => {
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
     logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
-  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog")) {
+  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord")) {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;
     renderer.jumpCells = throwCells(chosen.uid);
@@ -2163,6 +2166,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.clarityActive()) list.push({ id: "clarte", name: "Clarté", detail: "Le poison vous ronge deux fois moins longtemps, sur cet étage." });
   if (game.curseActive()) list.push({ id: "malediction", name: "Malédiction des Kobolds", detail: "+2 dégâts contre les Kobolds, sur cet étage." });
   if (game.luck > 0) list.push({ id: "chance", name: "Chance", detail: `Vos ${game.luck > 1 ? `${game.luck} prochains 1` : "prochain 1"} au dé ${game.luck > 1 ? "seront relancés" : "sera relancé"}.` });
+  if (game.stoneTurns > 0) list.push({ id: "pierre", name: "Statue", detail: `Rien ne vous blesse, mais vous ne pouvez rien faire. Encore ${game.stoneTurns} tours.` });
   if (game.urchinTurns > 0) list.push({ id: "oursin", name: "Oursin", detail: `15 % des dégâts reçus au contact reviennent à l'attaquant. Encore ${game.urchinTurns} tours.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
   const rampart = game.rank("dernier_rempart");

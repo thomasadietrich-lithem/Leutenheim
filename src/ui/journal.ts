@@ -125,6 +125,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return ctx.sees?.(e.a) || ctx.sees?.(e.b)
         ? e.reason === "shot"
           ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !`
+          : e.reason === "discord"
+          ? `La potion de discorde éclate : ${the(e.a.name)} et ${the(e.b.name)} se jettent l'un sur l'autre !`
           : e.reason === "fog"
           ? `Dans le brouillard, ${the(e.a.name)} et ${the(e.b.name)} se cognent… et se battent !`
           : `${cap(the(e.a.name))} et ${the(e.b.name)} se bloquent le passage… et en viennent aux mains !`
@@ -288,6 +290,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         ? `Jouvence : vos points vous reviennent (${e.points} à attribuer).`
         : e.potion === "poison"
           ? "Vous enduisez votre arme de poison (15 coups)."
+          : e.potion === "stone"
+            ? "Votre peau se fige… vous voilà statue. Les monstres ne vous voient plus."
           : e.potion === "urchin"
             ? "Des piquants vous hérissent la peau : qui vous frappe s'y pique."
             : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
@@ -301,6 +305,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             : "« AU SECOURS ! ON M'ATTAQUE DANS MON BAIN ! » Le Kobold s'enfuit en glissant.";
     case "thorns":
       return `${capFirst(e.actor.name)} se pique : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
+    case "stone":
+      return e.what === "heroBack" ? "La pierre se fissure : vous pouvez de nouveau bouger." : e.what === "petrified" ? `${capFirst(e.actor.name)} se change en pierre.` : `${capFirst(e.actor.name)} redevient chair et os.`;
     case "flee":
       return `${capFirst(e.actor.name)} détale, la queue entre les jambes !`;
     case "lullaby":

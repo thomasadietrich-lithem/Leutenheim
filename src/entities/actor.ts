@@ -31,6 +31,8 @@ export interface Actor {
   fleeing?: boolean;
   /** Un Kobold blessé qui détale : tours de fuite restants ; le tirage n'a lieu qu'une fois. */
   fleeTurns?: number;
+  /** Pétrifié (potion de pierre lancée) : tours restants ; il ne bouge plus et sert d'abri. */
+  petrified?: number;
   fleeChecked?: boolean;
   /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */
   lost?: number;

@@ -55,7 +55,7 @@ export type GameEvent =
   /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */
   | { type: "bell"; x: number; y: number; rings: number; joke: number }
   /** Deux monstres se querellent : bloqués face à face dans un couloir, ou touchés par la pierre d'un frondeur. */
-  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" | "fog" }
+  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" | "fog" | "discord" }
   /** Un monstre en frappe un autre (sans dé à l'écran : le héros regarde). */
   | { type: "infight"; attacker: Actor; target: Actor; hit: boolean; damage: number; ranged?: boolean }
   /** Se cacher : le jet au d20, et s'il a réussi. */
@@ -128,7 +128,9 @@ export type GameEvent =
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
   | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[] }
   | { type: "burn"; actor: Actor; damage: number }
-  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin"; points?: number }
+  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin" | "stone"; points?: number }
+  /** Potion de pierre : le héros redevient chair, un monstre est pétrifié (ou le redevient). */
+  | { type: "stone"; what: "heroBack" | "petrified" | "monsterBack"; actor: Actor }
   /** Potion d'oursin : l'attaquant se pique et perd des PV. */
   | { type: "thorns"; actor: Actor; damage: number }
   /** Salle de bain du Kobold : il sort de l'eau, le disque s'arrête, coup de serviette, il s'enfuit. */

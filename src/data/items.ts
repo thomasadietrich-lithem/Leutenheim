@@ -59,7 +59,7 @@ export interface ItemDef {
   bagCols?: number;
   bagRows?: number;
   /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
-  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin";
+  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord";
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
   throwRange?: number;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
@@ -366,6 +366,9 @@ export const ITEMS = {
   // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
   oeil_chauve_souris: { id: "oeil_chauve_souris", name: "Œil de chauve-souris", kind: "artifact", description: "Desséché, il palpite encore. Vous devinez l'ombre des monstres hors de vue : à 10 cases, et à 3 à travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
   flute_pan: { id: "flute_pan", name: "Flûte de pan", kind: "artifact", description: "Quelques roseaux liés. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
+  // Thomas, 2026-11-13 : potions de pierre et de discorde.
+  potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 4 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 3 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
+  potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et pétillante. À lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
   // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
   noeud_papillon: { id: "noeud_papillon", name: "Nœud papillon de Kobold", kind: "amulet", description: "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
   // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----

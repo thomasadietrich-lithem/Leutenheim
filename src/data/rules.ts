@@ -48,6 +48,9 @@ export const RULES = {
   fogTurns: 8,
   /** Deux monstres côte à côte dans le brouillard : chance par tour qu'ils se battent (C). */
   fogBrawlChance: 0.25,
+  /** Potion de pierre (Thomas, 2026-11-13) : bue, statue tant de tours ; lancée, le monstre pétrifié tant de tours. */
+  stoneTurns: 4,
+  petrifyTurns: 3,
   /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
   urchinReflect: 0.15,
   urchinTurns: 40,

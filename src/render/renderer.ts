@@ -623,6 +623,7 @@ export class Renderer {
     if (burning) icons.push("feu");
     if (m.slowed) icons.push("ralenti");
     if (m.stunned) icons.push("sonne");
+    if (m.petrified) icons.push("pierre");
     // La Tisseuse : le picto du poison, barré (elle y est insensible ; Thomas, 2026-11-13).
     const immune = !!m.boss;
     if (immune) icons.unshift("poison");
@@ -1529,7 +1530,9 @@ export class Renderer {
           ctx.ellipse(cx, cy + tile * 0.36, tile * 0.38, tile * 0.14, 0, 0, Math.PI * 2);
           ctx.stroke();
         }
+        if (m.petrified) this.ctx.filter = "grayscale(1) brightness(1.1)";
         this.drawMonster(m, cx, cy, progress);
+        this.ctx.filter = "none";
         const burning = !!m.burning || game.isBurning(m.x, m.y);
         if (m.burning && !game.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
         this.drawStatusBubbles(m, cx, cy, burning);
@@ -1605,7 +1608,10 @@ export class Renderer {
     this.drawKrik(game, ox, oy);
     this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
+    // Statue (potion de pierre) : le héros est dessiné en pierre grise.
+    if (game.stoneTurns > 0) this.ctx.filter = "grayscale(1) brightness(1.15) contrast(0.9)";
     this.drawHero(game, hero, ox, oy, progress);
+    this.ctx.filter = "none";
     // Le héros qui brûle encore après être sorti des flammes.
     if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);
     // Meubles qui cachent un personnage placé derrière eux (sur une rangée au-dessus) : dessinés après lui (Thomas).

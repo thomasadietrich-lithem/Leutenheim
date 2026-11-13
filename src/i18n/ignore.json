@@ -22,5 +22,7 @@
  "{0}px VT323, monospace",
  "{0}{1} est vaincu{2}.",
  "SCRIPT",
- "STYLE"
+ "STYLE",
+ "grayscale(1) brightness(1.1)",
+ "grayscale(1) brightness(1.15) contrast(0.9)"
 ]

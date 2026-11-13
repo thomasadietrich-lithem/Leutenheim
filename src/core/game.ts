@@ -72,7 +72,7 @@ export interface KrikMemory {
 }
 
 /** La flaque qu'une potion laisse en éclatant : sa couleur. */
-const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste" };
+const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pHaste", stone: "soot", discord: "pYouth" };
 
 /** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
 export interface SoeurMemory {
@@ -1185,6 +1185,8 @@ export class Game {
   fog: { x: number; y: number; turns: number }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
+  /** Potion de pierre bue : tours où le héros est une statue (rien ne le blesse, il ne peut rien faire). */
+  stoneTurns = 0;
   /** Tours de repos passés caché (au-delà de `RULES.hideRestTurns`, on sort de l'ombre). */
   private restHidden = 0;
   /** Coup de serviette reçu : le prochain coup du héros a le désavantage. */
@@ -1469,6 +1471,7 @@ export class Game {
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
       urchinTurns: this.urchinTurns,
+      stoneTurns: this.stoneTurns,
       restHidden: this.restHidden,
       gluck: this.gluckMemory,
       soeur: this.soeurMemory,
@@ -1570,6 +1573,7 @@ export class Game {
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
     game.urchinTurns = saved.urchinTurns ?? 0;
+    game.stoneTurns = saved.stoneTurns ?? 0;
     game.restHidden = saved.restHidden ?? 0;
     // Comme dans la partie d'origine : la lumière des torches posées au sol est déjà à jour.
     game.lastGroundTorches = game.ground.filter((g) => g.item === "torche").length;
@@ -1812,7 +1816,7 @@ export class Game {
     // Une torche se tient d'une main : impossible avec une arme à deux mains (Thomas, 2026-11-11).
     if (def.lightTurns && this.twoHanded()) return false;
     // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
-    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog") return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -1845,6 +1849,11 @@ export class Game {
       // +1 : le tour où on la boit ne compte pas.
       this.hasteTurns = RULES.hasteTurns + 1;
       this.events.push({ type: "potion", potion: "haste" });
+    } else if (def.potion === "stone") {
+      // Bue : statue (Thomas, 2026-11-13) ; les monstres perdent sa trace.
+      this.stoneTurns = RULES.stoneTurns;
+      for (const m of this.monsters) if (!m.boss) { m.alerted = false; m.wary = false; }
+      this.events.push({ type: "potion", potion: "stone" });
     } else if (def.potion === "urchin") {
       this.urchinTurns = RULES.urchinTurns + 1;
       this.events.push({ type: "potion", potion: "urchin" });
@@ -2065,7 +2074,8 @@ export class Game {
   deathCause: string | null = null;
 
   private hurtHero(damage: number, cause = "ses blessures"): void {
-    if (damage <= 0) return;
+    // Statue (potion de pierre) : rien ne la blesse.
+    if (damage <= 0 || this.stoneTurns > 0) return;
     const rampart = this.rank("dernier_rempart");
     if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
       this.perks().lastStand++;
@@ -2114,6 +2124,34 @@ export class Game {
     const extra = splash[this.rng.int(0, splash.length - 1)];
     // La flaque de sa couleur, là où la fiole éclate (Thomas, 2026-11-12).
     if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+    if (potion === "stone") {
+      // Lancée : le monstre de la case est pétrifié 3 tours, et sert d'abri (Thomas, 2026-11-13). Pas le boss.
+      const m = this.monsterAt(order.x, order.y);
+      if (m && !m.boss) {
+        m.petrified = RULES.petrifyTurns;
+        m.alerted = false;
+        m.feud = undefined;
+        this.events.push({ type: "stone", what: "petrified", actor: m });
+      }
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: [{ x: order.x, y: order.y }] });
+      return;
+    }
+    if (potion === "discord") {
+      // Lancée : les monstres de la croix se battent entre eux (Thomas, 2026-11-13 ; les querelles déjà codées).
+      const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      const hit = this.monsters.filter((m) => !m.boss && cells.some((c) => occupies(m, c.x, c.y)));
+      for (const m of hit) {
+        if (m.feud !== undefined) continue;
+        const rivals = this.monsters.filter((o) => o !== m && !o.boss && o.feud === undefined && gapBetween(o, m) <= 4);
+        if (rivals.length === 0) continue;
+        rivals.sort((a, b) => Number(hit.includes(b)) - Number(hit.includes(a)) || gapBetween(a, m) - gapBetween(b, m));
+        m.asleep = false;
+        rivals[0].asleep = false;
+        this.startFeud(m, rivals[0], "discord");
+      }
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
+      return;
+    }
     if (potion === "fog") {
       // Potion de brouillard (Thomas, 2026-11-12, soir) : une épaisse nappe noire en croix de 5 cases, pour fuir.
       const cells = this.spreadFog(order, RULES.fogArm);
@@ -2667,6 +2705,8 @@ export class Game {
       for (let dx = -1; dx <= 1; dx++) {
         const t = this.map.get(p.x + dx, p.y + dy);
         if (t === Tile.Pillar || t === Tile.Furniture) return true;
+        // Un monstre pétrifié fait un bon abri (potion de pierre lancée).
+        if ((dx || dy) && this.monsterAt(p.x + dx, p.y + dy)?.petrified) return true;
       }
     }
     if ((wall(p.x, p.y - 1) || wall(p.x, p.y + 1)) && (wall(p.x - 1, p.y) || wall(p.x + 1, p.y))) return true;
@@ -2810,6 +2850,13 @@ export class Game {
       this.current.merchant.fromY = this.current.merchant.y;
     }
 
+    // Statue (potion de pierre) : le héros ne peut rien faire ; tout ordre est oublié, le tour passe.
+    if (this.stoneTurns > 0) {
+      this.stoneTurns--;
+      Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
+      this.waiting = true;
+      if (this.stoneTurns === 0) this.events.push({ type: "stone", what: "heroBack", actor: this.hero });
+    }
     const wasResting = this.resting > 0;
     const wasSearching = this.searching > 0;
     const shotTarget = this.shotTarget;
@@ -5200,8 +5247,21 @@ export class Game {
         m.slowed--;
         if (m.slowed % 2 === 0) continue;
       }
+      // Pétrifié (potion de pierre lancée) : il ne fait rien, puis redevient lui-même.
+      if (m.petrified) {
+        m.petrified--;
+        if (m.petrified === 0) this.events.push({ type: "stone", what: "monsterBack", actor: m });
+        continue;
+      }
       if (m.feud !== undefined && this.feudAct(m)) continue;
       if (m.soapy) m.soapy--;
+      // Le héros est une statue : on perd sa trace, on erre.
+      if (this.stoneTurns > 0) {
+        m.alerted = false;
+        m.wary = false;
+        if (!m.asleep) this.wander(m);
+        continue;
+      }
       // Pris dans le brouillard (Thomas, 2026-11-13) : il ne voit plus rien, erre au hasard dans la nappe et ne frappe
       // personne jusqu'à ce qu'elle se dissipe ; deux monstres qui s'y cognent peuvent en venir aux mains.
       if (!m.boss && this.fogAt(m.x, m.y)) {
@@ -5491,7 +5551,7 @@ export class Game {
     }
   }
 
-  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog"): void {
+  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog" | "discord"): void {
     a.feud = b.id;
     b.feud = a.id;
     a.blockedBy = b.blockedBy = undefined;

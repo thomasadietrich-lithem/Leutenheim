@@ -233,6 +233,9 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
       { x: 11, y: 4, item: "flute_pan", count: 1 },
       // Nœud papillon de Kobold (Thomas, 2026-11-13 : +8 Charisme, très rare).
       { x: 3, y: 4, item: "noeud_papillon", count: 1 },
+      // Potions de pierre et de discorde (Thomas, 2026-11-13).
+      { x: 3, y: 5, item: "potion_pierre", count: 2 },
+      { x: 4, y: 5, item: "potion_discorde", count: 2 },
     ],
     heroLevel: 4,
     monsters: [

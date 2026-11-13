@@ -1,0 +1,88 @@
+{
+ "date": "2026-11-13T20:37:18.856Z",
+ "commit": "c56c467",
+ "runs": 150,
+ "note": "2 rangs par pouvoir ; Récupération → Esquive (+2/+4 agilité, saut plus loin) ; Soif de combat → Bousculade (+2/+4 pour pousser, une case plus loin) ; bots : poussent avec la Bousculade",
+ "levels": {
+  "debutant": {
+   "floor": 2.4,
+   "deathFloor1": 21,
+   "reach": {
+    "2": 79,
+    "3": 45,
+    "4": 15,
+    "5": 5
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 138.2,
+   "gold": 3.2,
+   "kills": 5.2,
+   "questsStarted": 0.1,
+   "questsDone": 0,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold": 99,
+    "la Tisseuse": 7,
+    "un Kobold frondeur": 22,
+    "une Araignée": 19,
+    "un piège à pointes": 1,
+    "une aiguille empoisonnée": 1,
+    "une chute dans une fosse": 1
+   }
+  },
+  "moyen": {
+   "floor": 3.1,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 83,
+    "3": 66,
+    "4": 41,
+    "5": 24
+   },
+   "boss": 3,
+   "dead": 95,
+   "heroLevel": 2.2,
+   "turns": 303.7,
+   "gold": 31.3,
+   "kills": 11.6,
+   "questsStarted": 0.3,
+   "questsDone": 0.3,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 30,
+    "un Kobold": 65,
+    "un Kobold frondeur": 26,
+    "la Tisseuse": 19,
+    "le poison": 2
+   }
+  },
+  "maitrise": {
+   "floor": 3.8,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 97,
+    "3": 85,
+    "4": 60,
+    "5": 35
+   },
+   "boss": 25,
+   "dead": 65,
+   "heroLevel": 3.8,
+   "turns": 701.1,
+   "gold": 58.9,
+   "kills": 27.9,
+   "questsStarted": 0.5,
+   "questsDone": 0.4,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold frondeur": 23,
+    "une Araignée": 28,
+    "un Kobold": 37,
+    "la Tisseuse": 8,
+    "le poison": 1
+   }
+  }
+ }
+}

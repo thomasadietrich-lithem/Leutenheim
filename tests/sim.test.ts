@@ -2495,7 +2495,7 @@ test("points : un par niveau ; Vie +4 PV max, Force +1 dégâts et pousser ; jou
   assert.equal(game.hero.damage.bonus, 2);
 });
 
-test("voie : au niveau 2, définitive ; ensuite un point de voie par niveau, 3 rangs par pouvoir, seulement dans sa voie", () => {
+test("voie : au niveau 2, définitive ; ensuite un point de voie par niveau, 2 rangs par pouvoir, seulement dans sa voie", () => {
   const game = new Game(7);
   assert.equal(game.choosePath("red"), false, "niveau 1 : trop tôt");
   game.levelUpNow();
@@ -2511,12 +2511,11 @@ test("voie : au niveau 2, définitive ; ensuite un point de voie par niveau, 3 r
   assert.equal(game.pathPoints(), 0);
   for (let k = 0; k < 4; k++) game.levelUpNow();
   assert.ok(game.improve("double_frappe"));
-  assert.ok(game.improve("double_frappe"));
-  assert.equal(game.improve("double_frappe"), false, "rang 3 au plus");
-  assert.equal(game.rank("double_frappe"), 3);
+  assert.equal(game.improve("double_frappe"), false, "rang 2 au plus");
+  assert.equal(game.rank("double_frappe"), 2);
   // Sauvegarde : les rangs sont repris.
   const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
-  assert.equal(copy.rank("double_frappe"), 3);
+  assert.equal(copy.rank("double_frappe"), 2);
   assert.equal(copy.rank("rage"), 1);
 });
 
@@ -2548,8 +2547,8 @@ test("voie rouge : double frappe = deux coups en un tour, rang + 1 fois par éta
   const { game, m } = foeAt(1);
   game.level = 2;
   game.voie = "red";
-  game.ranks = { double_frappe: 3 };
-  for (let k = 0; k < 4; k++) {
+  game.ranks = { double_frappe: 2 };
+  for (let k = 0; k < 3; k++) {
     game.events.length = 0;
     assert.ok(game.useSkill(), `utilisation ${k + 1}`);
     game.tick();
@@ -2558,33 +2557,38 @@ test("voie rouge : double frappe = deux coups en un tour, rang + 1 fois par éta
   assert.equal(game.skillRefusal(), "used");
 });
 
-test("équilibrage des voies : soif de combat plafonnée par étage, récupération au rang 3 = deux repos courts", () => {
+test("équilibrage des voies : bousculade (pousser plus loin), esquive : +2 / +4 en agilité, saut d'une case plus loin", () => {
   const { game, m } = foeAt(1);
   game.level = 5;
   game.voie = "red";
-  game.ranks = { double_frappe: 1, enchainement: 1 };
-  game.hero.hp = 1;
-  for (let k = 0; k < 6; k++) {
-    const foe = { ...m, id: 9000 + k, hp: 1, maxHp: 1 };
-    game.monsters.push(foe);
-    (game as unknown as { heroAttacks(t: unknown): void }).heroAttacks(foe);
+  game.ranks = { double_frappe: 1, enchainement: 2 };
+  m.hp = m.maxHp = 99;
+  const start = { x: m.x, y: m.y };
+  let pushed = false;
+  for (let k = 0; k < 10 && !pushed; k++) {
+    Object.assign(m, { x: start.x, y: start.y });
+    game.events.length = 0;
+    (game as unknown as { resolvePush(t: unknown): void }).resolvePush(m);
+    const e = game.events.find((ev) => ev.type === "push");
+    assert.ok(e && e.type === "push" && e.bonus === game.pushBonus() + 4, "+4 au jet");
+    pushed = !!(e && e.type === "push" && e.success && e.moved);
   }
-  assert.ok(game.hero.hp <= 1 + 4, `au plus 4 PV rendus par étage au rang 1 : ${game.hero.hp}`);
+  if (pushed) assert.ok(Math.max(Math.abs(m.x - start.x), Math.abs(m.y - start.y)) >= 1);
   const blue = new Game(7);
   blue.level = 5;
   blue.voie = "blue";
-  blue.ranks = { second_souffle: 1, recuperation: 3 };
-  blue.monsters.length = 0;
-  assert.equal(blue.restTurns(), 10);
-  for (let k = 0; k < 2; k++) {
-    blue.hero.hp = 1;
-    assert.equal(blue.restRefusal(), null, `repos ${k + 1}`);
-    assert.ok(blue.rest());
-    for (let t = 0; t < 12 && blue.restProgress() > 0; t++) blue.tick();
-    assert.equal(blue.hero.hp, blue.hero.maxHp);
-  }
-  blue.hero.hp = 1;
-  assert.equal(blue.restRefusal(), "used");
+  blue.ranks = { second_souffle: 1 };
+  const base = blue.disengageBonus();
+  blue.ranks = { second_souffle: 1, esquive: 1 };
+  assert.equal(blue.disengageBonus(), base + 2);
+  blue.ranks = { second_souffle: 1, esquive: 2 };
+  assert.equal(blue.disengageBonus(), base + 4);
+  // Une ancienne sauvegarde : Récupération devient Esquive, rang 3 ramené à 2.
+  const snap = JSON.parse(JSON.stringify(blue.snapshot()));
+  snap.ranks = { second_souffle: 3, recuperation: 3 };
+  const back = Game.restore(snap)!;
+  assert.equal(back.rank("esquive"), 2);
+  assert.equal(back.rank("second_souffle"), 2);
 });
 
 test("sac : on commence avec le sac en toile (6×4) ; le sac de cuir (Lv3) agrandit à 7×5", () => {

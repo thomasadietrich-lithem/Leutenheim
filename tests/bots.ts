@@ -162,7 +162,7 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
     }
     if (game.canChoosePath() && opts.voie !== "none") game.choosePath(opts.voie ?? (level === "maitrise" ? "red" : level === "moyen" ? "blue" : rnd() < 0.5 ? "red" : "blue"));
     if (level !== "debutant" && game.voie && game.pathPoints() > 0 && !game.inCombat()) {
-      const owned = opts.build ?? (game.voie === "red" ? ["double_frappe", "coup_puissant", "enchainement", "rage"] : ["second_souffle", "peau_dure", "recuperation", "dernier_rempart"]);
+      const owned = opts.build ?? (game.voie === "red" ? ["double_frappe", "coup_puissant", "enchainement", "rage"] : ["second_souffle", "peau_dure", "esquive", "dernier_rempart"]);
       for (const id of owned) if (game.improve(id as never)) break;
     }
     if (level !== "debutant") equipBest(game, level === "maitrise");
@@ -187,6 +187,8 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
       // Maîtrise : un coup d'arc à distance avant le contact ; double frappe au contact.
       if (level === "maitrise" && gap(target, game.hero) >= 2 && game.arrows() > 0 && game.shoot(target.x, target.y) === null) acted = true;
       else if (level !== "debutant" && game.voie === "red" && gap(target, game.hero) <= 1 && game.useSkill()) acted = true;
+      // Bousculade : pousser de temps en temps l'ennemi au contact (sonné, parfois contre un mur).
+      else if (level !== "debutant" && game.rank("enchainement") > 0 && gap(target, game.hero) <= 1 && rnd() < 0.35 && game.pushTargets().some((m) => m.id === target.id) && game.push(target.id)) acted = true;
       else acted = game.setDestination(target.x, target.y);
     }
     if (!acted && game.restProgress() > 0) acted = true;

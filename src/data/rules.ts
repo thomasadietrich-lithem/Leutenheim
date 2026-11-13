@@ -263,8 +263,6 @@ export const RULES = {
   secondWindHeal: [4, 7, 10],
   /** Double frappe : fois par étage = rang + ce bonus (2, 3, 4 ; équilibrage du 2026-11-13). */
   doubleStrikeBonus: 1,
-  /** Récupération (voie bleue) : part des PV manquants rendus par le repos aux rangs 1, 2, 3 (au rang 3, repos deux fois plus court). */
-  recoveryShare: [1, 1, 1],
   /** Potions : poison sur l'arme (coups qui portent), vitesse (tours), feu (tours, dégâts par tour, portée). */
   weaponPoisonHits: 15,
   hasteTurns: 4,

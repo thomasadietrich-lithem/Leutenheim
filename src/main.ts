@@ -2429,7 +2429,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.urchinTurns > 0) list.push({ id: "oursin", name: "Oursin", detail: `15 % des dégâts reçus au contact reviennent à l'attaquant. Encore ${game.urchinTurns} tours.` });
   if (game.hasteTurns > 0) list.push({ id: "accelere", name: "Accéléré", detail: `Chaque attaque au contact frappe deux fois. Encore ${game.hasteTurns} tours.` });
   const rampart = game.rank("dernier_rempart");
-  if (rampart > 0 && game.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
+  if (rampart > 0 && game.perks().lastStand < 1) {
     list.push({ id: "rempart", name: "Dernier rempart", detail: `Prêt : un coup qui vous tuerait vous laissera à ${rampart >= 2 ? 5 : 1} PV.` });
   }
   return list;

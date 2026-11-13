@@ -5,7 +5,7 @@ await build({ entryPoints: ["tests/bots.ts"], bundle: true, platform: "node", fo
 const { playBot } = await import("../dist/voies.cjs");
 const n = Number(process.argv[2] ?? 150);
 const level = process.argv[3] ?? "maitrise";
-const B = ["second_souffle", "peau_dure", "recuperation", "dernier_rempart"];
+const B = ["second_souffle", "peau_dure", "esquive", "dernier_rempart"];
 const R = ["double_frappe", "coup_puissant", "enchainement", "rage"];
 const first = (list, id) => [id, ...list.filter((x) => x !== id)];
 const configs = [["aucune voie", { voie: "none" }]];

@@ -1353,7 +1353,7 @@ export class Game {
     // Agilité (Thomas, 2026-11-11) : le héros qui marche sur un piège peut l'éviter d'un bond (d20 + agilité).
     if (actor.kind === "hero") {
       const d20 = this.rng.int(1, 20);
-      const bonus = this.alloc.agilite;
+      const bonus = this.agility();
       if (d20 !== 1 && (d20 === 20 || d20 + bonus >= RULES.trapDodgeDc)) {
         if (kind === "pit") trap.sprung = true;
         this.events.push({ type: "trapDodged", x: actor.x, y: actor.y, kind, d20, bonus });
@@ -1792,7 +1792,11 @@ export class Game {
     // Voies à rangs (2026-11-11) : une ancienne partie garde ses pouvoirs au rang 1.
     const known = (id: string) => game.voie !== null && [PATHS[game.voie].main, ...PATHS[game.voie].secondaries].some((pw) => pw.id === id);
     game.ranks = {};
-    if (saved.ranks) for (const [id, r] of Object.entries(saved.ranks)) if (known(id)) game.ranks[id as PowerId] = r;
+    // Récupération est devenue Esquive ; deux rangs au plus depuis le 2026-11-13 (les points en trop reviennent).
+    if (saved.ranks) for (const [old, r] of Object.entries(saved.ranks)) {
+      const id = old === "recuperation" ? "esquive" : old;
+      if (known(id)) game.ranks[id as PowerId] = Math.min(MAX_RANK, r ?? 0);
+    }
     else if (game.voie) {
       game.ranks[PATHS[game.voie].main.id] = 1;
       for (const id of saved.skills) if (known(id)) game.ranks[id as PowerId] = 1;
@@ -1973,7 +1977,7 @@ export class Game {
       ((armor && (ITEMS[armor.defId] as ItemDef).armorClass) || UNARMORED_AC) +
       ((hat && (ITEMS[hat.defId] as ItemDef).acBonus) || 0) +
       this.rank("peau_dure") +
-      Math.floor(this.alloc.agilite / RULES.agilityPerDodge) +
+      Math.floor(this.agility() / RULES.agilityPerDodge) +
       blessed +
       (this.protectTurns > 0 ? SOEUR.protectBonus : 0);
   }
@@ -2224,11 +2228,16 @@ export class Game {
   pushBonus(): number {
     return this.heroClass.pushBonus + this.alloc.force;
   }
+  /** Agilité : les points placés, plus Esquive (voie bleue : +2, puis +4). */
+  agility(): number {
+    return this.alloc.agilite + [0, 2, 4][this.rank("esquive")];
+  }
+
   disengageBonus(): number {
-    return this.heroClass.disengageBonus + this.alloc.agilite;
+    return this.heroClass.disengageBonus + this.agility();
   }
   rangedBonus(): number {
-    return this.alloc.agilite;
+    return this.agility();
   }
 
   /** Peut-on choisir sa voie maintenant ? */
@@ -2320,7 +2329,7 @@ export class Game {
     // Statue (potion de pierre) : rien ne la blesse.
     if (damage <= 0 || this.stoneTurns > 0) return;
     const rampart = this.rank("dernier_rempart");
-    if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < (rampart >= MAX_RANK ? 2 : 1)) {
+    if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < 1) {
       this.perks().lastStand++;
       this.hero.hp = Math.min(this.hero.maxHp, rampart >= 2 ? 5 : 1);
       this.events.push({ type: "lastStand" });
@@ -2938,8 +2947,7 @@ export class Game {
   /** Pourquoi le héros ne peut pas se reposer maintenant (`null` : il le peut). */
   restRefusal(): "full" | "used" | "danger" | null {
     if (this.hero.hp >= this.hero.maxHp) return "full";
-    const rests = this.current.rests ?? (this.current.rested ? 1 : 0);
-    if (rests >= (this.rank("recuperation") >= MAX_RANK ? 2 : 1)) return "used";
+    if (this.current.rested) return "used";
     if (this.visibleMonsters().length > 0) return "danger";
     return null;
   }
@@ -2949,9 +2957,9 @@ export class Game {
     return this.resting > 0 ? Math.max(0.06, 1 - this.resting / this.restTurns()) : 0;
   }
 
-  /** Durée d'un repos : moitié moins avec Récupération au rang 2 et plus (équilibrage du 2026-11-13). */
+  /** Durée d'un repos. */
   restTurns(): number {
-    return this.rank("recuperation") >= 2 ? Math.ceil(RULES.restTurns / 2) : RULES.restTurns;
+    return RULES.restTurns;
   }
 
   /**
@@ -3031,7 +3039,8 @@ export class Game {
         if (dx === 0 && dy === 0) continue;
         let at: Point = { x: this.hero.x, y: this.hero.y };
         let ok = true;
-        const distance = RULES.jumpDistance;
+        // Esquive (voie bleue) : une case plus loin.
+        const distance = RULES.jumpDistance + (this.rank("esquive") > 0 ? 1 : 0);
         for (let i = 0; i < distance && ok; i++) {
           const next = { x: at.x + dx, y: at.y + dy };
           // En diagonale, on ne passe pas entre deux murs qui se touchent par le coin.
@@ -3370,7 +3379,10 @@ export class Game {
    */
   private resolvePush(m: Actor): void {
     this.reveal();
-    const bonus = this.pushBonus();
+    // Bousculade (voie rouge, ex-Enchaînement ; Thomas, 2026-11-13 : « un boost pour pousser ») : +2 puis +4 au jet,
+    // et la poussée envoie une case plus loin.
+    const shove = this.rank("enchainement");
+    const bonus = this.pushBonus() + [0, 2, 4][shove];
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
     const success = d20 === 20 || (d20 !== 1 && total >= RULES.pushDc);
@@ -3381,7 +3393,7 @@ export class Game {
     if (success) {
       const dx = Math.sign(m.x - this.hero.x);
       const dy = Math.sign(m.y - this.hero.y);
-      const distance = 1;
+      const distance = shove > 0 ? 2 : 1;
       for (let k = 0; k < distance; k++) {
         const to = { x: m.x + dx, y: m.y + dy };
         const t = this.map.get(to.x, to.y);
@@ -3473,7 +3485,7 @@ export class Game {
       this.resting = 0;
       this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
     } else if (this.resting === 0) {
-      const share = [RULES.restHealShare, ...RULES.recoveryShare][this.rank("recuperation")];
+      const share = RULES.restHealShare;
       const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * share);
       this.hero.hp += healed;
       this.current.rested = true;
@@ -5224,7 +5236,7 @@ export class Game {
       return;
     }
     // Crocheter : l'agilité aide (Thomas, 2026-11-11) ; enfoncer : la force.
-    const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.alloc.agilite : this.heroClass.breakBonus + this.alloc.force;
+    const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.agility() : this.heroClass.breakBonus + this.alloc.force;
     const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
@@ -5321,17 +5333,7 @@ export class Game {
       this.weaponPoison--;
       this.poisonActor(monster, { damage: 1, turns: 4 });
     }
-    const wasAlive = this.monsters.includes(monster);
     this.removeIfDead(monster);
-    // Soif de combat (voie rouge, ex-Enchaînement ; équilibrage du 2026-11-13) : chaque ennemi tué rend 1, 2 ou 3 PV, au
-    // plus autant de PV par étage que le Second souffle du même rang (4, 7, 10).
-    const thirst = this.rank("enchainement");
-    if (wasAlive && !this.monsters.includes(monster) && thirst > 0 && this.hero.hp > 0) {
-      const room = RULES.secondWindHeal[thirst - 1] - this.perks().chainRefunds;
-      const gain = Math.max(0, Math.min(thirst, room, this.hero.maxHp - this.hero.hp));
-      this.hero.hp += gain;
-      this.perks().chainRefunds += gain;
-    }
     // Potion de vitesse : un second coup, s'il reste debout.
     if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);
   }

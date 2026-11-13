@@ -8,7 +8,7 @@ export type PathId = "blue" | "red";
 
 export type SkillId =
   | "peau_dure"
-  | "recuperation"
+  | "esquive"
   | "dernier_rempart"
   | "coup_puissant"
   | "enchainement"
@@ -21,7 +21,7 @@ export type PowerId = "second_souffle" | "double_frappe" | SkillId;
 export interface PowerDef {
   id: PowerId;
   name: string;
-  ranks: [string, string, string];
+  ranks: [string, string];
 }
 
 export interface PathDef {
@@ -48,11 +48,12 @@ export const PATHS: Record<PathId, PathDef> = {
     name: "Second souffle",
     color: "#4a8fd0",
     description: "Une fois par étage, en un tour : +4 PV. Se renforce.",
-    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage", "+10 PV, une fois par étage"] },
+    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage"] },
     secondaries: [
-      { id: "peau_dure", name: "Peau dure", ranks: ["+1 à la classe d'armure", "+2 à la classe d'armure", "+3 à la classe d'armure"] },
-      { id: "recuperation", name: "Récupération", ranks: ["Le repos rend tous les PV manquants", "Repos complet, deux fois plus court", "Repos court, deux fois par étage"] },
-      { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse à 1 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (2 fois par étage)"] },
+      { id: "peau_dure", name: "Peau dure", ranks: ["+1 à la classe d'armure", "+2 à la classe d'armure"] },
+      // Thomas (2026-11-13) : remplace Récupération (« deux sources de soin direct, c'est trop »).
+      { id: "esquive", name: "Esquive", ranks: ["+2 en agilité ; se dégager saute une case plus loin", "+4 en agilité ; se dégager saute une case plus loin"] },
+      { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse à 1 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (1 fois par étage)"] },
     ],
   },
   red: {
@@ -60,17 +61,19 @@ export const PATHS: Record<PathId, PathDef> = {
     name: "Double frappe",
     color: "#d03a44",
     description: "Deux fois par étage : deux coups d'épée en un seul tour. Se renforce.",
-    main: { id: "double_frappe", name: "Double frappe", ranks: ["Deux fois par étage", "Trois fois par étage", "Quatre fois par étage"] },
+    main: { id: "double_frappe", name: "Double frappe", ranks: ["Deux fois par étage", "Trois fois par étage"] },
     secondaries: [
-      { id: "coup_puissant", name: "Coup puissant", ranks: ["Critique sur 18 à 20 ; un critique assomme", "Critique sur 17 à 20 ; un critique assomme", "Critique sur 16 à 20 ; un critique assomme"] },
-      { id: "enchainement", name: "Soif de combat", ranks: ["Chaque ennemi tué rend 1 PV (4 par étage)", "Chaque ennemi tué rend 2 PV (7 par étage)", "Chaque ennemi tué rend 3 PV (10 par étage)"] },
-      { id: "rage", name: "Rage", ranks: ["+1 dégât sous la moitié des PV", "+2 dégâts sous la moitié des PV", "+3 dégâts sous la moitié des PV"] },
+      { id: "coup_puissant", name: "Coup puissant", ranks: ["Critique sur 18 à 20 ; un critique assomme", "Critique sur 17 à 20 ; un critique assomme"] },
+      // Thomas (2026-11-13) : remplace Soif de combat, pour faire vivre l'action « Pousser ».
+      { id: "enchainement", name: "Bousculade", ranks: ["+2 pour pousser ; la poussée envoie une case plus loin", "+4 pour pousser ; la poussée envoie une case plus loin"] },
+      { id: "rage", name: "Rage", ranks: ["+1 dégât sous la moitié des PV", "+2 dégâts sous la moitié des PV"] },
     ],
   },
 };
 
 /** Rang le plus haut d'un pouvoir. */
-export const MAX_RANK = 3;
+/** Deux rangs par pouvoir (Thomas, 2026-11-13 : « garder de la marge pour après le boss et les niveaux suivants »). */
+export const MAX_RANK = 2;
 
 /** Niveau où l'on choisit sa voie (un point de voie à chaque niveau ensuite). */
 export const PATH_LEVEL = 2;

@@ -394,6 +394,7 @@ export class Game {
     this.clearDoorOrders();
     // Paniers à fruits : leurs pommes sont de vrais objets au sol, qu'on ramasse (le panier les montre).
     if (fresh) for (const f of state.furniture) if (f.kind === "basket" && f.count) state.ground.push({ x: f.x, y: f.y, item: "pomme", count: f.count });
+    if (fresh) for (const f of state.furniture) if (f.kind === "plate" && f.count) state.ground.push({ x: f.x, y: f.y, item: "cuisse_poulet", count: f.count });
     if (fresh && sandboxFloor) {
       this.populateSandbox(state, sandboxFloor);
     } else if (fresh && state.boss) {

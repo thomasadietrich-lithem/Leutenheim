@@ -1163,4 +1163,5 @@ export const EN: Record<string, string> = {
   "CLONC ! Les Kobolds accourent, déçus que ce ne soit que vous.": "CLONK! The Kobolds come running, disappointed it's only you.",
   "CLONC ! Le donjon applaudit votre sens de la discrétion.": "CLONK! The dungeon applauds your sense of discretion.",
   "CLONC ! La vraie, elle, sonne sous vos pieds. Celle-ci sonne surtout l'alerte.": "CLONK! The real one rings beneath your feet. This one mostly rings the alarm.",
+  "Encore tiède. Rend 8 PV.": "Still warm. Restores 8 HP.",
 };

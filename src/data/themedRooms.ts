@@ -118,6 +118,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   grainSack: { blocks: true, w: 1, h: 1, burns: true },
   // Panier à fruits (Thomas, 2026-11-11) : ne bloque pas ; ses 2 à 3 pommes se ramassent (le dessin suit leur nombre).
   basket: { blocks: false, w: 1, h: 1, burns: true },
+  // Assiette avec une cuisse de poulet (cuisine, Thomas 2026-11-13).
+  plate: { blocks: false, w: 1, h: 1, burns: false },
   gutterH: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   drain: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   // SALLE DE PRIÈRE v1 : bancs (2 cases), autel (3 cases, le pupitre au milieu), candélabres (0 à 3 bougies), tapis de

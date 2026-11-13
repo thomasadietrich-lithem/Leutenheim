@@ -1,6 +1,7 @@
 import type { StainColor } from "../core/floor";
 import { SOEUR_BUBBLE_ICON, SOEUR_PALETTE, SOEUR_SPRITE } from "./sprites/soeur";
 import { POULET, POULET_PALETTE } from "./sprites/poulet";
+import { ASSIETTE } from "./sprites/assiette";
 import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
@@ -1549,6 +1550,7 @@ export class Renderer {
       if (!game.isExplored(g.x, g.y)) continue;
       // Les pommes d'un panier sont dessinées dans le panier.
       if (g.item === "pomme" && game.furnitureAt(g.x, g.y)?.kind === "basket") continue;
+      if (g.item === "cuisse_poulet" && game.furnitureAt(g.x, g.y)?.kind === "plate") continue;
       // Un objet encore en train de rebondir n'est pas déjà posé.
       if (this.hops.some((h) => h.x === g.x && h.y === g.y && h.item === g.item)) continue;
       const gx = ox + g.x * tile;
@@ -2116,8 +2118,10 @@ export class Renderer {
         : f.kind === "towelRack" ? (!bath || !bath.out ? "rackFull" : bath.beaten ? "rackEmpty" : "rackGear")
         : f.kind === "bathMat" ? "bathMat"
         : null;
-      const name = bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name];
+      // Assiette : pleine tant que la cuisse y est.
+      const plateName = f.kind === "plate" ? (game.ground.some((g) => g.x === f.x && g.y === f.y && g.item === "cuisse_poulet") ? "plateFull" : "plate") : null;
+      const name = plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name];
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2128,7 +2132,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (SALLES[name] || BAIN[name]) {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name]) {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

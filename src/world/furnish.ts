@@ -475,6 +475,12 @@ export function furnishKitchen(floor: Floor, room: Room, rng: Rng, out: Furnitur
     const y = rng.int(room.y + 2, gy - 1);
     if (P.tryPlace({ x, y, kind: "basket", count: rng.int(2, 3) })) break;
   }
+  // Une assiette avec une cuisse de poulet (Thomas, 2026-11-13).
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const x = rng.int(room.x, room.x + room.w - 1);
+    const y = rng.int(room.y + 2, gy - 1);
+    if (P.tryPlace({ x, y, kind: "plate", count: 1 })) break;
+  }
   out.push(...P.placed);
   return true;
 }

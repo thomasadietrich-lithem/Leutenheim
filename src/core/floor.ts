@@ -300,7 +300,10 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
   const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth);
   const pick = pool[rng.int(0, pool.length - 1)];
   // Très rare (nœud papillon) : il ne sort qu'une fois sur `odds`, sinon de l'or.
-  if (pick.item === "gold" || (pick.odds !== undefined && !rng.chance(pick.odds))) {
+  const missed = pick.odds !== undefined && !rng.chance(pick.odds);
+  // Raté : l'objet de rechange s'il y en a un (une pomme au lieu de la cuisse), sinon de l'or.
+  if (missed && pick.orElse) return { item: pick.orElse, count: 1 };
+  if (pick.item === "gold" || missed) {
     const [min, max] = goldRange(depth, GOLD_SIZE[rarity]);
     return { item: "or", count: rng.int(min, max) };
   }

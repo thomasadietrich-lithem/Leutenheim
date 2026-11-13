@@ -1,0 +1,12 @@
+# Joueurs automatiques : historique
+
+`npm run bots` (150 parties par niveau, toujours les mêmes graines). Une ligne par niveau et par passage.
+
+| Date | Commit | Joueur | Étage moyen | Mort étage 1 | Arrive au boss | Bat le boss | Niveau | Monstres tués | Quêtes données / rendues / ratées | Note |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-12 23:48 | 95ad832 | Débutant | 2.3 | 24 % | 2 % | 0 % | 1.3 | 4.8 | 0.1 / 0 / 0 | référence avant équilibrage (bots qui font les quêtes) |
+| 2026-11-12 23:48 | 95ad832 | Moyen | 2.7 | 24 % | 13 % | 0 % | 1.9 | 9.9 | 0.3 / 0.2 / 0 | référence avant équilibrage (bots qui font les quêtes) |
+| 2026-11-12 23:48 | 95ad832 | Maîtrise | 3.6 | 1 % | 24 % | 13 % | 3.8 | 31.9 | 0.5 / 0.4 / 0 | référence avant équilibrage (bots qui font les quêtes) |
+| 2026-11-12 23:50 | 95ad832 | Débutant | 2.3 | 21 % | 2 % | 0 % | 1.4 | 4.9 | 0.1 / 0 / 0 | étage 1 plus doux (80 % dormeurs, 2 pommes), araignées englue 1/4, +4 XP par quête rendue |
+| 2026-11-12 23:50 | 95ad832 | Moyen | 2.9 | 23 % | 19 % | 1 % | 2.1 | 12 | 0.3 / 0.2 / 0 | étage 1 plus doux (80 % dormeurs, 2 pommes), araignées englue 1/4, +4 XP par quête rendue |
+| 2026-11-12 23:50 | 95ad832 | Maîtrise | 3.8 | 4 % | 29 % | 22 % | 4 | 33.9 | 0.5 / 0.4 / 0 | étage 1 plus doux (80 % dormeurs, 2 pommes), araignées englue 1/4, +4 XP par quête rendue |

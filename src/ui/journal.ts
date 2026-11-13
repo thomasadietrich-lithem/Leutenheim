@@ -299,6 +299,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             : "« AU SECOURS ! ON M'ATTAQUE DANS MON BAIN ! » Le Kobold s'enfuit en glissant.";
     case "thorns":
       return `${capFirst(e.actor.name)} se pique : ${e.damage} dégât${e.damage > 1 ? "s" : ""}.`;
+    case "flee":
+      return `${capFirst(e.actor.name)} détale, la queue entre les jambes !`;
     case "lullaby":
       return `Quelques notes de flûte… ${e.actor.name} s'endort.`;
     case "doused":

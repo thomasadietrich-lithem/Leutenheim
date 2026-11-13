@@ -490,6 +490,8 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(e.x, e.y, "AU SECOURS !", "#ff8a7a");
       sfx.play("notice");
     }
+  } else if (e.type === "flee") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "Il fuit !", "#ffd75e");
   } else if (e.type === "thorns") {
     renderer.addFloatingText(e.actor.x, e.actor.y, `Piqué ! −${e.damage}`, "#d8a060");
     sfx.play("hit");

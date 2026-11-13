@@ -2210,6 +2210,8 @@ test("sauvegarde : une partie reprise continue exactement comme la partie d'orig
       original.path = [];
       copy.path = [];
       original.pendingStairs = null;
+      // Repos et fouille en cours ne sont pas sauvegardés non plus.
+      Object.assign(original as unknown as Record<string, number>, { resting: 0, searching: 0 });
       assert.equal(fingerprint(copy), fingerprint(original), `graine ${seed} : la partie reprise diffère`);
       for (let i = 0; i < 80 && !original.over; i++) {
         autoStep(original);
@@ -3985,4 +3987,32 @@ test("la Tisseuse ne craint pas le poison", () => {
   (game as unknown as { poisonActor(a: unknown, p: unknown): void }).poisonActor(m, { damage: 1, turns: 4 });
   assert.equal(m.poison, undefined);
   assert.ok(game.events.some((e) => e.type === "poisoned" && e.immune));
+});
+
+test("caché puis repos : on sort de l'ombre avant la fin du repos (Thomas, 2026-11-13)", () => {
+  const game = new Game(3);
+  game.monsters.splice(0);
+  game.hero.hp = 3;
+  (game as unknown as { hidden: boolean }).hidden = true;
+  assert.ok(game.rest());
+  for (let i = 0; i < RULES.hideRestTurns + 2; i++) game.tick();
+  assert.equal((game as unknown as { hidden: boolean }).hidden, false);
+  assert.ok(game.restProgress() > 0, "le repos continue");
+});
+
+test("un Kobold mal en point prend parfois la fuite, puis revient", () => {
+  let fled = 0;
+  const { game, m } = foeAt(1);
+  game.hero.hp = game.hero.maxHp = 999;
+  m.maxHp = 9;
+  for (let i = 0; i < 40; i++) {
+    m.hp = 3;
+    m.fleeChecked = false;
+    m.fleeTurns = 0;
+    m.alerted = true;
+    game.wait();
+    game.tick();
+    if (m.fleeTurns) fled++;
+  }
+  assert.ok(fled > 0, "jamais de fuite");
 });

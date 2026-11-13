@@ -6,6 +6,9 @@
  *   pas, place ses points au hasard, descend dès qu'il voit l'escalier.
  * - MOYEN : explore une bonne partie de l'étage, ramasse ce qu'il voit, met les armures plus solides, mange une pomme
  *   sous 40 % de PV, se repose sous 50 %, points en Vie et Force, voie bleue (Second souffle quand il est mal).
+ * Tous parlent aux PNJ de quête qu'ils croisent (Gluck, Sœur Osseuse, Krik) : le débutant choisit au hasard et ne
+ * revient que s'il passe à côté ; le moyen et le maîtrise choisissent les réponses qui donnent une tâche, la font
+ * (objet à rapporter, statue, Kobolds) et reviennent la rendre.
  * - MAÎTRISE : explore tout l'étage, ramasse tout, s'équipe au mieux (armure, arme), tire à l'arc à distance, mange sous
  *   50 %, se repose sous 70 %, boit vitesse et lance le feu sur le boss, points en Force puis Vie, voie rouge.
  */
@@ -14,6 +17,8 @@ import { ITEMS, ItemDef } from "../src/data/items";
 import { expectedDamagePerTurn } from "../src/core/combat";
 import type { StatId } from "../src/data/skills";
 import { Tile } from "../src/world/map";
+import { NPC_IDS, type NpcId } from "../src/core/game";
+import { QUEST_TASKS } from "../src/data/quests";
 
 type Level = "debutant" | "moyen" | "maitrise";
 
@@ -97,6 +102,31 @@ export interface RunStats {
   cause: string | null;
   boss: boolean;
   kills: number;
+  talks: number;
+  questsStarted: number;
+  questsDone: number;
+  questsFailed: number;
+}
+
+/** Les réponses qui donnent une tâche (voir src/data/quests.ts). */
+const TASK_CHOICES: Record<NpcId, string[]> = { gluck: ["kind", "deal"], soeur: ["punish"], krik: ["caches", "protect"] };
+
+/** Une conversation entière : on choisit, jusqu'à la fin de la scène. */
+function talk(game: Game, id: NpcId, level: Level, rnd: () => number): void {
+  for (let i = 0; i < 8; i++) {
+    const scene = game.npcScene(id);
+    const open = scene.choices.filter((c) => !c.off);
+    if (open.length === 0) return;
+    let pick = open.find((c) => c.id === "turnin");
+    if (!pick && level !== "debutant") {
+      const wanted = TASK_CHOICES[id].filter((w) => open.some((c) => c.id === w));
+      if (wanted.length > 0) pick = open.find((c) => c.id === wanted[Math.floor(rnd() * wanted.length)]);
+    }
+    const real = open.filter((c) => c.id !== "leave" && c.id !== "refuse");
+    pick ??= real.length > 0 ? real[Math.floor(rnd() * real.length)] : open[0];
+    const r = game.npcChoose(id, pick.id);
+    if (r.done) return;
+  }
 }
 
 export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
@@ -104,6 +134,11 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
   const rnd = lcg(seed * 7919 + level.length);
   const stats: StatId[] = ["vie", "force", "agilite", "intelligence", "charisme"];
   let kills = 0;
+  let talks = 0;
+  let questsStarted = 0;
+  let questsDone = 0;
+  let questsFailed = 0;
+  const talked = new Set<string>();
   let idle = 0;
   let lastKey = "";
   while (!game.over && game.turn < maxTurns) {
@@ -144,6 +179,40 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
     }
     if (!acted && game.restProgress() > 0) acted = true;
     if (!acted && level !== "debutant" && hp < (level === "maitrise" ? 0.7 : 0.5) && game.rest()) acted = true;
+    // Quêtes : rendre la tâche, la faire, ou aller parler au PNJ qu'on a vu.
+    const quest = game.quest && game.quest.depth === game.depth ? game.quest : null;
+    if (!acted && quest) {
+      const def = QUEST_TASKS[quest.id];
+      const giver = game.npc(def.npc);
+      if (game.questDone() && giver) {
+        if (level !== "debutant" || gap(giver, game.hero) <= 8) {
+          if (game.canTalk(def.npc)) {
+            talk(game, def.npc, level, rnd);
+            talks++;
+            acted = true;
+          } else acted = game.setDestination(giver.x, giver.y);
+        }
+      } else if (level !== "debutant" && def.kind === "fetch") {
+        const it = game.ground.find((g) => g.item === def.item && game.isExplored(g.x, g.y));
+        if (it) acted = game.itemsHere().some((g) => g.item === def.item) ? game.pickUp() : game.setDestination(it.x, it.y);
+      } else if (level !== "debutant" && def.kind === "statue") {
+        const st = game.furnitureList().find((f) => f.kind === "statue" && f.hollow && f.hinted);
+        if (st) acted = game.setDestination(st.x, st.y);
+      }
+    }
+    if (!acted && !quest && !game.inCombat()) {
+      for (const id of NPC_IDS) {
+        const g = game.npc(id);
+        if (!g || !game.isExplored(g.x, g.y) || talked.has(`${game.depth}:${id}`)) continue;
+        if (game.canTalk(id)) {
+          talked.add(`${game.depth}:${id}`);
+          talk(game, id, level, rnd);
+          talks++;
+          acted = true;
+        } else acted = game.setDestination(g.x, g.y);
+        if (acted) break;
+      }
+    }
     // Ramasser.
     if (!acted && game.itemsHere().length > 0 && (level !== "debutant" || rnd() < 0.5)) acted = game.pickUp();
     if (!acted && level !== "debutant") {
@@ -159,14 +228,24 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
       const stairs = stairsSeen(game);
       const want = level === "debutant" ? 0 : level === "moyen" ? 0.6 : 1;
       const front = frontier(game);
-      if (queen && !stairs) acted = game.setDestination(queen.x, queen.y, true);
+      // Une tâche en cours sur cet étage : on ne descend pas tant qu'on peut encore la faire (sauf le débutant).
+      const busy = level !== "debutant" && !!quest && !!front;
+      if (busy && front) acted = game.setDestination(front.x, front.y);
+      else if (queen && !stairs) acted = game.setDestination(queen.x, queen.y, true);
       else if (stairs && (explored(game) >= want || !front)) acted = game.setDestination(stairs.x, stairs.y, true);
       else if (front) acted = game.setDestination(front.x, front.y);
       else if (stairs) acted = game.setDestination(stairs.x, stairs.y, true);
     }
     if (!acted) game.wait();
     game.tick();
-    for (const e of game.events) if (e.type === "death" && e.actor.kind === "monster") kills++;
+    for (const e of game.events) {
+      if (e.type === "death" && e.actor.kind === "monster") kills++;
+      if (e.type === "quest") {
+        if (e.what === "start") questsStarted++;
+        else if (e.what === "complete") questsDone++;
+        else questsFailed++;
+      }
+    }
     game.events.length = 0;
     // Bloqué (rien ne change) : il attend un tour, puis on arrête au bout d'un moment.
     const key = `${game.depth}:${game.hero.x},${game.hero.y}:${game.turn}`;
@@ -185,5 +264,9 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
     cause: game.deathCause,
     boss: game.bossKills > 0,
     kills,
+    talks,
+    questsStarted,
+    questsDone,
+    questsFailed,
   };
 }

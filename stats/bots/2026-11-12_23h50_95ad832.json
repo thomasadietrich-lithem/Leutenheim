@@ -1,0 +1,84 @@
+{
+ "date": "2026-11-12T23:50:49.847Z",
+ "commit": "95ad832",
+ "runs": 150,
+ "note": "étage 1 plus doux (80 % dormeurs, 2 pommes), araignées englue 1/4, +4 XP par quête rendue",
+ "levels": {
+  "debutant": {
+   "floor": 2.3,
+   "deathFloor1": 21,
+   "reach": {
+    "2": 79,
+    "3": 45,
+    "4": 8,
+    "5": 2
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 127,
+   "gold": 3.1,
+   "kills": 4.9,
+   "questsStarted": 0.1,
+   "questsDone": 0,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold": 109,
+    "un Kobold frondeur": 22,
+    "une Araignée": 16,
+    "la Tisseuse": 3
+   }
+  },
+  "moyen": {
+   "floor": 2.9,
+   "deathFloor1": 23,
+   "reach": {
+    "2": 77,
+    "3": 59,
+    "4": 35,
+    "5": 19
+   },
+   "boss": 1,
+   "dead": 99,
+   "heroLevel": 2.1,
+   "turns": 308.4,
+   "gold": 30.3,
+   "kills": 12,
+   "questsStarted": 0.3,
+   "questsDone": 0.2,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold": 74,
+    "la Tisseuse": 14,
+    "un Kobold frondeur": 23,
+    "une Araignée": 31,
+    "le poison": 6
+   }
+  },
+  "maitrise": {
+   "floor": 3.8,
+   "deathFloor1": 4,
+   "reach": {
+    "2": 95,
+    "3": 81,
+    "4": 50,
+    "5": 29
+   },
+   "boss": 22,
+   "dead": 87,
+   "heroLevel": 4,
+   "turns": 841.6,
+   "gold": 75.6,
+   "kills": 33.9,
+   "questsStarted": 0.5,
+   "questsDone": 0.4,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 30,
+    "un Kobold": 49,
+    "un Kobold frondeur": 44,
+    "la Tisseuse": 7
+   }
+  }
+ }
+}

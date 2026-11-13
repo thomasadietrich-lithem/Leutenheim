@@ -99,6 +99,7 @@ export interface SaveData {
   quest?: QuestTask | null;
   xpCarry?: number;
   urchinTurns?: number;
+  restHidden?: number;
   blessings?: { protect: number; clarity: number; curse: number; luck: number };
   /** Bénédiction de l'autel (absente des anciennes sauvegardes). */
   blessTurns?: number;

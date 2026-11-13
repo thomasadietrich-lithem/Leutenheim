@@ -1068,4 +1068,6 @@ export const EN: Record<string, string> = {
   "« AU SECOURS ! ON M'ATTAQUE DANS MON BAIN ! » Le Kobold s'enfuit en glissant.": "“HELP! I'M BEING ATTACKED IN MY BATH!” The Kobold slips and slides away.",
   "{0} ne craint pas le poison.": "{0} is immune to poison.",
   "Immunisée": "Immune",
+  "Il fuit !": "Fleeing!",
+  "{0} détale, la queue entre les jambes !": "{0} bolts, tail between its legs!",
 };

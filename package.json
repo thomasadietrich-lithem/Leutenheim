@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "bots": "node scripts/bots.mjs",
     "test": "node node_modules/typescript/bin/tsc --noEmit && node scripts/i18n-check.cjs && node scripts/build.mjs --tests && node --test dist/tests.cjs"
   },
   "devDependencies": {

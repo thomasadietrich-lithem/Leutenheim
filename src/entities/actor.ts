@@ -29,6 +29,9 @@ export interface Actor {
   bather?: boolean;
   soapy?: number;
   fleeing?: boolean;
+  /** Un Kobold blessé qui détale : tours de fuite restants ; le tirage n'a lieu qu'une fois. */
+  fleeTurns?: number;
+  fleeChecked?: boolean;
   /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */
   lost?: number;
   /** Numéro de la cible que ce personnage vient de frapper AVEC avantage : jamais deux avantages de suite sur elle. */

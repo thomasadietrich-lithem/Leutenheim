@@ -95,7 +95,8 @@ export const MONSTERS = {
     color: "#5a4466",
     blood: "black",
     chaseSteps: 2,
-    webBite: 1 / 3,
+    // 1 fois sur 4 (Thomas, 2026-11-13, d'après les joueurs automatiques : 1 sur 3 en faisait un mur aux étages 3-4).
+    webBite: 1 / 4,
   },
   // BOSS DE LA SECTION 1 (étage 5 ; planche art/boss_v2.png, Thomas : « implémente », 2026-11-11). Valeurs (C).
   tisseuse: {
@@ -145,7 +146,8 @@ export function spawnsForDepth(depth: number): FloorSpawns {
   return {
     roomChance: Math.min(0.3 + depth * 0.05, 0.7),
     // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.
-    sleepChance: Math.max(0.2, 0.65 - (depth - 1) * 0.1),
+    // Étage 1 plus doux (Thomas, 2026-11-13) : 80 % de dormeurs (65 % avant), puis −10 % par étage depuis 65 %.
+    sleepChance: depth === 1 ? 0.8 : Math.max(0.2, 0.65 - (depth - 1) * 0.1),
     entries: [
       // Meutes de Kobolds : 1 aux étages 1-2, 2 aux étages 3-4, 3 à l'étage 5… (2026-11-11 : un cran plus doux qu'avant,
       // la chute de l'étage 3 à l'étage 4 était trop raide).

@@ -1,0 +1,86 @@
+{
+ "date": "2026-11-12T23:48:38.276Z",
+ "commit": "95ad832",
+ "runs": 150,
+ "note": "référence avant équilibrage (bots qui font les quêtes)",
+ "levels": {
+  "debutant": {
+   "floor": 2.3,
+   "deathFloor1": 24,
+   "reach": {
+    "2": 76,
+    "3": 45,
+    "4": 10,
+    "5": 2
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.3,
+   "turns": 125.6,
+   "gold": 5.2,
+   "kills": 4.8,
+   "questsStarted": 0.1,
+   "questsDone": 0,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold": 105,
+    "un Kobold frondeur": 26,
+    "une Araignée": 16,
+    "la Tisseuse": 3
+   }
+  },
+  "moyen": {
+   "floor": 2.7,
+   "deathFloor1": 24,
+   "reach": {
+    "2": 76,
+    "3": 53,
+    "4": 24,
+    "5": 13
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.9,
+   "turns": 260.9,
+   "gold": 29.7,
+   "kills": 9.9,
+   "questsStarted": 0.3,
+   "questsDone": 0.2,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 28,
+    "la Tisseuse": 13,
+    "un Kobold frondeur": 23,
+    "un Kobold": 85,
+    "le poison": 1
+   }
+  },
+  "maitrise": {
+   "floor": 3.6,
+   "deathFloor1": 1,
+   "reach": {
+    "2": 97,
+    "3": 76,
+    "4": 43,
+    "5": 24
+   },
+   "boss": 13,
+   "dead": 90,
+   "heroLevel": 3.8,
+   "turns": 800.7,
+   "gold": 72.4,
+   "kills": 31.9,
+   "questsStarted": 0.5,
+   "questsDone": 0.4,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 36,
+    "un Kobold frondeur": 33,
+    "un Kobold": 54,
+    "la Tisseuse": 9,
+    "un piège à pointes": 1,
+    "le poison": 2
+   }
+  }
+ }
+}

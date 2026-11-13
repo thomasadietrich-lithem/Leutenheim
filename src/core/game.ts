@@ -1185,6 +1185,8 @@ export class Game {
   fog: { x: number; y: number; turns: number }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
+  /** Tours de repos passés caché (au-delà de `RULES.hideRestTurns`, on sort de l'ombre). */
+  private restHidden = 0;
   /** Coup de serviette reçu : le prochain coup du héros a le désavantage. */
   towelBlind = 0;
 
@@ -1467,6 +1469,7 @@ export class Game {
       weaponPoison: this.weaponPoison,
       hasteTurns: this.hasteTurns,
       urchinTurns: this.urchinTurns,
+      restHidden: this.restHidden,
       gluck: this.gluckMemory,
       soeur: this.soeurMemory,
       krik: this.krikMemory,
@@ -1567,6 +1570,9 @@ export class Game {
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
     game.urchinTurns = saved.urchinTurns ?? 0;
+    game.restHidden = saved.restHidden ?? 0;
+    // Comme dans la partie d'origine : la lumière des torches posées au sol est déjà à jour.
+    game.lastGroundTorches = game.ground.filter((g) => g.item === "torche").length;
     game.gluckMemory = saved.gluck ?? { met: 0, mood: 0, invested: 0 };
     game.blessTurns = saved.blessTurns ?? 0;
     game.soeurMemory = saved.soeur ?? { met: 0 };
@@ -1600,7 +1606,12 @@ export class Game {
       a.fromX = a.x;
       a.fromY = a.y;
     }
+    // La vue est recalculée, mais les monstres « déjà vus » restent ceux de la sauvegarde : sinon un monstre entré dans
+    // le champ pendant le dernier tour serait noté vu ici et pas dans la partie d'origine (la suite différait).
+    const seen = new Set(game.seenMonsters);
     game.updateVision();
+    game.seenMonsters.clear();
+    for (const id of seen) game.seenMonsters.add(id);
     return game;
   }
 
@@ -2756,6 +2767,7 @@ export class Game {
     if (this.over || this.restRefusal() !== null) return false;
     this.wait();
     this.waiting = false;
+    this.restHidden = 0;
     this.resting = RULES.restTurns;
     this.events.push({ type: "rest", phase: "start", healed: 0 });
     return true;
@@ -2839,6 +2851,8 @@ export class Game {
       this.searching--;
     } else if (this.resting > 0) {
       this.resting--;
+      // Caché avant de se reposer : l'ombre ne dure pas tout le repos (Thomas, 2026-11-13).
+      if (this.hidden && ++this.restHidden >= RULES.hideRestTurns) this.reveal();
     } else if (this.waiting) {
       this.waiting = false;
     } else {
@@ -4483,6 +4497,8 @@ export class Game {
     }
     this.quest = null;
     this.events.push({ type: "quest", what: "complete", id: q.id });
+    // Une quête menée à bien rapporte de l'expérience (Thomas, 2026-11-13 : les quêtes aident à monter de niveau).
+    this.gainXp(RULES.questXp);
     this.npcLeaves(id, g, this.npcMax(id));
     return { lines: def.thanks, done: true };
   }
@@ -4978,6 +4994,7 @@ export class Game {
     const from = { x: m.x, y: m.y };
     m.x = to.x;
     m.y = to.y;
+    this.closeDoorAt(from.x, from.y);
     this.events.push({ type: "heavyBlow", actor: m, kind: "knockback", fromX: from.x, fromY: from.y });
     this.springTrap(m);
   }
@@ -5187,12 +5204,24 @@ export class Game {
         this.callFoes(m, "schrat", 1);
         this.events.push({ type: "bath", what: "flee", x: m.x, y: m.y });
       }
-      if (m.fleeing) {
+      // Un Kobold mal en point prend parfois la fuite (Thomas, 2026-11-13) : une fois, sous le tiers de ses PV, un tirage ;
+      // il détale quelques tours, puis revient.
+      if (!m.bather && !m.boss && (m.defId === "schrat" || m.defId === "frondeur") && m.alerted && !m.fleeChecked && m.hp * 3 <= m.maxHp) {
+        m.fleeChecked = true;
+        if (this.rng.chance(RULES.koboldFleeChance)) {
+          m.fleeTurns = RULES.koboldFleeTurns;
+          this.events.push({ type: "flee", actor: m });
+        }
+      }
+      if (m.fleeTurns || m.fleeing) {
+        if (m.fleeTurns) m.fleeTurns--;
         const away = this.stepAway(m);
         if (away) {
+          const left = { x: m.x, y: m.y };
           this.faceToward(m, away);
           m.x = away.x;
           m.y = away.y;
+          this.closeDoorAt(left.x, left.y);
         }
         continue;
       }

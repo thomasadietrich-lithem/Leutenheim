@@ -54,7 +54,8 @@ export function goldRange(depth: number, size: "small" | "medium" | "large"): [n
  * une pierre précieuse et une potion entre les étages 1 et 5. L'étage de chacune est tiré au début de la partie.
  */
 export const SECTION_GUARANTEES: { what: "pomme" | "equipment" | "gem" | "potion" | "fleches"; count: number; floors: [number, number] }[] = [
-  { what: "pomme", count: 1, floors: [1, 1] },
+  // Deux pommes à l'étage 1 (Thomas, 2026-11-13 : étage 1 plus doux ; une avant).
+  { what: "pomme", count: 2, floors: [1, 1] },
   // Thomas : 10 flèches dans la première section, en un lot ou en trois (tiré au début de la partie).
   { what: "fleches", count: 1, floors: [1, 4] },
   { what: "equipment", count: 2, floors: [1, 4] },

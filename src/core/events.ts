@@ -133,6 +133,8 @@ export type GameEvent =
   | { type: "thorns"; actor: Actor; damage: number }
   /** Salle de bain du Kobold : il sort de l'eau, le disque s'arrête, coup de serviette, il s'enfuit. */
   | { type: "bath"; what: "splash" | "scratch" | "towel" | "flee"; x: number; y: number }
+  /** Un Kobold blessé prend la fuite. */
+  | { type: "flee"; actor: Actor }
   /** Flûte de pan : quelques notes, un ennemi s'endort. */
   | { type: "lullaby"; actor: Actor }
   | { type: "slowed"; actor: Actor }

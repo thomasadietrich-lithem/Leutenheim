@@ -36,6 +36,13 @@ export const RULES = {
   hideDc: 9,
   /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */
   xpGainFactor: 0.5,
+  /** XP d'une tâche de quête rendue au PNJ (Thomas, 2026-11-13 ; C). */
+  questXp: 4,
+  /** Caché, puis repos : on sort de l'ombre au bout de tant de tours de repos (Thomas, 2026-11-13 ; C). */
+  hideRestTurns: 4,
+  /** Un Kobold sous le tiers de ses PV prend la fuite une fois sur trois, pendant tant de tours (Thomas ; C). */
+  koboldFleeChance: 0.35,
+  koboldFleeTurns: 4,
   /** Potion de brouillard (Thomas, 2026-11-13, dessin) : losange de rayon 2 (rangées de 1, 3, 5, 3, 1 cases), durée en tours (C). */
   fogArm: 2,
   fogTurns: 8,

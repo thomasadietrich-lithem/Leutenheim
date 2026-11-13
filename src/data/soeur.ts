@@ -1,7 +1,9 @@
 /**
  * QUÊTE 02 — Sœur Osseuse et la cloche disparue (Thomas, 2026-11-12 : « implémente quête 2 » ; brouillon `claude/QUETES.md` §4).
  * Un squelette en voile de nonne déchiré, chapelet d'os, très digne, autoritaire : elle ignore qu'elle est morte. Les
- * Kobolds lui ont volé sa cloche, et elle est PERDUE POUR TOUJOURS : aucune quête ne la fait retrouver.
+ * Kobolds lui ont volé sa cloche : LA cloche de Leutenheim, celle du synopsis (Thomas, 2026-11-13 : « corrige toi-même
+ * le script »). On l'entend sonner la nuit, sous le village : elle est quelque part en bas ; Sœur Osseuse ne sait pas où,
+ * et aucune de ses quêtes ne la fait retrouver.
  * On la croise au plus 4 fois dans une partie, de plus en plus bas : la colère, la reconstruction, la nouvelle religion,
  * la sérénité (avec un tambour). Elle donne surtout des bénédictions (statuts du héros). Valeurs (C) : à confirmer.
  */
@@ -34,7 +36,8 @@ export const SOEUR_OPENING: Record<1 | 2 | 3 | 4, (grudge: boolean, chapel: bool
     "Vous : « Vous êtes… un squelette. »",
     "« Quelle grossièreté. »",
     "Vous : « Pourquoi êtes-vous si fâchée ? »",
-    "« Parce que je suis contrariée. Les Kobolds ont volé ma cloche. MA cloche. »",
+    "« Parce que je suis contrariée. Les Kobolds ont volé ma cloche. MA cloche. Celle qui réveillait Leutenheim. »",
+    "« Depuis, le boulanger fait la grasse matinée. C'est un scandale. »",
   ],
   2: () => ["« Vous encore. »", "« Je vous préviens : NE PARLONS PAS DE LA CLOCHE. »"],
   3: (grudge) => [

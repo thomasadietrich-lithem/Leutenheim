@@ -23,7 +23,7 @@ export const CODEX_ITEM_GROUPS: [string, ItemDef["kind"][]][] = [
 /** Personnages (non hostiles) : découverts quand on les voit. `id` : celui de la partie (PNJ de quête) ou un nom à part. */
 export const CODEX_PEOPLE: { id: string; name: string; color: string; description: string }[] = [
   { id: "gluck", name: "Gluck", color: "#e6dcc0", description: "Un Kobold déserteur, pâle et peureux, qui ne pense qu'aux pommes. Selon ce qu'on lui dit, il vend, donne, investit… ou confie une tâche." },
-  { id: "soeur", name: "Sœur Osseuse", color: "#f4f7ff", description: "Une nonne squelette très digne, qui ignore qu'elle est morte. Les Kobolds lui ont volé sa cloche. Elle bénit, ou maudit." },
+  { id: "soeur", name: "Sœur Osseuse", color: "#f4f7ff", description: "Une nonne squelette très digne, qui ignore qu'elle est morte. Les Kobolds lui ont volé sa cloche, celle qui réveillait Leutenheim. Elle bénit, ou maudit." },
   { id: "krik", name: "Krik", color: "#b48ce0", description: "Un Kobold qui ne peut plus mentir depuis une expérience ratée. Il a trahi ses camarades et vend leur butin." },
   { id: "colporteur", name: "Le Colporteur", color: "#7a5aa0", description: "Un marchand voûté, un par section. Il achète et vend, et disparaît quand le donjon s'agite trop." },
   { id: "compteur", name: "Le Kobold qui compte", color: "#9cb63e", description: "Derrière une porte percée d'un trou, il répète son nombre. Ne regardez pas par le trou." },

@@ -1166,4 +1166,11 @@ export const EN: Record<string, string> = {
   "Encore tiède. Rend 8 PV.": "Still warm. Restores 8 HP.",
   "Masse d'arme": "Mace",
   "Une tête de fer à ailettes au bout d'un manche de chêne. Elle cabosse les armures et assomme : sur un 17 ou plus au dé, l'ennemi touché perd son prochain tour.": "A flanged iron head on an oak haft. It dents armor and stuns: on a 17 or more on the die, the enemy hit loses its next turn.",
+  "Lui dire qu'on l'entend sonner, la nuit, sous le village": "Tell her it can be heard ringing at night, beneath the village",
+  "« Sous nos pieds ? Alors elle n'est pas fondue. Elle est en bas. Quelque part. »": "“Beneath our feet? Then it hasn't been melted down. It's down there. Somewhere.”",
+  "« Descendez, mon enfant. Et écoutez bien. »": "“Go down, my child. And listen carefully.”",
+  "« Des racontars de boulanger. Il dort, il rêve, il entend des cloches. »": "“Baker's gossip. He sleeps, he dreams, he hears bells.”",
+  "Une nonne squelette très digne, qui ignore qu'elle est morte. Les Kobolds lui ont volé sa cloche, celle qui réveillait Leutenheim. Elle bénit, ou maudit.": "A very dignified skeleton nun who doesn't know she's dead. The Kobolds stole her bell, the one that woke Leutenheim. She blesses, or curses.",
+  "« Parce que je suis contrariée. Les Kobolds ont volé ma cloche. MA cloche. Celle qui réveillait Leutenheim. »": "“Because I am upset. The Kobolds stole my bell. MY bell. The one that woke Leutenheim.”",
+  "« Depuis, le boulanger fait la grasse matinée. C'est un scandale. »": "“Since then, the baker sleeps in. It's a scandal.”",
 };

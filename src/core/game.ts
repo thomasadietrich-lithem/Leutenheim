@@ -4243,7 +4243,7 @@ export class Game {
         lines,
         choices: [
           { id: "console", label: "La consoler", stat: "charisme", dc: "medium" },
-          { id: "explain", label: "Lui dire que la cloche est perdue (fondue pour son métal)", stat: "intelligence", dc: "medium" },
+          { id: "explain", label: "Lui dire qu'on l'entend sonner, la nuit, sous le village", stat: "intelligence", dc: "medium" },
           { id: "punish", label: "Proposer de punir les Kobolds", stat: "force", dc: "easy" },
           { id: "craft", label: "Lui fabriquer une cloche de fortune", stat: "agilite", dc: "medium" },
           leave,
@@ -4320,9 +4320,9 @@ export class Game {
       case "explain":
         if (test()) {
           this.clarityDepth = this.depth;
-          return end(["« Fondue… Bien. Au moins, c'est clair. »", "(Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"]);
+          return end(["« Sous nos pieds ? Alors elle n'est pas fondue. Elle est en bas. Quelque part. »", "« Descendez, mon enfant. Et écoutez bien. »", "(Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"]);
         }
-        return end(["« Je préfère croire qu'ils savent jouer de la musique. »"]);
+        return end(["« Des racontars de boulanger. Il dort, il rêve, il entend des cloches. »"]);
       case "punish":
         if (test()) {
           this.curseDepth = this.depth;

@@ -1,0 +1,88 @@
+{
+ "date": "2026-11-13T19:24:46.786Z",
+ "commit": "ce6d3c8",
+ "runs": 150,
+ "note": "équilibrage des voies : second souffle 4/7/10 une fois par étage, double frappe 2/3/4, soif de combat (ex-enchaînement), coup puissant dès 18 + assomme, récupération repos complet / court / 2 par étage ; le bot moyen rouge utilise la double frappe",
+ "levels": {
+  "debutant": {
+   "floor": 2.4,
+   "deathFloor1": 21,
+   "reach": {
+    "2": 79,
+    "3": 45,
+    "4": 15,
+    "5": 5
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 138.2,
+   "gold": 3.2,
+   "kills": 5.2,
+   "questsStarted": 0.1,
+   "questsDone": 0,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold": 99,
+    "la Tisseuse": 7,
+    "un Kobold frondeur": 22,
+    "une Araignée": 19,
+    "un piège à pointes": 1,
+    "une aiguille empoisonnée": 1,
+    "une chute dans une fosse": 1
+   }
+  },
+  "moyen": {
+   "floor": 3.1,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 83,
+    "3": 66,
+    "4": 41,
+    "5": 25
+   },
+   "boss": 3,
+   "dead": 94,
+   "heroLevel": 2.3,
+   "turns": 308.3,
+   "gold": 31.4,
+   "kills": 11.8,
+   "questsStarted": 0.3,
+   "questsDone": 0.3,
+   "questsFailed": 0,
+   "causes": {
+    "une Araignée": 33,
+    "un Kobold": 65,
+    "un Kobold frondeur": 25,
+    "la Tisseuse": 17,
+    "le poison": 1
+   }
+  },
+  "maitrise": {
+   "floor": 3.7,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 97,
+    "3": 85,
+    "4": 59,
+    "5": 35
+   },
+   "boss": 24,
+   "dead": 65,
+   "heroLevel": 3.8,
+   "turns": 718.1,
+   "gold": 59.6,
+   "kills": 28.7,
+   "questsStarted": 0.5,
+   "questsDone": 0.4,
+   "questsFailed": 0,
+   "causes": {
+    "un Kobold frondeur": 26,
+    "une Araignée": 22,
+    "un Kobold": 36,
+    "la Tisseuse": 13,
+    "le poison": 1
+   }
+  }
+ }
+}

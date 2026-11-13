@@ -106,6 +106,9 @@ export interface RunStats {
   questsStarted: number;
   questsDone: number;
   questsFailed: number;
+  skillUses: number;
+  healed: number;
+  lastStands: number;
 }
 
 /** Les réponses qui donnent une tâche (voir src/data/quests.ts). */
@@ -129,11 +132,20 @@ function talk(game: Game, id: NpcId, level: Level, rnd: () => number): void {
   }
 }
 
-export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
+/** Pour comparer les voies : la voie imposée (« none » : aucune) et l'ordre où placer les points de voie. */
+export interface BotOptions {
+  voie?: "blue" | "red" | "none";
+  build?: string[];
+}
+
+export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOptions = {}): RunStats {
   const game = new Game(seed);
   const rnd = lcg(seed * 7919 + level.length);
   const stats: StatId[] = ["vie", "force", "agilite", "intelligence", "charisme"];
   let kills = 0;
+  let skillUses = 0;
+  let healed = 0;
+  let lastStands = 0;
   let talks = 0;
   let questsStarted = 0;
   let questsDone = 0;
@@ -148,9 +160,9 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
       const stat = level === "debutant" ? stats[Math.floor(rnd() * 5)] : level === "moyen" ? (game.alloc.vie <= game.alloc.force ? "vie" : "force") : game.alloc.force <= game.alloc.vie ? "force" : "vie";
       if (!game.allocate(stat)) break;
     }
-    if (game.canChoosePath()) game.choosePath(level === "maitrise" ? "red" : level === "moyen" ? "blue" : rnd() < 0.5 ? "red" : "blue");
+    if (game.canChoosePath() && opts.voie !== "none") game.choosePath(opts.voie ?? (level === "maitrise" ? "red" : level === "moyen" ? "blue" : rnd() < 0.5 ? "red" : "blue"));
     if (level !== "debutant" && game.voie && game.pathPoints() > 0 && !game.inCombat()) {
-      const owned = game.voie === "red" ? ["double_frappe", "coup_puissant", "enchainement", "rage"] : ["second_souffle", "peau_dure", "recuperation", "dernier_rempart"];
+      const owned = opts.build ?? (game.voie === "red" ? ["double_frappe", "coup_puissant", "enchainement", "rage"] : ["second_souffle", "peau_dure", "recuperation", "dernier_rempart"]);
       for (const id of owned) if (game.improve(id as never)) break;
     }
     if (level !== "debutant") equipBest(game, level === "maitrise");
@@ -174,7 +186,7 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
       const target = foes.reduce((a, b) => (gap(b, game.hero) < gap(a, game.hero) ? b : a));
       // Maîtrise : un coup d'arc à distance avant le contact ; double frappe au contact.
       if (level === "maitrise" && gap(target, game.hero) >= 2 && game.arrows() > 0 && game.shoot(target.x, target.y) === null) acted = true;
-      else if (level === "maitrise" && game.voie === "red" && gap(target, game.hero) <= 1 && game.useSkill()) acted = true;
+      else if (level !== "debutant" && game.voie === "red" && gap(target, game.hero) <= 1 && game.useSkill()) acted = true;
       else acted = game.setDestination(target.x, target.y);
     }
     if (!acted && game.restProgress() > 0) acted = true;
@@ -240,6 +252,11 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
     game.tick();
     for (const e of game.events) {
       if (e.type === "death" && e.actor.kind === "monster") kills++;
+      if (e.type === "skill") {
+        skillUses++;
+        healed += e.healed;
+      }
+      if (e.type === "lastStand") lastStands++;
       if (e.type === "quest") {
         if (e.what === "start") questsStarted++;
         else if (e.what === "complete") questsDone++;
@@ -268,5 +285,8 @@ export function playBot(level: Level, seed: number, maxTurns = 8000): RunStats {
     questsStarted,
     questsDone,
     questsFailed,
+    skillUses,
+    healed,
+    lastStands,
   };
 }

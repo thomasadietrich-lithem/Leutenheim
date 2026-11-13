@@ -41,6 +41,8 @@ export interface FloorState {
   alarmStage: number;
   /** Le héros s'est déjà reposé sur cet étage (un seul repos par étage). */
   rested: boolean;
+  /** Repos pris sur cet étage (Récupération au rang 3 : deux) ; absent des anciennes sauvegardes (alors `rested`). */
+  rests?: number;
   /** Caches de l'étage (butin enfoui dans une salle) et salles déjà fouillées (une fouille par salle). */
   secrets: Secret[];
   searched: Set<number>;

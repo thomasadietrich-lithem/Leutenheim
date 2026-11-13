@@ -2544,18 +2544,47 @@ test("voie bleue : second souffle +5 PV au rang 1, une fois par étage ; dernier
   assert.ok(game.over, "une seule fois par étage");
 });
 
-test("voie rouge : double frappe = deux coups en un tour, autant de fois par étage que son rang", () => {
+test("voie rouge : double frappe = deux coups en un tour, rang + 1 fois par étage", () => {
   const { game, m } = foeAt(1);
   game.level = 2;
   game.voie = "red";
   game.ranks = { double_frappe: 3 };
-  for (let k = 0; k < 3; k++) {
+  for (let k = 0; k < 4; k++) {
     game.events.length = 0;
     assert.ok(game.useSkill(), `utilisation ${k + 1}`);
     game.tick();
     assert.equal(game.events.filter((e) => e.type === "attack" && e.attacker === game.hero && e.target === m).length, 2);
   }
   assert.equal(game.skillRefusal(), "used");
+});
+
+test("équilibrage des voies : soif de combat plafonnée par étage, récupération au rang 3 = deux repos courts", () => {
+  const { game, m } = foeAt(1);
+  game.level = 5;
+  game.voie = "red";
+  game.ranks = { double_frappe: 1, enchainement: 1 };
+  game.hero.hp = 1;
+  for (let k = 0; k < 6; k++) {
+    const foe = { ...m, id: 9000 + k, hp: 1, maxHp: 1 };
+    game.monsters.push(foe);
+    (game as unknown as { heroAttacks(t: unknown): void }).heroAttacks(foe);
+  }
+  assert.ok(game.hero.hp <= 1 + 4, `au plus 4 PV rendus par étage au rang 1 : ${game.hero.hp}`);
+  const blue = new Game(7);
+  blue.level = 5;
+  blue.voie = "blue";
+  blue.ranks = { second_souffle: 1, recuperation: 3 };
+  blue.monsters.length = 0;
+  assert.equal(blue.restTurns(), 10);
+  for (let k = 0; k < 2; k++) {
+    blue.hero.hp = 1;
+    assert.equal(blue.restRefusal(), null, `repos ${k + 1}`);
+    assert.ok(blue.rest());
+    for (let t = 0; t < 12 && blue.restProgress() > 0; t++) blue.tick();
+    assert.equal(blue.hero.hp, blue.hero.maxHp);
+  }
+  blue.hero.hp = 1;
+  assert.equal(blue.restRefusal(), "used");
 });
 
 test("sac : on commence avec le sac en toile (6×4) ; le sac de cuir (Lv3) agrandit à 7×5", () => {

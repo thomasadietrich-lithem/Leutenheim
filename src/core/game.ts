@@ -1657,6 +1657,7 @@ export class Game {
       alarm: f.alarm,
       alarmStage: f.alarmStage,
       rested: f.rested,
+      rests: f.rests,
       secrets: f.secrets,
       traps: f.traps,
       searched: [...f.searched],
@@ -1759,6 +1760,7 @@ export class Game {
         alarm: f.alarm ?? 0,
         alarmStage: f.alarmStage ?? 0,
         rested: f.rested,
+        rests: f.rests,
         secrets: f.secrets,
         traps: f.traps,
         searched: new Set(f.searched),
@@ -2178,7 +2180,7 @@ export class Game {
 
   /** Ce qui ne sert qu'un nombre limité de fois sur l'étage courant. */
   perks(): FloorPerks {
-    return (this.floorPerks[this.depth] ??= { secondWind: 0, doubleStrikes: this.rank("double_frappe"), lastStand: 0, chainRefunds: 0 });
+    return (this.floorPerks[this.depth] ??= { secondWind: 0, doubleStrikes: this.doubleStrikeUses(), lastStand: 0, chainRefunds: 0 });
   }
 
   /** Rang d'un pouvoir (0 si on ne l'a pas). */
@@ -2191,7 +2193,13 @@ export class Game {
     return RULES.secondWindHeal[Math.max(0, this.rank("second_souffle") - 1)];
   }
   secondWindUses(): number {
-    return this.rank("second_souffle") >= MAX_RANK ? 2 : 1;
+    // Équilibrage des voies (2026-11-13) : une fois par étage à tous les rangs (deux au rang 3 rendait la voie bleue trop forte).
+    return 1;
+  }
+  /** Double frappe : fois par étage selon le rang (2, 3, 4 ; équilibrage du 2026-11-13). */
+  doubleStrikeUses(): number {
+    const r = this.rank("double_frappe");
+    return r > 0 ? r + RULES.doubleStrikeBonus : 0;
   }
 
   /** Place un point dans une caractéristique (ne prend pas de tour). */
@@ -2234,7 +2242,7 @@ export class Game {
     this.voie = id;
     this.ranks = { [PATHS[id].main.id]: 1 };
     // La double frappe de l'étage en cours devient disponible tout de suite.
-    if (id === "red") this.perks().doubleStrikes = Math.max(this.perks().doubleStrikes, 1);
+    if (id === "red") this.perks().doubleStrikes = Math.max(this.perks().doubleStrikes, this.doubleStrikeUses());
     this.events.push({ type: "path", path: id });
     return true;
   }
@@ -2930,14 +2938,20 @@ export class Game {
   /** Pourquoi le héros ne peut pas se reposer maintenant (`null` : il le peut). */
   restRefusal(): "full" | "used" | "danger" | null {
     if (this.hero.hp >= this.hero.maxHp) return "full";
-    if (this.current.rested) return "used";
+    const rests = this.current.rests ?? (this.current.rested ? 1 : 0);
+    if (rests >= (this.rank("recuperation") >= MAX_RANK ? 2 : 1)) return "used";
     if (this.visibleMonsters().length > 0) return "danger";
     return null;
   }
 
   /** Avancement du repos en cours, de 0 à 1 (0 : pas de repos). */
   restProgress(): number {
-    return this.resting > 0 ? Math.max(0.06, 1 - this.resting / RULES.restTurns) : 0;
+    return this.resting > 0 ? Math.max(0.06, 1 - this.resting / this.restTurns()) : 0;
+  }
+
+  /** Durée d'un repos : moitié moins avec Récupération au rang 2 et plus (équilibrage du 2026-11-13). */
+  restTurns(): number {
+    return this.rank("recuperation") >= 2 ? Math.ceil(RULES.restTurns / 2) : RULES.restTurns;
   }
 
   /**
@@ -3060,7 +3074,7 @@ export class Game {
     this.wait();
     this.waiting = false;
     this.restHidden = 0;
-    this.resting = RULES.restTurns;
+    this.resting = this.restTurns();
     this.events.push({ type: "rest", phase: "start", healed: 0 });
     return true;
   }
@@ -3459,10 +3473,11 @@ export class Game {
       this.resting = 0;
       this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
     } else if (this.resting === 0) {
-      const share = [RULES.restHealShare, 0.65, 0.8, 1][this.rank("recuperation")];
+      const share = [RULES.restHealShare, ...RULES.recoveryShare][this.rank("recuperation")];
       const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * share);
       this.hero.hp += healed;
       this.current.rested = true;
+      this.current.rests = (this.current.rests ?? 0) + 1;
       this.events.push({ type: "rest", phase: "done", healed });
     }
   }
@@ -5266,7 +5281,7 @@ export class Game {
     if (this.rank("rage") > 0 && this.hero.hp * 2 < this.hero.maxHp) damageBonus += this.rank("rage");
     damageBonus += this.curseBonusOn(monster);
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus } };
-    const critFrom = 20 - this.rank("coup_puissant");
+    const critFrom = this.rank("coup_puissant") > 0 ? 19 - this.rank("coup_puissant") : 20;
     const advantaged = this.heroHasAdvantageOn(monster);
     // Un coup de serviette dans la figure (le Kobold du bain) : le coup suivant a le désavantage.
     const blinded = this.towelBlind > 0;
@@ -5290,6 +5305,11 @@ export class Game {
       monster.stunned = Math.max(monster.stunned ?? 0, 1);
       this.events.push({ type: "heavyBlow", actor: monster, kind: "stun" });
     }
+    // Coup puissant (voie rouge, équilibrage du 2026-11-13) : un critique assomme aussi (pas le boss).
+    if (result.critical && this.rank("coup_puissant") > 0 && monster.hp > 0 && !monster.boss && !(stunOn && result.d20 >= stunOn)) {
+      monster.stunned = Math.max(monster.stunned ?? 0, 1);
+      this.events.push({ type: "heavyBlow", actor: monster, kind: "stun" });
+    }
     if (result.hit && intact && monster.hp <= 0 && !monster.boss) this.events.push({ type: "heavyBlow", actor: monster, kind: "oneShot" });
     // Coup critique : le monstre est PROJETÉ d'une case en arrière (Thomas, 2026-11-12), s'il reste debout.
     if (RULES.critKnockback && result.critical && monster.hp > 0 && !monster.boss) this.knockBack(monster);
@@ -5303,10 +5323,14 @@ export class Game {
     }
     const wasAlive = this.monsters.includes(monster);
     this.removeIfDead(monster);
-    // Enchaînement (voie rouge) : tuer rend une double frappe.
-    if (wasAlive && !this.monsters.includes(monster) && this.perks().chainRefunds < this.rank("enchainement")) {
-      this.perks().chainRefunds++;
-      this.perks().doubleStrikes = Math.min(this.rank("double_frappe"), this.perks().doubleStrikes + 1);
+    // Soif de combat (voie rouge, ex-Enchaînement ; équilibrage du 2026-11-13) : chaque ennemi tué rend 1, 2 ou 3 PV, au
+    // plus autant de PV par étage que le Second souffle du même rang (4, 7, 10).
+    const thirst = this.rank("enchainement");
+    if (wasAlive && !this.monsters.includes(monster) && thirst > 0 && this.hero.hp > 0) {
+      const room = RULES.secondWindHeal[thirst - 1] - this.perks().chainRefunds;
+      const gain = Math.max(0, Math.min(thirst, room, this.hero.maxHp - this.hero.hp));
+      this.hero.hp += gain;
+      this.perks().chainRefunds += gain;
     }
     // Potion de vitesse : un second coup, s'il reste debout.
     if (!extra && this.hasteTurns > 0 && this.monsters.includes(monster)) this.heroAttacks(monster, true);

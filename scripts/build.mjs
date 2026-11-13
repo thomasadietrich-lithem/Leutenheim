@@ -34,7 +34,9 @@ if (process.argv.includes("--tests")) {
     font("latin-ext", "U+0100-02AF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF");
   const html = readFileSync("scripts/template.html", "utf8")
     .replace("/*__FONTS__*/", () => fonts)
-    .replace("/*__BUNDLE__*/", () => js);
+    .replace("/*__BUNDLE__*/", () => js)
+    // Le logo (l'emblème du d20 et des torches), en base64 dans la page.
+    .replaceAll("__LOGO__", () => `data:image/png;base64,${readFileSync("art/logo_embleme.png").toString("base64")}`);
   mkdirSync("demo", { recursive: true });
   writeFileSync("demo/index.html", html);
   console.log(`demo/index.html : ${(html.length / 1024).toFixed(1)} Ko`);

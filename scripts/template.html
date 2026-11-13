@@ -265,14 +265,14 @@
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 70px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
-  .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
+  .dice { flex: 0 0 60px; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
   /* Un ennemi au contact : toucher le dé frappe au corps à corps (plus de cadre doré autour : Thomas, 2026-11-13). */
   .dice.ready #die-who { color: var(--gold); }
-  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 100%; flex: none; }
+  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 60px; height: 100%; flex: none; }
   /* Panneau compact : le d20 un peu plus petit, centré, avec de l'air au-dessus et au-dessous. */
   .dice-row:not(.pair) .die { width: 50px; height: 50px; font-size: 24px; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
-  .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
+  .dice-row.pair .die { width: 29px; height: 29px; font-size: 15px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
   .die { --edge: #5a4a30; --face: #3a2e1c; --side: #2a2114; --low: #1c160c; --rim-a: #241c10; --rim-b: #17110a;
@@ -541,6 +541,7 @@
     <div id="here-name"></div>
     <button id="here-take" type="button"></button>
     <button id="here-info" type="button">?</button>
+    <button id="here-close" type="button">×</button>
   </div>
   <div class="panel">
     <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>

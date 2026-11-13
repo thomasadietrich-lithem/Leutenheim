@@ -265,14 +265,14 @@
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
   .panel { display: flex; gap: 8px; align-items: stretch; height: 70px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
-  .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
+  .dice { flex: 0 0 60px; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
   /* Un ennemi au contact : toucher le dé frappe au corps à corps (plus de cadre doré autour : Thomas, 2026-11-13). */
   .dice.ready #die-who { color: var(--gold); }
-  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 100%; flex: none; }
+  .dice-row { display: flex; align-items: center; justify-content: center; gap: 2px; width: 60px; height: 100%; flex: none; }
   /* Panneau compact : le d20 un peu plus petit, centré, avec de l'air au-dessus et au-dessous. */
   .dice-row:not(.pair) .die { width: 50px; height: 50px; font-size: 24px; }
   /* Deux dés (avantage ou désavantage) : côte à côte, plus petits, dans la même zone. Le dé écarté s'estompe. */
-  .dice-row.pair .die { width: 41px; height: 41px; font-size: 20px; }
+  .dice-row.pair .die { width: 29px; height: 29px; font-size: 15px; }
   /* Dé à 20 faces vu de face, sans image : un hexagone (::before) dont les six secteurs sont ombrés différemment,
      et par-dessus un grand triangle (::after) découpé en quatre faces ; le chiffre s'inscrit sur la face centrale. */
   .die { --edge: #5a4a30; --face: #3a2e1c; --side: #2a2114; --low: #1c160c; --rim-a: #241c10; --rim-b: #17110a;
@@ -541,6 +541,7 @@
     <div id="here-name"></div>
     <button id="here-take" type="button"></button>
     <button id="here-info" type="button">?</button>
+    <button id="here-close" type="button">×</button>
   </div>
   <div class="panel">
     <div class="dice"><div class="dice-row"><div id="die" class="die"></div><div id="die2" class="die" hidden></div></div><div id="die-who"></div></div>
@@ -22976,22 +22977,29 @@
   }
   function logRoll(e) {
     const foe = e.attacker.kind === "monster";
-    if (rollTurn !== -1 && rollTurn !== game.turn) {
+    const sameTurn = rollTurn === game.turn;
+    if (rollTurn !== -1 && !sameTurn) {
       const sep = document.createElement("span");
       sep.className = "sep";
-      sep.textContent = "\u203A";
-      diceLog.append(sep);
+      sep.textContent = "\u2039";
+      diceLog.prepend(sep);
     }
     rollTurn = game.turn;
     const chip = rollChip(e.result, foe);
     if (foe) chip.classList.add("foe");
-    diceLog.append(chip);
-    while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild.remove();
-    const chips = [...diceLog.children];
-    chips.forEach((c, i) => c.style.opacity = String(Math.max(0.15, 1 - (chips.length - 1 - i) * 0.11)));
+    if (sameTurn) {
+      const sep = diceLog.querySelector(".sep");
+      diceLog.insertBefore(chip, sep);
+    } else diceLog.prepend(chip);
+    while (diceLog.children.length > ROLL_KEEP || diceLog.lastElementChild?.classList.contains("sep")) diceLog.lastElementChild.remove();
+    let age = 0;
+    for (const c of diceLog.children) {
+      if (c.classList.contains("sep")) age++;
+      c.style.opacity = String(Math.max(0.15, 1 - age * 0.2));
+    }
     diceLog.classList.remove("fade");
     syncFrieze();
-    if (!rollUnrolled) diceLog.scrollLeft = diceLog.scrollWidth;
+    if (!rollUnrolled) diceLog.scrollLeft = 0;
   }
   function syncFrieze() {
     document.body.classList.toggle("frieze-on", diceLog.childElementCount > 0 && !diceLog.classList.contains("fade"));
@@ -23026,13 +23034,13 @@
     rollBack = setTimeout(() => {
       rollUnrolled = false;
       diceLog.classList.remove("open");
-      diceLog.scrollLeft = diceLog.scrollWidth;
+      diceLog.scrollLeft = 0;
     }, 4e3);
   }
   diceLog.addEventListener("touchend", rollRelease);
   diceLog.addEventListener("scroll", () => {
     if (!rollDown) return;
-    rollUnrolled = diceLog.scrollLeft + diceLog.clientWidth < diceLog.scrollWidth - 4;
+    rollUnrolled = diceLog.scrollLeft > 4;
     diceLog.classList.toggle("open", rollUnrolled);
   });
   function clearRollLog() {
@@ -24030,9 +24038,12 @@
     renderLog();
   });
   var hereKey = "";
+  var hereDismissed = "";
   function renderHere() {
     const piles = started && !game.over ? game.itemsHere() : [];
-    const top = piles[0];
+    const cell = `${game.hero.x},${game.hero.y}`;
+    if (hereDismissed && hereDismissed !== cell) hereDismissed = "";
+    const top = hereDismissed ? void 0 : piles[0];
     $("here").classList.toggle("open", !!top);
     if (!top) return;
     const key = `${top.item}:${top.count}:${piles.length}`;
@@ -24045,6 +24056,10 @@
   button("here-take", () => {
     if (game.pickUp()) stepMs = COMBAT_STEP_MS;
   });
+  button("here-close", () => {
+    hereDismissed = `${game.hero.x},${game.hero.y}`;
+    renderHere();
+  });
   button("here-info", () => {
     const top = game.itemsHere()[0];
     if (!top) return;
@@ -24056,6 +24071,7 @@
   $("here-take").replaceChildren(uiIcon("take"));
   $("here-take").setAttribute("aria-label", tr("Ramasser"));
   $("here-info").setAttribute("aria-label", tr("Fiche de l'objet"));
+  $("here-close").setAttribute("aria-label", tr("Fermer"));
   for (const [id, icon, label] of [
     ["wait", "wait", "Attendre un tour"],
     ["actions", "actions", "Actions"],

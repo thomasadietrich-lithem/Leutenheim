@@ -339,26 +339,35 @@ function rollChip(r: AttackResult, foe: boolean): HTMLElement {
   return chip;
 }
 
-/** Ajoute un jet d'attaque au bout de la frise (le premier à gauche, les suivants à sa droite) ; un trait le sépare
- *  du tour précédent ; les anciens pâlissent ; la frise défile pour montrer le dernier, sauf si on la déroule. */
+/** Ajoute un jet d'attaque au DÉBUT de la frise, à gauche (Thomas, 2026-11-13 : « à gauche on a toujours le dernier ») ;
+ *  les anciens glissent vers la droite en pâlissant ; un chevron « ‹ » sépare deux tours (il pointe vers le plus
+ *  récent). Dans un même tour, votre jet reste avant la riposte. */
 function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
   const foe = e.attacker.kind === "monster";
-  if (rollTurn !== -1 && rollTurn !== game.turn) {
+  const sameTurn = rollTurn === game.turn;
+  if (rollTurn !== -1 && !sameTurn) {
     const sep = document.createElement("span");
     sep.className = "sep";
-    sep.textContent = "›";
-    diceLog.append(sep);
+    sep.textContent = "‹";
+    diceLog.prepend(sep);
   }
   rollTurn = game.turn;
   const chip = rollChip(e.result, foe);
   if (foe) chip.classList.add("foe");
-  diceLog.append(chip);
-  while (diceLog.children.length > ROLL_KEEP || diceLog.firstElementChild?.classList.contains("sep")) diceLog.firstElementChild!.remove();
-  const chips = [...diceLog.children] as HTMLElement[];
-  chips.forEach((c, i) => (c.style.opacity = String(Math.max(0.15, 1 - (chips.length - 1 - i) * 0.11))));
+  // Même tour : le nouveau jet se range après ceux déjà posés pour ce tour (avant le chevron).
+  if (sameTurn) {
+    const sep = diceLog.querySelector(".sep");
+    diceLog.insertBefore(chip, sep);
+  } else diceLog.prepend(chip);
+  while (diceLog.children.length > ROLL_KEEP || diceLog.lastElementChild?.classList.contains("sep")) diceLog.lastElementChild!.remove();
+  let age = 0;
+  for (const c of diceLog.children) {
+    if (c.classList.contains("sep")) age++;
+    (c as HTMLElement).style.opacity = String(Math.max(0.15, 1 - age * 0.2));
+  }
   diceLog.classList.remove("fade");
   syncFrieze();
-  if (!rollUnrolled) diceLog.scrollLeft = diceLog.scrollWidth;
+  if (!rollUnrolled) diceLog.scrollLeft = 0;
 }
 
 /** Signale au reste de l'écran que la frise est allumée (la languette et les barres montent au-dessus). */
@@ -404,14 +413,14 @@ function rollRelease(): void {
   rollBack = setTimeout(() => {
     rollUnrolled = false;
     diceLog.classList.remove("open");
-    diceLog.scrollLeft = diceLog.scrollWidth;
+    diceLog.scrollLeft = 0;
   }, 4000);
 }
 diceLog.addEventListener("touchend", rollRelease);
 diceLog.addEventListener("scroll", () => {
   // Le défilement voulu par le joueur seulement (pas celui qui suit le dernier jet).
   if (!rollDown) return;
-  rollUnrolled = diceLog.scrollLeft + diceLog.clientWidth < diceLog.scrollWidth - 4;
+  rollUnrolled = diceLog.scrollLeft > 4;
   diceLog.classList.toggle("open", rollUnrolled);
 });
 
@@ -1546,9 +1555,13 @@ button("aim", () => {
 // ---------- Objet au sol : la languette pour ramasser (un à la fois) ou lire la fiche ----------
 
 let hereKey = "";
+/** La case où la languette a été fermée par la croix : elle ne revient qu'en remarchant sur la case (Thomas, 2026-11-13). */
+let hereDismissed = "";
 function renderHere(): void {
   const piles = started && !game.over ? game.itemsHere() : [];
-  const top = piles[0];
+  const cell = `${game.hero.x},${game.hero.y}`;
+  if (hereDismissed && hereDismissed !== cell) hereDismissed = "";
+  const top = hereDismissed ? undefined : piles[0];
   $("here").classList.toggle("open", !!top);
   if (!top) return;
   const key = `${top.item}:${top.count}:${piles.length}`;
@@ -1561,6 +1574,10 @@ function renderHere(): void {
 button("here-take", () => {
   if (game.pickUp()) stepMs = COMBAT_STEP_MS;
 });
+button("here-close", () => {
+  hereDismissed = `${game.hero.x},${game.hero.y}`;
+  renderHere();
+});
 button("here-info", () => {
   const top = game.itemsHere()[0];
   if (!top) return;
@@ -1572,6 +1589,7 @@ button("here-info", () => {
 $("here-take").replaceChildren(uiIcon("take"));
 $("here-take").setAttribute("aria-label", tr("Ramasser"));
 $("here-info").setAttribute("aria-label", tr("Fiche de l'objet"));
+$("here-close").setAttribute("aria-label", tr("Fermer"));
 
 // Boutons sans texte : un pictogramme, et un nom lisible par les aides à la lecture.
 for (const [id, icon, label] of [

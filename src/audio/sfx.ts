@@ -1,6 +1,7 @@
 /** Sons synthétisés (aucun fichier audio) : de simples bips et souffles, faciles à remplacer plus tard. */
 export type SoundName =
   | "bell"
+  | "cowbell"
   | "gravel"
   | "splash"
   | "puff"
@@ -301,6 +302,11 @@ export class Sfx {
         case "bell": // le tocsin : une cloche grave et lointaine, avec ses harmoniques qui s'éteignent lentement
           for (const [f, v, d] of [[220, 0.16, 2.2], [440, 0.07, 1.6], [587, 0.05, 1.2], [880, 0.03, 0.8]] as const) this.tone(f, f * 0.995, d, "sine", v);
           this.noise(0.05, 0.06, 1200);
+          break;
+        case "cowbell": // CLONC : une cloche à vache, creuse et sèche, qui ne résonne presque pas (Thomas, 2026-11-13)
+          for (const [f, v, d] of [[540, 0.11, 0.32], [810, 0.07, 0.24], [1180, 0.03, 0.14]] as const) this.tone(f, f * 0.98, d, "square", v);
+          this.noise(0.04, 0.07, 2200);
+          this.tone(540, 520, 0.18, "triangle", 0.05, 0.28);
           break;
         case "gravel": // crac, crac : des petits cailloux qui roulent et crissent sous la botte
           for (let i = 0; i < 5; i++) this.noise(0.02 + Math.random() * 0.02, 0.1 + Math.random() * 0.08, 3000 + Math.random() * 2500, i * (0.025 + Math.random() * 0.03));

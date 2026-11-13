@@ -783,9 +783,10 @@ function reveal(e: GameEvent): void {
       sfx.play("notice");
     }
   } else if (e.type === "bell") {
-    sfx.play("bell");
+    // Ce n'est pas la bonne cloche (Thomas, 2026-11-13, après le synopsis) : une cloche à vache.
+    sfx.play("cowbell");
     renderer.ringBell(e.x, e.y);
-    renderer.addFloatingText(e.x, e.y, "DONG !", "#ffd75e");
+    renderer.addFloatingText(e.x, e.y, "CLONC !", "#ffd75e");
   } else if (e.type === "feud") {
     // Deux monstres se querellent : « Grr ! » au-dessus des deux.
     if (game.isVisible(e.a.x, e.a.y) || game.isVisible(e.b.x, e.b.y)) {
@@ -2088,6 +2089,33 @@ function renderBag(): void {
   });
   $("doll").append(quiver);
 
+  // La torche, sous l'arc (Thomas, 2026-11-13) : son icône et une jauge qui descend ; la toucher l'éteint ou la rallume.
+  const torch = el("div", `slot slot-torch${game.torchTurns > 0 ? "" : " empty"}${game.torchOff ? " off" : ""}`);
+  const tbox = el("div", "slot-box");
+  const ticon = itemIcon("torche");
+  if (game.torchTurns <= 0) ticon.classList.add("ghost");
+  tbox.append(ticon);
+  if (game.torchTurns > 0) {
+    const gauge = el("div", "torch-gauge");
+    const fill = el("i", "");
+    fill.style.width = `${Math.max(2, (100 * game.torchTurns) / ((ITEMS.torche as ItemDef).lightTurns ?? 300))}%`;
+    gauge.append(fill);
+    tbox.append(gauge);
+  }
+  torch.append(tbox);
+  torch.title = tr(game.torchTurns > 0 ? (game.torchOff ? "Torche éteinte : touchez pour la rallumer" : "Torche : touchez pour l'éteindre") : "Torche : utilisez-en une depuis le sac");
+  torch.addEventListener("click", () => {
+    sfx.play("click");
+    if (game.torchTurns <= 0) {
+      logLines.push("Pas de torche : utilisez-en une depuis le sac.");
+    } else if (game.toggleTorch()) {
+      logLines.push(game.torchOff ? "Vous éteignez la torche." : "Vous rallumez la torche.");
+    } else logLines.push("Impossible de rallumer la torche avec une arme à deux mains.");
+    renderLog();
+    renderHeroScreen();
+  });
+  $("doll").append(torch);
+
   // Le sac : grille de cases.
   const grid = $("bag-grid");
   grid.style.setProperty("--cols", String(bag.cols));
@@ -2145,6 +2173,7 @@ function renderBag(): void {
     : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" ? "Lancer"
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
+    : def.lightTurns ? "Utiliser"
     : def.kind === "use" ? "Consommer" : "Équiper";
   action.textContent = tr(action.textContent ?? "");
   $("bag-throw").hidden = selectedSlot !== null || (def.potion !== "poison" && def.potion !== "stone");
@@ -2298,7 +2327,7 @@ button("bag-equip", () => {
       if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged && !bounced) logLines.push("Arme à deux mains : votre arc retourne dans le sac.");
     } else {
       logLines.push(
-        chosenDef?.twoHanded && game.torchTurns > 0
+        chosenDef?.twoHanded && game.torchLit()
           ? "Une arme à deux mains ? Votre torche brûle encore dans l'autre main."
           : chosenDef?.kind === "ranged" && game.twoHanded()
             ? "Votre arme se tient à deux mains : rangez-la d'abord pour prendre un arc."
@@ -2386,7 +2415,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 dégâts par tour. Sortez des flammes !" });
   if (game.hero.poison) list.push({ id: "poison", name: "Empoisonné", detail: `Vous perdez ${game.hero.poison.damage} PV par tour. Encore ${game.hero.poison.turns} tours.` });
   if (game.hero.stuck) list.push({ id: "ralenti", name: "Englué", detail: "Votre prochain pas servira à vous dégager. Vous pouvez encore frapper." });
-  if (game.torchTurns > 0) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
+  if (game.torchLit()) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
   if (game.blessTurns > 0) list.push({ id: "beni", name: "Béni", detail: `La pomme dorée de l'autel : +1 à l'attaque et +1 classe d'armure. Encore ${game.blessTurns} tours.` });
   if (game.protectTurns > 0) list.push({ id: "protection", name: "Protection", detail: `La bénédiction de Sœur Osseuse : +1 classe d'armure. Encore ${game.protectTurns} tours.` });

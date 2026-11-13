@@ -123,7 +123,24 @@ export class Game {
   xp = 0;
   level = 1;
   /** Torche allumée : tours de lumière restants autour du héros. */
+  /** La torche rangée sous l'arc : ses tours restants (0 : pas de torche). `torchOff` : éteinte (elle ne brûle plus). */
   torchTurns = 0;
+  torchOff = false;
+
+  /** La torche brûle-t-elle ? */
+  torchLit(): boolean {
+    return this.torchTurns > 0 && !this.torchOff;
+  }
+
+  /** Éteindre ou rallumer la torche rangée sous l'arc (sans prendre de tour). */
+  toggleTorch(): boolean {
+    if (this.over || this.torchTurns <= 0) return false;
+    if (this.torchOff && this.twoHanded()) return false;
+    this.torchOff = !this.torchOff;
+    this.refreshLight();
+    if (!this.torchOff) this.reveal();
+    return true;
+  }
   /** Munition choisie dans le carquois (la flèche ordinaire par défaut). */
   ammoChoice: ItemId = "fleche";
   /**
@@ -1615,6 +1632,7 @@ export class Game {
       fog: this.fog,
       bagSize: { cols: this.inventory.cols, rows: this.inventory.rows },
       torchTurns: this.torchTurns,
+      torchOff: this.torchOff,
       sandboxLayout: this.sandbox ? SANDBOX_LAYOUT : undefined,
       clock: this.clock,
       ammoChoice: this.ammoChoice,
@@ -1721,6 +1739,7 @@ export class Game {
     game.inventory.cols = saved.bagSize.cols;
     game.inventory.rows = saved.bagSize.rows;
     game.torchTurns = saved.torchTurns ?? 0;
+    game.torchOff = saved.torchOff ?? false;
     game.clock = saved.clock ?? 0;
     game.ammoChoice = ((saved.ammoChoice ?? "fleche") in ITEMS ? saved.ammoChoice : "fleche") as ItemId;
     game.heroMisses = saved.heroMisses;
@@ -1807,7 +1826,7 @@ export class Game {
     if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem" || kind === "quest") return false;
     if (this.tooLow(ITEMS[item.defId])) return false;
     // Arme à deux mains (Thomas, 2026-11-11) : pas tant qu'une torche brûle dans l'autre main.
-    if ((ITEMS[item.defId] as ItemDef).twoHanded && this.torchTurns > 0) return false;
+    if ((ITEMS[item.defId] as ItemDef).twoHanded && this.torchLit()) return false;
     // Pas d'arc tant qu'une arme à deux mains est en main : il faut d'abord la ranger.
     if (kind === "ranged" && this.twoHanded()) return false;
     const previous = this.equipment[kind];
@@ -1901,7 +1920,7 @@ export class Game {
 
   /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
   private refreshLight(): void {
-    const carried = this.torchTurns > 0 ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
+    const carried = this.torchLit() ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
     // Une torche posée au sol brille un peu, comme celles des murs (Thomas).
     const dropped = (this.ground ?? []).filter((g) => g.item === "torche" && this.map.get(g.x, g.y) !== Tile.Water).map((g) => ({ x: g.x, y: g.y, faceX: 0, faceY: 0, radius: RULES.groundTorchRadius }));
     // Une torche ou une cheminée n'éclaire que la salle où elle est accrochée (Thomas, 2026-11-12 : « que du côté où
@@ -1990,6 +2009,7 @@ export class Game {
     }
     if (def.lightTurns) {
       this.torchTurns = def.lightTurns;
+      this.torchOff = false;
       this.refreshLight();
       this.events.push({ type: "used", item: item.defId });
       // On ne se cache pas une torche à la main.
@@ -2888,7 +2908,7 @@ export class Game {
   /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
   hideRefusal(): "hidden" | "threatened" | "watched" | "no-cover" | "torch" | null {
     if (this.hidden) return "hidden";
-    if (this.torchTurns > 0) return "torch";
+    if (this.torchLit()) return "torch";
     if (this.isThreatened()) return "threatened";
     if (this.isWatched()) return "watched";
     if (!this.hasCover(this.hero)) return "no-cover";
@@ -3159,15 +3179,15 @@ export class Game {
     if (this.turn % RULES.alarmTurnsPerPoint === 0) this.raiseAlarm(1);
     this.respawn();
     if (this.debris.some((d) => d.until <= this.turn)) this.debris = this.debris.filter((d) => d.until > this.turn);
-    if (this.torchTurns > 0) {
+    if (this.torchLit()) {
       this.torchTurns--;
       if (this.torchTurns === 0) this.events.push({ type: "torchOut" });
     }
     // La lumière suit la torche portée et celles qu'on ramasse ou qu'on pose.
     const groundTorches = this.ground.filter((g) => g.item === "torche").length;
-    if (this.torchTurns > 0 || groundTorches !== this.lastGroundTorches || this.torchWasLit) this.refreshLight();
+    if (this.torchLit() || groundTorches !== this.lastGroundTorches || this.torchWasLit) this.refreshLight();
     this.lastGroundTorches = groundTorches;
-    this.torchWasLit = this.torchTurns > 0;
+    this.torchWasLit = this.torchLit();
     this.updateVision();
     const resting = wasResting;
     // Vitesse d'attaque : selon le temps pris par l'action du héros, les monstres jouent 0, 1 ou 2 fois.
@@ -4962,6 +4982,8 @@ export class Game {
   /** Une porte se referme dès que plus personne ne se tient dans son encadrement. */
   private closeDoorAt(x: number, y: number): void {
     if (this.map.get(x, y) !== Tile.DoorOpen || this.actorAt(x, y)) return;
+    // Une flèche (ou tout objet) au sol dans l'embrasure cale la porte : elle reste ouverte (Thomas, 2026-11-13).
+    if (this.ground.some((g) => g.x === x && g.y === y)) return;
     this.map.set(x, y, Tile.DoorClosed);
     this.refreshLight();
   }
@@ -5064,7 +5086,7 @@ export class Game {
     const bonus = action === "pick" ? this.disengageBonus() : this.pushBonus();
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
-    const success = d20 === 20 || (d20 !== 1 && total >= RULES.maidenDc);
+    const success = (action === "pick" && this.equipment.artifact?.defId === "outils_voleur") || d20 === 20 || (d20 !== 1 && total >= RULES.maidenDc);
     const damage = success ? 0 : rollDice(this.rng, RULES.maidenSpike);
     maiden.kind = "maidenOpen";
     this.map.touch(at.x, at.y);
@@ -5109,7 +5131,9 @@ export class Game {
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
     const sealed = this.sealedDoor(door.x, door.y);
-    const success = !sealed && (d20 === 20 || (d20 !== 1 && total >= dc));
+    // Outils de voleur en artefact : le crochetage réussit à coup sûr (sauf la porte du poulet).
+    const tools = action === "pick" && this.equipment.artifact?.defId === "outils_voleur";
+    const success = !sealed && (tools || d20 === 20 || (d20 !== 1 && total >= dc));
     if (success) {
       // Crochetée, la porte s'ouvre ; enfoncée, elle est détruite.
       this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);

@@ -72,7 +72,7 @@ export const MANUAL: ManualSection[] = [
     entries: [
       { title: "Le bruit", lines: ["Une porte enfoncée, le gravier, l'eau, les coups échangés."] },
       { title: "Les paliers", lines: ["La cloche sonne à chaque palier.", "Agité, puis Alerte : des renforts arrivent, de plus en plus vite.", "Traque : tout l'étage sait où vous êtes."] },
-      { title: "La cloche d'alarme", lines: ["Sur certains étages, une cloche sur son support. La sonner : l'alerte grimpe d'un palier et les monstres alentour accourent."] },
+      { title: "La cloche d'alarme", lines: ["Sur certains étages, une cloche sur son support. Ce n'est pas la cloche volée de Leutenheim : une simple cloche à vache. La sonner : l'alerte grimpe d'un palier et les monstres alentour accourent."] },
       { title: "Toucher la cloche du haut", lines: ["Elle dit ce que fait le palier en cours."] },
     ],
   },

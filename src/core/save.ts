@@ -113,6 +113,7 @@ export interface SaveData {
   fog?: { x: number; y: number; turns: number }[];
   bagSize: { cols: number; rows: number };
   /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
+  torchOff?: boolean;
   torchTurns?: number;
   /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */
   sandboxLayout?: number;

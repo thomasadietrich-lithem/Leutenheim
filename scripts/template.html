@@ -406,7 +406,13 @@
   .hero-tabs { display: flex; width: min(100%, 318px); margin-right: 44px; }
   .hero-close { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 26px; line-height: 1; z-index: 3; }
   #bag .slot-box { width: 56px; height: 56px; }
-  #doll { grid-template-areas: "amulet hat artifact" "melee armor ranged" "quiver bag ." !important; }
+  #doll { grid-template-areas: "amulet hat artifact" "melee armor ranged" "quiver bag torch" !important; }
+  .slot-torch { grid-area: torch; }
+  /* La jauge de la torche : elle descend avec ses tours restants ; grisée quand la torche est éteinte. */
+  .torch-gauge { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 6px; background: #1c140c; box-shadow: 0 0 0 1px #000; }
+  .torch-gauge i { display: block; height: 100%; background: linear-gradient(#ffd75e, #e07a2a); }
+  .slot-torch.off .torch-gauge i { background: #6a6050; }
+  .slot-torch.off .slot-box svg { filter: grayscale(1) brightness(0.7); }
   .slot-quiver { grid-area: quiver; } .slot-bag { grid-area: bag; grid-column: auto; }
   .slot-box .slot-count { position: absolute; right: 2px; bottom: -4px; font-size: 18px; color: #fff; text-shadow: 2px 2px 0 #000; }
   .slot-box { position: relative; }

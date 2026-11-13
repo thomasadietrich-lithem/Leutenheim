@@ -118,14 +118,18 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       if (e.what === "poke") return `Vous collez l'œil au trou… un doigt crasseux s'y enfonce tout droit. Aïe ! Derrière, la voix reprend : « ${e.n}… ${e.n}… ${e.n}… »`;
       return `Derrière la porte, un petit Kobold, le doigt encore en l'air, vous regarde : « …${e.n} ? »`;
     case "bell": {
-      // La cloche d'alarme : on se moque gentiment du héros (Thomas, 2026-11-12).
-      const first = ["DONG ! Bravo. Tout l'étage sait maintenant que vous êtes là.", "DONG ! Les Kobolds vous remercient pour l'invitation."];
+      // La cloche d'alarme : on se moque gentiment du héros (Thomas, 2026-11-12). Depuis le synopsis (2026-11-13) : ce
+      // n'est PAS la cloche volée de Leutenheim, juste une cloche à vache. Mais elle réveille quand même tout l'étage.
+      const first = [
+        "CLONC ! Ce n'est pas la cloche de Leutenheim : c'est une cloche à vache. Tout l'étage vous a quand même entendu.",
+        "CLONC ! Fausse joie : une cloche à vache. Les Kobolds, eux, ont bien entendu.",
+      ];
       const again = [
-        "DONG ! Encore ? Vous cherchez des amis ?",
-        "DONG ! Discret comme un troupeau de vaches dans un couloir.",
-        "DONG ! Le donjon applaudit votre sens de la discrétion.",
-        "DONG ! Quelle idée lumineuse. Vraiment.",
-        "DONG ! Quelque part, un Kobold se lève en soupirant.",
+        "CLONC ! Toujours pas la bonne cloche.",
+        "CLONC ! Quelque part, une vache répond.",
+        "CLONC ! Les Kobolds accourent, déçus que ce ne soit que vous.",
+        "CLONC ! Le donjon applaudit votre sens de la discrétion.",
+        "CLONC ! La vraie, elle, sonne sous vos pieds. Celle-ci sonne surtout l'alerte.",
       ];
       const pool = e.rings === 1 ? first : again;
       return pool[e.joke % pool.length];

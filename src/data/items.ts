@@ -196,12 +196,13 @@ export const ITEMS = {
     id: "torche",
     name: "Torche",
     kind: "use",
-    description: "Une fois allumée, elle éclaire autour de vous pendant 100 tours. Mais on vous voit venir.",
+    description: "Utilisée, elle se range sous l'arc et éclaire autour de vous pendant 300 tours (sa jauge baisse). On peut l'éteindre et la rallumer. Mais on vous voit venir.",
     w: 1,
     h: 1,
     maxStack: 3,
     rarity: "common",
-    lightTurns: 100,
+    // Triplée (Thomas, 2026-11-13 : « triple la durée ; utiliser plutôt que consommer ; un emplacement sous l'arc »).
+    lightTurns: 300,
   },
   epee_longue: {
     id: "epee_longue",
@@ -367,6 +368,8 @@ export const ITEMS = {
   potion_oursin: { id: "potion_oursin", name: "Potion d'oursin", kind: "use", description: "Brune et piquante. Pendant 40 tours, 15 % des dégâts reçus au contact reviennent à l'attaquant.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "urchin" },
   // ---- Bibelots (emplacement « artefact », Thomas 2026-11-12) ----
   oeil_chauve_souris: { id: "oeil_chauve_souris", name: "Œil de chauve-souris", kind: "artifact", description: "Desséché, il palpite encore. Vous devinez l'ombre des monstres hors de vue : à 10 cases, et à 3 à travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
+  // Outils de voleur (Thomas, 2026-11-13) : le crochetage réussit à coup sûr (portes et sarcophages).
+  outils_voleur: { id: "outils_voleur", name: "Outils de voleur", kind: "artifact", description: "Une trousse de crochets et de tensionneurs. Portée en artefact, toute serrure cède : le crochetage réussit à coup sûr.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
   flute_pan: { id: "flute_pan", name: "Flûte de pan", kind: "artifact", description: "Quelques roseaux liés. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
   // Thomas, 2026-11-13 : potions de pierre et de discorde.
   potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 10 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },

@@ -300,7 +300,8 @@ function playRun(seed: number, maxTurns: number): Game {
     assert.equal(game.over, game.hero.hp === 0);
     // Les portes se referment : une porte ouverte a forcément quelqu'un dans son encadrement.
     for (let i = 0; i < game.map.tiles.length; i++) {
-      if (game.map.tiles[i] === Tile.DoorOpen) assert.ok(cells.has(i), `graine ${seed} : porte restée ouverte`);
+      // (Sauf si un objet au sol la cale : Thomas, 2026-11-13.)
+      if (game.map.tiles[i] === Tile.DoorOpen) assert.ok(cells.has(i) || game.ground.some((g) => game.map.index(g.x, g.y) === i), `graine ${seed} : porte restée ouverte`);
     }
     game.events.length = 0;
   }
@@ -2266,18 +2267,27 @@ function foeAt(dist: number, maxSeed = 200): { game: Game; m: import("../src/ent
   throw new Error("aucune position trouvée");
 }
 
-test("torche : 100 tours de lumière autour du héros ; on ne peut pas se cacher avec", () => {
+test("torche : 300 tours de lumière, rangée sous l'arc ; on l'éteint et la rallume ; on ne peut pas se cacher avec", () => {
   const game = new Game(7);
   game.inventory.add("torche", 1);
   assert.ok(game.useItem(bagUid(game, "torche")));
   game.tick();
   assert.equal(game.inventory.count("torche"), 0);
-  assert.ok(game.torchTurns >= 98 && game.torchTurns <= 100);
+  assert.ok(game.torchTurns >= 298 && game.torchTurns <= 300);
   assert.ok(game.heroInLight(), "le héros n'est pas éclairé");
+  // Éteinte : elle ne brûle plus ; rallumée, elle reprend.
+  assert.ok(game.toggleTorch());
+  const left = game.torchTurns;
+  game.wait();
+  game.tick();
+  assert.equal(game.torchTurns, left, "éteinte, elle ne baisse pas");
+  assert.ok(!game.torchLit());
+  assert.ok(game.toggleTorch());
   assert.equal(game.hideRefusal() === "torch" || game.hideRefusal() === "threatened", true);
   let out = false;
-  for (let t = 0; t < 120 && !game.over && !out; t++) {
+  for (let t = 0; t < 320 && !game.over && !out; t++) {
     game.events.length = 0;
+    game.hero.hp = game.hero.maxHp;
     game.wait();
     game.tick();
     out = game.events.some((e) => e.type === "torchOut");

@@ -208,6 +208,32 @@
   #door-actions #door-cancel { flex: none; width: 52px; padding: 8px; background: var(--btn); display: flex; align-items: center; justify-content: center; }
   #door-cancel svg { width: 100%; height: 100%; }
 
+  /* Historique des jets (Thomas, 2026-11-13) : une ligne par tour, vos jets à gauche, ceux des ennemis en rouge à
+     droite ; 4 lignes au plus, les plus anciennes s'estompent ; tout s'efface après un moment sans combat. */
+  #dice-log { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 4; display: flex; flex-direction: column; gap: 2px; pointer-events: none; transition: opacity 0.6s; }
+  body:has(#here.open) #dice-log { bottom: 58px; }
+  #dice-log.fade { opacity: 0; }
+  .rl { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; background: rgba(14, 12, 10, 0.8); border-radius: 4px; transition: opacity 0.3s; }
+  .rl .n { font-size: 13px; color: #8a8070; width: 16px; flex: none; }
+  .rl .half { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+  .rl .half.foe { justify-content: flex-end; background: linear-gradient(90deg, transparent, rgba(90, 16, 10, 0.6)); border-radius: 3px; padding-right: 2px; }
+  .rc { display: flex; align-items: center; gap: 1px; flex: none; }
+  .mini { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; font-size: 15px; color: #fff3c8; position: relative; isolation: isolate; flex: none;
+    text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+  .mini::before { content: ""; position: absolute; inset: 0; z-index: -1; clip-path: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%); background: #3a2e1c; }
+  .mini.hit::before { background: #24563f; } .mini.crit::before { background: #8a6a12; }
+  .mini.miss { color: #9a917a; } .mini.miss::before { background: #2a2420; }
+  .sd { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: 12px; color: #fff3c8; position: relative; isolation: isolate; flex: none;
+    text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+  .sd::before { content: ""; position: absolute; inset: 0; z-index: -1; background: #3c3a46; clip-path: inset(8% round 2px); }
+  .sd.foe::before { background: #6a2216; }
+  .sd.d4 { padding-top: 5px; } .sd.d4::before { clip-path: polygon(50% 4%, 96% 92%, 4% 92%); }
+  .sd.d8::before { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+  .sd.d10::before { clip-path: polygon(50% 0, 100% 42%, 50% 100%, 0 42%); }
+  .sd.d12::before { clip-path: polygon(50% 0, 98% 36%, 80% 96%, 20% 96%, 2% 36%); }
+  .sd.more { width: auto; padding: 0 3px; font-size: 11px; }
+  .rt { font-size: 16px; margin-left: 3px; color: #fff; }
+  .rt.foe { color: #ff8a7a; } .rt.miss { color: #8a8070; }
   /* Dés et journal. */
   /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
      (un objet à la fois) ou lire sa fiche. Elle recouvre le bas de la carte et ne déplace rien. */
@@ -225,7 +251,7 @@
   /* Taille FIXE : ni la hauteur du panneau ni la largeur de la zone du dé ne bougent, quel que soit le texte
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
-  .panel { display: flex; gap: 8px; align-items: stretch; height: 100px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
+  .panel { display: flex; gap: 8px; align-items: stretch; height: 70px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
   /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
   .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
@@ -268,7 +294,8 @@
   @keyframes roll { 0% { transform: rotate(-14deg); } 25% { transform: rotate(10deg) translateY(-4px); }
     50% { transform: rotate(-8deg); } 75% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg); } }
   @keyframes land { 0% { transform: scale(1.5); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
-  #die-who { font-size: 13px; line-height: 12px; color: var(--dim); height: 24px; width: 84px; overflow: hidden; text-align: center; text-transform: uppercase; }
+  /* Panneau compact (Thomas, 2026-11-13) : la hauteur du seul d20 ; l'étiquette sous le dé est cachée, l'historique des jets la remplace. */
+  #die-who { display: none; font-size: 13px; line-height: 12px; color: var(--dim); height: 24px; width: 84px; overflow: hidden; text-align: center; text-transform: uppercase; }
   #die-who.advantage { color: var(--gold); }
   #die-who.disadvantage { color: #ff6b7a; }
   #log { flex: 1; min-width: 0; min-height: 0; overflow: hidden; font-size: 16px; line-height: 1.05; color: var(--dim); display: flex; flex-direction: column; justify-content: flex-end; }
@@ -466,6 +493,7 @@
     <button id="recenter" type="button" hidden></button>
     <button id="quest-banner" type="button" hidden></button>
     <div id="hero-status"></div>
+    <div id="dice-log"></div>
     <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
     <div id="wheel" hidden><div id="wheel-bar">

@@ -3,7 +3,7 @@ import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
 import { Sfx } from "./audio/sfx";
 import { Music } from "./audio/music";
 import { diceLabel } from "./core/dice";
-import { expectedDamagePerTurn } from "./core/combat";
+import { expectedDamagePerTurn, type AttackResult } from "./core/combat";
 import { DoorAction, Game, GameEvent, GluckResult, NpcId } from "./core/game";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "./render/sprites/soeur";
 import { CLASSES, ClassDef } from "./data/classes";
@@ -65,6 +65,16 @@ const die = $("die");
 const die2 = $("die2");
 const dieWho = $("die-who");
 const dmgDice = [$("dmg1"), $("dmg2")];
+const diceLog = $("dice-log");
+/** Historique des jets : une ligne par tour (vos jets à gauche, ceux des ennemis à droite). */
+interface RollLine { el: HTMLElement; me: HTMLElement; foe: HTMLElement; foes: number; turn: number }
+let rollLines: RollLine[] = [];
+let rollCount = 0;
+let rollIdle = 0;
+const ROLL_LINES = 4;
+const ROLL_CLEAR_MS = 15000;
+/** Au plus 4 dés de dégâts montrés par jet ; au-delà, un dernier « +N » fait la somme. */
+const ROLL_DICE = 4;
 const log = $("log");
 const over = $("over");
 const seedLabel = $("seed");
@@ -290,6 +300,7 @@ function setupRun(next: Game, lines: string[] | null): void {
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
   clearDie();
+  clearRollLog();
   over.hidden = true;
   seedLabel.textContent = tr(`Graine ${game.runSeed}`);
   renderer.snapTo(game);
@@ -303,6 +314,67 @@ function clearDie(): void {
   die.parentElement?.classList.toggle("pair", !die2.hidden);
   dieWho.textContent = tr("");
   showDamageDice(undefined);
+}
+
+/** Un jet dans l'historique : le d20 (vert touché, gris raté, or critique), les dés de dégâts, puis le total. */
+function rollChip(r: AttackResult, foe: boolean): HTMLElement {
+  const chip = document.createElement("span");
+  chip.className = "rc";
+  const d = document.createElement("span");
+  d.className = `mini ${r.critical ? "crit" : r.hit ? "hit" : "miss"}`;
+  d.textContent = String(r.d20);
+  chip.append(d);
+  const faces = r.hit ? r.damageRoll?.faces ?? [] : [];
+  const shown = faces.length > ROLL_DICE ? [...faces.slice(0, ROLL_DICE - 1).map(String), `+${faces.slice(ROLL_DICE - 1).reduce((a, b) => a + b, 0)}`] : faces.map(String);
+  shown.forEach((v, i) => {
+    const s = document.createElement("span");
+    const more = faces.length > ROLL_DICE && i === shown.length - 1;
+    s.className = `sd d${r.damageRoll?.dice.sides ?? 6}${foe ? " foe" : ""}${more ? " more" : ""}`;
+    s.textContent = v;
+    chip.append(s);
+  });
+  const t = document.createElement("span");
+  t.className = `rt${r.hit ? (foe ? " foe" : "") : " miss"}`;
+  t.textContent = r.hit ? `-${r.damage}` : tr("raté");
+  chip.append(t);
+  return chip;
+}
+
+/** Range un jet d'attaque dans l'historique : votre jet ouvre une ligne ; la riposte du même tour s'y ajoute à droite. */
+function logRoll(e: Extract<GameEvent, { type: "attack" }>): void {
+  const foe = e.attacker.kind === "monster";
+  let line = rollLines[rollLines.length - 1];
+  if (!line || !foe || line.turn !== game.turn || line.foes >= 2) {
+    const el = document.createElement("div");
+    el.className = "rl";
+    const n = document.createElement("span");
+    n.className = "n";
+    n.textContent = String(++rollCount);
+    const me = document.createElement("div");
+    me.className = "half";
+    const f = document.createElement("div");
+    f.className = "half foe";
+    el.append(n, me, f);
+    line = { el, me, foe: f, foes: 0, turn: game.turn };
+    rollLines.push(line);
+    diceLog.append(el);
+    while (rollLines.length > ROLL_LINES) rollLines.shift()!.el.remove();
+  }
+  if (foe) {
+    line.foe.append(rollChip(e.result, true));
+    line.foes++;
+  } else line.me.append(rollChip(e.result, false));
+  rollLines.forEach((l, i) => (l.el.style.opacity = String([0.3, 0.5, 0.75, 1][ROLL_LINES - rollLines.length + i])));
+  diceLog.classList.remove("fade");
+  rollIdle = 0;
+}
+
+/** L'historique des jets se vide (nouvelle partie, nouvel étage, ou longtemps sans combat). */
+function clearRollLog(): void {
+  rollLines = [];
+  rollCount = 0;
+  diceLog.replaceChildren();
+  diceLog.classList.remove("fade");
 }
 
 /** Les dés de dégâts, en petit dans les coins bas du d20 : un par dé lancé (deux au plus ; au-delà, le second montre
@@ -416,6 +488,7 @@ function reveal(e: GameEvent): void {
     const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
     showDamageDice(r.hit ? r.damageRoll : undefined);
+    logRoll(e);
     renderer.addFloatingText(
       e.target.x,
       e.target.y,
@@ -694,6 +767,7 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assommé !" : e.kind === "knockback" ? "Projeté !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
     if (e.kind !== "oneShot") sfx.play("thud");
   } else if (e.type === "stairs") {
+    clearRollLog();
     shownHp = game.hero.hp;
     sfx.play("descend");
   } else if (e.type === "hide") {
@@ -3012,6 +3086,11 @@ function frame(now: number): void {
   advanceCues(dt);
   dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
   if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
+  if (rollLines.length) {
+    rollIdle += dt;
+    if (rollIdle >= ROLL_CLEAR_MS - 600) diceLog.classList.add("fade");
+    if (rollIdle >= ROLL_CLEAR_MS) clearRollLog();
+  }
 
   if (stepping) {
     stepTime += dt;

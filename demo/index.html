@@ -208,6 +208,32 @@
   #door-actions #door-cancel { flex: none; width: 52px; padding: 8px; background: var(--btn); display: flex; align-items: center; justify-content: center; }
   #door-cancel svg { width: 100%; height: 100%; }
 
+  /* Historique des jets (Thomas, 2026-11-13) : une ligne par tour, vos jets à gauche, ceux des ennemis en rouge à
+     droite ; 4 lignes au plus, les plus anciennes s'estompent ; tout s'efface après un moment sans combat. */
+  #dice-log { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 4; display: flex; flex-direction: column; gap: 2px; pointer-events: none; transition: opacity 0.6s; }
+  body:has(#here.open) #dice-log { bottom: 58px; }
+  #dice-log.fade { opacity: 0; }
+  .rl { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; background: rgba(14, 12, 10, 0.8); border-radius: 4px; transition: opacity 0.3s; }
+  .rl .n { font-size: 13px; color: #8a8070; width: 16px; flex: none; }
+  .rl .half { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+  .rl .half.foe { justify-content: flex-end; background: linear-gradient(90deg, transparent, rgba(90, 16, 10, 0.6)); border-radius: 3px; padding-right: 2px; }
+  .rc { display: flex; align-items: center; gap: 1px; flex: none; }
+  .mini { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; font-size: 15px; color: #fff3c8; position: relative; isolation: isolate; flex: none;
+    text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+  .mini::before { content: ""; position: absolute; inset: 0; z-index: -1; clip-path: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%); background: #3a2e1c; }
+  .mini.hit::before { background: #24563f; } .mini.crit::before { background: #8a6a12; }
+  .mini.miss { color: #9a917a; } .mini.miss::before { background: #2a2420; }
+  .sd { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: 12px; color: #fff3c8; position: relative; isolation: isolate; flex: none;
+    text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+  .sd::before { content: ""; position: absolute; inset: 0; z-index: -1; background: #3c3a46; clip-path: inset(8% round 2px); }
+  .sd.foe::before { background: #6a2216; }
+  .sd.d4 { padding-top: 5px; } .sd.d4::before { clip-path: polygon(50% 4%, 96% 92%, 4% 92%); }
+  .sd.d8::before { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+  .sd.d10::before { clip-path: polygon(50% 0, 100% 42%, 50% 100%, 0 42%); }
+  .sd.d12::before { clip-path: polygon(50% 0, 98% 36%, 80% 96%, 20% 96%, 2% 36%); }
+  .sd.more { width: auto; padding: 0 3px; font-size: 11px; }
+  .rt { font-size: 16px; margin-left: 3px; color: #fff; }
+  .rt.foe { color: #ff8a7a; } .rt.miss { color: #8a8070; }
   /* Dés et journal. */
   /* Objet au sol sous le héros : une languette qui sort de derrière le panneau, au-dessus du dé, pour le ramasser
      (un objet à la fois) ou lire sa fiche. Elle recouvre le bas de la carte et ne déplace rien. */
@@ -225,7 +251,7 @@
   /* Taille FIXE : ni la hauteur du panneau ni la largeur de la zone du dé ne bougent, quel que soit le texte
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
-  .panel { display: flex; gap: 8px; align-items: stretch; height: 100px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
+  .panel { display: flex; gap: 8px; align-items: stretch; height: 70px; flex: none; overflow: hidden; background: var(--panel); padding: 6px; }
   .dice { flex: 0 0 84px; width: 84px; display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; }
   /* Un ennemi au contact : le dé s'entoure d'or, le toucher frappe au corps à corps. */
   .dice.ready { box-shadow: inset 0 0 0 2px var(--gold); }
@@ -268,7 +294,8 @@
   @keyframes roll { 0% { transform: rotate(-14deg); } 25% { transform: rotate(10deg) translateY(-4px); }
     50% { transform: rotate(-8deg); } 75% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg); } }
   @keyframes land { 0% { transform: scale(1.5); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
-  #die-who { font-size: 13px; line-height: 12px; color: var(--dim); height: 24px; width: 84px; overflow: hidden; text-align: center; text-transform: uppercase; }
+  /* Panneau compact (Thomas, 2026-11-13) : la hauteur du seul d20 ; l'étiquette sous le dé est cachée, l'historique des jets la remplace. */
+  #die-who { display: none; font-size: 13px; line-height: 12px; color: var(--dim); height: 24px; width: 84px; overflow: hidden; text-align: center; text-transform: uppercase; }
   #die-who.advantage { color: var(--gold); }
   #die-who.disadvantage { color: #ff6b7a; }
   #log { flex: 1; min-width: 0; min-height: 0; overflow: hidden; font-size: 16px; line-height: 1.05; color: var(--dim); display: flex; flex-direction: column; justify-content: flex-end; }
@@ -466,6 +493,7 @@
     <button id="recenter" type="button" hidden></button>
     <button id="quest-banner" type="button" hidden></button>
     <div id="hero-status"></div>
+    <div id="dice-log"></div>
     <div id="status-pop" hidden></div>
     <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button></div>
     <div id="wheel" hidden><div id="wheel-bar">
@@ -1712,7 +1740,7 @@
     oeil_chauve_souris: { id: "oeil_chauve_souris", name: "\u0152il de chauve-souris", kind: "artifact", description: "Dess\xE9ch\xE9, il palpite encore. Vous devinez l'ombre des monstres hors de vue : \xE0 10 cases, et \xE0 3 \xE0 travers un mur ou une porte.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
     flute_pan: { id: "flute_pan", name: "Fl\xFBte de pan", kind: "artifact", description: "Quelques roseaux li\xE9s. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
     // Thomas, 2026-11-13 : potions de pierre et de discorde.
-    potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
+    potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 10 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
     potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et p\xE9tillante. \xC0 lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
     // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
     noeud_papillon: { id: "noeud_papillon", name: "N\u0153ud papillon de Kobold", kind: "amulet", description: "Rouge \xE0 pois blancs, un peu froiss\xE9. Tr\xE8s chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
@@ -1967,7 +1995,7 @@
     fogBrawlChance: 0.25,
     /** Potion de pierre (Thomas, 2026-11-13) : bue, statue tant de tours ; lancée, le monstre pétrifié tant de tours. */
     stoneTurns: 10,
-    petrifyTurns: 3,
+    petrifyTurns: 10,
     /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
     urchinReflect: 0.15,
     urchinTurns: 40,
@@ -12479,7 +12507,7 @@
     "La pierre se fissure : vous pouvez de nouveau bouger.": "The stone cracks: you can move again.",
     "{0} se change en pierre.": "{0} turns to stone.",
     "{0} redevient chair et os.": "{0} is flesh and bone again.",
-    "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 3 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 10 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 3 turns, and makes cover to hide behind.",
+    "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lanc\xE9e : le monstre touch\xE9 est p\xE9trifi\xE9 10 tours, et sert d'abri pour se cacher.": "Grey and heavy. Drunk: you become a statue for 10 turns; monsters lose your trail and can't hurt you, but you can't do anything. Thrown: the monster hit is petrified for 10 turns, and makes cover to hide behind.",
     "Potion de pierre : bue, rien ne vous blesse mais vous ne pouvez rien faire ; lanc\xE9e, le monstre ne bouge plus et sert d'abri.": "Stone potion: drunk, nothing hurts you but you can't act; thrown, the monster freezes and makes cover."
   };
 
@@ -20022,6 +20050,8 @@
       this.lastHeroX = null;
       this.lastHeroY = null;
       this.time = 0;
+      /** Monstres pétrifiés : l'instant où leur animation s'est figée. */
+      this.stoneAt = /* @__PURE__ */ new Map();
       this.floats = [];
       /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
       this.drops = [];
@@ -21178,8 +21208,14 @@
             ctx.ellipse(cx, cy + tile * 0.36, tile * 0.38, tile * 0.14, 0, 0, Math.PI * 2);
             ctx.stroke();
           }
-          if (m.petrified) this.ctx.filter = "grayscale(1) brightness(1.1)";
+          const now2 = this.time;
+          if (m.petrified) {
+            this.ctx.filter = "grayscale(1) brightness(1.1)";
+            if (!this.stoneAt.has(m.id)) this.stoneAt.set(m.id, now2);
+            this.time = this.stoneAt.get(m.id);
+          } else this.stoneAt.delete(m.id);
           this.drawMonster(m, cx, cy, progress);
+          this.time = now2;
           this.ctx.filter = "none";
           const burning = !!m.burning || game2.isBurning(m.x, m.y);
           if (m.burning && !game2.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
@@ -21247,8 +21283,14 @@
       this.drawSoeur(game2, ox, oy);
       this.drawKrik(game2, ox, oy);
       this.drawStatueGlints(game2, ox, oy);
-      if (game2.stoneTurns > 0) this.ctx.filter = "grayscale(1) brightness(1.15) contrast(0.9)";
+      const now = this.time;
+      if (game2.stoneTurns > 0) {
+        this.ctx.filter = "grayscale(1) brightness(1.15) contrast(0.9)";
+        this.heroStoneAt ?? (this.heroStoneAt = now);
+        this.time = this.heroStoneAt;
+      } else this.heroStoneAt = void 0;
       this.drawHero(game2, hero, ox, oy, progress);
+      this.time = now;
       this.ctx.filter = "none";
       if (game2.hero.burning && !game2.isBurning(game2.hero.x, game2.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);
       this.drawFurniture(game2, ox, oy, flicker, "late");
@@ -22707,6 +22749,13 @@
   var die2 = $("die2");
   var dieWho = $("die-who");
   var dmgDice = [$("dmg1"), $("dmg2")];
+  var diceLog = $("dice-log");
+  var rollLines = [];
+  var rollCount = 0;
+  var rollIdle = 0;
+  var ROLL_LINES = 4;
+  var ROLL_CLEAR_MS = 15e3;
+  var ROLL_DICE = 4;
   var log = $("log");
   var over = $("over");
   var seedLabel = $("seed");
@@ -22874,6 +22923,7 @@
     ] : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
     renderLog();
     clearDie();
+    clearRollLog();
     over.hidden = true;
     seedLabel.textContent = tr(`Graine ${game.runSeed}`);
     renderer.snapTo(game);
@@ -22885,6 +22935,61 @@
     die.parentElement?.classList.toggle("pair", !die2.hidden);
     dieWho.textContent = tr("");
     showDamageDice(void 0);
+  }
+  function rollChip(r, foe) {
+    const chip = document.createElement("span");
+    chip.className = "rc";
+    const d = document.createElement("span");
+    d.className = `mini ${r.critical ? "crit" : r.hit ? "hit" : "miss"}`;
+    d.textContent = String(r.d20);
+    chip.append(d);
+    const faces = r.hit ? r.damageRoll?.faces ?? [] : [];
+    const shown = faces.length > ROLL_DICE ? [...faces.slice(0, ROLL_DICE - 1).map(String), `+${faces.slice(ROLL_DICE - 1).reduce((a, b) => a + b, 0)}`] : faces.map(String);
+    shown.forEach((v, i) => {
+      const s = document.createElement("span");
+      const more = faces.length > ROLL_DICE && i === shown.length - 1;
+      s.className = `sd d${r.damageRoll?.dice.sides ?? 6}${foe ? " foe" : ""}${more ? " more" : ""}`;
+      s.textContent = v;
+      chip.append(s);
+    });
+    const t = document.createElement("span");
+    t.className = `rt${r.hit ? foe ? " foe" : "" : " miss"}`;
+    t.textContent = r.hit ? `-${r.damage}` : tr("rat\xE9");
+    chip.append(t);
+    return chip;
+  }
+  function logRoll(e) {
+    const foe = e.attacker.kind === "monster";
+    let line = rollLines[rollLines.length - 1];
+    if (!line || !foe || line.turn !== game.turn || line.foes >= 2) {
+      const el2 = document.createElement("div");
+      el2.className = "rl";
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = String(++rollCount);
+      const me = document.createElement("div");
+      me.className = "half";
+      const f = document.createElement("div");
+      f.className = "half foe";
+      el2.append(n, me, f);
+      line = { el: el2, me, foe: f, foes: 0, turn: game.turn };
+      rollLines.push(line);
+      diceLog.append(el2);
+      while (rollLines.length > ROLL_LINES) rollLines.shift().el.remove();
+    }
+    if (foe) {
+      line.foe.append(rollChip(e.result, true));
+      line.foes++;
+    } else line.me.append(rollChip(e.result, false));
+    rollLines.forEach((l, i) => l.el.style.opacity = String([0.3, 0.5, 0.75, 1][ROLL_LINES - rollLines.length + i]));
+    diceLog.classList.remove("fade");
+    rollIdle = 0;
+  }
+  function clearRollLog() {
+    rollLines = [];
+    rollCount = 0;
+    diceLog.replaceChildren();
+    diceLog.classList.remove("fade");
   }
   function showDamageDice(roll2) {
     const faces = roll2?.faces ?? [];
@@ -22968,6 +23073,7 @@
       const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : void 0;
       landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
       showDamageDice(r.hit ? r.damageRoll : void 0);
+      logRoll(e);
       renderer.addFloatingText(
         e.target.x,
         e.target.y,
@@ -23228,6 +23334,7 @@
       renderer.addFloatingText(e.actor.x, e.actor.y, e.kind === "stun" ? "Assomm\xE9 !" : e.kind === "knockback" ? "Projet\xE9 !" : "Net !", e.kind === "oneShot" ? "#ffffff" : "#ffd75e");
       if (e.kind !== "oneShot") sfx.play("thud");
     } else if (e.type === "stairs") {
+      clearRollLog();
       shownHp = game.hero.hp;
       sfx.play("descend");
     } else if (e.type === "hide") {
@@ -25249,6 +25356,11 @@
     advanceCues(dt);
     dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
     if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();
+    if (rollLines.length) {
+      rollIdle += dt;
+      if (rollIdle >= ROLL_CLEAR_MS - 600) diceLog.classList.add("fade");
+      if (rollIdle >= ROLL_CLEAR_MS) clearRollLog();
+    }
     if (stepping) {
       stepTime += dt;
       if (stepTime >= stepMs) {

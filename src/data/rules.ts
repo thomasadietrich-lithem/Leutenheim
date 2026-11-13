@@ -50,7 +50,7 @@ export const RULES = {
   fogBrawlChance: 0.25,
   /** Potion de pierre (Thomas, 2026-11-13) : bue, statue tant de tours ; lancée, le monstre pétrifié tant de tours. */
   stoneTurns: 10,
-  petrifyTurns: 3,
+  petrifyTurns: 10,
   /** Potion d'oursin : part des dégâts reçus au contact renvoyée (Thomas : 15 %), durée en tours (C). */
   urchinReflect: 0.15,
   urchinTurns: 40,

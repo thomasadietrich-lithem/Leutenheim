@@ -213,6 +213,10 @@ export class Renderer {
   private lastHeroX: number | null = null;
   private lastHeroY: number | null = null;
   private time = 0;
+  /** Statue (potion de pierre) : l'instant où l'animation du héros s'est figée. */
+  private heroStoneAt: number | undefined;
+  /** Monstres pétrifiés : l'instant où leur animation s'est figée. */
+  private stoneAt = new Map<number, number>();
   private floats: FloatingText[] = [];
   /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
   private drops: { x: number; y: number; vx: number; vy: number; color: string; age: number; life: number }[] = [];
@@ -1530,8 +1534,15 @@ export class Renderer {
           ctx.ellipse(cx, cy + tile * 0.36, tile * 0.38, tile * 0.14, 0, 0, Math.PI * 2);
           ctx.stroke();
         }
-        if (m.petrified) this.ctx.filter = "grayscale(1) brightness(1.1)";
+        // Pétrifié : gris, et figé (l'horloge de son animation s'arrête).
+        const now = this.time;
+        if (m.petrified) {
+          this.ctx.filter = "grayscale(1) brightness(1.1)";
+          if (!this.stoneAt.has(m.id)) this.stoneAt.set(m.id, now);
+          this.time = this.stoneAt.get(m.id)!;
+        } else this.stoneAt.delete(m.id);
         this.drawMonster(m, cx, cy, progress);
+        this.time = now;
         this.ctx.filter = "none";
         const burning = !!m.burning || game.isBurning(m.x, m.y);
         if (m.burning && !game.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
@@ -1609,8 +1620,15 @@ export class Renderer {
     this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
     // Statue (potion de pierre) : le héros est dessiné en pierre grise.
-    if (game.stoneTurns > 0) this.ctx.filter = "grayscale(1) brightness(1.15) contrast(0.9)";
+    // Immobile (Thomas) : l'horloge de l'animation est figée à l'instant où il est devenu statue.
+    const now = this.time;
+    if (game.stoneTurns > 0) {
+      this.ctx.filter = "grayscale(1) brightness(1.15) contrast(0.9)";
+      this.heroStoneAt ??= now;
+      this.time = this.heroStoneAt;
+    } else this.heroStoneAt = undefined;
     this.drawHero(game, hero, ox, oy, progress);
+    this.time = now;
     this.ctx.filter = "none";
     // Le héros qui brûle encore après être sorti des flammes.
     if (game.hero.burning && !game.isBurning(game.hero.x, game.hero.y)) this.drawFlames(ox + hero.x * tile, oy + hero.y * tile, 0, 0.9, 3);

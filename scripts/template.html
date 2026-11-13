@@ -388,6 +388,16 @@
   .item-card-value { color: var(--ink); }
   .item-card-desc { font-size: 15px; color: var(--dim); margin-top: 3px; }
   #found { z-index: 2; background: rgba(13,10,8,0.92); }
+  /* Synopsis au début d'une partie (Thomas, 2026-11-13) : les lignes apparaissent une à une ; toucher l'écran les montre
+     toutes d'un coup ; « Descendre » lance la partie. */
+  #intro { z-index: 7; background: #0a0806; gap: 28px; cursor: pointer; }
+  #intro-lines { width: min(100%, 330px); display: flex; flex-direction: column; gap: 18px; text-align: left; }
+  #intro-lines p { margin: 0; font-size: 21px; line-height: 1.2; color: var(--ink); opacity: 0; animation: intro-in 0.9s ease-out forwards; }
+  #intro-lines p:last-child { color: var(--gold); }
+  #intro.all #intro-lines p { animation: none; opacity: 1; }
+  #intro-go { width: 220px; padding: 10px; font-size: 22px; opacity: 0; animation: intro-in 0.6s ease-out forwards; }
+  #intro.all #intro-go { animation: none; opacity: 1; }
+  @keyframes intro-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   #found h2 { margin: 0; font-size: 32px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 2px 2px 0 #5a3a08; }
   #found button { width: 220px; padding: 10px; font-size: 22px; }
   .hero-tabs { display: flex; width: min(100%, 318px); margin-right: 44px; }
@@ -569,6 +579,10 @@
     <div id="shop-purse"></div>
     <div id="shop-list"></div>
     <div id="shop-detail"></div>
+  </div>
+  <div id="intro" class="overlay" hidden>
+    <div id="intro-lines"></div>
+    <button id="intro-go" type="button">Descendre</button>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>

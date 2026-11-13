@@ -7,6 +7,7 @@ import { expectedDamagePerTurn, type AttackResult } from "./core/combat";
 import { DoorAction, Game, GameEvent, GluckResult, NpcId } from "./core/game";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "./render/sprites/soeur";
 import { CLASSES, ClassDef } from "./data/classes";
+import { INTRO_LINES } from "./data/intro";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
@@ -3057,6 +3058,28 @@ button("new-start", () => {
   newRun();
   started = true;
   showScreen(null);
+  showIntro();
+});
+
+/** Le synopsis (Thomas, 2026-11-13), au début de chaque nouvelle partie : une ligne toutes les 1,6 s. */
+const INTRO_STEP_S = 1.6;
+function showIntro(): void {
+  const box = $("intro");
+  box.classList.remove("all");
+  $("intro-lines").replaceChildren(
+    ...INTRO_LINES.map((line, i) => {
+      const p = el("p", "", line);
+      p.style.animationDelay = `${0.3 + i * INTRO_STEP_S}s`;
+      return p;
+    }),
+  );
+  $("intro-go").style.animationDelay = `${0.3 + INTRO_LINES.length * INTRO_STEP_S}s`;
+  box.hidden = false;
+}
+// Toucher l'écran : tout le texte d'un coup ; le bouton (une fois visible) lance la partie.
+$("intro").addEventListener("click", () => $("intro").classList.add("all"));
+button("intro-go", () => {
+  $("intro").hidden = true;
 });
 // Salle d'essai : un étage fixe qui rassemble les derniers éléments créés (Humain Guerrier).
 // Salle d'essai seulement : réveiller tous les monstres, pour tester les combats sans attendre (demande de Thomas).

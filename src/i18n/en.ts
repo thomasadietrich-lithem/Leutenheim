@@ -1128,4 +1128,10 @@ export const EN: Record<string, string> = {
   "vous repérez un piège caché !": "you spot a hidden trap!",
   "« Halte. On ne court pas devant une religieuse. Même loin de sa chapelle. »": "“Halt. No running in front of a nun. Even far from her chapel.”",
   "Reprendre le trajet": "Resume the walk",
+  "Depuis que quelqu'un, ou quelque chose, a volé la cloche, Leutenheim ne se réveille plus à l'heure.": "Ever since someone, or something, stole the bell, Leutenheim no longer wakes up on time.",
+  "Le boulanger dort. Le coq a démissionné.": "The baker sleeps in. The rooster has resigned.",
+  "Certains jurent l'entendre sonner la nuit, sous leurs pieds.": "Some swear they hear it ringing at night, beneath their feet.",
+  "On vous a donné une épée, dix flèches et une tape dans le dos.": "You were given a sword, ten arrows and a pat on the back.",
+  "La cave est par là.": "The cellar is that way.",
+  "Descendre": "Go down",
 };

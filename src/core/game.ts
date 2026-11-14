@@ -607,10 +607,12 @@ export class Game {
     }
     state.farm = { field, hens };
     // Des plumes dans le pré (Thomas, 2026-11-14), là où il n'y a rien d'autre que la terre.
+    // (Un hasard à part : le reste de la ferme ne change pas.)
+    const frng = new Rng(seed ^ 0xfea7e5);
     const bare = free.filter((c) => !hens.some((h) => h.x === c.x && h.y === c.y));
-    for (let k = Math.min(bare.length, rng.int(3, 5)); k > 0; k--) {
-      const c = bare.splice(rng.int(0, bare.length - 1), 1)[0];
-      furniture.push({ x: c.x, y: c.y, kind: rng.chance(0.5) ? "plumesA" : "plumesB" });
+    for (let k = Math.min(bare.length, frng.int(3, 5)); k > 0; k--) {
+      const c = bare.splice(frng.int(0, bare.length - 1), 1)[0];
+      furniture.push({ x: c.x, y: c.y, kind: frng.chance(0.5) ? "plumesA" : "plumesB" });
     }
     // Le poulet du truc fun est déjà là (salle d'essai) : celui de la ferme a son propre emplacement.
     const slot: "chicken" | "farmChicken" = state.chicken ? "farmChicken" : "chicken";
@@ -3083,6 +3085,10 @@ export class Game {
     if (!path) return false;
     this.clearDoorOrders();
     this.breakTarget = null;
+    // Un nouvel ordre fait oublier une conversation ou une boutique visée avant (sinon un PNJ resté sur le chemin, ou
+    // un monstre posté sur sa case, bloquait le héros).
+    this.talkTarget = null;
+    this.shopTarget = false;
     this.targetId = monster ? monster.id : null;
     this.path = path;
     this.waiting = false;
@@ -4153,6 +4159,7 @@ export class Game {
       state.krik = (at(spots.krik) ?? this.placeKrik(state, new Rng(this.runSeed ^ 0x6b1c))) ?? undefined;
       state.grum = (at(spots.grum) ?? this.placeGrum(state, new Rng(this.runSeed ^ 0x6a7))) ?? undefined;
       state.fifrelin = (at(spots.fifrelin) ?? this.placeKrik(state, new Rng(this.runSeed ^ 0xf1f))) ?? undefined;
+      if (state.fifrelin) this.placeArena(state, state.fifrelin);
       if (!this.sandboxFloor()?.hollowStatue) this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
       return;
     }
@@ -4171,8 +4178,10 @@ export class Game {
       if (state.gluck) this.placeHollowStatue(state, rng);
     }
     else if (pick === "soeur") state.soeur = this.placeSoeur(state, rng) ?? undefined;
-    else if (pick === "fifrelin") state.fifrelin = this.placeKrik(state, rng) ?? undefined;
-    else state.krik = this.placeKrik(state, rng) ?? undefined;
+    else if (pick === "fifrelin") {
+      state.fifrelin = this.placeKrik(state, rng) ?? undefined;
+      if (state.fifrelin) this.placeArena(state, state.fifrelin);
+    } else state.krik = this.placeKrik(state, rng) ?? undefined;
   }
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
@@ -6200,6 +6209,13 @@ export class Game {
   private startBout(g: GluckSpot, bet: "champ" | "small" | "duel" | null, payout: number, rigged = false): void {
     g.bout = { bet, payout, over: bet === null };
     const spots: Point[] = [];
+    // Dans la petite arène : un de chaque côté.
+    if (g.ring && bet !== "duel") {
+      for (const p of [{ x: g.ring.x, y: g.ring.y + 1 }, { x: g.ring.x + 2, y: g.ring.y + 1 }]) if (!this.actorAt(p.x, p.y)) spots.push(p);
+    } else if (g.ring) {
+      const p = { x: g.ring.x + 1, y: g.ring.y };
+      if (!this.actorAt(p.x, p.y)) spots.push(p);
+    }
     for (let r = 2; r <= 4 && spots.length < 2; r++)
       for (let dy = -r; dy <= r && spots.length < 2; dy++)
         for (let dx = -r; dx <= r && spots.length < 2; dx++) {
@@ -6235,6 +6251,55 @@ export class Game {
     this.monsters.push(small);
     champ.alerted = small.alerted = false;
     this.startFeud(champ, small, "bout");
+  }
+
+  /**
+   * La petite arène de Fifrelin (Thomas, 2026-11-14 : « mets les combattants dans une petite arène ») : une clôture de
+   * bois autour de 3 × 3 cases, au milieu de sa salle, une ouverture en bas ; Fifrelin se tient à côté de l'ouverture.
+   * Rien n'est coupé : on vérifie que tout le reste de l'étage reste atteignable. Sans place, pas d'arène.
+   */
+  private placeArena(state: FloorState, g: GluckSpot): void {
+    const room = state.rooms.find((r) => g.x >= r.x && g.x < r.x + r.w && g.y >= r.y && g.y < r.y + r.h);
+    if (!room || room.w < 7 || room.h < 7) return;
+    const map = state.map;
+    const taken = (x: number, y: number) =>
+      map.get(x, y) !== Tile.Floor ||
+      (x === state.start.x && y === state.start.y) ||
+      (x === state.stairs.x && y === state.stairs.y) ||
+      state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) ||
+      state.traps.some((t) => t.x === x && t.y === y) ||
+      state.ground.some((o) => o.x === x && o.y === y) ||
+      state.monsters.some((m) => m.x === x && m.y === y) ||
+      ([state.gluck, state.soeur, state.krik, state.grum, state.merchant].some((p) => p && p.x === x && p.y === y));
+    const before = reachable(map, state.start);
+    const spots: Point[] = [];
+    for (let ry = room.y + 1; ry + 5 <= room.y + room.h - 1; ry++) for (let rx = room.x + 1; rx + 4 <= room.x + room.w - 2; rx++) spots.push({ x: rx, y: ry });
+    // Au plus près du centre de la salle.
+    const cx = room.x + room.w / 2 - 2.5;
+    const cy = room.y + room.h / 2 - 3;
+    spots.sort((a, b) => Math.abs(a.x - cx) + Math.abs(a.y - cy) - (Math.abs(b.x - cx) + Math.abs(b.y - cy)));
+    for (const { x: rx, y: ry } of spots) {
+      let ok = true;
+      for (let y = ry; ok && y <= ry + 5; y++) for (let x = rx; ok && x <= rx + 4; x++) if (taken(x, y) && !(x === g.x && y === g.y)) ok = false;
+      if (!ok) continue;
+      const fence: Furniture[] = [];
+      for (let x = rx; x <= rx + 4; x++) {
+        fence.push({ x, y: ry, kind: x === rx || x === rx + 4 ? "fencePost" : "fenceH" });
+        if (x !== rx + 2) fence.push({ x, y: ry + 4, kind: x === rx ? "fenceCornerL" : x === rx + 4 ? "fenceCornerR" : "fenceH" });
+      }
+      for (let y = ry + 1; y <= ry + 3; y++) fence.push({ x: rx, y, kind: "fenceV" }, { x: rx + 4, y, kind: "fenceV" });
+      for (const f of fence) map.set(f.x, f.y, Tile.Furniture);
+      if (reachable(map, state.start) !== before - fence.length) {
+        for (const f of fence) map.set(f.x, f.y, Tile.Floor);
+        continue;
+      }
+      state.furniture.push(...fence);
+      g.ring = { x: rx + 1, y: ry + 1, w: 3, h: 3 };
+      // Fifrelin, à côté de l'ouverture (dehors).
+      g.x = rx + 3;
+      g.y = ry + 5;
+      return;
+    }
   }
 
   /** Après chaque tour : le combat est-il fini ? On paie (ou non), et le vainqueur salue et s'en va. */

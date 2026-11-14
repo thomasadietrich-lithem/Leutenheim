@@ -172,6 +172,8 @@ export interface GluckSpot {
   asleep?: boolean;
   /** Fifrelin : le combat en cours ou fini (le pari, la mise, le gain). */
   bout?: { bet: "champ" | "small" | "duel" | null; payout: number; over: boolean };
+  /** Fifrelin : l'intérieur de sa petite arène (3 × 3), s'il a pu en installer une. */
+  ring?: Room;
 }
 
 /**

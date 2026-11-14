@@ -94,7 +94,7 @@ const SLIDES: Slide[] = [
   {
     kicker: "Quête 01 — Gluck, le Kobold aux pommes",
     title: "Rencontre 1 : quatre choix, quatre missions",
-    status: "Dialogue EN JEU ; objectifs et zone : proposition",
+    status: "EN JEU (2026-11-14) : chaque choix est une mission ; la zone s'ouvre à l'acceptation",
     choices: [
       { pick: "Lui parler gentiment", roll: "Charisme, moyen", goal: "« Mon cellier est derrière le tonneau qui sonne creux, dans la cuisine. Des Kobolds y dorment sur MES pommes. »", win: "POUSSER le tonneau (la Bousculade aide) → le cellier ; réveiller ou pas les deux dormeurs ; rapporter le sac → 3 pommes + Gluck ami.", fail: "Raté : il ne fait pas confiance ; il faut d'abord lui DONNER une pomme, puis la mission est la même." },
       { pick: "Le menacer", roll: "Force, facile", goal: "Il file en semant des pommes : SUIVRE LA PISTE (une pomme toutes les 3 cases) jusqu'à sa planque.", win: "Au bout : le cellier, barricadé. Enfoncer (bruit) ou frapper à la porte (Charisme). Dedans, ses pommes, et Gluck terrorisé : 2 pommes + rancunier.", fail: "Raté : il crie ; un frondeur arrive par la piste de pommes." },
@@ -119,7 +119,7 @@ const SLIDES: Slide[] = [
   {
     kicker: "Quête 02 — Sœur Osseuse et la cloche disparue",
     title: "Rencontre 1 : quatre missions dans la chapelle",
-    status: "Dialogue EN JEU ; objectifs et zone : proposition",
+    status: "EN JEU (2026-11-14) : chaque choix est une mission ; la zone s'ouvre à l'acceptation",
     choices: [
       { pick: "La consoler", roll: "Charisme, moyen", goal: "« Rallumez mes trois cierges. Les Kobolds les ont soufflés. » Trois cierges (C) dans l'étage : un dans la chapelle, deux dans d'autres salles.", win: "Les allumer (torche allumée à côté, ou feu) → le mur derrière l'autel COULISSE : la sacristie. Protection +1 CA.", fail: "Raté : elle veut d'abord qu'on s'agenouille (passer 3 tours immobile devant l'autel)." },
       { pick: "Lui dire qu'on l'entend sonner, sous le village", roll: "Intelligence, moyen", goal: "« Écoutez le sol. » Trouver la GRILLE au sol d'où monte le son (3 grilles dans l'étage, une seule sonne).", win: "Se tenir sur la bonne grille et attendre 2 tours : on entend la cloche → l'escalier s'allume sur la carte + Clarté.", fail: "Raté : « Des racontars de boulanger. » La mission reste, mais sans indice sur la bonne grille." },
@@ -135,7 +135,7 @@ const SLIDES: Slide[] = [
   {
     kicker: "Quête 03 — Krik, le Kobold qui ne sait plus mentir",
     title: "Rencontre 1 : le dortoir des traîtres",
-    status: "Dialogue EN JEU ; objectifs et zone : proposition (l'exemple de Thomas)",
+    status: "EN JEU (2026-11-14) : les quatre missions et le dortoir des traîtres",
     lead: "Thomas : « quand il montre l'endroit où ses camarades dorment, ce n'est pas clair. Rends plutôt accessible une zone spéciale : une petite pièce, avec 3 Kobolds sur des paillasses avec une bougie, derrière un passage secret. »",
     choices: [
       { pick: "Proposer de le protéger", roll: "Charisme, moyen", goal: "« Ils dorment derrière la tapisserie du couloir. Ils me cherchent. » La tapisserie (T) s'allume sur la carte.", win: "Trancher ou soulever la tapisserie → le dortoir secret. SOUFFLER LA BOUGIE : noir complet, ils ne se réveillent plus au bruit ; prendre leurs trois bourses (15 à 30 or). Ou les attaquer endormis (avantage, la surprise).", fail: "Raté : il se méfie et montre la mauvaise tapisserie (un placard vide, une pomme)." },
@@ -161,7 +161,7 @@ const SLIDES: Slide[] = [
   {
     kicker: "Quête 05 — Grum, le Kobold fermier (nouvelle)",
     title: "La ferme et la grange",
-    status: "Proposition (dessin de Grum sur la planche ferme_v1)",
+    status: "EN JEU (2026-11-14) : Grum dans la ferme, trois missions (poule, grange, chapeau)",
     lead: "Dans la FERME (salle spéciale, en jeu). Grum ne parle qu'à ceux qui ne marchent pas dans son pré.",
     choices: [
       { pick: "« Ma poule aux œufs d'or s'est sauvée »", roll: "Charisme, facile", goal: "La retrouver dans l'étage et la RAMENER : elle détale si on approche à découvert ; il faut l'approcher CACHÉ, puis la pousser vers la ferme.", win: "Une poule rentrée → l'ŒUF D'OR (vendu 60 or chez le Colporteur, ou couvé : une poule vous suit et picore les pièges cachés).", fail: "Raté : elle s'est cachée dans un tonneau ; le pousser la fait sortir." },
@@ -224,13 +224,12 @@ const SLIDES: Slide[] = [
   },
   {
     kicker: "Et maintenant",
-    title: "Ce qu'il faudrait coder, dans l'ordre",
+    title: "Ce qui est en jeu (2026-11-14)",
     bullets: [
-      "1. Les briques : pan de mur secret, levier, dalle à pression, tapisserie, tonneau creux, bougie et cierge (allumer / souffler), paillasses. Chacune testée seule (feu, bruit, poussée, lumière).",
-      "2. Le gabarit de zone : une pièce scellée posée à la création de l'étage, ouverte par la quête ; étoile dorée sur la carte.",
-      "3. Krik et son dortoir des traîtres (l'exemple de Thomas), puis Gluck (cellier), puis Sœur Osseuse (sacristie), puis Grum (grange).",
-      "4. Les objectifs de dialogue, un par choix, avec le bandeau de quête déjà en jeu.",
-      "5. Planche de dessins propres pour les briques (les concepts de ce deck sont des premiers jets).",
+      "FAIT : les briques (tapisserie à trancher, tonneau creux et botte de foin à pousser, mur qui coulisse, bougie à souffler, cierges à rallumer, dalle à pression, grilles, paillasses) ; planche art/zones_v1.png.",
+      "FAIT : la zone se taille dans la roche contre une salle quand la quête est donnée, près du PNJ ; son entrée apparaît sur la carte.",
+      "FAIT : Krik (dortoir des traîtres : vider, dalle, tenir le passage, diversion), Gluck (cellier : sac, piste de pommes, vol en douce), Sœur Osseuse (cierges et sacristie, grilles, cloche de fortune ; punir reste), Grum (poule d'or, grange, chapeau de l'épouvantail).",
+      "RESTE : les rencontres 2 à 4 (missions courtes), Monsieur Trèfle (le tripot), apprendre ces missions aux joueurs automatiques.",
     ],
   },
 ];

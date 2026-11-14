@@ -2,7 +2,7 @@ import type { StainColor } from "../core/floor";
 import { SOEUR_BUBBLE_ICON, SOEUR_PALETTE, SOEUR_SPRITE } from "./sprites/soeur";
 import { POULET, POULET_PALETTE } from "./sprites/poulet";
 import { ASSIETTE } from "./sprites/assiette";
-import { FERME } from "./sprites/ferme";
+import { FERME, FERMIER } from "./sprites/ferme";
 import { LightSource } from "../world/fov";
 import { Game } from "../core/game";
 import { MONSTERS } from "../data/monsters";
@@ -38,6 +38,8 @@ const GLUCK_BUBBLE_PALETTE: Record<string, string> = { K: "#1a1410", "#": "#f4ec
  * du laboratoire), cotte rouillée.
  */
 export const KRIK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#9a86c8", a: "#5e4a8e", Y: "#7affa0", L: "#d8cce8", C: "#a0785a", c: "#6a4a32", M: "#8e9a54", m: "#b8c070" };
+/** La poule aux œufs d'or (quêtes v3) : le blanc du poulet devient or. */
+const GOLD_HEN_PALETTE: Record<string, string> = { ...POULET_PALETTE, W: "#f0c850", S: "#c89a14" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
@@ -70,6 +72,7 @@ const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { BAIN } from "./sprites/bain";
 import { ZONES } from "./sprites/zones";
+import { A_TERRE } from "./sprites/aterre";
 import { HEROS_V9_TWO } from "./sprites/heros_v9";
 import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
@@ -879,10 +882,40 @@ export class Renderer {
     const cx = Math.round(ox + (g.x + 0.5) * tile);
     const cy = Math.round(oy + (g.y + 0.5) * tile);
     const hero = game.hero;
+    // Quêtes v3 : il fait la sieste dans son cellier, roulé en boule.
+    if (g.asleep) {
+      this.drawMonsterSprite(SCHRAT.sleep[0], cx, cy, false, false, GLUCK_PALETTE);
+      return;
+    }
     const frames = SCHRAT.idleDown;
     const rows = frames[Math.floor(Math.abs(this.time) / 420) % frames.length];
     this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, false, GLUCK_PALETTE);
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("pomme"), ICON_PALETTE);
+  }
+
+  /** Grum, le Kobold fermier (quête 05) : chapeau de paille et salopette ; un œuf d'or dans sa bulle quand on approche. */
+  private drawGrum(game: Game, ox: number, oy: number): void {
+    const g = game.grum();
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { tile } = this;
+    const cx = Math.round(ox + (g.x + 0.5) * tile);
+    const cy = Math.round(oy + (g.y + 0.5) * tile + (Math.floor(this.time / 700) % 2 === 0 ? 0 : tile / 32));
+    const hero = game.hero;
+    this.drawMonsterSprite(FERMIER.rows, cx, cy, hero.x < g.x, true, FERMIER.palette);
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("oeuf_or"), ICON_PALETTE);
+  }
+
+  /** La poule aux œufs d'or de Grum : la poule du jeu, dorée, qui picore ; elle glisse d'une case quand elle se sauve. */
+  private drawGoldHen(game: Game, ox: number, oy: number, progress: number): void {
+    const h = game.goldHen();
+    if (!h || !game.isVisible(h.x, h.y)) return;
+    const { tile } = this;
+    const x = h.fromX + (h.x - h.fromX) * progress;
+    const y = h.fromY + (h.y - h.fromY) * progress;
+    const cx = Math.round(ox + (x + 0.5) * tile);
+    const cy = Math.round(oy + (y + 0.5) * tile);
+    const peck = Math.floor(this.time / 380) % 4 === 0;
+    this.drawMonsterSprite(POULET.idle, cx, cy + (peck ? tile * 0.04 : 0), h.x < game.hero.x, true, GOLD_HEN_PALETTE, 0.7);
   }
 
   /** Sœur Osseuse (quête 02) : le squelette en voile de nonne, une croix d'os dans sa bulle quand le héros approche. */
@@ -979,8 +1012,8 @@ export class Renderer {
       return;
     }
     let rows: readonly string[];
-    // À terre : couché sur le dos (le dessin de la mort, mais il bouge encore).
-    if (m.prone) rows = SCHRAT.dead[0];
+    // À terre (planche art/a_terre_v1.png) : sur le dos, l'œil ouvert, les pattes qui pédalent (deux images).
+    if (m.prone) rows = A_TERRE[`prone${Math.floor((Math.abs(this.time) + m.id * 130) / 240) % 2}`];
     else if (m.asleep) rows = SCHRAT.sleep[0];
     else if (hurt) rows = SCHRAT.hurt[0];
     else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
@@ -1738,6 +1771,8 @@ export class Renderer {
     this.drawGluck(game, ox, oy);
     this.drawSoeur(game, ox, oy);
     this.drawKrik(game, ox, oy);
+    this.drawGrum(game, ox, oy);
+    this.drawGoldHen(game, ox, oy, progress);
     this.drawChicken(game, ox, oy, dt);
     this.drawHens(game, ox, oy, progress);
     this.drawStatueGlints(game, ox, oy);
@@ -2233,7 +2268,9 @@ export class Renderer {
         : null;
       // Assiette : pleine tant que la cuisse y est.
       const plateName = f.kind === "plate" ? (game.ground.some((g) => g.x === f.x && g.y === f.y && g.item === "cuisse_poulet") ? "plateFull" : "plate") : null;
-      const name = plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
+      // Quêtes v3 : le tonneau creux et la botte de foin dans le mur gardent le dessin du tonneau et de la botte.
+      const zoneName = f.kind === "barrelWall" ? "barrel" : f.kind === "hayWall" ? "hayBale" : null;
+      const name = zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
       const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
@@ -2245,13 +2282,13 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name]) {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
         py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
       } else {
-        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : f.kind.startsWith("candle") ? [4, -2] : f.kind.startsWith("pressurePlate") ? [1, -1] : [2, -1];
+        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : f.kind.startsWith("candle") ? [4, -2] : f.kind.startsWith("cierge") ? [4, -1] : f.kind.startsWith("grate") ? [1, -2] : f.kind.startsWith("pressurePlate") ? [1, -1] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }

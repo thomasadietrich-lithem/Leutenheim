@@ -1,4 +1,5 @@
 import { addRecord, loadRecords, recordLine } from "./ui/records";
+import { FERMIER } from "./render/sprites/ferme";
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./render/sprites/escaliers";
 import { Sfx } from "./audio/sfx";
 import { Music } from "./audio/music";
@@ -1834,9 +1835,15 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : "Krik");
+  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : "Krik");
   $("talk-face").replaceChildren(
-    who === "gluck" ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE) : who === "soeur" ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE) : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
+    who === "gluck"
+      ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE)
+      : who === "soeur"
+        ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE)
+        : who === "grum"
+          ? buildIcon(FERMIER.rows, FERMIER.palette)
+          : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
   );
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
   document.body.classList.add("talk-open");
@@ -3195,7 +3202,7 @@ button("settings-lang", () => {
 // Salle d'essai : Gluck et Sœur Osseuse reprennent à leur première scène (Thomas, 2026-11-12).
 button("reset-talks", () => {
   game.resetDialogues();
-  logLines.push("Dialogues remis à zéro : Gluck, Sœur Osseuse et Krik reprennent depuis le début.");
+  logLines.push("Dialogues remis à zéro : Gluck, Sœur Osseuse, Krik et Grum reprennent depuis le début.");
   renderLog();
 });
 // Salle d'essai v21 (Thomas, 2026-11-14) : tout l'étage remis à neuf ; l'arène remise, ou un monstre de plus.

@@ -66,6 +66,10 @@ export interface SavedFloor {
   chicken?: import("./floor").ChickenState;
   farm?: import("./floor").FloorState["farm"];
   zone?: import("./floor").QuestZone;
+  cierges?: import("./floor").FloorState["cierges"];
+  grates?: import("./floor").FloorState["grates"];
+  goldHen?: import("./floor").FloorState["goldHen"];
+  grum?: import("./floor").GluckSpot;
 }
 
 export interface SaveData {
@@ -100,6 +104,7 @@ export interface SaveData {
   soeur?: SoeurMemory;
   /** Krik : ce qu'il sait du héros (absent des anciennes sauvegardes). */
   krik?: KrikMemory;
+  grum?: { met: number };
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;
   xpCarry?: number;

@@ -7,7 +7,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const PLANCHES = [
   ["paperdoll_v1.png", "Paperdoll v1 — le Guerrier change avec son équipement", "Proposition (2026-11-13) : couches de 24 × 24, trois races, nouvelles armures et casques. Rien en jeu."],
-  ["a_terre_v1.png", "À terre v1 — Kobold et frondeur renversés", "Proposition (2026-11-14) : sur le dos mais vivants (œil ouvert, pattes qui pédalent), puis « il se relève ». À valider."],
+  ["zones_v1.png", "Zones spéciales v1 — objets des quêtes v3", "EN JEU (2026-11-14) : tapisserie, paillasse, bougie, dalle à pression, cierge, grille, épouvantail coiffé."],
+  ["a_terre_v1.png", "À terre v1 — Kobold et frondeur renversés", "EN JEU (2026-11-14) : sur le dos mais vivants (œil ouvert, pattes qui pédalent)."],
   ["araignee_v2.png", "Araignée v2 — plus animée", "EN JEU (2026-11-14) : repos ×4, marche ×4, aux aguets ×2, morsure ×2, à terre ×2."],
   ["escaliers_v3.png", "Escaliers v3 — 14 escaliers droits", "La n° 3 (pierre fendue) est EN JEU (2026-11-14) ; les autres sont gardées (src/render/sprites/escaliers.ts)."],
   ["heros_v10.png", "Notre héros, niveau 1 — 16 designs originaux", "Proposition (2026-11-14) : même personnage et même équipement de départ, 16 façons différentes de le dessiner. On choisit, puis on fait les variations. Gardé de la v9 : le n° 2 (apprenti garde) plaît."],

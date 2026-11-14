@@ -84,10 +84,81 @@ def plate(down=False):
     return s.done(outline=False)
 
 
+def cierge(lit=False):
+    """Un grand cierge d'église sur un pied de fer forgé (8 × 18)."""
+    s = Sprite(8, 18)
+    s.r(1, 15, 6, 3, "dish").r(3, 10, 2, 5, (90, 84, 92, 255)).r(1, 9, 6, 2, (110, 104, 112, 255))
+    s.r(2, 2, 4, 7, "wax").r(5, 2, 1, 7, "wax_d").p(2, 3, (255, 255, 250, 255)).p(3, 5, "wax_d")
+    s.p(3, 1, (40, 30, 30, 255))
+    s.done()
+    if lit:
+        s.r(3, -1, 2, 2, "flame").p(3, 0, "flame_c")
+        s.a[0, 3] = C["flame"]
+        s.a[0, 4] = C["flame_c"]
+    else:
+        s.a[0, 4] = C["smoke"]
+    return s
+
+
+def grate(glint=False):
+    """Une grille ronde au sol (planche trainards v3) : un ovale de fer à barreaux, un peu rouillé (14 × 12)."""
+    s = Sprite(14, 12)
+    import math
+    for y in range(12):
+        for x in range(14):
+            if ((x - 6.5) / 6.8) ** 2 + ((y - 5.5) / 5.6) ** 2 <= 1:
+                s.p(x, y, (40, 36, 44, 255))
+    for y in range(12):
+        for x in range(14):
+            d = ((x - 6.5) / 6.8) ** 2 + ((y - 5.5) / 5.6) ** 2
+            if 0.62 <= d <= 1:
+                s.p(x, y, (116, 112, 124, 255) if y < 6 else (84, 80, 92, 255))
+    for x in (3, 5, 7, 9, 11):
+        for y in range(2, 10):
+            if ((x - 6.5) / 6.8) ** 2 + ((y - 5.5) / 5.6) ** 2 <= 0.62:
+                s.p(x, y, (100, 96, 108, 255))
+    s.p(4, 8, (150, 80, 40, 255)).p(10, 3, (150, 80, 40, 255))
+    if glint:
+        for (x, y) in ((6, 1), (6, 3), (5, 2), (7, 2)):
+            s.p(x, y, (255, 226, 122, 255))
+        s.p(6, 2, (255, 255, 230, 255))
+    return s.done(outline=False)
+
+
+def scarecrow_helmet():
+    """L'épouvantail de la ferme, coiffé du casque qu'on lui a posé (le chapeau de paille devient de fer)."""
+    import re
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "render", "sprites", "ferme.ts")).read()
+    i = src.index('"scarecrow"')
+    pal = dict(re.findall(r'"(\w)": "(#[0-9a-f]{6})"', src[i:src.index('"rows"', i)]))
+    start = src.index("[", src.index('"rows"', i))
+    rows = re.findall(r'"([.a-z]+)"', src[start:src.index("]", start)])
+    im = Image.new("RGBA", (len(rows[0]), len(rows)), (0, 0, 0, 0))
+    steel = {"b": (164, 171, 200)}
+    for y, r in enumerate(rows):
+        for x, ch in enumerate(r):
+            if ch == ".":
+                continue
+            if y <= 3 and ch in steel:
+                im.putpixel((x, y), steel[ch] + (255,))
+            else:
+                h = pal[ch].lstrip("#")
+                im.putpixel((x, y), tuple(int(h[k:k + 2], 16) for k in (0, 2, 4)) + (255,))
+    im.putpixel((len(rows[0]) // 2, 1), (230, 236, 250, 255))
+
+    class W:
+        def img(self):
+            return im
+    return W()
+
+
 SPRITES = {
     "tapestry": tapestry, "tapestryCut": lambda: tapestry(True),
     "pallet": pallet, "candle": candle, "candleOut": lambda: candle(False),
     "pressurePlate": plate, "pressurePlateDown": lambda: plate(True),
+    "cierge": cierge, "ciergeLit": lambda: cierge(True),
+    "grate": grate, "grateGlint": lambda: grate(True),
+    "scarecrowHat": scarecrow_helmet,
 }
 
 
@@ -96,7 +167,7 @@ def main():
     W = 40 + len(names) * 130
     sheet = Image.new("RGB", (W, 260), (26, 20, 14))
     d = ImageDraw.Draw(sheet)
-    d.text((W // 2, 22), "ZONES SPÉCIALES v1 — le dortoir des traîtres de Krik (déjà en jeu, à valider)", fill=(255, 243, 200), font=font(14), anchor="mm")
+    d.text((W // 2, 22), "ZONES SPÉCIALES v1 — objets des quêtes v3 (en jeu, à valider)", fill=(255, 243, 200), font=font(14), anchor="mm")
     for i, n in enumerate(names):
         im = up(SPRITES[n]().img(), 6)
         x = 20 + i * 130

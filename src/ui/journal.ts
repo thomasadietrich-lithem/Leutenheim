@@ -242,6 +242,17 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "getUp":
       return null;
     case "zone":
+      if (e.what === "pushed") return "Vous poussez : ça glisse, et derrière, un passage !";
+      if (e.what === "stuck") return "Vous poussez de toutes vos forces… ça ne bouge pas. Encore !";
+      if (e.what === "wall") return "Un grondement : derrière l'autel, un pan de mur coulisse. La sacristie !";
+      if (e.what === "cierge") return (e.woke ?? 0) >= 3 ? "Le troisième cierge s'allume." : `Le cierge s'allume (${e.woke ?? 1} sur 3).`;
+      if (e.what === "noflame") return "Il vous faut une flamme : une torche, allumée ou dans le sac.";
+      if (e.what === "bell") return "Sous la grille, très loin, très bas… une cloche sonne. La cloche de Leutenheim !";
+      if (e.what === "hen") return "Vous attrapez la poule d'or ! Elle caquète, outrée.";
+      if (e.what === "henFlees") return "Côt côt ! La poule d'or détale. Approchez-la sans vous montrer.";
+      if (e.what === "hat") return "Vous coiffez l'épouvantail de votre casque. Il a l'air ravi. Enfin, il a l'air.";
+      if (e.what === "nohat") return "Il vous faut un casque dans le sac.";
+      if (e.what === "thief") return "« AU VOLEUR ! » Gluck se réveille en sursaut, et tout le cellier avec lui.";
       return e.what === "tapestry"
         ? "Vous tranchez la tapisserie : derrière, un passage."
         : e.what === "candle"

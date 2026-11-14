@@ -43,7 +43,7 @@ export type GameEvent =
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
   /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
-  | { type: "npc"; who: "gluck" | "soeur" | "krik"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
+  | { type: "npc"; who: "gluck" | "soeur" | "krik" | "grum"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
   /** Une statue : on la regarde (`look`), ou on frappe la statue creuse (jet de force ; réussi : elle s'effondre). */
   | { type: "statue"; x: number; y: number; look?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
@@ -108,7 +108,13 @@ export type GameEvent =
   /** Salle d'essai : de retour au HUB, l'étage est remis à neuf. */
   | { type: "sandboxReset" }
   /** Quêtes v3 : la zone spéciale (montrée, tapisserie tranchée, bougie soufflée, dalle enfoncée). */
-  | { type: "zone"; what: "shown" | "tapestry" | "candle" | "plate"; x: number; y: number; woke?: number }
+  | {
+      type: "zone";
+      what: "shown" | "tapestry" | "candle" | "plate" | "pushed" | "stuck" | "wall" | "cierge" | "noflame" | "bell" | "hen" | "henFlees" | "hat" | "nohat" | "thief";
+      x: number;
+      y: number;
+      woke?: number;
+    }
   /** Quelqu'un a marché sur un piège. */
   | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */

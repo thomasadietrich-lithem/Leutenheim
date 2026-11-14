@@ -170,6 +170,14 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   tapestryLow: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestryLowCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   pallet: { blocks: false, w: 1, h: 1, burns: true },
+  // Quêtes v3 : tonneau creux et botte de foin qui bouchent une entrée (dans le mur) ; cierges ; grilles ; épouvantail coiffé.
+  barrelWall: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  hayWall: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  cierge: { blocks: true, w: 1, h: 1, burns: false },
+  ciergeLit: { blocks: true, w: 1, h: 1, burns: false },
+  grate: { blocks: false, w: 1, h: 1, burns: false },
+  grateGlint: { blocks: false, w: 1, h: 1, burns: false },
+  scarecrowHat: { blocks: true, w: 1, h: 1, burns: true },
   // Salle d'essai (Thomas, 2026-11-14) : le héros proposé n° 2 (planche héros v9), debout à côté du héros actuel.
   heroV9: { blocks: true, w: 1, h: 1, burns: false },
   candle: { blocks: true, w: 1, h: 1, burns: false },

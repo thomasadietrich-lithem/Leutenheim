@@ -75,6 +75,13 @@ export interface FloorState {
   farm?: { field: Point[]; hens: { x: number; y: number; fromX: number; fromY: number }[] };
   /** Quêtes v3 : la zone spéciale taillée dans la roche quand la quête est donnée. */
   zone?: QuestZone;
+  /** Quêtes v3, Sœur Osseuse : les cierges à rallumer (les cases) ; les grilles d'où monte le son (la bonne, indiquée ou non). */
+  cierges?: Point[];
+  grates?: { cells: Point[]; right: number; hinted: boolean };
+  /** Quêtes v3, Grum : la poule aux œufs d'or échappée. */
+  goldHen?: { x: number; y: number; fromX: number; fromY: number };
+  /** Grum, le Kobold fermier (quête 05), s'il est sur cet étage. */
+  grum?: GluckSpot;
 }
 
 /**
@@ -84,7 +91,12 @@ export interface FloorState {
  */
 export interface QuestZone {
   /** `traitres` : le dortoir des traîtres de Krik ; `placard` : la mauvaise tapisserie (un placard, une pomme). */
-  kind: "traitres" | "placard";
+  kind: "traitres" | "placard" | "cellier" | "sacristie" | "grange";
+  /** Comment on entre : trancher la tapisserie, pousser le tonneau creux ou la botte de foin, ou le mur qui coulisse. */
+  door: "tapestry" | "barrel" | "hay" | "wall";
+  /** Où apparaît l'objet à rapporter (sac de Gluck), et une place pour un PNJ dans la zone. */
+  loot?: Point;
+  inside?: Point;
   room: { x: number; y: number; w: number; h: number };
   /** La case de mur de l'entrée (la tapisserie), et si elle est ouverte. */
   entry: Point;
@@ -146,6 +158,8 @@ export interface GluckSpot {
   gold?: number;
   /** Sœur Osseuse, rencontre 4 : le tambour a déjà résonné à l'ouverture. */
   drumDone?: boolean;
+  /** Quêtes v3 : il dort (Gluck fait la sieste dans son cellier, sur son sac). */
+  asleep?: boolean;
 }
 
 /**

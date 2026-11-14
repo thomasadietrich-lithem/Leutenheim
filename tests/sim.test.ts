@@ -1062,7 +1062,10 @@ test("quête 01, Gluck : quatre scènes, des pommes, un jet par choix risqué (T
   assert.deepEqual(game.gluckScene().choices.map((c) => c.id), ["kind", "threaten", "deal", "steal", "leave"]);
   const near = (it: { x: number; y: number }) => Math.max(Math.abs(it.x - g.x), Math.abs(it.y - g.y)) <= 3;
   const before = game.ground.filter((it) => it.item === "pomme" && near(it)).length;
+  // (Une tâche déjà en cours : l'ancienne scène, sans la mission v3 du cellier, testée à part.)
+  game.quest = { id: "soeur_kobolds", depth: 99, got: 0, need: 1 };
   const r1 = game.gluckChoose("threaten");
+  game.quest = null;
   assert.ok(r1.roll && r1.done);
   // Il disparaît (« Pouf ! ») et ses pommes tombent par terre AUTOUR de lui, jamais sur sa case ni sous le héros (Thomas).
   const leave = game.events.find((e) => e.type === "npc" && e.what === "leave");
@@ -2205,7 +2208,7 @@ test("salle d'essai v21 : HUB, six directions, tout accessible, écriteaux, armu
     // Chaque objet (hors objets de quête) est dans l'armurerie, dans une zone.
     const areas = game.areas();
     for (const id of Object.keys(ITEMS)) {
-      if (["sac_pommes", "magot_krik", "robe", "clef"].includes(id)) continue;
+      if (["sac_pommes", "magot_krik", "robe", "clef", "marmite", "louche", "corde", "poule_or"].includes(id)) continue;
       assert.ok(game.ground.some((g) => g.item === id && areas.some((a) => g.x >= a.x && g.x < a.x + a.w && g.y >= a.y && g.y < a.y + a.h)), `${id} hors des zones`);
     }
     // Écriteaux : sur un mur, et un par salle nommée.
@@ -4069,7 +4072,7 @@ test("un objet qui tombe sur un escalier rebondit à côté", () => {
 });
 
 /** Le héros à côté d'un PNJ de quête de la salle d'essai, monstres calmés. */
-function besideNpc(game: Game, id: "gluck" | "soeur" | "krik"): void {
+function besideNpc(game: Game, id: "gluck" | "soeur" | "krik" | "grum"): void {
   const k = game.npc(id)!;
   const spots = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: k.x + dx, y: k.y + dy })).filter((p) => game.map.isWalkable(p.x, p.y) && !game.npcAt(p.x, p.y) && !game.monsterAt(p.x, p.y));
   game.hero.x = game.hero.fromX = spots[0].x;
@@ -4202,6 +4205,117 @@ test("quêtes v3, Krik : le dortoir des traîtres derrière la tapisserie ; une 
   game.npcChoose("krik", "protect");
   assert.equal(game.zone()?.kind, "placard");
   assert.ok(game.ground.some((g) => g.item === "pomme" && g.x >= game.zone()!.room.x && g.y >= game.zone()!.room.y && g.x < game.zone()!.room.x + game.zone()!.room.w && g.y < game.zone()!.room.y + game.zone()!.room.h));
+});
+
+test("quêtes v3 : Gluck (cellier, piste, vol), Sœur Osseuse (cierges, grilles, cloche), Grum (poule, grange, chapeau) (Thomas, 2026-11-14)", () => {
+  const setup = (id: "gluck" | "soeur" | "grum") => {
+    // Grum vit dans la ferme : la vraie salle d'essai (le banc d'essai n'en a pas).
+    const game = id === "grum" ? withSandbox(() => new Game(2, undefined, undefined, undefined, true)) : new Game(2, undefined, undefined, undefined, true);
+    game.monsters.splice(0);
+    game.alloc.charisme = game.alloc.intelligence = 40;
+    (game as unknown as { pushBonus(): number }).pushBonus = () => 40;
+    (game as unknown as { disengageBonus(): number }).disengageBonus = () => 40;
+    game.hero.hp = game.hero.maxHp = 500;
+    if (!game.npc(id)) return null;
+    besideNpc(game, id);
+    return game;
+  };
+  const priv = (g: Game) => g as unknown as { openZoneDoor(): void; pushZoneDoor(): void; lightCierge(p: { x: number; y: number }): void; hatScarecrow(): void; removeIfDead(m: unknown, b: boolean): void };
+  // Gluck gentil : le cellier derrière le tonneau creux ; on le pousse ; le sac est dedans.
+  let game = setup("gluck")!;
+  game.npcChoose("gluck", "kind");
+  assert.equal(game.quest?.id, "gluck_sac");
+  let z = game.zone()!;
+  assert.equal(z.kind, "cellier");
+  assert.ok(game.zoneDoorAt(z.entry.x, z.entry.y), "le tonneau creux bouche l'entrée");
+  assert.ok(game.ground.some((g) => g.item === "sac_pommes" && g.x === z.loot!.x && g.y === z.loot!.y), "le sac est dans le cellier");
+  priv(game).pushZoneDoor();
+  assert.ok(game.zone()!.open && game.map.isWalkable(z.entry.x, z.entry.y), "le tonneau a glissé");
+  assert.equal(game.monsters.filter((m) => z.sleepers.includes(m.id) && m.asleep).length, 2, "deux dormeurs");
+  // Gluck menacé : la piste de pommes ; entrer dans le cellier suffit.
+  game = setup("gluck")!;
+  const apples = game.ground.filter((g) => g.item === "pomme").length;
+  game.npcChoose("gluck", "threaten");
+  assert.equal(game.quest?.id, "gluck_piste");
+  assert.ok(game.ground.filter((g) => g.item === "pomme").length > apples, "des pommes sur le chemin");
+  z = game.zone()!;
+  priv(game).openZoneDoor();
+  game.hero.x = z.room.x;
+  game.hero.y = z.room.y;
+  game.wait();
+  game.tick();
+  assert.ok(game.questDone(), "entré dans le cellier");
+  // Gluck volé : il dort sur son sac ; prendre le sac le termine.
+  game = setup("gluck")!;
+  game.npcChoose("gluck", "steal");
+  assert.equal(game.quest?.id, "gluck_vol");
+  assert.ok(game.gluck()?.asleep);
+  const pommes = game.inventory.count("pomme");
+  game.inventory.add("sac_pommes", 1);
+  game.wait();
+  game.tick();
+  assert.equal(game.quest, null);
+  assert.equal(game.inventory.count("pomme"), pommes + 4);
+  // Sœur consolée : trois cierges, une torche ; les trois allumés, la sacristie s'ouvre.
+  game = setup("soeur")!;
+  game.npcChoose("soeur", "console");
+  assert.equal(game.quest?.id, "soeur_cierges");
+  const cierges = game.furnitureList().filter((f) => f.kind === "cierge");
+  assert.equal(cierges.length, 3);
+  game.inventory.add("torche", 1);
+  for (const c of cierges) priv(game).lightCierge(c);
+  assert.ok(game.questDone());
+  if (game.zone()?.kind === "sacristie") assert.ok(game.zone()!.open, "la sacristie s'ouvre");
+  // Sœur et la cloche sous le village : trois grilles, deux tours sur la bonne.
+  game = setup("soeur")!;
+  game.npcChoose("soeur", "explain");
+  assert.equal(game.quest?.id, "soeur_grille");
+  const gr = game.grates()!;
+  assert.equal(gr.cells.length, 3);
+  game.hero.x = gr.cells[gr.right].x;
+  game.hero.y = gr.cells[gr.right].y;
+  for (let i = 0; i < 2; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(game.questDone());
+  // Sœur et la cloche de fortune : marmite, louche, corde.
+  game = setup("soeur")!;
+  game.npcChoose("soeur", "craft");
+  assert.equal(game.quest?.id, "soeur_cloche");
+  for (const id of ["marmite", "louche", "corde"] as const) assert.ok(game.ground.some((g) => g.item === id), `${id} posé`);
+  for (const id of ["marmite", "louche", "corde"] as const) game.inventory.add(id, 1);
+  assert.ok(game.questDone());
+  besideNpc(game, "soeur");
+  assert.ok(game.npcChoose("soeur", "turnin").done);
+  assert.equal(game.inventory.count("marmite"), 0);
+  // Grum : la poule (attrapée), la grange (poussée), le chapeau.
+  game = setup("grum")!;
+  assert.ok(game, "Grum est dans la ferme");
+  game.npcChoose("grum", "hen");
+  assert.equal(game.quest?.id, "grum_poule");
+  assert.ok(game.goldHen(), "la poule s'est sauvée");
+  game.inventory.add("poule_or", 1);
+  besideNpc(game, "grum");
+  game.npcChoose("grum", "turnin");
+  assert.equal(game.quest, null);
+  game = setup("grum")!;
+  game.npcChoose("grum", "hay");
+  assert.equal(game.quest?.id, "grum_foin");
+  z = game.zone()!;
+  assert.equal(z.kind, "grange");
+  for (const m of game.monsters.filter((o) => z.sleepers.includes(o.id))) {
+    m.hp = 0;
+    priv(game).removeIfDead(m, true);
+  }
+  assert.ok(game.questDone());
+  game = setup("grum")!;
+  game.npcChoose("grum", "hat");
+  assert.equal(game.quest?.id, "grum_chapeau");
+  game.inventory.add("casque_cuir", 1);
+  priv(game).hatScarecrow();
+  assert.ok(game.questDone());
+  assert.ok(game.furnitureList().some((f) => f.kind === "scarecrowHat"));
 });
 
 test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investissement (Thomas, 2026-11-12)", () => {

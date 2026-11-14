@@ -48,7 +48,7 @@ export interface SandboxFloor extends Floor {
   /** Le Colporteur (Thomas, 2026-11-12) : où il se tient et la salle où il flâne. */
   merchant: { x: number; y: number; home: Room };
   /** Places des PNJ de quête (la première libre est prise) ; sans place, la partie en choisit une. */
-  npcs?: { gluck?: Point[]; soeur?: Point[]; krik?: Point[] };
+  npcs?: { gluck?: Point[]; soeur?: Point[]; krik?: Point[]; grum?: Point[] };
   /** Le poulet : la salle fermée (numéro), sa porte, et où il attend. */
   chicken?: { room: number; door: Point; at: Point };
   /** Le placard du Kobold qui compte : sa porte et la case derrière. */
@@ -91,7 +91,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 22;
+export const SANDBOX_LAYOUT = 23;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7 };
@@ -192,7 +192,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     { w: 11, h: 9, name: "Gluck, le Kobold aux pommes" },
     { w: 11, h: 9, name: "Sœur Osseuse" },
     { w: 11, h: 9, name: "Krik" },
-    { w: 12, h: 9, name: "Ferme de Grum (bientôt)" },
+    { w: 12, h: 9, name: "Ferme de Grum" },
   ]);
   {
     const r = rooms[gluckRoom];
@@ -308,19 +308,19 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     areas.push({ x, y, w, h: 2, label, color });
     items.forEach(([item, count], i) => ground.push({ x: x + i * step, y: y + 1, item, count }));
   };
-  zone(97, 23, 10, "Armes", "#c9a227", [
+  zone(97, 23, 11, "Armes", "#c9a227", [
     ["epee", 1], ["dague", 1], ["baton", 1], ["masse", 1], ["epee_longue", 1],
-    ["couteau_boucher", 1], ["lance", 1], ["cimeterre", 1], ["arc_court", 1], ["arc_puissant", 1],
+    ["couteau_boucher", 1], ["lance", 1], ["cimeterre", 1], ["arc_court", 1], ["arc_puissant", 1], ["fourche", 1],
   ]);
   zone(109, 23, 5, "Armures", "#8fa3b8", [["tunique", 1], ["armure_cuir", 1], ["armure_cloutee", 1], ["cotte_mailles", 1], ["harnois", 1]]);
-  zone(116, 23, 5, "Casques", "#a77a52", [["casque_cuir", 1], ["casque_maille", 1]], 2);
+  zone(116, 23, 5, "Casques", "#a77a52", [["casque_cuir", 1], ["casque_maille", 1], ["casque_poulet", 1]], 2);
   zone(97, 27, 11, "Potions", "#b05cc9", [
     ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
     ["potion_oursin", 2], ["potion_pierre", 2], ["potion_discorde", 2], ["potion_geant", 2], ["potion_glissante", 2],
   ]);
   zone(110, 27, 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["javeline", 3]], 2);
   zone(117, 27, 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
-  zone(97, 31, 7, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["or", 5], ["or", 15], ["or", 40]]);
+  zone(97, 31, 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(106, 31, 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1]], 2);
   zone(115, 31, 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["torche", 2]], 2);
 

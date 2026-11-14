@@ -147,3 +147,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def export():
+    """Les images « à terre » en jeu → src/render/sprites/aterre.ts (mêmes lettres que la palette du Kobold)."""
+    out = os.path.join(ROOT, "src", "render", "sprites", "aterre.ts")
+    lines = ["// FICHIER GÉNÉRÉ par art/a_terre_v1.py (export) : ne pas modifier à la main.",
+             "/** À terre (planche art/a_terre_v1.png) : sur le dos mais vivant, deux images qui alternent ; il se relève. Palette du Kobold. */",
+             "export const A_TERRE: Record<string, readonly string[]> = {"]
+    for name, rows in (("prone0", prone(0)), ("prone1", prone(1)), ("getUp", getting_up())):
+        lines.append(f"  {name}: [")
+        lines += [f'    "{r}",' for r in rows]
+        lines.append("  ],")
+    lines.append("};")
+    open(out, "w").write("\n".join(lines) + "\n")
+    print("src/render/sprites/aterre.ts")
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()

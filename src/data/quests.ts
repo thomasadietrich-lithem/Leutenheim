@@ -12,11 +12,31 @@
  */
 import type { ItemId } from "./items";
 
-export type QuestTaskId = "gluck_sac" | "gluck_statue" | "soeur_kobolds" | "krik_magot" | "krik_traqueurs" | "krik_dortoir" | "krik_passage" | "krik_diversion";
+export type QuestTaskId =
+  | "gluck_sac"
+  | "gluck_statue"
+  | "gluck_piste"
+  | "gluck_vol"
+  | "soeur_kobolds"
+  | "soeur_cierges"
+  | "soeur_grille"
+  | "soeur_cloche"
+  | "krik_magot"
+  | "krik_traqueurs"
+  | "krik_dortoir"
+  | "krik_passage"
+  | "krik_diversion"
+  | "grum_poule"
+  | "grum_foin"
+  | "grum_chapeau";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik";
-  kind: "kill" | "fetch" | "statue" | "smoke";
+  npc: "gluck" | "soeur" | "krik" | "grum";
+  /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
+   * compteur tenu par la partie (cierges, tours sur la grille, chapeau) ; collect : rapporter plusieurs objets. */
+  kind: "kill" | "fetch" | "statue" | "smoke" | "enter" | "count" | "collect";
+  /** collect : les objets à rapporter. */
+  items?: ItemId[];
   /** kill : combien de Kobolds (au plus ceux de l'étage). */
   count?: number;
   /** Quêtes v3 : la tâche se joue dans la ZONE SPÉCIALE de la quête (seuls ses Kobolds comptent). */
@@ -40,6 +60,7 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     npc: "gluck",
     kind: "fetch",
     item: "sac_pommes",
+    zone: true,
     goal: "Retrouver le sac de Gluck",
     back: "Rendre le sac à Gluck",
     waiting: "« Mon sac est quelque part sur l'étage. Je t'attends ici. Je ne bouge pas. Promis. »",
@@ -54,6 +75,89 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     waiting: "« La statue ! Un bon coup, et hop ! Moi, je surveille. »",
     thanks: ["« Alors ? Il y avait quoi ? … Garde tout. Les cailloux, ça me fait peur. »", "« Une pomme pour le travail, une pour le courage. »", "(Il laisse 2 pommes.)"],
     failed: "Gluck ne saura jamais ce que cachait la statue.",
+  },
+  // ---- Quêtes v3 (Thomas, 2026-11-13/14 : « chaque option de dialogue présente un objectif à réaliser ») ----
+  gluck_piste: {
+    npc: "gluck",
+    kind: "enter",
+    zone: true,
+    goal: "Suivre la piste de pommes",
+    back: "Parler à Gluck, dans son cellier",
+    waiting: "« N-ne me fais pas mal ! Je… je t'attends. Ici. Caché. »",
+    thanks: ["« Tu m'as trouvé. Évidemment. Les pommes… quelle idée de semer des pommes. »", "« Prends-en deux. Et va-t'en. S'il te plaît. »", "(Il laisse 2 pommes.)"],
+    failed: "Gluck tremble encore dans son cellier.",
+  },
+  gluck_vol: {
+    npc: "gluck",
+    kind: "fetch",
+    item: "sac_pommes",
+    zone: true,
+    goal: "Voler le sac de Gluck sans le réveiller",
+    back: "Filer avec le sac",
+    waiting: "(Il dort, la joue sur son sac. Surtout, ne pas le réveiller.)",
+    thanks: ["(Le sac est à vous : 4 pommes.)"],
+    failed: "Gluck se réveille un jour, et son sac n'est plus là. Il saura.",
+  },
+  soeur_cierges: {
+    npc: "soeur",
+    kind: "count",
+    count: 3,
+    goal: "Rallumer les cierges {0}/{1}",
+    back: "Revoir Sœur Osseuse",
+    waiting: "« Trois cierges. Les Kobolds les ont soufflés. Il vous faut une flamme : une torche fera l'affaire. »",
+    thanks: ["« La lumière revient. Et derrière l'autel, le mur a bougé ? … La sacristie ! Je l'avais oubliée. »", "« Allez en paix, mon enfant. »", "(Protection : +1 classe d'armure pendant 150 tours.)"],
+    failed: "Les cierges de Sœur Osseuse restent éteints.",
+  },
+  soeur_grille: {
+    npc: "soeur",
+    kind: "count",
+    count: 2,
+    goal: "Écouter sur la bonne grille {0}/{1}",
+    back: "Revoir Sœur Osseuse",
+    waiting: "« Trois grilles dans le sol. Une seule chante. Tenez-vous dessus, et écoutez. Longtemps. Deux tours, au moins. »",
+    thanks: ["« Vous l'avez entendue ? Ma cloche. En bas. »", "« Alors allez-y. Je vous montre le chemin. »", "(L'escalier apparaît sur la carte. Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"],
+    failed: "La cloche sonne encore, quelque part sous vos pieds.",
+  },
+  soeur_cloche: {
+    npc: "soeur",
+    kind: "collect",
+    items: ["marmite", "louche", "corde"],
+    goal: "Rapporter marmite, louche et corde {0}/{1}",
+    back: "Revoir Sœur Osseuse",
+    waiting: "« Une marmite, une louche, une corde. Avec ça, je vous fais une cloche. Presque. »",
+    thanks: ["Elle pend la marmite, accroche la louche au bout de la corde. CLONC.", "« … Elle sonne faux. Elle est PARFAITE. »", "(Chance : vos 3 prochains 1 au dé seront relancés.)"],
+    failed: "Sœur Osseuse n'aura pas sa cloche de fortune.",
+  },
+  grum_poule: {
+    npc: "grum",
+    kind: "fetch",
+    item: "poule_or",
+    goal: "Ramener la poule aux œufs d'or",
+    back: "Rendre la poule à Grum",
+    waiting: "« Elle a peur de tout. Approche-la sans te montrer, et attrape-la. »",
+    thanks: ["« MA POULE ! Ma Cocotte d'or ! »", "« Tiens, son dernier œuf. Il est en or. Vraiment en or. »", "(Il laisse un œuf d'or.)"],
+    failed: "Quelque part, une poule d'or caquète toute seule.",
+  },
+  grum_foin: {
+    npc: "grum",
+    kind: "kill",
+    count: 2,
+    zone: true,
+    goal: "Chasser les voleurs de foin {0}/{1}",
+    back: "Revoir Grum",
+    waiting: "« Ils sont dans ma grange, derrière la grosse botte. Pousse-la. »",
+    thanks: ["« Ma grange ! Mon foin ! »", "« Prends ma fourche. Elle pique plus loin que ton épée. »", "(Il laisse sa fourche.)"],
+    failed: "Les voleurs de foin dorment toujours dans la grange de Grum.",
+  },
+  grum_chapeau: {
+    npc: "grum",
+    kind: "count",
+    count: 1,
+    goal: "Coiffer l'épouvantail d'un casque",
+    back: "Revoir Grum",
+    waiting: "« Un casque. N'importe lequel. Pose-le-lui sur la tête. Il a froid, le pauvre. »",
+    thanks: ["« Il est beau ! Il fait peur ! Enfin… il fait quelque chose. »", "« Tiens. Celui-là, je l'ai fait moi-même. »", "(Il laisse un casque poulet.)"],
+    failed: "L'épouvantail de Grum a toujours froid.",
   },
   soeur_kobolds: {
     npc: "soeur",
@@ -138,4 +242,6 @@ export interface QuestTask {
   /** Où on en est, et combien il en faut. */
   got: number;
   need: number;
+  /** Cloche de fortune : le jet était raté, elle fera un vacarme au moment de la monter. */
+  noisy?: boolean;
 }

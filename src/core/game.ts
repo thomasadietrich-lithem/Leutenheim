@@ -10,6 +10,7 @@ import { RULES } from "../data/rules";
 import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { SOEUR, SOEUR_OPENING } from "../data/soeur";
 import { KRIK, KRIK_OPENING } from "../data/krik";
+import { GRUM, GRUM_OPENING } from "../data/grum";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
@@ -58,8 +59,10 @@ export interface GluckMemory {
 }
 
 /** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
-export type NpcId = "gluck" | "soeur" | "krik";
-export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik"];
+export type NpcId = "gluck" | "soeur" | "krik" | "grum";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum"];
+/** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
+const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik"];
 
 /** Ce que Krik sait du héros, le temps d'une partie. */
 export interface KrikMemory {
@@ -169,6 +172,7 @@ export class Game {
   /** Sœur Osseuse : ce qu'elle sait du héros dans cette partie. */
   soeurMemory: SoeurMemory = { met: 0 };
   krikMemory: KrikMemory = { met: 0 };
+  grumMemory: { met: number } = { met: 0 };
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -861,6 +865,14 @@ export class Game {
 
   /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
   private resolveBreak(at: Point): void {
+    const hen = this.current.goldHen;
+    if (hen && Math.max(Math.abs(hen.x - this.hero.x), Math.abs(hen.y - this.hero.y)) <= 1 && hen.x === at.x && hen.y === at.y) {
+      this.current.goldHen = undefined;
+      if (this.inventory.add("poule_or", 1) === 0) this.events.push({ type: "pickup", item: "poule_or", count: 1 });
+      else this.bounceFromHero("poule_or", 1);
+      this.events.push({ type: "zone", what: "hen", x: at.x, y: at.y });
+      return;
+    }
     const bathTarget = this.bathTargetAt(at.x, at.y);
     if (bathTarget === "tub") {
       this.wakeBath(true);
@@ -888,8 +900,17 @@ export class Game {
       this.ringBell(bell);
       return;
     }
-    if (this.tapestryAt(at.x, at.y)) {
-      this.cutTapestry();
+    if (this.zoneDoorAt(at.x, at.y)) {
+      if (this.current.zone!.door === "tapestry") this.openZoneDoor();
+      else this.pushZoneDoor();
+      return;
+    }
+    if (this.ciergeAt(at.x, at.y)) {
+      this.lightCierge(at);
+      return;
+    }
+    if (this.scarecrowAt(at.x, at.y)) {
+      this.hatScarecrow();
       return;
     }
     if (this.candleAt(at.x, at.y)) {
@@ -1712,6 +1733,10 @@ export class Game {
       chicken: f.chicken,
       farm: f.farm,
         zone: f.zone,
+        cierges: f.cierges,
+        grates: f.grates,
+        goldHen: f.goldHen,
+        grum: f.grum,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1743,6 +1768,7 @@ export class Game {
       gluck: this.gluckMemory,
       soeur: this.soeurMemory,
       krik: this.krikMemory,
+      grum: this.grumMemory,
       quest: this.quest,
       xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
@@ -1817,6 +1843,10 @@ export class Game {
         chicken: f.chicken,
         farm: f.farm,
         zone: f.zone,
+        cierges: f.cierges,
+        grates: f.grates,
+        goldHen: f.goldHen,
+        grum: f.grum,
       });
     }
     game.turn = saved.turn;
@@ -1858,6 +1888,7 @@ export class Game {
     game.blessTurns = saved.blessTurns ?? 0;
     game.soeurMemory = saved.soeur ?? { met: 0 };
     game.krikMemory = saved.krik ?? { met: 0 };
+    game.grumMemory = saved.grum ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
@@ -2062,6 +2093,8 @@ export class Game {
     // La bougie de la zone de quête : une petite lueur dans sa pièce.
     const z = this.current?.zone;
     const candle = z?.candleLit && z.candle ? [{ x: z.candle.x, y: z.candle.y, faceX: 0, faceY: 0, radius: 3, area: z.room }] : [];
+    // Les cierges rallumés de Sœur Osseuse.
+    for (const f of this.current?.furniture ?? []) if (f.kind === "ciergeLit") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: 2, area: this.rooms.find((r) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h) ?? z?.room ?? { x: f.x, y: f.y, w: 1, h: 1 } });
     this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
   }
 
@@ -2847,7 +2880,10 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.tapestryAt(x, y) || this.candleAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
+    const hen = this.current.goldHen;
+    if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
     // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
     const statue = this.statueAt(x, y);
     if (statue && this.isExplored(x, y)) {
@@ -3363,6 +3399,7 @@ export class Game {
 
     this.sandboxHubCheck();
     this.zoneStep();
+    this.questTick();
     this.turn++;
     // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
     if (this.turn % RULES.alarmTurnsPerPoint === 0) this.raiseAlarm(1);
@@ -3402,7 +3439,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -3908,12 +3945,18 @@ export class Game {
       state.gluck = this.placeGluck(state, depth) ?? undefined;
       state.soeur = (at(spots.soeur) ?? this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0))) ?? undefined;
       state.krik = (at(spots.krik) ?? this.placeKrik(state, new Rng(this.runSeed ^ 0x6b1c))) ?? undefined;
+      state.grum = (at(spots.grum) ?? this.placeGrum(state, new Rng(this.runSeed ^ 0x6a7))) ?? undefined;
       if (!this.sandboxFloor()?.hollowStatue) this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
       return;
     }
     const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
     if ((depth - 1) % RULES.floorsPerSection > 3 || !rng.chance(GLUCK.chance)) return;
-    const who = NPC_IDS.filter((id) => this.npcMemory(id).met < this.npcMax(id));
+    // Grum vit dans la ferme : un étage avec une ferme l'a, à la place des autres.
+    if ((state.themes ?? []).some((t) => t.id === "ferme") && this.grumMemory.met < GRUM.maxEncounters) {
+      state.grum = this.placeGrum(state, rng) ?? undefined;
+      if (state.grum) return;
+    }
+    const who = ROAMING_NPCS.filter((id) => this.npcMemory(id).met < this.npcMax(id));
     if (who.length === 0) return;
     const pick = who[rng.int(0, who.length - 1)];
     if (pick === "gluck") {
@@ -3926,7 +3969,7 @@ export class Game {
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
   npcMax(id: NpcId): number {
-    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : KRIK.maxEncounters;
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -3936,7 +3979,7 @@ export class Game {
     const floor = state as unknown as Parameters<typeof placeBell>[0];
     // Ni sur un PNJ, ni sur un objet, un monstre, un motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.merchant].some((p) => p && p.x === x && p.y === y) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.merchant].some((p) => p && p.x === x && p.y === y) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -3985,8 +4028,9 @@ export class Game {
     this.gluckMemory = { met: 0, mood: 0, invested: 0 };
     this.soeurMemory = { met: 0 };
     this.krikMemory = { met: 0 };
+    this.grumMemory = { met: 0 };
     this.quest = null;
-    for (const g of [this.current.gluck, this.current.soeur, this.current.krik]) {
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -4013,6 +4057,7 @@ export class Game {
       !(state.merchant && state.merchant.x === x && state.merchant.y === y) && !state.ground.some((g) => g.x === x && g.y === y) &&
       !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) &&
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
+      !(state.grum && state.grum.x === x && state.grum.y === y) &&
       !(state.chicken && !state.chicken.done && state.chicken.x === x && state.chicken.y === y)
     );
   }
@@ -4094,6 +4139,24 @@ export class Game {
     return null;
   }
 
+  /** Grum se tient dans sa ferme, hors du pré, sur du sol nu. */
+  private placeGrum(state: FloorState, rng: Rng): GluckSpot | null {
+    const farm = (state.themes ?? []).find((t) => t.id === "ferme");
+    if (!farm) return null;
+    const r = state.rooms[farm.room];
+    const field = new Set((state.furniture ?? []).filter((f) => f.kind === "soil" || f.kind === "soil2").map((f) => f.x * 1000 + f.y));
+    const cells: Point[] = [];
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (!field.has(x * 1000 + y) && this.npcFree(state, x, y)) cells.push({ x, y });
+    if (cells.length === 0) return null;
+    const p = cells[rng.int(0, cells.length - 1)];
+    return { x: p.x, y: p.y, gone: false };
+  }
+
+  /** Grum (quête 05), s'il est sur cet étage. */
+  grum(): GluckSpot | null {
+    return this.npc("grum");
+  }
+
   /** Gluck sur cet étage (pas encore parti), s'il y est. */
   gluck(): GluckSpot | null {
     return this.npc("gluck");
@@ -4126,7 +4189,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : this.krikMemory;
+    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -4160,12 +4223,12 @@ export class Game {
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     if (this.questWith(id)) return this.questScene(id);
-    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : this.krikScene();
+    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
     if (this.questWith(id)) return this.questChoose(id, choice);
-    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : this.krikChoose(choice);
+    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -4325,6 +4388,19 @@ export class Game {
       case "kind":
         if (test()) {
           mood(1);
+          // Quêtes v3 : son CELLIER, derrière le tonneau qui sonne creux ; deux Kobolds y dorment sur ses pommes.
+          if (!this.quest && this.openZone("cellier", g) && this.giveTask("gluck_sac")) {
+            return {
+              lines: [
+                "« Ah ! Enfin quelqu'un de gentil. »",
+                "« Mon cellier est derrière le tonneau qui sonne creux. Des Kobolds y dorment sur MES pommes. Et sur mon sac. »",
+                "« Pousse le tonneau, rapporte-moi le sac. On partagera. »",
+                "(Le tonneau creux apparaît sur la carte.)",
+              ],
+              roll,
+              done: true,
+            };
+          }
           // Tâche (Thomas, 2026-11-12) : son sac perdu, à lui rapporter. Il attend sur place.
           if (this.giveTask("gluck_sac")) {
             return { lines: ["« Ah ! Enfin quelqu'un de gentil. »", "« Mon sac de pommes ? Perdu en fuyant les autres. Ramène-le-moi, on partagera. »", "(Sa salle apparaît sur la carte.)"], roll, done: true };
@@ -4345,6 +4421,11 @@ export class Game {
       case "threaten":
         mood(-1);
         if (test()) {
+          // Quêtes v3 : il file se cacher dans son cellier en semant des pommes ; il faut SUIVRE LA PISTE.
+          if (!this.quest && this.openZone("cellier", g) && this.giveTask("gluck_piste")) {
+            this.appleTrail(g);
+            return { lines: ["« D'accord, d'accord ! » Il détale en serrant ses pommes… qui tombent une à une derrière lui.", "(Suivez la piste de pommes.)"], roll, done: true };
+          }
           this.gluckDrops(2);
           return end(["« D'accord, d'accord ! Prends-les, mais ne me fais pas mal ! »"]);
         }
@@ -4374,6 +4455,23 @@ export class Game {
         return end(["« Un plaisir de faire affaire avec toi ! »"]);
       case "steal":
         if (test()) {
+          // Quêtes v3 : il bâille et part faire la sieste dans son cellier, sur son sac. Y entrer en douce.
+          if (!this.quest && this.openZone("cellier", g) && this.giveTask("gluck_vol")) {
+            const z = this.current.zone!;
+            const spot = z.inside ?? z.loot!;
+            g.x = spot.x;
+            g.y = spot.y;
+            g.asleep = true;
+            return {
+              lines: [
+                "Vous tendez la main vers son sac… il bâille : « La sieste. Dans mon cellier. Derrière le tonneau. »",
+                "« Ne me réveille pas. Personne ne me réveille. »",
+                "(Prenez son sac sans le réveiller : chaque pas près de lui est un jet de discrétion.)",
+              ],
+              roll,
+              done: true,
+            };
+          }
           this.giveApples(this.rng.int(1, 2));
           return end(["Vous glissez la main dans son sac… il ne remarque rien.", "Gluck s'en va en sifflotant."]);
         }
@@ -4546,16 +4644,37 @@ export class Game {
         return { lines: ["« Allez. Et ne courez pas. »"], done: true };
       case "console":
         if (test()) {
+          // Quêtes v3 : rallumer ses trois cierges ; derrière l'autel, la sacristie s'ouvrira.
+          if (!this.quest && this.placeCierges(g) && this.giveTask("soeur_cierges")) {
+            this.openZone("sacristie", g, this.chapelRoom() ?? undefined);
+            return {
+              lines: ["« … Merci. Vous êtes moins grossier que vous n'en avez l'air. »", "« Rallumez mes trois cierges. Les Kobolds les ont soufflés. Il vous faut une flamme : une torche. »", "(Les trois cierges apparaissent sur la carte.)"],
+              roll,
+              done: true,
+            };
+          }
           this.grantProtection();
           return end(["« … Merci. Vous êtes moins grossier que vous n'en avez l'air. »", "(Protection : +1 classe d'armure pendant 150 tours.)"]);
         }
         return end(["« Vous êtes particulièrement mauvais en consolation. »"]);
-      case "explain":
-        if (test()) {
+      case "explain": {
+        // Quêtes v3 : trouver la grille d'où monte le son ; réussi, la bonne grille scintille.
+        const ok = test();
+        if (!this.quest && this.placeGrates(g, ok) && this.giveTask("soeur_grille")) {
+          return {
+            lines: ok
+              ? ["« Sous nos pieds ? Alors elle n'est pas fondue. Elle est en bas. »", "« Trois grilles, dans le sol de cet étage. Une seule chante. Écoutez. »", "(Les grilles apparaissent sur la carte ; l'une d'elles scintille.)"]
+              : ["« Des racontars de boulanger. … Mais allez écouter les grilles, tiens. On ne sait jamais. »", "(Les grilles apparaissent sur la carte.)"],
+            roll,
+            done: true,
+          };
+        }
+        if (ok) {
           this.clarityDepth = this.depth;
           return end(["« Sous nos pieds ? Alors elle n'est pas fondue. Elle est en bas. Quelque part. »", "« Descendez, mon enfant. Et écoutez bien. »", "(Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"]);
         }
         return end(["« Des racontars de boulanger. Il dort, il rêve, il entend des cloches. »"]);
+      }
       case "punish":
         if (test()) {
           this.curseDepth = this.depth;
@@ -4565,13 +4684,24 @@ export class Game {
           return end(["« Oui. OUI. Que leurs écailles tombent. »", "(Malédiction des Kobolds : +2 dégâts contre eux, sur cet étage.)"]);
         }
         return end(["« Vous manquez de conviction. »"]);
-      case "craft":
-        if (test()) {
+      case "craft": {
+        // Quêtes v3 : rassembler une marmite, une louche et une corde ; raté, la cloche fera un vacarme au montage.
+        const ok = test();
+        if (!this.quest && this.giveTask("soeur_cloche")) {
+          if (!ok) this.quest!.noisy = true;
+          return {
+            lines: ["« Une cloche de fortune ? … Avec quoi ? »", "« Une marmite, une louche, une corde. La cuisine, la forge, la salle de torture. Rapportez-les-moi. »", "(Les trois objets apparaissent sur l'étage ; leurs salles se montrent sur la carte.)"],
+            roll,
+            done: true,
+          };
+        }
+        if (ok) {
           this.grantLuck();
           return end(["Vous assemblez une gamelle, une cuillère et un bout de ficelle. Ding !", "« … C'est presque joli. »", "(Chance : vos 3 prochains 1 au dé seront relancés.)"]);
         }
         this.raiseAlarm(SOEUR.craftAlarm, g);
         return end(["Vous assemblez une gamelle, une cuillère et un bout de ficelle. CLONK !", "« Ce n'est pas une cloche. C'est une insulte. »"]);
+      }
       case "silence":
         this.grantProtection();
         return end(["Vous ne dites rien. Elle hoche le crâne, très digne.", "(Protection : +1 classe d'armure pendant 150 tours.)"]);
@@ -4920,6 +5050,7 @@ export class Game {
     const q = this.quest;
     if (!q) return false;
     const def = QUEST_TASKS[q.id];
+    if (def.kind === "collect") return (def.items ?? []).every((i) => this.inventory.count(i) > 0);
     return def.kind === "fetch" ? this.inventory.count(def.item!) > 0 : q.got >= q.need;
   }
 
@@ -4929,7 +5060,8 @@ export class Game {
     if (!q) return null;
     const def = QUEST_TASKS[q.id];
     const done = this.questDone();
-    return { text: done ? def.back : def.goal.replace("{0}", String(Math.min(q.got, q.need))).replace("{1}", String(q.need)), done };
+    const got = def.kind === "collect" ? (def.items ?? []).filter((i) => this.inventory.count(i) > 0).length : q.got;
+    return { text: done ? def.back : def.goal.replace("{0}", String(Math.min(got, q.need))).replace("{1}", String(q.need)), done };
   }
 
   /**
@@ -4944,14 +5076,43 @@ export class Game {
       need = Math.min(def.count ?? 1, this.monsters.filter((m) => isKobold(m) && !m.boss).length);
       if (need <= 0) return false;
     }
-    if (def.kind === "fetch" && def.zone && this.current.zone?.plate) {
+    if (id === "grum_poule") {
+      // La poule aux œufs d'or s'est sauvée : elle est quelque part dans une autre salle.
+      const at = this.questSpot();
+      if (!at) return false;
+      this.current.goldHen = { x: at.x, y: at.y, fromX: at.x, fromY: at.y };
+      this.revealRoomAt(at);
+    } else if (def.kind === "fetch" && def.zone && this.current.zone?.plate) {
       // Le magot n'est pas au sol : il est sous la dalle (on l'enfonce pour l'avoir).
+    } else if (def.kind === "fetch" && def.zone && this.current.zone?.loot) {
+      const at = this.current.zone.loot;
+      this.dropItem(at.x, at.y, def.item!, 1);
     } else if (def.kind === "fetch") {
       const at = this.questSpot();
       if (!at) return false;
       this.dropItem(at.x, at.y, def.item!, 1);
       this.revealRoomAt(at);
     }
+    if (def.kind === "collect") {
+      // La cuisine, la forge, la salle de torture ; à défaut, une autre salle loin du héros.
+      const where: Record<string, string> = { marmite: "cuisine", louche: "forge", corde: "torture" };
+      for (const item of def.items ?? []) {
+        const theme = (this.current.themes ?? []).find((t) => t.id === where[item]);
+        let at: Point | null = null;
+        if (theme) {
+          const r = this.rooms[theme.room];
+          const cells: Point[] = [];
+          for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (this.npcFree(this.current, x, y) && !this.isTrap(x, y)) cells.push({ x, y });
+          if (cells.length > 0) at = cells[this.rng.int(0, cells.length - 1)];
+        }
+        at ??= this.questSpot();
+        if (!at) return false;
+        this.dropItem(at.x, at.y, item, 1);
+        this.revealRoomAt(at);
+      }
+      need = def.items?.length ?? 1;
+    }
+    if (def.kind === "count" || def.kind === "smoke" || def.kind === "enter") need = def.count ?? 1;
     if (def.zone && def.kind === "kill" && this.current.zone) {
       need = Math.min(def.count ?? 1, this.current.zone.sleepers.length);
       if (need <= 0) return false;
@@ -5007,6 +5168,7 @@ export class Game {
     const q = this.quest!;
     const def = QUEST_TASKS[q.id];
     if (def.kind === "fetch") this.inventory.take(def.item!, 1);
+    if (def.kind === "collect") for (const i of def.items ?? []) this.inventory.take(i, 1);
     const leaves = (item: ItemId, count = 1) => (g.items ??= []).push({ item, count });
     switch (q.id) {
       case "gluck_sac":
@@ -5044,6 +5206,29 @@ export class Game {
       case "krik_diversion":
         g.gold = (g.gold ?? 0) + 10;
         leaves("potion_fumee", 2);
+        break;
+      case "gluck_piste":
+        g.drops = (g.drops ?? 0) + 2;
+        break;
+      case "soeur_cierges":
+        this.grantProtection();
+        break;
+      case "soeur_grille":
+        this.revealStairs();
+        this.clarityDepth = this.depth;
+        break;
+      case "soeur_cloche":
+        if (q.noisy) this.raiseAlarm(SOEUR.craftAlarm, g);
+        this.grantLuck();
+        break;
+      case "grum_poule":
+        leaves("oeuf_or");
+        break;
+      case "grum_foin":
+        leaves("fourche");
+        break;
+      case "grum_chapeau":
+        leaves("casque_poulet");
         break;
     }
     this.quest = null;
@@ -5083,23 +5268,25 @@ export class Game {
    * paillasses et trois Kobolds endormis, une bougie, une dalle à pression. Placard : 3 × 2, une pomme. Faux si rien ne
    * convient (ou s'il y a déjà une zone sur l'étage).
    */
-  private openZone(kind: QuestZone["kind"], near: Point): boolean {
+  private openZone(kind: QuestZone["kind"], near: Point, prefer?: Room): boolean {
     const state = this.current;
     if (state.zone || state.boss) return false;
     const map = this.map;
     const inRoom = (p: Point) => this.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
     // Tailles essayées : large d'abord (W cases de large, D de profondeur depuis l'entrée).
-    const sizes: [number, number][] = kind === "traitres" ? [[7, 4], [5, 3]] : [[3, 2]];
+    const sizes: [number, number][] =
+      kind === "traitres" || kind === "cellier" || kind === "grange" ? [[7, 4], [5, 3]] : kind === "sacristie" ? [[5, 3], [3, 3]] : [[3, 2]];
+    const door: QuestZone["door"] = kind === "cellier" ? "barrel" : kind === "grange" ? "hay" : kind === "sacristie" ? "wall" : "tapestry";
     for (const [W, D] of sizes) {
       const half = Math.floor(W / 2);
       let best: { entry: Point; dir: Point; room: Room; score: number } | null = null;
       for (const r of this.rooms) {
         // Murs du haut et du bas d'abord (la tapisserie y pend mieux), puis de côté.
         const sides: { dir: Point; cells: Point[] }[] = [
-          { dir: { x: 0, y: -1 }, cells: Array.from({ length: r.w - 2 }, (_, i) => ({ x: r.x + 1 + i, y: r.y - 1 })) },
-          { dir: { x: 0, y: 1 }, cells: Array.from({ length: r.w - 2 }, (_, i) => ({ x: r.x + 1 + i, y: r.y + r.h })) },
-          { dir: { x: -1, y: 0 }, cells: Array.from({ length: r.h - 2 }, (_, i) => ({ x: r.x - 1, y: r.y + 1 + i })) },
-          { dir: { x: 1, y: 0 }, cells: Array.from({ length: r.h - 2 }, (_, i) => ({ x: r.x + r.w, y: r.y + 1 + i })) },
+          { dir: { x: 0, y: -1 }, cells: Array.from({ length: Math.max(0, r.w - 2) }, (_, i) => ({ x: r.x + 1 + i, y: r.y - 1 })) },
+          { dir: { x: 0, y: 1 }, cells: Array.from({ length: Math.max(0, r.w - 2) }, (_, i) => ({ x: r.x + 1 + i, y: r.y + r.h })) },
+          { dir: { x: -1, y: 0 }, cells: Array.from({ length: Math.max(0, r.h - 2) }, (_, i) => ({ x: r.x - 1, y: r.y + 1 + i })) },
+          { dir: { x: 1, y: 0 }, cells: Array.from({ length: Math.max(0, r.h - 2) }, (_, i) => ({ x: r.x + r.w, y: r.y + 1 + i })) },
         ];
         for (const [side, { dir, cells }] of sides.entries()) {
           for (const e of cells) {
@@ -5118,9 +5305,11 @@ export class Game {
             const perp = { x: dir.y !== 0 ? 1 : 0, y: dir.x !== 0 ? 1 : 0 };
             if (ok && [-1, 1].some((k) => map.isDoor(e.x + perp.x * k, e.y + perp.y * k) || map.isDoor(inner.x + perp.x * k, inner.y + perp.y * k))) ok = false;
             if (ok && this.torches.some((t) => t.x === e.x && t.y === e.y)) ok = false;
+            // Ni sous un écriteau de la salle d'essai (son texte déborde de 4 cases).
+            if (ok && this.signs().some((sg) => sg.y === e.y && Math.abs(sg.x - e.x) <= 5)) ok = false;
             if (!ok) continue;
             const d = Math.max(Math.abs(e.x - near.x), Math.abs(e.y - near.y));
-            const score = (d < 4 ? 100 : d) + side * 3;
+            const score = (d < 4 ? 100 : d) + side * 3 + (prefer && r !== prefer ? 60 : 0);
             if (!best || score < best.score) best = { entry: e, dir, room, score };
           }
         }
@@ -5137,70 +5326,136 @@ export class Game {
         }
       map.touch(entry.x, entry.y);
       state.rooms.push(room);
-      const low = dir.y > 0;
-      state.furniture.push({ x: entry.x, y: entry.y, kind: low ? "tapestryLow" : "tapestry" });
-      const zone: QuestZone = { kind, room, entry, open: false, sleepers: [] };
+      const doorKind = door === "tapestry" ? (dir.y > 0 ? "tapestryLow" : "tapestry") : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
+      if (doorKind) state.furniture.push({ x: entry.x, y: entry.y, kind: doorKind });
+      const zone: QuestZone = { kind, door, room, entry, open: false, sleepers: [] };
+      const sleeper = (p: Point, asleep: boolean) => {
+        const k = this.newMonster(MONSTERS.schrat, p.x, p.y, asleep);
+        k.fromX = p.x;
+        k.fromY = p.y;
+        k.patrol = room;
+        if (this.peaceful) this.peacefulStash.push(k);
+        else this.monsters.push(k);
+        zone.sleepers.push(k.id);
+      };
+      const put = (p: Point, kind: string) => {
+        state.furniture.push({ x: p.x, y: p.y, kind });
+        if (FURNITURE_KINDS[kind]?.blocks) map.set(p.x, p.y, Tile.Furniture);
+      };
       if (kind === "traitres") {
-        // Contre le mur du fond : trois paillasses, un Kobold endormi sur chacune.
+        // Contre le mur du fond : trois paillasses, un Kobold endormi sur chacune ; une bougie, une dalle à pression.
         for (const a of W >= 7 ? [1, 3, 5] : [0, 2, 4]) {
-          const p = at(a, D - 1);
-          state.furniture.push({ x: p.x, y: p.y, kind: "pallet" });
-          const k = this.newMonster(MONSTERS.schrat, p.x, p.y, true);
-          k.fromX = p.x;
-          k.fromY = p.y;
-          k.patrol = room;
-          if (this.peaceful) this.peacefulStash.push(k);
-          else this.monsters.push(k);
-          zone.sleepers.push(k.id);
+          put(at(a, D - 1), "pallet");
+          sleeper(at(a, D - 1), true);
         }
         zone.candle = at(W - 1, D >= 4 ? 1 : 0);
         zone.candleLit = true;
-        state.furniture.push({ x: zone.candle.x, y: zone.candle.y, kind: "candle" });
-        map.set(zone.candle.x, zone.candle.y, Tile.Furniture);
+        put(zone.candle, "candle");
         zone.plate = at(half, D >= 4 ? 1 : 0);
-        state.furniture.push({ x: zone.plate.x, y: zone.plate.y, kind: "pressurePlate" });
+        put(zone.plate, "pressurePlate");
+      } else if (kind === "cellier") {
+        // Le cellier de Gluck : cageots de pommes dans les coins, deux Kobolds qui dorment sur SES pommes, une bougie.
+        put(at(0, D - 1), "crate");
+        put(at(W - 1, D - 1), "crateStack");
+        sleeper(at(1, D - 1), true);
+        sleeper(at(W - 2, D - 1), true);
+        zone.loot = at(half, D - 1);
+        zone.inside = at(half, Math.max(0, D - 2));
+        zone.candle = at(W - 1, 0);
+        zone.candleLit = true;
+        put(zone.candle, "candle");
+      } else if (kind === "sacristie") {
+        // La sacristie : le coffre des offrandes, un cierge qui ne s'éteint jamais.
+        const c = at(half, D - 1);
+        map.set(c.x, c.y, Tile.Chest);
+        zone.candle = at(0, D - 1);
+        zone.candleLit = true;
+        put(zone.candle, "ciergeLit");
+      } else if (kind === "grange") {
+        // La grange de Grum : des bottes de foin, deux voleurs de foin bien éveillés.
+        put(at(0, D - 1), "hayBale");
+        put(at(W - 1, D - 1), "hayBale");
+        sleeper(at(2, D - 2), false);
+        sleeper(at(W - 3, D - 2), false);
       } else {
-        const p = at(0, D - 1);
-        this.dropItem(p.x, p.y, "pomme", 1);
+        this.dropItem(at(0, D - 1).x, at(0, D - 1).y, "pomme", 1);
       }
       state.zone = zone;
-      // L'entrée se voit sur la carte : la tapisserie et le bout de salle devant elle.
-      for (let k = -1; k <= 1; k++)
-        for (const d of [0, -1]) {
-          const x = entry.x + perp.x * k + dir.x * d;
-          const y = entry.y + perp.y * k + dir.y * d;
-          if (map.inBounds(x, y)) state.explored[map.index(x, y)] = 1;
-        }
-      this.events.push({ type: "zone", what: "shown", x: entry.x, y: entry.y });
+      // L'entrée se voit sur la carte : la porte secrète et le bout de salle devant elle (pas la sacristie, cachée).
+      if (door !== "wall") {
+        for (let k = -1; k <= 1; k++)
+          for (const d of [0, -1]) {
+            const x = entry.x + perp.x * k + dir.x * d;
+            const y = entry.y + perp.y * k + dir.y * d;
+            if (map.inBounds(x, y)) state.explored[map.index(x, y)] = 1;
+          }
+        this.events.push({ type: "zone", what: "shown", x: entry.x, y: entry.y });
+      }
       this.refreshLight();
       return true;
     }
     return false;
   }
 
-  /** La tapisserie de l'entrée de la zone sur cette case (encore fermée). */
-  tapestryAt(x: number, y: number): boolean {
+  /** L'entrée secrète de la zone sur cette case (encore fermée, et qu'on peut ouvrir en la touchant). */
+  zoneDoorAt(x: number, y: number): boolean {
     const z = this.current.zone;
-    return !!z && !z.open && z.entry.x === x && z.entry.y === y;
+    return !!z && !z.open && z.door !== "wall" && z.entry.x === x && z.entry.y === y;
   }
 
-  /** La bougie (encore allumée) de la zone sur cette case. */
+  /** Compatibilité : la tapisserie (fermée) sur cette case. */
+  tapestryAt(x: number, y: number): boolean {
+    return this.zoneDoorAt(x, y) && this.current.zone!.door === "tapestry";
+  }
+
+  /** La bougie (encore allumée) de la zone sur cette case (le cierge de la sacristie ne s'éteint pas). */
   candleAt(x: number, y: number): boolean {
     const z = this.current.zone;
-    return !!z && !!z.candleLit && !!z.candle && z.candle.x === x && z.candle.y === y;
+    return !!z && z.kind !== "sacristie" && !!z.candleLit && !!z.candle && z.candle.x === x && z.candle.y === y;
   }
 
-  /** Trancher la tapisserie : le passage s'ouvre (sans bruit). */
-  private cutTapestry(): void {
+  /** Ouvrir l'entrée : tapisserie tranchée, tonneau ou botte de foin poussés de côté, mur qui coulisse. */
+  private openZoneDoor(): void {
     const z = this.current.zone;
     if (!z || z.open) return;
     z.open = true;
     this.map.set(z.entry.x, z.entry.y, Tile.Floor);
-    const f = this.current.furniture.find((o) => o.x === z.entry.x && o.y === z.entry.y && o.kind.startsWith("tapestry"));
-    if (f) f.kind = f.kind === "tapestry" ? "tapestryCut" : "tapestryLowCut";
-    this.events.push({ type: "zone", what: "tapestry", x: z.entry.x, y: z.entry.y });
+    const f = this.current.furniture.find((o) => o.x === z.entry.x && o.y === z.entry.y && /^(tapestry|barrelWall|hayWall)/.test(o.kind));
+    if (f && f.kind.startsWith("tapestry")) f.kind = f.kind === "tapestry" ? "tapestryCut" : "tapestryLowCut";
+    else if (f) {
+      // Le tonneau (la botte) glisse de côté, dans la salle, sur une case libre ; sinon il roule dans la zone.
+      const inRoom = { x: z.entry.x * 2 - (z.room.x + Math.floor(z.room.w / 2)), y: z.entry.y * 2 - (z.room.y + Math.floor(z.room.h / 2)) };
+      const out = { x: Math.sign(inRoom.x - z.entry.x), y: Math.sign(inRoom.y - z.entry.y) };
+      const front = { x: z.entry.x + out.x, y: z.entry.y + out.y };
+      const sides = out.x === 0 ? [{ x: front.x - 1, y: front.y }, { x: front.x + 1, y: front.y }] : [{ x: front.x, y: front.y - 1 }, { x: front.x, y: front.y + 1 }];
+      const free = sides.find((p) => this.map.get(p.x, p.y) === Tile.Floor && !this.actorAt(p.x, p.y) && !this.current.furniture.some((o) => furnitureCells(o).some((c) => c.x === p.x && c.y === p.y)) && !this.isTrap(p.x, p.y));
+      const moved = f.kind === "barrelWall" ? "barrel" : "hayBale";
+      if (free) {
+        f.x = free.x;
+        f.y = free.y;
+        f.kind = moved;
+        this.map.set(free.x, free.y, Tile.Furniture);
+      } else this.current.furniture = this.current.furniture.filter((o) => o !== f);
+    }
+    this.events.push({ type: "zone", what: z.door === "tapestry" ? "tapestry" : z.door === "wall" ? "wall" : "pushed", x: z.entry.x, y: z.entry.y });
     this.refreshLight();
     this.updateVision();
+  }
+
+  /** Tests et anciens appels : trancher la tapisserie. */
+  private cutTapestry(): void {
+    this.openZoneDoor();
+  }
+
+  /** Pousser le tonneau creux ou la botte de foin : d20 + force contre 8 (C) ; raté, il ne bouge pas. */
+  private pushZoneDoor(): void {
+    const z = this.current.zone;
+    if (!z || z.open) return;
+    const bonus = this.pushBonus();
+    const d20 = this.rng.int(1, 20);
+    const success = d20 === 20 || (d20 !== 1 && d20 + bonus >= 8);
+    if (success) this.openZoneDoor();
+    else this.events.push({ type: "zone", what: "stuck", x: z.entry.x, y: z.entry.y });
   }
 
   /** Souffler la bougie : le noir ; les dormeurs de la zone n'entendent plus rien (seul un coup les réveille). */
@@ -5252,6 +5507,281 @@ export class Game {
       m.patrol = undefined;
       if (stagger > 0 && i > 0) m.stunned = Math.max(m.stunned ?? 0, i * stagger);
       i++;
+    }
+  }
+
+  /** Gluck menacé file dans son cellier : une pomme toutes les 3 cases de son chemin ; lui, il se cache dedans. */
+  private appleTrail(g: GluckSpot): void {
+    const z = this.current.zone;
+    if (!z) return;
+    const dir = { x: Math.sign(z.room.x + z.room.w / 2 - 0.5 - z.entry.x), y: Math.sign(z.room.y + z.room.h / 2 - 0.5 - z.entry.y) };
+    const front = { x: z.entry.x - dir.x, y: z.entry.y - dir.y };
+    const path = findPath(this.map, g, front) ?? [];
+    for (let i = 2; i < path.length; i += 3) {
+      const p = path[i];
+      if (this.map.get(p.x, p.y) === Tile.Floor && !this.isTrap(p.x, p.y)) this.dropItem(p.x, p.y, "pomme", 1);
+    }
+    const spot = z.inside ?? z.loot;
+    if (spot) {
+      g.x = spot.x;
+      g.y = spot.y;
+    }
+  }
+
+  /** La salle de prière de l'étage (s'il y en a une). */
+  private chapelRoom(): Room | null {
+    const t = (this.current.themes ?? []).find((o) => o.id === "priere");
+    return t ? this.rooms[t.room] : null;
+  }
+
+  /** Une case libre (sol nu d'une salle, hors passage) d'une salle donnée, ou de la salle la plus proche d'un point. */
+  private freeCellIn(r: Room): Point | null {
+    const cells: Point[] = [];
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (this.npcFree(this.current, x, y) && !this.isTrap(x, y)) cells.push({ x, y });
+    return cells.length > 0 ? cells[this.rng.int(0, cells.length - 1)] : null;
+  }
+
+  /** Sœur Osseuse : trois cierges éteints, un dans la chapelle (ou sa salle), deux dans d'autres salles. */
+  private placeCierges(g: GluckSpot): boolean {
+    const home = this.chapelRoom() ?? this.rooms.find((r) => g.x >= r.x && g.x < r.x + r.w && g.y >= r.y && g.y < r.y + r.h);
+    const cells: Point[] = [];
+    const first = home ? this.freeCellIn(home) : null;
+    if (first) cells.push(first);
+    for (let attempt = 0; attempt < 12 && cells.length < 3; attempt++) {
+      const at = this.questSpot();
+      if (at && !cells.some((c) => this.rooms.find((r) => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h) === this.rooms.find((r) => at.x >= r.x && at.x < r.x + r.w && at.y >= r.y && at.y < r.y + r.h))) cells.push(at);
+    }
+    if (cells.length < 3) return false;
+    this.current.cierges = cells;
+    for (const c of cells) {
+      this.current.furniture.push({ x: c.x, y: c.y, kind: "cierge" });
+      this.map.set(c.x, c.y, Tile.Furniture);
+      this.revealRoomAt(c);
+    }
+    return true;
+  }
+
+  /** Un cierge éteint (de la quête de Sœur Osseuse) sur cette case. */
+  ciergeAt(x: number, y: number): boolean {
+    return this.current.furniture.some((f) => f.x === x && f.y === y && f.kind === "cierge");
+  }
+
+  /** Allumer un cierge : il faut une flamme (une torche, allumée ou dans le sac). Les trois : la sacristie s'ouvre. */
+  private lightCierge(at: Point): void {
+    const f = this.current.furniture.find((o) => o.x === at.x && o.y === at.y && o.kind === "cierge");
+    if (!f) return;
+    if (!this.torchLit() && this.inventory.count("torche") === 0) {
+      this.events.push({ type: "zone", what: "noflame", x: at.x, y: at.y });
+      return;
+    }
+    f.kind = "ciergeLit";
+    this.map.touch(at.x, at.y);
+    const q = this.quest;
+    const lit = this.current.furniture.filter((o) => o.kind === "ciergeLit" && (this.current.cierges ?? []).some((c) => c.x === o.x && c.y === o.y)).length;
+    if (q?.id === "soeur_cierges" && q.depth === this.depth) q.got = lit;
+    this.events.push({ type: "zone", what: "cierge", x: at.x, y: at.y, woke: lit });
+    const z = this.current.zone;
+    if (lit >= 3 && z?.kind === "sacristie" && !z.open) this.openZoneDoor();
+    this.refreshLight();
+  }
+
+  /** Sœur Osseuse : trois grilles dans le sol, une seule chante (et scintille si le jet a réussi). */
+  private placeGrates(g: GluckSpot, hinted: boolean): boolean {
+    const cells: Point[] = [];
+    const roomOf = (p: Point) => this.rooms.find((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+    for (let attempt = 0; attempt < 16 && cells.length < 3; attempt++) {
+      const at = this.questSpot();
+      if (at && !cells.some((c) => roomOf(c) === roomOf(at))) cells.push(at);
+    }
+    if (cells.length < 3) return false;
+    const right = this.rng.int(0, 2);
+    this.current.grates = { cells, right, hinted };
+    cells.forEach((c, i) => {
+      this.current.furniture.push({ x: c.x, y: c.y, kind: hinted && i === right ? "grateGlint" : "grate" });
+      this.revealRoomAt(c);
+    });
+    void g;
+    return true;
+  }
+
+  /** L'épouvantail de la ferme sur cette case (la quête du chapeau de Grum en cours). */
+  scarecrowAt(x: number, y: number): boolean {
+    const q = this.quest;
+    return q?.id === "grum_chapeau" && q.depth === this.depth && q.got < q.need && this.current.furniture.some((f) => f.x === x && f.y === y && f.kind === "scarecrow");
+  }
+
+  /** Coiffer l'épouvantail : un casque du sac (n'importe lequel). */
+  private hatScarecrow(): void {
+    const f = this.current.furniture.find((o) => o.kind === "scarecrow");
+    const hat = this.inventory.items.find((i) => (ITEMS[i.defId] as ItemDef).kind === "hat");
+    if (!f) return;
+    if (!hat) {
+      this.events.push({ type: "zone", what: "nohat", x: f.x, y: f.y });
+      return;
+    }
+    this.inventory.take(hat.defId, 1);
+    f.kind = "scarecrowHat";
+    this.map.touch(f.x, f.y);
+    if (this.quest?.id === "grum_chapeau") this.quest.got = this.quest.need;
+    this.events.push({ type: "zone", what: "hat", x: f.x, y: f.y });
+  }
+
+  /**
+   * Chaque tour, les missions des quêtes v3 qui se jouent sur place : entrer dans le cellier (la piste de pommes),
+   * voler le sac de Gluck sans le réveiller, écouter sur la grille, la poule qui se sauve.
+   */
+  private questTick(): void {
+    const q = this.quest;
+    const z = this.current.zone;
+    const inZone = !!z && this.hero.x >= z.room.x && this.hero.x < z.room.x + z.room.w && this.hero.y >= z.room.y && this.hero.y < z.room.y + z.room.h;
+    if (q && q.depth === this.depth) {
+      if (q.id === "gluck_piste" && inZone) q.got = q.need;
+      if (q.id === "gluck_vol") {
+        const g = this.current.gluck;
+        if (this.inventory.count("sac_pommes") > 0) {
+          // Le sac est pris : 4 pommes, et il dort toujours.
+          this.inventory.take("sac_pommes", 1);
+          this.giveApples(4);
+          this.quest = null;
+          this.events.push({ type: "quest", what: "complete", id: q.id });
+          this.gainXp(RULES.questXp);
+          if (g) {
+            g.gone = true;
+            this.gluckMemory.met++;
+          }
+        } else if (g && !g.gone && g.asleep && Math.max(Math.abs(g.x - this.hero.x), Math.abs(g.y - this.hero.y)) <= 2 && (this.hero.fromX !== this.hero.x || this.hero.fromY !== this.hero.y)) {
+          // Chaque pas près de lui : d20 + discrétion contre 8 (C) ; raté, « AU VOLEUR ! ».
+          const d20 = this.rng.int(1, 20);
+          if (d20 === 1 || (d20 !== 20 && d20 + this.stealthBonus() + (this.hidden ? 5 : 0) < 8)) {
+            g.asleep = false;
+            this.gluckMemory.mood = -1;
+            this.raiseAlarm(GLUCK.stealAlarm, g);
+            if (z) for (const m of this.monsters) if (z.sleepers.includes(m.id)) {
+              m.asleep = false;
+              m.deaf = false;
+              m.alerted = true;
+            }
+            this.events.push({ type: "zone", what: "thief", x: g.x, y: g.y });
+            this.npcLeaves("gluck", g, GLUCK.maxEncounters);
+            this.quest = null;
+            this.events.push({ type: "quest", what: "lost", id: q.id });
+          }
+        }
+      }
+      if (q.id === "soeur_grille" && this.current.grates) {
+        const gr = this.current.grates;
+        const right = gr.cells[gr.right];
+        if (this.hero.x === right.x && this.hero.y === right.y && q.got < q.need) {
+          q.got++;
+          if (q.got >= q.need) this.events.push({ type: "zone", what: "bell", x: right.x, y: right.y });
+        }
+      }
+    }
+    // La poule aux œufs d'or : elle se sauve quand on approche à découvert (à 3 cases), d'une case à la fois.
+    const hen = this.current.goldHen;
+    if (hen) {
+      hen.fromX = hen.x;
+      hen.fromY = hen.y;
+      const d = Math.max(Math.abs(hen.x - this.hero.x), Math.abs(hen.y - this.hero.y));
+      if (d <= 3 && d > 0 && !this.hidden && this.isVisible(hen.x, hen.y)) {
+        let best: Point | null = null;
+        let far = d;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = hen.x + dx;
+            const y = hen.y + dy;
+            if ((!dx && !dy) || this.map.get(x, y) !== Tile.Floor || this.actorAt(x, y) || this.npcAt(x, y) || this.isTrap(x, y)) continue;
+            const nd = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
+            if (nd > far) {
+              far = nd;
+              best = { x, y };
+            }
+          }
+        if (best) {
+          hen.x = best.x;
+          hen.y = best.y;
+          if (d <= 2) this.events.push({ type: "zone", what: "henFlees", x: hen.x, y: hen.y });
+        }
+      }
+    }
+  }
+
+  /** La poule aux œufs d'or (échappée), s'il y en a une sur l'étage. */
+  goldHen(): Readonly<NonNullable<FloorState["goldHen"]>> | null {
+    return this.current.goldHen ?? null;
+  }
+
+  /** Les grilles de Sœur Osseuse (cases, la bonne, indiquée ou non). */
+  grates(): Readonly<NonNullable<FloorState["grates"]>> | null {
+    return this.current.grates ?? null;
+  }
+
+  // ---------- Quête 05 : Grum, le Kobold fermier (quêtes v3) ----------
+
+  grumScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.grum();
+    if (!g) return { lines: [], choices: [] };
+    g.opened = true;
+    const hasScarecrow = this.current.furniture.some((f) => f.kind === "scarecrow");
+    return {
+      lines: GRUM_OPENING,
+      choices: [
+        { id: "hen", label: "« Ma poule aux œufs d'or s'est sauvée »", stat: "charisme", dc: "easy" },
+        { id: "hay", label: "« Des voleurs de foin dans ma grange »", stat: "force", dc: "medium" },
+        ...(hasScarecrow ? [{ id: "hat", label: "« Mon épouvantail a perdu son chapeau »" }] : []),
+        { id: "leave", label: "Partir" },
+      ],
+    };
+  }
+
+  grumChoose(id: string): GluckResult {
+    const g = this.grum();
+    if (!g || !this.canTalk("grum")) return { lines: [], done: true };
+    const choice = this.grumScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    let roll: GluckResult["roll"];
+    const test = (): boolean => (roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!])).success;
+    const end = (lines: string[]): GluckResult => {
+      this.npcLeaves("grum", g, GRUM.maxEncounters);
+      return { lines, roll, done: true };
+    };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Fais attention à mon pré en partant. »"], done: true };
+      case "hen": {
+        const ok = test();
+        if (!this.quest && this.giveTask("grum_poule")) {
+          return {
+            lines: ok
+              ? ["« Cocotte. Elle pond de l'or. Elle a peur de tout, même de son ombre. »", "« Approche-la sans te montrer, sinon elle file. Ramène-la-moi. »", "(Sa salle apparaît sur la carte.)"]
+              : ["« Tu ferais peur à une poule, toi. … Bon. Essaie quand même. Caché, hein. »", "(Sa salle apparaît sur la carte.)"],
+            roll,
+            done: true,
+          };
+        }
+        return end(["« Bah. Elle reviendra toute seule. Peut-être. »"]);
+      }
+      case "hay": {
+        const ok = test();
+        if (!this.quest && this.openZone("grange", g) && this.giveTask("grum_foin")) {
+          if (!ok) this.zoneBreakOut(0);
+          return {
+            lines: ok
+              ? ["« Deux voleurs de foin. Dans ma grange, derrière la grosse botte. Pousse-la, et chasse-les. »", "(La botte de foin apparaît sur la carte.)"]
+              : ["« Deux voleurs de foin ! … Ils t'ont entendu. Les voilà ! »", "(Ils sortent de la grange.)"],
+            roll,
+            done: true,
+          };
+        }
+        return end(["« Pas de grange sur cet étage ? Alors c'était un rêve. Encore. »"]);
+      }
+      case "hat":
+        if (!this.quest && this.giveTask("grum_chapeau")) {
+          return { lines: ["« Mon épouvantail a froid à la tête. Un casque. N'importe lequel. Pose-le-lui. »", "(Touchez l'épouvantail avec un casque dans le sac.)"], done: true };
+        }
+        return end(["« Une autre fois. »"]);
+      default:
+        return { lines: [], done: false };
     }
   }
 

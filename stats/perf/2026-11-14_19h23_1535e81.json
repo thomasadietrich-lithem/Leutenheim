@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T19:23:47.857Z",
+ "commit": "1535e81",
+ "note": "section 2 : éboulis à travers les murs",
+ "logic": {
+  "tickMs": 0.46,
+  "lightMs": 0.4,
+  "visionMs": 0.16
+ },
+ "scenes": {
+  "immobile": {
+   "n": 90,
+   "avg": 27.2,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 37,
+   "js": 5
+  },
+  "marche": {
+   "n": 178,
+   "avg": 28.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 35,
+   "js": 4
+  },
+  "retour": {
+   "n": 160,
+   "avg": 31.2,
+   "p95": 50,
+   "max": 66.6,
+   "fps": 32,
+   "js": 4
+  },
+  "zoom": {
+   "n": 101,
+   "avg": 27.7,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 36,
+   "js": 4
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 241,
+   "avg": 20.7,
+   "p95": 33.4,
+   "max": 149.9,
+   "fps": 48,
+   "js": 10
+  }
+ },
+ "errors": []
+}

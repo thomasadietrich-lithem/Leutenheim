@@ -4919,3 +4919,19 @@ test("salle d'essai, section 2 (champignonnière) : tout est accessible, décor 
     setSandboxSection(1);
   }
 });
+
+test("section 2 : aucun éboulis ne touche une porte ni la jonction d'une salle (Thomas, 2026-11-14)", () => {
+  const plan = buildSandbox2();
+  const inRoom = (x: number, y: number) => plan.rooms.some((r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h);
+  const doors: Tile[] = [Tile.DoorClosed, Tile.DoorOpen, Tile.DoorLocked];
+  for (const f of plan.furniture.filter((o) => o.kind === "eboulis")) {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = f.x + dx;
+      const y = f.y + dy;
+      assert.ok(!doors.includes(plan.map.get(x, y)), `éboulis (${f.x}, ${f.y}) contre une porte`);
+      const t = plan.map.get(x, y);
+      const opening = t !== Tile.Wall && t !== Tile.Furniture && !inRoom(x, y) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => inRoom(x + a, y + b) && plan.map.get(x + a, y + b) !== Tile.Wall);
+      assert.ok(!opening, `éboulis (${f.x}, ${f.y}) dans la jonction d'une salle`);
+    }
+  }
+});

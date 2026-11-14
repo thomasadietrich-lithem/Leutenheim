@@ -20,6 +20,8 @@ export interface Furniture {
   /** Statue creuse (Thomas, 2026-11-12) : elle cache quelque chose ; `hinted` : Gluck l'a dit (la fissure se voit). */
   hollow?: boolean;
   hinted?: boolean;
+  /** Éboulis posé à la place d'un mur (section 2) : le mur est éventré, la terre passe au travers. */
+  breach?: boolean;
 }
 
 /** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */

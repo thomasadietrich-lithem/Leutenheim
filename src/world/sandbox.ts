@@ -514,7 +514,12 @@ export function buildSandbox2(): SandboxFloor {
   /** Éboulis (« E ») et terre meuble (« e ») d'après un petit dessin, coin en haut à gauche en (x0, y0). */
   const earth = (x0: number, y0: number, rows: string[]) => {
     rows.forEach((row, j) => [...row].forEach((c, i) => {
-      if (c === "E") put(x0 + i, y0 + j, "eboulis");
+      if (c === "E") {
+        // À la place d'un mur (ou de la roche derrière) : le mur est éventré, la terre passe au travers.
+        const breach = map.get(x0 + i, y0 + j) === Tile.Wall;
+        put(x0 + i, y0 + j, "eboulis");
+        if (breach) furniture[furniture.length - 1].breach = true;
+      }
       else if (c === "e" && map.get(x0 + i, y0 + j) === Tile.Floor) put(x0 + i, y0 + j, "terre");
     }));
   };
@@ -552,11 +557,11 @@ export function buildSandbox2(): SandboxFloor {
   signs[signs.length - 1].x = 32;
   wall([20, 28], [21, 28], [20, 29], [35, 38], [34, 38], [35, 37], [35, 30], [35, 31]);
   // Brèche du mur du haut : la terre déborde dans la galerie ; brèche du mur de gauche, plus petite.
-  earth(24, 27, ["..EEEE..", ".EEEEEE.", "..EEEE..", ".eeeeeee", "...ee..."]);
-  earth(19, 32, ["EEe", "EEe", "e.e"]);
+  earth(24, 25, ["..EEE...", ".EEEEE..", "..EEEE..", ".EEEEEE.", "..EEEE..", ".eeeeeee", "...ee..."]);
+  earth(17, 31, [".E...", "EEEE.", "EEEEe", "EE.e.", "...e."]);
   // Le couloir de la galerie (2 de large) : un éboulis tombe du mur du haut, un autre du mur du bas, on zigzague.
-  earth(38, 33, [".EE.", "eEEe", ".ee."]);
-  earth(43, 34, [".ee.", "eEEe", ".EE."]);
+  earth(38, 31, ["..E.", ".EE.", ".EE.", "eEEe", ".ee."]);
+  earth(43, 34, [".ee.", "eEEe", ".EE.", ".EE.", ".E.."]);
   put(22, 30, "champiGrappe");
   put(33, 35, "champiGeant");
   put(32, 29, "champiCorail");
@@ -569,8 +574,8 @@ export function buildSandbox2(): SandboxFloor {
   line(71, 40, 76, 41);
   line(77, 40, 78, 40);
   // Les éboulis du couloir sortent des murs (la brèche se voit) : l'un du haut, l'autre du bas.
-  earth(72, 39, [".EE.", "eEEe", ".ee."]);
-  earth(75, 40, ["...", "eEE", ".EE"]);
+  earth(72, 37, ["..E.", ".EE.", ".EE.", "eEEe", ".ee."]);
+  earth(75, 40, ["..", "eE", ".E", ".E", ".E"]);
   glow([[70, 37], [75, 40]]);
   map.set(78, 40, Tile.DoorClosed);
   const grotteA: Room = { x: 79, y: 35, w: 11, h: 10 };
@@ -585,7 +590,7 @@ export function buildSandbox2(): SandboxFloor {
   put(88, 37, "champiCorail");
   put(90, 33, "champiGrappe");
   glow([[80, 37], [83, 36], [87, 40], [83, 38], [82, 40], [89, 39], [85, 32], [88, 30], [86, 37], [83, 42]]);
-  earth(85, 43, [".e.e", "eEEe", ".EE."]);
+  earth(85, 43, [".e.e", "eEEe", ".EE.", ".EEE", "..E."]);
   monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
 
   // ---------- En bas : la salle aux grilles ----------
@@ -603,7 +608,7 @@ export function buildSandbox2(): SandboxFloor {
   map.set(51, 54, Tile.Chest);
   ground.push({ x: 58, y: 54, item: "potion_feu", count: 1 }, { x: 61, y: 45, item: "clef", count: 1 });
   put(49, 45, "champiGeant");
-  earth(47, 48, ["Ee.", "EEe", "Ee."]);
+  earth(45, 49, ["EEEe.", ".EEEe", ".E..."]);
   put(61, 50, "champiGrappe");
   glow([[53, 46], [59, 48], [50, 50], [55, 50]]);
   monsters.push({ x: 55, y: 47, asleep: false, patrol: true });
@@ -611,15 +616,15 @@ export function buildSandbox2(): SandboxFloor {
   // ---------- En bas à gauche : le terrier ----------
   line(36, 47, 46, 48);
   map.set(47, 47, Tile.DoorClosed);
-  earth(38, 46, [".EE.", "eEEe", ".ee."]);
-  earth(42, 47, [".ee.", "eEEe", ".EE."]);
+  earth(38, 44, [".E..", ".EE.", ".EE.", "eEEe", ".ee."]);
+  earth(42, 47, [".ee.", "eEEe", ".EE.", ".EE.", "..E."]);
   const terrier: Room = { x: 20, y: 44, w: 16, h: 10 };
   addRoom(terrier, "Terrier");
   signs[signs.length - 1].x = 24;
   wall([20, 44], [35, 53], [34, 53], [35, 44]);
   // Deux éboulis, l'un du mur du haut, l'autre du mur du bas : on traverse le terrier en zigzag.
-  earth(24, 43, [".EEE.", "eEEEe", ".eEe.", "..e.."]);
-  earth(28, 51, ["..e..", ".eEe.", "eEEEe", ".EEE."]);
+  earth(24, 41, ["..EE.", ".EEE.", ".EEE.", "eEEEe", ".eEe.", "..e.."]);
+  earth(28, 51, ["..e..", ".eEe.", "eEEEe", ".EEE.", ".EEE.", "..E.."]);
   put(31, 46, "champiGrappe");
   put(24, 51, "champiGeant");
   glow([[22, 46], [33, 49], [26, 49], [21, 49]]);
@@ -627,6 +632,22 @@ export function buildSandbox2(): SandboxFloor {
   const stairs = { x: 21, y: 52 };
   map.set(stairs.x, stairs.y, Tile.StairsDown);
   signs.push({ x: 26, y: 54, text: "↓ Nichée de la Tisseuse" });
+
+  // Un éboulis ne fait jamais la jonction de deux pièces ni d'une porte (Thomas, 2026-11-14) : on retire ceux qui
+  // touchent une porte ou une ouverture (une case de couloir collée à une salle) ; le mur éventré se referme.
+  const inRoom = (x: number, y: number) => rooms.some((r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h);
+  const opening = (x: number, y: number) =>
+    map.get(x, y) !== Tile.Wall && map.get(x, y) !== Tile.Furniture && !inRoom(x, y) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inRoom(x + dx, y + dy) && map.get(x + dx, y + dy) !== Tile.Wall);
+  const isDoor = (x: number, y: number) => ([Tile.DoorClosed, Tile.DoorOpen, Tile.DoorLocked] as Tile[]).includes(map.get(x, y));
+  for (let i = furniture.length - 1; i >= 0; i--) {
+    const f = furniture[i];
+    if (f.kind !== "eboulis") continue;
+    let bad = false;
+    for (let dy = -1; dy <= 1 && !bad; dy++) for (let dx = -1; dx <= 1 && !bad; dx++) bad = isDoor(f.x + dx, f.y + dy) || opening(f.x + dx, f.y + dy);
+    if (!bad) continue;
+    map.set(f.x, f.y, f.breach ? Tile.Wall : Tile.Floor);
+    furniture.splice(i, 1);
+  }
 
   // ---------- La salle secrète de la grotte, derrière un rideau de mycélium ----------
   const floorPlan = (): Floor => ({ map, rooms, start, stairs, torches, specials: [] });

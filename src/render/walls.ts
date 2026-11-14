@@ -105,14 +105,16 @@ function isWallLike(t: Tile): boolean {
 
 class WallReader {
   private readonly info = new Map<number, CellInfo>();
-  constructor(private readonly map: GameMap) {}
+  /** `breach` : éboulis posés à la place d'un mur (section 2) ; pour les briques, ils comptent comme du mur (la roche
+   *  derrière reste noire, le mur continue jusqu'à la brèche), mais on les dessine en terre. */
+  constructor(private readonly map: GameMap, private readonly breach?: (x: number, y: number) => boolean) {}
 
   isWall(x: number, y: number): boolean {
-    return !this.map.inBounds(x, y) || isWallLike(this.map.get(x, y));
+    return !this.map.inBounds(x, y) || isWallLike(this.map.get(x, y)) || !!this.breach?.(x, y);
   }
 
   open(x: number, y: number): boolean {
-    return this.map.inBounds(x, y) && !isWallLike(this.map.get(x, y));
+    return this.map.inBounds(x, y) && !isWallLike(this.map.get(x, y)) && !this.breach?.(x, y);
   }
 
   /** Un parement : un mur qui touche (même en diagonale) autre chose que du mur. L'intérieur de la roche reste noir. */
@@ -240,17 +242,24 @@ const JOINT: RGB = [22, 16, 20];
 export type WallLook = "s1" | "champi";
 
 /** Le dessin 16 × 16 de la case de mur (x, y). `earthAt` : les éboulis (section 2), qui éventrent les murs voisins. */
-export function wallImage(map: GameMap, x: number, y: number, look: WallLook = "s1", earthAt?: (x: number, y: number) => boolean): HTMLCanvasElement {
+export function wallImage(
+  map: GameMap,
+  x: number,
+  y: number,
+  look: WallLook = "s1",
+  earthAt?: (x: number, y: number) => boolean,
+  breachAt?: (x: number, y: number) => boolean,
+): HTMLCanvasElement {
   // Le dessin dépend des murs jusqu'à 3 cases autour (liens entre parements, extrémités) : c'est la clé.
   let sig = "";
-  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) sig += !map.inBounds(x + dx, y + dy) || isWallLike(map.get(x + dx, y + dy)) ? "1" : "0";
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) sig += !map.inBounds(x + dx, y + dy) || isWallLike(map.get(x + dx, y + dy)) ? "1" : breachAt?.(x + dx, y + dy) ? "2" : "0";
   const champi = look === "champi";
   const earth: [number, number][] = [];
   if (champi && earthAt) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (earthAt(x + dx, y + dy)) earth.push([x + dx, y + dy]);
   const key = `${x},${y}|${sig}|${look}|${earth.join(";")}`;
   const cached = canvases.get(key);
   if (cached) return cached;
-  const reader = new WallReader(map);
+  const reader = new WallReader(map, breachAt);
   const canvas = document.createElement("canvas");
   canvas.width = T;
   canvas.height = T;

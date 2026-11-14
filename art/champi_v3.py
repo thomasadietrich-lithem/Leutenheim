@@ -249,6 +249,8 @@ def earth_mound(a, xs, ys, wallmask):
     for _ in range(9):
         i = rng.integers(0, len(xs_m))
         X0, Y0, w, h = xs_m[i], ys_m[i], int(rng.integers(4, 7)), int(rng.integers(2, 4))
+        if not FALLEN_BRICKS:
+            continue
         a[Y0:Y0 + h, X0:X0 + w] = (124, 108, 118)
         a[Y0, X0:X0 + w] = (168, 152, 160)
         a[Y0 + h - 1, X0:X0 + w] = (84, 70, 80)
@@ -306,6 +308,7 @@ def wall_life(a, xs, ys, wallmask, floor_plan):
 # Retouches ajoutées par les versions suivantes (champi_v4 : murs abîmés, brèche éventrée).
 PRE_HOOK = None
 HOOK = None
+FALLEN_BRICKS = True
 
 
 def room():

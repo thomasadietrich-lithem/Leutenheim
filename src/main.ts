@@ -194,8 +194,8 @@ try {
   // Pas de mémoire disponible : l'encyclopédie repartira de zéro à chaque visite.
 }
 function discover(ids: Iterable<string>): void {
-  // La salle d'essai montre tout : elle ne remplit pas l'encyclopédie.
-  if (game.sandbox) return;
+  // La salle d'essai montre tout : elle ne remplit pas l'encyclopédie (la partie d'essai non plus).
+  if (game.sandbox || game.testRun) return;
   const before = codex.size;
   for (const id of ids) codex.add(id);
   if (codex.size === before) return;
@@ -313,10 +313,13 @@ window.addEventListener("pagehide", () => writeSave(true));
 /** L'emplacement de la partie relue au lancement (reprise par « Reprendre »). */
 let savedSlot = SAVE_KEYS.donjon;
 
-function newRun(sandbox = false): void {
-  currentSlot = freshSlot(sandbox);
+function newRun(sandbox = false, testRun = false): void {
+  currentSlot = freshSlot(sandbox || testRun);
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
-  setupRun(new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox), null);
+  const next = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox);
+  // SECTION : ALL (Thomas, 2026-11-14) : une vraie partie, avec les outils d'essai et le téléporteur d'étage.
+  next.testRun = testRun;
+  setupRun(next, testRun ? ["Partie d'essai : toutes les sections. Les boutons « Étage − / + » téléportent d'un étage."] : null);
   started = true;
   savedRun = null;
   writeSave(true);
@@ -331,7 +334,12 @@ function resumeRun(saved: Game): void {
 function setupRun(next: Game, lines: string[] | null): void {
   game = next;
   const sandbox = game.sandbox;
-  $("test-tools").hidden = !sandbox;
+  // Outils d'essai : en salle d'essai, et dans la partie d'essai « toutes les sections » (avec le téléporteur).
+  $("test-tools").hidden = !sandbox && !game.testRun;
+  $("reset-talks").hidden = !sandbox;
+  $("reset-floor").hidden = !sandbox;
+  $("tp-up").hidden = !game.testRun;
+  $("tp-down").hidden = !game.testRun;
   $("peace").textContent = tr("Combats : oui");
   aimMode = false;
   doorWasPending = false;
@@ -784,8 +792,12 @@ function reveal(e: GameEvent): void {
     // Ses petits s'éloignent de quelques pas, puis fuient dans un nuage de fumée (Thomas, 2026-11-14).
     broodFlight = (e.fled ?? []).filter((f) => game.monsters.some((m) => m.id === f.id));
     const steps = Math.max(0, ...broodFlight.map((f) => f.path.length));
-    // Thomas : la démo s'arrête après la Tisseuse, la partie est bloquée.
-    setTimeout(showDemoEnd, 900 + (broodFlight.length ? (steps + 2) * BROOD_STEP_MS : 0));
+    // La partie continue (Thomas, 2026-11-14 : la section 2 existe) : l'escalier s'ouvre, un coffre doré apparaît.
+    void steps;
+    logLines.push("La toile qui scellait l'escalier tombe en lambeaux. Un coffre doré luit là où elle est tombée.");
+    renderLog();
+  } else if (e.type === "demoEnd") {
+    setTimeout(showDemoEnd, 300);
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       renderer.heroFalls();
@@ -994,10 +1006,10 @@ function reveal(e: GameEvent): void {
 function showDemoEnd(): void {
   over.replaceChildren();
   over.classList.add("over-win");
-  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", "La Tisseuse est vaincue : la première section du donjon est terminée."));
+  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", "La champignonnière est traversée : c'est tout pour l'instant."));
   over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
   over.append(el("div", "over-sub", "Merci d'avoir joué ! La suite du donjon arrive bientôt."));
-  if (!game.sandbox) {
+  if (!game.sandbox && !game.testRun) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
     const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause: "victoire", hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn, race: game.race.id, heroClass: game.heroClass.id });
@@ -1178,7 +1190,7 @@ function showDeath(): void {
   over.replaceChildren();
   over.append(el("div", "over-title", "Vous êtes mort"), el("div", "over-line", `À l'étage ${game.depth}, tué par ${cause}.`));
   over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
-  if (!game.sandbox) {
+  if (!game.sandbox && !game.testRun) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
     const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn, race: game.race.id, heroClass: game.heroClass.id });
@@ -3410,7 +3422,21 @@ if (!PUBLIC_BUILD) {
       showScreen(null);
     });
   }
+  button("essai-all", () => {
+    newRun(false, true);
+    started = true;
+    showScreen(null);
+  });
   button("essai-back", () => showScreen("main"));
+  // Téléporteur d'étage (partie d'essai).
+  for (const [id, step] of [["tp-up", -1], ["tp-down", 1]] as const) {
+    button(id, () => {
+      if (game.teleport(game.depth + step)) {
+        logLines.push(`Téléporté à l'étage ${game.depth}.`);
+        collectEvents();
+      }
+    });
+  }
 }
 button("settings-blood", () => {
   options.blood = !options.blood;

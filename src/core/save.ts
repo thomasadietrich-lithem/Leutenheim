@@ -74,6 +74,9 @@ export interface SavedFloor {
   fifrelin?: import("./floor").GluckSpot;
   courier?: import("./floor").FloorState["courier"];
   secretRoom?: import("./floor").FloorState["secretRoom"];
+  look?: "champi";
+  mossBurnt?: number[];
+  goldChest?: Point;
 }
 
 export interface SaveData {
@@ -133,6 +136,8 @@ export interface SaveData {
   sandboxLayout?: number;
   /** Salle d'essai : section 1 ou 2 (Thomas, 2026-11-14). */
   sandboxSection?: 1 | 2;
+  /** Partie d'essai « toutes les sections » (Thomas, 2026-11-14). */
+  testRun?: boolean;
   clock?: number;
   ammoChoice?: string;
   /** Boss vaincus (facultatif, ajouté avec la Tisseuse). */

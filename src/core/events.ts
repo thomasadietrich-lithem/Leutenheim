@@ -52,6 +52,8 @@ export type GameEvent =
   | { type: "luck" }
   /** Le d20 enchanté (artefact) change un 1 naturel du héros en 20 : un coup critique, une fois par étage. */
   | { type: "luckyDie" }
+  /** Le bas de la démo : l'escalier de l'étage 10 (Thomas, 2026-11-14). */
+  | { type: "demoEnd" }
   /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */
   | { type: "npcRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */
@@ -140,7 +142,7 @@ export type GameEvent =
   | { type: "merchantHides" }
   | { type: "merchantShows" }
   | { type: "merchantLeaves"; x: number; y: number; seen: boolean }
-  | { type: "chest"; gold: number; item: ItemId; count: number; x: number; y: number; drops: { x: number; y: number }[] }
+  | { type: "chest"; gold: number; item: ItemId; count: number; x: number; y: number; drops: { x: number; y: number }[]; golden?: ItemId[] }
   /** Objet utilisé (pomme : PV rendus ; torche : allumée), torche éteinte, poison posé et poison qui ronge. */
   | { type: "used"; item: ItemId; healed?: number }
   | { type: "torchOut" }

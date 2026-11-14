@@ -8,6 +8,8 @@ import { CHAMPI } from "./sprites/champi";
 
 /** Le coffre d'acier : les bois du coffre passent à l'acier, les bandes au fer sombre. */
 const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
+/** Le coffre doré de la fin du boss (Thomas, 2026-11-14) : bois et bandes passent à l'or. */
+const GOLD_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#e0b040", b: "#a87818", T: "#ffe08a", t: "#c89a2a", S: "#6a4a10" };
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./sprites/escaliers";
 import { groundImage } from "./ground";
 import { wallImage } from "./walls";
@@ -107,7 +109,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y), (cx, cy) => game.earthAt(cx, cy)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y), (cx, cy) => game.earthAt(cx, cy), game.mossBurntAt(x, y)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
     // Pièce secrète (Thomas, 2026-11-14 : « assombris les cases, ajoute un dégradé ») : plus sombre à mesure qu'on
     // s'enfonce depuis l'entrée ; le dégradé court d'une case à l'autre sans marche.
@@ -235,7 +237,8 @@ export class TilePainter {
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       // Coffre d'acier des pièces secrètes (Thomas, 2026-11-14) : le même coffre, recoloré.
-      const palette = (t === Tile.Chest || t === Tile.ChestOpen) && game.steelChestAt(x, y) ? STEEL_PALETTE : DECOR_PALETTE;
+      const chestTile = t === Tile.Chest || t === Tile.ChestOpen;
+      const palette = chestTile && game.goldChestAt(x, y) ? GOLD_PALETTE : chestTile && game.steelChestAt(x, y) ? STEEL_PALETTE : DECOR_PALETTE;
       ctx.drawImage(this.sprite(decor, palette), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
       ctx.imageSmoothingEnabled = smooth;
     } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {

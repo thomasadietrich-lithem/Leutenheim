@@ -3692,14 +3692,65 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
     game.tick();
   }
   assert.equal(game.bossActor(), undefined, "vaincue");
-  // La démo s'arrête : la partie est finie, l'escalier reste scellé.
-  assert.notEqual(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier reste scellé");
-  assert.ok(game.over && game.won, "partie bloquée");
+  // La partie continue (Thomas, 2026-11-14) : l'escalier s'ouvre, un coffre doré apparaît.
+  assert.equal(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier s'ouvre");
+  assert.ok(!game.over && !game.won, "la partie continue");
   assert.equal(game.bossKills, 1);
-  const hx = game.hero.x;
-  game.setDestination(hx + 1, game.hero.y);
-  game.tick();
-  assert.equal(game.hero.x, hx, "plus aucun ordre");
+  let chest: { x: number; y: number } | null = null;
+  for (let y = 0; y < game.map.height && !chest; y++) for (let x = 0; x < game.map.width && !chest; x++) if (game.goldChestAt(x, y)) chest = { x, y };
+  assert.ok(chest && game.map.get(chest.x, chest.y) === Tile.Chest, "le coffre doré");
+  // Il contient de l'or, un artefact, une arme et une armure.
+  game.events.length = 0;
+  (game as unknown as { useFeatureAt(x: number, y: number): void }).useFeatureAt(chest!.x, chest!.y);
+  const opened = game.events.find((e) => e.type === "chest");
+  assert.ok(opened && opened.type === "chest" && opened.gold > 0 && opened.golden?.length === 2, "or, artefact, arme, armure");
+  assert.equal(ITEMS[opened.item].kind, "artifact");
+  assert.ok(["melee", "ranged"].includes(ITEMS[opened.golden![0]].kind) && ["armor", "hat"].includes(ITEMS[opened.golden![1]].kind));
+});
+
+test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticables, avec champignons et éboulements ; fin de la démo à l'étage 10 (Thomas, 2026-11-14)", () => {
+  let mounds = 0;
+  for (const seed of [11, 12, 13, 14, 15]) {
+    const game = new Game(seed);
+    game.testRun = true;
+    assert.ok(game.teleport(7));
+    assert.equal(game.depth, 7);
+    assert.equal(game.look(), "champi");
+    const kinds = game.furnitureList().map((f) => f.kind);
+    assert.ok(kinds.some((k) => k.startsWith("lueurs")), `graine ${seed} : des petits lumineux`);
+    mounds += kinds.filter((k) => k === "eboulis").length;
+    // Tout ce qui se marche se rejoint depuis l'arrivée.
+    const map = game.map;
+    const seen = new Set<number>([map.index(game.hero.x, game.hero.y)]);
+    const stack = [{ x: game.hero.x, y: game.hero.y }];
+    const walk = (t: Tile) => t !== Tile.Wall && t !== Tile.Furniture && t !== Tile.Pillar;
+    while (stack.length) {
+      const p = stack.pop()!;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = p.x + dx;
+        const y = p.y + dy;
+        if (!map.inBounds(x, y) || seen.has(map.index(x, y)) || !walk(map.get(x, y))) continue;
+        seen.add(map.index(x, y));
+        stack.push({ x, y });
+      }
+    }
+    let total = 0;
+    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (walk(map.get(x, y))) total++;
+    // (La pièce secrète, murée, n'est pas encore ouverte.)
+    const secret = game.secretRoom();
+    const hidden = secret && !secret.found ? secret.room.w * secret.room.h : 0;
+    assert.ok(seen.size >= total - hidden, `graine ${seed} : ${total - seen.size} cases inaccessibles`);
+    assert.equal(new Game(seed).look(), "s1", "l'étage 1 garde le décor de la section 1");
+  }
+  assert.ok(mounds > 0, "des éboulements");
+  // Fin de la démo : l'escalier de l'étage 10.
+  const game = new Game(21);
+  game.testRun = true;
+  game.teleport(10);
+  const g = game as unknown as { pendingStairs: "down" | "up" | null };
+  g.pendingStairs = "down";
+  assert.ok(game.takeStairs());
+  assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"));
 });
 
 test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèche dans la toile l'attire, les œufs éclosent", () => {

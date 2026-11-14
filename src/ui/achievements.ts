@@ -137,7 +137,7 @@ function feat(id: string, featId: string, out: Unlock[]): void {
  * salle d'essai.
  */
 export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
-  if (game.sandbox) return [];
+  if (game.sandbox || game.testRun) return [];
   const out: Unlock[] = [];
   const add = (id: string, n: number) => {
     const u = set(id, (profile.values[id] ?? 0) + n);

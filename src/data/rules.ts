@@ -151,6 +151,11 @@ export const RULES = {
   /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
   websFromDepth: 3,
   // ---- Étage du boss de la section 1 : la Tisseuse (src/world/bossFloor.ts, src/core/boss.ts ; valeurs C) ----
+  /** Dernier étage de la démo (Thomas, 2026-11-14) : descendre son escalier termine la partie (la section 2 n'a pas
+   *  encore de boss). */
+  demoLastDepth: 10,
+  /** Coffre doré de la fin du boss (Thomas, 2026-11-14) : or (C). */
+  goldChestGold: [80, 140] as [number, number],
   /** Étages des boss (un par section, le dernier de la section). */
   bossDepths: [5],
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */

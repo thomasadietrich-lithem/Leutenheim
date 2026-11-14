@@ -1693,4 +1693,12 @@ export const EN: Record<string, string> = {
   "Vous lancez la torche : la case prend feu.": "You throw the torch: the square catches fire.",
   "Cave aux chapeaux": "Cap cellar",
   "Cave du fond": "Back cellar",
+  "Partie d'essai : toutes les sections. Les boutons « Étage − / + » téléportent d'un étage.": "Test run: all sections. The “Floor − / +” buttons teleport one floor.",
+  "La toile qui scellait l'escalier tombe en lambeaux. Un coffre doré luit là où elle est tombée.": "The web sealing the stairs falls to shreds. A golden chest gleams where she fell.",
+  "La champignonnière est traversée : c'est tout pour l'instant.": "The mushroom farm is behind you: that's all for now.",
+  "Téléporté à l'étage {0}.": "Teleported to floor {0}.",
+  "Le coffre doré s'ouvre : {0} pièces d'or, {1}, {2} !": "The golden chest opens: {0} gold coins, {1}, {2}!",
+  "Étage −": "Floor −",
+  "Étage +": "Floor +",
+  "Section : toutes": "Section: all",
 };

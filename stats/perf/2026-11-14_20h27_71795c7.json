@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T20:27:38.093Z",
+ "commit": "71795c7",
+ "note": "section 2 dans le donjon, coffre doré, partie d'essai",
+ "logic": {
+  "tickMs": 0.81,
+  "lightMs": 0.4,
+  "visionMs": 0.14
+ },
+ "scenes": {
+  "immobile": {
+   "n": 85,
+   "avg": 29,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 34,
+   "js": 5
+  },
+  "marche": {
+   "n": 176,
+   "avg": 28.4,
+   "p95": 50,
+   "max": 66.6,
+   "fps": 35,
+   "js": 4
+  },
+  "retour": {
+   "n": 178,
+   "avg": 28,
+   "p95": 49.9,
+   "max": 50,
+   "fps": 36,
+   "js": 3
+  },
+  "zoom": {
+   "n": 96,
+   "avg": 29.7,
+   "p95": 33.5,
+   "max": 50.1,
+   "fps": 34,
+   "js": 6
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 161,
+   "avg": 31,
+   "p95": 50.1,
+   "max": 150,
+   "fps": 32,
+   "js": 17
+  }
+ },
+ "errors": []
+}

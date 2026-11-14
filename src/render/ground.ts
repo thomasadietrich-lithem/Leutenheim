@@ -224,7 +224,7 @@ const C_EARTH: RGB[] = [[40, 32, 38], [48, 38, 44], [56, 45, 50]];
  * des galets ronds serrés (cellules de Voronoï sur une grille de 7 pixels), plus clairs au centre, joints sombres pleins
  * de mousse bleu-vert, quelques brins lumineux. Mêmes calculs que `floor_cobbles` de la planche.
  */
-function cobbles(px: number, py: number): RGB {
+function cobbles(px: number, py: number, burnt = false): RGB {
   const cell = 7;
   const gx = Math.floor(px / cell);
   const gy = Math.floor(py / cell);
@@ -246,7 +246,8 @@ function cobbles(px: number, py: number): RGB {
     }
   }
   if (second - best < 1.4) {
-    if (fbm(px, py, 10, 914, 2) > 0.5) return hash2(px, py, 915) > 0.9 ? [90, 200, 170] : [40, 110, 96];
+    // Mousse brûlée : les veines passent au gris-noir de la cendre, quelques braises éteintes.
+    if (fbm(px, py, 10, 914, 2) > 0.5) return burnt ? (hash2(px, py, 915) > 0.9 ? [70, 50, 40] : [34, 30, 30]) : hash2(px, py, 915) > 0.9 ? [90, 200, 170] : [40, 110, 96];
     return [22, 20, 26];
   }
   const k = (0.8 + 0.35 * seed) * Math.min(1.15, Math.max(0.75, 1.15 - best / cell));
@@ -314,6 +315,8 @@ export function groundImage(
   motifs: readonly Motif[] = [],
   style?: FloorStyle,
   earthAt?: (x: number, y: number) => "E" | "B" | "e" | null,
+  /** Section 2 : la mousse de la case a brûlé (veines noircies). */
+  burnt = false,
 ): HTMLCanvasElement {
   const gravel = around(map, x, y, Tile.Gravel);
   const water = around(map, x, y, Tile.Water);
@@ -333,7 +336,7 @@ export function groundImage(
     loose = earthAt?.(x, y) === "e";
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) walls += map.get(x + dx, y + dy) === Tile.Wall ? "1" : "0";
   }
-  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${breaches.join(";")}|${loose ? "e" : ""}|${walls}`;
+  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${breaches.join(";")}|${loose ? "e" : ""}|${walls}|${burnt ? "b" : ""}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
@@ -351,7 +354,7 @@ export function groundImage(
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "champi" ? cobbles(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
+      let c = style === "champi" ? cobbles(px, py, burnt) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

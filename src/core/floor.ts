@@ -27,8 +27,13 @@ export interface FloorState {
   monsters: Actor[];
   ground: GroundItem[];
   debris: Debris[];
-  /** Section 2 : cases dont la mousse a déjà brûlé (index y × 4096 + x) : elle ne repropage plus le feu. */
+  /** Section 2 : cases dont la mousse a déjà brûlé (index y × 4096 + x) : elle ne repropage plus le feu, et ses veines
+   *  sont noircies. */
   mossBurnt?: number[];
+  /** Le décor de l'étage : « champi » pour la section 2 (la champignonnière). */
+  look?: "champi";
+  /** Le coffre doré, apparu à la mort du boss (Thomas, 2026-11-14) : argent, artefact, arme, armure. */
+  goldChest?: Point;
   /** Taches de sang : sur le sol (forme 0 ou 1) ou sur un mur (forme 2) ; rouge (héros) ou vert (Schrats). */
   blood: BloodStain[];
   explored: Uint8Array;

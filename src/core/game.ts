@@ -17,6 +17,7 @@ import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { carvePocket, placeSecretRoom, placeWallMarks } from "../world/secretRoom";
+import { decorateChampi } from "../world/champi";
 import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan, sandboxSection, setSandboxSection } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
@@ -322,6 +323,13 @@ export class Game {
           : RULES.themedRoomsInDungeon
           ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell", this.funOf(depth) === "bath")
           : { furniture: [], themes: [] };
+      // Section 2, la champignonnière (étages 6 à 10 ; Thomas, 2026-11-14 : « génère la section ») : l'étage tiré au
+      // hasard est habillé (torches retirées, champignons, éboulements) ; le décor suit `look`.
+      const champi = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) === 1;
+      if (champi) {
+        const skip = new Set<number>([...furnished.themes.map((t) => t.room), ...floor.specials.map((s) => floor.rooms.indexOf(s.room))]);
+        decorateChampi(floor, furnished.furniture, new Rng(seed ^ 0xc4a3b1), skip);
+      }
       // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
       // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
       if (!sandboxFloor && !bossFloor && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
@@ -397,7 +405,16 @@ export class Game {
           if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2 });
         }
         placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
+        // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
+        if (champi) {
+          state.furniture = (state.furniture ?? []).filter((f) => !/^wall(Gap|Hole)/.test(f.kind));
+          if (state.secretRoom) {
+            state.furniture.push({ x: state.secretRoom.entry.x, y: state.secretRoom.entry.y, kind: "mycCurtain" });
+            state.secretRoom.peek = { ...state.secretRoom.entry };
+          }
+        }
       }
+      if (champi) state.look = "champi";
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -1100,16 +1117,36 @@ export class Game {
   }
 
   /**
-   * La Tisseuse est morte : la démo s'arrête là (Thomas, 2026-11-13 : « bloque le jeu après le boss »). L'escalier
-   * reste scellé et la partie est finie (plus d'ordre accepté, sauvegarde effacée, record noté).
+   * La Tisseuse est morte (Thomas, 2026-11-14 : la section 2 existe, la partie continue) : la toile qui scellait
+   * l'escalier tombe, et un COFFRE DORÉ apparaît là où elle est morte (argent, artefact, arme, armure).
    */
-  private bossDefeated(): void {
+  private bossDefeated(at: Point): void {
     const layout = this.current.boss;
     this.bossKills++;
     if (!layout) return;
-    this.over = true;
-    this.won = true;
     this.path = [];
+    // L'escalier se libère.
+    this.current.furniture = this.current.furniture.filter((f) => f.kind !== "sealedStairs");
+    this.map.set(layout.seal.x, layout.seal.y, Tile.StairsDown);
+    this.map.touch(layout.seal.x, layout.seal.y);
+    // Le coffre doré : sur la case libre la plus proche de l'endroit où elle est tombée.
+    let chest: Point | null = null;
+    for (let r = 0; r <= 5 && !chest; r++) {
+      for (let dy = -r; dy <= r && !chest; dy++) {
+        for (let dx = -r; dx <= r && !chest; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const p = { x: at.x + dx, y: at.y + dy };
+          if (this.map.get(p.x, p.y) !== Tile.Floor || this.furnitureAt(p.x, p.y) || (p.x === this.hero.x && p.y === this.hero.y)) continue;
+          if (this.ground.some((g) => g.x === p.x && g.y === p.y) || this.isBurning(p.x, p.y)) continue;
+          chest = p;
+        }
+      }
+    }
+    if (chest) {
+      this.map.set(chest.x, chest.y, Tile.Chest);
+      this.map.touch(chest.x, chest.y);
+      this.current.goldChest = chest;
+    }
     // Ses petits (Thomas, 2026-11-14 : « s'éloignent de quelques pas, puis fuient dans un nuage de fumée ») : chacun
     // s'écarte du héros (3 pas au plus) ; l'affichage les fait marcher puis disparaître.
     const fled: { id: number; path: Point[] }[] = [];
@@ -1913,6 +1950,9 @@ export class Game {
         fifrelin: f.fifrelin,
         courier: f.courier,
         secretRoom: f.secretRoom,
+        look: f.look,
+        mossBurnt: f.mossBurnt,
+        goldChest: f.goldChest,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1922,6 +1962,7 @@ export class Game {
       heroClass: this.heroClass.id,
       sandbox: this.sandbox,
       sandboxSection: this.sandbox ? this.sandboxSection : undefined,
+      testRun: this.testRun || undefined,
       depth: this.depth,
       deepest: this.deepest,
       turn: this.turn,
@@ -2030,9 +2071,13 @@ export class Game {
         fifrelin: f.fifrelin,
         courier: f.courier,
         secretRoom: f.secretRoom,
+        look: f.look,
+        mossBurnt: f.mossBurnt,
+        goldChest: f.goldChest,
       });
     }
     game.turn = saved.turn;
+    game.testRun = !!saved.testRun;
     game.hero = saved.hero;
     game.inventory.restore(saved.bag);
     game.equipment = saved.equipment;
@@ -2947,6 +2992,16 @@ export class Game {
       // Section 2 (Thomas, 2026-11-14 : « les veines vertes répandent un peu le feu, pas beaucoup ») : la mousse des
       // joints des pavés propage le feu à une case voisine, une fois sur huit par tour ; une case ne s'enflamme qu'une
       // fois par la mousse (elle a brûlé), et ce feu-là dure 3 tours.
+      // La mousse de la case brûle : ses veines noircissent (Thomas, 2026-11-14 : « les racines qui ont brûlé changent
+      // de couleur »).
+      if (this.look() === "champi") {
+        const own = f.y * 4096 + f.x;
+        const list = (this.current.mossBurnt ??= []);
+        if (!list.includes(own)) {
+          list.push(own);
+          this.map.touch(f.x, f.y);
+        }
+      }
       if (this.look() === "champi" && f.turns > 0 && this.rng.chance(RULES.mossFireChance)) {
         const [dx, dy] = [[1, 0], [-1, 0], [0, 1], [0, -1]][this.rng.int(0, 3)];
         const nx = f.x + dx;
@@ -5119,6 +5174,17 @@ export class Game {
     return true;
   }
 
+  /** Le coffre doré du boss (dessiné en or). */
+  goldChestAt(x: number, y: number): boolean {
+    const c = this.current?.goldChest;
+    return !!c && c.x === x && c.y === y;
+  }
+
+  /** Section 2 : la mousse de cette case a brûlé (ses veines sont noircies). */
+  mossBurntAt(x: number, y: number): boolean {
+    return !!this.current?.mossBurnt?.includes(y * 4096 + x);
+  }
+
   /** Le tonneau creux de la zone de quête a-t-il été repéré par une fouille ? (dessin) */
   zoneNoticed(): boolean {
     return !!this.current.zone?.noticed;
@@ -6690,11 +6756,26 @@ export class Game {
 
   /** Le plan de la salle d'essai (refait à chaque remise à neuf) ; `null` hors salle d'essai. */
   private plan: SandboxFloor | null = null;
+  /** SECTION : ALL (Thomas, 2026-11-14) : une vraie partie, mais avec les outils d'essai et le téléporteur d'étage ;
+   *  elle ne compte ni pour les records, ni pour les succès, ni pour l'encyclopédie. */
+  testRun = false;
+
+  /** Téléporteur d'étage (partie d'essai) : on arrive en haut de l'étage demandé (1 à la fin de la démo). */
+  teleport(depth: number): boolean {
+    if (!this.testRun || this.over || depth < 1 || depth > RULES.demoLastDepth || depth === this.depth) return false;
+    const down = depth > this.depth;
+    this.enterFloor(depth, "down");
+    this.deepest = Math.max(this.deepest, depth);
+    this.events.push({ type: "stairs", direction: down ? "down" : "up", healed: 0 });
+    return true;
+  }
+
   /** Quelle salle d'essai (section 1 ou 2), choisie au menu avant de créer la partie. */
   readonly sandboxSection: 1 | 2 = sandboxSection();
 
   /** Le décor de l'étage : « champi » (section 2, la champignonnière) ou celui de la section 1. */
   look(): "s1" | "champi" {
+    if (this.current?.look === "champi") return "champi";
     return this.sandbox && this.depth === 1 && this.sandboxFloor()?.look === "champi" ? "champi" : "s1";
   }
   private resetting = false;
@@ -6922,6 +7003,25 @@ export class Game {
       this.blessTurns = RULES.blessTurns;
       this.refreshStats();
       this.events.push({ type: "fountain", healed });
+    } else if (t === Tile.Chest && this.goldChestAt(x, y)) {
+      // Le COFFRE DORÉ de la fin du boss (Thomas, 2026-11-14) : de l'argent, un artefact, une arme, une armure.
+      this.map.set(x, y, Tile.ChestOpen);
+      const gold = this.rng.int(RULES.goldChestGold[0], RULES.goldChestGold[1]);
+      const pickOne = (keep: (kind: string) => boolean): ItemId => {
+        const pool = lootPool(this.depth + RULES.floorsPerSection, (k) => keep(k), "rare");
+        const fallback = lootPool(this.depth + RULES.floorsPerSection, (k) => keep(k));
+        const list = pool.length > 0 ? pool : fallback;
+        return list[this.rng.int(0, list.length - 1)];
+      };
+      const artifact = pickOne((k) => k === "artifact");
+      const weapon = pickOne((k) => k === "melee" || k === "ranged");
+      const armor = pickOne((k) => k === "armor" || k === "hat");
+      const drops = [
+        ...this.spillLoot(x, y, gold, { item: artifact, count: 1 }),
+        ...this.spillLoot(x, y, 0, { item: weapon, count: 1 }).slice(1),
+        ...this.spillLoot(x, y, 0, { item: armor, count: 1 }).slice(1),
+      ];
+      this.events.push({ type: "chest", gold, item: artifact, count: 1, x, y, drops, golden: [weapon, armor] });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1);
@@ -6974,7 +7074,7 @@ export class Game {
       const itemAt = pickFrom[this.rng.int(0, pickFrom.length - 1)];
       const others = spots.filter((p) => p !== itemAt);
       const goldAt = others.length > 0 ? others[this.rng.int(0, others.length - 1)] : itemAt;
-      this.dropItem(goldAt.x, goldAt.y, "or", gold);
+      if (gold > 0) this.dropItem(goldAt.x, goldAt.y, "or", gold);
       this.dropItem(itemAt.x, itemAt.y, loot.item, loot.count);
       return [goldAt, itemAt];
     }
@@ -7256,7 +7356,7 @@ export class Game {
     if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
     else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
     // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
-    if (monster.boss) this.bossDefeated();
+    if (monster.boss) this.bossDefeated({ x: monster.x, y: monster.y });
     // Le Kobold du bain vaincu : sa dague tombe du porte-serviettes.
     if (monster.bather && this.current.bath) {
       this.current.bath.beaten = true;
@@ -8082,6 +8182,13 @@ export class Game {
     const target = this.depth + (direction === "down" ? 1 : -1);
     if (target < 1) return false;
     const healed = 0;
+    // Fin de la démo (Thomas, 2026-11-14) : au bas de la section 2, l'escalier de l'étage 10 termine la partie.
+    if (direction === "down" && !this.sandbox && this.depth >= RULES.demoLastDepth) {
+      this.over = true;
+      this.won = true;
+      this.events.push({ type: "demoEnd" });
+      return true;
+    }
     // Descendre sans être revenu voir le PNJ : la tâche est ratée (Thomas, 2026-11-12 : il reste sur l'étage).
     if (direction === "down" && this.quest && this.quest.depth === this.depth) this.failQuest();
     const left = this.perks();

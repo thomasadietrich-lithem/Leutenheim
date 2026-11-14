@@ -942,6 +942,11 @@ export class Game {
   }
 
   /** La cloche d'alarme sur cette case, s'il y en a une. */
+  /** L'escalier scellé de la nichée, une fois la Tisseuse morte : le toucher termine la démo (Thomas, 2026-11-14). */
+  sealedStairsAt(x: number, y: number): boolean {
+    return !!this.current?.boss && !this.bossActor() && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
+  }
+
   bellAt(x: number, y: number): Furniture | null {
     return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind === "bell") ?? null;
   }
@@ -1035,6 +1040,12 @@ export class Game {
       this.ringBell(bell);
       return;
     }
+    if (this.sealedStairsAt(at.x, at.y)) {
+      this.over = true;
+      this.won = true;
+      this.events.push({ type: "demoEnd" });
+      return;
+    }
     if (this.zoneDoorAt(at.x, at.y)) {
       if (this.current.zone!.door === "tapestry") this.openZoneDoor();
       else this.pushZoneDoor();
@@ -1125,10 +1136,8 @@ export class Game {
     this.bossKills++;
     if (!layout) return;
     this.path = [];
-    // L'escalier se libère.
-    this.current.furniture = this.current.furniture.filter((f) => f.kind !== "sealedStairs");
-    this.map.set(layout.seal.x, layout.seal.y, Tile.StairsDown);
-    this.map.touch(layout.seal.x, layout.seal.y);
+    // L'escalier RESTE SCELLÉ pour l'instant (Thomas, 2026-11-14 : « laisse l'étage fermé ») : le toucher termine la
+    // démo, une fois le coffre doré pillé.
     // Le coffre doré : sur la case libre la plus proche de l'endroit où elle est tombée.
     let chest: Point | null = null;
     for (let r = 0; r <= 5 && !chest; r++) {
@@ -3188,7 +3197,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);

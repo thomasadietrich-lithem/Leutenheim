@@ -1701,4 +1701,5 @@ export const EN: Record<string, string> = {
   "Étage −": "Floor −",
   "Étage +": "Floor +",
   "Section : toutes": "Section: all",
+  "Un coffre doré luit là où la Tisseuse est tombée. L'escalier reste scellé : le toucher termine la démo.": "A golden chest gleams where the Weaver fell. The stairs stay sealed: touch them to end the demo.",
 };

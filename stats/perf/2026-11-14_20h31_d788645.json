@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T20:31:39.007Z",
+ "commit": "d788645",
+ "note": "escalier de la Tisseuse scellé",
+ "logic": {
+  "tickMs": 0.7,
+  "lightMs": 0.19,
+  "visionMs": 0.28
+ },
+ "scenes": {
+  "immobile": {
+   "n": 84,
+   "avg": 29.4,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 34,
+   "js": 4
+  },
+  "marche": {
+   "n": 197,
+   "avg": 25.4,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 39,
+   "js": 3
+  },
+  "retour": {
+   "n": 182,
+   "avg": 27.4,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 37,
+   "js": 3
+  },
+  "zoom": {
+   "n": 102,
+   "avg": 28.3,
+   "p95": 50,
+   "max": 50,
+   "fps": 35,
+   "js": 4
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 206,
+   "avg": 23.7,
+   "p95": 33.4,
+   "max": 150.1,
+   "fps": 42,
+   "js": 16
+  }
+ },
+ "errors": []
+}

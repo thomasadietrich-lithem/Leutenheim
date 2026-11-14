@@ -3692,9 +3692,10 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
     game.tick();
   }
   assert.equal(game.bossActor(), undefined, "vaincue");
-  // La partie continue (Thomas, 2026-11-14) : l'escalier s'ouvre, un coffre doré apparaît.
-  assert.equal(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier s'ouvre");
+  // La partie continue (Thomas, 2026-11-14) : un coffre doré apparaît ; l'escalier RESTE scellé (« laisse l'étage fermé »).
+  assert.notEqual(game.map.get(layout.seal.x, layout.seal.y), Tile.StairsDown, "l'escalier reste scellé");
   assert.ok(!game.over && !game.won, "la partie continue");
+  assert.ok(game.sealedStairsAt(layout.seal.x, layout.seal.y));
   assert.equal(game.bossKills, 1);
   let chest: { x: number; y: number } | null = null;
   for (let y = 0; y < game.map.height && !chest; y++) for (let x = 0; x < game.map.width && !chest; x++) if (game.goldChestAt(x, y)) chest = { x, y };
@@ -3706,6 +3707,10 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
   assert.ok(opened && opened.type === "chest" && opened.gold > 0 && opened.golden?.length === 2, "or, artefact, arme, armure");
   assert.equal(ITEMS[opened.item].kind, "artifact");
   assert.ok(["melee", "ranged"].includes(ITEMS[opened.golden![0]].kind) && ["armor", "hat"].includes(ITEMS[opened.golden![1]].kind));
+  // Toucher l'escalier scellé termine la démo.
+  game.events.length = 0;
+  (game as unknown as { resolveBreak(at: { x: number; y: number }): void }).resolveBreak(layout.seal);
+  assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"), "fin de la démo");
 });
 
 test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticables, avec champignons et éboulements ; fin de la démo à l'étage 10 (Thomas, 2026-11-14)", () => {

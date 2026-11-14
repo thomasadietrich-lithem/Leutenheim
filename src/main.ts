@@ -794,7 +794,7 @@ function reveal(e: GameEvent): void {
     const steps = Math.max(0, ...broodFlight.map((f) => f.path.length));
     // La partie continue (Thomas, 2026-11-14 : la section 2 existe) : l'escalier s'ouvre, un coffre doré apparaît.
     void steps;
-    logLines.push("La toile qui scellait l'escalier tombe en lambeaux. Un coffre doré luit là où elle est tombée.");
+    logLines.push("Un coffre doré luit là où la Tisseuse est tombée. L'escalier reste scellé : le toucher termine la démo.");
     renderLog();
   } else if (e.type === "demoEnd") {
     setTimeout(showDemoEnd, 300);
@@ -1006,7 +1006,7 @@ function reveal(e: GameEvent): void {
 function showDemoEnd(): void {
   over.replaceChildren();
   over.classList.add("over-win");
-  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", "La champignonnière est traversée : c'est tout pour l'instant."));
+  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", game.depth >= 6 ? "La champignonnière est traversée : c'est tout pour l'instant." : "La Tisseuse est vaincue : la première section du donjon est terminée."));
   over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
   over.append(el("div", "over-sub", "Merci d'avoir joué ! La suite du donjon arrive bientôt."));
   if (!game.sandbox && !game.testRun) {

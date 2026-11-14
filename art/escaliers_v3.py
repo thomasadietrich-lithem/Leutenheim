@@ -150,5 +150,47 @@ def main():
     print("art/escaliers_v3.png", sheet.size)
 
 
+def export():
+    """Les 14 déclinaisons en pixels pour le jeu → src/render/sprites/escaliers.ts (Thomas, 2026-11-14 : « implémente
+    l'escalier 3, garde les autres »)."""
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    palette = {}
+    def rows(im):
+        out = []
+        for y in range(16):
+            row = ""
+            for x in range(16):
+                r, g, b, a = im.getpixel((x, y))
+                if a == 0:
+                    row += "."
+                    continue
+                key = "#%02x%02x%02x" % (r, g, b)
+                if key not in palette:
+                    palette[key] = letters[len(palette)]
+                row += palette[key]
+            out.append(row)
+        return out
+    variants = [(name, rows(stairs(**kw)), rows(stairs(up_=True, **kw))) for name, kw in VARIANTS]
+    lines = ["// FICHIER GÉNÉRÉ par art/escaliers_v3.py (export) : ne pas modifier à la main.",
+             "/** Escaliers droits (planche escaliers_v3, 14 déclinaisons) ; le jeu montre `STAIRS_STYLE` (Thomas : la 3). */",
+             "export const ESCALIERS_PALETTE: Record<string, string> = {" + ", ".join('"%s": "%s"' % (v, k) for k, v in palette.items()) + "};",
+             "export const ESCALIERS: { name: string; down: string[]; up: string[] }[] = ["]
+    for name, d, u in variants:
+        lines.append("  {")
+        lines.append("    name: %s," % repr(name).replace("'", '"'))
+        lines.append("    down: [" + ", ".join('"%s"' % r for r in d) + "],")
+        lines.append("    up: [" + ", ".join('"%s"' % r for r in u) + "],")
+        lines.append("  },")
+    lines.append("];")
+    lines.append("/** La déclinaison en jeu (numéro de la planche moins un) : 3. Pierre fendue. */")
+    lines.append("export const STAIRS_STYLE = 2;")
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "render", "sprites", "escaliers.ts")
+    open(out, "w").write("\n".join(lines) + "\n")
+    print("src/render/sprites/escaliers.ts", len(palette), "couleurs")
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "export":
+        export()
+    else:
+        main()

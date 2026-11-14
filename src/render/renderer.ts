@@ -955,20 +955,25 @@ export class Renderer {
     const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
     const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
     if (m.defId === "araignee") {
-      // L'araignée (planche art/araignee_v1.png) : une seule vue de 3/4, retournée quand elle va à gauche.
-      const name = slash || hurt ? "bite" : moving ? (progress < 0.5 ? "walk0" : "walk1") : m.asleep || m.prone ? "idle0" : `idle${Math.floor((Math.abs(this.time) + m.id * 170) / 380) % 2}`;
-      if (m.prone) {
-        // Araignée à terre : retournée sur le dos, les pattes en l'air.
-        const { ctx } = this;
-        ctx.save();
-        ctx.translate(0, cy * 2 - this.tile * 0.15);
-        ctx.scale(1, -1);
-        this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", false, ARAIGNEE[name].palette, m.grown ? 1.5 : 1);
-        ctx.restore();
-        return;
-      }
-      if (!m.asleep) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
-      this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", true, ARAIGNEE[name].palette, m.grown ? 1.5 : 1);
+      // Araignée v2 (art/araignee_v2.png ; Thomas, 2026-11-14 : « pas assez animée ») : une seule vue de 3/4,
+      // retournée quand elle va à gauche. Repos sur 4 images, marche sur 4 (au fil du pas), aux aguets quand elle
+      // vous a vu (pattes de devant levées), morsure en deux temps, à terre : sur le dos, les pattes qui gigotent.
+      const beat = (ms: number, n: number) => Math.floor((Math.abs(this.time) + m.id * 170) / ms) % n;
+      const name = m.prone
+        ? `prone${beat(160, 2)}`
+        : slash
+          ? slash.age < SLASH_MS * 0.4 ? "bite0" : "bite1"
+          : hurt
+            ? "bite0"
+            : moving
+              ? `walk${Math.min(3, Math.floor(progress * 4))}`
+              : m.asleep
+                ? "idle0"
+                : m.alerted
+                  ? `alert${beat(200, 2)}`
+                  : `idle${beat(300, 4)}`;
+      if (!m.asleep && !m.prone) this.drawGaze(cx, cy, facing, m.alerted, m.vision);
+      this.drawMonsterSprite(ARAIGNEE[name].rows, cx, cy, facing === "left", !m.prone, ARAIGNEE[name].palette, m.grown ? 1.5 : 1);
       return;
     }
     let rows: readonly string[];

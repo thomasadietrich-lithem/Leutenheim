@@ -1,5 +1,5 @@
 import { addRecord, loadRecords, recordLine } from "./ui/records";
-import { DECOR, DECOR_PALETTE } from "./render/sprites/decor";
+import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./render/sprites/escaliers";
 import { Sfx } from "./audio/sfx";
 import { Music } from "./audio/music";
 import { diceLabel } from "./core/dice";
@@ -1680,7 +1680,7 @@ $("aim").setAttribute("aria-label", tr("Tirer à l'arc"));
   $("open-bag").title = tr("Le héros");
 }
 // L'étage, en haut à droite : l'escalier du jeu et son numéro (demande de Thomas).
-$("floor-icon").replaceChildren(buildIcon(DECOR.stairsDown, DECOR_PALETTE));
+$("floor-icon").replaceChildren(buildIcon(ESCALIERS[STAIRS_STYLE].down, ESCALIERS_PALETTE));
 
 // ---------- Sac : grille de cases à la Diablo ----------
 

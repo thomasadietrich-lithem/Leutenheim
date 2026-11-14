@@ -3,6 +3,7 @@ import { FERME } from "./sprites/ferme";
 import { Tile } from "../world/map";
 import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
+import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./sprites/escaliers";
 import { groundImage } from "./ground";
 import { wallImage } from "./walls";
 import { DORTOIR } from "./sprites/dortoir";
@@ -189,10 +190,17 @@ export class TilePainter {
   drawFeature(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
     // Escaliers et coffres : dessins en pixels validés par Thomas (`src/render/sprites/decor.ts`).
+    // Escaliers droits v3 (Thomas, 2026-11-14 : « implémente l'escalier 3, garde les autres »).
+    if (t === Tile.StairsDown || t === Tile.StairsUp) {
+      const style = ESCALIERS[STAIRS_STYLE];
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(t === Tile.StairsDown ? style.down : style.up, ESCALIERS_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.imageSmoothingEnabled = smooth;
+      return;
+    }
     const decor =
-      t === Tile.StairsDown ? DECOR.stairsDown
-      : t === Tile.StairsUp ? DECOR.stairsUp
-      : t === Tile.Chest ? DECOR.chest
+      t === Tile.Chest ? DECOR.chest
       : t === Tile.ChestOpen ? DECOR.chestOpen
       : null;
     if (decor) {

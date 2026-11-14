@@ -110,6 +110,7 @@ VARIANTS = [
     ("12. Ossements (crypte)", dict(pal=SAND, detail="ossements")),
     ("13. Toiles (antre)", dict(pal=DARK, detail="toiles")),
     ("14. Six marches serrées", dict(pal=STONE, steps=7)),
+    ("15. Pierre fendue, élargie (EN JEU)", dict(pal=STONE, detail="fissures", wide=True)),
 ]
 
 
@@ -182,8 +183,8 @@ def export():
         lines.append("    up: [" + ", ".join('"%s"' % r for r in u) + "],")
         lines.append("  },")
     lines.append("];")
-    lines.append("/** La déclinaison en jeu (numéro de la planche moins un) : 3. Pierre fendue. */")
-    lines.append("export const STAIRS_STYLE = 2;")
+    lines.append("/** La déclinaison en jeu (numéro de la planche moins un) : 15. Pierre fendue, élargie (Thomas, 2026-11-14). */")
+    lines.append("export const STAIRS_STYLE = 14;")
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "render", "sprites", "escaliers.ts")
     open(out, "w").write("\n".join(lines) + "\n")
     print("src/render/sprites/escaliers.ts", len(palette), "couleurs")

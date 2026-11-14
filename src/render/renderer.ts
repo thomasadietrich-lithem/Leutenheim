@@ -70,6 +70,7 @@ const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { BAIN } from "./sprites/bain";
 import { ZONES } from "./sprites/zones";
+import { HEROS_V9_TWO } from "./sprites/heros_v9";
 import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
@@ -2187,6 +2188,21 @@ export class Renderer {
       const cells = furnitureCells(f);
       if (!cells.some((c) => game.isExplored(c.x, c.y))) continue;
       const visible = cells.some((c) => game.isVisible(c.x, c.y));
+      if (f.kind === "heroV9") {
+        // Salle d'essai : le héros proposé n° 2, à la même taille que le héros (1,3 case), avec son étiquette.
+        const cx = ox + (f.x + 0.5) * tile;
+        const cy = oy + (f.y + 0.5) * tile;
+        this.drawMonsterSprite(HEROS_V9_TWO.rows, cx, cy + tile * 0.03, false, true, HEROS_V9_TWO.palette, 1.3);
+        ctx.save();
+        ctx.font = `${Math.round(tile * 0.32)}px "VT323", "Courier New", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#000000aa";
+        ctx.fillText(tr("Proposition n° 2"), cx + 1, cy - tile * 0.95 + 1);
+        ctx.fillStyle = "#ffe9b0";
+        ctx.fillText(tr("Proposition n° 2"), cx, cy - tile * 0.95);
+        ctx.restore();
+        continue;
+      }
       let dark = 0.82;
       let warm = 0;
       if (visible) {

@@ -91,7 +91,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 21;
+export const SANDBOX_LAYOUT = 22;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7 };
@@ -177,6 +177,8 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     { x: 112, y: 44, text: "Salles →" },
   );
   torches.push({ x: 90, y: 39, radius: 7, faceX: 0, faceY: 1 }, { x: 108, y: 39, radius: 7, faceX: 0, faceY: 1 }, { x: 99, y: 51, radius: 6, faceX: 0, faceY: -1 });
+  // Le héros proposé n° 2 (planche héros v9, l'apprenti garde), debout à côté du héros actuel, pour comparer.
+  put(101, 45, "heroV9");
   const motifs: Motif[] = [
     { x: 93, y: 42, kind: "runes" },
     { x: 104, y: 42, kind: "boussole" },

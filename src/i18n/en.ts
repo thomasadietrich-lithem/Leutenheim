@@ -1313,4 +1313,5 @@ export const EN: Record<string, string> = {
   "Clac ! La dalle s'enfonce, une niche s'ouvre… et le bruit réveille {0} dormeurs !": "Clack! The slab sinks, a niche opens… and the noise wakes {0} sleepers!",
   "Clac ! La dalle s'enfonce, une niche s'ouvre… et le bruit réveille un dormeur !": "Clack! The slab sinks, a niche opens… and the noise wakes a sleeper!",
   "Clac ! La dalle s'enfonce, une niche s'ouvre.": "Clack! The slab sinks, a niche opens.",
+  "Proposition n° 2": "Proposal no. 2",
 };

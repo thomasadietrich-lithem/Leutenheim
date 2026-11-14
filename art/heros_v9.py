@@ -458,3 +458,34 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def export_two():
+    """La proposition n° 2 (l'apprenti garde) en pixels pour le jeu → src/render/sprites/heros_v9.ts (Thomas, 2026-11-14 :
+    « implémente la 2, côte à côte avec le perso actuel »)."""
+    import json
+    cfg = dict(BASE)
+    cfg.update(VARIANTS[1][2])
+    im = hero(cfg).img()
+    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    pal, rows = {}, []
+    for y in range(im.height):
+        row = ""
+        for x in range(im.width):
+            r, g, b, a = im.getpixel((x, y))
+            if a == 0:
+                row += "."
+                continue
+            key = "#%02x%02x%02x" % (r, g, b)
+            if key not in pal:
+                pal[key] = letters[len(pal)]
+            row += pal[key]
+        rows.append(row)
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "render", "sprites", "heros_v9.ts")
+    lines = ["// FICHIER GÉNÉRÉ par art/heros_v9.py (export_two) : ne pas modifier à la main.",
+             "/** Proposition n° 2 de la planche héros v9 (l'apprenti garde), 32 × 32, de face : montrée à côté du héros actuel. */",
+             "export const HEROS_V9_TWO = { palette: " + json.dumps({v: k for k, v in pal.items()}) + ", rows: ["]
+    lines += ['  "%s",' % r for r in rows]
+    lines.append("] };")
+    open(out, "w").write("\n".join(lines) + "\n")
+    print("src/render/sprites/heros_v9.ts", len(pal), "couleurs")

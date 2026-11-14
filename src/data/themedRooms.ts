@@ -170,6 +170,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   tapestryLow: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestryLowCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   pallet: { blocks: false, w: 1, h: 1, burns: true },
+  // Salle d'essai (Thomas, 2026-11-14) : le héros proposé n° 2 (planche héros v9), debout à côté du héros actuel.
+  heroV9: { blocks: true, w: 1, h: 1, burns: false },
   candle: { blocks: true, w: 1, h: 1, burns: false },
   candleOut: { blocks: true, w: 1, h: 1, burns: false },
   pressurePlate: { blocks: false, w: 1, h: 1, burns: false },

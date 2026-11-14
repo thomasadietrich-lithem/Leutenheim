@@ -1636,4 +1636,13 @@ export const EN: Record<string, string> = {
   "Trouver des salles secrètes.": "Find secret rooms.",
   "une salle secrète trouvée.": "a secret room found.",
   "{0} salles secrètes trouvées.": "{0} secret rooms found.",
+  "Portier": "Doorman",
+  "Ouvrir des portes verrouillées : crochetées, enfoncées ou à la clef.": "Open locked doors: picked, broken or with the key.",
+  "{0} portes verrouillées ouvertes.": "{0} locked doors opened.",
+  "Bousculeur": "Bruiser",
+  "Réussir des poussées.": "Land shoves.",
+  "Fuyard": "Escapist",
+  "Se dégager d'un ennemi au contact (jet réussi).": "Disengage from an adjacent enemy (successful roll).",
+  "{0} poussées réussies.": "{0} successful shoves.",
+  "{0} fois dégagé d'un ennemi.": "disengaged from an enemy {0} times.",
 };

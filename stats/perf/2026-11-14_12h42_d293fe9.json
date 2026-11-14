@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T12:42:15.175Z",
+ "commit": "d293fe9",
+ "note": "succès Portier, Bousculeur, Fuyard ; mur en 6 colonnes",
+ "logic": {
+  "tickMs": 3.29,
+  "lightMs": 0.74,
+  "visionMs": 0.35
+ },
+ "scenes": {
+  "immobile": {
+   "n": 51,
+   "avg": 47.7,
+   "p95": 83.3,
+   "max": 150,
+   "fps": 21,
+   "js": 15
+  },
+  "marche": {
+   "n": 173,
+   "avg": 28.8,
+   "p95": 50,
+   "max": 83.4,
+   "fps": 35,
+   "js": 9
+  },
+  "retour": {
+   "n": 188,
+   "avg": 26.6,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 38,
+   "js": 8
+  },
+  "zoom": {
+   "n": 80,
+   "avg": 45.2,
+   "p95": 100,
+   "max": 133.3,
+   "fps": 22,
+   "js": 38
+  },
+  "combat": {
+   "n": 155,
+   "avg": 27.2,
+   "p95": 33.4,
+   "max": 233.3,
+   "fps": 37,
+   "js": 21
+  },
+  "donjon": {
+   "n": 179,
+   "avg": 27.7,
+   "p95": 49.9,
+   "max": 266.7,
+   "fps": 36,
+   "js": 15
+  }
+ },
+ "errors": []
+}

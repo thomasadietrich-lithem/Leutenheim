@@ -92,6 +92,12 @@ export function goalText(def: AchievementDef, t: number): string {
       return `l'étage ${n} atteint.`;
     case "fouineur":
       return n === 1 ? "une salle secrète trouvée." : `${n} salles secrètes trouvées.`;
+    case "bousculeur":
+      return `${n} poussées réussies.`;
+    case "fuyard":
+      return `${n} fois dégagé d'un ennemi.`;
+    case "portier":
+      return `${n} portes verrouillées ouvertes.`;
     case "poulet":
       return n === 1 ? "un poulet effrayé." : `${n} poulets effrayés.`;
     default:
@@ -146,6 +152,9 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
       }
     } else if (e.type === "secret" && e.what === "found") add("fouineur", 1);
     else if (e.type === "chicken") add("poulet", 1);
+    else if (e.type === "door" && e.success && e.action !== "peek") add("portier", 1);
+    else if (e.type === "push" && e.success) add("bousculeur", 1);
+    else if (e.type === "jump" && e.success) add("fuyard", 1);
     else if (e.type === "quest" && e.what === "complete") feat(QUEST_TASKS[e.id].npc, e.id, out);
     else if (e.type === "bout") {
       const f = e.what === "duelWin" ? "fifre_duel" : e.what === "win" ? (e.rigged ? "fifre_truque" : e.winner === "small" ? "fifre_petit" : "fifre_champ") : null;

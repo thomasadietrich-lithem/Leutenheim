@@ -388,6 +388,8 @@
   #succes-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
   #succes-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
   #pane-succes[hidden], #records-list[hidden] { display: none; }
+  /* Toute la largeur, toujours : sinon le mur s'élargissait quand la fiche s'ouvrait (Thomas, 2026-11-14). */
+  #pane-succes, #records-list { width: 100%; box-sizing: border-box; }
   .codex-glyph { width: 40px; height: 40px; }
   .codex-portrait { width: 44px; height: 44px; image-rendering: pixelated; }
   #codex-list { flex: 1; min-height: 0; overflow-y: auto; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-right: 2px; }

@@ -64,6 +64,7 @@ export interface SavedFloor {
   krik?: GluckSpot;
   bath?: import("./floor").BathState;
   chicken?: import("./floor").ChickenState;
+  farmChicken?: import("./floor").ChickenState;
   farm?: import("./floor").FloorState["farm"];
   zone?: import("./floor").QuestZone;
   cierges?: import("./floor").FloorState["cierges"];

@@ -876,6 +876,7 @@ function reveal(e: GameEvent): void {
       door,
       () => {
         if (!door) return;
+        game.chickenDoorBroken(door);
         if (game.isVisible(door.x, door.y)) renderer.addFloatingText(door.x, door.y, "Crac !", "#ffd75e");
         sfx.play("break");
       },
@@ -2964,8 +2965,7 @@ function discoverSurroundings(): void {
   if (shop && game.isVisible(shop.x, shop.y)) found.push("n:colporteur");
   const tub = game.bath();
   if (tub && game.isVisible(tub.x, tub.y)) found.push("n:bain");
-  const hen = game.chicken();
-  if (hen && !hen.done && game.isVisible(hen.x, hen.y)) found.push("n:poulet");
+  if (game.chickens().some((hen) => !hen.done && game.isVisible(hen.x, hen.y))) found.push("n:poulet");
   discover(found);
 }
 

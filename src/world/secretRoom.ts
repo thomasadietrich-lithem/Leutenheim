@@ -139,6 +139,37 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
 }
 
 /**
+ * Une petite pièce W × D taillée dans la roche contre un mur de la salle `host` (le poulailler de la ferme) : rend la
+ * pièce et la case de mur entre les deux (à transformer en porte), ou `null`. Mêmes règles que la pièce secrète.
+ */
+export function carvePocket(floor: Floor, furniture: Furniture[], rng: Rng, host: number, W: number, D: number): { room: Room; entry: Point; dir: Point } | null {
+  const { map } = floor;
+  const inRoom = (p: Point) => floor.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+  const taken = (p: Point) => furniture.some((f) => furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
+  const half = Math.floor(W / 2);
+  const r = floor.rooms[host];
+  if (!r) return null;
+  const found: { entry: Point; dir: Point; room: Room }[] = [];
+  for (const { cell: e, dir } of roomWalls(floor, r)) {
+    const xs = dir.x !== 0 ? [e.x + dir.x, e.x + dir.x * D] : [e.x - half, e.x + half];
+    const ys = dir.y !== 0 ? [e.y + dir.y, e.y + dir.y * D] : [e.y - half, e.y + half];
+    const room: Room = { x: Math.min(...xs), y: Math.min(...ys), w: Math.abs(xs[1] - xs[0]) + 1, h: Math.abs(ys[1] - ys[0]) + 1 };
+    if (room.x - 1 < 1 || room.y - 1 < 1 || room.x + room.w + 1 >= map.width - 1 || room.y + room.h + 1 >= map.height - 1) continue;
+    const inner = { x: e.x - dir.x, y: e.y - dir.y };
+    if (map.get(inner.x, inner.y) !== Tile.Floor || map.get(e.x, e.y) !== Tile.Wall || taken(inner) || taken(e) || nearDoor(floor, e)) continue;
+    if (floor.torches.some((t) => t.x === e.x && t.y === e.y)) continue;
+    let ok = true;
+    for (let y = room.y - 1; ok && y <= room.y + room.h; y++)
+      for (let x = room.x - 1; ok && x <= room.x + room.w; x++) if (map.get(x, y) !== Tile.Wall || inRoom({ x, y })) ok = false;
+    if (ok) found.push({ entry: e, dir, room });
+  }
+  if (found.length === 0) return null;
+  const pick = found[rng.int(0, found.length - 1)];
+  for (let y = pick.room.y; y < pick.room.y + pick.room.h; y++) for (let x = pick.room.x; x < pick.room.x + pick.room.w; x++) map.set(x, y, Tile.Floor);
+  return pick;
+}
+
+/**
  * Briques manquantes et petits creux (Thomas, 2026-11-14) : quelques-uns par étage, au hasard sur les murs des salles,
  * de simple décor (seul le creux de la pièce secrète laisse voir derrière).
  */

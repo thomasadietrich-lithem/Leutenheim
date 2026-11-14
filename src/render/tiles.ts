@@ -3,6 +3,7 @@ import { FERME } from "./sprites/ferme";
 import { Tile } from "../world/map";
 import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
+import { SECRET } from "./sprites/secret";
 
 /** Le coffre d'acier : les bois du coffre passent à l'acier, les bandes au fer sombre. */
 const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
@@ -74,7 +75,7 @@ export class TilePainter {
       if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
         // Une case : toile d'araignée, rigole, évacuation, morceau de tapis de velours.
         if (f.x !== x || f.y !== y) continue;
-        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind] ?? FERME[f.kind];
+        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind] ?? FERME[f.kind] ?? SECRET[f.kind];
         if (!web) continue;
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;

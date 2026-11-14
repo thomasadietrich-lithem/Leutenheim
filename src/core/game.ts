@@ -16,7 +16,7 @@ import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
-import { placeSecretRoom, placeWallMarks } from "../world/secretRoom";
+import { carvePocket, placeSecretRoom, placeWallMarks } from "../world/secretRoom";
 import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
@@ -63,6 +63,9 @@ export interface GluckMemory {
 }
 
 /** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
+/** Les meubles à bougies et le rayon de leur lueur (Thomas, 2026-11-14 : « toutes les bougies doivent éclairer » ; C). */
+const CANDLE_LIGHT: Record<string, number> = { table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2 };
+
 export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
@@ -603,11 +606,28 @@ export class Game {
       hens.push({ x: c.x, y: c.y, fromX: c.x, fromY: c.y });
     }
     state.farm = { field, hens };
-    if (state.chicken) return;
-    // Le poulet échappé : dans le passage autour du pré ; il ira se viander contre le mur le plus loin, à 12 pas au plus.
+    // Le poulet du truc fun est déjà là (salle d'essai) : celui de la ferme a son propre emplacement.
+    const slot: "chicken" | "farmChicken" = state.chicken ? "farmChicken" : "chicken";
     const room = state.rooms[theme.room];
     const cells: Point[] = [];
     for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (this.npcFree(state, x, y)) cells.push({ x, y });
+    // Le même dispositif que le poulet du truc fun (Thomas, 2026-11-14) : un POULAILLER fermé contre un mur de la ferme,
+    // porte verrouillée que rien n'ouvre ; le poulet fait le tour de la ferme, défonce la porte, s'écrase au fond.
+    const floorLike = { map: state.map, rooms: state.rooms, torches: state.torches, start: state.start, stairs: state.stairs, specials: [] };
+    const pen = cells.length > 0 ? carvePocket(floorLike, furniture, rng, theme.room, 3, 3) : null;
+    if (pen) {
+      state.map.set(pen.entry.x, pen.entry.y, Tile.DoorLocked);
+      const perp = { x: pen.dir.y !== 0 ? 1 : 0, y: pen.dir.x !== 0 ? 1 : 0 };
+      const back = (a: number) => ({ x: pen.entry.x + pen.dir.x * 3 + perp.x * a, y: pen.entry.y + pen.dir.y * 3 + perp.y * a });
+      state.map.set(back(-1).x, back(-1).y, Tile.Chest);
+      furniture.push({ x: back(1).x, y: back(1).y, kind: "hayBale" });
+      state.map.set(back(1).x, back(1).y, Tile.Furniture);
+      const at = cells[rng.int(0, cells.length - 1)];
+      state[slot] = { x: at.x, y: at.y, door: { ...pen.entry }, crash: back(0), room: theme.room, pen: pen.room, done: false };
+      return;
+    }
+    if (slot === "farmChicken") return;
+    // Sans place pour le poulailler : il ira se viander contre le mur le plus loin, à 12 pas au plus.
     while (cells.length > 0) {
       const at = cells.splice(rng.int(0, cells.length - 1), 1)[0];
       const dist = distanceField(state.map, at);
@@ -659,39 +679,94 @@ export class Game {
     }
   }
 
+  /** Les poulets de l'étage : celui du truc fun et celui de la ferme (les deux en salle d'essai). */
+  chickens(): ChickenState[] {
+    return [this.current?.chicken, this.current?.farmChicken].filter((c): c is ChickenState => !!c);
+  }
+
   /** Le poulet (encore là), s'il est sur cette case. */
   chickenAt(x: number, y: number): ChickenState | null {
-    const c = this.current.chicken;
-    return c && !c.done && c.x === x && c.y === y ? c : null;
+    return this.chickens().find((c) => !c.done && c.x === x && c.y === y) ?? null;
   }
 
   chicken(): Readonly<ChickenState> | null {
     return this.current.chicken ?? null;
   }
 
-  /** La porte du poulet, tant qu'il ne l'a pas défoncée. */
+  /** La porte d'un poulet, tant qu'il ne l'a pas défoncée. */
   private sealedDoor(x: number, y: number): boolean {
-    const c = this.current.chicken;
-    return !!c && !c.done && !!c.door && c.door.x === x && c.door.y === y;
+    return this.chickens().some((c) => !c.done && !!c.door && c.door.x === x && c.door.y === y);
   }
 
   /**
    * On dérange le poulet : il panique, traverse le donjon, défonce la porte qu'aucun jet n'ouvrait et s'écrase contre
    * le mur du fond, dans un nuage de plumes ; une cuisse reste au sol. Tout se joue d'un coup ; l'écran rejoue sa course.
    */
-  private scareChicken(): void {
-    const c = this.current.chicken;
+  private scareChicken(c: ChickenState | null): void {
     if (!c || c.done) return;
+    // La porte reste debout jusqu'à ce qu'il la touche (Thomas, 2026-11-14) : l'affichage appelle `chickenDoorBroken`.
+    const was = c.door ? this.map.get(c.door.x, c.door.y) : null;
     if (c.door) this.map.set(c.door.x, c.door.y, Tile.Floor);
     const from = { x: c.x, y: c.y };
-    const path = findPath(this.map, from, c.crash) ?? [c.crash];
-    this.refreshLight();
+    // D'abord un tour complet de sa salle, en panique (Thomas, 2026-11-14), puis droit sur la porte.
+    const lap = this.chickenLap(from);
+    const tail = findPath(this.map, lap.length > 0 ? lap[lap.length - 1] : from, c.crash) ?? [c.crash];
+    const path = [...lap, ...tail];
+    if (c.door && was !== null) this.map.set(c.door.x, c.door.y, was);
     const seen = this.isVisible(c.crash.x, c.crash.y) || (!!c.door && this.isVisible(c.door.x, c.door.y));
     c.done = true;
     c.x = c.crash.x;
     c.y = c.crash.y;
     this.dropItem(c.crash.x, c.crash.y, "cuisse_poulet", 1);
+    // Des plumes sur le sol de la pièce derrière la porte (Thomas, 2026-11-14).
+    const behind = c.pen ?? (c.door ? this.rooms[c.room] : null);
+    if (behind) {
+      const cells: Point[] = [];
+      for (let y = behind.y; y < behind.y + behind.h; y++)
+        for (let x = behind.x; x < behind.x + behind.w; x++) if (this.map.get(x, y) === Tile.Floor && !this.furnitureAt(x, y)) cells.push({ x, y });
+      for (let k = Math.min(cells.length, 3 + this.rng.int(0, 3)); k > 0; k--) {
+        const p = cells.splice(this.rng.int(0, cells.length - 1), 1)[0];
+        this.current.furniture.push({ x: p.x, y: p.y, kind: this.rng.chance(0.5) ? "plumesA" : "plumesB" });
+        this.map.touch(p.x, p.y);
+      }
+    }
+    if (!c.door) this.chickenDoorBroken(c.crash);
     this.events.push({ type: "chicken", path: [from, ...path], door: c.door ? { ...c.door } : undefined, crash: { ...c.crash }, seen });
+  }
+
+  /** Le poulet touche la porte : elle éclate (appelé par l'affichage au bon moment de sa course). */
+  chickenDoorBroken(door: Point): void {
+    const c = this.chickens().find((k) => k.door && k.door.x === door.x && k.door.y === door.y);
+    if (c?.door && this.map.isDoor(c.door.x, c.door.y)) {
+      this.map.set(c.door.x, c.door.y, Tile.Floor);
+      this.refreshLight();
+      this.updateVision();
+    }
+  }
+
+  /** Le tour de sa salle : par les quatre « coins » des cases où il peut courir, dans le sens des aiguilles d'une montre. */
+  private chickenLap(from: Point): Point[] {
+    const room = this.rooms.find((r) => from.x >= r.x && from.x < r.x + r.w && from.y >= r.y && from.y < r.y + r.h);
+    if (!room) return [];
+    const inRoom = (x: number, y: number) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+    const dist = distanceField(this.map, from, (x, y) => inRoom(x, y) && !this.map.isDoor(x, y));
+    const cells: Point[] = [];
+    for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (dist[this.map.index(x, y)] >= 0) cells.push({ x, y });
+    if (cells.length < 4) return [];
+    const best = (score: (p: Point) => number) => cells.reduce((a, b) => (score(b) > score(a) ? b : a));
+    const corners = [best((p) => -p.x - p.y), best((p) => p.x - p.y), best((p) => p.x + p.y), best((p) => -p.x + p.y)];
+    const near = corners.reduce((k, p, i) => (Math.abs(p.x - from.x) + Math.abs(p.y - from.y) < Math.abs(corners[k].x - from.x) + Math.abs(corners[k].y - from.y) ? i : k), 0);
+    const order = [0, 1, 2, 3, 4].map((i) => corners[(near + i) % 4]);
+    const out: Point[] = [];
+    let at = from;
+    for (const p of order) {
+      if (p.x === at.x && p.y === at.y) continue;
+      const seg = findPath(this.map, at, p, (x, y) => inRoom(x, y) && !this.map.isDoor(x, y));
+      if (!seg) continue;
+      out.push(...seg);
+      at = p;
+    }
+    return out;
   }
 
   private placeCounterDoor(floor: { map: GameMap; start: Point; stairs: Point; rooms: Room[] }, state: FloorState, seed: number, sandbox: boolean): CounterDoor | null {
@@ -1781,6 +1856,7 @@ export class Game {
       krik: f.krik,
       bath: f.bath,
       chicken: f.chicken,
+      farmChicken: f.farmChicken,
       farm: f.farm,
         zone: f.zone,
         cierges: f.cierges,
@@ -1895,6 +1971,7 @@ export class Game {
         krik: f.krik,
         bath: f.bath,
         chicken: f.chicken,
+        farmChicken: f.farmChicken,
         farm: f.farm,
         zone: f.zone,
         cierges: f.cierges,
@@ -2151,6 +2228,15 @@ export class Game {
     // La bougie de la zone de quête : une petite lueur dans sa pièce.
     const z = this.current?.zone;
     const candle = z?.candleLit && z.candle ? [{ x: z.candle.x, y: z.candle.y, faceX: 0, faceY: 0, radius: 3, area: z.room }] : [];
+    // Toutes les bougies du décor éclairent un peu leur salle (Thomas, 2026-11-14) : la table du dortoir, la table basse
+    // du bain, les candélabres de la chapelle (selon leurs bougies), le grimoire de l'alchimiste.
+    for (const f of this.current?.furniture ?? []) {
+      const radius = CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : 0);
+      if (!radius) continue;
+      const cx = f.x + ((FURNITURE_KINDS[f.kind]?.w ?? 1) > 1 ? 1 : 0);
+      const area = this.rooms.find((r) => cx >= r.x && cx < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
+      if (area) candle.push({ x: cx, y: f.y, faceX: 0, faceY: 0, radius, area });
+    }
     // Les cierges rallumés de Sœur Osseuse.
     for (const f of this.current?.furniture ?? []) if (f.kind === "ciergeLit") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: 2, area: this.rooms.find((r) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h) ?? z?.room ?? { x: f.x, y: f.y, w: 1, h: 1 } });
     // Quête en cours (Thomas, 2026-11-14 : « éclaire la zone autour du PNJ, pour éviter de le perdre ») : le PNJ qui
@@ -2934,7 +3020,7 @@ export class Game {
     // Toucher le poulet : il prend peur (Thomas, 2026-11-13).
     if (this.chickenAt(x, y) && this.isVisible(x, y)) {
       this.path = [];
-      this.scareChicken();
+      this.scareChicken(this.chickenAt(x, y));
       return true;
     }
     if (x === this.hero.x && y === this.hero.y) {
@@ -3393,7 +3479,7 @@ export class Game {
       // Marcher sur le poulet : il prend peur.
       if (this.chickenAt(next.x, next.y)) {
         this.path = [];
-        this.scareChicken();
+        this.scareChicken(this.chickenAt(next.x, next.y));
         return true;
       }
       const npcOnPath = this.npcAt(next.x, next.y);
@@ -4178,7 +4264,7 @@ export class Game {
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
       !(state.grum && state.grum.x === x && state.grum.y === y) &&
       !(state.fifrelin && state.fifrelin.x === x && state.fifrelin.y === y) &&
-      !(state.chicken && !state.chicken.done && state.chicken.x === x && state.chicken.y === y)
+      ![state.chicken, state.farmChicken].some((c) => c && !c.done && c.x === x && c.y === y)
     );
   }
 

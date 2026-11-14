@@ -2900,7 +2900,12 @@ test("poulet : porte impossible à forcer ; dérangé, il la défonce, s'écrase
   const ev = game.events.find((e) => e.type === "chicken");
   assert.ok(ev && ev.type === "chicken");
   assert.ok(game.chicken()!.done);
+  // La porte tient jusqu'à ce que le poulet la touche (l'affichage le signale au bon moment de sa course).
+  assert.equal(game.map.get(door.x, door.y), Tile.DoorLocked, "la porte tient encore pendant son tour de salle");
+  assert.ok(ev.path.length > 6, "il fait le tour de sa salle avant de foncer");
+  game.chickenDoorBroken(door);
   assert.notEqual(game.map.get(door.x, door.y), Tile.DoorLocked, "porte défoncée");
+  assert.ok(game.furnitureList().some((f) => f.kind.startsWith("plumes")), "des plumes au sol derrière la porte");
   const crash = game.chicken()!.crash;
   assert.ok(game.ground.some((g) => g.item === "cuisse_poulet" && g.x === crash.x && g.y === crash.y));
   const room = game.rooms[game.chicken()!.room];
@@ -4783,3 +4788,17 @@ test("prison (Thomas, 2026-11-14) : 3 à 6 alcôves à grilles, au moins une ouv
   }
   assert.ok(seen > 0, "aucune prison sur 400 étages");
 });
+
+test("ferme : le même dispositif que le poulet (poulailler fermé, tour de la ferme, porte défoncée) ; bougies qui éclairent", () => withSandbox(() => {
+  const game = new Game(5, undefined, undefined, undefined, true);
+  const farmHen = game.chickens().find((c) => c.pen);
+  assert.ok(farmHen, "le poulet de la ferme et son poulailler");
+  assert.equal(game.map.get(farmHen!.door!.x, farmHen!.door!.y), Tile.DoorLocked);
+  const pen = farmHen!.pen!;
+  let chest = false;
+  for (let y = pen.y; y < pen.y + pen.h; y++) for (let x = pen.x; x < pen.x + pen.w; x++) if (game.map.get(x, y) === Tile.Chest) chest = true;
+  assert.ok(chest, "un coffre dans le poulailler");
+  // Les bougies d'une table du dortoir éclairent sa salle.
+  const table = game.furnitureList().find((f) => f.kind.startsWith("table"));
+  assert.ok(table && game.light[game.map.index(table.x + 1, table.y + 1)] > 0, "la table à bougie éclaire");
+}));

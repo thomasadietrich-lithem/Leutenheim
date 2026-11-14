@@ -71,6 +71,8 @@ export interface FloorState {
   bath?: BathState;
   /** Le poulet et sa porte qu'on ne peut pas forcer (truc fun), ou le poulet échappé de la ferme. */
   chicken?: ChickenState;
+  /** Le poulet de la ferme quand celui du truc fun est déjà sur l'étage (salle d'essai). */
+  farmChicken?: ChickenState;
   /** La ferme : les cases du pré, et les poules qui s'y promènent. */
   farm?: { field: Point[]; hens: { x: number; y: number; fromX: number; fromY: number }[] };
   /** Quêtes v3 : la zone spéciale taillée dans la roche quand la quête est donnée. */
@@ -130,6 +132,8 @@ export interface ChickenState {
   crash: Point;
   room: number;
   done: boolean;
+  /** Ferme (Thomas, 2026-11-14 : « exactement le même dispositif ») : le poulailler derrière la porte qu'il défonce. */
+  pen?: Room;
 }
 
 /** La salle de bain : la baignoire (sa case de gauche), le Kobold sorti de l'eau ou non, la musique, vaincu ou non. */

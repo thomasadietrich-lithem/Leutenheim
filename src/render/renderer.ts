@@ -588,17 +588,18 @@ export class Renderer {
       ctx.restore();
       ctx.imageSmoothingEnabled = smooth;
     };
-    const c = game.chicken();
-    if (c && !c.done && game.isVisible(c.x, c.y)) {
+    for (const c of game.chickens()) {
+      if (c.done || !game.isVisible(c.x, c.y)) continue;
       // Il picore : la tête plonge de temps en temps.
-      const peck = Math.floor(this.time / 380) % 5 === 0;
+      const peck = Math.floor((this.time + c.x * 97) / 380) % 5 === 0;
       draw(POULET.idle, c.x, c.y + (peck ? 0.04 : 0), Math.floor(this.time / 2600) % 2 === 1);
     }
     const run = this.chickenRun;
     if (run) {
       const t = (performance.now() - run.start) / Renderer.CHICKEN_CELL_MS;
       const i = Math.min(run.path.length - 1, Math.floor(t));
-      if (!run.doorDone && i >= run.door) {
+      // La porte éclate quand il la touche (Thomas, 2026-11-14), pas avant : un quart de case avant d'y entrer.
+      if (!run.doorDone && t >= run.door - 0.25) {
         run.doorDone = true;
         run.onDoor();
       }

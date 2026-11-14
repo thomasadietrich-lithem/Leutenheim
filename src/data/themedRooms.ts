@@ -191,6 +191,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   bucket: { blocks: false, w: 1, h: 1, burns: true },
   bucketTipped: { blocks: false, w: 1, h: 1, burns: true },
   desk: { blocks: true, w: 2, h: 1, burns: true },
+  plumesA: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  plumesB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   tapestrySideL: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestrySideLCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestrySideR: { blocks: false, w: 1, h: 1, burns: false, wall: true },

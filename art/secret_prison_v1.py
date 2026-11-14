@@ -169,11 +169,25 @@ def plumeau(frame=0):
     return s.done()
 
 
+def feathers(variant=0):
+    """Plumes au sol (Thomas, 2026-11-14 : « sur le sol de la pièce derrière, mets des plumes ») : 3 à 4 plumes
+    blanches couchées, un duvet ; à plat sur la case."""
+    s = Sprite(16, 16)
+    spots = [(2, 4, 1), (9, 2, -1), (6, 10, 1), (11, 11, -1)] if variant == 0 else [(3, 9, -1), (8, 5, 1), (12, 12, 1)]
+    for x, y, d in spots:
+        for k in range(4):
+            s.p(x + k, y + (k // 2) * d, (246, 242, 230, 255))
+        s.p(x + 1, y + 1, (201, 194, 174, 255)).p(x + 2, y - 1 if d > 0 else y + 2, (220, 214, 198, 255))
+    s.p(7, 6, (230, 226, 214, 200)).p(13, 4, (230, 226, 214, 200)).p(4, 13, (230, 226, 214, 200))
+    return s.done(outline=False)
+
+
 SPRITES = {
     "wallGapA": wall_gap, "wallGapB": lambda: wall_gap(1), "wallHoleA": wall_hole, "wallHoleB": lambda: wall_hole(1),
     "display": display, "grille": grille, "grilleOpen": lambda: grille(True),
     "bucket": bucket, "bucketTipped": lambda: bucket(True), "desk": desk,
     "wallRing": wall_ring, "wallChains": wall_chains,
+    "plumesA": feathers, "plumesB": lambda: feathers(1),
 }
 PROPOSALS = {"plumeau0": plumeau, "plumeau1": lambda: plumeau(1)}
 

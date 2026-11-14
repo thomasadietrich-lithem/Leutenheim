@@ -1629,4 +1629,11 @@ export const EN: Record<string, string> = {
   "Mort : {0}": "Died: {0}",
   "Le {0}": "On {0}",
   "Médailles": "Medals",
+  "Sang : {0}": "Blood: {0}",
+  "Pause": "Pause",
+  "Réglages": "Settings",
+  "Menu principal": "Main menu",
+  "Trouver des salles secrètes.": "Find secret rooms.",
+  "une salle secrète trouvée.": "a secret room found.",
+  "{0} salles secrètes trouvées.": "{0} secret rooms found.",
 };

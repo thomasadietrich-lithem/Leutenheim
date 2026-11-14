@@ -194,6 +194,9 @@ const CHUNK = 8;
 const CHUNK_BUDGET = 6;
 
 /** Dessine l'état du jeu sur le Canvas. */
+/** Les taches qui sont du sang (le réglage « Sang : non » les cache ; suie et flaques de potion restent). */
+const BLOOD_COLORS = new Set<StainColor>(["red", "green", "yellow", "black"]);
+
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   /**
@@ -238,6 +241,15 @@ export class Renderer {
   private floats: FloatingText[] = [];
   /** Gouttes qui jaillissent d'un personnage touché (micro-animation), et ondes du bruit. */
   private drops: { x: number; y: number; vx: number; vy: number; color: string; age: number; life: number }[] = [];
+  /** Réglage « Sang » (Thomas, 2026-11-14) : sans lui, ni taches de sang ni gouttes (les flaques de potion restent). */
+  private showBlood = true;
+
+  setBlood(on: boolean): void {
+    if (on === this.showBlood) return;
+    this.showBlood = on;
+    this.cellCache.clear();
+    this.chunkCache.clear();
+  }
   private ripples: { x: number; y: number; strength: number; age: number }[] = [];
   private slashes: Slash[] = [];
   private projectiles: Projectile[] = [];
@@ -1240,6 +1252,7 @@ export class Renderer {
 
   /** Un personnage est touché : quelques gouttes jaillissent et retombent (rouge ; jaune pour un Kobold, noir pour une araignée). */
   addBloodBurst(x: number, y: number, fromX: number, fromY: number, color: StainColor): void {
+    if (!this.showBlood) return;
     const dx = Math.sign(x - fromX) || (Math.random() - 0.5);
     const dy = Math.sign(y - fromY) || (Math.random() - 0.5);
     const shades =
@@ -1502,7 +1515,7 @@ export class Renderer {
 
     // Taches de sang de l'étage, par case (dessinées sur la case, sous l'ombre).
     const stains = new Map<number, { color: StainColor; shape: 0 | 1 | 2; turn?: number }>();
-    for (const b of game.bloodStains()) stains.set(game.map.index(b.x, b.y), b);
+    for (const b of game.bloodStains()) if (this.showBlood || !BLOOD_COLORS.has(b.color)) stains.set(game.map.index(b.x, b.y), b);
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
     const x1 = Math.ceil((this.width - ox) / tile);

@@ -8,3 +8,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-14_12h13 | 3cb7340 | 49.3 | 25.8 | 24.9 | 44.7 | 21.5 | 23.6 | 3.77 | 0.7 | mur de succès (médaillons, animation, comptage des événements) |
 | 2026-11-14_12h15 | b757110 | 40.4 | 33.1 | 26.3 | 37.3 | 19.9 | 20.4 | 3.58 | 0.6 | records en cartes |
 | 2026-11-14_12h34 | 39a5880 | 68.6 | 35.3 | 30.8 | 42.9 | 31.8 | 28.5 | 3.85 | 1.01 | succès et records fusionnés |
+| 2026-11-14_12h36 | 636eb3d | 35.3 | 31.5 | 27.1 | 36.8 | 22.8 | 26.7 | 2.7 | 0.93 | menu en jeu allégé, réglage du sang |

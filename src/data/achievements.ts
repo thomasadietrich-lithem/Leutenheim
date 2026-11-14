@@ -35,7 +35,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "krik", name: "Krik", group: "quetes", what: "Réussir les missions de Krik.", tiers: [1, 4, 8], kind: "count", npc: "krik" },
   { id: "grum", name: "Grum", group: "quetes", what: "Réussir les missions de Grum.", tiers: [1, 2, 3], kind: "count", npc: "grum" },
   { id: "fifrelin", name: "Fifrelin", group: "quetes", what: "Gagner au tripot de Fifrelin : sur le champion, sur le petit, en trichant, en duel.", tiers: [1, 2, 4], kind: "count", npc: "fifrelin" },
-  { id: "fouineur", name: "Fouineur", group: "exploration", what: "Trouver des pièces secrètes.", tiers: [1, 5, 15], kind: "count" },
+  { id: "fouineur", name: "Fouineur", group: "exploration", what: "Trouver des salles secrètes.", tiers: [1, 5, 15], kind: "count" },
   { id: "profondeur", name: "Plus bas", group: "exploration", what: "Descendre le plus bas possible (une partie).", tiers: [3, 5, 10], kind: "best" },
   { id: "poulet", name: "Côôt !", group: "exploration", what: "Effrayer des poulets.", tiers: [1, 5, 15], kind: "count" },
 ];

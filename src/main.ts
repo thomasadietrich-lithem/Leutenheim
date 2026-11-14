@@ -99,7 +99,7 @@ const menu = $("menu");
 // ---------- Options (mémorisées sur l'appareil quand c'est possible) ----------
 
 /** Réglages (Thomas, 2026-11-12) : bruitages et musique séparés ; langue (français ou anglais). */
-const options = { sound: true, music: true, lang: "fr" as "fr" | "en" };
+const options = { sound: true, music: true, blood: true, lang: "fr" as "fr" | "en" };
 try {
   Object.assign(options, JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}"));
 } catch {
@@ -147,6 +147,7 @@ sfx.enabled = options.sound;
 const music = new Music(() => sfx.context());
 music.enabled = options.music;
 const renderer = new Renderer(canvas);
+renderer.setBlood(options.blood);
 
 // ---------- État de l'affichage ----------
 
@@ -3039,17 +3040,18 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes";
+type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes" | "pause";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex", "saves", "succes"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
   $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
   $("settings-music").textContent = tr(`Musique : ${options.music ? "oui" : "non"}`);
+  $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);
   $("settings-lang").textContent = tr(`Langue : ${options.lang === "en" ? "English" : "Français"}`);
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
@@ -3247,7 +3249,14 @@ function showDetail(card: Card): void {
   $("detail").hidden = false;
 }
 
-button("open-menu", () => showScreen("main"));
+// Le menu en jeu, allégé (Thomas, 2026-11-14) : reprendre, réglages, menu principal.
+button("open-menu", () => showScreen(started && !game.over ? "pause" : "main"));
+button("pause-resume", () => showScreen(null));
+button("pause-settings", () => {
+  settingsFrom = "pause";
+  showScreen("settings");
+});
+button("pause-main", () => showScreen("main"));
 button("menu-resume", () => {
   if ((!started || game.over) && savedRun) {
     currentSlot = savedSlot;
@@ -3257,7 +3266,10 @@ button("menu-resume", () => {
   showScreen(null);
 });
 button("menu-new", () => showScreen("new"));
+/** D'où l'on est venu aux réglages : le menu en jeu ou le menu principal (le bouton Retour y revient). */
+let settingsFrom: "main" | "pause" = "main";
 button("menu-settings", () => {
+  settingsFrom = "main";
   $("settings-note").textContent = tr("");
   showScreen("settings");
 });
@@ -3289,7 +3301,7 @@ button("menu-saves", () => showScreen("saves"));
 button("saves-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));
-button("settings-back", () => showScreen("main"));
+button("settings-back", () => showScreen(settingsFrom));
 button("detail-close", () => {
   $("detail").hidden = true;
 });
@@ -3350,6 +3362,13 @@ if (!PUBLIC_BUILD) button("menu-sandbox", () => {
   newRun(true);
   started = true;
   showScreen(null);
+});
+button("settings-blood", () => {
+  options.blood = !options.blood;
+  renderer.setBlood(options.blood);
+  saveOptions();
+  sfx.play("click");
+  showScreen("settings");
 });
 button("settings-music", () => {
   options.music = !options.music;

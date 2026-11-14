@@ -91,7 +91,7 @@ export function goalText(def: AchievementDef, t: number): string {
     case "profondeur":
       return `l'étage ${n} atteint.`;
     case "fouineur":
-      return n === 1 ? "une pièce secrète trouvée." : `${n} pièces secrètes trouvées.`;
+      return n === 1 ? "une salle secrète trouvée." : `${n} salles secrètes trouvées.`;
     case "poulet":
       return n === 1 ? "un poulet effrayé." : `${n} poulets effrayés.`;
     default:

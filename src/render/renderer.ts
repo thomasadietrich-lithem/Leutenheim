@@ -679,6 +679,63 @@ export class Renderer {
     }
   }
 
+  /** Montée de niveau (Thomas, 2026-11-14 : « une animation dorée autour du perso quand il level up »). */
+  levelUp(): void {
+    this.levelGlow = 0;
+  }
+  private levelGlow = -1;
+
+  /**
+   * L'animation dorée du niveau gagné : un halo doré qui enfle sous le héros, un anneau de lumière qui s'élargit, et des
+   * étincelles en pixels qui montent en spirale autour de lui (environ 1,6 s).
+   */
+  private drawLevelGlow(cx: number, cy: number, dt: number): void {
+    if (this.levelGlow < 0) return;
+    const D = 2000;
+    this.levelGlow += dt;
+    const t = this.levelGlow / D;
+    if (t >= 1) {
+      this.levelGlow = -1;
+      return;
+    }
+    const { ctx, tile } = this;
+    const u = Math.max(1, Math.round(tile / 16));
+    const fade = t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    // Le halo : une lueur dorée douce, sous ses pieds et autour de lui.
+    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, tile * (0.7 + 0.5 * t));
+    halo.addColorStop(0, `rgba(255,214,110,${(0.8 * fade).toFixed(3)})`);
+    halo.addColorStop(1, "rgba(255,190,60,0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - tile * 1.3, cy - tile * 1.3, tile * 2.6, tile * 2.6);
+    // L'anneau : des pixels dorés sur un cercle aplati (vu en 3/4) qui s'élargit.
+    const ring = tile * (0.25 + 1.0 * Math.min(1, t * 1.3));
+    const ringFade = Math.max(0, 1 - t * 1.25);
+    if (ringFade > 0) {
+      ctx.fillStyle = `rgba(255,226,130,${ringFade.toFixed(3)})`;
+      for (let k = 0; k < 28; k++) {
+        const a = (k / 28) * Math.PI * 2;
+        ctx.fillRect(Math.round(cx + Math.cos(a) * ring), Math.round(cy + tile * 0.35 + Math.sin(a) * ring * 0.45), u * 2, u);
+      }
+    }
+    // Les étincelles : elles tournent autour de lui en montant, et clignotent.
+    for (let k = 0; k < 22; k++) {
+      const start = (k % 11) * 0.045;
+      const s = (t - start) / 0.8;
+      if (s <= 0 || s >= 1) continue;
+      const a = k * 2.4 + s * 5;
+      const r = tile * (0.45 + 0.15 * Math.sin(k));
+      const x = cx + Math.cos(a) * r;
+      const y = cy + tile * 0.4 - s * tile * 1.5 + Math.sin(a) * r * 0.35;
+      const on = (Math.floor(this.levelGlow / 90) + k) % 3 !== 0;
+      ctx.fillStyle = on ? `rgba(255,236,150,${(1 - s).toFixed(3)})` : `rgba(255,255,255,${(1 - s).toFixed(3)})`;
+      const big = k % 4 === 0 ? 2 : 1;
+      ctx.fillRect(Math.round(x), Math.round(y), u * big, u * big);
+    }
+    ctx.restore();
+  }
+
   addPuff(x: number, y: number, poison = false): void {
     this.puffs.push({ x, y, age: 0, poison });
   }
@@ -1901,6 +1958,7 @@ export class Renderer {
     }
     this.drawSmoke(game, ox, oy, dt);
     this.drawPuffs(ox, oy, dt);
+    this.drawLevelGlow(ox + (hero.x + 0.5) * tile, oy + (hero.y + 0.5) * tile, dt);
     // Gaz empoisonné et brouillard noir, en PIXELS comme le reste du jeu (Thomas, 2026-11-12, soir : « l'effet est assez
     // cheap ») : des bouffées rondes qui se touchent d'une case à l'autre, en trois tons (ombre, corps, reflet),
     // qui roulent lentement ; des bulles montent du gaz ; la nappe rétrécit en se dissipant.

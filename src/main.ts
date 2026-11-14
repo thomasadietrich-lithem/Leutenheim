@@ -771,6 +771,7 @@ function reveal(e: GameEvent): void {
     lastKill = null;
   } else if (e.type === "levelup") {
     shownHp = game.hero.hp;
+    renderer.levelUp();
     sfx.play("heal");
   } else if (e.type === "trapDodged") {
     renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");

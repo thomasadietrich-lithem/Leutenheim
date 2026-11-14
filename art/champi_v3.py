@@ -303,6 +303,11 @@ def wall_life(a, xs, ys, wallmask, floor_plan):
     return dots
 
 
+# Retouches ajoutées par les versions suivantes (champi_v4 : murs abîmés, brèche éventrée).
+PRE_HOOK = None
+HOOK = None
+
+
 def room():
     V1.WALLS["C"]()
     floor_plan = [row.replace("E", ".").replace("e", ".") for row in PLAN]
@@ -329,8 +334,12 @@ def room():
     vein = myc & ((hash2(xs.astype(int), ys.astype(int), 313) > 0.93) | (((xs + ys * 2).astype(int) % 11) == 0))
     a[vein] = a[vein] * 0.45 + np.array((200, 206, 214)) * 0.55
     dots = wall_life(a, xs, ys, wallmask, floor_plan)
+    if PRE_HOOK:
+        PRE_HOOK(a, xs, ys, wallmask)
     mound, roots = earth_mound(a, xs, ys, wallmask)
     loose_earth(a, xs, ys, wallmask, mound)
+    if HOOK:
+        HOOK(a, xs, ys, wallmask, mound)
     img = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGB")
     lights = []
 

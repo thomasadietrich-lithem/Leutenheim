@@ -202,6 +202,91 @@ def scarecrow_helmet():
     return W()
 
 
+# ---- Tonneau creux de Gluck (Thomas, 2026-11-14 : « améliore le design du tonneau de la quête ») ----
+# Une grosse barrique couchée, ENCASTRÉE dans le mur, le fond tourné vers la salle ; une pomme peinte sur le fond
+# (la marque de Gluck). « Found » : après une fouille, un filet de lumière passe autour du fond, une étincelle dorée.
+WOOD, WOOD_D, WOOD_L, WOOD_DD = (146, 102, 58, 255), (110, 74, 40, 255), (178, 132, 80, 255), (74, 48, 24, 255)
+IRON, IRON_L, IRON_D = (96, 100, 120, 255), (148, 154, 176, 255), (60, 62, 78, 255)
+APPLE, APPLE_D, LEAF = (206, 56, 52, 255), (140, 30, 34, 255), (110, 160, 60, 255)
+LIGHT, SPARK = (255, 226, 122, 255), (255, 250, 220, 255)
+
+
+def cask_face(found=False):
+    """Le fond rond de la barrique, vu de face (mur du haut, la salle en dessous) : 14 × 14."""
+    s = Sprite(14, 14)
+    for y in range(14):
+        for x in range(14):
+            d = ((x - 6.5) / 6.9) ** 2 + ((y - 6.5) / 6.9) ** 2
+            if d > 1:
+                continue
+            if d >= 0.74:
+                s.p(x, y, IRON_L if (y < 6 and x < 9) else IRON if y < 9 else IRON_D)
+            elif d >= 0.58:
+                s.p(x, y, WOOD_DD)
+            else:
+                # Les douelles du fond : planches verticales, un joint sombre tous les 3 pixels, reflet en haut à gauche.
+                c = WOOD_D if x % 3 == 0 else WOOD_L if (x < 6 and y < 6) else WOOD
+                s.p(x, y, c)
+    # La bonde et sa cheville de laiton.
+    s.r(6, 10, 2, 1, (200, 160, 60, 255)).p(6, 11, (120, 90, 30, 255)).p(7, 11, (120, 90, 30, 255))
+    # La pomme peinte (la marque de Gluck).
+    s.r(5, 5, 4, 3, APPLE).r(6, 8, 2, 1, APPLE).p(8, 6, APPLE_D).p(8, 7, APPLE_D).p(5, 5, (236, 110, 100, 255))
+    s.p(7, 4, WOOD_DD).p(8, 3, LEAF)
+    s.done()
+    if found:
+        # Un filet de lumière sur le pourtour (il est creux : le fond bouge) et une étincelle.
+        for (x, y) in ((1, 4), (1, 5), (1, 6), (1, 7), (2, 3), (12, 8), (12, 9), (11, 10)):
+            s.a[y, x] = LIGHT
+        for (x, y) in ((11, 0), (11, 2), (10, 1), (12, 1), (11, 3), (9, 1)):
+            s.a[y, x] = LIGHT
+        s.a[1, 11] = SPARK
+    return s
+
+
+def cask_top(found=False):
+    """La barrique couchée vue de dessus, le fond vers le HAUT (mur du bas, la salle au-dessus) : 14 × 15."""
+    s = Sprite(14, 15)
+    import math
+    for y in range(15):
+        bulge = math.sin(math.pi * (y + 0.5) / 15)
+        half = 5 + round(1.4 * bulge)
+        x0, x1 = 7 - half, 7 + half
+        for x in range(x0, x1):
+            c = WOOD_D if (x - x0) % 3 == 0 else WOOD_L if x - x0 < 3 else WOOD
+            if x == x1 - 1:
+                c = WOOD_D
+            s.p(x, y, c)
+    # Les cercles de fer.
+    for y in (4, 10):
+        for yy, col in ((y, IRON_L), (y + 1, IRON_D)):
+            half = 5 + round(1.4 * math.sin(math.pi * (yy + 0.5) / 15))
+            s.r(7 - half, yy, 2 * half, 1, col)
+    # Le fond, côté salle : la tranche de bois et la pomme peinte qui dépasse.
+    s.r(3, 0, 8, 1, IRON_L).r(3, 1, 8, 1, WOOD_DD)
+    s.r(6, 1, 2, 1, APPLE)
+    s.done()
+    # On efface ce que le contour a fait déborder hors de l'image (rien à faire : Sprite garde sa taille).
+    if found:
+        # Un filet de lumière tout autour du fond (il est creux : le fond bouge) et une grande étincelle.
+        for x in range(2, 12):
+            s.a[0, x] = LIGHT
+        s.a[1, 2] = s.a[1, 11] = LIGHT
+        for (x, y) in ((10, 5), (10, 6), (10, 8), (10, 9), (8, 7), (9, 7), (11, 7), (12, 7)):
+            s.a[y, x] = LIGHT
+        s.a[7, 10] = SPARK
+    return s
+
+
+def turned(fn, k):
+    """La barrique couchée, tournée d'un quart de tour (fond vers la droite ou vers la gauche)."""
+    im = fn().img().rotate(90 * k, expand=True)
+
+    class Wrap:
+        def img(self):
+            return im
+    return Wrap()
+
+
 SPRITES = {
     "tapestry": tapestry, "tapestryCut": lambda: tapestry(True),
     "pallet": pallet, "candle": candle, "candleOut": lambda: candle(False),
@@ -216,6 +301,11 @@ SPRITES = {
     "curtainLow": lambda: tapestry_edge("low", vel=VEL), "curtainLowOpen": lambda: tapestry_edge("low", True, VEL),
     "curtainSideL": lambda: tapestry_edge("L", vel=VEL), "curtainSideLOpen": lambda: tapestry_edge("L", True, VEL),
     "curtainSideR": lambda: tapestry_edge("R", vel=VEL), "curtainSideROpen": lambda: tapestry_edge("R", True, VEL),
+    "cask": cask_face, "caskFound": lambda: cask_face(True),
+    "caskLow": cask_top, "caskLowFound": lambda: cask_top(True),
+    # Mur de gauche (la salle à droite) : le fond vers la droite ; mur de droite : vers la gauche.
+    "caskSideL": lambda: turned(cask_top, -1), "caskSideLFound": lambda: turned(lambda: cask_top(True), -1),
+    "caskSideR": lambda: turned(cask_top, 1), "caskSideRFound": lambda: turned(lambda: cask_top(True), 1),
 }
 
 

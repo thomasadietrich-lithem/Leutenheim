@@ -109,6 +109,9 @@ export interface QuestZone {
   /** La case de mur de l'entrée (la tapisserie), et si elle est ouverte. */
   entry: Point;
   open: boolean;
+  /** La salle (index) contre laquelle la zone est taillée ; `noticed` : une fouille y a repéré le tonneau creux. */
+  host?: number;
+  noticed?: boolean;
   /** La bougie (allumée : les dormeurs entendent ; soufflée : le noir, ils n'entendent plus rien). */
   candle?: Point;
   candleLit?: boolean;

@@ -4246,6 +4246,23 @@ test("quêtes v3 : Gluck (cellier, piste, vol), Sœur Osseuse (cierges, grilles,
   assert.equal(z.kind, "cellier");
   assert.ok(game.zoneDoorAt(z.entry.x, z.entry.y), "le tonneau creux bouche l'entrée");
   assert.ok(game.ground.some((g) => g.item === "sac_pommes" && g.x === z.loot!.x && g.y === z.loot!.y), "le sac est dans le cellier");
+  // Le tonneau creux se trouve en fouillant la salle voisine (Thomas, 2026-11-14), même déjà fouillée.
+  {
+    const gg = game as unknown as { hero: { x: number; y: number }; searching: number; updateVision(): void; current: { searched: Set<number> } };
+    const hostRoom = game.rooms[game.zone()!.host!];
+    const inner = [[0, 1], [0, -1], [1, 0], [-1, 0]].map(([dx, dy]) => ({ x: z.entry.x + dx, y: z.entry.y + dy })).find((p) => p.x >= hostRoom.x && p.y >= hostRoom.y && p.x < hostRoom.x + hostRoom.w && p.y < hostRoom.y + hostRoom.h)!;
+    gg.hero.x = inner.x;
+    gg.hero.y = inner.y;
+    gg.updateVision();
+    gg.current.searched.add(game.zone()!.host!);
+    assert.equal(game.searchRefusal(), null, "on peut refouiller la salle du tonneau");
+    for (let tries = 0; tries < 30 && !game.zone()!.noticed; tries++) {
+      assert.ok(game.search(), `fouille refusée : ${game.searchRefusal()} (essai ${tries})`);
+      for (let i = 0; i < RULES.searchTurns + 1 && gg.searching > 0; i++) game.tick();
+    }
+    assert.ok(game.zone()!.noticed, "la fouille repère le tonneau creux");
+    assert.equal(game.searchRefusal(), "searched");
+  }
   priv(game).pushZoneDoor();
   assert.ok(game.zone()!.open && game.map.isWalkable(z.entry.x, z.entry.y), "le tonneau a glissé");
   assert.equal(game.monsters.filter((m) => z.sleepers.includes(m.id) && m.asleep).length, 2, "deux dormeurs");

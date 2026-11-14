@@ -2361,7 +2361,12 @@ export class Renderer {
       // Assiette : pleine tant que la cuisse y est.
       const plateName = f.kind === "plate" ? (game.ground.some((g) => g.x === f.x && g.y === f.y && g.item === "cuisse_poulet") ? "plateFull" : "plate") : null;
       // Quêtes v3 : le tonneau creux et la botte de foin dans le mur gardent le dessin du tonneau et de la botte.
-      const zoneName = f.kind === "barrelWall" ? "barrel" : f.kind === "hayWall" ? "hayBale" : null;
+      // Le tonneau creux (Thomas, 2026-11-14) : une barrique encastrée, le fond tourné vers la salle ; repérée par une
+      // fouille, un filet de lumière passe autour et une étincelle brille.
+      // Le côté se lit d'après la zone derrière : au-dessus (mur du haut, fond de face), en dessous, à gauche, à droite.
+      const cz = f.kind === "barrelWall" ? game.zone() : null;
+      const caskSide = !cz ? "" : cz.room.y + cz.room.h <= f.y ? "" : cz.room.y > f.y ? "Low" : cz.room.x + cz.room.w <= f.x ? "SideL" : "SideR";
+      const zoneName = f.kind === "barrelWall" ? `cask${caskSide}${game.zoneNoticed() ? "Found" : ""}` : f.kind === "hayWall" ? "hayBale" : null;
       const name = zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
       const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;

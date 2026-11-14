@@ -1668,4 +1668,5 @@ export const EN: Record<string, string> = {
   "{0} pièces d'or gagnées.": "{0} gold coins earned.",
   "{0} coffres et sarcophages ouverts.": "{0} chests and sarcophagi opened.",
   "Le d20 enchanté s'illumine : votre 1 devient un 20. Coup critique !": "The enchanted d20 lights up: your 1 becomes a 20. Critical hit!",
+  "Toc, toc… Ce tonneau dans le mur sonne creux. Il y a quelque chose derrière : poussez-le !": "Knock, knock… This barrel in the wall sounds hollow. Something is behind it: push it!",
 };

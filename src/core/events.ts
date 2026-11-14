@@ -120,7 +120,7 @@ export type GameEvent =
   /** Quêtes v3 : la zone spéciale (montrée, tapisserie tranchée, bougie soufflée, dalle enfoncée). */
   | {
       type: "zone";
-      what: "shown" | "tapestry" | "candle" | "plate" | "pushed" | "stuck" | "wall" | "cierge" | "noflame" | "bell" | "hen" | "henFlees" | "hat" | "nohat" | "thief" | "complice" | "courier" | "courierLost";
+      what: "shown" | "tapestry" | "candle" | "plate" | "pushed" | "stuck" | "wall" | "cierge" | "noflame" | "bell" | "hen" | "henFlees" | "hat" | "nohat" | "thief" | "complice" | "courier" | "courierLost" | "found";
       x: number;
       y: number;
       woke?: number;

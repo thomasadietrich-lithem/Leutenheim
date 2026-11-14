@@ -261,6 +261,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         ? "Par un creux du mur, vous apercevez… une pièce, de l'autre côté. Fouiller cette salle la trouverait peut-être."
         : "Un pan de mur cède sous vos doigts : une pièce secrète !";
     case "zone":
+      if (e.what === "found") return "Toc, toc… Ce tonneau dans le mur sonne creux. Il y a quelque chose derrière : poussez-le !";
       if (e.what === "pushed") return "Vous poussez : ça glisse, et derrière, un passage !";
       if (e.what === "stuck") return "Vous poussez de toutes vos forces… ça ne bouge pas. Encore !";
       if (e.what === "wall") return "Un grondement : derrière l'autel, un pan de mur coulisse. La sacristie !";

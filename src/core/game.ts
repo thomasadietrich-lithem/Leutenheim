@@ -3302,7 +3302,9 @@ export class Game {
     const room = this.roomIndexAt(this.hero);
     if (room < 0) return "corridor";
     const secret = this.current.secretRoom;
-    if (this.current.searched.has(room) && !(secret && !secret.found && secret.host === room)) return "searched";
+    const zone = this.current.zone;
+    const hollow = !!zone && zone.door === "barrel" && !zone.open && !zone.noticed && zone.host === room;
+    if (this.current.searched.has(room) && !(secret && !secret.found && secret.host === room) && !hollow) return "searched";
     if (this.visibleMonsters().length > 0) return "danger";
     return null;
   }
@@ -3791,6 +3793,14 @@ export class Game {
         found.push({ ...secret.entry });
         this.events.push({ type: "secret", what: "found", x: secret.entry.x, y: secret.entry.y });
         this.refreshLight();
+      }
+      // Le tonneau creux de Gluck (Thomas, 2026-11-14 : « qu'on le trouve si on cherche ») : il sonne creux, il brille.
+      const zone = this.current.zone;
+      if (zone && zone.door === "barrel" && !zone.open && !zone.noticed && zone.host === index) {
+        zone.noticed = true;
+        found.push({ ...zone.entry });
+        this.map.touch(zone.entry.x, zone.entry.y);
+        this.events.push({ type: "zone", what: "found", x: zone.entry.x, y: zone.entry.y });
       }
       // Pièges cachés de la salle (Thomas, 2026-11-13) : une fouille réussie les révèle.
       const room = this.rooms[index];
@@ -5048,6 +5058,11 @@ export class Game {
     return true;
   }
 
+  /** Le tonneau creux de la zone de quête a-t-il été repéré par une fouille ? (dessin) */
+  zoneNoticed(): boolean {
+    return !!this.current.zone?.noticed;
+  }
+
   /** Le d20 enchanté peut-il encore servir sur cet étage ? (fiche de l'objet) */
   luckyDieReady(): boolean {
     return (this.perks().luckyDie ?? 0) < 1;
@@ -5615,7 +5630,7 @@ export class Game {
     const door: QuestZone["door"] = kind === "cellier" ? "barrel" : kind === "grange" ? "hay" : kind === "sacristie" ? "wall" : "tapestry";
     for (const [W, D] of sizes) {
       const half = Math.floor(W / 2);
-      let best: { entry: Point; dir: Point; room: Room; score: number } | null = null;
+      let best: { entry: Point; dir: Point; room: Room; host: Room; score: number } | null = null;
       for (const r of this.rooms) {
         // Murs du haut et du bas d'abord (la tapisserie y pend mieux), puis de côté.
         const sides: { dir: Point; cells: Point[] }[] = [
@@ -5646,7 +5661,7 @@ export class Game {
             if (!ok) continue;
             const d = Math.max(Math.abs(e.x - near.x), Math.abs(e.y - near.y));
             const score = (d < 4 ? 100 : d) + side * 3 + (prefer && r !== prefer ? 60 : 0);
-            if (!best || score < best.score) best = { entry: e, dir, room, score };
+            if (!best || score < best.score) best = { entry: e, dir, room, host: r, score };
           }
         }
       }
@@ -5668,7 +5683,7 @@ export class Game {
           ? `${kind === "tripot" ? "curtain" : "tapestry"}${dir.y < 0 ? "" : dir.y > 0 ? "Low" : dir.x < 0 ? "SideL" : "SideR"}`
           : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
       if (doorKind) state.furniture.push({ x: entry.x, y: entry.y, kind: doorKind });
-      const zone: QuestZone = { kind, door, room, entry, open: false, sleepers: [] };
+      const zone: QuestZone = { kind, door, room, entry, open: false, sleepers: [], host: this.rooms.indexOf(best.host) };
       const sleeper = (p: Point, asleep: boolean) => {
         const k = this.newMonster(MONSTERS.schrat, p.x, p.y, asleep);
         k.fromX = p.x;

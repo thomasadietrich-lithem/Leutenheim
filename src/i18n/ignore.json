@@ -29,5 +29,6 @@
  "slot slot-torch{0}{1}",
  "Low",
  "{0}Open",
- "{0}Cut"
+ "{0}Cut",
+ "save-card record-card{0}"
 ]

@@ -173,6 +173,11 @@
   .save-card .save-buttons button.danger { background: #3a1414; color: #ff9a9a; }
   .save-card .save-buttons button.danger.armed { background: #8e1f28; color: #fff; }
   #records-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  .record-card .record-rank { flex: none; width: 30px; text-align: center; font-size: 30px; color: var(--dim); }
+  .record-card.best { box-shadow: inset 0 0 0 2px var(--gold); }
+  .record-card.best .record-rank { color: var(--gold); }
+  .record-card .record-win { color: #ffd75e; }
+  .record-card canvas.medal { width: 52px; height: 52px; image-rendering: pixelated; flex: none; }
   /* Bandeau de la tâche de quête (Thomas, 2026-11-12) : sous les jauges, en haut de la carte. */
   #quest-banner { position: absolute; top: 6px; left: 6px; right: 44px; z-index: 2; padding: 3px 8px; text-align: left; font-size: 17px; line-height: 1.1; color: var(--gold); background: rgba(12, 9, 6, 0.86); border: 1px solid var(--panel-hi); box-shadow: inset 0 0 0 1px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #quest-banner::before { content: "◆ "; color: var(--dim); }

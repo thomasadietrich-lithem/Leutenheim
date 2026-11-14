@@ -15,6 +15,9 @@ export interface RunRecord {
   bosses?: number;
   /** Nombre de tours joués (Thomas, 2026-11-13) ; absent des records plus anciens. */
   turns?: number;
+  /** Race et classe (identifiants, pour leurs pictos ; Thomas, 2026-11-14) ; absents des records plus anciens. */
+  race?: string;
+  heroClass?: string;
 }
 
 const KEY = "leutenheim.records";

@@ -1,6 +1,6 @@
 import { medalLine, onEvents, playUnlock, renderWall, splitMedal, type Unlock } from "./ui/achievements";
 import { medal } from "./ui/medals";
-import { addRecord, loadRecords, recordLine } from "./ui/records";
+import { addRecord, loadRecords } from "./ui/records";
 import { FERMIER } from "./render/sprites/ferme";
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./render/sprites/escaliers";
 import { Sfx } from "./audio/sfx";
@@ -984,7 +984,7 @@ function showDemoEnd(): void {
   if (!game.sandbox) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause: "victoire", hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn });
+    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause: "victoire", hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn, race: game.race.id, heroClass: game.heroClass.id });
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
   }
@@ -1165,7 +1165,7 @@ function showDeath(): void {
   if (!game.sandbox) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn });
+    const rank = addRecord({ deepest: game.deepest, level: game.level, gold: game.gold, cause, hero: game.heroClass.name, date, bosses: game.bossKills, turns: game.turn, race: game.race.id, heroClass: game.heroClass.id });
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
   }
@@ -1296,12 +1296,39 @@ function renderQuest(): void {
   questWasDone = q.done;
 }
 
+/**
+ * Records (Thomas, 2026-11-14 : « revois le mur des records, reprends la même structure visuelle que les sauvegardes ») :
+ * une carte par partie, comme une sauvegarde : le rang, les pictos de race et de classe l'un sur l'autre, le héros, l'étage,
+ * le niveau, l'or, les tours, la cause, la date ; une couronne pour une partie où la Tisseuse est tombée.
+ */
 function renderRecords(): void {
   const list = $("records-list");
   list.replaceChildren();
   const records = loadRecords();
   if (records.length === 0) list.append(el("p", "", "Aucune partie terminée pour l'instant."));
-  records.forEach((r, i) => list.append(el("div", "over-record", recordLine(r, i + 1))));
+  records.forEach((r, i) => {
+    const card = el("div", `save-card record-card${i === 0 ? " best" : ""}`);
+    card.append(el("div", "record-rank", String(i + 1)));
+    const pictos = el("div", "save-pictos");
+    // Les records d'avant le 2026-11-14 ne gardaient pas la race : Humain Guerrier (les seuls jouables alors).
+    for (const id of [r.race ?? "humain", r.heroClass ?? "guerrier"]) {
+      const p = PICTOS[id];
+      if (p) pictos.append(buildIcon(p.rows, p.palette));
+    }
+    const race = RACES[(r.race ?? "humain") as keyof typeof RACES]?.name ?? "";
+    const cls = CLASSES[(r.heroClass ?? "guerrier") as keyof typeof CLASSES]?.name ?? r.hero;
+    const text = el("div", "save-text");
+    const won = r.cause === "victoire" || (r.bosses ?? 0) > 0;
+    text.append(
+      el("div", "save-title", `${tr(race)} ${tr(cls)}`),
+      el("div", "", `Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or · ${r.turns ?? "?"} tours`),
+      el("div", won ? "record-win" : "save-when", r.cause === "victoire" ? "La Tisseuse est tombée." : `Mort : ${r.cause}`),
+      el("div", "save-when", `Le ${r.date}`),
+    );
+    card.append(pictos, text);
+    if (won) card.append(medal("tisseuse", 2, 2));
+    list.append(card);
+  });
 }
 
 /** Fait avancer la file : un jet à la fois, les autres événements sont immédiats. */

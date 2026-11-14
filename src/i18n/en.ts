@@ -1624,4 +1624,8 @@ export const EN: Record<string, string> = {
   "or": "gold",
   "Succès": "Achievements",
   "Toutes vos parties comptent": "Every run counts",
+  "Étage {0} · Niv {1} · {2} or · {3} tours": "Floor {0} · Lv {1} · {2} gold · {3} turns",
+  "La Tisseuse est tombée.": "The Weaver fell.",
+  "Mort : {0}": "Died: {0}",
+  "Le {0}": "On {0}",
 };

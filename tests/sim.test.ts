@@ -4802,3 +4802,35 @@ test("ferme : le même dispositif que le poulet (poulailler fermé, tour de la f
   const table = game.furnitureList().find((f) => f.kind.startsWith("table"));
   assert.ok(table && game.light[game.map.index(table.x + 1, table.y + 1)] > 0, "la table à bougie éclaire");
 }));
+
+test("Fifrelin v2 (Thomas, 2026-11-14 : « paris sur un combat ») : le combat se joue vraiment, le pari est payé ou perdu", () => withSandbox(() => {
+  let wins = 0;
+  let champWins = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const game = new Game(seed, undefined, undefined, undefined, true);
+    const f = game.npc("fifrelin")!;
+    assert.ok(f, "Fifrelin dans la salle d'essai");
+    game.monsters.length = 0;
+    game.hero.x = game.hero.fromX = f.x + 1;
+    game.hero.y = game.hero.fromY = f.y;
+    game.gold = 100;
+    const bet = seed % 2 ? "champ" : "small";
+    const r = game.npcChoose("fifrelin", bet);
+    assert.ok(r.done);
+    const fighters = game.monsters.filter((m) => m.arena);
+    assert.equal(fighters.length, 2, "deux combattants");
+    const before = game.gold;
+    for (let i = 0; i < 200 && !f.bout!.over; i++) {
+      (game as unknown as { waiting: boolean }).waiting = true;
+      game.tick();
+    }
+    assert.ok(f.bout!.over, `graine ${seed} : le combat finit`);
+    assert.ok(game.hero.hp > 0, "les combattants laissent le héros tranquille");
+    assert.equal(game.monsters.filter((m) => m.arena).length, 0, "le vainqueur s'en va");
+    const ev = game.events.find((e) => e.type === "bout");
+    if (game.gold > before) wins++;
+    if (ev && ev.type === "bout" && ev.winner === "champ") champWins++;
+  }
+  assert.ok(champWins >= 15, `le champion gagne le plus souvent (${champWins} sur 30)`);
+  assert.ok(wins > 0);
+}));

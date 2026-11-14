@@ -170,6 +170,8 @@ export interface GluckSpot {
   drumDone?: boolean;
   /** Quêtes v3 : il dort (Gluck fait la sieste dans son cellier, sur son sac). */
   asleep?: boolean;
+  /** Fifrelin : le combat en cours ou fini (le pari, la mise, le gain). */
+  bout?: { bet: "champ" | "small" | "duel" | null; payout: number; over: boolean };
 }
 
 /**

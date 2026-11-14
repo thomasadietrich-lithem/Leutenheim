@@ -3568,6 +3568,7 @@ export class Game {
     this.sandboxHubCheck();
     this.zoneStep();
     this.questTick();
+    this.boutTick();
     this.turn++;
     // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
     if (this.turn % RULES.alarmTurnsPerPoint === 0) this.raiseAlarm(1);
@@ -3735,20 +3736,6 @@ export class Game {
     if (this.searching > 0) return;
     const index = this.roomIndexAt(this.hero);
     if (index < 0) return;
-    // Fifrelin : fouiller sa salle démasque son complice, caché sous la caisse.
-    const fq = this.quest;
-    const fif = this.current.fifrelin;
-    if (fq?.id === "fifre_complice" && fq.got < fq.need && fif && !fif.gone && this.roomIndexAt(fif) === index) {
-      fq.got = fq.need;
-      const p = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: fif.x + dx, y: fif.y + dy })).find((c) => this.npcFree(this.current, c.x, c.y));
-      if (p) {
-        const k = this.newMonster(MONSTERS.schrat, p.x, p.y, false);
-        k.fromX = p.x;
-        k.fromY = p.y;
-        this.monsters.push(k);
-      }
-      this.events.push({ type: "zone", what: "complice", x: fif.x, y: fif.y });
-    }
     this.current.searched.add(index);
     const secret = this.current.secretRoom;
     // Un creux du mur entrevu : on sait où chercher (+5).
@@ -5528,18 +5515,6 @@ export class Game {
         this.krikMemory.invested = KRIK.investStake * 2;
         this.krikMemory.investDepth = this.depth;
         break;
-      case "fifre_complice":
-        g.gold = (g.gold ?? 0) + FIFRELIN.complicePrize;
-        break;
-      case "fifre_gobelet": {
-        g.gold = (g.gold ?? 0) + FIFRELIN.gobeletPrize;
-        const l = this.floorLoot();
-        leaves(l.item, l.count);
-        break;
-      }
-      case "fifre_gardes":
-        g.gold = (g.gold ?? 0) + FIFRELIN.gardesPrize;
-        break;
       case "grum_foin":
         leaves("fourche");
         break;
@@ -6146,18 +6121,19 @@ export class Game {
     const g = this.fifrelin();
     if (!g) return { lines: [], choices: [] };
     g.opened = true;
-    const poor = this.gold < FIFRELIN.stake ? "Pas assez d'or" : undefined;
+    if (g.bout) {
+      return {
+        lines: g.bout.over ? ["« C'est tout pour ce soir ! Revenez à l'étage d'en dessous, il y aura du sang neuf. »"] : ["« Le combat est en cours ! Regardez, regardez ! »"],
+        choices: [{ id: "leave", label: "Partir" }],
+      };
+    }
     return {
       lines: FIFRELIN_OPENING,
       choices: [
-        { id: "play", label: `Jouer (${FIFRELIN.stake} or)`, off: poor },
-        ...(this.quest
-          ? []
-          : [
-              { id: "observe", label: "Observer le jeu des gobelets", stat: "agilite" as const, dc: "medium" as const },
-              { id: "analyze", label: "Analyser les règles", stat: "intelligence" as const, dc: "medium" as const },
-              { id: "flip", label: "Renverser la table", stat: "force" as const, dc: "easy" as const },
-            ]),
+        { id: "champ", label: `Parier sur Grosse-Dent (${FIFRELIN.champStake} or, rapporte ${FIFRELIN.champPayout})`, off: this.gold < FIFRELIN.champStake ? "Pas assez d'or" : undefined },
+        { id: "small", label: `Parier sur Fil-de-Fer (${FIFRELIN.smallStake} or, rapporte ${FIFRELIN.smallPayout})`, off: this.gold < FIFRELIN.smallStake ? "Pas assez d'or" : undefined },
+        { id: "rig", label: "Glisser une fiole à Fil-de-Fer, et parier sur lui", stat: "agilite", dc: "medium", off: this.gold < FIFRELIN.smallStake ? "Pas assez d'or" : undefined },
+        { id: "duel", label: `Affronter Grosse-Dent vous-même (la caisse : ${FIFRELIN.duelPrize} or)` },
         { id: "leave", label: "Partir" },
       ],
     };
@@ -6169,69 +6145,106 @@ export class Game {
     const choice = this.fifrelinScene().choices.find((c) => c.id === id);
     if (!choice || choice.off) return { lines: [], done: false };
     let roll: GluckResult["roll"];
-    const test = (): boolean => (roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!])).success;
-    const guards = (n: number) => {
-      for (let i = 0; i < n; i++) {
-        const p = this.questSpot() ?? { x: g.x, y: g.y };
-        const k = this.newMonster(MONSTERS.schrat, p.x, p.y, false);
-        k.fromX = p.x;
-        k.fromY = p.y;
-        k.alerted = true;
-        this.monsters.push(k);
-      }
-    };
     switch (id) {
       case "leave":
         return { lines: ["« Revenez quand vous voulez perdre ! »"], done: true };
-      case "play":
-        this.gold -= FIFRELIN.stake;
-        if (this.rng.chance(FIFRELIN.winChance)) {
-          this.gold += FIFRELIN.stake * 3;
-          this.events.push({ type: "pickup", item: "or", count: FIFRELIN.stake * 3 });
-          return { lines: ["Vous montrez le gobelet de gauche. La bille est dessous !", "« … Impossible. » Il paie, la mâchoire serrée. (Trois fois la mise.)"], done: false };
+      case "champ":
+        this.gold -= FIFRELIN.champStake;
+        this.startBout(g, "champ", FIFRELIN.champPayout);
+        return { lines: ["« Sur le champion ! Prudent, prudent… Les paris sont clos ! »", "GONG !"], done: true };
+      case "small":
+        this.gold -= FIFRELIN.smallStake;
+        this.startBout(g, "small", FIFRELIN.smallPayout);
+        return { lines: ["« Sur le PETIT ? Ha ! J'aime les gens qui aiment perdre. Les paris sont clos ! »", "GONG !"], done: true };
+      case "rig": {
+        this.gold -= FIFRELIN.smallStake;
+        const ok = (roll = this.dialogueRoll("agilite", GLUCK.dc.medium)).success;
+        if (ok) {
+          this.startBout(g, "small", FIFRELIN.smallPayout, true);
+          return { lines: ["Vous glissez une fiole dans la patte de Fil-de-Fer. Il la boit d'un trait, et ses yeux s'allument.", "En face, Grosse-Dent a l'air… fatigué, tout à coup. GONG !"], roll, done: true };
         }
-        return { lines: ["Vous montrez le gobelet du milieu. Vide.", "« Pas de chance ! Encore une ? »"], done: false };
-      case "observe": {
-        const ok = test();
-        if (this.giveTask("fifre_complice")) {
-          return {
-            lines: ok
-              ? ["Vous regardez ses mains… et la caisse. Elle a bougé toute seule.", "(Un complice se cache dans la salle : fouillez-la.)"]
-              : ["Ses mains vont trop vite. Mais il y a quelqu'un d'autre, ici. Vous en êtes sûr.", "(Fouillez la salle.)"],
-            roll,
-            done: true,
-          };
-        }
-        return { lines: ["Vous regardez. Vous ne voyez rien."], roll, done: false };
-      }
-      case "analyze":
-        if (test() && this.openZone("tripot", g) && this.giveTask("fifre_gobelet")) {
-          return {
-            lines: ["« Les règles ? Simples : la bille est sous un gobelet. » … Sauf que ce gobelet-là a un double fond.", "Le vrai, le truqué, il le range dans son tripot. Derrière le rideau.", "(Le rideau apparaît sur la carte.)"],
-            roll,
-            done: true,
-          };
-        }
-        return { lines: ["Les règles vous échappent. Elles changent à chaque partie, on dirait."], roll, done: false };
-      case "flip": {
-        const ok = test();
-        guards(2);
+        this.startBout(g, null, 0);
         this.raiseAlarm(5, g);
-        if (this.giveTask("fifre_gardes")) {
-          return {
-            lines: ok
-              ? ["Vous renversez la caisse ! Les gobelets roulent. Aucun n'a de bille.", "« GARDES ! » Deux Kobolds accourent."]
-              : ["Vous renversez… presque la caisse. Elle était clouée.", "« GARDES ! » Deux Kobolds accourent."],
-            roll,
-            done: true,
-          };
-        }
-        return { lines: ["« GARDES ! »"], roll, done: true };
+        return { lines: ["« TRICHEUR ! » Fifrelin vous a vu. Il garde la mise.", "« Les gars ! Occupez-vous de lui ! » Les deux combattants se tournent vers vous."], roll, done: true };
       }
-      default:
-        return { lines: [], done: false };
+      case "duel":
+        this.startBout(g, "duel", FIFRELIN.duelPrize);
+        return { lines: ["« UN CHALLENGER ! » La foule (deux Kobolds et une araignée au plafond) retient son souffle.", "Grosse-Dent fait craquer ses jointures. GONG !"], done: true };
     }
+    return { lines: [], done: false };
   }
+
+  /**
+   * Le combat du tripot (Thomas, 2026-11-14) : GROSSE-DENT (le champion, un Kobold costaud) et FIL-DE-FER (le petit,
+   * un frondeur à la dague) entrent à côté de Fifrelin et se battent entre eux pour de vrai (une querelle) ; ils ne
+   * s'occupent pas du héros, sauf s'il les frappe. `bet` null : le tricheur pris, ils l'attaquent. « duel » : le
+   * champion seul, contre le héros.
+   */
+  private startBout(g: GluckSpot, bet: "champ" | "small" | "duel" | null, payout: number, rigged = false): void {
+    g.bout = { bet, payout, over: bet === null };
+    const spots: Point[] = [];
+    for (let r = 2; r <= 4 && spots.length < 2; r++)
+      for (let dy = -r; dy <= r && spots.length < 2; dy++)
+        for (let dx = -r; dx <= r && spots.length < 2; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const p = { x: g.x + dx, y: g.y + dy };
+          if (!this.npcFree(this.current, p.x, p.y) || this.actorAt(p.x, p.y) || spots.some((q) => Math.max(Math.abs(q.x - p.x), Math.abs(q.y - p.y)) < 2)) continue;
+          if (findPath(this.map, g, p) === null) continue;
+          spots.push(p);
+        }
+    if (spots.length === 0) spots.push({ x: g.x, y: g.y + 1 });
+    const champ = this.newMonster(MONSTERS.schrat, spots[0].x, spots[0].y, false);
+    champ.maxHp = champ.hp = rigged ? FIFRELIN.riggedChampHp : FIFRELIN.champHp;
+    champ.arena = bet === "duel" ? "duel" : "champ";
+    champ.fromX = champ.x;
+    champ.fromY = champ.y;
+    this.monsters.push(champ);
+    if (bet === "duel" || bet === null) {
+      champ.alerted = true;
+      if (bet === null && spots[1]) {
+        const small = this.newMonster(MONSTERS.frondeur, spots[1].x, spots[1].y, false);
+        small.alerted = true;
+        this.monsters.push(small);
+      }
+      if (bet === null) champ.arena = undefined;
+      return;
+    }
+    const at = spots[1] ?? { x: spots[0].x + 2, y: spots[0].y };
+    const small = this.newMonster(MONSTERS.frondeur, at.x, at.y, false);
+    small.maxHp = small.hp = FIFRELIN.smallHp;
+    small.arena = "small";
+    small.fromX = small.x;
+    small.fromY = small.y;
+    this.monsters.push(small);
+    champ.alerted = small.alerted = false;
+    this.startFeud(champ, small, "bout");
+  }
+
+  /** Après chaque tour : le combat est-il fini ? On paie (ou non), et le vainqueur salue et s'en va. */
+  private boutTick(): void {
+    const g = this.current.fifrelin;
+    const bout = g?.bout;
+    if (!g || !bout || bout.over) return;
+    const fighters = this.monsters.filter((m) => m.arena && m.hp > 0);
+    if (bout.bet === "duel") {
+      if (fighters.some((m) => m.arena === "duel")) return;
+      bout.over = true;
+      this.gold += bout.payout;
+      this.events.push({ type: "bout", what: "duelWin", x: g.x, y: g.y, gold: bout.payout });
+      return;
+    }
+    if (fighters.length > 1) return;
+    bout.over = true;
+    const winner = fighters[0];
+    const side = winner?.arena === "small" ? "small" : "champ";
+    if (winner) this.monsters.splice(this.monsters.indexOf(winner), 1);
+    const at = winner ?? g;
+    if (bout.bet === side) {
+      this.gold += bout.payout;
+      this.events.push({ type: "bout", what: "win", x: at.x, y: at.y, gold: bout.payout, winner: side });
+    } else this.events.push({ type: "bout", what: "lose", x: at.x, y: at.y, winner: side });
+  }
+
 
   // ---------- Quête 05 : Grum, le Kobold fermier (quêtes v3) ----------
 
@@ -7331,6 +7344,8 @@ export class Game {
         }
         continue;
       }
+      // Les combattants du tripot de Fifrelin ne s'occupent pas du héros, sauf s'il s'en mêle (il les a frappés).
+      if (m.arena && m.arena !== "duel" && !m.alerted) continue;
       const dx = this.hero.x - m.x;
       const dy = this.hero.y - m.y;
       const distance = Math.max(Math.abs(dx), Math.abs(dy));
@@ -7630,7 +7645,7 @@ export class Game {
     }
   }
 
-  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog" | "discord" | "species"): void {
+  private startFeud(a: Actor, b: Actor, reason: "blocked" | "shot" | "fog" | "discord" | "species" | "bout"): void {
     a.feud = b.id;
     b.feud = a.id;
     a.blockedBy = b.blockedBy = undefined;

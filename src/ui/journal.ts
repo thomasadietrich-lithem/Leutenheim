@@ -144,6 +144,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return pool[e.joke % pool.length];
     }
     case "feud":
+      if (e.reason === "bout") return "GONG ! Grosse-Dent et Fil-de-Fer se jettent l'un sur l'autre. Fifrelin hurle les cotes.";
       return ctx.sees?.(e.a) || ctx.sees?.(e.b)
         ? e.reason === "shot"
           ? `La pierre du frondeur frappe ${the(e.a.name)}, qui se retourne contre lui !`
@@ -157,6 +158,12 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : null;
     case "infight":
       return null;
+    case "bout":
+      if (e.what === "duelWin") return `Grosse-Dent s'écroule. Fifrelin, livide, vous tend la caisse du tripot : ${e.gold} or.`;
+      if (e.what === "caught") return null;
+      return e.what === "win"
+        ? `${e.winner === "small" ? "Fil-de-Fer" : "Grosse-Dent"} l'emporte, salue la foule et disparaît dans un nuage de fumée. Pari gagné : Fifrelin vous paie ${e.gold} or.`
+        : `${e.winner === "small" ? "Fil-de-Fer" : "Grosse-Dent"} l'emporte, salue la foule et disparaît dans un nuage de fumée. Pari perdu.`;
     case "heavyBlow":
       return e.kind === "stun" ? `Le coup assomme ${e.actor.name} : il perd son prochain tour.`
         : e.kind === "knockback" ? `Coup critique : ${e.actor.name} est projeté en arrière !` : `D'un seul coup !`;

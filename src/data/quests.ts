@@ -32,9 +32,6 @@ export type QuestTaskId =
   | "krik_temoin"
   | "krik_denonce"
   | "krik_coursier"
-  | "fifre_complice"
-  | "fifre_gobelet"
-  | "fifre_gardes"
   | "grum_poule"
   | "grum_foin"
   | "grum_chapeau";
@@ -196,37 +193,6 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     waiting: "« Mon coursier porte ta mise jusqu'à l'escalier. Il a peur de tout : reste près de lui, il n'avance qu'avec toi. »",
     thanks: ["« Il est passé ! Ta mise t'attend à l'étage suivant. Doublée. Je le pense vraiment. »"],
     failed: "Le coursier de Krik s'est perdu, avec votre mise.",
-  },
-  fifre_complice: {
-    npc: "fifrelin",
-    kind: "count",
-    count: 1,
-    goal: "Démasquer le complice (fouiller la salle)",
-    back: "Revoir Fifrelin",
-    waiting: "« Un complice ? Moi ? Fouillez donc, fouillez ! Vous ne trouverez rien. »",
-    thanks: ["« … Bon. Il était sous la caisse. C'est mon cousin. »", "« Votre mise, trois fois. Et pas un mot. »", "(Il laisse de l'or.)"],
-    failed: "Le complice de Fifrelin court toujours.",
-  },
-  fifre_gobelet: {
-    npc: "fifrelin",
-    kind: "fetch",
-    item: "gobelet",
-    zone: true,
-    goal: "Voler le gobelet truqué",
-    back: "Confondre Fifrelin",
-    waiting: "« Mon tripot ? Derrière le rideau. Personne n'y entre. Personne. »",
-    thanks: ["Vous posez le gobelet truqué sur la caisse. Double fond. Fifrelin blêmit.", "« D'accord, d'accord. Prenez la caisse. Et partez. »", "(Il laisse de l'or et un objet.)"],
-    failed: "Le gobelet truqué de Fifrelin reste dans son tripot.",
-  },
-  fifre_gardes: {
-    npc: "fifrelin",
-    kind: "kill",
-    count: 2,
-    goal: "Tenir tête aux gardes {0}/{1}",
-    back: "Revoir Fifrelin",
-    waiting: "« Mes gardes vont vous apprendre la politesse ! »",
-    thanks: ["« Mes gardes… Bon. La caisse est à vous. Le jeu est fermé. »", "(Il laisse sa caisse.)"],
-    failed: "Fifrelin a rouvert son jeu, un étage plus haut.",
   },
   grum_poule: {
     npc: "grum",

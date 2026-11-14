@@ -189,14 +189,17 @@ const SLIDES: Slide[] = [
     },
   },
   {
-    kicker: "Quête 04 — Fifrelin, le Kobold aux gobelets (EN JEU)",
-    title: "Le tripot derrière le rideau",
+    kicker: "Quête 04 — Fifrelin, le Kobold bookmaker (EN JEU, refait le 2026-11-14)",
+    title: "Les paris sur un combat",
+    lead: "Thomas : le jeu des gobelets était « complètement naze ». Fifrelin tient désormais un tripot de COMBATS : Grosse-Dent, le champion (un Kobold costaud, 11 PV), contre Fil-de-Fer, le petit (un frondeur à la dague, 8 PV). Le combat se joue VRAIMENT, sous vos yeux : passez des tours pour le regarder.",
     choices: [
-      { pick: "Observer le jeu des gobelets", roll: "Agilité", goal: "Trouver qui triche : un Kobold complice se cache dans la salle (le repérer en fouillant).", win: "Le complice démasqué → on gagne la mise ×2." },
-      { pick: "Analyser les règles", roll: "Intelligence", goal: "Récupérer le « vrai » gobelet : il est dans le coffre de son tripot, derrière un rideau.", win: "Le gobelet truqué en main, on peut le faire perdre à son propre jeu." },
-      { pick: "Renverser la table", roll: "Force", goal: "Les deux gardes accourent : tenir la porte du tripot (embrasure).", win: "La caisse du tripot (or) ; Fifrelin part, vexé." },
+      { pick: "Parier sur Grosse-Dent", goal: "15 or ; il gagne environ 4 fois sur 5.", win: "Il gagne : Fifrelin paie 22 or. Le vainqueur salue et disparaît dans la fumée." },
+      { pick: "Parier sur Fil-de-Fer", goal: "10 or ; il gagne rarement.", win: "Il gagne : 40 or." },
+      { pick: "Truquer le combat", roll: "Agilité, moyen", goal: "Glisser une fiole à Fil-de-Fer et parier sur lui (10 or).", win: "Grosse-Dent entre dans l'arène épuisé (3 PV) : Fil-de-Fer gagne presque à coup sûr, 40 or.", fail: "« TRICHEUR ! » Fifrelin garde la mise, les deux combattants vous tombent dessus, +5 d'alerte." },
+      { pick: "Affronter Grosse-Dent vous-même", goal: "Le champion seul, contre vous.", win: "Vaincu : la caisse du tripot, 40 or." },
     ],
   },
+
   {
     kicker: "Pièces secrètes — EN JEU (2026-11-14)",
     title: "Un mur qui sonne creux",

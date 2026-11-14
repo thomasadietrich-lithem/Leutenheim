@@ -748,6 +748,16 @@ function reveal(e: GameEvent): void {
     sfx.play("heal");
   } else if (e.type === "trapDodged") {
     renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");
+  } else if (e.type === "bout") {
+    // Le tripot de Fifrelin : le vainqueur salue et s'en va ; l'or tombe dans la bourse.
+    if (e.what === "win" || e.what === "lose") {
+      renderer.addPuff(e.x, e.y);
+      sfx.play("puff");
+    }
+    if (e.gold) {
+      renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#ffd75e");
+      sfx.play("coin");
+    }
   } else if (e.type === "boss" && e.what === "eat") {
     // Elle se soigne : des croix de santé montent d'elle (Thomas, 2026-11-14).
     const queen = game.monsters.find((m) => m.boss);

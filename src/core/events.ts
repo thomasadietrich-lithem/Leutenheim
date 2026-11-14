@@ -55,7 +55,9 @@ export type GameEvent =
   /** Le héros sonne la cloche d'alarme : `rings` = combien de fois sur cet étage ; `joke` choisit la moquerie. */
   | { type: "bell"; x: number; y: number; rings: number; joke: number }
   /** Deux monstres se querellent : bloqués face à face dans un couloir, ou touchés par la pierre d'un frondeur. */
-  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" | "fog" | "discord" | "species" }
+  | { type: "feud"; a: Actor; b: Actor; reason: "blocked" | "shot" | "fog" | "discord" | "species" | "bout" }
+  /** Le tripot de Fifrelin : le pari gagné ou perdu, le champion battu par le héros, le tricheur pris la main dans le sac. */
+  | { type: "bout"; what: "win" | "lose" | "duelWin" | "caught"; x: number; y: number; gold?: number; winner?: "champ" | "small" }
   /** Un monstre en frappe un autre (sans dé à l'écran : le héros regarde). */
   | { type: "infight"; attacker: Actor; target: Actor; hit: boolean; damage: number; ranged?: boolean }
   /** Se cacher : le jet au d20, et s'il a réussi. */

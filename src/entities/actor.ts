@@ -72,6 +72,8 @@ export interface Actor {
   blockedTurns?: number;
   /** Or qu'il lâche en mourant, à coup sûr (le Kobold qui compte : autant de pièces que son nombre). */
   purse?: number;
+  /** Combattant du tripot de Fifrelin (Thomas, 2026-11-14) : le champion, le petit, ou le champion qui vous affronte. */
+  arena?: "champ" | "small" | "duel";
   /** Querelle (Thomas, 2026-11-12) : il se bat contre ce monstre (numéro) jusqu'à ce que l'un des deux tombe. */
   feud?: number;
   /** Boss : où il en est de son combat (avance, recule, tapi…), voir `src/core/boss.ts`. */

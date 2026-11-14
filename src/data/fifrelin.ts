@@ -1,22 +1,28 @@
 /**
- * QUÊTE 04 : FIFRELIN, LE KOBOLD AUX GOBELETS (Thomas, 2026-11-14 : « créé Monsieur Trèfle, trouve un autre nom » ; le
- * fifrelin, c'est la petite pièce de rien du tout). Un Kobold en gilet rouge et chapeau haut de forme cabossé, qui fait
- * le jeu des trois gobelets sur une caisse retournée. Il triche, évidemment. Une rencontre, quatre choix (C).
+ * QUÊTE 04 : FIFRELIN, LE KOBOLD BOOKMAKER (Thomas, 2026-11-14 : le jeu des gobelets était « complètement naze » ;
+ * choix de Thomas : « paris sur un combat »). Un Kobold en gilet rouge et chapeau haut de forme cabossé tient un petit
+ * tripot de COMBATS : GROSSE-DENT, le champion, contre FIL-DE-FER, le petit nouveau. On parie, on truque, ou l'on
+ * descend soi-même dans l'arène. Le combat se joue VRAIMENT, sous vos yeux (les deux se battent entre eux). Valeurs (C).
  */
 export const FIFRELIN = {
   name: "Fifrelin",
   maxEncounters: 1,
-  /** Le jeu des gobelets : la mise, et la chance de gagner (il triche : un sur quatre). */
-  stake: 10,
-  winChance: 0.25,
-  /** Le complice démasqué : la mise rendue ×3. Le gobelet truqué rapporté : sa caisse. Les gardes chassés : sa caisse. */
-  complicePrize: 30,
-  gobeletPrize: 40,
-  gardesPrize: 35,
+  /** Parier sur le champion : mise et gain (la mise comprise). Il gagne environ 4 fois sur 5. */
+  champStake: 15,
+  champPayout: 22,
+  /** Parier sur le petit : mise et gain (la mise comprise). */
+  smallStake: 10,
+  smallPayout: 40,
+  /** Les deux combattants : points de vie. Truqué, le champion entre dans l'arène avec ceux-là seulement. */
+  champHp: 11,
+  smallHp: 8,
+  riggedChampHp: 3,
+  /** Battre soi-même le champion : la caisse du tripot. */
+  duelPrize: 40,
 };
 
 export const FIFRELIN_OPENING = [
-  "Un Kobold en gilet rouge, chapeau haut de forme cabossé, fait tourner trois gobelets sur une caisse.",
-  "« Approchez, approchez ! Où est la bille ? Dix pièces la partie ! »",
-  "« Personne ne gagne jamais. C'est ce qui rend le jeu si palpitant. »",
+  "Un Kobold en gilet rouge et chapeau haut de forme cabossé grimpe sur une caisse. Derrière lui, deux Kobolds s'échauffent.",
+  "« Mesdames et messieurs ! Ce soir : GROSSE-DENT, le champion, invaincu ! Contre FIL-DE-FER, le petit nouveau !",
+  "Faites vos jeux ! Les paris sont ouverts ! »",
 ];

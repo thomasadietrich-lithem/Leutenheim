@@ -2239,8 +2239,10 @@ function renderBag(): void {
       game.chooseAmmo(usable[(usable.indexOf(current) + 1) % usable.length]);
       aimShown = "";
     } else if (locked) {
-      logLines.push(`Il faut être niveau ${(ITEMS[locked] as ItemDef).level} pour tirer ${ITEMS[locked].name.toLowerCase()}.`);
-      renderLog();
+      // Le refus se lit sur la fiche des flèches (le journal est caché sous l'écran du héros).
+      const stack = game.inventory.snapshot().items.find((i) => i.defId === locked);
+      if (stack) selected = { uid: stack.uid };
+      quickNote = `Il faut être niveau ${(ITEMS[locked] as ItemDef).level} pour tirer ${ITEMS[locked].name.toLowerCase()} (vous êtes niveau ${game.level}).`;
     }
     renderHeroScreen();
   });
@@ -2323,7 +2325,8 @@ function renderBag(): void {
   info.replaceChildren(card);
   const wearable = def.kind !== "ammo" && def.kind !== "key" && def.kind !== "gold" && def.kind !== "use" && def.kind !== "gem" && def.kind !== "quest";
   // Le sac porté ne s'enlève pas : on le remplace par un autre.
-  action.hidden = (!wearable && def.kind !== "use") || selectedSlot === "bag";
+  // Les munitions s'« équipent » aussi : elles passent au carquois (Thomas, 2026-11-14).
+  action.hidden = (!wearable && def.kind !== "use" && def.kind !== "ammo") || selectedSlot === "bag";
   // Potions (Thomas, 2026-11-12) : celle de feu se LANCE, celle de poison s'ENDUIT (et se lance aussi, bouton à part),
   // les autres se BOIVENT.
   action.textContent = selectedSlot
@@ -2485,7 +2488,20 @@ button("bag-equip", () => {
   const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
-    logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
+    // Le refus se lit sur la fiche (le journal est caché sous l'écran du héros).
+    quickNote = `Il faut être niveau ${chosenDef.level} pour cela (vous êtes niveau ${game.level}).`;
+    sfx.play("click");
+    renderHeroScreen();
+    return;
+  } else if (chosen && chosenDef?.kind === "ammo") {
+    // Équiper des flèches : elles deviennent celles du carquois.
+    const fits = chosenDef.ammoFamily === "jet" || chosenDef.ammoFamily === game.weapon("ranged")?.ammo;
+    game.chooseAmmo(chosen.defId);
+    quickNote = fits ? `Au carquois : ${chosenDef.name.toLowerCase()}.` : "Au carquois, mais il vous faut un arc pour les tirer.";
+    sfx.play("pickup");
+    aimShown = "";
+    renderHeroScreen();
+    return;
   } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord" || chosenDef?.potion === "slip")) {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;

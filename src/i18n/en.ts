@@ -1669,4 +1669,8 @@ export const EN: Record<string, string> = {
   "{0} coffres et sarcophages ouverts.": "{0} chests and sarcophagi opened.",
   "Le d20 enchanté s'illumine : votre 1 devient un 20. Coup critique !": "The enchanted d20 lights up: your 1 becomes a 20. Critical hit!",
   "Toc, toc… Ce tonneau dans le mur sonne creux. Il y a quelque chose derrière : poussez-le !": "Knock, knock… This barrel in the wall sounds hollow. Something is behind it: push it!",
+  "Il faut être niveau {0} pour tirer {1} (vous êtes niveau {2}).": "You must be level {0} to shoot {1} (you are level {2}).",
+  "Il faut être niveau {0} pour cela (vous êtes niveau {1}).": "You must be level {0} for that (you are level {1}).",
+  "Au carquois : {0}.": "In the quiver: {0}.",
+  "Au carquois, mais il vous faut un arc pour les tirer.": "In the quiver, but you need a bow to shoot them.",
 };

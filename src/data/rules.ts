@@ -208,7 +208,8 @@ export const RULES = {
   /** Pièges CACHÉS (Thomas, 2026-11-13 : « invisibles en crescendo, détectés en recherche ») : part des pièges cachés par
    *  étage (étage 1, 2, 3…, le dernier chiffre vaut ensuite) ; un piège caché ne se voit pas, le héros ne le contourne
    *  pas ; une fouille réussie de la salle le révèle, ou il se révèle en partant (C). */
-  trapHiddenByDepth: [0.2, 0.35, 0.5, 0.65, 0.8],
+  // Crescendo DOUX (Thomas, 2026-11-14) : 10 % à l'étage 1, +8 % par étage, 60 % au plus.
+  trapHiddenByDepth: [0.1, 0.18, 0.26, 0.34, 0.42, 0.5, 0.55, 0.6],
   /** Sarcophage à pointes (salle de torture) : difficulté pour désamorcer (agilité) ou forcer (force), pointe si raté, bruit si forcé. */
   maidenDc: 11,
   maidenSpike: { count: 1, sides: 4, bonus: 0 },

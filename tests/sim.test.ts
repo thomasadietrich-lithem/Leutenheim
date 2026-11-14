@@ -4444,3 +4444,16 @@ test("poussée : l'ennemi peut tomber à terre ; à terre, il perd son tour et o
   assert.deepEqual({ x: m.x, y: m.y }, at, "il passe son tour à se relever");
   assert.equal(m.prone, 0);
 });
+
+test("pièges : les monstres ne les contournent plus, même cachés ; celui qui marche dessus le déclenche", () => {
+  const { game, m } = foeAt(2);
+  // Un piège à pointes caché entre le monstre et le héros.
+  const mid = { x: (m.x + game.hero.x) / 2, y: (m.y + game.hero.y) / 2 };
+  (game as unknown as { current: { traps: { x: number; y: number; kind: string; hidden?: boolean }[] } }).current.traps.push({ x: mid.x, y: mid.y, kind: "spikes", hidden: true });
+  const hp = m.hp;
+  for (let k = 0; k < 3 && m.hp === hp; k++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(m.hp < hp, "le monstre a marché sur le piège");
+});

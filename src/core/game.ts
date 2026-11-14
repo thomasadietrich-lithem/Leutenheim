@@ -1277,7 +1277,7 @@ export class Game {
     // Agrandi (potion de géant) : il ne passe plus les portes (Thomas, 2026-11-13).
     const giant = ((from as Actor).grown ?? 0) > 0;
     // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
-    return (x, y) => (!base || base(x, y)) && !(giant && this.map.isDoor(x, y) && !(x === from.x && y === from.y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero ? this.knownTrap(x, y) : this.isTrap(x, y)) && !this.isBurning(x, y) && !this.isGassed(x, y)));
+    return (x, y) => (!base || base(x, y)) && !(giant && this.map.isDoor(x, y) && !(x === from.x && y === from.y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero && this.knownTrap(x, y)) && !this.isBurning(x, y) && !this.isGassed(x, y)));
   }
 
   /**
@@ -5701,6 +5701,17 @@ export class Game {
   }
 
   private monstersAct(): void {
+    // Les monstres ne contournent plus les pièges, même cachés (Thomas, 2026-11-14 : « les mobs marchent dans les
+    // pièges, y compris invisibles ») : celui qui arrive sur un piège le déclenche.
+    const before = new Map(this.monsters.map((m) => [m, m.x * 100000 + m.y] as const));
+    this.monstersActInner();
+    for (const [m, at] of before) {
+      if (this.over || !this.monsters.includes(m) || m.boss || at === m.x * 100000 + m.y) continue;
+      if (this.isTrap(m.x, m.y)) this.springTrap(m);
+    }
+  }
+
+  private monstersActInner(): void {
     for (const m of [...this.monsters]) {
       if (this.over) return;
       if (!this.monsters.includes(m)) continue;
@@ -5762,7 +5773,7 @@ export class Game {
           for (let dx = -1; dx <= 1; dx++) {
             const x = m.x + dx;
             const y = m.y + dy;
-            if ((dx || dy) && canStep(this.map, m.x, m.y, dx, dy) && this.fogAt(x, y) && !this.actorAt(x, y) && !this.npcAt(x, y) && !this.isTrap(x, y) && !this.map.isDoor(x, y)) steps.push({ x, y });
+            if ((dx || dy) && canStep(this.map, m.x, m.y, dx, dy) && this.fogAt(x, y) && !this.actorAt(x, y) && !this.npcAt(x, y) && !this.map.isDoor(x, y)) steps.push({ x, y });
           }
         }
         if (steps.length > 0 && this.rng.chance(0.7)) {
@@ -5964,7 +5975,7 @@ export class Game {
         if (!dx && !dy) continue;
         const x = m.x + dx;
         const y = m.y + dy;
-        if (!canStep(this.map, m.x, m.y, dx, dy) || this.actorAt(x, y) || this.isTrap(x, y) || this.isBurning(x, y) || this.map.isDoor(x, y)) continue;
+        if (!canStep(this.map, m.x, m.y, dx, dy) || this.actorAt(x, y) || this.isBurning(x, y) || this.map.isDoor(x, y)) continue;
         const d = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y));
         if (d <= d0) continue;
         const shelter = this.hasCover({ x, y }) ? 3 : 0;

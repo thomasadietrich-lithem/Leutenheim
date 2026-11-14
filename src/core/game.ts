@@ -222,6 +222,7 @@ export class Game {
   private pushTargetId: number | null = null;
   /** Tours de fouille restant à passer sur place (0 : pas de fouille en cours). */
   private searching = 0;
+  private lastGiverKey = "";
   /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
   private resting = 0;
   /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
@@ -2105,6 +2106,10 @@ export class Game {
     const candle = z?.candleLit && z.candle ? [{ x: z.candle.x, y: z.candle.y, faceX: 0, faceY: 0, radius: 3, area: z.room }] : [];
     // Les cierges rallumés de Sœur Osseuse.
     for (const f of this.current?.furniture ?? []) if (f.kind === "ciergeLit") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: 2, area: this.rooms.find((r) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h) ?? z?.room ?? { x: f.x, y: f.y, w: 1, h: 1 } });
+    // Quête en cours (Thomas, 2026-11-14 : « éclaire la zone autour du PNJ, pour éviter de le perdre ») : le PNJ qui
+    // l'a donnée brille doucement, on le retrouve de loin.
+    const giver = this.quest && this.current ? this.npc(QUEST_TASKS[this.quest.id].npc) : null;
+    if (giver) candle.push({ x: giver.x, y: giver.y, faceX: 0, faceY: 0, radius: RULES.questNpcLight, area: this.rooms.find((r) => giver.x >= r.x && giver.x < r.x + r.w && giver.y >= r.y && giver.y < r.y + r.h) ?? { x: giver.x - 1, y: giver.y - 1, w: 3, h: 3 } });
     this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
   }
 
@@ -3440,7 +3445,11 @@ export class Game {
     }
     // La lumière suit la torche portée et celles qu'on ramasse ou qu'on pose.
     const groundTorches = this.ground.filter((g) => g.item === "torche").length;
-    if (this.torchLit() || groundTorches !== this.lastGroundTorches || this.torchWasLit) this.refreshLight();
+    // La lueur du PNJ de quête suit le PNJ, et s'éteint quand la quête finit.
+    const giver = this.quest ? this.npc(QUEST_TASKS[this.quest.id].npc) : null;
+    const giverKey = giver ? `${giver.x},${giver.y}` : "";
+    if (this.torchLit() || groundTorches !== this.lastGroundTorches || this.torchWasLit || giverKey !== this.lastGiverKey) this.refreshLight();
+    this.lastGiverKey = giverKey;
     this.lastGroundTorches = groundTorches;
     this.torchWasLit = this.torchLit();
     this.updateVision();
@@ -5237,6 +5246,7 @@ export class Game {
       if (need <= 0) return false;
     }
     this.quest = { id, depth: this.depth, got: 0, need };
+    this.refreshLight();
     this.events.push({ type: "quest", what: "start", id });
     return true;
   }
@@ -5486,7 +5496,10 @@ export class Game {
       map.touch(entry.x, entry.y);
       state.rooms.push(room);
       const doorKind =
-        kind === "tripot" ? "curtain" : door === "tapestry" ? (dir.y > 0 ? "tapestryLow" : "tapestry") : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
+        // Tapisserie et rideau tournés vers la salle (Thomas, 2026-11-14) : de face sur le mur du haut, par la tranche ailleurs.
+        kind === "tripot" || door === "tapestry"
+          ? `${kind === "tripot" ? "curtain" : "tapestry"}${dir.y < 0 ? "" : dir.y > 0 ? "Low" : dir.x < 0 ? "SideL" : "SideR"}`
+          : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
       if (doorKind) state.furniture.push({ x: entry.x, y: entry.y, kind: doorKind });
       const zone: QuestZone = { kind, door, room, entry, open: false, sleepers: [] };
       const sleeper = (p: Point, asleep: boolean) => {
@@ -5503,16 +5516,61 @@ export class Game {
         if (FURNITURE_KINDS[kind]?.blocks) map.set(p.x, p.y, Tile.Furniture);
       };
       if (kind === "traitres") {
-        // Contre le mur du fond : trois paillasses, un Kobold endormi sur chacune ; une bougie, une dalle à pression.
-        for (const a of W >= 7 ? [1, 3, 5] : [0, 2, 4]) {
-          put(at(a, D - 1), "pallet");
-          sleeper(at(a, D - 1), true);
-        }
+        // Le dortoir des traîtres (Thomas, 2026-11-14 : « les mêmes lits que le dortoir normal, et le tapis aussi ») :
+        // des lits superposés au fond, un tapis usé, trois Kobolds endormis au pied des lits ; une bougie, une dalle.
         zone.candle = at(W - 1, D >= 4 ? 1 : 0);
         zone.candleLit = true;
         put(zone.candle, "candle");
         zone.plate = at(half, D >= 4 ? 1 : 0);
         put(zone.plate, "pressurePlate");
+        const inZone = (p: Point) => p.x >= room.x && p.y >= room.y && p.x < room.x + room.w && p.y < room.y + room.h;
+        const same = (p: Point, q: Point) => p.x === q.x && p.y === q.y;
+        const doorway = at(half, 0);
+        const taken = (p: Point) =>
+          same(p, zone.candle!) || same(p, zone.plate!) || same(p, doorway) || map.get(p.x, p.y) !== Tile.Floor;
+        // Les lits (2 cases en largeur, comme au dortoir) : contre le mur du fond si la zone est en haut ou en bas ;
+        // sur une zone de côté, tout au fond, une rangée sur deux.
+        const beds: Point[] = [];
+        const tryBed = (p: Point) => {
+          const cells = [p, { x: p.x + 1, y: p.y }];
+          if (!cells.every((c) => inZone(c) && !taken(c))) return;
+          put(p, beds.length % 2 === 0 ? "bunkA" : "bunkB");
+          beds.push(p);
+        };
+        if (dir.y !== 0) {
+          for (let a = W >= 7 ? 1 : 0; a + 1 < W && beds.length < 3; a += W >= 7 ? 2 : 3) {
+            const p = at(a, D - 1);
+            const q = at(a + 1, D - 1);
+            tryBed({ x: Math.min(p.x, q.x), y: p.y });
+          }
+        } else {
+          const backX = dir.x > 0 ? room.x + room.w - 2 : room.x;
+          for (let y = room.y; y < room.y + room.h && beds.length < 3; y += 2) tryBed({ x: backX, y });
+        }
+        // Les dormeurs : au pied de chaque lit (côté salle), sinon sur une case libre de la zone.
+        const free = (p: Point) => inZone(p) && !taken(p) && !this.actorAt(p.x, p.y);
+        const spots: Point[] = [];
+        for (const b of beds) {
+          // Devant le lit (la rangée du dessous) ; un lit contre le mur du bas cacherait qui dort juste au-dessus : deux rangées plus haut.
+          const front = [{ x: b.x, y: b.y + 1 }, { x: b.x + 1, y: b.y + 1 }, { x: b.x, y: b.y - 2 }, { x: b.x + 1, y: b.y - 2 }];
+          const f = front.find(free);
+          if (f) spots.push(f);
+        }
+        for (let d = D - 1; d >= 0 && spots.length < 3; d--)
+          for (let a2 = 0; a2 < W && spots.length < 3; a2++) {
+            const p = at(a2, d);
+            if (free(p) && !spots.some((q) => same(p, q))) spots.push(p);
+          }
+        for (const p of spots.slice(0, 3)) sleeper(p, true);
+        // Le tapis usé (3 × 2, à plat), devant les lits.
+        for (let y = room.y; y < room.y + room.h - 1 && !state.furniture.some((f) => f.kind.startsWith("rug") && inZone(f)); y++)
+          for (let x = room.x; x < room.x + room.w - 2; x++) {
+            const cells: Point[] = [];
+            for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 3; dx++) cells.push({ x: x + dx, y: y + dy });
+            if (cells.some((c) => map.get(c.x, c.y) !== Tile.Floor || same(c, zone.plate!))) continue;
+            state.furniture.push({ x, y, kind: this.rng.chance(0.5) ? "rug" : "rugB" });
+            break;
+          }
       } else if (kind === "cellier") {
         // Le cellier de Gluck : cageots de pommes dans les coins, deux Kobolds qui dorment sur SES pommes, une bougie.
         put(at(0, D - 1), "crate");
@@ -5589,8 +5647,8 @@ export class Game {
     z.open = true;
     this.map.set(z.entry.x, z.entry.y, Tile.Floor);
     const f = this.current.furniture.find((o) => o.x === z.entry.x && o.y === z.entry.y && /^(tapestry|barrelWall|hayWall|curtain)/.test(o.kind));
-    if (f && f.kind === "curtain") f.kind = "curtainOpen";
-    else if (f && f.kind.startsWith("tapestry")) f.kind = f.kind === "tapestry" ? "tapestryCut" : "tapestryLowCut";
+    if (f && f.kind.startsWith("curtain")) f.kind = `${f.kind}Open`;
+    else if (f && f.kind.startsWith("tapestry")) f.kind = `${f.kind}Cut`;
     else if (f) {
       // Le tonneau (la botte) glisse de côté, dans la salle, sur une case libre ; sinon il roule dans la zone.
       const inRoom = { x: z.entry.x * 2 - (z.room.x + Math.floor(z.room.w / 2)), y: z.entry.y * 2 - (z.room.y + Math.floor(z.room.h / 2)) };

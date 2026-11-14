@@ -4172,7 +4172,9 @@ test("quêtes v3, Krik : le dortoir des traîtres derrière la tapisserie ; une 
   assert.equal(z.sleepers.length, 3);
   const sleepers = game.monsters.filter((m) => z.sleepers.includes(m.id));
   assert.ok(sleepers.length === 3 && sleepers.every((m) => m.asleep), "trois Kobolds endormis");
-  assert.ok(game.furnitureList().filter((f) => f.kind === "pallet").length === 3, "trois paillasses");
+  // Les mêmes lits que le dortoir, et le tapis (Thomas, 2026-11-14).
+  assert.ok(game.furnitureList().filter((f) => f.kind.startsWith("bunk")).length >= 1, "des lits superposés");
+  assert.ok(game.furnitureList().some((f) => f.kind.startsWith("rug")), "un tapis");
   assert.ok(game.light[game.map.index(z.room.x + 1, z.room.y + 1)] > 0 || game.light.some((l, i) => l > 0 && game.map.tiles[i] === Tile.Floor), "la bougie éclaire");
   (game as unknown as { cutTapestry(): void }).cutTapestry();
   (game as unknown as { blowCandle(): void }).blowCandle();

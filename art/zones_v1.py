@@ -49,6 +49,40 @@ def tapestry(cut=False):
     return s.done()
 
 
+VEL = ((110, 50, 130, 255), (72, 30, 88, 255), (150, 80, 170, 255), (226, 178, 64, 255))
+
+
+def tapestry_edge(side, cut=False, vel=None):
+    """Tapisserie (ou rideau, `vel`) vue par la tranche, sur un mur du bas ou de côté (Thomas, 2026-11-14 : « oriente
+    correctement la tapisserie en fonction du côté ») : la tringle longe le bord du mur qui donne sur la salle, et l'on
+    voit le haut du tissu. `side` : "low" (mur du bas), "L" (mur de gauche : bord droit), "R" (mur de droite : bord gauche)."""
+    s = Sprite(14, 17)
+    main, dark, light, trim = (vel or ("tap", "tap_d", "tap_l", "gold"))
+    if side == "low":
+        s.r(0, 1, 14, 1, "gold").r(0, 2, 14, 1, "rod")
+        if not cut:
+            s.r(1, 3, 12, 2, main)
+            for x in range(1, 13, 3):
+                s.p(x, 3, light).p(x + 1, 4, dark)
+            s.r(1, 5, 12, 1, dark)
+        else:
+            s.r(1, 3, 3, 2, main).r(10, 3, 3, 1, main).p(2, 5, dark)
+    else:
+        x0 = 12 if side == "L" else 1
+        rx = 13 if side == "L" else 0
+        s.r(rx, 0, 1, 17, "gold")
+        s.r(x0, 0, 1, 17, "rod")
+        fx = x0 - 2 if side == "L" else x0 + 1
+        if not cut:
+            s.r(fx, 1, 2, 15, main)
+            for y in range(1, 16, 3):
+                s.p(fx, y, light).p(fx + 1, y + 1, dark)
+            s.r(fx, 15, 2, 1, trim)
+        else:
+            s.r(fx, 1, 2, 4, main).r(fx, 12, 2, 3, main).p(fx, 5, dark)
+    return s.done()
+
+
 def curtain(opened=False):
     """Le rideau du tripot de Fifrelin (dans le mur) : velours violet sur une tringle ; ouvert, tiré sur les côtés."""
     s = Sprite(14, 17)
@@ -176,22 +210,30 @@ SPRITES = {
     "grate": grate, "grateGlint": lambda: grate(True),
     "scarecrowHat": scarecrow_helmet,
     "curtain": curtain, "curtainOpen": lambda: curtain(True),
+    "tapestryLow": lambda: tapestry_edge("low"), "tapestryLowCut": lambda: tapestry_edge("low", True),
+    "tapestrySideL": lambda: tapestry_edge("L"), "tapestrySideLCut": lambda: tapestry_edge("L", True),
+    "tapestrySideR": lambda: tapestry_edge("R"), "tapestrySideRCut": lambda: tapestry_edge("R", True),
+    "curtainLow": lambda: tapestry_edge("low", vel=VEL), "curtainLowOpen": lambda: tapestry_edge("low", True, VEL),
+    "curtainSideL": lambda: tapestry_edge("L", vel=VEL), "curtainSideLOpen": lambda: tapestry_edge("L", True, VEL),
+    "curtainSideR": lambda: tapestry_edge("R", vel=VEL), "curtainSideROpen": lambda: tapestry_edge("R", True, VEL),
 }
 
 
 def main():
     names = list(SPRITES)
-    W = 40 + len(names) * 130
-    sheet = Image.new("RGB", (W, 260), (26, 20, 14))
+    W = 40 + min(len(names), 12) * 130
+    rows_n = (len(names) + 11) // 12
+    sheet = Image.new("RGB", (W, 60 + rows_n * 200), (26, 20, 14))
     d = ImageDraw.Draw(sheet)
     d.text((W // 2, 22), "ZONES SPÉCIALES v1 — objets des quêtes v3 (en jeu, à valider)", fill=(255, 243, 200), font=font(14), anchor="mm")
     for i, n in enumerate(names):
         im = up(SPRITES[n]().img(), 6)
-        x = 20 + i * 130
+        x = 20 + (i % 12) * 130
+        yy = 50 + (i // 12) * 200
         bg = Image.new("RGB", (120, 140), (70, 61, 82))
         bg.paste(im, ((120 - im.width) // 2, 130 - im.height), im)
-        sheet.paste(bg, (x, 50))
-        d.text((x, 200), n, fill=(220, 210, 190), font=font(12, False))
+        sheet.paste(bg, (x, yy))
+        d.text((x, yy + 150), n, fill=(220, 210, 190), font=font(12, False))
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "zones_v1.png")
     sheet.save(out)
     print("art/zones_v1.png", sheet.size)
@@ -200,8 +242,6 @@ def main():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "export":
         sprites = {n: f().img() for n, f in SPRITES.items()}
-        sprites["tapestryLow"] = sprites["tapestry"]
-        sprites["tapestryLowCut"] = sprites["tapestryCut"]
         os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
         write("src/render/sprites/zones.ts", "ZONES",
               "Zones spéciales de quête v1 (art/zones_v1.png) : tapisserie, paillasse, bougie, dalle à pression.", sprites)

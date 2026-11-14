@@ -26,5 +26,8 @@
  "grayscale(1) brightness(1.1)",
  "grayscale(1) brightness(1.15) contrast(0.9)",
  "sd d{0}{1}{2}",
- "slot slot-torch{0}{1}"
+ "slot slot-torch{0}{1}",
+ "Low",
+ "{0}Open",
+ "{0}Cut"
 ]

@@ -163,6 +163,8 @@ export const RULES = {
    * Thomas, 2026-11-14 : « améliore sa mobilité, et la vitesse d'agro ». Sur sa toile, 3 cases par tour (2 ailleurs).
    * Elle sent le héros sur une toile, ou à 5 cases ; une fois réveillée, elle le suit tant qu'il est à 8 cases et pas caché.
    */
+  /** Rayon de la lueur autour du PNJ qui a donné la quête en cours (Thomas, 2026-11-14). */
+  questNpcLight: 4,
   bossWebSteps: 3,
   bossGroundSteps: 2,
   bossSenseRange: 5,

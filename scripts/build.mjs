@@ -21,6 +21,8 @@ if (process.argv.includes("--tests")) {
     write: false,
     // Code compacté (audit du 2026-11-13) : 1 047 → 650 Ko de JavaScript, démarrage plus rapide.
     minify: true,
+    // `--debug` : garde les noms des fonctions (pour profiler avec scripts/perf.mjs --profile).
+    minifyIdentifiers: !process.argv.includes("--debug"),
     // Version publique (GitHub Pages, pour les copains) : sans la salle d'essai (Thomas, 2026-11-12).
     define: { __PUBLIC__: process.argv.includes("--public") ? "true" : "false" },
     logLevel: "warning",

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T12:01:27.565Z",
+ "commit": "cbea834",
+ "note": "référence (graine fixe) : après Fifrelin, arène, plumes du pré ; aucune régression mesurée contre ca056b7 (ce matin)",
+ "logic": {
+  "tickMs": 3.66,
+  "lightMs": 0.83,
+  "visionMs": 0.47
+ },
+ "scenes": {
+  "immobile": {
+   "n": 58,
+   "avg": 42.2,
+   "p95": 66.7,
+   "max": 133.3,
+   "fps": 24,
+   "js": 14
+  },
+  "marche": {
+   "n": 201,
+   "avg": 24.9,
+   "p95": 33.5,
+   "max": 83.2,
+   "fps": 40,
+   "js": 9
+  },
+  "retour": {
+   "n": 180,
+   "avg": 27.6,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 36,
+   "js": 13
+  },
+  "zoom": {
+   "n": 87,
+   "avg": 38.1,
+   "p95": 83.3,
+   "max": 116.6,
+   "fps": 26,
+   "js": 32
+  },
+  "combat": {
+   "n": 192,
+   "avg": 21.7,
+   "p95": 33.4,
+   "max": 200,
+   "fps": 46,
+   "js": 16
+  },
+  "donjon": {
+   "n": 165,
+   "avg": 30.3,
+   "p95": 50,
+   "max": 166.7,
+   "fps": 33,
+   "js": 13
+  }
+ },
+ "errors": []
+}

@@ -34,6 +34,7 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
     { item: "emeraude", minDepth: 6 }, { item: "diamant", minDepth: 11 }, { item: "sac_voyage", minDepth: 6 },
     { item: "oeil_chauve_souris" },
     { item: "outils_voleur", minDepth: 2 },
+    { item: "d20_enchante", minDepth: 2 },
     // Très rare : une fois sur cinq quand il sort, sinon un gros tas d'or.
     { item: "noeud_papillon", minDepth: 3, odds: 0.2 },
   ],

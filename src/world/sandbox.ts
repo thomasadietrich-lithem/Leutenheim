@@ -96,7 +96,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 26;
+export const SANDBOX_LAYOUT = 27;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -327,7 +327,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   zone(110, 27, 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["javeline", 3]], 2);
   zone(117, 27, 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
   zone(97, 31, 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
-  zone(106, 31, 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1]], 2);
+  zone(106, 31, 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);
   zone(115, 31, 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["torche", 2]], 2);
   // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
   zone(97, 34, 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1]]);

@@ -4834,3 +4834,16 @@ test("Fifrelin v2 (Thomas, 2026-11-14 : « paris sur un combat ») : le combat s
   assert.ok(champWins >= 15, `le champion gagne le plus souvent (${champWins} sur 30)`);
   assert.ok(wins > 0);
 }));
+
+test("d20 enchanté : un 1 naturel devient un 20 critique, une seule fois", () => {
+  // Un hasard truqué qui donne toujours 1.
+  const ones = Object.assign(Object.create(Rng.prototype), { int: (lo: number) => lo, next: () => 0, chance: () => false }) as Rng;
+  let charges = 1;
+  const lucky = () => (charges-- > 0);
+  const a = rollAttack(ones, { attackBonus: 0, damage: { count: 1, sides: 6, bonus: 0 } }, { armorClass: 30 }, "normal", 20, undefined, lucky);
+  assert.equal(a.d20, 20);
+  assert.ok(a.hit && a.critical && a.enchanted);
+  const b = rollAttack(ones, { attackBonus: 0, damage: { count: 1, sides: 6, bonus: 0 } }, { armorClass: 30 }, "normal", 20, undefined, lucky);
+  assert.equal(b.d20, 1);
+  assert.ok(!b.hit && !b.enchanted);
+});

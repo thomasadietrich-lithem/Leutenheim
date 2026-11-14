@@ -10,6 +10,38 @@ const PAL: Record<string, string> = {
 type Rect = (x: number, y: number, w: number, h: number, c: string) => void;
 
 const ICONS: Record<string, (r: Rect) => void> = {
+  intouchable(r) {
+    // Un écu intact, sans une rayure, et une étincelle.
+    r(3, 2, 10, 7, "S"); r(4, 9, 8, 2, "S"); r(5, 11, 6, 2, "s"); r(6, 13, 4, 1, "s"); r(7, 14, 2, 1, "s");
+    r(4, 3, 2, 6, "W"); r(3, 2, 10, 1, "W"); r(11, 3, 1, 7, "s");
+    r(12, 0, 1, 3, "Y"); r(11, 1, 3, 1, "Y");
+  },
+  ombre(r) {
+    // Une silhouette encapuchonnée aux yeux jaunes, une dague.
+    r(5, 1, 6, 2, "D"); r(4, 3, 8, 9, "D"); r(3, 12, 10, 3, "D"); r(5, 4, 6, 4, "K"); r(6, 6, 1, 1, "Y"); r(9, 6, 1, 1, "Y");
+    r(13, 5, 1, 6, "S"); r(12, 10, 3, 1, "y"); r(13, 11, 1, 2, "b");
+  },
+  pyromane(r) {
+    r(6, 1, 2, 2, "Y"); r(9, 2, 1, 2, "O"); r(5, 3, 5, 3, "O"); r(3, 5, 1, 2, "O"); r(4, 6, 8, 5, "O"); r(5, 11, 6, 2, "R"); r(6, 13, 4, 1, "r");
+    r(6, 7, 4, 4, "Y"); r(7, 9, 2, 2, "W");
+  },
+  alchimiste(r) {
+    // Une fiole lancée, sa trajectoire en pointillés.
+    r(6, 0, 2, 1, "B"); r(6, 1, 2, 3, "S"); r(3, 4, 8, 1, "S"); r(2, 5, 10, 7, "S"); r(3, 12, 8, 1, "S");
+    r(3, 6, 8, 5, "P"); r(3, 11, 8, 1, "p"); r(4, 7, 1, 1, "W"); r(8, 9, 1, 1, "W"); r(3, 6, 8, 1, "W");
+    r(13, 3, 1, 1, "Y"); r(14, 6, 1, 1, "Y"); r(14, 9, 1, 1, "Y");
+  },
+  radin(r) {
+    // Une pile de pièces d'or.
+    r(5, 2, 6, 2, "y"); r(4, 4, 8, 2, "Y"); r(4, 6, 8, 2, "y"); r(3, 8, 10, 2, "Y"); r(3, 10, 10, 2, "y"); r(2, 12, 12, 2, "Y");
+    r(5, 2, 2, 1, "W"); r(4, 4, 2, 1, "W"); r(3, 8, 2, 1, "W"); r(2, 12, 2, 1, "W");
+  },
+  pilleur(r) {
+    // Un coffre ouvert, plein d'or.
+    r(2, 3, 12, 3, "b"); r(3, 4, 10, 1, "B"); r(2, 6, 12, 1, "Y"); r(3, 5, 3, 1, "Y"); r(9, 5, 3, 1, "Y");
+    r(2, 7, 12, 7, "B"); r(2, 7, 12, 1, "b"); r(5, 7, 1, 7, "S"); r(10, 7, 1, 7, "S"); r(7, 9, 2, 2, "Y"); r(2, 13, 12, 1, "b");
+    r(7, 0, 2, 1, "Y"); r(13, 1, 1, 1, "Y");
+  },
   chasseur(r) {
     r(2, 13, 2, 1, "s");
     for (let i = 0; i < 9; i++) r(3 + i, 12 - i, 1, 1, "S");

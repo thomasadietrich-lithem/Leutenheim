@@ -21,6 +21,8 @@ export interface Actor {
   vision: number;
   /** Un monstre non alerté n'a pas remarqué le héros : il ne bouge pas et se fait attaquer avec avantage. */
   alerted: boolean;
+  /** Le dernier coup du héros l'a pris par surprise (succès « Ombre »). */
+  struckUnaware?: boolean;
   /** Monstre endormi : immobile, remarque mal le héros. Un monstre ni alerté ni endormi se promène. */
   asleep: boolean;
   /** Le héros vient de lui échapper en passant une porte : il ne se laisse plus surprendre tant qu'il ne l'a pas rattrapé. */

@@ -32,6 +32,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "course", name: "Course", group: "combat", what: "Atteindre la Tisseuse en peu de tours (une partie).", tiers: [1500, 1000, 600], kind: "low" },
   { id: "bousculeur", name: "Bousculeur", group: "combat", what: "Réussir des poussées.", tiers: [5, 25, 100], kind: "count" },
   { id: "fuyard", name: "Fuyard", group: "combat", what: "Se dégager d'un ennemi au contact (jet réussi).", tiers: [5, 20, 50], kind: "count" },
+  { id: "intouchable", name: "Intouchable", group: "combat", what: "Quitter un étage vers le bas sans avoir perdu de vie, après y avoir vaincu au moins un monstre.", tiers: [1, 3, 5], kind: "count" },
+  { id: "ombre", name: "Ombre", group: "combat", what: "Vaincre un monstre qui ne vous avait pas vu venir.", tiers: [10, 50, 200], kind: "count" },
+  { id: "pyromane", name: "Pyromane", group: "combat", what: "Vaincre des monstres en feu.", tiers: [5, 25, 100], kind: "count" },
+  { id: "alchimiste", name: "Alchimiste", group: "combat", what: "Lancer des potions.", tiers: [5, 25, 100], kind: "count" },
   { id: "gluck", name: "Gluck", group: "quetes", what: "Réussir les missions de Gluck (chacune compte une fois).", tiers: [1, 4, 7], kind: "count", npc: "gluck" },
   { id: "soeur", name: "Sœur Osseuse", group: "quetes", what: "Réussir les missions de Sœur Osseuse.", tiers: [1, 2, 4], kind: "count", npc: "soeur" },
   { id: "krik", name: "Krik", group: "quetes", what: "Réussir les missions de Krik.", tiers: [1, 4, 8], kind: "count", npc: "krik" },
@@ -40,6 +44,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "fouineur", name: "Fouineur", group: "exploration", what: "Trouver des salles secrètes.", tiers: [1, 5, 15], kind: "count" },
   { id: "portier", name: "Portier", group: "exploration", what: "Ouvrir des portes verrouillées : crochetées, enfoncées ou à la clef.", tiers: [3, 10, 30], kind: "count" },
   { id: "profondeur", name: "Plus bas", group: "exploration", what: "Descendre le plus bas possible (une partie).", tiers: [3, 5, 10], kind: "best" },
+  { id: "radin", name: "Radin", group: "exploration", what: "Gagner de l'or (ramassé, trouvé, vendu, gagné), toutes parties confondues.", tiers: [500, 2500, 10000], kind: "count" },
+  { id: "pilleur", name: "Pilleur", group: "exploration", what: "Ouvrir des coffres et des sarcophages.", tiers: [10, 50, 200], kind: "count" },
   { id: "poulet", name: "Côôt !", group: "exploration", what: "Effrayer des poulets.", tiers: [1, 5, 15], kind: "count" },
 ];
 

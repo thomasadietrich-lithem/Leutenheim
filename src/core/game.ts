@@ -46,6 +46,11 @@ export interface FloorPerks {
   doubleStrikes: number;
   lastStand: number;
   chainRefunds: number;
+  /** D20 enchanté déjà servi sur cet étage. */
+  luckyDie?: number;
+  /** Le héros a perdu de la vie sur cet étage ; monstres qu'il y a vaincus (succès « Intouchable »). */
+  hurt?: number;
+  kills?: number;
 }
 
 /** Ce que Gluck sait du héros, le temps d'une partie (Thomas : pas de mémoire d'une partie à l'autre). */
@@ -2026,8 +2031,8 @@ export class Game {
     }
     game.floorPerks = {};
     for (const [d, pk] of Object.entries(saved.floorPerks ?? {})) {
-      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number };
-      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0 };
+      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number; luckyDie?: number; hurt?: number; kills?: number };
+      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0, luckyDie: old.luckyDie ?? 0, hurt: old.hurt ?? 0, kills: old.kills ?? 0 };
     }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
@@ -2574,6 +2579,7 @@ export class Game {
   private hurtHero(damage: number, cause = "ses blessures"): void {
     // Statue (potion de pierre) : rien ne la blesse.
     if (damage <= 0 || this.stoneTurns > 0) return;
+    this.perks().hurt = 1;
     const rampart = this.rank("dernier_rempart");
     if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < 1) {
       this.perks().lastStand++;
@@ -5034,6 +5040,19 @@ export class Game {
   }
 
   /** CHANCE : un 1 naturel du héros est relancé, tant qu'il en reste. */
+  /** D20 ENCHANTÉ (Thomas, 2026-11-14) : porté en artefact, un 1 naturel du héros devient un 20, une fois par étage. */
+  private useLuckyDie(): boolean {
+    if (this.equipment.artifact?.defId !== "d20_enchante" || (this.perks().luckyDie ?? 0) >= 1) return false;
+    this.perks().luckyDie = 1;
+    this.events.push({ type: "luckyDie" });
+    return true;
+  }
+
+  /** Le d20 enchanté peut-il encore servir sur cet étage ? (fiche de l'objet) */
+  luckyDieReady(): boolean {
+    return (this.perks().luckyDie ?? 0) < 1;
+  }
+
   private useLuck(): boolean {
     if (this.luck <= 0) return false;
     this.luck--;
@@ -7011,7 +7030,7 @@ export class Game {
     // Un coup de serviette dans la figure (le Kobold du bain) : le coup suivant a le désavantage.
     const blinded = this.towelBlind > 0;
     this.towelBlind = 0;
-    const result = rollAttack(this.rng, attacker, monster, advantaged && !blinded ? "advantage" : blinded && !advantaged ? "disadvantage" : "normal", critFrom, () => this.useLuck());
+    const result = rollAttack(this.rng, attacker, monster, advantaged && !blinded ? "advantage" : blinded && !advantaged ? "disadvantage" : "normal", critFrom, () => this.useLuck(), () => this.useLuckyDie());
     this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
     this.noteHeroAttack(result.hit);
     if (!extra) {
@@ -7019,6 +7038,7 @@ export class Game {
       const speed = this.weapon("melee")?.speed;
       this.actionCost = speed === "slow" ? RULES.slowAttackTurns : speed === "fast" ? RULES.fastAttackTurns : 1;
     }
+    monster.struckUnaware = !monster.alerted || monster.asleep;
     monster.alerted = true;
     monster.asleep = false;
     const intact = monster.hp >= monster.maxHp;
@@ -7130,7 +7150,8 @@ export class Game {
     }
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
-    this.events.push({ type: "death", actor: monster });
+    if (byHero) this.perks().kills = (this.perks().kills ?? 0) + 1;
+    this.events.push({ type: "death", actor: monster, fire: (monster.burning ?? 0) > 0 || undefined, unaware: (byHero && monster.struckUnaware) || undefined });
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
@@ -7220,9 +7241,10 @@ export class Game {
       // L'arc (ou la main qui lance) donne le jet ; la flèche (ou la javeline) donne les dégâts (Thomas, 2026-11-11).
       const attackBonus = profile.attackBonus + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
       const ammoDamage = (ITEMS[ammo] as ItemDef).damage ?? UNARMED.damage;
-      const result = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) }, grown: this.hero.grown }, victim, mode, 20, () => this.useLuck());
+      const result = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) }, grown: this.hero.grown }, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
       this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : undefined;
       this.noteHeroAttack(result.hit);
+      victim.struckUnaware = !victim.alerted || victim.asleep;
       victim.alerted = true;
       victim.asleep = false;
       victim.hp -= result.damage;
@@ -7963,8 +7985,10 @@ export class Game {
     const healed = 0;
     // Descendre sans être revenu voir le PNJ : la tâche est ratée (Thomas, 2026-11-12 : il reste sur l'étage).
     if (direction === "down" && this.quest && this.quest.depth === this.depth) this.failQuest();
+    const left = this.perks();
+    const unhurt = (direction === "down" && !left.hurt && (left.kills ?? 0) > 0) || undefined;
     this.enterFloor(target, direction);
-    this.events.push({ type: "stairs", direction, healed });
+    this.events.push({ type: "stairs", direction, healed, unhurt });
     if (direction === "down") this.settleKrik();
     return true;
   }

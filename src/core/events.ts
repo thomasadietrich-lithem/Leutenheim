@@ -28,11 +28,13 @@ export type GameEvent =
       javelin?: boolean;
     }
   | { type: "pickup"; item: ItemId; count: number }
-  | { type: "death"; actor: Actor }
+  /** `fire` : mort en brûlant ; `unaware` : tué par le héros sans l'avoir vu venir (succès). */
+  | { type: "death"; actor: Actor; fire?: boolean; unaware?: boolean }
   /** Coup de l'arme du héros qui tue net un monstre intact (Thomas : « sentir la différence »), ou qui l'assomme (arme lourde). */
   | { type: "heavyBlow"; actor: Actor; kind: "oneShot" | "stun" | "knockback"; fromX?: number; fromY?: number }
   | { type: "noticed"; actor: Actor }
-  | { type: "stairs"; direction: "down" | "up"; healed: number }
+  /** `unhurt` : l'étage quitté vers le bas sans avoir perdu de vie, avec au moins un monstre vaincu (succès). */
+  | { type: "stairs"; direction: "down" | "up"; healed: number; unhurt?: boolean }
   /** Le sac est plein : l'objet reste au sol. */
   | { type: "bagFull"; item?: ItemId; x?: number; y?: number; messy?: boolean }
   /** Un objet tombé sur un escalier rebondit sur la marche et retombe à côté. */
@@ -48,6 +50,8 @@ export type GameEvent =
   | { type: "statue"; x: number; y: number; look?: boolean; grille?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
   | { type: "luck" }
+  /** Le d20 enchanté (artefact) change un 1 naturel du héros en 20 : un coup critique, une fois par étage. */
+  | { type: "luckyDie" }
   /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */
   | { type: "npcRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */

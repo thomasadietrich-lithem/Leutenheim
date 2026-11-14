@@ -17,6 +17,8 @@ export interface AttackResult {
   damage: number;
   /** Les dés de dégâts lancés (pour le journal) : la formule et chaque face ; `rolled` = leur total avant les bonus ajoutés après. */
   damageRoll?: { dice: Dice; faces: number[]; rolled: number };
+  /** Le d20 enchanté a changé un 1 en 20. */
+  enchanted?: boolean;
 }
 
 /**
@@ -33,11 +35,18 @@ export function rollAttack(
   critFrom = 20,
   /** Chance (Sœur Osseuse) : appelé sur un 1 naturel ; s'il répond oui, le dé est relancé. */
   reroll?: () => boolean,
+  /** D20 enchanté (artefact) : appelé sur un 1 naturel ; s'il répond oui, le 1 devient un 20 (passe avant la Chance). */
+  lucky?: () => boolean,
 ): AttackResult {
   const rolls = [rng.int(1, 20)];
   if (mode !== "normal") rolls.push(rng.int(1, 20));
   let d20 = mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls);
-  if (d20 === 1 && reroll?.()) {
+  let enchanted = false;
+  if (d20 === 1 && lucky?.()) {
+    d20 = 20;
+    rolls[rolls.indexOf(1)] = 20;
+    enchanted = true;
+  } else if (d20 === 1 && reroll?.()) {
     d20 = rng.int(1, 20);
     rolls[rolls.indexOf(1)] = d20;
   }
@@ -55,6 +64,7 @@ export function rollAttack(
     critical,
     damage: 0,
   };
+  if (enchanted) result.enchanted = true;
   if (hit) {
     // Mêmes tirages que rollDice (même ordre), mais on garde chaque face pour le journal.
     const count = critical ? attacker.damage.count * 2 : attacker.damage.count;

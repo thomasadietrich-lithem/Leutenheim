@@ -645,6 +645,8 @@ function reveal(e: GameEvent): void {
       if (e.potion === "poison") renderer.addPuff(e.x, e.y, true);
       if (e.potion === "smoke") renderer.addPuff(e.x, e.y);
     }, THROW_LAND_MS);
+  } else if (e.type === "luckyDie") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, "D20 enchanté !", "#c8a0ff");
   } else if (e.type === "luck") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
   } else if (e.type === "statue") {

@@ -23,6 +23,8 @@ interface Profile {
 }
 
 let profile: Profile = load();
+/** La bourse au dernier tour regardé, pour compter l'or gagné (succès « Radin »). */
+let goldSeen: { game: Game | null; gold: number } = { game: null, gold: 0 };
 
 function load(): Profile {
   try {
@@ -98,6 +100,18 @@ export function goalText(def: AchievementDef, t: number): string {
       return `${n} fois dégagé d'un ennemi.`;
     case "portier":
       return `${n} portes verrouillées ouvertes.`;
+    case "intouchable":
+      return n === 1 ? "un étage quitté sans une égratignure." : `${n} étages quittés sans une égratignure.`;
+    case "ombre":
+      return `${n} monstres vaincus par surprise.`;
+    case "pyromane":
+      return `${n} monstres vaincus en feu.`;
+    case "alchimiste":
+      return `${n} potions lancées.`;
+    case "radin":
+      return `${n} pièces d'or gagnées.`;
+    case "pilleur":
+      return `${n} coffres et sarcophages ouverts.`;
     case "poulet":
       return n === 1 ? "un poulet effrayé." : `${n} poulets effrayés.`;
     default:
@@ -130,7 +144,12 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     if (u) out.push(u);
   };
   for (const e of events) {
-    if (e.type === "death" && e.actor.kind === "monster") add("chasseur", 1);
+    if (e.type === "death" && e.actor.kind === "monster") {
+      add("chasseur", 1);
+      if (e.unaware) add("ombre", 1);
+      if (e.fire) add("pyromane", 1);
+    } else if (e.type === "potionThrown") add("alchimiste", 1);
+    else if (e.type === "chest" || e.type === "maiden") add("pilleur", 1);
     else if (e.type === "attack" && e.attacker.kind === "hero" && e.result.hit && e.result.damage > 0) add("bourreau", e.result.damage);
     else if (e.type === "boss" && e.what === "dead") {
       const before = profile.tiers.tisseuse ?? -1;
@@ -138,6 +157,7 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
       if ((profile.tiers.tisseuse ?? -1) === before && before >= 0)
         out.push({ id: "tisseuse", tier: before, first: false, line: `${tr("Tisseuse")} (${tr(tierName(before))}) : ${tr(`la Tisseuse est vaincue… encore (${profile.values.tisseuse}e victoire).`)}` });
     } else if (e.type === "stairs" && e.direction === "down") {
+      if (e.unhurt) add("intouchable", 1);
       const deep = Math.max(profile.values.profondeur ?? 0, game.depth);
       const u = set("profondeur", deep);
       if (u) out.push(u);
@@ -161,7 +181,11 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
       if (f && (FIFRELIN_FEATS as readonly string[]).includes(f)) feat("fifrelin", f, out);
     }
   }
-  if (out.length > 0 || events.some((e) => e.type === "attack" || e.type === "death")) save();
+  // L'or gagné : ce que la bourse prend en plus depuis la dernière fois (les dépenses ne retirent rien).
+  const earned = goldSeen.game === game && game.gold > goldSeen.gold;
+  if (earned) add("radin", game.gold - goldSeen.gold);
+  goldSeen = { game, gold: game.gold };
+  if (earned || out.length > 0 || events.some((e) => e.type === "attack" || e.type === "death")) save();
   return out;
 }
 

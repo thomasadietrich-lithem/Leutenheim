@@ -11,6 +11,7 @@ import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { SOEUR, SOEUR_OPENING } from "../data/soeur";
 import { KRIK, KRIK_OPENING } from "../data/krik";
 import { GRUM, GRUM_OPENING } from "../data/grum";
+import { FIFRELIN, FIFRELIN_OPENING } from "../data/fifrelin";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
@@ -56,13 +57,15 @@ export interface GluckMemory {
   invested: number;
   /** Dernier cadeau du philosophe (pour ne pas redonner le même). */
   lastReward?: string;
+  /** Son concurrent chassé (rencontre 2) : la pomme à 3 pièces pour le reste de la partie. */
+  discount?: boolean;
 }
 
 /** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
-export type NpcId = "gluck" | "soeur" | "krik" | "grum";
-export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum"];
+export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
-const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik"];
+const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
 /** Ce que Krik sait du héros, le temps d'une partie. */
 export interface KrikMemory {
@@ -173,6 +176,7 @@ export class Game {
   soeurMemory: SoeurMemory = { met: 0 };
   krikMemory: KrikMemory = { met: 0 };
   grumMemory: { met: number } = { met: 0 };
+  fifrelinMemory: { met: number } = { met: 0 };
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -1737,6 +1741,8 @@ export class Game {
         grates: f.grates,
         goldHen: f.goldHen,
         grum: f.grum,
+        fifrelin: f.fifrelin,
+        courier: f.courier,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1769,6 +1775,7 @@ export class Game {
       soeur: this.soeurMemory,
       krik: this.krikMemory,
       grum: this.grumMemory,
+      fifrelin: this.fifrelinMemory,
       quest: this.quest,
       xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
@@ -1847,6 +1854,8 @@ export class Game {
         grates: f.grates,
         goldHen: f.goldHen,
         grum: f.grum,
+        fifrelin: f.fifrelin,
+        courier: f.courier,
       });
     }
     game.turn = saved.turn;
@@ -1889,6 +1898,7 @@ export class Game {
     game.soeurMemory = saved.soeur ?? { met: 0 };
     game.krikMemory = saved.krik ?? { met: 0 };
     game.grumMemory = saved.grum ?? { met: 0 };
+    game.fifrelinMemory = saved.fifrelin ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
@@ -2428,8 +2438,10 @@ export class Game {
   /** Pourquoi on ne peut pas lancer cette potion sur cette case (null : c'est possible). */
   throwRefusal(uid: number, x: number, y: number): "far" | "unseen" | "wall" | null {
     const def = this.inventory.get(uid) ? (ITEMS[this.inventory.get(uid)!.defId] as ItemDef) : undefined;
-    if (!def?.throwRange) return "far";
-    if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > def.throwRange) return "far";
+    // Toutes les potions se lancent (Thomas, 2026-11-14), à 5 cases au plus si rien n'est dit.
+    const range = def?.throwRange ?? (def?.potion ? 5 : 0);
+    if (!range) return "far";
+    if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > range) return "far";
     if (!this.isVisible(x, y)) return "unseen";
     if (!this.map.isWalkable(x, y)) return "wall";
     return null;
@@ -2469,6 +2481,23 @@ export class Game {
         this.events.push({ type: "stone", what: "petrified", actor: m });
       }
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: [{ x: order.x, y: order.y }] });
+      return;
+    }
+    if (potion === "youth" || potion === "haste" || potion === "urchin") {
+      // Les potions à boire, lancées (Thomas, 2026-11-14) : la fiole éclate, la flaque reste. La jouvence soigne ce qu'elle
+      // touche (un monstre aussi !), la vitesse l'énerve.
+      const m = this.monsterAt(order.x, order.y);
+      let note: "healed" | "angry" | undefined;
+      if (m && potion === "youth" && m.hp < m.maxHp) {
+        m.hp = m.maxHp;
+        note = "healed";
+      }
+      if (m) {
+        m.alerted = true;
+        m.asleep = false;
+        if (potion === "haste") note = "angry";
+      }
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells: [{ x: order.x, y: order.y }], note });
       return;
     }
     if (potion === "grow" || potion === "slip") {
@@ -3439,7 +3468,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -3541,6 +3570,9 @@ export class Game {
     const prone = success && !m.boss && (slam > 0 || this.rng.chance(RULES.pushProneChance + RULES.pushProneBonus * shove));
     if (prone) m.prone = 1;
     else if (success) m.stunned = 1;
+    // Rencontre 2 de Gluck : chaque poussée réussie sur son concurrent compte.
+    const rq = this.quest;
+    if (success && rq?.id === "gluck_rival" && rq.target === m.id && rq.got < rq.need) rq.got++;
     this.events.push({ type: "push", target: m, d20, bonus, total, success, moved, slam, prone });
     if (m.hp <= 0) {
       this.removeIfDead(m);
@@ -3560,6 +3592,20 @@ export class Game {
     if (this.searching > 0) return;
     const index = this.roomIndexAt(this.hero);
     if (index < 0) return;
+    // Fifrelin : fouiller sa salle démasque son complice, caché sous la caisse.
+    const fq = this.quest;
+    const fif = this.current.fifrelin;
+    if (fq?.id === "fifre_complice" && fq.got < fq.need && fif && !fif.gone && this.roomIndexAt(fif) === index) {
+      fq.got = fq.need;
+      const p = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: fif.x + dx, y: fif.y + dy })).find((c) => this.npcFree(this.current, c.x, c.y));
+      if (p) {
+        const k = this.newMonster(MONSTERS.schrat, p.x, p.y, false);
+        k.fromX = p.x;
+        k.fromY = p.y;
+        this.monsters.push(k);
+      }
+      this.events.push({ type: "zone", what: "complice", x: fif.x, y: fif.y });
+    }
     this.current.searched.add(index);
     const bonus = this.heroClass.searchBonus;
     const d20 = this.rng.int(1, 20);
@@ -3946,6 +3992,7 @@ export class Game {
       state.soeur = (at(spots.soeur) ?? this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0))) ?? undefined;
       state.krik = (at(spots.krik) ?? this.placeKrik(state, new Rng(this.runSeed ^ 0x6b1c))) ?? undefined;
       state.grum = (at(spots.grum) ?? this.placeGrum(state, new Rng(this.runSeed ^ 0x6a7))) ?? undefined;
+      state.fifrelin = (at(spots.fifrelin) ?? this.placeKrik(state, new Rng(this.runSeed ^ 0xf1f))) ?? undefined;
       if (!this.sandboxFloor()?.hollowStatue) this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
       return;
     }
@@ -3964,12 +4011,13 @@ export class Game {
       if (state.gluck) this.placeHollowStatue(state, rng);
     }
     else if (pick === "soeur") state.soeur = this.placeSoeur(state, rng) ?? undefined;
+    else if (pick === "fifrelin") state.fifrelin = this.placeKrik(state, rng) ?? undefined;
     else state.krik = this.placeKrik(state, rng) ?? undefined;
   }
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
   npcMax(id: NpcId): number {
-    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : KRIK.maxEncounters;
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -3979,7 +4027,7 @@ export class Game {
     const floor = state as unknown as Parameters<typeof placeBell>[0];
     // Ni sur un PNJ, ni sur un objet, un monstre, un motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.grum, state.merchant].some((p) => p && p.x === x && p.y === y) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.merchant].some((p) => p && p.x === x && p.y === y) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -4029,8 +4077,9 @@ export class Game {
     this.soeurMemory = { met: 0 };
     this.krikMemory = { met: 0 };
     this.grumMemory = { met: 0 };
+    this.fifrelinMemory = { met: 0 };
     this.quest = null;
-    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum]) {
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -4058,6 +4107,7 @@ export class Game {
       !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) &&
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
       !(state.grum && state.grum.x === x && state.grum.y === y) &&
+      !(state.fifrelin && state.fifrelin.x === x && state.fifrelin.y === y) &&
       !(state.chicken && !state.chicken.done && state.chicken.x === x && state.chicken.y === y)
     );
   }
@@ -4189,7 +4239,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : this.krikMemory;
+    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -4223,12 +4273,12 @@ export class Game {
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     if (this.questWith(id)) return this.questScene(id);
-    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : this.krikScene();
+    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
     if (this.questWith(id)) return this.questChoose(id, choice);
-    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : this.krikChoose(choice);
+    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -4301,6 +4351,7 @@ export class Game {
   }
 
   private gluckApplePrice(): number {
+    if (this.gluckMemory.discount) return 3;
     return this.gluckMemory.mood > 0 ? GLUCK.applePriceFriend : GLUCK.applePrice;
   }
 
@@ -4357,14 +4408,25 @@ export class Game {
           { id: "buy", label: `Acheter une pomme (${this.gluckApplePrice()} or)`, off: noGold(this.gluckApplePrice()) },
           ...(g.haggled ? [] : [{ id: "haggle", label: "Marchander", stat: "charisme" as const, dc: "medium" as const, off: noGold(this.gluckApplePrice()) }]),
           { id: "scare", label: "L'intimider", stat: "force", dc: "medium" },
+          ...(this.quest || mem.discount ? [] : [{ id: "rival", label: "« Et si je chassais ton concurrent ? »", stat: "charisme" as const, dc: "medium" as const }]),
           leave,
         ],
       };
     }
     if (stage === 3) {
-      return { lines, choices: [...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or`, off: noGold(n) })), { id: "decline", label: "Refuser poliment" }] };
+      return {
+        lines,
+        choices: [
+          ...GLUCK.invest.map((n) => ({ id: `invest${n}`, label: `Investir ${n} or`, off: noGold(n) })),
+          ...(this.quest ? [] : [{ id: "local", label: "« Il te faut un local ? Je m'en occupe. »" }]),
+          { id: "decline", label: "Refuser poliment" },
+        ],
+      };
     }
-    return { lines, choices: [{ id: "ask", label: "« Et pour moi, un petit quelque chose ? »" }, leave] };
+    return {
+      lines,
+      choices: [{ id: "ask", label: "« Et pour moi, un petit quelque chose ? »" }, ...(this.quest ? [] : [{ id: "listen", label: "« Que dois-je faire, maître ? »" }]), leave],
+    };
   }
 
   /** Le joueur choisit une réponse. Rien ne prend de tour ; un jet se fait au d20, contre une difficulté cachée. */
@@ -4505,6 +4567,49 @@ export class Game {
       case "decline":
         this.gluckDrops(1);
         return end(["« Tant pis. Tiens, une pomme. Pour la pub. »"]);
+      case "rival":
+        if (test()) {
+          const at = this.questSpot();
+          if (at && this.giveTask("gluck_rival")) {
+            const rival = this.newMonster(MONSTERS.schrat, at.x, at.y, false);
+            rival.fromX = at.x;
+            rival.fromY = at.y;
+            rival.patrol = this.rooms.find((r) => at.x >= r.x && at.x < r.x + r.w && at.y >= r.y && at.y < r.y + r.h);
+            this.monsters.push(rival);
+            this.quest!.target = rival.id;
+            return {
+              lines: ["« Un Kobold vend des pommes moins cher que moi, là-bas. Moins cher ! »", "« Pousse-le hors de sa salle. Trois fois. Ne le tue pas : c'est un collègue. »", "(Sa salle apparaît sur la carte.)"],
+              roll,
+              done: true,
+            };
+          }
+        }
+        return { lines: ["« Mon concurrent ? Je n'ai pas de concurrent. Je suis le meilleur. »"], roll, done: false };
+      case "local": {
+        // Rencontre 3 : il lui faut un local ; la salle la plus peuplée de l'étage (hors salle du héros).
+        let best = -1;
+        let most = 0;
+        this.rooms.forEach((r, i) => {
+          if (r === this.current.zone?.room) return;
+          const n = this.monsters.filter((m) => !m.boss && m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h).length;
+          if (n > most && this.roomIndexAt(this.hero) !== i) {
+            most = n;
+            best = i;
+          }
+        });
+        if (best >= 0 && this.giveTask("gluck_local")) {
+          this.quest!.target = best;
+          this.quest!.need = most;
+          this.revealRoomAt({ x: this.rooms[best].x, y: this.rooms[best].y });
+          return { lines: ["« Un local ! Celui-là, sur la carte. Il est un peu… habité. »", "« Videz-le, et j'y pose mon étal. Le premier bénéfice est pour vous. »", "(La salle apparaît sur la carte.)"], done: true };
+        }
+        return { lines: ["« Tous les locaux sont vides ? Alors je reste ici. »"], done: false };
+      }
+      case "listen":
+        if (this.giveTask("gluck_banc")) {
+          return { lines: ["« Va t'asseoir près d'un banc. N'importe lequel. Et réfléchis. Cinq tours. »", "« La vérité vient à ceux qui ne bougent pas. Et qui n'ont pas de monstre en vue. »"], done: true };
+        }
+        return { lines: ["« Le silence est une réponse. »"], done: false };
       case "ask": {
         const gifts = ["apple", "stairs", "sleep"].filter((r) => r !== mem.lastReward);
         const gift = gifts[this.rng.int(0, gifts.length - 1)];
@@ -5001,6 +5106,10 @@ export class Game {
         return end(["« Un objet magnifique ! » Pour une fois, c'est vrai.", `(${ITEMS[l.item].name}${l.count > 1 ? ` ×${l.count}` : ""}.)`]);
       }
       case "lie":
+        // Rencontres v3 : il lui faut un témoin, un Kobold vivant amené jusqu'à lui.
+        if (!this.quest && this.giveTask("krik_temoin")) {
+          return { lines: ["« Mentir pour toi ? Je ne peux pas ! … Mais je peux répéter ce qu'on me dit. »", "« Amène-moi un Kobold. Vivant. Ici. Pousse-le, attire-le. »"], done: true };
+        }
         for (const m of this.monsters) {
           if (m.boss) continue;
           m.alerted = false;
@@ -5009,6 +5118,9 @@ export class Game {
         this.lowerAlarm(KRIK.lieAlarm);
         return end(["Krik file voir ses anciens camarades. « L'aventurier ? Il est parti par là-bas. Très loin. Il a peur de vous. »", "« … Ils m'ont cru ! »", "(Les monstres perdent votre trace ; l'étage se calme.)"]);
       case "denounce":
+        if (!this.quest && this.giveTask("krik_denonce")) {
+          return { lines: ["« Me dénoncer ? … Pour ça, il faut qu'un de mes camarades vienne jusqu'ici. Sans te voir. »", "« Je te préviens : je vais le lui dire. C'est vrai. »"], done: true };
+        }
         mem.denounced = true;
         g.gold = (g.gold ?? 0) + this.rng.int(KRIK.bountyMin, KRIK.bountyMax);
         return end(["« HÉ ! IL EST LÀ ! » crie-t-on. Krik détale.", "Un Kobold vous jette une bourse : « La prime. Merci, l'humain. »", "(Krik s'en souviendra.)"]);
@@ -5028,6 +5140,13 @@ export class Game {
         }
         return end(["« Celui-là, je le garde. C'est le seul que je n'ai pas encore vendu. »"]);
       case "invest":
+        // Rencontres v3 : la mise part avec son coursier, à escorter jusqu'à l'escalier.
+        if (!this.quest && this.giveTask("krik_coursier")) {
+          pay(KRIK.investStake);
+          const p = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: g.x + dx, y: g.y + dy })).find((c) => this.npcFree(this.current, c.x, c.y));
+          if (p) this.current.courier = { ...p, fromX: p.x, fromY: p.y };
+          return { lines: ["« Mon coursier porte ta mise jusqu'à l'escalier. Il a peur de tout. »", "« Reste près de lui : il n'avance qu'avec toi. Et pas de monstre à côté de lui. »"], done: true };
+        }
         pay(KRIK.investStake);
         mem.invested = KRIK.investStake;
         mem.investDepth = this.depth;
@@ -5224,6 +5343,46 @@ export class Game {
       case "grum_poule":
         leaves("oeuf_or");
         break;
+      case "gluck_rival":
+        this.gluckMemory.discount = true;
+        break;
+      case "gluck_local":
+        g.gold = (g.gold ?? 0) + 25;
+        g.drops = (g.drops ?? 0) + 2;
+        break;
+      case "gluck_banc":
+        for (const t of this.current.traps) t.hidden = false;
+        for (const t of this.current.traps) this.map.touch(t.x, t.y);
+        this.grantLuck();
+        break;
+      case "krik_temoin":
+        for (const m of this.monsters) {
+          if (m.boss) continue;
+          m.alerted = false;
+          m.wary = false;
+        }
+        this.lowerAlarm(KRIK.lieAlarm);
+        break;
+      case "krik_denonce":
+        this.krikMemory.denounced = true;
+        g.gold = (g.gold ?? 0) + this.rng.int(KRIK.bountyMin, KRIK.bountyMax);
+        break;
+      case "krik_coursier":
+        this.krikMemory.invested = KRIK.investStake * 2;
+        this.krikMemory.investDepth = this.depth;
+        break;
+      case "fifre_complice":
+        g.gold = (g.gold ?? 0) + FIFRELIN.complicePrize;
+        break;
+      case "fifre_gobelet": {
+        g.gold = (g.gold ?? 0) + FIFRELIN.gobeletPrize;
+        const l = this.floorLoot();
+        leaves(l.item, l.count);
+        break;
+      }
+      case "fifre_gardes":
+        g.gold = (g.gold ?? 0) + FIFRELIN.gardesPrize;
+        break;
       case "grum_foin":
         leaves("fourche");
         break;
@@ -5275,7 +5434,7 @@ export class Game {
     const inRoom = (p: Point) => this.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
     // Tailles essayées : large d'abord (W cases de large, D de profondeur depuis l'entrée).
     const sizes: [number, number][] =
-      kind === "traitres" || kind === "cellier" || kind === "grange" ? [[7, 4], [5, 3]] : kind === "sacristie" ? [[5, 3], [3, 3]] : [[3, 2]];
+      kind === "traitres" || kind === "cellier" || kind === "grange" ? [[7, 4], [5, 3]] : kind === "sacristie" || kind === "tripot" ? [[5, 3], [3, 3]] : [[3, 2]];
     const door: QuestZone["door"] = kind === "cellier" ? "barrel" : kind === "grange" ? "hay" : kind === "sacristie" ? "wall" : "tapestry";
     for (const [W, D] of sizes) {
       const half = Math.floor(W / 2);
@@ -5326,7 +5485,8 @@ export class Game {
         }
       map.touch(entry.x, entry.y);
       state.rooms.push(room);
-      const doorKind = door === "tapestry" ? (dir.y > 0 ? "tapestryLow" : "tapestry") : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
+      const doorKind =
+        kind === "tripot" ? "curtain" : door === "tapestry" ? (dir.y > 0 ? "tapestryLow" : "tapestry") : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
       if (doorKind) state.furniture.push({ x: entry.x, y: entry.y, kind: doorKind });
       const zone: QuestZone = { kind, door, room, entry, open: false, sleepers: [] };
       const sleeper = (p: Point, asleep: boolean) => {
@@ -5371,6 +5531,14 @@ export class Game {
         zone.candle = at(0, D - 1);
         zone.candleLit = true;
         put(zone.candle, "ciergeLit");
+      } else if (kind === "tripot") {
+        // Le tripot de Fifrelin, derrière un rideau : la caisse (un coffre), le gobelet truqué sur une table.
+        const c = at(half, D - 1);
+        map.set(c.x, c.y, Tile.Chest);
+        zone.loot = at(0, D - 1);
+        zone.candle = at(W - 1, D - 1);
+        zone.candleLit = true;
+        put(zone.candle, "candle");
       } else if (kind === "grange") {
         // La grange de Grum : des bottes de foin, deux voleurs de foin bien éveillés.
         put(at(0, D - 1), "hayBale");
@@ -5420,8 +5588,9 @@ export class Game {
     if (!z || z.open) return;
     z.open = true;
     this.map.set(z.entry.x, z.entry.y, Tile.Floor);
-    const f = this.current.furniture.find((o) => o.x === z.entry.x && o.y === z.entry.y && /^(tapestry|barrelWall|hayWall)/.test(o.kind));
-    if (f && f.kind.startsWith("tapestry")) f.kind = f.kind === "tapestry" ? "tapestryCut" : "tapestryLowCut";
+    const f = this.current.furniture.find((o) => o.x === z.entry.x && o.y === z.entry.y && /^(tapestry|barrelWall|hayWall|curtain)/.test(o.kind));
+    if (f && f.kind === "curtain") f.kind = "curtainOpen";
+    else if (f && f.kind.startsWith("tapestry")) f.kind = f.kind === "tapestry" ? "tapestryCut" : "tapestryLowCut";
     else if (f) {
       // Le tonneau (la botte) glisse de côté, dans la salle, sur une case libre ; sinon il roule dans la zone.
       const inRoom = { x: z.entry.x * 2 - (z.room.x + Math.floor(z.room.w / 2)), y: z.entry.y * 2 - (z.room.y + Math.floor(z.room.h / 2)) };
@@ -5668,6 +5837,47 @@ export class Game {
           }
         }
       }
+      // Rencontres 2 à 4.
+      if (q.id === "gluck_local" && q.target !== undefined) {
+        const r = this.rooms[q.target];
+        const left = r ? this.monsters.filter((m) => !m.boss && m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h).length : 0;
+        q.got = Math.max(q.got, q.need - left);
+      }
+      if (q.id === "gluck_banc" && q.got < q.need) {
+        const nearPew = this.current.furniture.some((f) => f.kind.startsWith("pew") && furnitureCells(f).some((c) => Math.max(Math.abs(c.x - this.hero.x), Math.abs(c.y - this.hero.y)) <= 1));
+        if (nearPew && this.visibleMonsters().length === 0 && this.hero.fromX === this.hero.x && this.hero.fromY === this.hero.y) q.got++;
+      }
+      if ((q.id === "krik_temoin" || q.id === "krik_denonce") && q.got < q.need) {
+        const k = this.current.krik;
+        const near = k && !k.gone && this.monsters.some((m) => isKobold(m) && !m.boss && Math.max(Math.abs(m.x - k.x), Math.abs(m.y - k.y)) <= 1);
+        if (near && (q.id === "krik_temoin" || this.hidden)) q.got = q.need;
+      }
+      if (q.id === "krik_coursier" && this.current.courier) {
+        const c = this.current.courier;
+        c.fromX = c.x;
+        c.fromY = c.y;
+        const threat = this.monsters.some((m) => !m.boss && Math.max(Math.abs(m.x - c.x), Math.abs(m.y - c.y)) <= 1 && !m.asleep);
+        if (threat) {
+          // Un monstre l'attrape : la mise est perdue.
+          this.current.courier = undefined;
+          this.events.push({ type: "zone", what: "courierLost", x: c.x, y: c.y });
+          this.events.push({ type: "quest", what: "lost", id: q.id });
+          this.quest = null;
+        } else if (Math.max(Math.abs(c.x - this.hero.x), Math.abs(c.y - this.hero.y)) <= 3 && !this.monsters.some((m) => !m.boss && !m.asleep && Math.max(Math.abs(m.x - c.x), Math.abs(m.y - c.y)) <= 3)) {
+          // Il n'avance qu'avec le héros à côté, et quand rien ne bouge près de lui.
+          const path = findPath(this.map, c, this.current.stairs);
+          const next = path?.[0];
+          if (next && !(next.x === this.hero.x && next.y === this.hero.y) && !this.actorAt(next.x, next.y)) {
+            c.x = next.x;
+            c.y = next.y;
+          }
+          if (c.x === this.current.stairs.x && c.y === this.current.stairs.y) {
+            this.current.courier = undefined;
+            q.got = q.need;
+            this.events.push({ type: "zone", what: "courier", x: c.x, y: c.y });
+          }
+        }
+      }
       if (q.id === "soeur_grille" && this.current.grates) {
         const gr = this.current.grates;
         const right = gr.cells[gr.right];
@@ -5714,6 +5924,108 @@ export class Game {
   /** Les grilles de Sœur Osseuse (cases, la bonne, indiquée ou non). */
   grates(): Readonly<NonNullable<FloorState["grates"]>> | null {
     return this.current.grates ?? null;
+  }
+
+  /** Le coursier de Krik (rencontre 3), s'il est sur l'étage. */
+  courier(): Readonly<NonNullable<FloorState["courier"]>> | null {
+    return this.current.courier ?? null;
+  }
+
+  // ---------- Quête 04 : Fifrelin, le Kobold aux gobelets (Thomas, 2026-11-14) ----------
+
+  fifrelin(): GluckSpot | null {
+    return this.npc("fifrelin");
+  }
+
+  fifrelinScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.fifrelin();
+    if (!g) return { lines: [], choices: [] };
+    g.opened = true;
+    const poor = this.gold < FIFRELIN.stake ? "Pas assez d'or" : undefined;
+    return {
+      lines: FIFRELIN_OPENING,
+      choices: [
+        { id: "play", label: `Jouer (${FIFRELIN.stake} or)`, off: poor },
+        ...(this.quest
+          ? []
+          : [
+              { id: "observe", label: "Observer le jeu des gobelets", stat: "agilite" as const, dc: "medium" as const },
+              { id: "analyze", label: "Analyser les règles", stat: "intelligence" as const, dc: "medium" as const },
+              { id: "flip", label: "Renverser la table", stat: "force" as const, dc: "easy" as const },
+            ]),
+        { id: "leave", label: "Partir" },
+      ],
+    };
+  }
+
+  fifrelinChoose(id: string): GluckResult {
+    const g = this.fifrelin();
+    if (!g || !this.canTalk("fifrelin")) return { lines: [], done: true };
+    const choice = this.fifrelinScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    let roll: GluckResult["roll"];
+    const test = (): boolean => (roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!])).success;
+    const guards = (n: number) => {
+      for (let i = 0; i < n; i++) {
+        const p = this.questSpot() ?? { x: g.x, y: g.y };
+        const k = this.newMonster(MONSTERS.schrat, p.x, p.y, false);
+        k.fromX = p.x;
+        k.fromY = p.y;
+        k.alerted = true;
+        this.monsters.push(k);
+      }
+    };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Revenez quand vous voulez perdre ! »"], done: true };
+      case "play":
+        this.gold -= FIFRELIN.stake;
+        if (this.rng.chance(FIFRELIN.winChance)) {
+          this.gold += FIFRELIN.stake * 3;
+          this.events.push({ type: "pickup", item: "or", count: FIFRELIN.stake * 3 });
+          return { lines: ["Vous montrez le gobelet de gauche. La bille est dessous !", "« … Impossible. » Il paie, la mâchoire serrée. (Trois fois la mise.)"], done: false };
+        }
+        return { lines: ["Vous montrez le gobelet du milieu. Vide.", "« Pas de chance ! Encore une ? »"], done: false };
+      case "observe": {
+        const ok = test();
+        if (this.giveTask("fifre_complice")) {
+          return {
+            lines: ok
+              ? ["Vous regardez ses mains… et la caisse. Elle a bougé toute seule.", "(Un complice se cache dans la salle : fouillez-la.)"]
+              : ["Ses mains vont trop vite. Mais il y a quelqu'un d'autre, ici. Vous en êtes sûr.", "(Fouillez la salle.)"],
+            roll,
+            done: true,
+          };
+        }
+        return { lines: ["Vous regardez. Vous ne voyez rien."], roll, done: false };
+      }
+      case "analyze":
+        if (test() && this.openZone("tripot", g) && this.giveTask("fifre_gobelet")) {
+          return {
+            lines: ["« Les règles ? Simples : la bille est sous un gobelet. » … Sauf que ce gobelet-là a un double fond.", "Le vrai, le truqué, il le range dans son tripot. Derrière le rideau.", "(Le rideau apparaît sur la carte.)"],
+            roll,
+            done: true,
+          };
+        }
+        return { lines: ["Les règles vous échappent. Elles changent à chaque partie, on dirait."], roll, done: false };
+      case "flip": {
+        const ok = test();
+        guards(2);
+        this.raiseAlarm(5, g);
+        if (this.giveTask("fifre_gardes")) {
+          return {
+            lines: ok
+              ? ["Vous renversez la caisse ! Les gobelets roulent. Aucun n'a de bille.", "« GARDES ! » Deux Kobolds accourent."]
+              : ["Vous renversez… presque la caisse. Elle était clouée.", "« GARDES ! » Deux Kobolds accourent."],
+            roll,
+            done: true,
+          };
+        }
+        return { lines: ["« GARDES ! »"], roll, done: true };
+      }
+      default:
+        return { lines: [], done: false };
+    }
   }
 
   // ---------- Quête 05 : Grum, le Kobold fermier (quêtes v3) ----------
@@ -6486,6 +6798,10 @@ export class Game {
       if (gain > 0) this.gainXp(gain);
     }
     const q = this.quest;
+    if (q && q.id === "gluck_rival" && q.target === monster.id) {
+      this.events.push({ type: "quest", what: "lost", id: q.id });
+      this.quest = null;
+    }
     if (q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) {
       // Quêtes v3 : dans une zone, seuls ses Kobolds comptent (même tués par un autre, ou par un piège).
       if (QUEST_TASKS[q.id].zone) {

@@ -40,6 +40,8 @@ const GLUCK_BUBBLE_PALETTE: Record<string, string> = { K: "#1a1410", "#": "#f4ec
 export const KRIK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#9a86c8", a: "#5e4a8e", Y: "#7affa0", L: "#d8cce8", C: "#a0785a", c: "#6a4a32", M: "#8e9a54", m: "#b8c070" };
 /** La poule aux œufs d'or (quêtes v3) : le blanc du poulet devient or. */
 const GOLD_HEN_PALETTE: Record<string, string> = { ...POULET_PALETTE, W: "#f0c850", S: "#c89a14" };
+/** Fifrelin (quête 04) : écailles rouges, œil doré, gilet rouge. */
+export const FIFRELIN_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#d8664e", a: "#8e2e22", Y: "#ffd84a", L: "#f2c8a8", C: "#c84a3a", c: "#7a1e1a", M: "#e0c070", m: "#a07830" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
@@ -903,6 +905,37 @@ export class Renderer {
     const hero = game.hero;
     this.drawMonsterSprite(FERMIER.rows, cx, cy, hero.x < g.x, true, FERMIER.palette);
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("oeuf_or"), ICON_PALETTE);
+  }
+
+  /** Fifrelin (quête 04) : un Kobold rouge au chapeau haut de forme ; un gobelet dans sa bulle quand on approche. */
+  private drawFifrelin(game: Game, ox: number, oy: number): void {
+    const g = game.fifrelin();
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { ctx, tile } = this;
+    const cx = Math.round(ox + (g.x + 0.5) * tile);
+    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const hero = game.hero;
+    const frames = SCHRAT.idleDown;
+    this.drawMonsterSprite(frames[Math.floor(Math.abs(this.time) / 380) % frames.length], cx, cy, hero.x < g.x, false, FIFRELIN_PALETTE);
+    // Le chapeau haut de forme, cabossé.
+    const u = tile / 16;
+    ctx.fillStyle = "#18121e";
+    ctx.fillRect(Math.round(cx - 4 * u), Math.round(cy - 11 * u), Math.round(8 * u), Math.round(5 * u));
+    ctx.fillRect(Math.round(cx - 6 * u), Math.round(cy - 6 * u), Math.round(12 * u), Math.round(1.5 * u));
+    ctx.fillStyle = "#c84a3a";
+    ctx.fillRect(Math.round(cx - 4 * u), Math.round(cy - 7.5 * u), Math.round(8 * u), Math.round(1.2 * u));
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("gobelet"), ICON_PALETTE);
+  }
+
+  /** Le coursier de Krik : un tout petit Kobold pâle qui serre une bourse. */
+  private drawCourier(game: Game, ox: number, oy: number, progress: number): void {
+    const c = game.courier();
+    if (!c || !game.isVisible(c.x, c.y)) return;
+    const { tile } = this;
+    const x = c.fromX + (c.x - c.fromX) * progress;
+    const y = c.fromY + (c.y - c.fromY) * progress;
+    const frames = c.x !== c.fromX || c.y !== c.fromY ? SCHRAT.walkDown : SCHRAT.idleDown;
+    this.drawMonsterSprite(frames[Math.floor(Math.abs(this.time) / 200) % frames.length], Math.round(ox + (x + 0.5) * tile), Math.round(oy + (y + 0.5) * tile), false, true, GLUCK_PALETTE, 0.75);
   }
 
   /** La poule aux œufs d'or de Grum : la poule du jeu, dorée, qui picore ; elle glisse d'une case quand elle se sauve. */
@@ -1772,6 +1805,8 @@ export class Renderer {
     this.drawSoeur(game, ox, oy);
     this.drawKrik(game, ox, oy);
     this.drawGrum(game, ox, oy);
+    this.drawFifrelin(game, ox, oy);
+    this.drawCourier(game, ox, oy, progress);
     this.drawGoldHen(game, ox, oy, progress);
     this.drawChicken(game, ox, oy, dt);
     this.drawHens(game, ox, oy, progress);

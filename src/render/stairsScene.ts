@@ -5,7 +5,7 @@ import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
  * Ce qui arrive dans l'escalier (Thomas, 2026-11-12) : la descente ordinaire, ou une scène rare : la dégringolade,
  * un Kobold croisé qui monte, la flûte, les lianes au-dessus des marches, la bassine qui glisse.
  */
-export type StairsVariant = "normal" | "tumble" | "kobold" | "flute" | "vines" | "basin";
+export type StairsVariant = "normal" | "tumble" | "kobold" | "flute" | "vines" | "basin" | "rain";
 
 /**
  * Le héros sans son équipement (Thomas, 2026-11-12 : « ça alourdit l'image ») : ni épée, ni carquois, ni sangle ;
@@ -302,7 +302,7 @@ export class StairsScene {
     }
 
     // Le noir tout autour, sauf le halo de la torche.
-    const radius = (this.variant === "flute" ? 32 : 42) + flicker;
+    const radius = (this.variant === "flute" ? 32 : this.variant === "rain" ? 46 : 42) + flicker;
     const halo = g.createRadialGradient(light.x, light.y, 2, light.x, light.y, radius);
     halo.addColorStop(0, "rgba(5,3,7,0)");
     halo.addColorStop(0.5, "rgba(5,3,7,0.2)");
@@ -319,6 +319,7 @@ export class StairsScene {
     g.globalCompositeOperation = "source-over";
     // La flamme par-dessus le noir.
     if (flame.x > -50) this.drawFlame(flame.x, flame.y + 3);
+    if (this.variant === "rain") this.drawRain(light);
     // Notes de musique dorées, qui montent en ondulant et luisent dans le noir.
     for (const n of this.notes) this.drawNote(n.x + n.age * 0.012 + Math.sin(n.age / 160) * 2, n.y - n.age * 0.02, 1 - n.age / 1400);
     // Le « ! » du Kobold surpris.
@@ -432,6 +433,12 @@ export class StairsScene {
     g.fillStyle = "rgba(0,0,0,0.45)";
     g.fillRect(x + 4, HERO_Y + 15, 8, 1);
     g.drawImage(this.spriteOf(frame), Math.round(x), Math.round(y));
+    if (this.variant === "rain") {
+      // Il pleut dans l'escalier (Thomas, 2026-11-14 : « il pleut, avec un parapluie ») : le parapluie rouge à la main,
+      // la lanterne… non : la torche, elle, est rangée. Une petite lueur suffit.
+      this.drawUmbrella(Math.round(x), Math.round(y));
+      return null;
+    }
     if (this.variant === "flute") {
       // La flûte, tenue à la bouche, pointée vers l'avant et un peu vers le bas.
       const fx = Math.round(x) + 11;
@@ -451,6 +458,70 @@ export class StairsScene {
     const ty = y + 9;
     this.drawTorch(tx, ty, -0.35 + Math.sin(this.time / 90) * 0.08);
     return { x: tx + 1, y: ty - 6 };
+  }
+
+  /** Le parapluie : un dôme rouge à baleines, la tige et la poignée en crosse tenues devant. */
+  private drawUmbrella(x: number, y: number): void {
+    const g = this.g;
+    const cx = x + 8;
+    const top = y - 9;
+    const sway = Math.round(Math.sin(this.time / 260));
+    // La tige, de la main au sommet du dôme.
+    g.fillStyle = "#3a2410";
+    g.fillRect(cx + sway, top + 1, 1, 18);
+    g.fillRect(cx + sway + 1, top + 18, 1, 1);
+    g.fillRect(cx + sway + 2, top + 17, 1, 1);
+    // Le dôme : rangées de plus en plus larges, contour sombre, baleines plus claires.
+    const rows = [3, 7, 11, 13, 15];
+    rows.forEach((w, i) => {
+      const left = cx + sway - Math.floor(w / 2);
+      g.fillStyle = "#18121e";
+      g.fillRect(left - 1, top + i, w + 2, 1);
+      g.fillStyle = i < 2 ? "#e0505a" : "#c0303c";
+      g.fillRect(left, top + i, w, 1);
+    });
+    g.fillStyle = "#18121e";
+    g.fillRect(cx + sway - 8, top + 5, 17, 1);
+    g.fillStyle = "#8e1f28";
+    for (const dx of [-7, -3, 1, 5]) g.fillRect(cx + sway + dx, top + 5, 2, 1);
+    g.fillStyle = "#ff9aa0";
+    g.fillRect(cx + sway - 1, top + 1, 1, 1);
+    g.fillRect(cx + sway, top - 1, 1, 1);
+  }
+
+  /** La pluie : des traits fins qui tombent en biais ; ils s'arrêtent sur le parapluie et rebondissent en gouttelettes. */
+  private drawRain(light: { x: number; y: number }): void {
+    const g = this.g;
+    const cx = HERO_X + 8;
+    const top = HERO_Y - 9;
+    for (let i = 0; i < 90; i++) {
+      const speed = 0.11 + (i % 5) * 0.012;
+      const x0 = (i * 53 + Math.floor(this.time * 0.03)) % (W + 30) - 15;
+      const y = ((i * 97 + this.time * speed) % (H + 20)) - 10;
+      const x = x0 - (y + 10) * 0.25;
+      // Sous le parapluie, pas de pluie.
+      if (Math.abs(x - cx) <= 8 && y > top - 1 && y < HERO_Y + 18) {
+        if (y < top + 4 && i % 3 === 0) {
+          g.fillStyle = "rgba(200,220,255,0.8)";
+          g.fillRect(Math.round(x) + (i % 2 ? 2 : -2), top - 2, 1, 1);
+        }
+        continue;
+      }
+      const d = Math.hypot(x - light.x, y - light.y);
+      const a = Math.max(0.12, 0.7 - d / 90);
+      g.fillStyle = `rgba(170,200,240,${a.toFixed(2)})`;
+      g.fillRect(Math.round(x), Math.round(y), 1, 3);
+      g.fillRect(Math.round(x) - 1, Math.round(y) + 3, 1, 1);
+    }
+    // Des ronds dans les flaques, sur les marches éclairées.
+    for (let i = 0; i < 6; i++) {
+      const age = (this.time + i * 170) % 900;
+      const sx = HERO_X - 20 + i * 11;
+      const sy = this.stairTopAt(sx) - 1;
+      const r = 1 + age / 300;
+      g.fillStyle = `rgba(170,200,240,${(0.5 * (1 - age / 900)).toFixed(2)})`;
+      g.fillRect(Math.round(sx - r), Math.round(sy), Math.round(r * 2), 1);
+    }
   }
 
   /** Le Kobold croisé : il monte en sautillant à la rencontre du héros, tourné vers lui, et file derrière lui. */

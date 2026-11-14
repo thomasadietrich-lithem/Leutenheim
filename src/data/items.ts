@@ -399,6 +399,7 @@ export const ITEMS = {
   marmite: { id: "marmite", name: "Marmite", kind: "quest", description: "Une marmite cabossée. Avec une louche dedans, ça sonne presque.", w: 1, h: 1, maxStack: 1 },
   louche: { id: "louche", name: "Louche", kind: "quest", description: "Une grande louche de fer. Le battant idéal.", w: 1, h: 1, maxStack: 1 },
   corde: { id: "corde", name: "Corde", kind: "quest", description: "Une corde de chanvre, un peu tachée. On ne demande pas de quoi.", w: 1, h: 1, maxStack: 1 },
+  gobelet: { id: "gobelet", name: "Gobelet truqué", kind: "quest", description: "Un gobelet de cuivre à double fond. La bille n'y est jamais. À rapporter à Fifrelin.", w: 1, h: 1, maxStack: 1 },
   poule_or: { id: "poule_or", name: "Poule aux œufs d'or", kind: "quest", description: "Cocotte, la poule de Grum. Elle pond de l'or, et elle panique.", w: 1, h: 1, maxStack: 1 },
   oeuf_or: { id: "oeuf_or", name: "Œuf d'or", kind: "gem", description: "Pondu par Cocotte. Lourd, froid, en or massif.", w: 1, h: 1, maxStack: 99, rarity: "rare", value: 60 },
   fourche: {

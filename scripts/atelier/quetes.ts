@@ -175,12 +175,12 @@ const SLIDES: Slide[] = [
     },
   },
   {
-    kicker: "Quête 04 — Monsieur Trèfle, le dernier client (brouillon)",
+    kicker: "Quête 04 — Fifrelin, le Kobold aux gobelets (EN JEU)",
     title: "Le tripot derrière le rideau",
     choices: [
       { pick: "Observer le jeu des gobelets", roll: "Agilité", goal: "Trouver qui triche : un Kobold complice se cache dans la salle (le repérer en fouillant).", win: "Le complice démasqué → on gagne la mise ×2." },
       { pick: "Analyser les règles", roll: "Intelligence", goal: "Récupérer le « vrai » gobelet : il est dans le coffre de son tripot, derrière un rideau.", win: "Le gobelet truqué en main, on peut le faire perdre à son propre jeu." },
-      { pick: "Renverser la table", roll: "Force", goal: "Les deux gardes accourent : tenir la porte du tripot (embrasure).", win: "La caisse du tripot (or) ; Monsieur Trèfle part, vexé." },
+      { pick: "Renverser la table", roll: "Force", goal: "Les deux gardes accourent : tenir la porte du tripot (embrasure).", win: "La caisse du tripot (or) ; Fifrelin part, vexé." },
     ],
   },
   {
@@ -229,7 +229,8 @@ const SLIDES: Slide[] = [
       "FAIT : les briques (tapisserie à trancher, tonneau creux et botte de foin à pousser, mur qui coulisse, bougie à souffler, cierges à rallumer, dalle à pression, grilles, paillasses) ; planche art/zones_v1.png.",
       "FAIT : la zone se taille dans la roche contre une salle quand la quête est donnée, près du PNJ ; son entrée apparaît sur la carte.",
       "FAIT : Krik (dortoir des traîtres : vider, dalle, tenir le passage, diversion), Gluck (cellier : sac, piste de pommes, vol en douce), Sœur Osseuse (cierges et sacristie, grilles, cloche de fortune ; punir reste), Grum (poule d'or, grange, chapeau de l'épouvantail).",
-      "RESTE : les rencontres 2 à 4 (missions courtes), Monsieur Trèfle (le tripot), apprendre ces missions aux joueurs automatiques.",
+      "FAIT : les rencontres 2 à 4 (missions courtes : rival, coursier, témoin…), Fifrelin et son tripot derrière le rideau.",
+      "RESTE : apprendre ces missions aux joueurs automatiques ; les rencontres 2 à 4 de Sœur Osseuse.",
     ],
   },
 ];

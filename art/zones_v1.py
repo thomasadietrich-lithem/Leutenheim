@@ -49,6 +49,22 @@ def tapestry(cut=False):
     return s.done()
 
 
+def curtain(opened=False):
+    """Le rideau du tripot de Fifrelin (dans le mur) : velours violet sur une tringle ; ouvert, tiré sur les côtés."""
+    s = Sprite(14, 17)
+    s.r(0, 0, 14, 2, "rod").r(0, 0, 14, 1, "gold")
+    vel, vel_d, vel_l = (110, 50, 130, 255), (72, 30, 88, 255), (150, 80, 170, 255)
+    if not opened:
+        s.r(1, 2, 12, 14, vel)
+        for x in (2, 5, 8, 11):
+            s.r(x, 2, 1, 14, vel_l if x % 2 else vel_d)
+        s.r(1, 15, 12, 1, vel_d)
+    else:
+        s.r(1, 2, 3, 13, vel).r(1, 2, 1, 13, vel_l).r(10, 2, 3, 13, vel).r(12, 2, 1, 13, vel_d)
+        s.r(1, 9, 3, 1, (226, 178, 64, 255)).r(10, 9, 3, 1, (226, 178, 64, 255))
+    return s.done()
+
+
 def pallet():
     s = Sprite(14, 9)
     s.r(0, 2, 14, 6, "straw").r(0, 2, 14, 1, "straw_l").r(0, 7, 14, 1, "straw_d")
@@ -159,6 +175,7 @@ SPRITES = {
     "cierge": cierge, "ciergeLit": lambda: cierge(True),
     "grate": grate, "grateGlint": lambda: grate(True),
     "scarecrowHat": scarecrow_helmet,
+    "curtain": curtain, "curtainOpen": lambda: curtain(True),
 }
 
 

@@ -82,6 +82,10 @@ export interface FloorState {
   goldHen?: { x: number; y: number; fromX: number; fromY: number };
   /** Grum, le Kobold fermier (quête 05), s'il est sur cet étage. */
   grum?: GluckSpot;
+  /** Fifrelin, le Kobold aux gobelets (quête 04), s'il est sur cet étage. */
+  fifrelin?: GluckSpot;
+  /** Le coursier de Krik (rencontre 3), à escorter jusqu'à l'escalier. */
+  courier?: { x: number; y: number; fromX: number; fromY: number };
 }
 
 /**
@@ -91,7 +95,7 @@ export interface FloorState {
  */
 export interface QuestZone {
   /** `traitres` : le dortoir des traîtres de Krik ; `placard` : la mauvaise tapisserie (un placard, une pomme). */
-  kind: "traitres" | "placard" | "cellier" | "sacristie" | "grange";
+  kind: "traitres" | "placard" | "cellier" | "sacristie" | "grange" | "tripot";
   /** Comment on entre : trancher la tapisserie, pousser le tonneau creux ou la botte de foin, ou le mur qui coulisse. */
   door: "tapestry" | "barrel" | "hay" | "wall";
   /** Où apparaît l'objet à rapporter (sac de Gluck), et une place pour un PNJ dans la zone. */

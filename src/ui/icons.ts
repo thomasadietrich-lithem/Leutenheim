@@ -1184,6 +1184,25 @@ const ICONS: Record<ItemId, string[]> = {
     "................",
     "................",
   ],
+  // Gobelet truqué de Fifrelin (quête 04) : un gobelet de cuivre renversé, la bille qui dépasse du double fond.
+  gobelet: [
+    "................",
+    "................",
+    ".....KKKKKK.....",
+    "....KTTTTTtK....",
+    "....KTOTTTtK....",
+    "...KTTOTTTTtK...",
+    "...KTTTTTTTtK...",
+    "...KTTTTTTTtK...",
+    "..KTTTTTTTTTtK..",
+    "..KtttttttttbK..",
+    "..KKKKKKKKKKKK..",
+    "..KbbbbKWWKbbK..",
+    "...KKKKKWWKKK...",
+    "........KK......",
+    "................",
+    "................",
+  ],
   // Sac de pommes de Gluck (tâche de quête) : le sac de toile, des pommes qui dépassent.
   sac_pommes: [
     "................",
@@ -1726,6 +1745,64 @@ export const BLOOD = {
       "................",
     ],
   },
+  // Flaque d'une potion brisée (Thomas, 2026-11-14 : « je ne vois pas le liquide répandu et les éclats de verre ») : une
+  // vraie flaque, un reflet, et des éclats de verre (blancs et bleu pâle) autour.
+  puddle: {
+    sol1: [
+      "................",
+      "...V......W.....",
+      "......4.........",
+      "....445554...V..",
+      "..4455566554....",
+      ".W45566666554...",
+      "..4556665556544.",
+      "..455566555554..",
+      "...45555555544W.",
+      "..V4455555444...",
+      "....4444444..4..",
+      ".......4........",
+      "...W.......V....",
+      "................",
+      "................",
+      "................",
+    ],
+    sol2: [
+      "................",
+      "......W.........",
+      "..V.............",
+      ".....4444.......",
+      "...44555544..W..",
+      "..4556665554....",
+      ".45566555555444.",
+      ".4555555555554..",
+      "W.45555555554...",
+      "...44555554..V..",
+      ".....44444......",
+      "..........4.....",
+      "....V...........",
+      "...........W....",
+      "................",
+      "................",
+    ],
+    mur: [
+      "................",
+      "................",
+      "....4....4......",
+      "...454..454.....",
+      "...4654.454..4..",
+      "....454..4...5..",
+      ".....5...4...4..",
+      ".....4.......4..",
+      ".....4..........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+    ],
+  },
   // Sang jaune des Kobolds et noir des araignées (Thomas, 2026-11-12) : les mêmes formes que le vert, autres couleurs.
   get yellow() {
     return memoColor("yellow", this.green, { "4": "m", "5": "N", "6": "y" });
@@ -1738,32 +1815,32 @@ export const BLOOD = {
     return memoColor("soot", this.green, { "4": "0", "5": "8", "6": "9" });
   },
   get pYouth() {
-    return memoColor("pYouth", this.green, { "4": "f", "5": "G", "6": "Y" });
+    return memoColor("pYouth", this.puddle, { "4": "f", "5": "G", "6": "Y" });
   },
   get pPoison() {
-    return memoColor("pPoison", this.green, { "4": "e", "5": "E", "6": "A" });
+    return memoColor("pPoison", this.puddle, { "4": "e", "5": "E", "6": "A" });
   },
   get pHaste() {
-    return memoColor("pHaste", this.green, { "4": "i", "5": "I", "6": "V" });
+    return memoColor("pHaste", this.puddle, { "4": "i", "5": "I", "6": "V" });
   },
   get pFire() {
-    return memoColor("pFire", this.green, { "4": "x", "5": "O", "6": "X" });
+    return memoColor("pFire", this.puddle, { "4": "x", "5": "O", "6": "X" });
   },
   // Chaque potion laisse une flaque de SA couleur (Thomas, 2026-11-13).
   get pUrchin() {
-    return memoColor("pUrchin", this.green, { "4": "b", "5": "B", "6": "T" });
+    return memoColor("pUrchin", this.puddle, { "4": "b", "5": "B", "6": "T" });
   },
   get pStone() {
-    return memoColor("pStone", this.green, { "4": "D", "5": "c", "6": "S" });
+    return memoColor("pStone", this.puddle, { "4": "D", "5": "c", "6": "S" });
   },
   get pDiscord() {
-    return memoColor("pDiscord", this.green, { "4": "q", "5": "M", "6": "L" });
+    return memoColor("pDiscord", this.puddle, { "4": "q", "5": "M", "6": "L" });
   },
   get pGrow() {
-    return memoColor("pGrow", this.green, { "4": "p", "5": "P", "6": "Q" });
+    return memoColor("pGrow", this.puddle, { "4": "p", "5": "P", "6": "Q" });
   },
   get pSlip() {
-    return memoColor("pSlip", this.green, { "4": "a", "5": "A", "6": "Z" });
+    return memoColor("pSlip", this.puddle, { "4": "a", "5": "A", "6": "Z" });
   },
 };
 

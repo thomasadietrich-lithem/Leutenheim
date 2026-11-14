@@ -1,4 +1,5 @@
 import { ItemId } from "../data/items";
+import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Rng } from "../core/rng";
 import {
   furnishAlchemist,
@@ -48,7 +49,7 @@ export interface SandboxFloor extends Floor {
   /** Le Colporteur (Thomas, 2026-11-12) : où il se tient et la salle où il flâne. */
   merchant: { x: number; y: number; home: Room };
   /** Places des PNJ de quête (la première libre est prise) ; sans place, la partie en choisit une. */
-  npcs?: { gluck?: Point[]; soeur?: Point[]; krik?: Point[]; grum?: Point[] };
+  npcs?: { gluck?: Point[]; soeur?: Point[]; krik?: Point[]; grum?: Point[]; fifrelin?: Point[] };
   /** Le poulet : la salle fermée (numéro), sa porte, et où il attend. */
   chicken?: { room: number; door: Point; at: Point };
   /** Le placard du Kobold qui compte : sa porte et la case derrière. */
@@ -91,7 +92,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 23;
+export const SANDBOX_LAYOUT = 25;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7 };
@@ -188,11 +189,12 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   ];
 
   // ---------- À gauche : les quêtes ----------
-  const [gluckRoom, soeurRoom, krikRoom, farmRoom] = chain(88, 45, -1, [
+  const [gluckRoom, soeurRoom, krikRoom, farmRoom, fifRoom] = chain(88, 45, -1, [
     { w: 11, h: 9, name: "Gluck, le Kobold aux pommes" },
     { w: 11, h: 9, name: "Sœur Osseuse" },
     { w: 11, h: 9, name: "Krik" },
     { w: 12, h: 9, name: "Ferme de Grum" },
+    { w: 11, h: 9, name: "Le jeu de Fifrelin" },
   ]);
   {
     const r = rooms[gluckRoom];
@@ -312,7 +314,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     ["epee", 1], ["dague", 1], ["baton", 1], ["masse", 1], ["epee_longue", 1],
     ["couteau_boucher", 1], ["lance", 1], ["cimeterre", 1], ["arc_court", 1], ["arc_puissant", 1], ["fourche", 1],
   ]);
-  zone(109, 23, 5, "Armures", "#8fa3b8", [["tunique", 1], ["armure_cuir", 1], ["armure_cloutee", 1], ["cotte_mailles", 1], ["harnois", 1]]);
+  zone(109, 23, 6, "Armures", "#8fa3b8", [["tunique", 1], ["robe", 1], ["armure_cuir", 1], ["armure_cloutee", 1], ["cotte_mailles", 1], ["harnois", 1]]);
   zone(116, 23, 5, "Casques", "#a77a52", [["casque_cuir", 1], ["casque_maille", 1], ["casque_poulet", 1]], 2);
   zone(97, 27, 11, "Potions", "#b05cc9", [
     ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
@@ -323,6 +325,36 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   zone(97, 31, 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(106, 31, 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1]], 2);
   zone(115, 31, 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["torche", 2]], 2);
+  // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
+  zone(97, 34, 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1]]);
+
+  // ---------- À droite de l'armurerie : le musée du mobilier et du décor ----------
+  // Tous les meubles et décors du jeu qui ne sont pas déjà dans une salle, rangés en rangées (Thomas, 2026-11-14).
+  line(123, 28, 126, 28);
+  const museum: Room = { x: 127, y: 8, w: 31, h: 29 };
+  addRoom(museum, "Mobilier et décor");
+  torches.push({ x: 131, y: 7, radius: 9, faceX: 0, faceY: 1 }, { x: 142, y: 7, radius: 9, faceX: 0, faceY: 1 }, { x: 153, y: 7, radius: 9, faceX: 0, faceY: 1 });
+  torches.push({ x: 131, y: 37, radius: 9, faceX: 0, faceY: -1 }, { x: 153, y: 37, radius: 9, faceX: 0, faceY: -1 });
+  const used = new Set(furniture.map((f) => f.kind));
+  // Pas les pièces d'assemblage (clôtures, rigoles, terre du pré), ni ce qui vit dans un mur ou ne sert qu'à une quête.
+  const skip = /^(loot|anchor|sealedStairs|heroV9|soil|fence|gutter|drain|bloodGutter|bloodDrain|tapestry|barrelWall|hayWall|vitrail|ashes)/;
+  const kinds = Object.keys(FURNITURE_KINDS).filter((k) => !used.has(k) && !skip.test(k) && !FURNITURE_KINDS[k].wall);
+  let cx = museum.x + 1;
+  let cy = museum.y + 2;
+  let rowH = 1;
+  for (const kind of kinds) {
+    const def = FURNITURE_KINDS[kind];
+    if (cx + def.w > museum.x + museum.w - 1) {
+      cx = museum.x + 1;
+      cy += rowH + 2;
+      rowH = 1;
+    }
+    if (cy + def.h > museum.y + museum.h - 1) break;
+    furniture.push({ x: cx, y: cy, kind });
+    if (def.blocks) for (let dy = 0; dy < def.h; dy++) for (let dx = 0; dx < def.w; dx++) map.set(cx + dx, cy + dy, Tile.Furniture);
+    rowH = Math.max(rowH, def.h);
+    cx += def.w + 1;
+  }
 
   // ---------- En bas à gauche : l'arène ----------
   line(92, 52, 92, 55);
@@ -370,6 +402,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     npcs: {
       gluck: [{ x: gluck.x + 5, y: gluck.y + 4 }, { x: gluck.x + 4, y: gluck.y + 4 }],
       krik: [{ x: krik.x + 5, y: krik.y + 4 }, { x: krik.x + 4, y: krik.y + 4 }],
+      fifrelin: [{ x: rooms[fifRoom].x + 5, y: rooms[fifRoom].y + 4 }, { x: rooms[fifRoom].x + 4, y: rooms[fifRoom].y + 4 }],
     },
     chicken: { room: lockedIndex, door: chickenDoor, at: { x: hall.x + 4, y: hall.y + 4 } },
     counter: { door: counterDoor, inside: counterInside },

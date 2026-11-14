@@ -252,6 +252,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       if (e.what === "henFlees") return "Côt côt ! La poule d'or détale. Approchez-la sans vous montrer.";
       if (e.what === "hat") return "Vous coiffez l'épouvantail de votre casque. Il a l'air ravi. Enfin, il a l'air.";
       if (e.what === "nohat") return "Il vous faut un casque dans le sac.";
+      if (e.what === "complice") return "Sous la caisse retournée, un Kobold ! Le complice de Fifrelin bondit sur vous.";
+      if (e.what === "courier") return "Le coursier file dans l'escalier avec votre mise. « À l'étage suivant ! »";
+      if (e.what === "courierLost") return "Un monstre attrape le coursier : il lâche tout et s'enfuit. Votre mise est perdue.";
       if (e.what === "thief") return "« AU VOLEUR ! » Gluck se réveille en sursaut, et tout le cellier avec lui.";
       return e.what === "tapestry"
         ? "Vous tranchez la tapisserie : derrière, un passage."
@@ -416,6 +419,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         "Traque ! L'étage sait où vous êtes.",
       ][e.stage] ?? null;
     case "potionThrown":
+      if (e.note === "healed") return "La fiole éclate : la jouvence éclabousse la créature… qui reprend toutes ses forces. Oups.";
+      if (e.note === "angry") return "La fiole éclate : la créature, aspergée de vitesse, s'agite dans tous les sens.";
+      if (e.potion === "youth" || e.potion === "haste" || e.potion === "urchin") return "La fiole éclate : la potion se répand sur les dalles, parmi les éclats de verre.";
       return e.potion === "poison" ? "La fiole éclate : un nuage vert empoisonné se répand." : null;
     case "shatter":
       return e.potion === "fire"

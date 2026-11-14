@@ -1147,18 +1147,20 @@ test("Gluck : « donne-moi une pomme d'abord » est grisé faute de pomme, puis 
 test("PNJ de quête dans le donjon : un au plus par étage (Gluck ou Sœur Osseuse), jamais à l'étage du boss", () => {
   let gluck = 0;
   let soeur = 0;
+  let any = 0;
   for (let seed = 1; seed <= 200; seed++) {
     const game = new Game(seed);
-    assert.ok(!(game.gluck() && game.soeur()), "jamais les deux sur le même étage");
-    for (const g of [game.gluck(), game.soeur()]) {
-      if (!g) continue;
-      assert.equal(game.map.get(g.x, g.y), Tile.Floor);
-      assert.ok(!game.monsters.some((m) => m.x === g.x && m.y === g.y));
+    const here = (["gluck", "soeur", "krik", "grum", "fifrelin"] as const).map((id) => game.npc(id)).filter((g) => g);
+    assert.ok(here.length <= 1, "jamais deux PNJ de quête sur le même étage");
+    for (const g of here) {
+      assert.equal(game.map.get(g!.x, g!.y), Tile.Floor);
+      assert.ok(!game.monsters.some((m) => m.x === g!.x && m.y === g!.y));
     }
     if (game.gluck()) gluck++;
     if (game.soeur()) soeur++;
+    if (here.length) any++;
   }
-  assert.ok(gluck + soeur > 40 && gluck + soeur < 110, `un PNJ à l'étage 1 dans ${gluck + soeur} parties sur 200`);
+  assert.ok(any > 40 && any < 110, `un PNJ à l'étage 1 dans ${any} parties sur 200`);
   assert.ok(gluck > 10 && soeur > 10, `Gluck ${gluck}, Sœur Osseuse ${soeur}`);
 });
 
@@ -2208,7 +2210,7 @@ test("salle d'essai v21 : HUB, six directions, tout accessible, écriteaux, armu
     // Chaque objet (hors objets de quête) est dans l'armurerie, dans une zone.
     const areas = game.areas();
     for (const id of Object.keys(ITEMS)) {
-      if (["sac_pommes", "magot_krik", "robe", "clef", "marmite", "louche", "corde", "poule_or"].includes(id)) continue;
+      if (["sac_pommes", "magot_krik", "robe", "clef", "marmite", "louche", "corde", "poule_or", "gobelet"].includes(id)) continue;
       assert.ok(game.ground.some((g) => g.item === id && areas.some((a) => g.x >= a.x && g.x < a.x + a.w && g.y >= a.y && g.y < a.y + a.h)), `${id} hors des zones`);
     }
     // Écriteaux : sur un mur, et un par salle nommée.
@@ -4347,7 +4349,9 @@ test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investiss
   assert.ok(s3.choices.some((c) => c.id === "invest" && !c.off));
   game.krikChoose("invest");
   assert.equal(game.gold, 80);
-  assert.equal(game.krikMemory.invested, 20);
+  // Rencontres v3 : la mise part avec le coursier, à escorter jusqu'à l'escalier.
+  assert.equal((game.quest as { id: string } | null)?.id, "krik_coursier");
+  assert.ok(game.courier(), "le coursier est là");
 });
 
 test("fiole de fumée : lancée, les monstres tout près perdent la trace du héros", () => {

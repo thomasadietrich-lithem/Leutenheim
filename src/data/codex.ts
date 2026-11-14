@@ -26,6 +26,7 @@ export const CODEX_PEOPLE: { id: string; name: string; color: string; descriptio
   { id: "soeur", name: "Sœur Osseuse", color: "#f4f7ff", description: "Une nonne squelette très digne, qui ignore qu'elle est morte. Les Kobolds lui ont volé sa cloche, celle qui réveillait Leutenheim. Elle bénit, ou maudit." },
   { id: "krik", name: "Krik", color: "#b48ce0", description: "Un Kobold qui ne peut plus mentir depuis une expérience ratée. Il a trahi ses camarades et vend leur butin." },
   { id: "grum", name: "Grum", color: "#f0d678", description: "Le Kobold fermier, chapeau de paille et salopette. Il garde sa ferme et ne parle qu'à ceux qui ne marchent pas dans son pré. Sa poule pond de l'or." },
+  { id: "fifrelin", name: "Fifrelin", color: "#c84a3a", description: "Un Kobold en gilet rouge et chapeau haut de forme cabossé. Il fait le jeu des trois gobelets sur une caisse, et il triche. Son tripot est caché derrière un rideau." },
   { id: "colporteur", name: "Le Colporteur", color: "#7a5aa0", description: "Un marchand voûté, un par section. Il achète et vend, et disparaît quand le donjon s'agite trop." },
   { id: "compteur", name: "Le Kobold qui compte", color: "#9cb63e", description: "Derrière une porte percée d'un trou, il répète son nombre. Ne regardez pas par le trou." },
   { id: "poulet", name: "Le poulet", color: "#f6f2e6", description: "Un poulet, seul, dans le donjon. Il ne faut pas lui parler : il panique, détale, et fonce droit dans la porte qu'aucune serrure ni aucun coup n'ouvre." },

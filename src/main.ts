@@ -16,7 +16,7 @@ import { RULES } from "./data/rules";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
-import { GLUCK_PALETTE, KRIK_PALETTE, Renderer } from "./render/renderer";
+import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, Renderer } from "./render/renderer";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
@@ -225,10 +225,33 @@ const PUBLIC_BUILD = typeof __PUBLIC__ !== "undefined" && __PUBLIC__;
 if (PUBLIC_BUILD) $("menu-sandbox").remove();
 
 const SAVE_KEYS = { donjon: "leutenheim.save", essai: "leutenheim.save.essai", last: "leutenheim.save.last" };
+/**
+ * PLUSIEURS PARTIES (Thomas, 2026-11-14 : « on ne devrait pas garder qu'une seule sauvegarde ») : trois emplacements pour
+ * le donjon (le premier garde l'ancienne clef), plus la salle d'essai. Une nouvelle partie prend le premier emplacement
+ * libre, sinon le plus ancien.
+ */
+const DUNGEON_SLOTS = [SAVE_KEYS.donjon, "leutenheim.save.2", "leutenheim.save.3"];
 let lastSaveAt = 0;
+/** L'emplacement de la partie en cours. */
+let currentSlot = SAVE_KEYS.donjon;
 
-function saveSlot(sandbox: boolean): string {
-  return sandbox ? SAVE_KEYS.essai : SAVE_KEYS.donjon;
+function savedAtOf(key: string): number {
+  try {
+    const text = localStorage.getItem(key);
+    if (!text) return -1;
+    const at = Date.parse((JSON.parse(text) as { savedAt?: string }).savedAt ?? "");
+    return isNaN(at) ? 0 : at;
+  } catch {
+    return 0;
+  }
+}
+
+/** L'emplacement d'une nouvelle partie : la salle d'essai a le sien ; le donjon, le premier libre ou le plus ancien. */
+function freshSlot(sandbox: boolean): string {
+  if (sandbox) return SAVE_KEYS.essai;
+  const free = DUNGEON_SLOTS.find((k) => savedAtOf(k) < 0);
+  if (free) return free;
+  return [...DUNGEON_SLOTS].sort((a, b) => savedAtOf(a) - savedAtOf(b))[0];
 }
 
 /** Écrit la partie en cours (au plus deux fois par seconde, sauf si on force). Sans effet si l'appareil refuse. */
@@ -240,16 +263,16 @@ function writeSave(force = false): void {
   try {
     const data = game.snapshot();
     data.savedAt = new Date().toISOString();
-    localStorage.setItem(saveSlot(game.sandbox), JSON.stringify(data));
-    localStorage.setItem(SAVE_KEYS.last, game.sandbox ? "essai" : "donjon");
+    localStorage.setItem(currentSlot, JSON.stringify(data));
+    localStorage.setItem(SAVE_KEYS.last, currentSlot);
   } catch {
     /* stockage plein ou interdit : on joue sans sauvegarde */
   }
 }
 
-function eraseSave(sandbox: boolean): void {
+function eraseSave(key: string): void {
   try {
-    localStorage.removeItem(saveSlot(sandbox));
+    localStorage.removeItem(key);
   } catch {
     /* sans gravité */
   }
@@ -259,8 +282,12 @@ function eraseSave(sandbox: boolean): void {
 function readSave(): Game | null {
   try {
     const last = localStorage.getItem(SAVE_KEYS.last);
-    const text = localStorage.getItem(last === "essai" && !PUBLIC_BUILD ? SAVE_KEYS.essai : SAVE_KEYS.donjon);
-    return text ? Game.restore(JSON.parse(text)) : null;
+    let key = last === "essai" ? SAVE_KEYS.essai : last === "donjon" || !last ? SAVE_KEYS.donjon : last;
+    if (PUBLIC_BUILD && key === SAVE_KEYS.essai) key = SAVE_KEYS.donjon;
+    const text = localStorage.getItem(key);
+    const saved = text ? Game.restore(JSON.parse(text)) : null;
+    if (saved) savedSlot = key;
+    return saved;
   } catch {
     return null;
   }
@@ -272,7 +299,11 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => writeSave(true));
 
+/** L'emplacement de la partie relue au lancement (reprise par « Reprendre »). */
+let savedSlot = SAVE_KEYS.donjon;
+
 function newRun(sandbox = false): void {
+  currentSlot = freshSlot(sandbox);
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
   setupRun(new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox), null);
   started = true;
@@ -1119,12 +1150,13 @@ function showDeath(): void {
 function renderSaves(): void {
   const list = $("saves-list");
   list.replaceChildren();
-  const slots = PUBLIC_BUILD ? [false] : [false, true];
+  const slots = PUBLIC_BUILD ? DUNGEON_SLOTS : [...DUNGEON_SLOTS, SAVE_KEYS.essai];
   let any = false;
-  for (const sandbox of slots) {
+  for (const key of slots) {
+    const sandbox = key === SAVE_KEYS.essai;
     let data: { race?: string; heroClass?: string; depth?: number; level?: number; savedAt?: string } | null = null;
     try {
-      const text = localStorage.getItem(saveSlot(sandbox));
+      const text = localStorage.getItem(key);
       data = text ? JSON.parse(text) : null;
     } catch {
       data = null;
@@ -1141,7 +1173,7 @@ function renderSaves(): void {
     const cls = CLASSES[data.heroClass as keyof typeof CLASSES]?.name ?? "";
     const text = el("div", "save-text");
     const title = el("div", "save-title");
-    title.textContent = `${tr(race)} ${tr(cls)}${sandbox ? ` · ${tr("Salle d'essai")}` : ""}`;
+    title.textContent = `${tr(race)} ${tr(cls)} · ${sandbox ? tr("Salle d'essai") : tr("Partie {0}").replace("{0}", String(DUNGEON_SLOTS.indexOf(key) + 1))}`;
     const when = data.savedAt ? new Date(data.savedAt) : null;
     const whenText =
       when && !isNaN(when.getTime())
@@ -1153,8 +1185,9 @@ function renderSaves(): void {
     resume.addEventListener("click", () => {
       sfx.play("click");
       try {
-        const saved = Game.restore(JSON.parse(localStorage.getItem(saveSlot(sandbox)) ?? "null"));
+        const saved = Game.restore(JSON.parse(localStorage.getItem(key) ?? "null"));
         if (!saved) throw new Error("illisible");
+        currentSlot = key;
         resumeRun(saved);
         savedRun = null;
         showScreen(null);
@@ -1173,10 +1206,10 @@ function renderSaves(): void {
         erase.textContent = tr("Sûr ?");
         return;
       }
-      eraseSave(sandbox);
+      eraseSave(key);
       // La partie en cours, si c'est elle : elle s'arrête (sinon elle se réécrirait aussitôt).
-      if (started && !game.over && game.sandbox === sandbox) started = false;
-      if (savedRun && savedRun.sandbox === sandbox) savedRun = null;
+      if (started && !game.over && currentSlot === key) started = false;
+      if (savedRun && savedSlot === key) savedRun = null;
       showScreen("saves");
     });
     buttons.append(resume, erase);
@@ -1835,7 +1868,7 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : "Krik");
+  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : "Krik");
   $("talk-face").replaceChildren(
     who === "gluck"
       ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE)
@@ -1843,6 +1876,8 @@ function openTalk(who: NpcId): void {
         ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE)
         : who === "grum"
           ? buildIcon(FERMIER.rows, FERMIER.palette)
+          : who === "fifrelin"
+            ? buildIcon(SCHRAT.idleDown[0], FIFRELIN_PALETTE)
           : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
   );
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
@@ -2195,13 +2230,14 @@ function renderBag(): void {
   // les autres se BOIVENT.
   action.textContent = selectedSlot
     ? "Retirer"
-    : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" ? "Lancer"
+    : def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip" ? "Lancer"
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
     : def.lightTurns ? "Utiliser"
     : def.kind === "use" ? "Consommer" : "Équiper";
   action.textContent = tr(action.textContent ?? "");
-  $("bag-throw").hidden = selectedSlot !== null || (def.potion !== "poison" && def.potion !== "stone");
+  // Toutes les potions se lancent (Thomas, 2026-11-14) : celles qu'on boit ont leur bouton « Lancer » à part.
+  $("bag-throw").hidden = selectedSlot !== null || !def.potion || ["fire", "smoke", "fog", "discord", "slip"].includes(def.potion);
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
 }
@@ -2316,9 +2352,15 @@ button("bag-drop", () => {
 });
 function dropSelected(count?: number): void {
   if (selected && "uid" in selected) {
+    const potion = !!(ITEMS[game.inventory.get(selected.uid)?.defId ?? "pomme"] as ItemDef).potion;
     if (game.dropFromBag(selected.uid, count)) {
       collectEvents();
       aimShown = "";
+      // Une potion jetée se brise à vos pieds : on referme le sac pour la voir éclater (Thomas, 2026-11-14).
+      if (potion) {
+        bagOpen = false;
+        $("bag").hidden = true;
+      }
     }
   }
   selected = null;
@@ -2330,7 +2372,7 @@ button("bag-equip", () => {
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
     logLines.push(`Il faut être niveau ${chosenDef.level} pour cela.`);
-  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord")) {
+  } else if (chosen && (chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord" || chosenDef?.potion === "slip")) {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;
     renderer.jumpCells = throwCells(chosen.uid);
@@ -3095,6 +3137,7 @@ function showDetail(card: Card): void {
 button("open-menu", () => showScreen("main"));
 button("menu-resume", () => {
   if ((!started || game.over) && savedRun) {
+    currentSlot = savedSlot;
     resumeRun(savedRun);
     savedRun = null;
   }
@@ -3240,7 +3283,7 @@ let stairsScene: StairsScene | null = null;
 let sandboxStairs = 0;
 /** La partie des derniers escaliers : une nouvelle salle d'essai recommence par la descente ordinaire. */
 let stairsGame: unknown = null;
-const STAIRS_ORDER: StairsVariant[] = ["normal", "tumble", "kobold", "flute", "vines", "basin"];
+const STAIRS_ORDER: StairsVariant[] = ["rain", "normal", "tumble", "kobold", "flute", "vines", "basin"];
 
 function beginStairs(force?: StairsVariant): void {
   const direction = game.pendingStairs;
@@ -3260,8 +3303,8 @@ function beginStairs(force?: StairsVariant): void {
   else {
     const r = Math.random();
     const table: [StairsVariant, number][] = direction === "down"
-      ? [["tumble", 1 / 12], ["kobold", 1 / 20], ["flute", 1 / 20], ["vines", 1 / 20], ["basin", 1 / 20]]
-      : [["kobold", 1 / 20], ["flute", 1 / 20]];
+      ? [["tumble", 1 / 12], ["kobold", 1 / 20], ["flute", 1 / 20], ["vines", 1 / 20], ["basin", 1 / 20], ["rain", 1 / 20]]
+      : [["kobold", 1 / 20], ["flute", 1 / 20], ["rain", 1 / 20]];
     let acc = 0;
     for (const [v, p] of table) if (r < (acc += p)) { variant = v; break; }
   }
@@ -3350,7 +3393,7 @@ function frame(now: number): void {
       if (game.hero.x !== before.x || game.hero.y !== before.y) sfx.play("step");
       collectEvents();
       // Sauvegarde automatique après chaque tour (mort définitive : la sauvegarde s'efface à la mort).
-      if (game.over) eraseSave(game.sandbox);
+      if (game.over) eraseSave(currentSlot);
       else writeSave();
     } else {
       stepTime = 0;

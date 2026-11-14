@@ -172,6 +172,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   pallet: { blocks: false, w: 1, h: 1, burns: true },
   // Quêtes v3 : tonneau creux et botte de foin qui bouchent une entrée (dans le mur) ; cierges ; grilles ; épouvantail coiffé.
   barrelWall: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  curtain: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  curtainOpen: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   hayWall: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   cierge: { blocks: true, w: 1, h: 1, burns: false },
   ciergeLit: { blocks: true, w: 1, h: 1, burns: false },

@@ -26,12 +26,21 @@ export type QuestTaskId =
   | "krik_dortoir"
   | "krik_passage"
   | "krik_diversion"
+  | "gluck_rival"
+  | "gluck_local"
+  | "gluck_banc"
+  | "krik_temoin"
+  | "krik_denonce"
+  | "krik_coursier"
+  | "fifre_complice"
+  | "fifre_gobelet"
+  | "fifre_gardes"
   | "grum_poule"
   | "grum_foin"
   | "grum_chapeau";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik" | "grum";
+  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
   /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
    * compteur tenu par la partie (cierges, tours sur la grille, chapeau) ; collect : rapporter plusieurs objets. */
   kind: "kill" | "fetch" | "statue" | "smoke" | "enter" | "count" | "collect";
@@ -127,6 +136,97 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     waiting: "« Une marmite, une louche, une corde. Avec ça, je vous fais une cloche. Presque. »",
     thanks: ["Elle pend la marmite, accroche la louche au bout de la corde. CLONC.", "« … Elle sonne faux. Elle est PARFAITE. »", "(Chance : vos 3 prochains 1 au dé seront relancés.)"],
     failed: "Sœur Osseuse n'aura pas sa cloche de fortune.",
+  },
+  // ---- Rencontres 2 à 4 (Thomas, 2026-11-14 : « continue les rencontres ») ----
+  gluck_rival: {
+    npc: "gluck",
+    kind: "count",
+    count: 3,
+    goal: "Chasser le Kobold marchand {0}/{1}",
+    back: "Revoir Gluck",
+    waiting: "« Il vend des pommes moins cher que moi ! Pousse-le hors de sa salle. Trois fois. Sans le tuer : c'est un collègue. »",
+    thanks: ["« Il est parti ? Ha ! La concurrence, c'est terminé. »", "« Pour toi, désormais : la pomme à 3 pièces. Pour toujours. Enfin, pour cette partie. »"],
+    failed: "Le Kobold marchand vend toujours ses pommes moins cher.",
+  },
+  gluck_local: {
+    npc: "gluck",
+    kind: "count",
+    goal: "Libérer une salle pour l'étal de Gluck {0}/{1}",
+    back: "Revoir Gluck",
+    waiting: "« Il me faut un local. Celle-là, sur la carte. Sans locataires, si possible. »",
+    thanks: ["« Un local ! Avec vue sur le donjon ! »", "« Premier bénéfice : pour toi. »", "(Il laisse de l'or et deux pommes.)"],
+    failed: "Gluck n'aura jamais son étal.",
+  },
+  gluck_banc: {
+    npc: "gluck",
+    kind: "count",
+    count: 5,
+    goal: "Réfléchir à côté d'un banc {0}/{1}",
+    back: "Revoir Gluck",
+    waiting: "« Va t'asseoir près d'un banc. Réfléchis. Cinq tours. Sans monstre en vue, sinon ça ne compte pas. »",
+    thanks: ["« Alors ? Tu as compris ? … Moi non plus. Mais ça fait du bien. »", "(Les pièges cachés de l'étage se montrent. Chance : vos 3 prochains 1 au dé seront relancés.)"],
+    failed: "La réflexion de Gluck restera inachevée.",
+  },
+  krik_temoin: {
+    npc: "krik",
+    kind: "count",
+    count: 1,
+    goal: "Amener un Kobold jusqu'à Krik",
+    back: "Revoir Krik",
+    waiting: "« Il me faut un témoin. Un Kobold, vivant, ici, à côté de moi. Pousse-le, attire-le. »",
+    thanks: ["Krik se tourne vers le Kobold : « L'aventurier ? Parti. Très loin. Il a peur de vous. »", "« … Ils m'ont cru ! »", "(Les monstres perdent votre trace ; l'étage se calme.)"],
+    failed: "Krik n'a pas eu son témoin.",
+  },
+  krik_denonce: {
+    npc: "krik",
+    kind: "count",
+    count: 1,
+    goal: "Amener un Kobold jusqu'à Krik, caché",
+    back: "Toucher la prime",
+    waiting: "« Tu veux me dénoncer ? … Alors fais venir un de mes camarades ici. Sans qu'il te voie. Je ne peux pas t'en empêcher. »",
+    thanks: ["« HÉ ! IL EST LÀ ! » crie le Kobold. Krik détale.", "Une bourse tombe à vos pieds : « La prime. Merci, l'humain. »"],
+    failed: "Krik court toujours.",
+  },
+  krik_coursier: {
+    npc: "krik",
+    kind: "count",
+    count: 1,
+    goal: "Escorter le coursier jusqu'à l'escalier",
+    back: "Revoir Krik",
+    waiting: "« Mon coursier porte ta mise jusqu'à l'escalier. Il a peur de tout : reste près de lui, il n'avance qu'avec toi. »",
+    thanks: ["« Il est passé ! Ta mise t'attend à l'étage suivant. Doublée. Je le pense vraiment. »"],
+    failed: "Le coursier de Krik s'est perdu, avec votre mise.",
+  },
+  fifre_complice: {
+    npc: "fifrelin",
+    kind: "count",
+    count: 1,
+    goal: "Démasquer le complice (fouiller la salle)",
+    back: "Revoir Fifrelin",
+    waiting: "« Un complice ? Moi ? Fouillez donc, fouillez ! Vous ne trouverez rien. »",
+    thanks: ["« … Bon. Il était sous la caisse. C'est mon cousin. »", "« Votre mise, trois fois. Et pas un mot. »", "(Il laisse de l'or.)"],
+    failed: "Le complice de Fifrelin court toujours.",
+  },
+  fifre_gobelet: {
+    npc: "fifrelin",
+    kind: "fetch",
+    item: "gobelet",
+    zone: true,
+    goal: "Voler le gobelet truqué",
+    back: "Confondre Fifrelin",
+    waiting: "« Mon tripot ? Derrière le rideau. Personne n'y entre. Personne. »",
+    thanks: ["Vous posez le gobelet truqué sur la caisse. Double fond. Fifrelin blêmit.", "« D'accord, d'accord. Prenez la caisse. Et partez. »", "(Il laisse de l'or et un objet.)"],
+    failed: "Le gobelet truqué de Fifrelin reste dans son tripot.",
+  },
+  fifre_gardes: {
+    npc: "fifrelin",
+    kind: "kill",
+    count: 2,
+    goal: "Tenir tête aux gardes {0}/{1}",
+    back: "Revoir Fifrelin",
+    waiting: "« Mes gardes vont vous apprendre la politesse ! »",
+    thanks: ["« Mes gardes… Bon. La caisse est à vous. Le jeu est fermé. »", "(Il laisse sa caisse.)"],
+    failed: "Fifrelin a rouvert son jeu, un étage plus haut.",
   },
   grum_poule: {
     npc: "grum",
@@ -244,4 +344,6 @@ export interface QuestTask {
   need: number;
   /** Cloche de fortune : le jet était raté, elle fera un vacarme au moment de la monter. */
   noisy?: boolean;
+  /** Rencontres 2 à 4 : le monstre visé (le concurrent de Gluck), ou la salle à libérer (son numéro). */
+  target?: number;
 }

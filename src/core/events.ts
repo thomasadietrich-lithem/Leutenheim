@@ -43,7 +43,7 @@ export type GameEvent =
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
   /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
-  | { type: "npc"; who: "gluck" | "soeur" | "krik" | "grum"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
+  | { type: "npc"; who: "gluck" | "soeur" | "krik" | "grum" | "fifrelin"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
   /** Une statue : on la regarde (`look`), ou on frappe la statue creuse (jet de force ; réussi : elle s'effondre). */
   | { type: "statue"; x: number; y: number; look?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
@@ -110,7 +110,7 @@ export type GameEvent =
   /** Quêtes v3 : la zone spéciale (montrée, tapisserie tranchée, bougie soufflée, dalle enfoncée). */
   | {
       type: "zone";
-      what: "shown" | "tapestry" | "candle" | "plate" | "pushed" | "stuck" | "wall" | "cierge" | "noflame" | "bell" | "hen" | "henFlees" | "hat" | "nohat" | "thief";
+      what: "shown" | "tapestry" | "candle" | "plate" | "pushed" | "stuck" | "wall" | "cierge" | "noflame" | "bell" | "hen" | "henFlees" | "hat" | "nohat" | "thief" | "complice" | "courier" | "courierLost";
       x: number;
       y: number;
       woke?: number;
@@ -140,7 +140,7 @@ export type GameEvent =
   | { type: "lastStand" }
   | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
-  | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[] }
+  | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[]; note?: "healed" | "angry" }
   | { type: "burn"; actor: Actor; damage: number }
   | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin" | "stone" | "grow"; points?: number }
   /** Potion d'agrandissement : un personnage grandit, ou revient à sa taille. Potion glissante : il devient glissant. */

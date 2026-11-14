@@ -107,6 +107,8 @@ export type GameEvent =
   | { type: "getUp"; actor: Actor }
   /** Salle d'essai : de retour au HUB, l'étage est remis à neuf. */
   | { type: "sandboxReset" }
+  /** Quêtes v3 : la zone spéciale (montrée, tapisserie tranchée, bougie soufflée, dalle enfoncée). */
+  | { type: "zone"; what: "shown" | "tapestry" | "candle" | "plate"; x: number; y: number; woke?: number }
   /** Quelqu'un a marché sur un piège. */
   | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */

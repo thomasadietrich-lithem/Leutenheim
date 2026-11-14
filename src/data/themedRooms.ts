@@ -163,6 +163,17 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // Quêtes v3, zones spéciales (2026-11-14) : la tapisserie de l'entrée (dans le mur ; « Low » : mur du bas), tranchée ;
+  // paillasse, bougie (allumée, soufflée), dalle à pression (levée, enfoncée).
+  tapestry: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  tapestryCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  tapestryLow: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  tapestryLowCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  pallet: { blocks: false, w: 1, h: 1, burns: true },
+  candle: { blocks: true, w: 1, h: 1, burns: false },
+  candleOut: { blocks: true, w: 1, h: 1, burns: false },
+  pressurePlate: { blocks: false, w: 1, h: 1, burns: false },
+  pressurePlateDown: { blocks: false, w: 1, h: 1, burns: false },
   vitrail1: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   // SALLE DE TORTURE v1 : table à chaînes (2 cases), râtelier, planche au mur, corde à crochet (mur du fond),
   // sarcophage à pointes (fermé, puis ouvert) ; rigole de sang et grille. Les cordes pendent en grappe, immobiles (3 dessins).

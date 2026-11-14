@@ -241,6 +241,18 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;
     case "getUp":
       return null;
+    case "zone":
+      return e.what === "tapestry"
+        ? "Vous tranchez la tapisserie : derrière, un passage."
+        : e.what === "candle"
+          ? "Vous soufflez la bougie. Le noir. Les dormeurs n'entendront plus rien."
+          : e.what === "plate"
+            ? (e.woke ?? 0) > 1
+              ? `Clac ! La dalle s'enfonce, une niche s'ouvre… et le bruit réveille ${e.woke} dormeurs !`
+              : e.woke
+                ? "Clac ! La dalle s'enfonce, une niche s'ouvre… et le bruit réveille un dormeur !"
+                : "Clac ! La dalle s'enfonce, une niche s'ouvre."
+            : null;
     case "sandboxReset":
       return "De retour au HUB : toutes les salles d'essai sont remises à neuf.";
     case "push": {

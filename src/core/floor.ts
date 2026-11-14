@@ -73,6 +73,30 @@ export interface FloorState {
   chicken?: ChickenState;
   /** La ferme : les cases du pré, et les poules qui s'y promènent. */
   farm?: { field: Point[]; hens: { x: number; y: number; fromX: number; fromY: number }[] };
+  /** Quêtes v3 : la zone spéciale taillée dans la roche quand la quête est donnée. */
+  zone?: QuestZone;
+}
+
+/**
+ * ZONE SPÉCIALE DE QUÊTE (Thomas, 2026-11-13 : « une petite pièce avec 3 Kobolds sur des paillasses et une bougie,
+ * derrière un passage secret »). Taillée dans la roche contre une salle quand la quête est donnée ; on y entre par une
+ * action du jeu (trancher la tapisserie).
+ */
+export interface QuestZone {
+  /** `traitres` : le dortoir des traîtres de Krik ; `placard` : la mauvaise tapisserie (un placard, une pomme). */
+  kind: "traitres" | "placard";
+  room: { x: number; y: number; w: number; h: number };
+  /** La case de mur de l'entrée (la tapisserie), et si elle est ouverte. */
+  entry: Point;
+  open: boolean;
+  /** La bougie (allumée : les dormeurs entendent ; soufflée : le noir, ils n'entendent plus rien). */
+  candle?: Point;
+  candleLit?: boolean;
+  /** La dalle à pression (la cache de Krik) et si on l'a enfoncée. */
+  plate?: Point;
+  pressed?: boolean;
+  /** Les Kobolds de la zone (numéros). */
+  sleepers: number[];
 }
 
 /**

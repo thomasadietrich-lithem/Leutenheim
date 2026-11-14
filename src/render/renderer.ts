@@ -69,6 +69,7 @@ const MERCHANT_GHOSTS: Record<string, string[][]> = Object.fromEntries(
 const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }> = { ...SALLES_V1, ...ATELIERS, ...BOSS };
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { BAIN } from "./sprites/bain";
+import { ZONES } from "./sprites/zones";
 import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
@@ -2217,7 +2218,7 @@ export class Renderer {
       // Assiette : pleine tant que la cuisse y est.
       const plateName = f.kind === "plate" ? (game.ground.some((g) => g.x === f.x && g.y === f.y && g.item === "cuisse_poulet") ? "plateFull" : "plate") : null;
       const name = plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2234,7 +2235,7 @@ export class Renderer {
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
         py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
       } else {
-        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : [2, -1];
+        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : f.kind.startsWith("candle") ? [4, -2] : f.kind.startsWith("pressurePlate") ? [1, -1] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }

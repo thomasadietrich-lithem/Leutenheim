@@ -26,7 +26,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -888,6 +888,14 @@ export class Game {
       this.ringBell(bell);
       return;
     }
+    if (this.tapestryAt(at.x, at.y)) {
+      this.cutTapestry();
+      return;
+    }
+    if (this.candleAt(at.x, at.y)) {
+      this.blowCandle();
+      return;
+    }
     const statue = this.statueAt(at.x, at.y);
     if (statue?.hinted) {
       this.smashStatue(statue);
@@ -1703,6 +1711,7 @@ export class Game {
       bath: f.bath,
       chicken: f.chicken,
       farm: f.farm,
+        zone: f.zone,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1807,6 +1816,7 @@ export class Game {
         bath: f.bath,
         chicken: f.chicken,
         farm: f.farm,
+        zone: f.zone,
       });
     }
     game.turn = saved.turn;
@@ -2049,7 +2059,10 @@ export class Game {
       const area = this.rooms.find((r) => fx >= r.x && fy >= r.y && fx < r.x + r.w && fy < r.y + r.h);
       return area ? { ...t, area } : t;
     });
-    this.light = computeLight(this.map, [...fixed, ...carried, ...dropped]);
+    // La bougie de la zone de quête : une petite lueur dans sa pièce.
+    const z = this.current?.zone;
+    const candle = z?.candleLit && z.candle ? [{ x: z.candle.x, y: z.candle.y, faceX: 0, faceY: 0, radius: 3, area: z.room }] : [];
+    this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
   }
 
   /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
@@ -2834,7 +2847,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.tapestryAt(x, y) || this.candleAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
     const statue = this.statueAt(x, y);
     if (statue && this.isExplored(x, y)) {
@@ -3349,6 +3362,7 @@ export class Game {
     }
 
     this.sandboxHubCheck();
+    this.zoneStep();
     this.turn++;
     // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
     if (this.turn % RULES.alarmTurnsPerPoint === 0) this.raiseAlarm(1);
@@ -4739,6 +4753,19 @@ export class Game {
         return { lines: ["« Tu reviendras. C'est vrai, je le sais : je ne peux pas mentir. »"], done: true };
       case "protect":
         if (test()) {
+          // Quêtes v3 : le dortoir des traîtres, derrière une tapisserie.
+          if (!this.quest && this.openZone("traitres", g) && this.giveTask("krik_dortoir")) {
+            return {
+              lines: [
+                "« Tu me protégerais ? Moi ? … Tu mens mieux que moi. Mais d'accord. »",
+                "« Ils dorment derrière la tapisserie, là. Trois. Ils me cherchent. »",
+                "« Souffle leur bougie : dans le noir, ils n'entendent plus rien. »",
+                "(La tapisserie apparaît sur la carte.)",
+              ],
+              roll,
+              done: true,
+            };
+          }
           if (!this.quest) {
             this.callFoes(g, "schrat", 2);
             if (this.giveTask("krik_traqueurs")) {
@@ -4753,10 +4780,26 @@ export class Game {
             "(Les repaires des Kobolds de l'étage apparaissent sur la carte. Il laisse une pomme.)",
           ]);
         }
+        // Raté : il se méfie et montre la MAUVAISE tapisserie (un placard, une pomme).
+        if (this.openZone("placard", g)) {
+          return end(["« Toi ? … Bon. Ils dorment derrière la tapisserie, là. »", "(Il a l'air de mentir. C'est nouveau.)", "(Une tapisserie apparaît sur la carte.)"]);
+        }
         g.gold = (g.gold ?? 0) + this.rng.int(KRIK.hushMin, KRIK.hushMax);
         return end(["« Toi ? Tu ne protégerais pas une pomme. »", "« Tiens, prends ça et laisse-moi tranquille. C'est tout ce que je vaux. »", "(Il laisse quelques pièces.)"]);
       case "caches":
         if (test()) {
+          if (!this.quest && this.openZone("traitres", g) && this.giveTask("krik_magot")) {
+            return {
+              lines: [
+                "« Ma cache ? Sous la dalle du milieu, dans leur dortoir. Derrière la tapisserie. »",
+                "« Pourquoi je te le dis ? … Je ne peux pas m'en empêcher. »",
+                "« Attention : la dalle claque. Ça réveille. Rapporte-moi le magot, on partage. »",
+                "(La tapisserie apparaît sur la carte.)",
+              ],
+              roll,
+              done: true,
+            };
+          }
           if (this.giveTask("krik_magot")) {
             return { lines: ["« Ma cache ? Dans une autre salle. Pourquoi je te le dis ? … Je ne peux pas m'en empêcher. »", "« Rapporte-la-moi, on partage. »", "(La salle du magot apparaît sur la carte.)"], roll, done: true };
           }
@@ -4767,6 +4810,21 @@ export class Game {
         }
         return end(["« La cache de l'escalier. Elle est vide. Je l'ai vidée hier. »", "« Je t'avais dit que j'étais malade, pas que j'étais stupide. »"]);
       case "threaten":
+        // Quêtes v3 : il file dans le dortoir et réveille tout le monde ; il faut TENIR LE PASSAGE. Réussi : ils sortent
+        // un par un (attendre à côté de la tapisserie donne l'embuscade) ; raté : tous en même temps.
+        if (!this.quest && this.openZone("traitres", g)) {
+          const ok = test();
+          this.zoneBreakOut(ok ? 3 : 0);
+          if (this.giveTask("krik_passage")) {
+            return {
+              lines: ok
+                ? ["« D'accord, d'accord ! » Il plonge derrière la tapisserie : « RÉVEILLEZ-VOUS ! L'AVENTURIER ! »", "(Ils vont sortir un par un. Attendez-les à côté du passage.)"]
+                : ["« AU SECOURS ! » Il plonge derrière la tapisserie et réveille tout le monde.", "(Ils sortent tous en même temps !)"],
+              roll,
+              done: true,
+            };
+          }
+        }
         if (test()) {
           const l = loot();
           leaves(l.item, l.count);
@@ -4776,6 +4834,21 @@ export class Game {
         this.callSlinger(g);
         return end(["« AU SECOURS ! UN AVENTURIER ME MENACE ! … C'est vrai, en plus. »", "(Un Kobold frondeur accourt.)"]);
       case "divert":
+        // Quêtes v3 : protéger Krik pendant qu'il vide le dortoir ; lancer la fumée sur ceux qui sortent.
+        if (!this.quest && this.openZone("traitres", g)) {
+          const ok = test();
+          toBag("potion_fumee", ok ? 2 : 1);
+          this.zoneBreakOut(ok ? 2 : 0);
+          if (this.giveTask("krik_diversion")) {
+            return {
+              lines: ok
+                ? ["« Là-bas ! … Ça marche ! » Il vous tend des fioles : « Quand ils sortent, la fumée. Moi, je me glisse dedans. »", "(Fioles de fumée dans le sac. Les traîtres se réveillent.)"]
+                : ["« Là-bas ! … C'est moi qui ai trahi tout le monde ! » Oups.", "« Vite, une fiole ! Sur eux ! »", "(Une fiole de fumée dans le sac. Ils sortent tous !)"],
+              roll,
+              done: true,
+            };
+          }
+        }
         if (test()) {
           toBag("potion_fumee", KRIK.smokeFlasks);
           return end([
@@ -4871,11 +4944,17 @@ export class Game {
       need = Math.min(def.count ?? 1, this.monsters.filter((m) => isKobold(m) && !m.boss).length);
       if (need <= 0) return false;
     }
-    if (def.kind === "fetch") {
+    if (def.kind === "fetch" && def.zone && this.current.zone?.plate) {
+      // Le magot n'est pas au sol : il est sous la dalle (on l'enfonce pour l'avoir).
+    } else if (def.kind === "fetch") {
       const at = this.questSpot();
       if (!at) return false;
       this.dropItem(at.x, at.y, def.item!, 1);
       this.revealRoomAt(at);
+    }
+    if (def.zone && def.kind === "kill" && this.current.zone) {
+      need = Math.min(def.count ?? 1, this.current.zone.sleepers.length);
+      if (need <= 0) return false;
     }
     this.quest = { id, depth: this.depth, got: 0, need };
     this.events.push({ type: "quest", what: "start", id });
@@ -4955,6 +5034,17 @@ export class Game {
         leaves(l.item, l.count);
         break;
       }
+      case "krik_dortoir":
+      case "krik_passage": {
+        g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
+        const l = this.floorLoot();
+        leaves(l.item, l.count);
+        break;
+      }
+      case "krik_diversion":
+        g.gold = (g.gold ?? 0) + 10;
+        leaves("potion_fumee", 2);
+        break;
     }
     this.quest = null;
     this.events.push({ type: "quest", what: "complete", id: q.id });
@@ -4980,6 +5070,191 @@ export class Game {
     this.events.push({ type: "quest", what: "fail", id: q.id, gold });
   }
 
+  // ---------- Quêtes v3 : zones spéciales (Thomas, 2026-11-13/14) ----------
+
+  /** La zone spéciale de l'étage, s'il y en a une. */
+  zone(): Readonly<QuestZone> | null {
+    return this.current.zone ?? null;
+  }
+
+  /**
+   * Tailler la zone dans la roche, contre le mur du haut (sinon du bas) d'une salle, le plus près possible du PNJ (à 4
+   * cases au moins). L'entrée est une case de ce mur, couverte d'une tapisserie. Dortoir des traîtres : 7 × 4, trois
+   * paillasses et trois Kobolds endormis, une bougie, une dalle à pression. Placard : 3 × 2, une pomme. Faux si rien ne
+   * convient (ou s'il y a déjà une zone sur l'étage).
+   */
+  private openZone(kind: QuestZone["kind"], near: Point): boolean {
+    const state = this.current;
+    if (state.zone || state.boss) return false;
+    const map = this.map;
+    const inRoom = (p: Point) => this.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+    // Tailles essayées : large d'abord (W cases de large, D de profondeur depuis l'entrée).
+    const sizes: [number, number][] = kind === "traitres" ? [[7, 4], [5, 3]] : [[3, 2]];
+    for (const [W, D] of sizes) {
+      const half = Math.floor(W / 2);
+      let best: { entry: Point; dir: Point; room: Room; score: number } | null = null;
+      for (const r of this.rooms) {
+        // Murs du haut et du bas d'abord (la tapisserie y pend mieux), puis de côté.
+        const sides: { dir: Point; cells: Point[] }[] = [
+          { dir: { x: 0, y: -1 }, cells: Array.from({ length: r.w - 2 }, (_, i) => ({ x: r.x + 1 + i, y: r.y - 1 })) },
+          { dir: { x: 0, y: 1 }, cells: Array.from({ length: r.w - 2 }, (_, i) => ({ x: r.x + 1 + i, y: r.y + r.h })) },
+          { dir: { x: -1, y: 0 }, cells: Array.from({ length: r.h - 2 }, (_, i) => ({ x: r.x - 1, y: r.y + 1 + i })) },
+          { dir: { x: 1, y: 0 }, cells: Array.from({ length: r.h - 2 }, (_, i) => ({ x: r.x + r.w, y: r.y + 1 + i })) },
+        ];
+        for (const [side, { dir, cells }] of sides.entries()) {
+          for (const e of cells) {
+            const inner = { x: e.x - dir.x, y: e.y - dir.y };
+            // La pièce : D cases de profondeur derrière le mur, W de large, centrée sur l'entrée.
+            const xs = dir.x !== 0 ? [e.x + dir.x, e.x + dir.x * D] : [e.x - half, e.x + half];
+            const ys = dir.y !== 0 ? [e.y + dir.y, e.y + dir.y * D] : [e.y - half, e.y + half];
+            const room: Room = { x: Math.min(...xs), y: Math.min(...ys), w: Math.abs(xs[1] - xs[0]) + 1, h: Math.abs(ys[1] - ys[0]) + 1 };
+            if (room.x - 1 < 1 || room.y - 1 < 1 || room.x + room.w + 1 >= map.width - 1 || room.y + room.h + 1 >= map.height - 1) continue;
+            let ok = map.get(inner.x, inner.y) === Tile.Floor && map.get(e.x, e.y) === Tile.Wall;
+            ok &&= !state.furniture.some((f) => furnitureCells(f).some((c) => (c.x === inner.x && c.y === inner.y) || (c.x === e.x && c.y === e.y)));
+            // Toute la boîte (la pièce et son mur) est de la roche, hors de toute salle.
+            for (let y = room.y - 1; ok && y <= room.y + room.h; y++)
+              for (let x = room.x - 1; ok && x <= room.x + room.w; x++) if (map.get(x, y) !== Tile.Wall || inRoom({ x, y })) ok = false;
+            // Pas collée à une porte ni à une torche.
+            const perp = { x: dir.y !== 0 ? 1 : 0, y: dir.x !== 0 ? 1 : 0 };
+            if (ok && [-1, 1].some((k) => map.isDoor(e.x + perp.x * k, e.y + perp.y * k) || map.isDoor(inner.x + perp.x * k, inner.y + perp.y * k))) ok = false;
+            if (ok && this.torches.some((t) => t.x === e.x && t.y === e.y)) ok = false;
+            if (!ok) continue;
+            const d = Math.max(Math.abs(e.x - near.x), Math.abs(e.y - near.y));
+            const score = (d < 4 ? 100 : d) + side * 3;
+            if (!best || score < best.score) best = { entry: e, dir, room, score };
+          }
+        }
+      }
+      if (!best) continue;
+      const { entry, dir, room } = best;
+      const perp = { x: dir.y !== 0 ? 1 : 0, y: dir.x !== 0 ? 1 : 0 };
+      /** Une case de la pièce : `a` en travers (0 à W-1), `d` en profondeur (0 : contre l'entrée). */
+      const at = (a: number, d: number): Point => ({ x: entry.x + dir.x * (d + 1) + perp.x * (a - half), y: entry.y + dir.y * (d + 1) + perp.y * (a - half) });
+      for (let y = room.y; y < room.y + room.h; y++)
+        for (let x = room.x; x < room.x + room.w; x++) {
+          map.set(x, y, Tile.Floor);
+          state.explored[map.index(x, y)] = 0;
+        }
+      map.touch(entry.x, entry.y);
+      state.rooms.push(room);
+      const low = dir.y > 0;
+      state.furniture.push({ x: entry.x, y: entry.y, kind: low ? "tapestryLow" : "tapestry" });
+      const zone: QuestZone = { kind, room, entry, open: false, sleepers: [] };
+      if (kind === "traitres") {
+        // Contre le mur du fond : trois paillasses, un Kobold endormi sur chacune.
+        for (const a of W >= 7 ? [1, 3, 5] : [0, 2, 4]) {
+          const p = at(a, D - 1);
+          state.furniture.push({ x: p.x, y: p.y, kind: "pallet" });
+          const k = this.newMonster(MONSTERS.schrat, p.x, p.y, true);
+          k.fromX = p.x;
+          k.fromY = p.y;
+          k.patrol = room;
+          if (this.peaceful) this.peacefulStash.push(k);
+          else this.monsters.push(k);
+          zone.sleepers.push(k.id);
+        }
+        zone.candle = at(W - 1, D >= 4 ? 1 : 0);
+        zone.candleLit = true;
+        state.furniture.push({ x: zone.candle.x, y: zone.candle.y, kind: "candle" });
+        map.set(zone.candle.x, zone.candle.y, Tile.Furniture);
+        zone.plate = at(half, D >= 4 ? 1 : 0);
+        state.furniture.push({ x: zone.plate.x, y: zone.plate.y, kind: "pressurePlate" });
+      } else {
+        const p = at(0, D - 1);
+        this.dropItem(p.x, p.y, "pomme", 1);
+      }
+      state.zone = zone;
+      // L'entrée se voit sur la carte : la tapisserie et le bout de salle devant elle.
+      for (let k = -1; k <= 1; k++)
+        for (const d of [0, -1]) {
+          const x = entry.x + perp.x * k + dir.x * d;
+          const y = entry.y + perp.y * k + dir.y * d;
+          if (map.inBounds(x, y)) state.explored[map.index(x, y)] = 1;
+        }
+      this.events.push({ type: "zone", what: "shown", x: entry.x, y: entry.y });
+      this.refreshLight();
+      return true;
+    }
+    return false;
+  }
+
+  /** La tapisserie de l'entrée de la zone sur cette case (encore fermée). */
+  tapestryAt(x: number, y: number): boolean {
+    const z = this.current.zone;
+    return !!z && !z.open && z.entry.x === x && z.entry.y === y;
+  }
+
+  /** La bougie (encore allumée) de la zone sur cette case. */
+  candleAt(x: number, y: number): boolean {
+    const z = this.current.zone;
+    return !!z && !!z.candleLit && !!z.candle && z.candle.x === x && z.candle.y === y;
+  }
+
+  /** Trancher la tapisserie : le passage s'ouvre (sans bruit). */
+  private cutTapestry(): void {
+    const z = this.current.zone;
+    if (!z || z.open) return;
+    z.open = true;
+    this.map.set(z.entry.x, z.entry.y, Tile.Floor);
+    const f = this.current.furniture.find((o) => o.x === z.entry.x && o.y === z.entry.y && o.kind.startsWith("tapestry"));
+    if (f) f.kind = f.kind === "tapestry" ? "tapestryCut" : "tapestryLowCut";
+    this.events.push({ type: "zone", what: "tapestry", x: z.entry.x, y: z.entry.y });
+    this.refreshLight();
+    this.updateVision();
+  }
+
+  /** Souffler la bougie : le noir ; les dormeurs de la zone n'entendent plus rien (seul un coup les réveille). */
+  private blowCandle(): void {
+    const z = this.current.zone;
+    if (!z || !z.candleLit || !z.candle) return;
+    z.candleLit = false;
+    const f = this.current.furniture.find((o) => o.x === z.candle!.x && o.y === z.candle!.y && o.kind === "candle");
+    if (f) f.kind = "candleOut";
+    for (const m of this.monsters) if (z.sleepers.includes(m.id) && m.asleep) m.deaf = true;
+    this.events.push({ type: "zone", what: "candle", x: z.candle.x, y: z.candle.y });
+    this.refreshLight();
+  }
+
+  /** Le héros marche sur la dalle à pression : clac ! la niche s'ouvre ; le bruit réveille un dormeur sur deux. */
+  private zoneStep(): void {
+    const z = this.current.zone;
+    if (!z?.plate || z.pressed || this.hero.x !== z.plate.x || this.hero.y !== z.plate.y) return;
+    z.pressed = true;
+    const f = this.current.furniture.find((o) => o.x === z.plate!.x && o.y === z.plate!.y && o.kind === "pressurePlate");
+    if (f) f.kind = "pressurePlateDown";
+    const q = this.quest;
+    if (q?.id === "krik_magot" && q.depth === this.depth) this.dropItem(z.plate.x, z.plate.y, "magot_krik", 1);
+    else this.dropItem(z.plate.x, z.plate.y, "or", this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax));
+    let woke = 0;
+    for (const m of this.monsters) {
+      if (!z.sleepers.includes(m.id) || !m.asleep || m.deaf || !this.rng.chance(0.5)) continue;
+      m.asleep = false;
+      m.alerted = true;
+      woke++;
+    }
+    this.events.push({ type: "zone", what: "plate", x: z.plate.x, y: z.plate.y, woke });
+  }
+
+  /**
+   * Les traîtres se réveillent et sortent par la tapisserie (arrachée). `stagger` : tours d'écart entre deux sorties
+   * (0 : tous en même temps).
+   */
+  private zoneBreakOut(stagger: number): void {
+    const z = this.current.zone;
+    if (!z) return;
+    if (!z.open) this.cutTapestry();
+    let i = 0;
+    for (const m of [...this.monsters, ...this.peacefulStash]) {
+      if (!z.sleepers.includes(m.id)) continue;
+      m.asleep = false;
+      m.alerted = true;
+      m.deaf = false;
+      m.patrol = undefined;
+      if (stagger > 0 && i > 0) m.stunned = Math.max(m.stunned ?? 0, i * stagger);
+      i++;
+    }
+  }
+
   /** Un objet du butin de l'étage (jamais d'or) ; `rarer` : celui de la section suivante. */
   private floorLoot(rarer = false): { item: ItemId; count: number } {
     for (let k = 0; k < 8; k++) {
@@ -4991,6 +5266,13 @@ export class Game {
 
   /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
   private smokeBurst(at: Point, radius: number): void {
+    // Quêtes v3, diversion de Krik : la fumée sur un traître de la zone (ou devant la tapisserie) suffit.
+    const q = this.quest;
+    const z = this.current.zone;
+    if (q && q.id === "krik_diversion" && q.depth === this.depth && z) {
+      const near = (p: Point) => Math.max(Math.abs(p.x - at.x), Math.abs(p.y - at.y)) <= radius;
+      if (near(z.entry) || this.monsters.some((m) => z.sleepers.includes(m.id) && near(m))) q.got = q.need;
+    }
     for (const m of this.monsters) {
       if (m.boss) {
         // La Tisseuse dans la fumée (Thomas, 2026-11-13) : elle perd la piste du héros et reste un tour hébétée.
@@ -5143,7 +5425,7 @@ export class Game {
     const b = this.current.bath;
     if (b && !b.out && gapBetween(b, at) <= RULES.combatWakeRadius) this.wakeBath(false);
     for (const m of this.monsters) {
-      if (!m.asleep || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
+      if (!m.asleep || m.deaf || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
       m.asleep = false;
       if (!this.peaceful) m.alerted = true;
     }
@@ -5674,7 +5956,12 @@ export class Game {
       if (gain > 0) this.gainXp(gain);
     }
     const q = this.quest;
-    if (byHero && q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) q.got++;
+    if (q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) {
+      // Quêtes v3 : dans une zone, seuls ses Kobolds comptent (même tués par un autre, ou par un piège).
+      if (QUEST_TASKS[q.id].zone) {
+        if (this.current.zone?.sleepers.includes(monster.id)) q.got++;
+      } else if (byHero) q.got++;
+    }
     for (const o of this.monsters) if (o.feud === monster.id) o.feud = undefined;
   }
 
@@ -5951,7 +6238,7 @@ export class Game {
           (this.onRug() ? RULES.rugNotice : 1);
         // Caché, le héros ne peut être remarqué que par un monstre arrivé à son contact. Endormi, il n'entend que de
         // près ; éveillé, il ne voit que dans l'éventail devant lui (celui qu'on dessine), ou au contact.
-        const range = this.hidden || this.fogAt(this.hero.x, this.hero.y) ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
+        const range = m.asleep && m.deaf ? 0 : this.hidden || this.fogAt(this.hero.x, this.hero.y) ? 1 : m.asleep ? Math.min(m.vision, RULES.asleepHearing) : m.vision;
         const inSight = distance <= 1 || ((m.asleep || this.inGaze(m, this.hero)) && !this.fogBetween(m, this.hero));
         if (this.isVisible(m.x, m.y) && distance <= range && inSight && this.rng.chance(chance)) {
           this.faceToward(m, this.hero);

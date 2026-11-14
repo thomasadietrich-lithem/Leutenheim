@@ -4088,10 +4088,22 @@ test("tâches de quête : Krik donne son magot à rapporter ; l'objet n'existe q
   assert.ok(r.roll?.success, "jet réussi (Intelligence 40)");
   assert.equal(game.quest?.id, "krik_magot");
   assert.ok(game.npc("krik"), "Krik reste sur l'étage");
-  const spot = game.ground.find((g) => g.item === "magot_krik");
-  assert.ok(spot, "le magot apparaît sur l'étage");
-  assert.ok(Math.max(Math.abs(spot.x - game.hero.x), Math.abs(spot.y - game.hero.y)) >= 8, "loin du héros");
+  // Quêtes v3 : le magot est sous la dalle du dortoir des traîtres, derrière une tapisserie.
+  const zone = game.zone()!;
+  assert.ok(zone && zone.kind === "traitres" && zone.plate, "le dortoir des traîtres est taillé dans la roche");
+  assert.ok(!game.ground.some((g) => g.item === "magot_krik"), "le magot est sous la dalle");
   assert.equal(game.questLine()?.text, "Retrouver le magot de Krik");
+  // On tranche la tapisserie, on marche sur la dalle : clac, le magot.
+  assert.ok(game.tapestryAt(zone.entry.x, zone.entry.y));
+  (game as unknown as { cutTapestry(): void }).cutTapestry();
+  assert.ok(game.map.isWalkable(zone.entry.x, zone.entry.y), "le passage est ouvert");
+  assert.ok(distanceField(game.map, game.hero)[game.map.index(zone.plate!.x, zone.plate!.y)] >= 0, "la dalle est atteignable");
+  game.hero.x = zone.plate!.x;
+  game.hero.y = zone.plate!.y;
+  game.wait();
+  game.tick();
+  const spot = game.ground.find((g) => g.item === "magot_krik")!;
+  assert.ok(spot, "la niche s'ouvre : le magot");
   // Revenir trop tôt : il attend.
   const wait = game.npcScene("krik");
   assert.ok(!wait.choices.some((c) => c.id === "turnin"));
@@ -4100,6 +4112,7 @@ test("tâches de quête : Krik donne son magot à rapporter ; l'objet n'existe q
   game.inventory.add("magot_krik", 1);
   assert.ok(game.questDone());
   assert.equal(game.questLine()?.text, "Rendre le magot à Krik");
+  besideNpc(game, "krik");
   const back = game.npcScene("krik");
   assert.ok(back.choices.some((c) => c.id === "turnin"));
   const done = game.npcChoose("krik", "turnin");
@@ -4137,6 +4150,60 @@ test("tâches de quête : Sœur Osseuse compte les Kobolds punis ; descendre san
   assert.ok(game.events.some((e) => e.type === "quest" && e.what === "fail"));
 });
 
+test("quêtes v3, Krik : le dortoir des traîtres derrière la tapisserie ; une mission par choix (Thomas, 2026-11-14)", () => {
+  const setup = () => {
+    const game = new Game(2, undefined, undefined, undefined, true);
+    game.monsters.splice(0);
+    besideNpc(game, "krik");
+    game.alloc.charisme = game.alloc.intelligence = 40;
+    game.hero.hp = game.hero.maxHp = 500;
+    return game;
+  };
+  // Le protéger : vider le dortoir. La bougie soufflée, les dormeurs n'entendent plus rien.
+  let game = setup();
+  assert.ok(game.npcChoose("krik", "protect").roll?.success);
+  assert.equal(game.quest?.id, "krik_dortoir");
+  let z = game.zone()!;
+  assert.equal(z.sleepers.length, 3);
+  const sleepers = game.monsters.filter((m) => z.sleepers.includes(m.id));
+  assert.ok(sleepers.length === 3 && sleepers.every((m) => m.asleep), "trois Kobolds endormis");
+  assert.ok(game.furnitureList().filter((f) => f.kind === "pallet").length === 3, "trois paillasses");
+  assert.ok(game.light[game.map.index(z.room.x + 1, z.room.y + 1)] > 0 || game.light.some((l, i) => l > 0 && game.map.tiles[i] === Tile.Floor), "la bougie éclaire");
+  (game as unknown as { cutTapestry(): void }).cutTapestry();
+  (game as unknown as { blowCandle(): void }).blowCandle();
+  assert.ok(sleepers.every((m) => m.deaf), "sourds dans le noir");
+  for (const m of sleepers) m.hp = 0;
+  for (const m of sleepers) (game as unknown as { removeIfDead(m: unknown, byHero: boolean): void }).removeIfDead(m, true);
+  assert.ok(game.questDone(), `vidé : ${game.quest?.got}/${game.quest?.need}`);
+  assert.ok(game.npcChoose("krik", "turnin").done);
+  assert.equal(game.quest, null);
+  // Le menacer (réussi) : ils sortent un par un.
+  game = setup();
+  game.alloc.charisme = 0;
+  (game as unknown as { pushBonus(): number }).pushBonus = () => 40;
+  const r = game.npcChoose("krik", "threaten");
+  assert.equal(game.quest?.id, "krik_passage");
+  z = game.zone()!;
+  assert.ok(z.open, "la tapisserie est arrachée");
+  const out = game.monsters.filter((m) => z.sleepers.includes(m.id));
+  assert.ok(out.every((m) => !m.asleep && m.alerted));
+  if (r.roll?.success) assert.ok(out.filter((m) => (m.stunned ?? 0) > 0).length === 2, "un par un");
+  // Diversion : la fumée sur ceux qui sortent.
+  game = setup();
+  game.npcChoose("krik", "divert");
+  assert.equal(game.quest?.id, "krik_diversion");
+  assert.ok(game.inventory.count("potion_fumee") >= 1);
+  z = game.zone()!;
+  (game as unknown as { smokeBurst(p: { x: number; y: number }, r: number): void }).smokeBurst(z.entry, 2);
+  assert.ok(game.questDone());
+  // Raté (protéger) : la mauvaise tapisserie, un placard avec une pomme.
+  game = setup();
+  game.alloc.charisme = -40;
+  game.npcChoose("krik", "protect");
+  assert.equal(game.zone()?.kind, "placard");
+  assert.ok(game.ground.some((g) => g.item === "pomme" && g.x >= game.zone()!.room.x && g.y >= game.zone()!.room.y && g.x < game.zone()!.room.x + game.zone()!.room.w && g.y < game.zone()!.room.y + game.zone()!.room.h));
+});
+
 test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investissement (Thomas, 2026-11-12)", () => {
   const game = new Game(2, undefined, undefined, undefined, true);
   game.monsters.splice(0);
@@ -4154,7 +4221,9 @@ test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investiss
   const r = game.krikChoose("divert");
   assert.ok(r.roll && r.done);
   if (r.roll.success) assert.ok(game.inventory.count("potion_fumee") >= 1);
-  assert.equal(game.krikMemory.met, 1);
+  // Quêtes v3 : la diversion devient une mission (Krik reste) ; sinon il part.
+  assert.equal(game.krikMemory.met, game.quest ? 0 : 1);
+  game.quest = null;
   // Scène 3 : investir, puis descendre : rendu ou perdu.
   game.krikMemory.met = 2;
   k.gone = false;

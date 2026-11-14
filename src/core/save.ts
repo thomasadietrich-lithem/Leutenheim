@@ -65,6 +65,7 @@ export interface SavedFloor {
   bath?: import("./floor").BathState;
   chicken?: import("./floor").ChickenState;
   farm?: import("./floor").FloorState["farm"];
+  zone?: import("./floor").QuestZone;
 }
 
 export interface SaveData {

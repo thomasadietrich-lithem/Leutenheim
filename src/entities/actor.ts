@@ -49,6 +49,8 @@ export interface Actor {
   lastAdvantageOn?: number;
   /** Sonné (poussé par le héros) : il perd ce nombre de tours. */
   stunned?: number;
+  /** Quêtes v3 : la bougie du dortoir soufflée, ce dormeur n'entend plus rien (seul un coup le réveille). */
+  deaf?: boolean;
   /** En feu : encore tant de tours de brûlure après avoir quitté les flammes. */
   burning?: number;
   /** Ralenti (bousculade) : ne joue qu'un tour sur deux pendant ce nombre de tours. */

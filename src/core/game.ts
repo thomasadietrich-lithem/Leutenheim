@@ -734,6 +734,16 @@ export class Game {
     this.events.push({ type: "chicken", path: [from, ...path], door: c.door ? { ...c.door } : undefined, crash: { ...c.crash }, seen });
   }
 
+  /** Le poulet qui court porte une petite lueur (Thomas, 2026-11-14 : « on doit le voir dans le noir, et les cases autour »). */
+  private chickenLight: Point | null = null;
+
+  /** L'affichage suit la course du poulet : sa case (ou `null` à la fin). Ses cases voisines se voient. */
+  chickenGlow(p: Point | null): void {
+    this.chickenLight = p ? { x: p.x, y: p.y } : null;
+    this.refreshLight();
+    this.updateVision();
+  }
+
   /** Le poulet touche la porte : elle éclate (appelé par l'affichage au bon moment de sa course). */
   chickenDoorBroken(door: Point): void {
     const c = this.chickens().find((k) => k.door && k.door.x === door.x && k.door.y === door.y);
@@ -2237,6 +2247,7 @@ export class Game {
       const area = this.rooms.find((r) => cx >= r.x && cx < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
       if (area) candle.push({ x: cx, y: f.y, faceX: 0, faceY: 0, radius, area });
     }
+    if (this.chickenLight) candle.push({ x: this.chickenLight.x, y: this.chickenLight.y, faceX: 0, faceY: 0, radius: RULES.chickenGlowRadius + 1, area: { x: this.chickenLight.x - 3, y: this.chickenLight.y - 3, w: 7, h: 7 } });
     // Les cierges rallumés de Sœur Osseuse.
     for (const f of this.current?.furniture ?? []) if (f.kind === "ciergeLit") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: 2, area: this.rooms.find((r) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h) ?? z?.room ?? { x: f.x, y: f.y, w: 1, h: 1 } });
     // Quête en cours (Thomas, 2026-11-14 : « éclaire la zone autour du PNJ, pour éviter de le perdre ») : le PNJ qui
@@ -7713,6 +7724,19 @@ export class Game {
       if (this.visible[i]) this.explored[i] = 1;
     }
     this.revealPillarPockets();
+    // Le poulet qui court : lui et les cases autour se voient, même dans le noir.
+    const hen = this.chickenLight;
+    if (hen) {
+      for (let dy = -RULES.chickenGlowRadius; dy <= RULES.chickenGlowRadius; dy++)
+        for (let dx = -RULES.chickenGlowRadius; dx <= RULES.chickenGlowRadius; dx++) {
+          const x = hen.x + dx;
+          const y = hen.y + dy;
+          if (!this.map.inBounds(x, y) || !hasLineOfSight(this.map, hen, { x, y })) continue;
+          const i = this.map.index(x, y);
+          this.visible[i] = 1;
+          this.explored[i] = 1;
+        }
+    }
     this.senseBeyond();
     // Après les cases devinées : on ne devine rien plus loin dans la pièce secrète que ce que montre le creux.
     this.peekSecret();

@@ -887,13 +887,15 @@ function reveal(e: GameEvent): void {
       () => {
         if (!door) return;
         game.chickenDoorBroken(door);
-        if (game.isVisible(door.x, door.y)) renderer.addFloatingText(door.x, door.y, "Crac !", "#ffd75e");
+        renderer.addFloatingText(door.x, door.y, "Crac !", "#ffd75e");
         sfx.play("break");
       },
       () => {
-        if (game.isVisible(e.crash.x, e.crash.y)) renderer.addFloatingText(e.crash.x, e.crash.y, "Plof !", "#fff3c8");
+        renderer.addFloatingText(e.crash.x, e.crash.y, "Plof !", "#fff3c8");
         sfx.play("thud");
+        game.chickenGlow(null);
       },
+      (p) => game.chickenGlow(p),
     );
   } else if (e.type === "stairs") {
     clearRollLog();

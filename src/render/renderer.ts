@@ -226,7 +226,7 @@ export class Renderer {
   private time = 0;
   /** La course du poulet (Thomas, 2026-11-13) : son trajet, le moment du départ, la case de la porte, et ce qu'il faut
    *  faire en défonçant la porte et en touchant le mur. */
-  private chickenRun: { path: { x: number; y: number }[]; start: number; door: number; onDoor: () => void; onCrash: () => void; doorDone: boolean } | null = null;
+  private chickenRun: { path: { x: number; y: number }[]; start: number; door: number; onDoor: () => void; onCrash: () => void; doorDone: boolean; onCell?: (p: { x: number; y: number }) => void; cell: number } | null = null;
   /** Plumes qui retombent après le choc. */
   private feathers: { x: number; y: number; vx: number; vy: number; age: number; spin: number; venom?: boolean }[] = [];
   /** Petites croix de santé qui montent (la Tisseuse qui se soigne, Thomas 2026-11-14). */
@@ -500,9 +500,9 @@ export class Renderer {
   }
 
   /** Le poulet détale le long de ce trajet (cases), à toute allure ; `door` : la case de la porte qu'il défonce. */
-  runChicken(path: { x: number; y: number }[], door: { x: number; y: number } | undefined, onDoor: () => void, onCrash: () => void): void {
+  runChicken(path: { x: number; y: number }[], door: { x: number; y: number } | undefined, onDoor: () => void, onCrash: () => void, onCell?: (p: { x: number; y: number }) => void): void {
     const di = door ? path.findIndex((p) => p.x === door.x && p.y === door.y) : -1;
-    this.chickenRun = { path, start: performance.now(), door: di < 0 ? path.length - 1 : di, onDoor, onCrash, doorDone: false };
+    this.chickenRun = { path, start: performance.now(), door: di < 0 ? path.length - 1 : di, onDoor, onCrash, doorDone: false, onCell, cell: -1 };
   }
 
   /** Les poules du pré (ferme) : elles trottinent d'une case à l'autre et picorent. */
@@ -598,6 +598,12 @@ export class Renderer {
     if (run) {
       const t = (performance.now() - run.start) / Renderer.CHICKEN_CELL_MS;
       const i = Math.min(run.path.length - 1, Math.floor(t));
+      // Chaque nouvelle case : la partie l'éclaire (on le voit courir dans le noir, Thomas 2026-11-14).
+      const near = Math.min(run.path.length - 1, Math.round(t));
+      if (near !== run.cell) {
+        run.cell = near;
+        run.onCell?.(run.path[near]);
+      }
       // La porte éclate quand il la touche (Thomas, 2026-11-14), pas avant : un quart de case avant d'y entrer.
       if (!run.doorDone && t >= run.door - 0.25) {
         run.doorDone = true;
@@ -614,7 +620,8 @@ export class Renderer {
         const f = t - i;
         const px = a.x + (b.x - a.x) * f;
         const py = a.y + (b.y - a.y) * f;
-        if (game.isVisible(Math.round(px), Math.round(py))) {
+        {
+          // Toujours dessiné pendant sa course, même dans le noir : il porte sa propre lueur.
           const rows = Math.floor(this.time / 70) % 2 === 0 ? POULET.run : POULET.idle;
           draw(rows, px, py - Math.abs(Math.sin(t * Math.PI)) * 0.12, b.x > a.x);
         }

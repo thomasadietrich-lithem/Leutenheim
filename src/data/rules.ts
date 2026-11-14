@@ -176,6 +176,8 @@ export const RULES = {
   grilleAlarm: 3,
   /** Briques manquantes et petits creux dans les murs, par étage (C). */
   wallMarks: [3, 7] as [number, number],
+  /** Le poulet qui court : les cases à cette distance de lui se voient, même dans le noir (Thomas, 2026-11-14). */
+  chickenGlowRadius: 1,
   /** Rayon de la lueur autour du PNJ qui a donné la quête en cours (Thomas, 2026-11-14). */
   questNpcLight: 4,
   /** À la mort de la Tisseuse, ses petits s'éloignent de ce nombre de pas avant de fuir dans la fumée (Thomas, 2026-11-14). */

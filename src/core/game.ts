@@ -926,6 +926,11 @@ export class Game {
       this.lightCierge(at);
       return;
     }
+    const grille = this.grilleAt(at.x, at.y);
+    if (grille) {
+      this.forceGrille(grille);
+      return;
+    }
     if (this.scarecrowAt(at.x, at.y)) {
       this.hatScarecrow();
       return;
@@ -2956,7 +2961,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -6572,6 +6577,50 @@ export class Game {
   steelChestAt(x: number, y: number): boolean {
     const s = this.current?.secretRoom;
     return !!s && s.chest.x === x && s.chest.y === y;
+  }
+
+  /** Assombrissement d'une case de la pièce secrète : opacité à l'entrée de la case et à sa sortie, vers le fond. */
+  secretShade(x: number, y: number): { from: number; to: number; dir: Point } | null {
+    const s = this.current?.secretRoom;
+    if (!s) return null;
+    const r = s.room;
+    if (x < r.x || y < r.y || x >= r.x + r.w || y >= r.y + r.h) return null;
+    const depth = s.dir.x !== 0 ? (s.dir.x > 0 ? x - r.x : r.x + r.w - 1 - x) : s.dir.y > 0 ? y - r.y : r.y + r.h - 1 - y;
+    const size = s.dir.x !== 0 ? r.w : r.h;
+    const a = (t: number) => RULES.secretShade[0] + (RULES.secretShade[1] - RULES.secretShade[0]) * t;
+    return { from: a(depth / size), to: a((depth + 1) / size), dir: s.dir };
+  }
+
+  /** Une grille de prison fermée sur cette case (on peut la forcer). */
+  grilleAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind === "grille" && f.x === x && f.y === y) ?? null;
+  }
+
+  /**
+   * Forcer une grille de la prison (Thomas, 2026-11-14 : « ajoute un élément interactif dans la prison ») : d20 + force
+   * contre 12 (C), CLANG à chaque essai (+3 d'alerte, C). Réussi : elle s'ouvre ; dans la cellule, ce qu'un prisonnier
+   * a laissé (de l'or, parfois un objet, parfois rien).
+   */
+  private forceGrille(f: Furniture): void {
+    this.reveal();
+    const bonus = this.pushBonus();
+    let d20 = this.rng.int(1, 20);
+    if (d20 === 1 && this.useLuck()) d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.grilleDc);
+    this.raiseAlarm(RULES.grilleAlarm, f);
+    this.events.push({ type: "statue", grille: true, x: f.x, y: f.y, d20, bonus, total, success });
+    if (!success) return;
+    f.kind = "grilleOpen";
+    this.map.set(f.x, f.y, Tile.Floor);
+    const cell = { x: f.x, y: f.y - 1 };
+    if (this.map.get(cell.x, cell.y) !== Tile.Floor) return;
+    const r = this.rng.next();
+    if (r < 0.45) this.dropItem(cell.x, cell.y, "or", this.rng.int(5, 12) + this.depth * 2);
+    else if (r < 0.8) {
+      const loot = rollLoot(this.rng, this.depth);
+      this.dropItem(cell.x, cell.y, loot.item, loot.count);
+    }
   }
 
   /** La pièce secrète de l'étage (pour l'affichage et la salle d'essai). */

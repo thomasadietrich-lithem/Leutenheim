@@ -1548,4 +1548,8 @@ export const EN: Record<string, string> = {
   "Boire quand même": "Drink anyway",
   "Annuler": "Cancel",
   "La Tisseuse est morte. Ses petits détalent… et disparaissent dans un nuage de fumée.": "The Weaver is dead. Her young scurry off… and vanish in a puff of smoke.",
+  "CLANG !": "CLANG!",
+  "CLANG": "CLANG",
+  "Jet de force : d20 {0} + {1} = {2} — CLANG ! La grille s'arrache de ses gonds.": "Strength roll: d20 {0} + {1} = {2} — CLANG! The grate tears off its hinges.",
+  "Jet de force : d20 {0} + {1} = {2} — CLANG. La grille tremble, mais tient. Tout l'étage a entendu.": "Strength roll: d20 {0} + {1} = {2} — CLANG. The grate shakes, but holds. The whole floor heard it.",
 };

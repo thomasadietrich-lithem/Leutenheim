@@ -341,7 +341,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   torches.push({ x: 131, y: 37, radius: 9, faceX: 0, faceY: -1 }, { x: 153, y: 37, radius: 9, faceX: 0, faceY: -1 });
   const used = new Set(furniture.map((f) => f.kind));
   // Pas les pièces d'assemblage (clôtures, rigoles, terre du pré), ni ce qui vit dans un mur ou ne sert qu'à une quête.
-  const skip = /^(loot|anchor|sealedStairs|heroV9|soil|fence|gutter|drain|bloodGutter|bloodDrain|tapestry|curtainLow|curtainSide|barrelWall|hayWall|vitrail|ashes)/;
+  const skip = /^(loot|anchor|sealedStairs|heroV9|soil|fence|gutter|drain|bloodGutter|bloodDrain|tapestry|curtainLow|curtainSide|pallet|barrelWall|hayWall|vitrail|ashes)/;
   const kinds = Object.keys(FURNITURE_KINDS).filter((k) => !used.has(k) && !skip.test(k) && !FURNITURE_KINDS[k].wall);
   let cx = museum.x + 1;
   let cy = museum.y + 2;

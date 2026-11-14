@@ -107,6 +107,17 @@ export class TilePainter {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
+    // Pièce secrète (Thomas, 2026-11-14 : « assombris les cases, ajoute un dégradé ») : plus sombre à mesure qu'on
+    // s'enfonce depuis l'entrée ; le dégradé court d'une case à l'autre sans marche.
+    const shade = game.secretShade(x, y);
+    if (shade) {
+      const [x0, y0, x1, y1] = shade.dir.x > 0 ? [sx, sy, sx + tile, sy] : shade.dir.x < 0 ? [sx + tile, sy, sx, sy] : shade.dir.y > 0 ? [sx, sy, sx, sy + tile] : [sx, sy + tile, sx, sy];
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, `rgba(8, 6, 12, ${shade.from})`);
+      g.addColorStop(1, `rgba(8, 6, 12, ${shade.to})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    }
   }
 
   /**

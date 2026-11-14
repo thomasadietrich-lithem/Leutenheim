@@ -680,10 +680,10 @@ export function furnishPrison(floor: Floor, room: Room, rng: Rng, out: Furniture
   for (let i = 0; i < n; i++) {
     const x = x0 + 2 * i + 1;
     if (rng.chance(0.7)) out.push({ x, y: y0 - 1, kind: "wallChains" });
+    // Plus de paillasse (Thomas, 2026-11-14 : « supprime le petit lit vert, il est nul »).
     const r = rng.next();
-    if (r < 0.35) out.push({ x, y: y0, kind: "pallet" });
-    else if (r < 0.6) out.push({ x, y: y0, kind: rng.chance(0.5) ? "bonesA" : "bonesB" });
-    else if (r < 0.8) out.push({ x, y: y0, kind: "bucket" });
+    if (r < 0.5) out.push({ x, y: y0, kind: rng.chance(0.5) ? "bonesA" : "bonesB" });
+    else if (r < 0.75) out.push({ x, y: y0, kind: "bucket" });
   }
   // Le bureau du geôlier (deux cases), contre le mur du bas ou de côté, et sa chaise.
   const spots: Point[] = [];

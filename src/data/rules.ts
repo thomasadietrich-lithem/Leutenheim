@@ -169,6 +169,11 @@ export const RULES = {
   secretGold: [8, 16] as [number, number],
   secretPeekRange: 3,
   secretGlimpseBonus: 5,
+  /** Pièce secrète : assombrissement du sol, de l'entrée au fond (Thomas, 2026-11-14 : « avec un dégradé »). */
+  secretShade: [0.3, 0.72] as [number, number],
+  /** Grille de prison : forcer, d20 + force contre ce nombre (C) ; alerte à chaque essai (C). */
+  grilleDc: 12,
+  grilleAlarm: 3,
   /** Briques manquantes et petits creux dans les murs, par étage (C). */
   wallMarks: [3, 7] as [number, number],
   /** Rayon de la lueur autour du PNJ qui a donné la quête en cours (Thomas, 2026-11-14). */

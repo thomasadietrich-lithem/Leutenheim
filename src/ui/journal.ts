@@ -111,6 +111,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     }
     case "statue":
       if (e.look) return "Une statue de pierre. Froide, lourde… et pleine, on dirait.";
+      if (e.grille)
+        return e.success
+          ? `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} — CLANG ! La grille s'arrache de ses gonds.`
+          : `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} — CLANG. La grille tremble, mais tient. Tout l'étage a entendu.`;
       return e.success
         ? `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} — CRAC ! La statue s'effondre. Quelque chose brille dans les gravats.`
         : `Jet de force : d20 ${e.d20} + ${e.bonus} = ${e.total} — BONG. La statue tient bon.`;

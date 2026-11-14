@@ -635,7 +635,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "statue") {
     if (!e.look) {
       landDie(e.d20!, e.success ? "hit" : "miss", false);
-      renderer.addFloatingText(e.x, e.y, e.success ? "CRAC !" : "BONG", "#ffd75e");
+      renderer.addFloatingText(e.x, e.y, e.grille ? (e.success ? "CLANG !" : "CLANG") : e.success ? "CRAC !" : "BONG", "#ffd75e");
       sfx.play(e.success ? "break" : "thud");
     }
   } else if (e.type === "npcRoll") {

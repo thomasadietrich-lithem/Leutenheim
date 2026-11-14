@@ -39,6 +39,9 @@ export const CODEX_TRAPS: Record<TrapKind, string> = {
   pit: "La dalle cède : on tombe, on se blesse, et il faut un tour pour remonter.",
   needle: "Une aiguille empoisonnée : une piqûre, puis le poison pendant quelques tours.",
   gas: "Un nuage vert s'échappe de la grille : qui s'y tient est empoisonné.",
+  snare: "Un anneau de fils pâles entre les pavés. Qui marche dessus est ligoté par le mycélium : deux tours pour s'en défaire.",
+  hooks: "Une fente de terre d'où pointent des crocs de racine. Ils jaillissent, blessent et retiennent un tour.",
+  spores: "Des vesses-de-loup à demi enterrées. Écrasées, elles crèvent en un nuage de spores qui empoisonne la case et ses voisines.",
 };
 
 /** États (pictos en haut à gauche, bulles au-dessus des monstres) : chaque picto d'état a sa fiche. */

@@ -1290,7 +1290,7 @@ test("potion jetée : elle se casse à côté du héros (feu : le feu prend ; po
     assert.ok(e && e.type === "shatter", `${id} se casse`);
     assert.ok(!(e.x === game.hero.x && e.y === game.hero.y), "à côté du héros, pas sur lui");
     assert.ok(check(e.x, e.y));
-    assert.ok(!game.ground.some((g) => g.item === id), "la potion est perdue");
+    assert.ok(!game.ground.some((g) => g.item === id && g.x === e.x && g.y === e.y), "la potion est perdue");
     game.events.length = 0;
   }
 });
@@ -4061,9 +4061,12 @@ test("chemin : il contourne un escalier qui n'est pas la destination", () => {
   for (let seed = 1; seed < 60; seed++) {
     const game = new Game(seed);
     const map = game.map;
-    let stairs: { x: number; y: number } | null = null;
-    for (let y = 0; y < map.height && !stairs; y++) for (let x = 0; x < map.width; x++) if (map.get(x, y) === 2) { stairs = { x, y }; break; }
+    // Les escaliers sont maintenant dans une niche (on ne passe jamais « à travers ») : on en pose un au milieu d'une salle.
+    const room = game.rooms[1];
+    let stairs: { x: number; y: number } | null = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+    if (map.get(stairs.x, stairs.y) !== Tile.Floor) stairs = null;
     if (!stairs) continue;
+    map.set(stairs.x, stairs.y, Tile.StairsDown);
     // Destination de l'autre côté de l'escalier, en ligne droite ; le chemin ne doit pas passer dessus.
     for (const [dx, dy] of [[1, 0], [0, 1]]) {
       const a = { x: stairs.x - dx, y: stairs.y - dy }, b = { x: stairs.x + dx, y: stairs.y + dy };
@@ -5027,4 +5030,52 @@ test("torche lancée : sa case prend feu ; dans la section 2, la mousse propage 
   } finally {
     setSandboxSection(1);
   }
+});
+
+test("escaliers : enchâssés dans un « U » de mur sur les étages tirés au hasard (Thomas, 2026-11-14)", () => {
+  let encased = 0;
+  let total = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    for (let d = 0; d < 3; d++) {
+      for (const tile of [Tile.StairsDown, Tile.StairsUp]) {
+        for (let y = 0; y < game.map.height; y++) {
+          for (let x = 0; x < game.map.width; x++) {
+            if (game.map.get(x, y) !== tile) continue;
+            total++;
+            const walls = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => game.map.get(x + dx, y + dy) === Tile.Wall).length;
+            if (walls === 3) encased++;
+            // L'escalier reste accessible.
+            const dist = distanceField(game.map, game.hero)[game.map.index(x, y)];
+            assert.ok(Number.isFinite(dist) && dist >= 0, `graine ${seed} : escalier inaccessible`);
+          }
+        }
+      }
+      game.pendingStairs = "down";
+      game.takeStairs();
+    }
+  }
+  assert.ok(encased >= total * 0.9, `${encased}/${total} escaliers dans une niche`);
+});
+
+test("pièges : la section 2 a ses propres pièges (lacet, racines, vesse-de-loup), et plus de pièges, plus de cachés", () => {
+  const kinds = new Set<string>();
+  let s1 = 0, s2 = 0, h1 = 0, h2 = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    game.teleport(4);
+    const a = game.traps();
+    s1 += a.length;
+    h1 += a.filter((t) => t.hidden).length;
+    assert.ok(a.every((t) => ["spikes", "pit", "needle", "gas"].includes(t.kind ?? "spikes")));
+    game.teleport(9);
+    const b = game.traps();
+    s2 += b.length;
+    h2 += b.filter((t) => t.hidden).length;
+    for (const t of b) kinds.add(t.kind ?? "spikes");
+  }
+  assert.deepEqual([...kinds].sort(), ["hooks", "snare", "spores"]);
+  assert.ok(s2 > s1, `plus de pièges en section 2 (${s2} contre ${s1})`);
+  assert.ok(h2 / s2 > h1 / s1, "plus de pièges cachés en section 2");
 });

@@ -52,6 +52,7 @@ import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
 import { ARAIGNEE } from "./sprites/araignee";
 import { PIEGES } from "./sprites/pieges";
+import { PIEGES_CHAMPI } from "./sprites/piegesChampi";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
 import { BOSS } from "./sprites/boss";
@@ -1695,7 +1696,7 @@ export class Renderer {
             : flash
               ? `${kind}Sprung`
               : kind;
-      const art = PIEGES[name];
+      const art = PIEGES[name] ?? PIEGES_CHAMPI[name];
       const u = tile / 16;
       const w = art.rows[0].length;
       const h = art.rows.length;

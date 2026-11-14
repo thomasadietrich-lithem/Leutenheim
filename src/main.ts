@@ -962,8 +962,8 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "trap") {
     const hero = e.victim.kind === "hero";
     renderer.trapSprung(e.x, e.y);
-    const label = e.kind === "gas" ? "Gaz !" : e.kind === "pit" ? `Fosse ! −${e.damage}` : e.kind === "needle" ? `Aiguille ! −${e.damage}` : `Piège ! −${e.damage}`;
-    renderer.addFloatingText(e.x, e.y, label, e.kind === "gas" || e.kind === "needle" ? "#9fe060" : "#ff6b7a");
+    const label = e.kind === "snare" ? "Ligoté !" : e.kind === "hooks" ? `Racines ! −${e.damage}` : e.kind === "spores" ? "Spores !" : e.kind === "gas" ? "Gaz !" : e.kind === "pit" ? `Fosse ! −${e.damage}` : e.kind === "needle" ? `Aiguille ! −${e.damage}` : `Piège ! −${e.damage}`;
+    renderer.addFloatingText(e.x, e.y, label, e.kind === "gas" || e.kind === "needle" || e.kind === "spores" ? "#9fe060" : e.kind === "snare" ? "#cfe8e0" : "#ff6b7a");
     sfx.play(e.damage === 0 ? "gravel" : hero ? "hurt" : "hit");
     if (hero) {
       renderer.heroHurt();

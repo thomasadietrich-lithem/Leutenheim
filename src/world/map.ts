@@ -35,6 +35,11 @@ export class GameMap {
   readonly changed: Uint32Array;
   private revision = 0;
 
+  /** Compteur de changements (une case posée ou retouchée) : ce qui dépend de la carte sait s'il doit se refaire. */
+  get version(): number {
+    return this.revision;
+  }
+
   constructor(
     readonly width: number,
     readonly height: number,

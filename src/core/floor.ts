@@ -329,9 +329,16 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
   const kindRng = new Rng(seed ^ 0x7a3c19e5);
   // Caché ou non : tiré à part aussi (crescendo selon l'étage).
   const hideRng = new Rng(seed ^ 0x2b9d4e61);
-  const hiddenShare = RULES.trapHiddenByDepth[Math.min(depth, RULES.trapHiddenByDepth.length) - 1];
-  const chance = Math.min(RULES.trapRoomChanceMax, RULES.trapRoomChance + RULES.trapRoomChancePerDepth * (depth - 1));
-  const kinds = (Object.keys(TRAPS) as TrapKind[]).filter((k) => TRAPS[k].minDepth <= depth);
+  const section = sectionOf(depth);
+  const hiddenShare = Math.min(
+    RULES.trapHiddenMax,
+    RULES.trapHiddenByDepth[Math.min(depth, RULES.trapHiddenByDepth.length) - 1] + RULES.trapHiddenPerSection * section,
+  );
+  const bonus = RULES.trapRoomChancePerSection * section;
+  const chance = Math.min(RULES.trapRoomChanceMax + bonus, RULES.trapRoomChance + RULES.trapRoomChancePerDepth * (depth - 1) + bonus);
+  const kinds = (Object.keys(TRAPS) as TrapKind[]).filter(
+    (k) => TRAPS[k].minDepth <= depth && (!TRAPS[k].sections || TRAPS[k].sections!.includes(Math.min(section, 1))),
+  );
   state.rooms.forEach((room, index) => {
     if (index === 0 || !rng.chance(chance)) return;
     // Pas de piège dans une salle à thème (Thomas, 2026-11-11). Le tirage a eu lieu : le hasard des autres salles ne change pas.
@@ -345,7 +352,7 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
       if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
       if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
       let pick = kindRng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
-      const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? "spikes";
+      const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? kinds[0];
       const trap: Trap = { x, y, kind };
       if (hideRng.chance(hiddenShare)) trap.hidden = true;
       state.traps.push(trap);

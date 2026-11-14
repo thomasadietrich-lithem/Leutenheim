@@ -16,6 +16,7 @@ import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
+import { encaseStairs } from "../world/stairs";
 import { carvePocket, placeSecretRoom, placeWallMarks } from "../world/secretRoom";
 import { decorateChampi } from "../world/champi";
 import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan, sandboxSection, setSandboxSection } from "../world/sandbox";
@@ -315,6 +316,11 @@ export class Game {
       const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
+      // Escaliers enchâssés dans un « U » de mur, sur tous les étages tirés au hasard (Thomas, 2026-11-14).
+      if (!sandboxFloor && !bossFloor) {
+        floor.stairs = encaseStairs(floor, floor.stairs, Tile.StairsDown);
+        if (depth > 1) floor.start = encaseStairs(floor, floor.start, Tile.StairsUp);
+      }
       // Salles de fouille : à la main en salle d'essai ; dans le donjon, seulement quand le mobilier sera validé.
       const furnished = sandboxFloor
         ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes }
@@ -332,11 +338,12 @@ export class Game {
       }
       // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
       // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
-      if (!sandboxFloor && !bossFloor && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
+      // (Section 2 : ni statues, ni gravier, ni eau, ni PNJ de la section 1 ; Thomas, 2026-11-14.)
+      if (!sandboxFloor && !bossFloor && !champi && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
         placeBell(floor, new Rng(seed ^ 0x57a7f), furnished.furniture, new Set(furnished.themes.map((t) => t.room)), "statue");
       }
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
-      if (!sandboxFloor && !bossFloor && RULES.groundsInDungeon) {
+      if (!sandboxFloor && !bossFloor && !champi && RULES.groundsInDungeon) {
         const quiet = furnished.themes.filter((t) => t.id === "bain" || t.id === "ferme").map((t) => floor.rooms[t.room]);
         placeGrounds(floor, seed, depth, quiet);
       }
@@ -470,7 +477,7 @@ export class Game {
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
       placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
     }
-    if (fresh && !state.boss) this.placeQuestNpc(state, depth);
+    if (fresh && !state.boss && state.look !== "champi") this.placeQuestNpc(state, depth);
     for (const m of this.monsters) {
       m.fromX = m.x;
       m.fromY = m.y;
@@ -1632,7 +1639,7 @@ export class Game {
     if (damage > 0) {
       this.bleed(actor, actor);
       if (actor.kind === "hero") {
-        this.hurtHero(damage, { spikes: "un piège à pointes", pit: "une chute dans une fosse", needle: "une aiguille empoisonnée", gas: "le gaz" }[kind]);
+        this.hurtHero(damage, { spikes: "un piège à pointes", pit: "une chute dans une fosse", needle: "une aiguille empoisonnée", gas: "le gaz", snare: "un lacet de mycélium", hooks: "des racines-crochets", spores: "des spores" }[kind]);
       } else {
         actor.hp = Math.max(0, actor.hp - damage);
         this.removeIfDead(actor);
@@ -2153,10 +2160,8 @@ export class Game {
     game.fog = saved.fog ?? [];
     game.refreshStats();
     game.hidden = saved.hidden;
-    for (const a of [game.hero, ...game.monsters]) {
-      a.fromX = a.x;
-      a.fromY = a.y;
-    }
+    // D'où chacun venait (fromX, prevX) reste celui de la sauvegarde : il compte pour l'embuscade du tour suivant (sinon
+    // une partie reprise donnait l'avantage là où l'originale ne le donnait pas).
     // La vue est recalculée, mais les monstres « déjà vus » restent ceux de la sauvegarde : sinon un monstre entré dans
     // le champ pendant le dernier tour serait noté vu ici et pas dans la partie d'origine (la suite différait).
     const seen = new Set(game.seenMonsters);
@@ -2316,6 +2321,8 @@ export class Game {
   // ---------- Torche, objets à utiliser ----------
 
   /** La lumière des torches et cheminées de l'étage, plus celle de la torche portée par le héros. */
+  private lightVersion = -1;
+
   private refreshLight(): void {
     const carried = this.torchLit() ? [{ x: this.hero.x, y: this.hero.y, faceX: 0, faceY: 0, radius: RULES.torchRadius }] : [];
     // Une torche posée au sol brille un peu, comme celles des murs (Thomas).
@@ -2348,6 +2355,7 @@ export class Game {
     const giver = this.quest && this.current ? this.npc(QUEST_TASKS[this.quest.id].npc) : null;
     if (giver) candle.push({ x: giver.x, y: giver.y, faceX: 0, faceY: 0, radius: RULES.questNpcLight, area: this.rooms.find((r) => giver.x >= r.x && giver.x < r.x + r.w && giver.y >= r.y && giver.y < r.y + r.h) ?? { x: giver.x - 1, y: giver.y - 1, w: 3, h: 3 } });
     this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
+    this.lightVersion = this.map.version;
   }
 
   /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
@@ -3550,6 +3558,16 @@ export class Game {
 
   /** Joue un tour (action du héros, puis des monstres) si une action est en attente. */
   tick(): boolean {
+    const played = this.playTick();
+    // Une porte a bougé après le dernier calcul de la vue (un monstre l'a refermée) : la vue se refait, comme le ferait
+    // une partie reprise (sinon le héros « voit » encore à travers la porte fermée).
+    if (this.map.version !== this.visionVersion) this.updateVision();
+    return played;
+  }
+
+  private visionVersion = -1;
+
+  private playTick(): boolean {
     if (this.over) return false;
     for (const a of [this.hero, ...this.monsters]) {
       a.prevX = a.fromX;
@@ -4335,9 +4353,10 @@ export class Game {
     const furniture = state.furniture ?? (state.furniture = []);
     const special = new Set((state.themes ?? []).map((t) => t.room));
     const floor = state as unknown as Parameters<typeof placeBell>[0];
-    // Ni sur un PNJ, ni sur un objet, un monstre, un motif au sol ou une flaque.
+    // Ni sur un PNJ ni juste à côté (il ne doit pas se retrouver coincé dans un goulet), ni sur un objet, un monstre, un
+    // motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.merchant].some((p) => p && p.x === x && p.y === y) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -8019,6 +8038,10 @@ export class Game {
   }
 
   private updateVision(): void {
+    // Une porte ouverte ou fermée depuis le dernier calcul : la lumière se refait (sinon elle passerait encore, ou plus,
+    // par cette porte, et une partie reprise ne verrait pas la même chose).
+    if (this.map.version !== this.lightVersion) this.refreshLight();
+    this.visionVersion = this.map.version;
     this.visible = computeFov(this.map, this.hero, this.race.darkVision, this.race.sight, this.light);
     this.completeCorners();
     for (let i = 0; i < this.visible.length; i++) {

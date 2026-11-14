@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T21:03:02.522Z",
+ "commit": "96985a7",
+ "note": "section 2 : pièges propres, escaliers en niche, vue refaite après porte",
+ "logic": {
+  "tickMs": 0.82,
+  "lightMs": 0.32,
+  "visionMs": 0.1
+ },
+ "scenes": {
+  "immobile": {
+   "n": 110,
+   "avg": 22.4,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 45,
+   "js": 7
+  },
+  "marche": {
+   "n": 238,
+   "avg": 20.9,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 48,
+   "js": 4
+  },
+  "retour": {
+   "n": 239,
+   "avg": 20.9,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 48,
+   "js": 3
+  },
+  "zoom": {
+   "n": 115,
+   "avg": 22.9,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 44,
+   "js": 7
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 3
+  },
+  "donjon": {
+   "n": 198,
+   "avg": 25.2,
+   "p95": 33.4,
+   "max": 233.4,
+   "fps": 40,
+   "js": 13
+  }
+ },
+ "errors": []
+}

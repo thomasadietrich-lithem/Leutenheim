@@ -239,6 +239,12 @@ export const RULES = {
    *  pas ; une fouille réussie de la salle le révèle, ou il se révèle en partant (C). */
   // Crescendo DOUX (Thomas, 2026-11-14) : 10 % à l'étage 1, +8 % par étage, 60 % au plus.
   trapHiddenByDepth: [0.1, 0.18, 0.26, 0.34, 0.42, 0.5, 0.55, 0.6],
+  /** Crescendo par SECTION (Thomas, 2026-11-14 : « augmente la fréquence des pièges visibles et invisibles plus on avance
+   *  dans les sections ») : à chaque section passée, la chance d'un piège par salle (et son plafond) monte de
+   *  `trapRoomChancePerSection`, et la part des cachés de `trapHiddenPerSection`, jusqu'à `trapHiddenMax` (C). */
+  trapRoomChancePerSection: 0.1,
+  trapHiddenPerSection: 0.1,
+  trapHiddenMax: 0.8,
   /** Sarcophage à pointes (salle de torture) : difficulté pour désamorcer (agilité) ou forcer (force), pointe si raté, bruit si forcé. */
   maidenDc: 11,
   maidenSpike: { count: 1, sides: 4, bonus: 0 },

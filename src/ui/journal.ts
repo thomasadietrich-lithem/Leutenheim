@@ -307,6 +307,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       const who = hero ? "Vous" : e.victim.name;
       if (e.kind === "pit") return hero ? `La dalle cède : vous tombez dans une fosse (${e.damage} dégâts) et devez en remonter.` : `${who} tombe dans une fosse : ${e.damage} dégâts.`;
       if (e.kind === "needle") return hero ? `Une aiguille empoisonnée vous pique (${e.damage} dégât).` : `${who} marche sur une aiguille empoisonnée.`;
+      if (e.kind === "snare") return hero ? "Des fils pâles se dressent et vous ligotent : deux tours pour vous en défaire." : `${who} se fait ligoter par le mycélium.`;
+      if (e.kind === "hooks") return hero ? `Des racines-crochets jaillissent du sol (${e.damage} dégâts) et vous retiennent.` : `${who} se fait harponner par des racines : ${e.damage} dégâts.`;
+      if (e.kind === "spores") return hero ? "Pouf ! Les vesses-de-loup crèvent en un nuage de spores." : `${who} écrase des vesses-de-loup : un nuage de spores.`;
       if (e.kind === "gas") return hero ? "Pschhh… un gaz vert s'échappe de la grille !" : `${who} libère un nuage de gaz vert.`;
       return hero ? `Vous marchez sur un piège à pointes : ${e.damage} dégâts.` : `${who} tombe sur un piège à pointes : ${e.damage} dégâts.`;
     }

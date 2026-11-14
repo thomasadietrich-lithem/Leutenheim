@@ -1645,4 +1645,5 @@ export const EN: Record<string, string> = {
   "Se dégager d'un ennemi au contact (jet réussi).": "Disengage from an adjacent enemy (successful roll).",
   "{0} poussées réussies.": "{0} successful shoves.",
   "{0} fois dégagé d'un ennemi.": "disengaged from an enemy {0} times.",
+  "Boss": "Boss",
 };

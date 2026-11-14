@@ -43,7 +43,7 @@ const GOLD_HEN_PALETTE: Record<string, string> = { ...POULET_PALETTE, W: "#f0c85
 /** Fifrelin (quête 04) : écailles rouges, œil doré, gilet rouge. */
 export const FIFRELIN_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#d8664e", a: "#8e2e22", Y: "#ffd84a", L: "#f2c8a8", C: "#c84a3a", c: "#7a1e1a", M: "#e0c070", m: "#a07830" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
-const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
+export const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
 import { tr } from "../i18n/i18n";
 import { BLOOD, GOLD_PILES, PALETTE as ICON_PALETTE, STATUS_ICONS, itemIconRows, uiIconRows } from "../ui/icons";

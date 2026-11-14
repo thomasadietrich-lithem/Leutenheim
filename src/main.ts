@@ -1,5 +1,6 @@
 import { medalLine, onEvents, playUnlock, renderWall, splitMedal, type Unlock } from "./ui/achievements";
 import { medal } from "./ui/medals";
+import { portrait } from "./ui/portraits";
 import { addRecord, loadRecords } from "./ui/records";
 import { FERMIER } from "./render/sprites/ferme";
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./render/sprites/escaliers";
@@ -183,7 +184,8 @@ let pushMode = false;
 let seenItems = new Set<ItemId>();
 
 // Encyclopédie : les objets déjà rencontrés, toutes parties confondues (mémorisés sur l'appareil).
-const CODEX_KEY = "leutenheim.codex";
+// Clé changée le 2026-11-14 : l'ancienne liste était remplie par la salle d'essai, qui ne compte plus.
+const CODEX_KEY = "leutenheim.codex2";
 const codex = new Set<string>();
 try {
   for (const id of JSON.parse(localStorage.getItem(CODEX_KEY) ?? "[]")) if (typeof id === "string") codex.add(id);
@@ -191,6 +193,8 @@ try {
   // Pas de mémoire disponible : l'encyclopédie repartira de zéro à chaque visite.
 }
 function discover(ids: Iterable<string>): void {
+  // La salle d'essai montre tout : elle ne remplit pas l'encyclopédie.
+  if (game.sandbox) return;
   const before = codex.size;
   for (const id of ids) codex.add(id);
   if (codex.size === before) return;
@@ -2934,9 +2938,17 @@ type CodexTab = "objets" | "creatures" | "manuel";
 let codexTab: CodexTab = "objets";
 
 /** Une fiche d'encyclopédie sans objet : un pictogramme de couleur, un nom, un genre, une description. */
-function codexCard(shape: "diamond" | "square", color: string, name: string, kind: string, description: string): HTMLElement {
+function codexCard(shape: "diamond" | "square", color: string, name: string, kind: string, description: string, art?: SVGSVGElement | null): HTMLElement {
   const card = el("div", "item-card");
   const picture = el("div", "item-card-icon");
+  if (art) {
+    art.classList.add("codex-portrait");
+    picture.append(art);
+    const body = el("div", "item-card-body");
+    body.append(el("div", "item-card-name", name), el("div", "item-card-kind", kind), el("div", "item-card-desc", description));
+    card.append(picture, body);
+    return card;
+  }
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
@@ -2979,11 +2991,11 @@ function renderCodex(): void {
     const all = Object.values(MONSTERS) as MonsterDef[];
     for (const family of [...new Set(all.map((m) => m.family))]) {
       const members = all.filter((m) => m.family === family);
-      const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, "Créature", m.description));
+      const cards = members.filter((m) => codex.has(`m:${m.id}`)).map((m) => codexCard("diamond", m.color, m.name, m.boss ? "Boss" : "Créature", m.description, portrait(`m:${m.id}`)));
       section(`Famille : ${family}`, members.length, cards);
     }
     // Les personnages (non hostiles), découverts en les voyant.
-    const people = CODEX_PEOPLE.filter((p) => codex.has(`n:${p.id}`)).map((p) => codexCard("square", p.color, p.name, "Personnage", p.description));
+    const people = CODEX_PEOPLE.filter((p) => codex.has(`n:${p.id}`)).map((p) => codexCard("square", p.color, p.name, "Personnage", p.description, portrait(`n:${p.id}`)));
     section("Personnages", CODEX_PEOPLE.length, people);
   } else {
     nodes.push(...manualNodes());

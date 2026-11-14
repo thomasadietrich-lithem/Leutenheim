@@ -1805,19 +1805,19 @@ export class Game {
   }
 
   /** Section 2 : éboulis (« E », infranchissable) ou terre meuble (« e ») sur cette case (pour le dessin). */
-  earthAt(x: number, y: number): "E" | "e" | null {
+  earthAt(x: number, y: number): "E" | "B" | "e" | null {
     const list = this.current?.furniture;
     if (!list) return null;
     if (this.earthCache?.list !== list || this.earthCache.n !== list.length) {
-      const cells = new Map<number, "E" | "e">();
+      const cells = new Map<number, "E" | "B" | "e">();
       const breach = new Set<number>();
-      for (const f of list) if (f.kind === "eboulis" || f.kind === "terre") cells.set(f.y * 4096 + f.x, f.kind === "eboulis" ? "E" : "e");
+      for (const f of list) if (f.kind === "eboulis" || f.kind === "terre") cells.set(f.y * 4096 + f.x, f.kind === "eboulis" ? (f.breach ? "B" : "E") : "e");
       for (const f of list) if (f.kind === "eboulis" && f.breach) breach.add(f.y * 4096 + f.x);
       this.earthCache = { list, n: list.length, cells, breach };
     }
     return this.earthCache.cells.get(y * 4096 + x) ?? null;
   }
-  private earthCache: { list: unknown; n: number; cells: Map<number, "E" | "e">; breach: Set<number> } | null = null;
+  private earthCache: { list: unknown; n: number; cells: Map<number, "E" | "B" | "e">; breach: Set<number> } | null = null;
 
   /** Section 2 : éboulis posé à la place d'un mur (le mur est éventré, la terre passe au travers). */
   breachAt(x: number, y: number): boolean {

@@ -218,7 +218,43 @@ function forgeFloor(px: number, py: number): RGB {
  * flanc avant sombre, dessus clair, mottes, racines lumineuses) et TERRE MEUBLE (mottes et cailloux).
  */
 const C_EARTH: RGB[] = [[40, 32, 38], [48, 38, 44], [56, 45, 50]];
-function champiFloor(px: number, py: number): RGB {
+
+/**
+ * SOL B « pavés ronds moussus » (Thomas, 2026-11-14 : « essaie d'implémenter le sol B » ; planche art/champi_sols_v1.png) :
+ * des galets ronds serrés (cellules de Voronoï sur une grille de 7 pixels), plus clairs au centre, joints sombres pleins
+ * de mousse bleu-vert, quelques brins lumineux. Mêmes calculs que `floor_cobbles` de la planche.
+ */
+function cobbles(px: number, py: number): RGB {
+  const cell = 7;
+  const gx = Math.floor(px / cell);
+  const gy = Math.floor(py / cell);
+  let best = 1e9;
+  let second = 1e9;
+  let seed = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const cx = gx + dx;
+      const cy = gy + dy;
+      const sx = (cx + 0.2 + 0.6 * hash2(cx, cy, 911)) * cell;
+      const sy = (cy + 0.2 + 0.6 * hash2(cx, cy, 912)) * cell;
+      const d = Math.hypot(px - sx, py - sy);
+      if (d < best) {
+        second = best;
+        best = d;
+        seed = hash2(cx, cy, 913);
+      } else if (d < second) second = d;
+    }
+  }
+  if (second - best < 1.4) {
+    if (fbm(px, py, 10, 914, 2) > 0.5) return hash2(px, py, 915) > 0.9 ? [90, 200, 170] : [40, 110, 96];
+    return [22, 20, 26];
+  }
+  const k = (0.8 + 0.35 * seed) * Math.min(1.15, Math.max(0.75, 1.15 - best / cell));
+  return [60 * k, 56 * k, 70 * k];
+}
+
+/** L'ancien sol de la section 2 (terre, flaques, rares dalles), gardé pour comparer. */
+export function champiEarthFloor(px: number, py: number): RGB {
   const n = fbm(px, py, 6, 13, 2);
   let c = C_EARTH[n < 1 / 3 ? 0 : n < 2 / 3 ? 1 : 2];
   if (hash2(px, py, 18) > 0.93) c = scale(c, 0.75);
@@ -265,7 +301,7 @@ export function groundImage(
   y: number,
   motifs: readonly Motif[] = [],
   style?: FloorStyle,
-  earthAt?: (x: number, y: number) => "E" | "e" | null,
+  earthAt?: (x: number, y: number) => "E" | "B" | "e" | null,
 ): HTMLCanvasElement {
   const gravel = around(map, x, y, Tile.Gravel);
   const water = around(map, x, y, Tile.Water);
@@ -273,14 +309,19 @@ export function groundImage(
   // Section 2 : éboulis jusqu'à 2 cases (leur tas déborde), terre meuble de la case, murs voisins (mycélium).
   const champi = style === "champi";
   const mounds: [number, number][] = [];
+  const breaches: [number, number][] = [];
   let loose = false;
   let walls = "";
   if (champi) {
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (earthAt?.(x + dx, y + dy) === "E") mounds.push([x + dx, y + dy]);
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const e = earthAt?.(x + dx, y + dy);
+      if (e === "E" || e === "B") mounds.push([x + dx, y + dy]);
+      if (e === "B") breaches.push([x + dx, y + dy]);
+    }
     loose = earthAt?.(x, y) === "e";
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) walls += map.get(x + dx, y + dy) === Tile.Wall ? "1" : "0";
   }
-  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${loose ? "e" : ""}|${walls}`;
+  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${breaches.join(";")}|${loose ? "e" : ""}|${walls}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
@@ -298,7 +339,7 @@ export function groundImage(
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "champi" ? champiFloor(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
+      let c = style === "champi" ? cobbles(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);
@@ -348,7 +389,7 @@ export function groundImage(
       }
     }
   }
-  if (champi) champiOverlay(map, x, y, pixels, mounds, loose);
+  if (champi) champiOverlay(map, x, y, pixels, mounds, loose, breaches);
   for (let k = 0; k < pixels.length; k++) {
     img.data[k * 4] = pixels[k][0];
     img.data[k * 4 + 1] = pixels[k][1];
@@ -362,7 +403,7 @@ export function groundImage(
 }
 
 /** Section 2 : mycélium au pied des murs, puis l'éboulis (tas en relief) et la terre meuble, par-dessus le sol. */
-function champiOverlay(map: GameMap, x: number, y: number, pixels: RGB[], mounds: [number, number][], loose: boolean): void {
+function champiOverlay(map: GameMap, x: number, y: number, pixels: RGB[], mounds: [number, number][], loose: boolean, breaches: [number, number][]): void {
   const ox = x * T;
   const oy = y * T;
   const wallCells: [number, number][] = [];
@@ -375,7 +416,12 @@ function champiOverlay(map: GameMap, x: number, y: number, pixels: RGB[], mounds
       const ay = (erf((py + 0.5 - my * T) / sig) - erf((py + 0.5 - (my + 1) * T) / sig)) / 2;
       v += ax * ay;
     }
-    return v + 0.25 * (fbm(px, py, 7, 501, 2) - 0.5);
+    v += 0.25 * (fbm(px, py, 7, 501, 2) - 0.5);
+    // La case de mur éventrée est pleine de terre jusqu'à la roche : l'éboulement est tranché net à la rangée du mur.
+    const cx = Math.floor(px / T);
+    const cy = Math.floor(py / T);
+    if (breaches.some(([bx, by]) => bx === cx && by === cy)) v = Math.max(v, 0.62);
+    return v;
   };
   const inMound = (px: number, py: number) => mounds.length > 0 && soft(px, py) > 0.5;
   for (let j = 0; j < T; j++) {

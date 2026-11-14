@@ -515,8 +515,10 @@ export function buildSandbox2(): SandboxFloor {
   const earth = (x0: number, y0: number, rows: string[]) => {
     rows.forEach((row, j) => [...row].forEach((c, i) => {
       if (c === "E") {
-        // À la place d'un mur (ou de la roche derrière) : le mur est éventré, la terre passe au travers.
+        // À la place d'un mur : le mur est éventré, la terre passe au travers. Jamais dans la roche derrière (Thomas,
+        // 2026-11-14 : « tranche l'éboulement au niveau de la rangée du mur, pas derrière »).
         const breach = map.get(x0 + i, y0 + j) === Tile.Wall;
+        if (breach && ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => map.get(x0 + i + dx, y0 + j + dy) !== Tile.Wall)) return;
         put(x0 + i, y0 + j, "eboulis");
         if (breach) furniture[furniture.length - 1].breach = true;
       }
@@ -557,11 +559,11 @@ export function buildSandbox2(): SandboxFloor {
   signs[signs.length - 1].x = 32;
   wall([20, 28], [21, 28], [20, 29], [35, 38], [34, 38], [35, 37], [35, 30], [35, 31]);
   // Brèche du mur du haut : la terre déborde dans la galerie ; brèche du mur de gauche, plus petite.
-  earth(24, 25, ["..EEE...", ".EEEEE..", "..EEEE..", ".EEEEEE.", "..EEEE..", ".eeeeeee", "...ee..."]);
-  earth(17, 31, [".E...", "EEEE.", "EEEEe", "EE.e.", "...e."]);
+  earth(24, 27, ["..EEEE..", ".EEEEEE.", "..EEEE..", ".eeeeeee", "...ee..."]);
+  earth(19, 32, ["EEe", "EEe", "e.e"]);
   // Le couloir de la galerie (2 de large) : un éboulis tombe du mur du haut, un autre du mur du bas, on zigzague.
-  earth(38, 31, ["..E.", ".EE.", ".EE.", "eEEe", ".ee."]);
-  earth(43, 34, [".ee.", "eEEe", ".EE.", ".EE.", ".E.."]);
+  earth(38, 33, [".EE.", "eEEe", ".ee."]);
+  earth(43, 34, [".ee.", "eEEe", ".EE."]);
   put(22, 30, "champiGrappe");
   put(33, 35, "champiGeant");
   put(32, 29, "champiCorail");
@@ -574,8 +576,8 @@ export function buildSandbox2(): SandboxFloor {
   line(71, 40, 76, 41);
   line(77, 40, 78, 40);
   // Les éboulis du couloir sortent des murs (la brèche se voit) : l'un du haut, l'autre du bas.
-  earth(72, 37, ["..E.", ".EE.", ".EE.", "eEEe", ".ee."]);
-  earth(75, 40, ["..", "eE", ".E", ".E", ".E"]);
+  earth(72, 39, [".EE.", "eEEe", ".ee."]);
+  earth(75, 40, ["..", "eE", ".E"]);
   glow([[70, 37], [75, 40]]);
   map.set(78, 40, Tile.DoorClosed);
   const grotteA: Room = { x: 79, y: 35, w: 11, h: 10 };
@@ -590,7 +592,7 @@ export function buildSandbox2(): SandboxFloor {
   put(88, 37, "champiCorail");
   put(90, 33, "champiGrappe");
   glow([[80, 37], [83, 36], [87, 40], [83, 38], [82, 40], [89, 39], [85, 32], [88, 30], [86, 37], [83, 42]]);
-  earth(85, 43, [".e.e", "eEEe", ".EE.", ".EEE", "..E."]);
+  earth(85, 43, [".e.e", "eEEe", ".EE."]);
   monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
 
   // ---------- En bas : la salle aux grilles ----------
@@ -608,7 +610,7 @@ export function buildSandbox2(): SandboxFloor {
   map.set(51, 54, Tile.Chest);
   ground.push({ x: 58, y: 54, item: "potion_feu", count: 1 }, { x: 61, y: 45, item: "clef", count: 1 });
   put(49, 45, "champiGeant");
-  earth(45, 49, ["EEEe.", ".EEEe", ".E..."]);
+  earth(47, 49, ["Ee", "EEe", "E."]);
   put(61, 50, "champiGrappe");
   glow([[53, 46], [59, 48], [50, 50], [55, 50]]);
   monsters.push({ x: 55, y: 47, asleep: false, patrol: true });
@@ -616,15 +618,15 @@ export function buildSandbox2(): SandboxFloor {
   // ---------- En bas à gauche : le terrier ----------
   line(36, 47, 46, 48);
   map.set(47, 47, Tile.DoorClosed);
-  earth(38, 44, [".E..", ".EE.", ".EE.", "eEEe", ".ee."]);
-  earth(42, 47, [".ee.", "eEEe", ".EE.", ".EE.", "..E."]);
+  earth(38, 46, [".EE.", "eEEe", ".ee."]);
+  earth(42, 47, [".ee.", "eEEe", ".EE."]);
   const terrier: Room = { x: 20, y: 44, w: 16, h: 10 };
   addRoom(terrier, "Terrier");
   signs[signs.length - 1].x = 24;
   wall([20, 44], [35, 53], [34, 53], [35, 44]);
   // Deux éboulis, l'un du mur du haut, l'autre du mur du bas : on traverse le terrier en zigzag.
-  earth(24, 41, ["..EE.", ".EEE.", ".EEE.", "eEEEe", ".eEe.", "..e.."]);
-  earth(28, 51, ["..e..", ".eEe.", "eEEEe", ".EEE.", ".EEE.", "..E.."]);
+  earth(24, 43, [".EEE.", "eEEEe", ".eEe.", "..e.."]);
+  earth(28, 51, ["..e..", ".eEe.", "eEEEe", ".EEE."]);
   put(31, 46, "champiGrappe");
   put(24, 51, "champiGeant");
   glow([[22, 46], [33, 49], [26, 49], [21, 49]]);

@@ -130,7 +130,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(wallImage(game.map, mx, my, game.look(), (cx, cy) => game.earthAt(cx, cy) === "E", (cx, cy) => game.breachAt(cx, cy)), Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
+    ctx.drawImage(wallImage(game.map, mx, my, game.look(), (cx, cy) => game.earthAt(cx, cy) === "E" || game.earthAt(cx, cy) === "B", (cx, cy) => game.breachAt(cx, cy)), Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
   }
 

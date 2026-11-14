@@ -1628,4 +1628,5 @@ export const EN: Record<string, string> = {
   "La Tisseuse est tombée.": "The Weaver fell.",
   "Mort : {0}": "Died: {0}",
   "Le {0}": "On {0}",
+  "Médailles": "Medals",
 };

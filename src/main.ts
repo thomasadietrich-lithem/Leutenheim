@@ -3039,12 +3039,12 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "records" | "saves" | "succes";
+type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex", "records", "saves", "succes"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "saves", "succes"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
@@ -3053,9 +3053,8 @@ function showScreen(screen: Screen | null): void {
   $("settings-lang").textContent = tr(`Langue : ${options.lang === "en" ? "English" : "Français"}`);
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
-  if (screen === "records") renderRecords();
   if (screen === "saves") renderSaves();
-  if (screen === "succes") renderWall($("succes-grid"), $("succes-detail"), $("succes-tally"));
+  if (screen === "succes") showSuccesTab(succesTab);
 }
 
 interface Card {
@@ -3263,8 +3262,20 @@ button("menu-settings", () => {
   showScreen("settings");
 });
 button("menu-codex", () => showScreen("codex"));
-button("menu-records", () => showScreen("records"));
+// Succès et records fusionnés (Thomas, 2026-11-14) : un écran « Succès », deux onglets.
+let succesTab: "succes" | "records" = "succes";
+function showSuccesTab(tab: "succes" | "records"): void {
+  succesTab = tab;
+  $("tab-succes").classList.toggle("active", tab === "succes");
+  $("tab-records").classList.toggle("active", tab === "records");
+  $("pane-succes").hidden = tab !== "succes";
+  $("records-list").hidden = tab !== "records";
+  if (tab === "succes") renderWall($("succes-grid"), $("succes-detail"), $("succes-tally"));
+  else renderRecords();
+}
 button("menu-succes", () => showScreen("succes"));
+button("tab-succes", () => showSuccesTab("succes"));
+button("tab-records", () => showSuccesTab("records"));
 button("succes-back", () => showScreen("main"));
 // Toucher le bandeau de quête : l'objectif en entier au journal (le bandeau peut être coupé).
 button("quest-banner", () => {
@@ -3276,7 +3287,6 @@ button("quest-banner", () => {
 });
 button("menu-saves", () => showScreen("saves"));
 button("saves-back", () => showScreen("main"));
-button("records-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));
 button("settings-back", () => showScreen("main"));

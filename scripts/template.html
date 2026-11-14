@@ -384,6 +384,10 @@
   #codex-tabs { display: flex; gap: 6px; width: 100%; }
   #codex-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
   #codex-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
+  #succes-tabs { display: flex; gap: 6px; width: 100%; }
+  #succes-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
+  #succes-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
+  #pane-succes[hidden], #records-list[hidden] { display: none; }
   .codex-glyph { width: 40px; height: 40px; }
   #codex-list { flex: 1; min-height: 0; overflow-y: auto; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-right: 2px; }
   #codex-list h3 { align-self: stretch; border-bottom: 2px solid var(--panel-hi); }
@@ -510,7 +514,8 @@
   #bag-qty { display: flex; gap: 6px; align-items: center; }
   #bag-qty[hidden] { display: none; }
   /* Mur de succès (Thomas, 2026-11-14 ; maquette art/succes_v1.html). */
-  #screen-succes { position: relative; }
+  #menu #screen-succes { position: relative; justify-content: flex-start; min-height: 100%; }
+  #screen-succes #succes-back { margin-top: auto; }
   .succes-sub { text-align: center; color: var(--dim); font-size: 18px; margin-top: -6px; }
   #succes-tally { display: flex; justify-content: center; gap: 14px; font-size: 22px; align-items: center; margin: 4px 0; }
   #succes-tally span { display: flex; align-items: center; gap: 4px; }
@@ -695,7 +700,6 @@
       <button id="menu-saves" type="button">Sauvegardes</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
-      <button id="menu-records" type="button">Records</button>
       <button id="menu-succes" type="button">Succès</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
@@ -722,16 +726,15 @@
     </section>
     <section id="screen-succes" hidden>
       <h2>Succès</h2>
-      <div class="succes-sub">Toutes vos parties comptent</div>
-      <div id="succes-tally"></div>
-      <div id="succes-grid"></div>
-      <div id="succes-detail" hidden></div>
+      <div id="succes-tabs"><button id="tab-succes" type="button" class="active">Médailles</button><button id="tab-records" type="button">Records</button></div>
+      <div id="pane-succes">
+        <div class="succes-sub">Toutes vos parties comptent</div>
+        <div id="succes-tally"></div>
+        <div id="succes-grid"></div>
+        <div id="succes-detail" hidden></div>
+      </div>
+      <div id="records-list" hidden></div>
       <button id="succes-back" type="button" class="ghost">Retour</button>
-    </section>
-    <section id="screen-records" hidden>
-      <h2>Records</h2>
-      <div id="records-list"></div>
-      <button id="records-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-settings" hidden>
       <h2>Paramètres</h2>

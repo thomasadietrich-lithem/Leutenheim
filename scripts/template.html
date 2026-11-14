@@ -516,22 +516,22 @@
   #bag-qty[hidden] { display: none; }
   /* Mur de succès (Thomas, 2026-11-14 ; maquette art/succes_v1.html). */
   #menu #screen-succes { position: relative; justify-content: flex-start; min-height: 100%; }
-  #screen-succes #succes-back { margin-top: auto; }
+  #screen-succes #succes-back { margin-top: auto; flex: none; }
   .succes-sub { text-align: center; color: var(--dim); font-size: 18px; margin-top: -6px; }
   #succes-tally { display: flex; justify-content: center; gap: 14px; font-size: 22px; align-items: center; margin: 4px 0; }
   #succes-tally span { display: flex; align-items: center; gap: 4px; }
   #succes-tally .dim { color: var(--dim); }
   .succes-sec { font-size: 20px; color: var(--gold); margin: 6px 4px 2px; border-bottom: 2px solid var(--panel-hi); letter-spacing: .06em; text-align: left; }
-  .succes-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+  .succes-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 2px; }
   .succes-cell { background: none; border: 0; padding: 2px 0; margin: 0; box-shadow: none; text-align: center; color: var(--ink); font-size: 16px; line-height: 1; min-width: 0; }
-  .succes-cell canvas { width: 52px; height: 52px; image-rendering: pixelated; }
+  .succes-cell canvas { width: 64px; height: 64px; image-rendering: pixelated; }
   .succes-cell.locked .nm { color: #6a6050; }
-  .succes-cell .nm { margin-top: 1px; font-size: 13px; line-height: 12px; height: 24px; overflow: hidden; text-transform: none; letter-spacing: 0; white-space: normal; }
+  .succes-cell .nm { margin-top: 1px; font-size: 15px; line-height: 14px; height: 28px; overflow: hidden; text-transform: none; letter-spacing: 0; white-space: normal; }
   .succes-cell .bar { height: 4px; background: #281e14; margin: 2px 5px 0; }
   .succes-cell .bar i { display: block; height: 4px; background: var(--gold); }
   .succes-cell .bar i.full { background: #ffd75e; }
-  .succes-cell .pg { color: var(--dim); font-size: 13px; margin-top: 1px; white-space: nowrap; }
-  #succes-detail { position: absolute; left: 6px; right: 6px; bottom: 52px; background: var(--panel); border: 3px solid var(--panel-hi); padding: 8px 10px; font-size: 18px; text-align: left; z-index: 2; }
+  .succes-cell .pg { color: var(--dim); font-size: 14px; margin-top: 1px; white-space: nowrap; }
+  #succes-detail { position: sticky; bottom: 6px; margin-top: 8px; background: var(--panel); border: 3px solid var(--panel-hi); padding: 8px 10px; font-size: 18px; text-align: left; z-index: 2; }
   #succes-detail[hidden] { display: none; }
   #succes-detail .row { display: flex; gap: 10px; align-items: center; }
   #succes-detail .row canvas { width: 52px; height: 52px; image-rendering: pixelated; flex: none; }

@@ -3059,6 +3059,8 @@ type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes" | "paus
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
+  // Chaque écran du menu s'ouvre en haut (le mur de succès défile).
+  menu.scrollTop = 0;
   for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.

@@ -14,3 +14,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-14_12h59 | b715373 | 35.5 | 32.1 | 29.6 | 38.5 | 25.9 | 20 | 2.78 | 0.8 | encyclopédie : portraits (2e mesure) |
 | 2026-11-14_13h20 | 4088012 | 66.7 | 30.2 | 24.7 | 44.8 | 26.5 | 24.6 | 3.02 | 0.49 | 6 succès + d20 enchanté |
 | 2026-11-14_13h21 | ff1f413 | 42.5 | 34.2 | 24.4 | 38.2 | 20.5 | 23.6 | 2.99 | 0.68 | 6 succès + d20 enchanté (2e mesure) |
+| 2026-11-14_13h29 | 90f864c | 49 | 26.3 | 23 | 37.8 | 23.4 | 19.5 | 2.74 | 0.55 | mur de succès sur 4 colonnes |

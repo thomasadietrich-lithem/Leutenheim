@@ -211,7 +211,7 @@ const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(".0", "
 export function renderWall(host: HTMLElement, detail: HTMLElement, head: HTMLElement): void {
   const t = tally();
   head.replaceChildren();
-  for (const [tier, n] of [[2, t.or], [1, t.ag], [0, t.cu]] as const) {
+  for (const [tier, n] of [[0, t.cu], [1, t.ag], [2, t.or]] as const) {
     const s = document.createElement("span");
     s.append(miniTier(tier, 2), document.createTextNode(String(n)));
     head.append(s);

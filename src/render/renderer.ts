@@ -783,7 +783,8 @@ export class Renderer {
   private drawSmoke(game: Game, ox: number, oy: number, dt: number): void {
     const { ctx, tile } = this;
     for (const f of game.fires) {
-      if (!game.isVisible(f.x, f.y)) continue;
+      // Pas de fumée tant que la fiole (ou la torche) vole encore (Thomas, 2026-11-14 : « le feu après l'impact »).
+      if (!game.isVisible(f.x, f.y) || this.isHeld(f.x, f.y)) continue;
       if (Math.random() < dt / 260) {
         this.smoke.push({ x: f.x + 0.3 + Math.random() * 0.4, y: f.y + 0.15, age: 0, life: 1400 + Math.random() * 900, drift: (Math.random() - 0.5) * 0.35, size: 0.16 + Math.random() * 0.1 });
       }

@@ -4935,3 +4935,40 @@ test("section 2 : aucun éboulis ne touche une porte ni la jonction d'une salle 
     }
   }
 });
+
+test("torche lancée : sa case prend feu ; dans la section 2, la mousse propage un peu le feu (Thomas, 2026-11-14)", () => {
+  const game = new Game(5, undefined, undefined, undefined, true);
+  game.monsters.splice(0);
+  const uid = (game as unknown as { inventory: { add(id: string, n: number): number; snapshot(): { items: { uid: number; defId: string }[] } } }).inventory;
+  uid.add("torche", 1);
+  const torch = uid.snapshot().items.find((i) => i.defId === "torche")!;
+  // Une case visible et libre à 2 cases du héros.
+  let target: { x: number; y: number } | null = null;
+  for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) {
+    const x = game.hero.x + dx;
+    const y = game.hero.y + dy;
+    if (game.throwRefusal(torch.uid, x, y) === null && game.map.get(x, y) !== Tile.Water) { target = { x, y }; break; }
+  }
+  assert.ok(target, "une case où lancer");
+  assert.ok(game.throwPotion(torch.uid, target!.x, target!.y));
+  game.tick();
+  assert.ok(game.fires.some((f) => f.x === target!.x && f.y === target!.y), "la case de la torche brûle");
+  assert.equal(uid.snapshot().items.filter((i) => i.defId === "torche").length, 0, "la torche est partie");
+  // Section 2 : sur 60 feux, la mousse en propage quelques-uns, pas beaucoup.
+  setSandboxSection(2);
+  try {
+    const g2 = new Game(7, undefined, undefined, undefined, true);
+    g2.monsters.splice(0);
+    const burn = (g2 as unknown as { burn(): void });
+    let spread = 0;
+    for (let k = 0; k < 60; k++) {
+      g2.fires.splice(0);
+      g2.fires.push({ x: g2.hero.x + 2, y: g2.hero.y, turns: 2 });
+      burn.burn();
+      spread += g2.fires.filter((f) => !(f.x === g2.hero.x + 2 && f.y === g2.hero.y)).length;
+    }
+    assert.ok(spread >= 1 && spread <= 16, `${spread} feux propagés sur 60`);
+  } finally {
+    setSandboxSection(1);
+  }
+});

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T19:56:40.402Z",
+ "commit": "e4f33d9",
+ "note": "torche lancée, mousse qui propage le feu",
+ "logic": {
+  "tickMs": 0.44,
+  "lightMs": 0.37,
+  "visionMs": 0.23
+ },
+ "scenes": {
+  "immobile": {
+   "n": 82,
+   "avg": 30.1,
+   "p95": 50,
+   "max": 50,
+   "fps": 33,
+   "js": 5
+  },
+  "marche": {
+   "n": 180,
+   "avg": 27.8,
+   "p95": 33.4,
+   "max": 66.7,
+   "fps": 36,
+   "js": 4
+  },
+  "retour": {
+   "n": 169,
+   "avg": 29.7,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 34,
+   "js": 4
+  },
+  "zoom": {
+   "n": 96,
+   "avg": 29.5,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 34,
+   "js": 7
+  },
+  "combat": {
+   "n": 235,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 253,
+   "avg": 19.6,
+   "p95": 33.4,
+   "max": 133.3,
+   "fps": 51,
+   "js": 10
+  }
+ },
+ "errors": []
+}

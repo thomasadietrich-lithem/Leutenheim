@@ -364,6 +364,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return "Dernier rempart : vous tenez debout, à 1 PV.";
     case "fire":
       return "Vous lancez la potion : les flammes jaillissent !";
+    case "torchThrown":
+      return e.doused ? "Vous lancez la torche… elle s'éteint dans l'eau." : "Vous lancez la torche : la case prend feu.";
     case "burn":
       return e.actor.kind === "hero" ? `Vous brûlez : ${e.damage} dégâts.` : `${e.actor.name} brûle : ${e.damage} dégâts.`;
     case "potion":

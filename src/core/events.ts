@@ -149,6 +149,8 @@ export type GameEvent =
   | { type: "skill"; path: PathId; healed: number }
   | { type: "lastStand" }
   | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
+  /** Une torche lancée (Thomas, 2026-11-14) : elle vole et met le feu à sa case (ou s'éteint dans l'eau). */
+  | { type: "torchThrown"; fromX: number; fromY: number; x: number; y: number; doused: boolean }
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
   | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[]; note?: "healed" | "angry" }
   | { type: "burn"; actor: Actor; damage: number }

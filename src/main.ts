@@ -809,6 +809,14 @@ function reveal(e: GameEvent): void {
         alarmWaves(e.stage);
       }, k * 650);
     renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
+  } else if (e.type === "torchThrown") {
+    // La torche vole en tournoyant ; sa case ne prend feu qu'à l'impact (Thomas, 2026-11-14).
+    renderer.addHop("torche", e.fromX, e.fromY, e.x, e.y, true);
+    renderer.holdEffects([{ x: e.x, y: e.y }], THROW_LAND_MS);
+    window.setTimeout(() => {
+      renderer.addFloatingText(e.x, e.y, e.doused ? "Pschh !" : "Fwouf !", e.doused ? "#a8d0f0" : "#ff9a3a");
+      sfx.play(e.doused ? "splash" : "whoosh");
+    }, THROW_LAND_MS);
   } else if (e.type === "fire") {
     // Après l'éclatement de la fiole.
     window.setTimeout(() => {
@@ -1428,7 +1436,7 @@ bindInput(canvas, {
       renderer.jumpCells = [];
       if (game.throwPotion(uid, t.x, t.y)) stepMs = COMBAT_STEP_MS;
       else {
-        logLines.push("Vous gardez la potion.");
+        logLines.push(game.inventory.get(uid)?.defId === "torche" ? "Vous gardez la torche." : "Vous gardez la potion.");
         renderLog();
       }
       return;
@@ -2339,7 +2347,7 @@ function renderBag(): void {
     : def.kind === "use" ? "Consommer" : "Équiper";
   action.textContent = tr(action.textContent ?? "");
   // Toutes les potions se lancent (Thomas, 2026-11-14) : celles qu'on boit ont leur bouton « Lancer » à part.
-  $("bag-throw").hidden = selectedSlot !== null || !def.potion || ["fire", "smoke", "fog", "discord", "slip"].includes(def.potion);
+  $("bag-throw").hidden = selectedSlot !== null || ((!def.potion || ["fire", "smoke", "fog", "discord", "slip"].includes(def.potion)) && def.id !== "torche");
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
 }
@@ -2414,7 +2422,7 @@ button("bag-throw", () => {
   if (!chosen) return;
   throwUid = chosen.uid;
   renderer.jumpCells = throwCells(chosen.uid);
-  logLines.push("Touchez la case où lancer la potion.");
+  logLines.push(chosen.defId === "torche" ? "Touchez la case où lancer la torche." : "Touchez la case où lancer la potion.");
   bagOpen = false;
   $("bag").hidden = true;
   selected = null;

@@ -338,5 +338,9 @@ export const RULES = {
   /** Taches de sang gardées par étage, au plus. */
   bloodMax: 150,
   fireDamage: { count: 1, sides: 4, bonus: 0 },
+  /** Section 2 : la mousse des pavés propage le feu à une case voisine (chance par tour d'une case en feu), qui brûle
+   *  tant de tours ; une case ne prend feu qu'une fois par la mousse (Thomas, 2026-11-14 : « un peu, pas beaucoup » ; C). */
+  mossFireChance: 0.12,
+  mossFireTurns: 3,
   fastAttackTurns: 0.75,
 };

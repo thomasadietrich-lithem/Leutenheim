@@ -1686,4 +1686,11 @@ export const EN: Record<string, string> = {
   "Section 2": "Section 2",
   "Sol B · pavés ronds": "Floor B · round cobbles",
   "Sol D · feutre de mycélium": "Floor D · mycelium felt",
+  "Fwouf !": "Whoosh!",
+  "Vous gardez la torche.": "You keep the torch.",
+  "Touchez la case où lancer la torche.": "Tap the square to throw the torch at.",
+  "Vous lancez la torche… elle s'éteint dans l'eau.": "You throw the torch… it goes out in the water.",
+  "Vous lancez la torche : la case prend feu.": "You throw the torch: the square catches fire.",
+  "Cave aux chapeaux": "Cap cellar",
+  "Cave du fond": "Back cellar",
 };

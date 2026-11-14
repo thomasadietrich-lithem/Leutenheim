@@ -2628,12 +2628,27 @@ export class Game {
   throwRefusal(uid: number, x: number, y: number): "far" | "unseen" | "wall" | null {
     const def = this.inventory.get(uid) ? (ITEMS[this.inventory.get(uid)!.defId] as ItemDef) : undefined;
     // Toutes les potions se lancent (Thomas, 2026-11-14), à 5 cases au plus si rien n'est dit.
-    const range = def?.throwRange ?? (def?.potion ? 5 : 0);
+    // Une torche se lance aussi, à 5 cases (Thomas, 2026-11-14 : « lancer une torche met le feu à une case »).
+    const range = def?.throwRange ?? (def?.potion || def?.id === "torche" ? 5 : 0);
     if (!range) return "far";
     if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > range) return "far";
     if (!this.isVisible(x, y)) return "unseen";
     if (!this.map.isWalkable(x, y)) return "wall";
     return null;
+  }
+
+  /** La torche lancée : sa case prend feu (dans l'eau, elle s'éteint). Les monstres de la case se réveillent. */
+  private resolveTorchThrow(order: { x: number; y: number }): void {
+    this.reveal();
+    const doused = this.map.get(order.x, order.y) === Tile.Water;
+    if (!doused) {
+      const old = this.fires.find((f) => f.x === order.x && f.y === order.y);
+      if (old) old.turns = RULES.fireTurns;
+      else this.fires.push({ x: order.x, y: order.y, turns: RULES.fireTurns });
+    }
+    this.events.push({ type: "torchThrown", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, doused });
+    for (const m of this.monsters) if (m.x === order.x && m.y === order.y) { m.alerted = true; m.asleep = false; }
+    if (!doused) this.igniteFurniture();
   }
 
   /** Ordre : lancer une potion (de feu) sur une case. */
@@ -2648,6 +2663,7 @@ export class Game {
   private resolveThrow(order: { uid: number; x: number; y: number }): void {
     const item = this.inventory.get(order.uid);
     if (!item || !this.inventory.take(item.defId, 1)) return;
+    if (item.defId === "torche") return this.resolveTorchThrow(order);
     const potion = (ITEMS[item.defId] as ItemDef).potion ?? "fire";
     this.reveal();
     // La croix, plus une éclaboussure au hasard sur une case voisine de la croix (Thomas).
@@ -2909,6 +2925,7 @@ export class Game {
     this.burnFurniture();
     if (this.fires.length === 0) return;
     let burnedBoss = false;
+    const spread: { x: number; y: number; turns: number }[] = [];
     for (const f of this.fires) {
       for (const a of [this.hero, ...this.monsters]) {
         if (!occupies(a, f.x, f.y) || this.over || !this.monsters.concat(this.hero).includes(a)) continue;
@@ -2927,10 +2944,28 @@ export class Game {
         }
       }
       f.turns--;
+      // Section 2 (Thomas, 2026-11-14 : « les veines vertes répandent un peu le feu, pas beaucoup ») : la mousse des
+      // joints des pavés propage le feu à une case voisine, une fois sur huit par tour ; une case ne s'enflamme qu'une
+      // fois par la mousse (elle a brûlé), et ce feu-là dure 3 tours.
+      if (this.look() === "champi" && f.turns > 0 && this.rng.chance(RULES.mossFireChance)) {
+        const [dx, dy] = [[1, 0], [-1, 0], [0, 1], [0, -1]][this.rng.int(0, 3)];
+        const nx = f.x + dx;
+        const ny = f.y + dy;
+        const key = ny * 4096 + nx;
+        const burnt = (this.current.mossBurnt ??= []);
+        if (this.map.isWalkable(nx, ny) && this.map.get(nx, ny) !== Tile.Water && !burnt.includes(key) && !this.fires.some((o) => o.x === nx && o.y === ny)) {
+          burnt.push(key);
+          spread.push({ x: nx, y: ny, turns: RULES.mossFireTurns });
+        }
+      }
       // Le feu éteint laisse de la SUIE au sol (Thomas, 2026-11-12).
       if (f.turns <= 0 && this.map.get(f.x, f.y) !== Tile.Water && this.map.isWalkable(f.x, f.y)) this.stain(f.x, f.y, "soot");
     }
     this.fires = this.fires.filter((f) => f.turns > 0);
+    if (spread.length > 0) {
+      this.fires.push(...spread);
+      this.igniteFurniture();
+    }
   }
 
   /** Taches de sang de l'étage courant. */

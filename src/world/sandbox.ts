@@ -596,16 +596,15 @@ export function buildSandbox2(): SandboxFloor {
   earth(85, 43, [".e.e", "eEEe", ".EE."]);
   monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
 
-  // ---------- En haut à droite : deux salles pour comparer les sols B et D (Thomas, 2026-11-14) ----------
+  // ---------- En haut à droite : deux caves (elles servaient à comparer les sols B et D ; Thomas a choisi B) ----------
   line(71, 21, 71, 34);
   map.set(72, 21, Tile.DoorClosed);
   const solB: Room = { x: 73, y: 18, w: 9, h: 7 };
-  addRoom(solB, "Sol B · pavés ronds");
+  addRoom(solB, "Cave aux chapeaux");
   line(82, 21, 83, 21);
   map.set(84, 21, Tile.DoorClosed);
   const solD: Room = { x: 85, y: 18, w: 9, h: 7 };
-  const solDIndex = addRoom(solD, "Sol D · feutre de mycélium");
-  themes.push({ room: solDIndex, id: "feutre" });
+  addRoom(solD, "Cave du fond");
   for (const r of [solB, solD]) {
     put(r.x + 1, r.y + 1, "champiGeant");
     put(r.x + r.w - 2, r.y + r.h - 2, "champiGrappe");

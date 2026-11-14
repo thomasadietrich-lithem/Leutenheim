@@ -26,3 +26,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-14_19h23 | 1535e81 | 27.2 | 28.2 | 31.2 | 27.7 | 16.7 | 20.7 | 0.46 | 0.4 | section 2 : éboulis à travers les murs |
 | 2026-11-14_19h37 | 2dddb54 | 29.5 | 24.5 | 23.2 | 24.6 | 16.7 | 18.7 | 0.6 | 0.2 | section 2 : sol B pavés ronds |
 | 2026-11-14_19h46 | 81e93fd | 29.7 | 25.2 | 25.6 | 25.8 | 16.7 | 20.1 | 0.62 | 0.53 | section 2 : salles sol B et sol D |
+| 2026-11-14_19h56 | e4f33d9 | 30.1 | 27.8 | 29.7 | 29.5 | 16.7 | 19.6 | 0.44 | 0.37 | torche lancée, mousse qui propage le feu |

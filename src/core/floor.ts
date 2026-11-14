@@ -27,6 +27,8 @@ export interface FloorState {
   monsters: Actor[];
   ground: GroundItem[];
   debris: Debris[];
+  /** Section 2 : cases dont la mousse a déjà brûlé (index y × 4096 + x) : elle ne repropage plus le feu. */
+  mossBurnt?: number[];
   /** Taches de sang : sur le sol (forme 0 ou 1) ou sur un mur (forme 2) ; rouge (héros) ou vert (Schrats). */
   blood: BloodStain[];
   explored: Uint8Array;

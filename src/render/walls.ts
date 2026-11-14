@@ -212,25 +212,42 @@ class WallReader {
   }
 }
 
-function stoneColor(id: string): RGB {
-  const t0 = strHash(id);
-  const jamb = id.charCodeAt(0) === 106; // « j »
-  const base: RGB = jamb ? [132, 136, 166] : [100, 104, 134];
-  const t = jamb ? 0.5 + t0 * 0.4 : t0;
-  const k = 0.82 + 0.34 * t;
-  return [Math.min(255, base[0] * k), Math.min(255, base[1] * k), Math.min(255, base[2] * k)];
-}
-
 const mul = (c: RGB, k: number): RGB => [Math.min(255, c[0] * k), Math.min(255, c[1] * k), Math.min(255, c[2] * k)];
 
 const canvases = new Map<string, HTMLCanvasElement>();
 
-/** Le dessin 16 × 16 de la case de mur (x, y). */
-export function wallImage(map: GameMap, x: number, y: number): HTMLCanvasElement {
+/**
+ * Décor de la SECTION 2, la champignonnière (Thomas, 2026-11-14 ; planches art/champi_v3 à v5, option C) : pierres
+ * sombres brun-violet, joints presque noirs, MYCÉLIUM blanc au lieu de la mousse, points BIOLUMINESCENTS dans les joints,
+ * champignons ronds collés aux pierres (ocre, ou bleus lumineux), murs un peu abîmés (éclats, briques manquantes) et,
+ * près d'un éboulis, les PIERRES DÉPLACÉES (décalées, de travers, manquantes : la terre derrière).
+ */
+const CHAMPI = {
+  stone: [74, 62, 72] as RGB,
+  jamb: [98, 84, 94] as RGB,
+  mortar: [32, 24, 30] as RGB,
+  hi: [132, 118, 128] as RGB,
+  sh: [16, 10, 14] as RGB,
+  rock: [8, 7, 10] as RGB,
+};
+const MYC: RGB[] = [[212, 218, 222], [168, 176, 184]];
+const BIOLUM: RGB = [120, 255, 214];
+const DISC_OCHRE: RGB[] = [[236, 196, 130], [196, 140, 80], [120, 80, 44]];
+const DISC_GLOW: RGB[] = [[190, 255, 240], [90, 220, 200], [30, 120, 120]];
+const EARTH_BEHIND: RGB = [112, 84, 70];
+const JOINT: RGB = [22, 16, 20];
+
+export type WallLook = "s1" | "champi";
+
+/** Le dessin 16 × 16 de la case de mur (x, y). `earthAt` : les éboulis (section 2), qui éventrent les murs voisins. */
+export function wallImage(map: GameMap, x: number, y: number, look: WallLook = "s1", earthAt?: (x: number, y: number) => boolean): HTMLCanvasElement {
   // Le dessin dépend des murs jusqu'à 3 cases autour (liens entre parements, extrémités) : c'est la clé.
   let sig = "";
   for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) sig += !map.inBounds(x + dx, y + dy) || isWallLike(map.get(x + dx, y + dy)) ? "1" : "0";
-  const key = `${x},${y}|${sig}`;
+  const champi = look === "champi";
+  const earth: [number, number][] = [];
+  if (champi && earthAt) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (earthAt(x + dx, y + dy)) earth.push([x + dx, y + dy]);
+  const key = `${x},${y}|${sig}|${look}|${earth.join(";")}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const reader = new WallReader(map);
@@ -242,45 +259,116 @@ export function wallImage(map: GameMap, x: number, y: number): HTMLCanvasElement
   const ox = x * T;
   const oy = y * T;
   const open = (cx: number, cy: number) => reader.open(cx, cy);
+  const P = champi ? CHAMPI : { stone: [100, 104, 134] as RGB, jamb: [132, 136, 166] as RGB, mortar: MORTAR, hi: HI, sh: SH, rock: ROCK };
+  const stoneOf = (id: string): RGB => {
+    const t0 = strHash(id);
+    const jamb = id.charCodeAt(0) === 106; // « j »
+    const base = jamb ? P.jamb : P.stone;
+    const t = jamb ? 0.5 + t0 * 0.4 : t0;
+    const k = 0.82 + 0.34 * t;
+    return [Math.min(255, base[0] * k), Math.min(255, base[1] * k), Math.min(255, base[2] * k)];
+  };
+  /** La couleur d'un pixel du monde (X, Y) appartenant à un mur. */
+  const colorAt = (X: number, Y: number): RGB => {
+    const cx = Math.floor(X / T);
+    const cy = Math.floor(Y / T);
+    const b = reader.brickAt(X, Y);
+    if (b === null) return P.rock;
+    let c: RGB;
+    let mortar = false;
+    const left = reader.brickAt(X - 1, Y);
+    const up = reader.brickAt(X, Y - 1);
+    if ((left !== null && left !== b) || (up !== null && up !== b)) {
+      c = P.mortar;
+      mortar = true;
+    } else {
+      c = stoneOf(b);
+      const right = reader.brickAt(X + 1, Y);
+      const down = reader.brickAt(X, Y + 1);
+      // Arête claire en haut à gauche de la pierre, ombre en bas à droite.
+      if ((left === b && reader.brickAt(X - 2, Y) !== b) || (up === b && reader.brickAt(X, Y - 2) !== b)) c = mul(c, 1.18);
+      if ((right !== null && right !== b) || (down !== null && down !== b)) c = mul(c, 0.72);
+      if (hsh(X, Y, 9) < 0.05) c = mul(c, 0.85);
+      // Section 2 : quelques briques manquantes (un trou noir).
+      if (champi && strHash(b + "m") < 0.025) c = [10, 8, 12];
+    }
+    const nearOpen = open(Math.floor(X / T), Math.floor((Y + 3) / T)) || open(Math.floor(X / T), Math.floor((Y - 3) / T)) ||
+      open(Math.floor((X + 3) / T), Math.floor(Y / T)) || open(Math.floor((X - 3) / T), Math.floor(Y / T));
+    if (!champi) {
+      // Mousse : taches continues, plus fournies au pied des murs ; dans les joints surtout.
+      const n = smooth(X, Y, 9, 21);
+      const thr = 0.74 - (nearOpen ? 0.06 : 0);
+      if (n > thr) {
+        const r = hsh(X, Y, 22);
+        if (mortar || r < (n - thr) * 4) c = r < 0.55 ? MOSS[1] : r < 0.85 ? MOSS[0] : MOSS[2];
+      }
+    } else if (nearOpen) {
+      // Mycélium : filaments blancs dans les joints et sur les pierres, près de la salle ; points lumineux dans les joints.
+      const n = smooth(X, Y, 8, 31);
+      const r = hsh(X, Y, 32);
+      if (n > 0.7 && (mortar || r < (n - 0.7) * 3)) c = r < 0.5 ? MYC[0] : MYC[1];
+      else if (mortar && hsh(X, Y, 33) < 0.06) c = BIOLUM;
+      // Éclats au bord côté salle.
+      if (hsh(X, Y, 91) < 0.03) c = mul(c, 0.35);
+    }
+    // Bords côté salle : clair en haut et à droite, ombre en bas et à gauche (comme la lumière du jeu).
+    const i = X - cx * T;
+    const j = Y - cy * T;
+    if (j === 0 && open(cx, cy - 1)) c = P.hi;
+    if (i === T - 1 && open(cx + 1, cy)) c = P.hi;
+    if (j === T - 1 && open(cx, cy + 1)) c = P.sh;
+    if (i === 0 && open(cx - 1, cy)) c = P.sh;
+    return c;
+  };
+  /** Distance (en pixels) du pixel au plus proche éboulis voisin. */
+  const earthDist = (X: number, Y: number): number => {
+    let d = 99;
+    for (const [ex, ey] of earth) {
+      const dx = Math.max(ex * T - X, 0, X - (ex * T + T - 1));
+      const dy = Math.max(ey * T - Y, 0, Y - (ey * T + T - 1));
+      d = Math.min(d, Math.hypot(dx, dy));
+    }
+    return d;
+  };
+  /** Les champignons ronds collés aux pierres : un par case de mur proche de la salle, une fois sur six. */
+  const discs: { cx: number; cy: number; r: number; glow: boolean }[] = [];
+  if (champi) {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const wx = x + dx;
+      const wy = y + dy;
+      if (!reader.isWall(wx, wy) || hsh(wx, wy, 61) > 0.17) continue;
+      if (!(open(wx, wy - 1) || open(wx, wy + 1) || open(wx - 1, wy) || open(wx + 1, wy))) continue;
+      discs.push({ cx: wx * T + 3 + Math.floor(hsh(wx, wy, 62) * 10), cy: wy * T + 3 + Math.floor(hsh(wx, wy, 63) * 10), r: hsh(wx, wy, 64) < 0.5 ? 2 : 3, glow: hsh(wx, wy, 65) < 0.4 });
+    }
+  }
   for (let j = 0; j < T; j++) {
     for (let i = 0; i < T; i++) {
       const X = ox + i;
       const Y = oy + j;
-      const b = reader.brickAt(X, Y);
       let c: RGB;
-      let mortar = false;
-      if (b === null) c = ROCK;
-      else {
-        const left = reader.brickAt(X - 1, Y);
-        const up = reader.brickAt(X, Y - 1);
-        if ((left !== null && left !== b) || (up !== null && up !== b)) {
-          c = MORTAR;
-          mortar = true;
-        } else {
-          c = stoneColor(b);
-          const right = reader.brickAt(X + 1, Y);
-          const down = reader.brickAt(X, Y + 1);
-          // Arête claire en haut à gauche de la pierre, ombre en bas à droite.
-          if ((left === b && reader.brickAt(X - 2, Y) !== b) || (up === b && reader.brickAt(X, Y - 2) !== b)) c = mul(c, 1.18);
-          if ((right !== null && right !== b) || (down !== null && down !== b)) c = mul(c, 0.72);
-          if (hsh(X, Y, 9) < 0.05) c = mul(c, 0.85);
-        }
-        // Mousse : taches continues, plus fournies au pied des murs ; dans les joints surtout.
-        const n = smooth(X, Y, 9, 21);
-        const nearOpen = open(Math.floor(X / T), Math.floor((Y + 3) / T)) || open(Math.floor(X / T), Math.floor((Y - 3) / T)) ||
-          open(Math.floor((X + 3) / T), Math.floor(Y / T)) || open(Math.floor((X - 3) / T), Math.floor(Y / T));
-        const thr = 0.74 - (nearOpen ? 0.06 : 0);
-        if (n > thr) {
-          const r = hsh(X, Y, 22);
-          if (mortar || r < (n - thr) * 4) c = r < 0.55 ? MOSS[1] : r < 0.85 ? MOSS[0] : MOSS[2];
-        }
-      }
-      // Bords côté salle : clair en haut et à droite, ombre en bas et à gauche (comme la lumière du jeu).
-      if (b !== null) {
-        if (j === 0 && open(x, y - 1)) c = HI;
-        if (i === T - 1 && open(x + 1, y)) c = HI;
-        if (j === T - 1 && open(x, y + 1)) c = SH;
-        if (i === 0 && open(x - 1, y)) c = SH;
+      if (champi && earth.length > 0 && reader.brickAt(X, Y) !== null) {
+        // Près d'un éboulis : pierres déplacées (blocs de 5 × 3 décalés), les plus proches manquent.
+        const d = earthDist(X, Y);
+        if (d < 14) {
+          const by = Math.floor(Y / 3);
+          const bx = Math.floor((X + (by % 2) * 2) / 5);
+          const r = hsh(bx, by, 52);
+          if (d < 4 + 4 * r) c = EARTH_BEHIND;
+          else {
+            const push = Math.round((1 - d / 14) * 3 * (0.5 + r));
+            const sx = r < 0.5 ? push : -push;
+            const sy = r > 0.75 && push ? 1 : 0;
+            c = colorAt(X - sx, Y - sy);
+          }
+          if (Y % 3 === 0 || (X + (by % 2) * 2) % 5 === 0) c = JOINT;
+        } else c = colorAt(X, Y);
+      } else c = colorAt(X, Y);
+      for (const disc of discs) {
+        const dd = Math.hypot(X - disc.cx, Y - disc.cy);
+        if (dd > disc.r + 0.3 || reader.brickAt(X, Y) === null) continue;
+        const pal = disc.glow ? DISC_GLOW : DISC_OCHRE;
+        c = dd < disc.r * 0.35 ? pal[0] : dd < disc.r * 0.7 || Math.floor(dd * 2) % 2 === 0 ? pal[1] : pal[2];
+        if (X < disc.cx && Y < disc.cy && dd > disc.r * 0.6) c = pal[0];
       }
       const o = (j * T + i) * 4;
       img.data[o] = c[0];

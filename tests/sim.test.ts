@@ -16,7 +16,7 @@ import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
 import { guaranteedLoot } from "../src/core/floor";
 import { FURNITURE_KINDS } from "../src/data/themedRooms";
 import { MOTIF_SIZE } from "../src/data/motifs";
-import { buildSandbox, setSandboxPlan } from "../src/world/sandbox";
+import { buildSandbox, buildSandbox2, setSandboxPlan, setSandboxSection } from "../src/world/sandbox";
 import { buildBanc } from "./banc";
 
 // Les tests de mécanique jouent sur le banc d'essai (l'ancienne salle d'essai, cases connues) ; ceux de la vraie salle
@@ -4882,4 +4882,40 @@ test("clef inutile : la dernière porte verrouillée forcée, la clef de l'étag
     checked++;
   }
   assert.ok(checked > 0, "aucun étage avec clef et porte verrouillée");
+});
+
+test("salle d'essai, section 2 (champignonnière) : tout est accessible, décor « champi », pas de PNJ (Thomas, 2026-11-14)", () => {
+  setSandboxSection(2);
+  try {
+    const game = new Game(3, undefined, undefined, undefined, true);
+    assert.equal(game.look(), "champi");
+    assert.equal(game.floorStyle(game.hero.x, game.hero.y), "champi");
+    for (const id of ["gluck", "soeur", "krik", "grum", "fifrelin"] as const) assert.equal(game.npc(id), null, `${id} absent`);
+    // Toutes les salles sont accessibles depuis le départ (portes comprises, sauf la cellule verrouillée et la salle secrète).
+    const plan = buildSandbox2();
+    const seen = new Set<number>();
+    const queue = [plan.start];
+    seen.add(plan.map.index(plan.start.x, plan.start.y));
+    while (queue.length) {
+      const p = queue.pop()!;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = p.x + dx;
+        const y = p.y + dy;
+        const t = plan.map.get(x, y);
+        if (t === Tile.Wall || t === Tile.Furniture || t === Tile.DoorLocked || seen.has(plan.map.index(x, y))) continue;
+        seen.add(plan.map.index(x, y));
+        queue.push({ x, y });
+      }
+    }
+    for (const r of plan.rooms.slice(0, 7)) assert.ok(seen.has(plan.map.index(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2))) || [...seen].some((i) => { const x = i % plan.map.width; const y = Math.floor(i / plan.map.width); return x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h; }), `salle ${JSON.stringify(r)} accessible`);
+    assert.ok(plan.secretRoom, "une salle secrète derrière un rideau de mycélium");
+    assert.ok(plan.furniture.some((f) => f.kind === "mycCurtain"));
+    // Une sauvegarde reprise garde la section 2.
+    const back = Game.restore(JSON.parse(JSON.stringify(game.snapshot())));
+    setSandboxSection(1);
+    assert.equal(Game.restore(JSON.parse(JSON.stringify(game.snapshot())))?.look(), "champi");
+    assert.ok(back);
+  } finally {
+    setSandboxSection(1);
+  }
 });

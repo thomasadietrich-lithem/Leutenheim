@@ -17,7 +17,7 @@ import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { carvePocket, placeSecretRoom, placeWallMarks } from "../world/secretRoom";
-import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan } from "../world/sandbox";
+import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan, sandboxSection, setSandboxSection } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
@@ -69,7 +69,8 @@ export interface GluckMemory {
 
 /** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
 /** Les meubles à bougies et le rayon de leur lueur (Thomas, 2026-11-14 : « toutes les bougies doivent éclairer » ; C). */
-const CANDLE_LIGHT: Record<string, number> = { table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2 };
+// Section 2 (Thomas, 2026-11-14) : les champignons lumineux éclairent leur salle (C).
+const CANDLE_LIGHT: Record<string, number> = { table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
 
 export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin"];
@@ -307,7 +308,7 @@ export class Game {
     let sandboxFloor: SandboxFloor | null = null;
     if (!state) {
       const seed = floorSeed(this.runSeed, depth);
-      if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan();
+      if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan(this.sandboxSection);
       // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
       const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? buildBossFloor(seed) : null;
       const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
@@ -365,7 +366,9 @@ export class Game {
       // Le Colporteur : dans la salle d'essai, et au 4e étage de chaque section (Thomas, 2026-11-12).
       if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
       else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? undefined;
-      if (!bossFloor && (sandboxFloor || this.funOf(depth) === "counter")) {
+      // Salle d'essai de la section 2 : ni porte du compteur, ni poulet, ni PNJ (seulement le décor et les monstres).
+      const plainSandbox = sandboxFloor?.look === "champi";
+      if (!bossFloor && !plainSandbox && (sandboxFloor || this.funOf(depth) === "counter")) {
         state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? undefined;
         // Pas de porte qui convienne : la cloche prend sa place (il y a toujours un truc fun dans la section).
         if (!state.counter && !sandboxFloor) {
@@ -374,7 +377,7 @@ export class Game {
         }
       }
       // Le poulet (truc fun, Thomas 2026-11-13) ; sans salle qui convienne, la cloche prend sa place.
-      if (!bossFloor && (sandboxFloor || this.funOf(depth) === "chicken")) {
+      if (!bossFloor && !plainSandbox && (sandboxFloor || this.funOf(depth) === "chicken")) {
         state.chicken = this.placeChicken(floor, state, seed, !!sandboxFloor) ?? undefined;
         if (!state.chicken && !sandboxFloor) {
           const special = new Set((state.themes ?? []).map((t) => t.room));
@@ -1796,10 +1799,23 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | undefined {
     const id = this.themeAt(x, y);
-    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : undefined;
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : this.look() === "champi" ? "champi" : undefined;
   }
+
+  /** Section 2 : éboulis (« E », infranchissable) ou terre meuble (« e ») sur cette case (pour le dessin). */
+  earthAt(x: number, y: number): "E" | "e" | null {
+    const list = this.current?.furniture;
+    if (!list) return null;
+    if (this.earthCache?.list !== list || this.earthCache.n !== list.length) {
+      const cells = new Map<number, "E" | "e">();
+      for (const f of list) if (f.kind === "eboulis" || f.kind === "terre") cells.set(f.y * 4096 + f.x, f.kind === "eboulis" ? "E" : "e");
+      this.earthCache = { list, n: list.length, cells };
+    }
+    return this.earthCache.cells.get(y * 4096 + x) ?? null;
+  }
+  private earthCache: { list: unknown; n: number; cells: Map<number, "E" | "e"> } | null = null;
 
   /** Thème de la salle qui contient cette case (null hors des salles à thème). */
   themeAt(x: number, y: number): string | null {
@@ -1897,6 +1913,7 @@ export class Game {
       race: this.race.id,
       heroClass: this.heroClass.id,
       sandbox: this.sandbox,
+      sandboxSection: this.sandbox ? this.sandboxSection : undefined,
       depth: this.depth,
       deepest: this.deepest,
       turn: this.turn,
@@ -1953,6 +1970,7 @@ export class Game {
     const race = (RACES as Record<string, RaceDef>)[data.race];
     const heroClass = (CLASSES as Record<string, ClassDef>)[data.heroClass];
     if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
+    if (data.sandbox) setSandboxSection(data.sandboxSection === 2 ? 2 : 1);
     const game = new Game(data.runSeed, race, heroClass, DEFAULT_FLOOR, data.sandbox);
     const saved = clone(data);
     game.floors.clear();
@@ -2254,7 +2272,7 @@ export class Game {
     // Toutes les bougies du décor éclairent un peu leur salle (Thomas, 2026-11-14) : la table du dortoir, la table basse
     // du bain, les candélabres de la chapelle (selon leurs bougies), le grimoire de l'alchimiste.
     for (const f of this.current?.furniture ?? []) {
-      const radius = CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : 0);
+      const radius = CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : f.kind.startsWith("lueurs") ? 2 : 0);
       if (!radius) continue;
       const cx = f.x + ((FURNITURE_KINDS[f.kind]?.w ?? 1) > 1 ? 1 : 0);
       const area = this.rooms.find((r) => cx >= r.x && cx < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
@@ -3788,7 +3806,7 @@ export class Game {
         secret.found = true;
         this.map.set(secret.entry.x, secret.entry.y, Tile.Floor);
         this.current.rooms.push(secret.room);
-        const mark = this.current.furniture.findIndex((f) => f.x === secret.entry.x && f.y === secret.entry.y && /^wall(Gap|Hole)/.test(f.kind));
+        const mark = this.current.furniture.findIndex((f) => f.x === secret.entry.x && f.y === secret.entry.y && /^(wall(Gap|Hole)|mycCurtain)/.test(f.kind));
         if (mark >= 0) this.current.furniture.splice(mark, 1);
         found.push({ ...secret.entry });
         this.events.push({ type: "secret", what: "found", x: secret.entry.x, y: secret.entry.y });
@@ -4164,7 +4182,7 @@ export class Game {
    */
   private placeQuestNpc(state: FloorState, depth: number): void {
     if (this.sandbox) {
-      if (depth !== 1) return;
+      if (depth !== 1 || this.sandboxFloor()?.look === "champi") return;
       const spots = this.sandboxFloor()?.npcs ?? {};
       const at = (list: Point[] | undefined): GluckSpot | null => {
         const p = list?.find((c) => this.npcFree(state, c.x, c.y));
@@ -6629,12 +6647,19 @@ export class Game {
 
   /** Le plan de la salle d'essai (refait à chaque remise à neuf) ; `null` hors salle d'essai. */
   private plan: SandboxFloor | null = null;
+  /** Quelle salle d'essai (section 1 ou 2), choisie au menu avant de créer la partie. */
+  readonly sandboxSection: 1 | 2 = sandboxSection();
+
+  /** Le décor de l'étage : « champi » (section 2, la champignonnière) ou celui de la section 1. */
+  look(): "s1" | "champi" {
+    return this.sandbox && this.depth === 1 && this.sandboxFloor()?.look === "champi" ? "champi" : "s1";
+  }
   private resetting = false;
   private wasInHub = true;
 
   private sandboxFloor(): SandboxFloor | null {
     if (!this.sandbox) return null;
-    return (this.plan ??= sandboxPlan());
+    return (this.plan ??= sandboxPlan(this.sandboxSection));
   }
 
   /** Les écriteaux au mur de l'étage (salle d'essai). */

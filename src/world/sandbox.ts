@@ -68,6 +68,8 @@ export interface SandboxFloor extends Floor {
   arena?: number;
   /** La pièce secrète de démonstration (Thomas, 2026-11-14). */
   secretRoom?: SecretRoom;
+  /** Le décor de la section (Thomas, 2026-11-14 : salle d'essai de la SECTION 2, la champignonnière). */
+  look?: "champi";
 }
 
 export interface SandboxMonster {
@@ -96,7 +98,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 27;
+export const SANDBOX_LAYOUT = 28;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -104,8 +106,19 @@ export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, fo
 /** Le plan utilisé par la partie : les tests le remplacent par leur banc d'essai (`tests/banc.ts`). */
 let plan: () => SandboxFloor = () => buildSandbox();
 
-export function sandboxPlan(): SandboxFloor {
-  return plan();
+/** Quelle salle d'essai : la section 1 (le plan historique) ou la section 2, la champignonnière (Thomas, 2026-11-14). */
+let section: 1 | 2 = 1;
+
+export function setSandboxSection(s: 1 | 2): void {
+  section = s;
+}
+
+export function sandboxSection(): 1 | 2 {
+  return section;
+}
+
+export function sandboxPlan(s: 1 | 2 = section): SandboxFloor {
+  return s === 2 ? buildSandbox2() : plan();
 }
 
 export function setSandboxPlan(builder: () => SandboxFloor): void {
@@ -304,33 +317,8 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
 
   // ---------- En haut à droite : l'armurerie ----------
   line(106, 36, 106, 38);
-  const armory: Room = { x: 96, y: 22, w: 27, h: 14 };
-  addRoom(armory, "Armurerie");
-  signs[signs.length - 1].x = 109;
-  torches.push({ x: 99, y: 21, radius: 8, faceX: 0, faceY: 1 }, { x: 119, y: 21, radius: 8, faceX: 0, faceY: 1 }, { x: 109, y: 36, radius: 7, faceX: 0, faceY: -1 });
   const areas: SandboxArea[] = [];
-  /** Une zone : son cadre (rangée du nom comprise) et ses objets posés en ligne, une case sur `step`. */
-  const zone = (x: number, y: number, w: number, label: string, color: string, items: [ItemId, number][], step = 1) => {
-    areas.push({ x, y, w, h: 2, label, color });
-    items.forEach(([item, count], i) => ground.push({ x: x + i * step, y: y + 1, item, count }));
-  };
-  zone(97, 23, 11, "Armes", "#c9a227", [
-    ["epee", 1], ["dague", 1], ["baton", 1], ["masse", 1], ["epee_longue", 1],
-    ["couteau_boucher", 1], ["lance", 1], ["cimeterre", 1], ["arc_court", 1], ["arc_puissant", 1], ["fourche", 1],
-  ]);
-  zone(109, 23, 6, "Armures", "#8fa3b8", [["tunique", 1], ["robe", 1], ["armure_cuir", 1], ["armure_cloutee", 1], ["cotte_mailles", 1], ["harnois", 1]]);
-  zone(116, 23, 5, "Casques", "#a77a52", [["casque_cuir", 1], ["casque_maille", 1], ["casque_poulet", 1]], 2);
-  zone(97, 27, 11, "Potions", "#b05cc9", [
-    ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
-    ["potion_oursin", 2], ["potion_pierre", 2], ["potion_discorde", 2], ["potion_geant", 2], ["potion_glissante", 2],
-  ]);
-  zone(110, 27, 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["javeline", 3]], 2);
-  zone(117, 27, 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
-  zone(97, 31, 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
-  zone(106, 31, 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);
-  zone(115, 31, 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["torche", 2]], 2);
-  // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
-  zone(97, 34, 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1]]);
+  addArmory({ addRoom, signs, torches, areas, ground }, 96, 22);
 
   // ---------- À droite de l'armurerie : le musée du mobilier et du décor ----------
   // Tous les meubles et décors du jeu qui ne sont pas déjà dans une salle, rangés en rangées (Thomas, 2026-11-14).
@@ -433,6 +421,48 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   };
 }
 
+
+/**
+ * L'ARMURERIE (commune aux salles d'essai des sections 1 et 2, Thomas 2026-11-14 : « la salle équipement est commune ») :
+ * une salle de 27 × 14 dont le coin en haut à gauche est (x0, y0), tous les objets rangés en zones peintes au sol.
+ */
+function addArmory(
+  o: { addRoom: (r: Room, name?: string) => number; signs: SandboxSign[]; torches: LightSource[]; areas: SandboxArea[]; ground: SandboxFloor["ground"] },
+  x0: number,
+  y0: number,
+): void {
+  const { addRoom, signs, torches, areas, ground } = o;
+  const X = (x: number) => x - 96 + x0;
+  const Y = (y: number) => y - 22 + y0;
+  const armory: Room = { x: x0, y: y0, w: 27, h: 14 };
+  addRoom(armory, "Armurerie");
+  signs[signs.length - 1].x = X(109);
+  torches.push({ x: X(99), y: Y(21), radius: 8, faceX: 0, faceY: 1 }, { x: X(119), y: Y(21), radius: 8, faceX: 0, faceY: 1 }, { x: X(109), y: Y(36), radius: 7, faceX: 0, faceY: -1 });
+  /** Une zone : son cadre (rangée du nom comprise) et ses objets posés en ligne, une case sur `step`. */
+  const zone = (x: number, y: number, w: number, label: string, color: string, items: [ItemId, number][], step = 1) => {
+    areas.push({ x, y, w, h: 2, label, color });
+    items.forEach(([item, count], i) => ground.push({ x: x + i * step, y: y + 1, item, count }));
+  };
+  zone(X(97), Y(23), 11, "Armes", "#c9a227", [
+    ["epee", 1], ["dague", 1], ["baton", 1], ["masse", 1], ["epee_longue", 1],
+    ["couteau_boucher", 1], ["lance", 1], ["cimeterre", 1], ["arc_court", 1], ["arc_puissant", 1], ["fourche", 1],
+  ]);
+  zone(X(109), Y(23), 6, "Armures", "#8fa3b8", [["tunique", 1], ["robe", 1], ["armure_cuir", 1], ["armure_cloutee", 1], ["cotte_mailles", 1], ["harnois", 1]]);
+  zone(X(116), Y(23), 5, "Casques", "#a77a52", [["casque_cuir", 1], ["casque_maille", 1], ["casque_poulet", 1]], 2);
+  zone(X(97), Y(27), 11, "Potions", "#b05cc9", [
+    ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
+    ["potion_oursin", 2], ["potion_pierre", 2], ["potion_discorde", 2], ["potion_geant", 2], ["potion_glissante", 2],
+  ]);
+  zone(X(110), Y(27), 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["javeline", 3]], 2);
+  zone(X(117), Y(27), 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
+  zone(X(97), Y(31), 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
+  zone(X(106), Y(31), 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);
+  zone(X(115), Y(31), 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["torche", 2]], 2);
+  // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
+  zone(X(97), Y(34), 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1]]);
+
+}
+
 /** Les monstres de l'arène (cases comptées depuis son coin en haut à gauche) : un de chaque sorte. */
 export const ARENA_MONSTERS: SandboxMonster[] = [
   { x: 3, y: 5, asleep: false, patrol: true },
@@ -440,3 +470,185 @@ export const ARENA_MONSTERS: SandboxMonster[] = [
   { x: 17, y: 5, asleep: false, patrol: true, monster: "frondeur" },
   { x: 10, y: 8, asleep: false, patrol: true, monster: "araignee" },
 ];
+
+/**
+ * SALLE D'ESSAI · SECTION 2, LA CHAMPIGNONNIÈRE (Thomas, 2026-11-14 : « crée la SECTION 2 ; la salle équipement est
+ * commune ; fais-moi quelques salles et couloirs pour que je teste l'expérience de jeu »). Décor des planches
+ * art/champi_v3 à v5 : pierres sombres brun-violet, mycélium, lueurs bleu-vert, éboulis de terre qui entrent par des
+ * brèches, champignons, portes en grille rouillée, salle secrète derrière un rideau de mycélium. Presque pas de torches :
+ * ce sont les champignons qui éclairent.
+ *
+ * - au centre, le HUB (le Colporteur) ; en haut, l'ARMURERIE (la même qu'en section 1) ;
+ * - à gauche, la GALERIE EFFONDRÉE : deux brèches, de la terre qui déborde, des Kobolds endormis, un frondeur ;
+ * - à droite, un couloir encombré d'éboulis, puis la GROTTE AUX LUEURS (salle irrégulière, une araignée) : une salle
+ *   secrète derrière un rideau de mycélium (fouiller la grotte) ;
+ * - en bas, la SALLE AUX GRILLES : deux cellules derrière des grilles (l'une verrouillée, la clef traîne au sol) ;
+ * - en bas à gauche, le TERRIER : un îlot d'éboulis au milieu, des monstres qui rôdent, l'escalier de la Tisseuse.
+ */
+export function buildSandbox2(): SandboxFloor {
+  const map = new GameMap(110, 66);
+  const rooms: Room[] = [];
+  const signs: SandboxSign[] = [];
+  const torches: LightSource[] = [];
+  const furniture: Furniture[] = [];
+  const ground: SandboxFloor["ground"] = [];
+  const monsters: SandboxMonster[] = [];
+  const areas: SandboxArea[] = [];
+  const carve = (r: Room) => {
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
+  };
+  const addRoom = (r: Room, name?: string) => {
+    carve(r);
+    rooms.push(r);
+    if (name) signs.push({ x: r.x + Math.floor(r.w / 2), y: r.y - 1, text: name });
+    return rooms.length - 1;
+  };
+  const line = (x0: number, y0: number, x1: number, y1: number) => {
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) map.set(x, y, Tile.Floor);
+  };
+  /** Un meuble : ceux qui bloquent prennent la case (les éboulis aussi, même dans un mur éventré). */
+  const put = (x: number, y: number, kind: string) => {
+    furniture.push({ x, y, kind });
+    if (FURNITURE_KINDS[kind]?.blocks) map.set(x, y, Tile.Furniture);
+  };
+  /** Éboulis (« E ») et terre meuble (« e ») d'après un petit dessin, coin en haut à gauche en (x0, y0). */
+  const earth = (x0: number, y0: number, rows: string[]) => {
+    rows.forEach((row, j) => [...row].forEach((c, i) => {
+      if (c === "E") put(x0 + i, y0 + j, "eboulis");
+      else if (c === "e" && map.get(x0 + i, y0 + j) === Tile.Floor) put(x0 + i, y0 + j, "terre");
+    }));
+  };
+  const wall = (...cells: [number, number][]) => cells.forEach(([x, y]) => map.set(x, y, Tile.Wall));
+  const LUEURS = ["lueursB1", "lueursB2", "lueursB3", "lueursG1", "lueursG2", "lueursG3", "lueursP1", "lueursP2", "lueursP3"];
+  const glow = (cells: [number, number][]) => cells.forEach(([x, y], k) => put(x, y, LUEURS[(k * 4 + x + y) % LUEURS.length]));
+
+  // ---------- Le HUB ----------
+  const hub: Room = { x: 50, y: 30, w: 13, h: 9 };
+  const hubIndex = addRoom(hub, "Section 2 · la champignonnière");
+  const start = { x: 56, y: 34 };
+  map.set(49, 34, Tile.Floor);
+  map.set(63, 34, Tile.Floor);
+  map.set(56, 29, Tile.Floor);
+  map.set(56, 39, Tile.Floor);
+  signs.push(
+    { x: 46, y: 33, text: "← Galerie effondrée" },
+    { x: 66, y: 33, text: "Grotte aux lueurs →" },
+    { x: 58, y: 39, text: "↓ Salle aux grilles" },
+  );
+  put(51, 31, "champiGeant");
+  put(61, 37, "champiGrappe");
+  put(61, 31, "champiCorail");
+  glow([[52, 37], [60, 33], [53, 32]]);
+
+  // ---------- En haut : l'armurerie (commune aux deux sections) ----------
+  line(56, 26, 56, 28);
+  addArmory({ addRoom, signs, torches, areas, ground }, 43, 12);
+
+  // ---------- À gauche : la galerie effondrée ----------
+  line(37, 34, 48, 34);
+  map.set(36, 34, Tile.DoorClosed);
+  const galerie: Room = { x: 20, y: 28, w: 16, h: 11 };
+  const galerieIndex = addRoom(galerie, "Galerie effondrée");
+  signs[signs.length - 1].x = 32;
+  wall([20, 28], [21, 28], [20, 29], [35, 38], [34, 38], [35, 37], [35, 30], [35, 31]);
+  // Brèche du mur du haut : la terre déborde dans la galerie ; brèche du mur de gauche, plus petite.
+  earth(24, 27, ["..EEEE..", ".EEEEEE.", "..EEEE..", ".eeeeeee", "...ee..."]);
+  earth(19, 32, ["EEe", "EEe", "e.e"]);
+  put(22, 30, "champiGrappe");
+  put(33, 35, "champiGeant");
+  put(32, 29, "champiCorail");
+  glow([[29, 33], [23, 36], [31, 31], [26, 37], [30, 37], [22, 33]]);
+  monsters.push({ x: 27, y: 35, asleep: true }, { x: 24, y: 34, asleep: true }, { x: 32, y: 36, asleep: false, patrol: true, monster: "frondeur" });
+
+  // ---------- À droite : le couloir encombré, puis la grotte aux lueurs ----------
+  line(64, 34, 70, 34);
+  line(70, 34, 70, 40);
+  line(71, 40, 76, 41);
+  line(77, 40, 78, 40);
+  earth(72, 39, [".ee..e", "eEE.e.", ".ee.eE"]);
+  glow([[70, 37], [75, 40]]);
+  map.set(78, 40, Tile.DoorClosed);
+  const grotteA: Room = { x: 79, y: 35, w: 11, h: 10 };
+  const grotteB: Room = { x: 84, y: 29, w: 8, h: 6 };
+  const grotteIndex = addRoom(grotteA, "Grotte aux lueurs");
+  signs[signs.length - 1].y = 34;
+  signs[signs.length - 1].x = 81;
+  addRoom(grotteB);
+  wall([79, 35], [80, 35], [89, 44], [88, 44], [89, 43], [91, 29], [84, 29], [79, 44]);
+  put(86, 31, "champiGeant");
+  put(81, 43, "champiGrappe");
+  put(88, 37, "champiCorail");
+  put(90, 33, "champiGrappe");
+  glow([[80, 37], [83, 36], [87, 40], [85, 43], [82, 40], [89, 39], [85, 32], [88, 30], [86, 37], [83, 42]]);
+  earth(86, 41, ["eEe", ".e."]);
+  monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
+
+  // ---------- En bas : la salle aux grilles ----------
+  line(56, 40, 56, 42);
+  map.set(56, 43, Tile.DoorClosed);
+  const grilles: Room = { x: 48, y: 44, w: 15, h: 8 };
+  addRoom(grilles, "Salle aux grilles");
+  signs[signs.length - 1].x = 52;
+  const cellA: Room = { x: 50, y: 53, w: 3, h: 3 };
+  const cellB: Room = { x: 57, y: 53, w: 3, h: 3 };
+  carve(cellA);
+  carve(cellB);
+  map.set(51, 52, Tile.DoorLocked);
+  map.set(58, 52, Tile.DoorClosed);
+  map.set(51, 54, Tile.Chest);
+  ground.push({ x: 58, y: 54, item: "potion_feu", count: 1 }, { x: 61, y: 45, item: "clef", count: 1 });
+  put(49, 45, "champiGeant");
+  put(61, 50, "champiGrappe");
+  glow([[53, 46], [59, 48], [50, 50], [55, 50]]);
+  monsters.push({ x: 55, y: 47, asleep: false, patrol: true });
+
+  // ---------- En bas à gauche : le terrier ----------
+  line(36, 47, 46, 47);
+  map.set(47, 47, Tile.DoorClosed);
+  const terrier: Room = { x: 20, y: 44, w: 16, h: 10 };
+  addRoom(terrier, "Terrier");
+  signs[signs.length - 1].x = 24;
+  wall([20, 44], [35, 53], [34, 53], [35, 44]);
+  earth(25, 46, [".eee.", "eEEEe", "eEEEe", ".eEe.", "..e.."]);
+  put(31, 46, "champiGrappe");
+  put(24, 51, "champiGeant");
+  glow([[22, 46], [33, 49], [29, 52], [21, 49]]);
+  monsters.push({ x: 30, y: 50, asleep: false, patrol: true }, { x: 23, y: 47, asleep: false, patrol: true }, { x: 33, y: 52, asleep: false, patrol: true, monster: "frondeur" });
+  const stairs = { x: 21, y: 52 };
+  map.set(stairs.x, stairs.y, Tile.StairsDown);
+  signs.push({ x: 26, y: 54, text: "↓ Nichée de la Tisseuse" });
+
+  // ---------- La salle secrète de la grotte, derrière un rideau de mycélium ----------
+  const floorPlan = (): Floor => ({ map, rooms, start, stairs, torches, specials: [] });
+  const secretRoom = placeSecretRoom(floorPlan(), furniture, new Rng(5), new Set(), "contrebandier", grotteIndex) ?? undefined;
+  if (secretRoom) {
+    for (const g of secretRoom.gold) ground.push({ x: g.x, y: g.y, item: "or", count: 14 });
+    // Le creux du mur devient le rideau de mycélium, posé sur la case qui s'ouvre (Thomas : « j'aime le rideau »).
+    for (let i = furniture.length - 1; i >= 0; i--) if (/^wall(Gap|Hole)/.test(furniture[i].kind)) furniture.splice(i, 1);
+    furniture.push({ x: secretRoom.entry.x, y: secretRoom.entry.y, kind: "mycCurtain" });
+    secretRoom.peek = { ...secretRoom.entry };
+  }
+
+  return {
+    map,
+    rooms,
+    furniture,
+    themes: [],
+    motifs: [],
+    start,
+    merchant: { x: 59, y: 32, home: hub },
+    stairs,
+    torches,
+    specials: [],
+    traps: [],
+    secrets: [{ x: galerie.x + 2, y: galerie.y + galerie.h - 2, room: galerieIndex, item: "or", count: 18 }],
+    ground,
+    heroLevel: 4,
+    monsters,
+    signs,
+    areas,
+    hub: hubIndex,
+    secretRoom,
+    look: "champi",
+  };
+}

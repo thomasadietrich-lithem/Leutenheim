@@ -4,6 +4,7 @@ import { Tile } from "../world/map";
 import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { SECRET } from "./sprites/secret";
+import { CHAMPI } from "./sprites/champi";
 
 /** Le coffre d'acier : les bois du coffre passent à l'acier, les bandes au fer sombre. */
 const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
@@ -106,7 +107,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y), (cx, cy) => game.earthAt(cx, cy)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
     // Pièce secrète (Thomas, 2026-11-14 : « assombris les cases, ajoute un dégradé ») : plus sombre à mesure qu'on
     // s'enfonce depuis l'entrée ; le dégradé court d'une case à l'autre sans marche.
@@ -129,7 +130,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(wallImage(game.map, mx, my), Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
+    ctx.drawImage(wallImage(game.map, mx, my, game.look(), (cx, cy) => game.earthAt(cx, cy) === "E"), Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
   }
 
@@ -146,6 +147,18 @@ export class TilePainter {
     ctx.translate(sx + tile / 2, sy + tile / 2);
     if (vertical) ctx.rotate(Math.PI / 2);
     const u = tile / 16; // le dessin est pensé sur une grille de 16 « pixels »
+    // Section 2 (Thomas, 2026-11-14 : « grille rouillée ») : la porte est une grille de fer rouillé.
+    if (game.look() === "champi") {
+      const art = CHAMPI[t === Tile.DoorOpen ? "porteGrilleOpen" : t === Tile.DoorLocked ? "porteGrilleLocked" : "porteGrille"];
+      ctx.fillStyle = "#1a1418";
+      ctx.fillRect(-8 * u, -8 * u, 16 * u, 16 * u);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(art.rows, art.palette), -8 * u, -8 * u, 16 * u, 16 * u);
+      ctx.imageSmoothingEnabled = smooth;
+      ctx.restore();
+      return;
+    }
     const px = (gx: number, gy: number, w: number, h: number, color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect((gx - 8) * u, (gy - 8) * u, w * u + 0.5, h * u + 0.5);

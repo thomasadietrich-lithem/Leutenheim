@@ -1,6 +1,7 @@
 import { medalLine, onEvents, playUnlock, renderWall, splitMedal, type Unlock } from "./ui/achievements";
 import { medal } from "./ui/medals";
 import { portrait } from "./ui/portraits";
+import { setSandboxSection } from "./world/sandbox";
 import { addRecord, loadRecords } from "./ui/records";
 import { FERMIER } from "./render/sprites/ferme";
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./render/sprites/escaliers";
@@ -3070,14 +3071,14 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes" | "pause";
+type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes" | "pause" | "essai";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
   // Chaque écran du menu s'ouvre en haut (le mur de succès défile).
   menu.scrollTop = 0;
-  for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause", "essai"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
@@ -3390,11 +3391,19 @@ button("level-up", () => {
   game.levelUpNow();
   collectEvents();
 });
-if (!PUBLIC_BUILD) button("menu-sandbox", () => {
-  newRun(true);
-  started = true;
-  showScreen(null);
-});
+// Salle d'essai (Thomas, 2026-11-14) : un menu pour choisir la section (1 : le plan historique ; 2 : la champignonnière).
+if (!PUBLIC_BUILD) {
+  button("menu-sandbox", () => showScreen("essai"));
+  for (const s of [1, 2] as const) {
+    button(`essai-s${s}`, () => {
+      setSandboxSection(s);
+      newRun(true);
+      started = true;
+      showScreen(null);
+    });
+  }
+  button("essai-back", () => showScreen("main"));
+}
 button("settings-blood", () => {
   options.blood = !options.blood;
   renderer.setBlood(options.blood);

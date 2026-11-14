@@ -75,6 +75,7 @@ import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { BAIN } from "./sprites/bain";
 import { ZONES } from "./sprites/zones";
 import { SECRET } from "./sprites/secret";
+import { CHAMPI } from "./sprites/champi";
 import { A_TERRE } from "./sprites/aterre";
 import { HEROS_V9_TWO } from "./sprites/heros_v9";
 import { furnitureCells, type Furniture } from "../world/furnish";
@@ -1536,6 +1537,8 @@ export class Renderer {
       path.rect(x, y, w, h);
     };
     const q = (a: number) => (Math.round(a * 64) / 64).toFixed(4);
+    // Section 2 : la lumière des champignons est bleu-vert, pas orange.
+    const champi = game.look() === "champi";
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         if (!game.map.inBounds(x, y)) continue;
@@ -1564,7 +1567,7 @@ export class Renderer {
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
           const dark = (1 - brightness) * 0.55 * shade;
           if (dark > 0.004) veil(`rgba(12,11,18,${q(dark)})`, rx, ry, rw, rh);
-          if (lit > 0) veil(`rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
+          if (lit > 0) veil(champi ? `rgba(60,220,190,${q(lit * flicker * 0.1)})` : `rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
@@ -1573,7 +1576,7 @@ export class Renderer {
       }
     }
     // L'ombre d'abord, la lueur orange par-dessus (comme avant, case par case).
-    for (const [style, path] of [...veils].sort((a, b) => Number(a[0].startsWith("rgba(255")) - Number(b[0].startsWith("rgba(255")))) {
+    for (const [style, path] of [...veils].sort((a, b) => Number(!a[0].startsWith("rgba(12") && !a[0].startsWith("rgba(8")) - Number(!b[0].startsWith("rgba(12") && !b[0].startsWith("rgba(8")))) {
       ctx.fillStyle = style;
       ctx.fill(path);
     }
@@ -2368,7 +2371,7 @@ export class Renderer {
       const caskSide = !cz ? "" : cz.room.y + cz.room.h <= f.y ? "" : cz.room.y > f.y ? "Low" : cz.room.x + cz.room.w <= f.x ? "SideL" : "SideR";
       const zoneName = f.kind === "barrelWall" ? `cask${caskSide}${game.zoneNoticed() ? "Found" : ""}` : f.kind === "hayWall" ? "hayBale" : null;
       const name = zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2379,6 +2382,10 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
+      } else if (CHAMPI[name]) {
+        // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
+        px = f.x * 16 + (16 - w) / 2;
+        py = (f.y + 1) * 16 - h;
       } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;

@@ -149,7 +149,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -212,17 +212,75 @@ function forgeFloor(px: number, py: number): RGB {
   return out;
 }
 
+/**
+ * SECTION 2, la champignonnière (planches art/champi_v1 option C, v3 à v5) : terre brun-violet, flaques sombres qui
+ * brillent, rares dalles ; mycélium qui rampe depuis le pied des murs ; ÉBOULIS (tas de terre en relief : bord net,
+ * flanc avant sombre, dessus clair, mottes, racines lumineuses) et TERRE MEUBLE (mottes et cailloux).
+ */
+const C_EARTH: RGB[] = [[40, 32, 38], [48, 38, 44], [56, 45, 50]];
+function champiFloor(px: number, py: number): RGB {
+  const n = fbm(px, py, 6, 13, 2);
+  let c = C_EARTH[n < 1 / 3 ? 0 : n < 2 / 3 ? 1 : 2];
+  if (hash2(px, py, 18) > 0.93) c = scale(c, 0.75);
+  if (fbm(px, py, 40, 23, 2) > 0.66) {
+    const cx = Math.floor(px / T);
+    const cy = Math.floor(py / T);
+    const lx = px - cx * T;
+    const ly = py - cy * T;
+    if (lx === 0 || ly === 0) c = [20, 18, 26];
+    else c = scale(lx === 1 || ly === 1 ? [70, 62, 76] : [58, 50, 62], 0.88 + 0.2 * hash2(cx, cy, 33));
+  }
+  const pud = (qx: number, qy: number) => fbm(qx, qy, 22, 91, 3) < 0.3;
+  if (pud(px, py)) {
+    c = hash2(px, py, 93) > 0.94 ? [120, 150, 170] : [26, 34, 44];
+    if (!pud(px + 1, py) || !pud(px - 1, py) || !pud(px, py + 1) || !pud(px, py - 1)) c = [60, 74, 86];
+  }
+  return c;
+}
+
+/** erf (approximation d'Abramowitz et Stegun) : pour flouter le carré des cases d'éboulis. */
+function erf(v: number): number {
+  const s = Math.sign(v);
+  const a = Math.abs(v);
+  const t = 1 / (1 + 0.3275911 * a);
+  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a);
+  return s * y;
+}
+
+const E_TOP: RGB = [168, 128, 100];
+const E_MID: RGB = [130, 96, 78];
+const E_DK: RGB = [96, 70, 60];
+const E_FACE: RGB = [62, 44, 42];
+const E_RIM: RGB = [30, 22, 24];
+
 const canvases = new Map<string, HTMLCanvasElement>();
 
 /**
  * L'image 16 × 16 du sol d'une case (sol B, plus le gravier et l'eau qui la touchent). Gardée en mémoire : le sol ne
  * change jamais. Sert à toute case où l'on marche (et sous les meubles, les colonnes, les escaliers).
  */
-export function groundImage(map: GameMap, x: number, y: number, motifs: readonly Motif[] = [], style?: FloorStyle): HTMLCanvasElement {
+export function groundImage(
+  map: GameMap,
+  x: number,
+  y: number,
+  motifs: readonly Motif[] = [],
+  style?: FloorStyle,
+  earthAt?: (x: number, y: number) => "E" | "e" | null,
+): HTMLCanvasElement {
   const gravel = around(map, x, y, Tile.Gravel);
   const water = around(map, x, y, Tile.Water);
   const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
-  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}`;
+  // Section 2 : éboulis jusqu'à 2 cases (leur tas déborde), terre meuble de la case, murs voisins (mycélium).
+  const champi = style === "champi";
+  const mounds: [number, number][] = [];
+  let loose = false;
+  let walls = "";
+  if (champi) {
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (earthAt?.(x + dx, y + dy) === "E") mounds.push([x + dx, y + dy]);
+    loose = earthAt?.(x, y) === "e";
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) walls += map.get(x + dx, y + dy) === Tile.Wall ? "1" : "0";
+  }
+  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${loose ? "e" : ""}|${walls}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
@@ -240,7 +298,7 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
+      let c = style === "champi" ? champiFloor(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);
@@ -290,6 +348,7 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
       }
     }
   }
+  if (champi) champiOverlay(map, x, y, pixels, mounds, loose);
   for (let k = 0; k < pixels.length; k++) {
     img.data[k * 4] = pixels[k][0];
     img.data[k * 4 + 1] = pixels[k][1];
@@ -300,4 +359,78 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
   if (canvases.size > 6000) canvases.clear();
   canvases.set(key, canvas);
   return canvas;
+}
+
+/** Section 2 : mycélium au pied des murs, puis l'éboulis (tas en relief) et la terre meuble, par-dessus le sol. */
+function champiOverlay(map: GameMap, x: number, y: number, pixels: RGB[], mounds: [number, number][], loose: boolean): void {
+  const ox = x * T;
+  const oy = y * T;
+  const wallCells: [number, number][] = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (map.get(x + dx, y + dy) === Tile.Wall) wallCells.push([x + dx, y + dy]);
+  const sig = 5 * Math.SQRT2;
+  const soft = (px: number, py: number): number => {
+    let v = 0;
+    for (const [mx, my] of mounds) {
+      const ax = (erf((px + 0.5 - mx * T) / sig) - erf((px + 0.5 - (mx + 1) * T) / sig)) / 2;
+      const ay = (erf((py + 0.5 - my * T) / sig) - erf((py + 0.5 - (my + 1) * T) / sig)) / 2;
+      v += ax * ay;
+    }
+    return v + 0.25 * (fbm(px, py, 7, 501, 2) - 0.5);
+  };
+  const inMound = (px: number, py: number) => mounds.length > 0 && soft(px, py) > 0.5;
+  for (let j = 0; j < T; j++) {
+    for (let i = 0; i < T; i++) {
+      const px = ox + i;
+      const py = oy + j;
+      const k = j * T + i;
+      // Mycélium : filaments qui rampent depuis le pied des murs.
+      if (wallCells.length > 0) {
+        let d = 99;
+        for (const [wx, wy] of wallCells) d = Math.min(d, Math.hypot(Math.max(wx * T - px, 0, px - (wx * T + T - 1)), Math.max(wy * T - py, 0, py - (wy * T + T - 1))));
+        if (d < 7 + 9 * fbm(px, py, 18, 311, 2) && fbm(px, py, 20, 312, 2) > 0.52 && (hash2(px, py, 313) > 0.93 || (px + py * 2) % 11 === 0)) {
+          const c = pixels[k];
+          pixels[k] = [c[0] * 0.45 + 200 * 0.55, c[1] * 0.45 + 206 * 0.55, c[2] * 0.45 + 214 * 0.55];
+        }
+      }
+      if (mounds.length === 0) continue;
+      const v = soft(px, py);
+      if (v > 0.5) {
+        const h = Math.min(1, Math.max(0, (v - 0.5) / 0.45));
+        const h2 = Math.min(1, Math.max(0, (soft(px - 1, py - 1) - 0.5) / 0.45));
+        let c: RGB = h < 0.5 ? mix(E_DK, E_MID, h * 2) : mix(E_MID, E_TOP, h * 2 - 1);
+        c = scale(c, 1 + 0.6 * Math.max(-0.3, Math.min(0.3, (h - h2) * 8)));
+        const clod = hash2(Math.floor(px / 2), Math.floor(py / 2), 511);
+        if (clod > 0.9) c = scale(c, 1.15);
+        else if (clod < 0.08) c = scale(c, 0.8);
+        if (h > 0.3 && Math.abs(fbm(px, py, 14, 341, 3) - 0.5) < 0.011) c = [120, 255, 220];
+        pixels[k] = c;
+        continue;
+      }
+      // Flanc avant (4 pixels sous le tas) et bord sombre.
+      let face = false;
+      for (let s = 1; s <= 4 && !face; s++) face = inMound(px, py - s);
+      if (face) pixels[k] = scale(E_FACE, 0.9 + 0.2 * hash2(px, py, 512));
+      const edge = inMound(px + 1, py) || inMound(px - 1, py) || inMound(px, py - 1) || (face && !inMound(px, py + 1) && ![1, 2, 3, 4].some((s) => inMound(px, py + 1 - s)));
+      if (edge) pixels[k] = E_RIM;
+    }
+  }
+  if (!loose) return;
+  // Terre meuble : quelques mottes et cailloux bien séparés.
+  for (let n = 0; n < 6; n++) {
+    const X = Math.floor(hash2(x, y, 520 + n) * 13);
+    const Y = Math.floor(hash2(x, y, 540 + n) * 13);
+    const w = 2 + Math.floor(hash2(x, y, 560 + n) * 2);
+    const h = 1 + Math.floor(hash2(x, y, 580 + n) * 2);
+    const pebble = hash2(x, y, 600 + n) < 0.3;
+    for (let j = 0; j <= h; j++) for (let i = 0; i < w; i++) {
+      const qx = X + i;
+      const qy = Y + j;
+      if (qx >= T || qy >= T) continue;
+      pixels[qy * T + qx] = j === h ? E_RIM : j === 0 ? (pebble ? [140, 126, 136] : E_TOP) : pebble ? [100, 88, 96] : E_MID;
+    }
+  }
+}
+
+function mix(a: RGB, b: RGB, t: number): RGB {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }

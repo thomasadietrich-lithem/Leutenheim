@@ -131,6 +131,8 @@ export interface SaveData {
   torchTurns?: number;
   /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */
   sandboxLayout?: number;
+  /** Salle d'essai : section 1 ou 2 (Thomas, 2026-11-14). */
+  sandboxSection?: 1 | 2;
   clock?: number;
   ammoChoice?: string;
   /** Boss vaincus (facultatif, ajouté avec la Tisseuse). */

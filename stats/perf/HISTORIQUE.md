@@ -22,3 +22,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-14_16h09 | d0035cb | 35 | 31.9 | 22.1 | 46.2 | 21.6 | 21.5 | 3.85 | 0.62 | flèches : bouton Équiper |
 | 2026-11-14_19h05 | 31b747c | 26.2 | 26 | 27.3 | 29.3 | 16.7 | 22.2 | 0.35 | 0.23 | salle d'essai section 2 (champignonnière) |
 | 2026-11-14_19h17 | 813c81e | 31 | 31.7 | 32.4 | 30.5 | 16.7 | 28.2 | 0.64 | 0.68 | section 2 : lumière lente, éboulis contre les murs, zigzags |
+| 2026-11-14_19h17 | 774cc22 | 33.8 | 30.7 | 30.3 | 34.7 | 16.7 | 24.6 | 1.04 | 0.42 | 2e mesure |

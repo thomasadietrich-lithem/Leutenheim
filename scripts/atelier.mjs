@@ -10,7 +10,7 @@ const PLANCHES = [
   ["a_terre_v1.png", "À terre v1 — Kobold et frondeur renversés", "Proposition (2026-11-14) : sur le dos mais vivants (œil ouvert, pattes qui pédalent), puis « il se relève ». À valider."],
   ["araignee_v2.png", "Araignée v2 — plus animée", "EN JEU (2026-11-14) : repos ×4, marche ×4, aux aguets ×2, morsure ×2, à terre ×2."],
   ["escaliers_v3.png", "Escaliers v3 — 14 escaliers droits", "La n° 3 (pierre fendue) est EN JEU (2026-11-14) ; les autres sont gardées (src/render/sprites/escaliers.ts)."],
-  ["guerrier_v7.png", "Guerrier v7 — 16 propositions", "Proposition (2026-11-14) : nouveau guerrier humain, sans les déclinaisons d'équipement. À choisir."],
+  ["guerrier_v8.png", "Guerrier v8 — 16 créations originales", "Proposition (2026-11-14) : seize héros sans rien en commun (silhouette, tenue, arme). REFUSÉE : la v7 (variations fades du même dessin). À choisir."],
   ["ferme_v2.png", "Ferme v2", "Validée et EN JEU (pré clos, poules) ; Grum le fermier et les statues à faire."],
   ["salle_bain_v1.png", "Salle de bain du Kobold", "EN JEU."],
   ["soeur_v1.png", "Sœur Osseuse", "EN JEU ; dessin à valider."],

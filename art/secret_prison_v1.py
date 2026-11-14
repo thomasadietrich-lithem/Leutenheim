@@ -38,23 +38,26 @@ W, H = 14, 17  # sprites de mur : posés à (1, -1) dans la case de mur, comme l
 
 
 def wall_gap(variant=0):
-    """Brique manquante : un trou rectangulaire noir, une lèvre de pierre claire dessous, un peu de poussière."""
+    """Brique manquante (agrandie, Thomas 2026-11-14 : « agrandis un peu les brèches ») : un trou rectangulaire noir,
+    une lèvre de pierre claire dessous, des éclats de mortier, un peu de poussière."""
     s = Sprite(W, H)
-    x, y, w = (3, 6, 6) if variant == 0 else (6, 9, 5)
-    s.r(x, y, w, 3, "hole").r(x, y, w, 1, "hole_m").r(x, y + 3, w, 1, "lip").r(x + w, y, 1, 3, "lip_d")
+    x, y, w, h = (2, 5, 9, 5) if variant == 0 else (5, 8, 8, 4)
+    s.r(x, y, w, h, "hole").r(x, y, w, 1, "hole_m").r(x, y, 1, h, "hole_m")
+    s.r(x, y + h, w, 1, "lip").r(x + w, y, 1, h, "lip_d").p(x + w - 1, y - 1, "lip_d").p(x + 1, y - 1, "lip_d")
     if variant == 1:
-        # Deux demi-briques manquantes, décalées.
-        s.r(2, 4, 3, 2, "hole").r(2, 6, 3, 1, "lip")
-    s.p(x + 1, y + 4, "dust").p(x + w - 2, y + 4, "dust")
+        # Deux briques manquantes, décalées.
+        s.r(1, 2, 6, 4, "hole").r(1, 2, 6, 1, "hole_m").r(1, 6, 6, 1, "lip").r(7, 2, 1, 4, "lip_d")
+    s.p(x + 1, y + h + 1, "dust").p(x + w - 2, y + h + 1, "dust").p(x + 3, y + h + 1, "dust")
     return s.done(outline=False)
 
 
 def wall_hole(variant=0):
-    """Petit creux : un trou rond et profond entre deux briques (certains laissent voir ce qu'il y a derrière)."""
+    """Petit creux (agrandi) : un trou rond et profond entre deux briques (certains laissent voir ce qu'il y a derrière)."""
     s = Sprite(W, H)
-    x, y = (6, 8) if variant == 0 else (4, 5)
-    s.r(x, y, 3, 2, "hole").p(x + 1, y - 1, "hole").p(x - 1, y, "hole_m").p(x + 3, y + 1, "hole_m")
-    s.r(x, y + 2, 3, 1, "lip").p(x + 1, y + 3, "dust")
+    x, y = (5, 7) if variant == 0 else (3, 4)
+    s.r(x, y, 5, 4, "hole").r(x + 1, y - 1, 3, 1, "hole").r(x + 1, y + 4, 3, 1, "hole")
+    s.r(x - 1, y + 1, 1, 2, "hole_m").r(x + 5, y + 1, 1, 2, "hole_m").r(x, y, 5, 1, "hole_m")
+    s.r(x, y + 5, 5, 1, "lip").p(x + 2, y + 6, "dust").p(x + 4, y + 6, "dust")
     return s.done(outline=False)
 
 

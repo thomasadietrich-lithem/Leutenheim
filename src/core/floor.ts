@@ -93,6 +93,8 @@ export interface FloorState {
   goldHen?: { x: number; y: number; fromX: number; fromY: number };
   /** Grum, le Kobold fermier (quête 05), s'il est sur cet étage. */
   grum?: GluckSpot;
+  /** Section 2 : Morillon, le Kobold cueilleur, dans sa champignonnière. */
+  morillon?: GluckSpot;
   /** Fifrelin, le Kobold aux gobelets (quête 04), s'il est sur cet étage. */
   fifrelin?: GluckSpot;
   /** Le coursier de Krik (rencontre 3), à escorter jusqu'à l'escalier. */

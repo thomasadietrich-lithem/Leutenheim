@@ -149,7 +149,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -266,6 +266,36 @@ function felt(px: number, py: number): RGB {
   return c;
 }
 
+/** Terre battue de la champignonnière de morilles (planche art/champi_salles_v1.png) : brun chaud, tassé, des ornières,
+ *  de rares cailloux. Même calcul que la planche. */
+function packedEarth(px: number, py: number): RGB {
+  const n = fbm(px, py, 6, 611, 3);
+  let c: RGB = [88 + 30 * n, 68 + 24 * n, 54 + 18 * n];
+  const m = (((py + 3 * fbm(px, py, 9, 612, 2)) % 23) + 23) % 23;
+  if (Math.abs(m - 11) < 0.6 && fbm(px, py, 30, 613, 2) > 0.5) c = scale(c, 0.78);
+  if (hash2(px, py, 614) > 0.985) c = [140, 122, 104];
+  if (fbm(px, py, 20, 615, 2) < 0.35) c = scale(c, 0.82);
+  return c;
+}
+
+/** Grandes dalles sombres de l'atelier de sculpture (1,5 case, en quinconce), poussière de pierre par plaques. */
+function darkSlabs(px: number, py: number): RGB {
+  const row = Math.floor(py / 24);
+  const ox = (((row % 2) + 2) % 2) * 12;
+  const lx = (((px + ox) % 24) + 24) % 24;
+  const ly = ((py % 24) + 24) % 24;
+  const sid = Math.floor((px + ox) / 24) * 7 + row * 13;
+  const tone = 0.85 + 0.25 * hash2(sid, row, 620);
+  const n = fbm(px, py, 5, 621, 2);
+  let c: RGB = [(52 + 14 * n) * tone, (48 + 12 * n) * tone, (58 + 14 * n) * tone];
+  if (lx === 0 || ly === 0) return [24, 20, 28];
+  if (lx === 1 || ly === 1) c = scale(c, 1.25);
+  const dust = fbm(px, py, 14, 622, 3);
+  if (dust > 0.64) c = [c[0] * 0.75 + 130 * 0.25, c[1] * 0.75 + 124 * 0.25, c[2] * 0.75 + 138 * 0.25];
+  if (hash2(px, py, 623) > 0.992 && dust > 0.5) c = [200, 196, 208];
+  return c;
+}
+
 /** L'ancien sol de la section 2 (terre, flaques, rares dalles), gardé pour comparer. */
 export function champiEarthFloor(px: number, py: number): RGB {
   const n = fbm(px, py, 6, 13, 2);
@@ -322,7 +352,7 @@ export function groundImage(
   const water = around(map, x, y, Tile.Water);
   const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
   // Section 2 : éboulis jusqu'à 2 cases (leur tas déborde), terre meuble de la case, murs voisins (mycélium).
-  const champi = style === "champi" || style === "champiFelt";
+  const champi = style === "champi" || style === "champiFelt" || style === "morilles" || style === "sculpture";
   const mounds: [number, number][] = [];
   const breaches: [number, number][] = [];
   let loose = false;
@@ -354,7 +384,7 @@ export function groundImage(
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "champi" ? cobbles(px, py, burnt) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
+      let c = style === "champi" ? cobbles(px, py, burnt) : style === "morilles" ? packedEarth(px, py) : style === "sculpture" ? darkSlabs(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

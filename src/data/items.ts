@@ -193,6 +193,8 @@ export const ITEMS = {
   // Thomas (2026-11-13) : un Kobold mort dans les flammes laisse une escalope.
   escalope: { id: "escalope", name: "Escalope de Kobold", kind: "use", description: "Bien grillée, un peu écailleuse. Rend 5 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 5 },
   cuisse_poulet: { id: "cuisse_poulet", name: "Cuisse de poulet", kind: "use", description: "Encore tiède. Rend 8 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 8 },
+  // Section 2 : les morilles de Morillon (sa quête). Elles soignent (C).
+  morille: { id: "morille", name: "Morille", kind: "use", description: "Une morille de Morillon, alvéolée et parfumée. Rend 7 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 7 },
   pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
   torche: {
     id: "torche",

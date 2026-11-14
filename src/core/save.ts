@@ -71,6 +71,7 @@ export interface SavedFloor {
   grates?: import("./floor").FloorState["grates"];
   goldHen?: import("./floor").FloorState["goldHen"];
   grum?: import("./floor").GluckSpot;
+  morillon?: import("./floor").GluckSpot;
   fifrelin?: import("./floor").GluckSpot;
   courier?: import("./floor").FloorState["courier"];
   secretRoom?: import("./floor").FloorState["secretRoom"];
@@ -112,6 +113,7 @@ export interface SaveData {
   /** Krik : ce qu'il sait du héros (absent des anciennes sauvegardes). */
   krik?: KrikMemory;
   grum?: { met: number };
+  morillon?: { met: number };
   fifrelin?: { met: number };
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;

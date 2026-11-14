@@ -9,7 +9,9 @@ import {
   furnishFarm,
   furnishForge,
   furnishKitchen,
+  furnishMorilles,
   furnishPrison,
+  furnishSculpture,
   furnishTorture,
   Furniture,
   RoomTheme,
@@ -98,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 29;
+export const SANDBOX_LAYOUT = 30;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -457,7 +459,7 @@ function addArmory(
   zone(X(117), Y(27), 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
   zone(X(97), Y(31), 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(X(106), Y(31), 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);
-  zone(X(115), Y(31), 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["torche", 2]], 2);
+  zone(X(115), Y(31), 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["morille", 2], ["torche", 2]], 1);
   // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
   zone(X(97), Y(34), 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1]]);
 
@@ -596,20 +598,27 @@ export function buildSandbox2(): SandboxFloor {
   earth(85, 43, [".e.e", "eEEe", ".EE."]);
   monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
 
-  // ---------- En haut à droite : deux caves (elles servaient à comparer les sols B et D ; Thomas a choisi B) ----------
+  // ---------- En haut à droite : les deux salles à thème de la section 2 (Thomas, 2026-11-14, la nuit) ----------
+  // La champignonnière de morilles (salle de Morillon et de sa quête), puis l'atelier de sculpture, meublées par les
+  // mêmes règles que dans le donjon (hasard fixe).
   line(71, 21, 71, 34);
   map.set(72, 21, Tile.DoorClosed);
-  const solB: Room = { x: 73, y: 18, w: 9, h: 7 };
-  addRoom(solB, "Cave aux chapeaux");
+  const morilles: Room = { x: 73, y: 17, w: 9, h: 8 };
+  const morillesIndex = addRoom(morilles, "Champignonnière de morilles");
   line(82, 21, 83, 21);
   map.set(84, 21, Tile.DoorClosed);
-  const solD: Room = { x: 85, y: 18, w: 9, h: 7 };
-  addRoom(solD, "Cave du fond");
-  for (const r of [solB, solD]) {
-    put(r.x + 1, r.y + 1, "champiGeant");
-    put(r.x + r.w - 2, r.y + r.h - 2, "champiGrappe");
-    glow([[r.x + 6, r.y + 2], [r.x + 2, r.y + 5], [r.x + 4, r.y + 4]]);
-    earth(r.x + 3, r.y - 1, [".EE.", "eEEe", ".ee."]);
+  const atelier: Room = { x: 85, y: 17, w: 9, h: 8 };
+  const atelierIndex = addRoom(atelier, "Atelier de sculpture");
+  {
+    const plan: Floor = { map, rooms, start, stairs: { x: 21, y: 52 }, torches, specials: [] };
+    for (const [room, index, id, furnish] of [[morilles, morillesIndex, "morilles", furnishMorilles], [atelier, atelierIndex, "sculpture", furnishSculpture]] as const) {
+      for (let s = 1; s < 40; s++) {
+        if (furnish(plan, room, new Rng(s * 7919), furniture)) {
+          themes.push({ room: index, id });
+          break;
+        }
+      }
+    }
   }
 
   // ---------- En bas : la salle aux grilles ----------

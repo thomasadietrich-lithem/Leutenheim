@@ -234,14 +234,16 @@ export function furnishDortoir(floor: Floor, room: Room, rng: Rng, out: Furnitur
  * dans des salles ordinaires assez grandes ; puis des trainards (tonneaux, caisses) dans les salles ordinaires, et dès
  * l'étage 3 des toiles dans les coins des salles sans torche. Hasards à part.
  */
-export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false, bath = false): { furniture: Furniture[]; themes: RoomTheme[] } {
+export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false, bath = false, section = 0): { furniture: Furniture[]; themes: RoomTheme[] } {
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
-  const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
-  for (const chance of RULES.themedRoomChances) {
-    if (!rng.chance(chance)) break;
-    const id = pool.splice(rng.int(0, pool.length - 1), 1)[0];
+  // Section 2 (Thomas, 2026-11-14) : ses propres salles à thème, la champignonnière de morilles et l'atelier de sculpture.
+  const pool = section >= 1 ? ["morilles", "sculpture"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
+  for (const chance of section >= 1 ? RULES.themedRoomChancesS2 : RULES.themedRoomChances) {
+    if (!rng.chance(chance) || pool.length === 0) break;
+    // Section 2 : la champignonnière d'abord (c'est la salle de la quête), puis l'atelier.
+    const id = section >= 1 ? pool.shift()! : pool.splice(rng.int(0, pool.length - 1), 1)[0];
     const candidates = floor.rooms
       .map((room, index) => ({ room, index }))
       .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && fits(id, room));
@@ -276,7 +278,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
 }
 
 /** Taille minimale de chaque salle à thème. */
-const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
+const MIN_SIZE: Record<string, [number, number]> = { morilles: [7, 6], sculpture: [6, 6], dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
 function fits(id: string, room: Room): boolean {
   return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
 }
@@ -291,6 +293,8 @@ const FURNISHERS: Record<string, Furnisher> = {
   alchimiste: furnishAlchemist,
   ferme: furnishFarm,
   prison: furnishPrison,
+  morilles: furnishMorilles,
+  sculpture: furnishSculpture,
 };
 
 /**
@@ -1045,6 +1049,128 @@ export function furnishAlchemist(floor: Floor, room: Room, rng: Rng, out: Furnit
   for (let attempt = 0; attempt < 30; attempt++) {
     if (P.tryPlace({ x: rng.int(room.x + 1, room.x + room.w - 4), y: rng.int(room.y + 2, room.y + room.h - 2), kind: rng.chance(0.5) ? "rug" : "rugB" })) break;
   }
+  out.push(...P.placed);
+  return true;
+}
+
+/**
+ * Une étagère de 2 cases contre un mur, dans l'orientation de ce mur : de face contre le mur du fond (`front`), de dos
+ * contre le mur du bas (`Back`), de profil contre le mur de gauche (`L`) ou de droite (`R`). `base` : potShelf ou
+ * toolShelfS. Vrai si elle a trouvé sa place.
+ */
+function wallShelf(P: ReturnType<typeof roomPlacer>, room: Room, rng: Rng, base: string): boolean {
+  const sides = shuffle(rng, ["front", "Back", "L", "R"]);
+  for (const side of sides) {
+    const spots: Point[] = [];
+    if (side === "front") for (let x = room.x; x <= room.x + room.w - 2; x++) spots.push({ x, y: room.y });
+    if (side === "Back") for (let x = room.x; x <= room.x + room.w - 2; x++) spots.push({ x, y: room.y + room.h - 1 });
+    if (side === "L") for (let y = room.y + 1; y <= room.y + room.h - 3; y++) spots.push({ x: room.x, y });
+    if (side === "R") for (let y = room.y + 1; y <= room.y + room.h - 3; y++) spots.push({ x: room.x + room.w - 1, y });
+    for (const p of shuffle(rng, spots)) if (P.tryPlace({ ...p, kind: side === "front" ? base : base + side })) return true;
+  }
+  return false;
+}
+
+/**
+ * CHAMPIGNONNIÈRE DE MORILLES (Thomas, 2026-11-14 ; planche art/champi_salles_v1.png) : 4 à 6 rangs de terre battue
+ * (des lignes de billons, coupées en deux par une allée quand la salle est assez large), des caillebotis posés en rangées
+ * irrégulières dans les allées, 1 à 2 étagères à pots contre un mur (dans l'orientation du mur), 1 à 3 sacs d'engrais,
+ * 1 ou 2 arrosoirs, les outils contre le mur, parfois la brouette, un coffre. Sol : terre battue. C'est la salle de
+ * Morillon, le Kobold cueilleur (sa quête).
+ */
+export function furnishMorilles(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  // Les rangs : une ligne sur deux à partir de la 3e rangée, en laissant l'allée du bas et une colonne de chaque côté.
+  const lines: number[] = [];
+  for (let y = room.y + 2; y <= room.y + room.h - 2; y += 2) lines.push(y);
+  const x0 = room.x + 1;
+  const x1 = room.x + room.w - 2;
+  const split = x1 - x0 + 1 >= 5;
+  const gap = split ? x0 + Math.floor((x1 - x0) / 2) + (rng.chance(0.5) ? 0 : 1) : -1;
+  let rows = 0;
+  for (const y of lines) {
+    let segment = false;
+    for (let x = x0; x <= x1; x++) {
+      if (x === gap) {
+        if (segment) rows++;
+        segment = false;
+        continue;
+      }
+      const kind = ["morelRowA", "morelRowB", "morelRowC"][rng.int(0, 2)];
+      if (P.tryPlace({ x, y, kind })) segment = true;
+      else if (segment) {
+        rows++;
+        segment = false;
+      }
+    }
+    if (segment) rows++;
+  }
+  if (rows < 4) {
+    P.undo();
+    return false;
+  }
+  // Caillebotis : dans les allées entre les rangs, en rangées irrégulières (une planche sur trois manque).
+  for (const y of lines) {
+    const ay = y + 1;
+    if (ay > room.y + room.h - 1) continue;
+    for (let x = x0; x <= x1; x++) if (rng.chance(0.65)) P.tryPlace({ x, y: ay, kind: `caill${rng.int(0, 2)}` });
+  }
+  // Étagères à pots (1 à 2), sacs d'engrais (1 à 3 par case), arrosoirs, outils, brouette.
+  const shelves = rng.int(1, 2);
+  for (let k = 0; k < shelves; k++) wallShelf(P, room, rng, "potShelf");
+  const edge = (): Point => {
+    const side = rng.int(0, 3);
+    return side === 0
+      ? { x: rng.int(room.x, room.x + room.w - 1), y: room.y }
+      : side === 1
+        ? { x: rng.int(room.x, room.x + room.w - 1), y: room.y + room.h - 1 }
+        : { x: side === 2 ? room.x : room.x + room.w - 1, y: rng.int(room.y, room.y + room.h - 1) };
+  };
+  scatter(P, rng, [`engrais${rng.int(1, 3)}`], 1, edge);
+  if (rng.chance(0.6)) scatter(P, rng, [`engrais${rng.int(1, 3)}`], 1, edge);
+  scatter(P, rng, ["arrosoir", "arrosoirTombe"], rng.int(1, 2), edge);
+  scatter(P, rng, ["outils"], 1, () => ({ x: rng.chance(0.5) ? room.x : room.x + room.w - 1, y: room.y }));
+  if (rng.chance(0.6)) scatter(P, rng, ["brouette"], 1, () => ({ x: rng.int(room.x, room.x + room.w - 2), y: room.y + room.h - 1 }));
+  edgeChests(P, floor, room, rng, 1);
+  // Un peu de lumière : des petits lumineux dans les coins (la salle n'a pas de torche).
+  scatter(P, rng, ["lueursB2", "lueursG1", "lueursB3"], 2, edge);
+  out.push(...P.placed);
+  return true;
+}
+
+/**
+ * ATELIER DE SCULPTURE (Thomas, 2026-11-14 ; planche art/champi_salles_v1.png) : l'immense champignon de pierre (3 × 3)
+ * dans ses échafaudages, au milieu, avec une allée tout autour ; la grue contre un mur ; 1 à 3 tas de gravats ; 1 à 2
+ * étagères de matériel (dans l'orientation de leur mur) ; des pioches rouillées (contre un mur, et parfois une au sol) ;
+ * le plan du champignon sur son tréteau ; un coffre. Sol : grandes dalles sombres.
+ */
+export function furnishSculpture(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  const mx = room.x + Math.floor((room.w - 3) / 2);
+  const my = room.y + Math.max(1, Math.floor((room.h - 3) / 2));
+  if (my + 3 > room.y + room.h - 1 || mx < room.x + 1 || mx + 3 > room.x + room.w - 1) return false;
+  if (!P.tryPlace({ x: mx, y: my, kind: "champiPierre" })) return false;
+  // L'allée autour du champignon reste libre (on tourne autour pour admirer le travail).
+  for (let y = my - 1; y <= my + 3; y++) for (let x = mx - 1; x <= mx + 3; x++) P.reserve(x, y);
+  const edge = (): Point => {
+    const side = rng.int(0, 3);
+    return side === 0
+      ? { x: rng.int(room.x, room.x + room.w - 1), y: room.y }
+      : side === 1
+        ? { x: rng.int(room.x, room.x + room.w - 1), y: room.y + room.h - 1 }
+        : { x: side === 2 ? room.x : room.x + room.w - 1, y: rng.int(room.y, room.y + room.h - 1) };
+  };
+  scatter(P, rng, ["grue"], 1, () => ({ x: rng.int(room.x, room.x + room.w - 2), y: rng.chance(0.5) ? room.y : room.y + room.h - 1 }));
+  const shelves = rng.int(1, 2);
+  for (let k = 0; k < shelves; k++) wallShelf(P, room, rng, "toolShelfS");
+  scatter(P, rng, ["gravats1", "gravats2", "gravats3"], rng.int(1, 3), edge);
+  scatter(P, rng, ["pioches"], 1, edge);
+  if (rng.chance(0.5)) scatter(P, rng, ["piocheSol"], 1, edge);
+  scatter(P, rng, ["planChampi"], 1, () => ({ x: rng.int(room.x, room.x + room.w - 2), y: rng.chance(0.5) ? room.y : room.y + room.h - 1 }));
+  edgeChests(P, floor, room, rng, 1);
+  scatter(P, rng, ["lueursP2", "lueursB1"], 2, edge);
   out.push(...P.placed);
   return true;
 }

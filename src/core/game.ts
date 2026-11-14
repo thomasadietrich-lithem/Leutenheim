@@ -11,6 +11,7 @@ import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { SOEUR, SOEUR_OPENING } from "../data/soeur";
 import { KRIK, KRIK_OPENING } from "../data/krik";
 import { GRUM, GRUM_OPENING } from "../data/grum";
+import { MORILLON, MORILLON_OPENING } from "../data/morillon";
 import { FIFRELIN, FIFRELIN_OPENING } from "../data/fifrelin";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
@@ -74,8 +75,8 @@ export interface GluckMemory {
 // Section 2 (Thomas, 2026-11-14) : les champignons lumineux éclairent leur salle (C).
 const CANDLE_LIGHT: Record<string, number> = { table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
 
-export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
-export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin"];
+export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
@@ -189,6 +190,7 @@ export class Game {
   krikMemory: KrikMemory = { met: 0 };
   grumMemory: { met: number } = { met: 0 };
   fifrelinMemory: { met: number } = { met: 0 };
+  morillonMemory: { met: number } = { met: 0 };
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -327,7 +329,7 @@ export class Game {
         : bossFloor
           ? { furniture: bossFloor.furniture, themes: [] }
           : RULES.themedRoomsInDungeon
-          ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell", this.funOf(depth) === "bath")
+          ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell", this.funOf(depth) === "bath", Math.floor((depth - 1) / RULES.floorsPerSection))
           : { furniture: [], themes: [] };
       // Section 2, la champignonnière (étages 6 à 10 ; Thomas, 2026-11-14 : « génère la section ») : l'étage tiré au
       // hasard est habillé (torches retirées, champignons, éboulements) ; le décor suit `look`.
@@ -477,7 +479,7 @@ export class Game {
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
       placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
     }
-    if (fresh && !state.boss && state.look !== "champi") this.placeQuestNpc(state, depth);
+    if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     for (const m of this.monsters) {
       m.fromX = m.x;
       m.fromY = m.y;
@@ -1852,9 +1854,9 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | undefined {
     const id = this.themeAt(x, y);
-    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : this.look() === "champi" ? "champi" : undefined;
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" ? "sculpture" : this.look() === "champi" ? "champi" : undefined;
   }
 
   /** Section 2 : éboulis (« E », infranchissable) ou terre meuble (« e ») sur cette case (pour le dessin). */
@@ -1964,6 +1966,7 @@ export class Game {
         goldHen: f.goldHen,
         grum: f.grum,
         fifrelin: f.fifrelin,
+        morillon: f.morillon,
         courier: f.courier,
         secretRoom: f.secretRoom,
         look: f.look,
@@ -2004,6 +2007,7 @@ export class Game {
       krik: this.krikMemory,
       grum: this.grumMemory,
       fifrelin: this.fifrelinMemory,
+      morillon: this.morillonMemory,
       quest: this.quest,
       xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
@@ -2085,6 +2089,7 @@ export class Game {
         goldHen: f.goldHen,
         grum: f.grum,
         fifrelin: f.fifrelin,
+        morillon: f.morillon,
         courier: f.courier,
         secretRoom: f.secretRoom,
         look: f.look,
@@ -2134,6 +2139,7 @@ export class Game {
     game.krikMemory = saved.krik ?? { met: 0 };
     game.grumMemory = saved.grum ?? { met: 0 };
     game.fifrelinMemory = saved.fifrelin ?? { met: 0 };
+    game.morillonMemory = saved.morillon ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
@@ -3786,7 +3792,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -4306,8 +4312,13 @@ export class Game {
    * Salle d'essai : les deux, toujours (Gluck dans la salle des colonnes, Sœur Osseuse dans la salle de prière).
    */
   private placeQuestNpc(state: FloorState, depth: number): void {
+    // Section 2 : Morillon vit dans sa champignonnière de morilles (les PNJ de la section 1 n'y descendent pas).
+    if (state.look === "champi" || (this.sandbox && this.sandboxFloor()?.look === "champi")) {
+      if (this.morillonMemory.met < MORILLON.maxEncounters || this.sandbox) state.morillon = this.placeMorillon(state, new Rng(floorSeed(this.runSeed, depth) ^ 0x30b1)) ?? undefined;
+      return;
+    }
     if (this.sandbox) {
-      if (depth !== 1 || this.sandboxFloor()?.look === "champi") return;
+      if (depth !== 1) return;
       const spots = this.sandboxFloor()?.npcs ?? {};
       const at = (list: Point[] | undefined): GluckSpot | null => {
         const p = list?.find((c) => this.npcFree(state, c.x, c.y));
@@ -4345,7 +4356,7 @@ export class Game {
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
   npcMax(id: NpcId): number {
-    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : KRIK.maxEncounters;
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -4356,7 +4367,7 @@ export class Game {
     // Ni sur un PNJ ni juste à côté (il ne doit pas se retrouver coincé dans un goulet), ni sur un objet, un monstre, un
     // motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -4406,9 +4417,10 @@ export class Game {
     this.soeurMemory = { met: 0 };
     this.krikMemory = { met: 0 };
     this.grumMemory = { met: 0 };
+    this.morillonMemory = { met: 0 };
     this.fifrelinMemory = { met: 0 };
     this.quest = null;
-    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin]) {
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -4436,6 +4448,7 @@ export class Game {
       !(state.gluck && state.gluck.x === x && state.gluck.y === y) && !(state.soeur && state.soeur.x === x && state.soeur.y === y) &&
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
       !(state.grum && state.grum.x === x && state.grum.y === y) &&
+      !(state.morillon && state.morillon.x === x && state.morillon.y === y) &&
       !(state.fifrelin && state.fifrelin.x === x && state.fifrelin.y === y) &&
       ![state.chicken, state.farmChicken].some((c) => c && !c.done && c.x === x && c.y === y)
     );
@@ -4531,6 +4544,23 @@ export class Game {
     return { x: p.x, y: p.y, gone: false };
   }
 
+  /** Morillon se tient dans sa champignonnière, dans une allée (jamais sur un rang). */
+  private placeMorillon(state: FloorState, rng: Rng): GluckSpot | null {
+    const farm = (state.themes ?? []).find((t) => t.id === "morilles");
+    if (!farm) return null;
+    const r = state.rooms[farm.room];
+    const cells: Point[] = [];
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (this.npcFree(state, x, y)) cells.push({ x, y });
+    if (cells.length === 0) return null;
+    const p = cells[rng.int(0, cells.length - 1)];
+    return { x: p.x, y: p.y, gone: false };
+  }
+
+  /** Morillon (quête de la section 2), s'il est sur cet étage. */
+  morillon(): GluckSpot | null {
+    return this.npc("morillon");
+  }
+
   /** Grum (quête 05), s'il est sur cet étage. */
   grum(): GluckSpot | null {
     return this.npc("grum");
@@ -4568,7 +4598,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : this.krikMemory;
+    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -4602,12 +4632,12 @@ export class Game {
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     if (this.questWith(id)) return this.questScene(id);
-    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : this.krikScene();
+    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
     if (this.questWith(id)) return this.questChoose(id, choice);
-    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : this.krikChoose(choice);
+    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -5590,6 +5620,11 @@ export class Game {
       need = def.items?.length ?? 1;
     }
     if (def.kind === "count" || def.kind === "smoke" || def.kind === "enter") need = def.count ?? 1;
+    // Morillon : tous les rangs de l'étage, case par case.
+    if (id === "morillon_arrosage") {
+      need = this.morelRows().filter((f) => !f.kind.endsWith("Wet")).length;
+      if (need <= 0) return false;
+    }
     if (def.zone && def.kind === "kill" && this.current.zone) {
       need = Math.min(def.count ?? 1, this.current.zone.sleepers.length);
       if (need <= 0) return false;
@@ -5735,6 +5770,10 @@ export class Game {
         break;
       case "grum_chapeau":
         leaves("casque_poulet");
+        break;
+      case "morillon_arrosage":
+        leaves("morille", MORILLON.reward);
+        if (q.charmed) g.gold = (g.gold ?? 0) + 15;
         break;
     }
     this.quest = null;
@@ -6200,6 +6239,7 @@ export class Game {
     const inZone = !!z && this.hero.x >= z.room.x && this.hero.x < z.room.x + z.room.w && this.hero.y >= z.room.y && this.hero.y < z.room.y + z.room.h;
     if (q && q.depth === this.depth) {
       if (q.id === "gluck_piste" && inZone) q.got = q.need;
+      if (q.id === "morillon_arrosage") this.waterRows();
       if (q.id === "gluck_vol") {
         const g = this.current.gluck;
         if (this.inventory.count("sac_pommes") > 0) {
@@ -6459,7 +6499,7 @@ export class Game {
       state.traps.some((t) => t.x === x && t.y === y) ||
       state.ground.some((o) => o.x === x && o.y === y) ||
       state.monsters.some((m) => m.x === x && m.y === y) ||
-      ([state.gluck, state.soeur, state.krik, state.grum, state.merchant].some((p) => p && p.x === x && p.y === y));
+      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.merchant].some((p) => p && p.x === x && p.y === y));
     const before = reachable(map, state.start);
     const spots: Point[] = [];
     for (let ry = room.y + 1; ry + 5 <= room.y + room.h - 1; ry++) for (let rx = room.x + 1; rx + 4 <= room.x + room.w - 2; rx++) spots.push({ x: rx, y: ry });
@@ -6583,6 +6623,67 @@ export class Game {
         return end(["« Une autre fois. »"]);
       default:
         return { lines: [], done: false };
+    }
+  }
+
+  // ---------- Section 2 : Morillon, le Kobold cueilleur (Thomas, 2026-11-14) ----------
+
+  morillonScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.morillon();
+    if (!g) return { lines: [], choices: [] };
+    g.opened = true;
+    return {
+      lines: MORILLON_OPENING,
+      choices: [
+        { id: "water", label: "« Prête-moi ton arrosoir »", stat: "charisme", dc: "easy" },
+        { id: "leave", label: "Partir" },
+      ],
+    };
+  }
+
+  morillonChoose(id: string): GluckResult {
+    const g = this.morillon();
+    if (!g || !this.canTalk("morillon")) return { lines: [], done: true };
+    const choice = this.morillonScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Pas sur les rangs, en sortant. »"], done: true };
+      case "water": {
+        const roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!]);
+        if (!this.quest && this.giveTask("morillon_arrosage")) {
+          // Bien parlé : il ajoute une poignée d'or à la récompense.
+          this.quest!.charmed = roll.success;
+          return {
+            lines: roll.success
+              ? ["« Tu as de bonnes manières, toi. Tiens, mon arrosoir. »", "« Longe chaque rang : l'eau coule toute seule. Je te paierai bien. »", "(Marchez le long des rangs : chaque case voisine est arrosée.)"]
+              : ["« Hm. Tu as des mains de Kobold de guerre. … Bon. Prends-le. Doucement. »", "(Marchez le long des rangs : chaque case voisine est arrosée.)"],
+            roll,
+            done: true,
+          };
+        }
+        this.npcLeaves("morillon", g, MORILLON.maxEncounters);
+        return { lines: ["« Ils ont bu ce matin. Reviens une autre fois. »"], roll, done: true };
+      }
+      default:
+        return { lines: [], done: false };
+    }
+  }
+
+  /** Les cases de rang de morilles de cet étage (sèches ou arrosées). */
+  private morelRows(): Furniture[] {
+    return this.current.furniture.filter((f) => f.kind.startsWith("morelRow") && f.kind !== "morelRowEmpty");
+  }
+
+  /** Avec l'arrosoir de Morillon : les cases de rang voisines du héros (4 directions) sont arrosées. */
+  private waterRows(): void {
+    const q = this.quest!;
+    for (const f of this.morelRows()) {
+      if (f.kind.endsWith("Wet") || Math.abs(f.x - this.hero.x) + Math.abs(f.y - this.hero.y) !== 1) continue;
+      f.kind = `${f.kind}Wet`;
+      this.map.touch(f.x, f.y);
+      q.got = Math.min(q.need, q.got + 1);
+      this.events.push({ type: "watered", x: f.x, y: f.y });
     }
   }
 

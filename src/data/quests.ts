@@ -34,10 +34,11 @@ export type QuestTaskId =
   | "krik_coursier"
   | "grum_poule"
   | "grum_foin"
-  | "grum_chapeau";
+  | "grum_chapeau"
+  | "morillon_arrosage";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
+  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon";
   /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
    * compteur tenu par la partie (cierges, tours sur la grille, chapeau) ; collect : rapporter plusieurs objets. */
   kind: "kill" | "fetch" | "statue" | "smoke" | "enter" | "count" | "collect";
@@ -225,6 +226,20 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     thanks: ["« Il est beau ! Il fait peur ! Enfin… il fait quelque chose. »", "« Tiens. Celui-là, je l'ai fait moi-même. »", "(Il laisse un casque poulet.)"],
     failed: "L'épouvantail de Grum a toujours froid.",
   },
+  // Section 2 : Morillon, le Kobold cueilleur (Thomas, 2026-11-14). On longe ses rangs avec son arrosoir.
+  morillon_arrosage: {
+    npc: "morillon",
+    kind: "count",
+    goal: "Arroser les rangs de morilles {0}/{1}",
+    back: "Revoir Morillon",
+    waiting: "« Longe-les tous, hein. Une morille qui a soif, ça boude. »",
+    thanks: [
+      "« Regarde-les boire… On les entend presque. »",
+      "« Tiens, des morilles. Mange-les, ne les vends pas : ça porte malheur. »",
+      "(Il laisse 3 morilles.)",
+    ],
+    failed: "Les rangs de Morillon ont toujours soif.",
+  },
   soeur_kobolds: {
     npc: "soeur",
     kind: "kill",
@@ -310,6 +325,8 @@ export interface QuestTask {
   need: number;
   /** Cloche de fortune : le jet était raté, elle fera un vacarme au moment de la monter. */
   noisy?: boolean;
+  /** Morillon : on lui a bien parlé (il ajoute de l'or). */
+  charmed?: boolean;
   /** Rencontres 2 à 4 : le monstre visé (le concurrent de Gluck), ou la salle à libérer (son numéro). */
   target?: number;
 }

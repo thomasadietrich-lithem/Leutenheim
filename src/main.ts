@@ -20,7 +20,7 @@ import { RULES } from "./data/rules";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
-import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, Renderer } from "./render/renderer";
+import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE, Renderer } from "./render/renderer";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
@@ -773,6 +773,8 @@ function reveal(e: GameEvent): void {
     shownHp = game.hero.hp;
     renderer.levelUp();
     sfx.play("heal");
+  } else if (e.type === "watered") {
+    renderer.addFloatingText(e.x, e.y, "Arrosé", "#8fd0f0");
   } else if (e.type === "trapDodged") {
     renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");
   } else if (e.type === "bout") {
@@ -1987,7 +1989,7 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : "Krik");
+  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : "Krik");
   $("talk-face").replaceChildren(
     who === "gluck"
       ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE)
@@ -1997,7 +1999,9 @@ function openTalk(who: NpcId): void {
           ? buildIcon(FERMIER.rows, FERMIER.palette)
           : who === "fifrelin"
             ? buildIcon(SCHRAT.idleDown[0], FIFRELIN_PALETTE)
-          : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
+            : who === "morillon"
+              ? buildIcon(MORILLON_FRAMES.idleDown0, MORILLON_PALETTE)
+              : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
   );
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
   document.body.classList.add("talk-open");

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T21:23:21.618Z",
+ "commit": "b3bc343",
+ "note": "salles à thème section 2 (morilles, sculpture), Morillon, montée de niveau dorée",
+ "logic": {
+  "tickMs": 0.8,
+  "lightMs": 0.33,
+  "visionMs": 0.24
+ },
+ "scenes": {
+  "immobile": {
+   "n": 100,
+   "avg": 24.5,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 41,
+   "js": 6
+  },
+  "marche": {
+   "n": 219,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 6
+  },
+  "retour": {
+   "n": 241,
+   "avg": 20.7,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 48,
+   "js": 5
+  },
+  "zoom": {
+   "n": 118,
+   "avg": 22,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 45,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 225,
+   "avg": 22.1,
+   "p95": 33.4,
+   "max": 116.7,
+   "fps": 45,
+   "js": 11
+  }
+ },
+ "errors": []
+}

@@ -134,6 +134,8 @@ export const RULES = {
   fallenChairChance: 0.5,
   /** Salles à thème par étage : chance d'en avoir une, puis (si oui) une deuxième, d'un autre thème (C). */
   themedRoomChances: [0.7, 0.35] as number[],
+  /** Section 2 : la champignonnière de morilles (chance), puis l'atelier de sculpture (C). */
+  themedRoomChancesS2: [0.85, 0.5] as number[],
   /** Coffres du dortoir (0 à 2) et chance qu'une pomme soit dans l'assiette de la table. */
   dortoirChests: [0, 2] as [number, number],
   tableAppleChance: 0.5,

@@ -43,6 +43,9 @@ const GOLD_HEN_PALETTE: Record<string, string> = { ...POULET_PALETTE, W: "#f0c85
 /** Fifrelin (quête 04) : écailles rouges, œil doré, gilet rouge. */
 export const FIFRELIN_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#d8664e", a: "#8e2e22", Y: "#ffd84a", L: "#f2c8a8", C: "#c84a3a", c: "#7a1e1a", M: "#e0c070", m: "#a07830" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
+/** Morillon (section 2) : le Kobold cueilleur, masque et hotte, en blouse bleu-gris (les cueilleurs hostiles sont en brun). */
+export const MORILLON_PALETTE: Record<string, string> = { ...MOBS_CHAMPI.cueilleur.palette, C: "#6a8698", c: "#3e5666" };
+export const MORILLON_FRAMES = MOBS_CHAMPI.cueilleur.frames;
 export const FRONDEUR_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#e08a3a", a: "#9c5420", Y: "#f4e04a", C: "#6e4c2e", c: "#40291a", M: "#7a5230", m: "#a4abc8", T: "#cbbf98" };
 import { FIRE_PALETTE, FIRE_STAGES } from "./sprites/feu";
 import { tr } from "../i18n/i18n";
@@ -53,6 +56,8 @@ import { TRAINARDS } from "./sprites/trainards";
 import { ARAIGNEE } from "./sprites/araignee";
 import { PIEGES } from "./sprites/pieges";
 import { PIEGES_CHAMPI } from "./sprites/piegesChampi";
+import { CHAMPI_SALLES } from "./sprites/champiSalles";
+import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
 import { BOSS } from "./sprites/boss";
@@ -1011,6 +1016,19 @@ export class Renderer {
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("pomme"), ICON_PALETTE);
   }
 
+  /** Morillon, le Kobold cueilleur (section 2) : masque de toile, hotte ; une morille dans sa bulle quand on approche. */
+  private drawMorillon(game: Game, ox: number, oy: number): void {
+    const g = game.morillon();
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { tile } = this;
+    const cx = Math.round(ox + (g.x + 0.5) * tile);
+    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const hero = game.hero;
+    const rows = MORILLON_FRAMES[`idleDown${Math.floor(Math.abs(this.time) / 560) % 2}`];
+    this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, true, MORILLON_PALETTE);
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("morille"), ICON_PALETTE);
+  }
+
   /** Grum, le Kobold fermier (quête 05) : chapeau de paille et salopette ; un œuf d'or dans sa bulle quand on approche. */
   private drawGrum(game: Game, ox: number, oy: number): void {
     const g = game.grum();
@@ -1926,6 +1944,7 @@ export class Renderer {
     this.drawSoeur(game, ox, oy);
     this.drawKrik(game, ox, oy);
     this.drawGrum(game, ox, oy);
+    this.drawMorillon(game, ox, oy);
     this.drawFifrelin(game, ox, oy);
     this.drawCourier(game, ox, oy, progress);
     this.drawGoldHen(game, ox, oy, progress);
@@ -2434,7 +2453,7 @@ export class Renderer {
       const caskSide = !cz ? "" : cz.room.y + cz.room.h <= f.y ? "" : cz.room.y > f.y ? "Low" : cz.room.x + cz.room.w <= f.x ? "SideL" : "SideR";
       const zoneName = f.kind === "barrelWall" ? `cask${caskSide}${game.zoneNoticed() ? "Found" : ""}` : f.kind === "hayWall" ? "hayBale" : null;
       const name = zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2449,7 +2468,7 @@ export class Renderer {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || name === "scarecrowHat") {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

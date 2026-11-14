@@ -4943,13 +4943,14 @@ test("clef inutile : la dernière porte verrouillée forcée, la clef de l'étag
   assert.ok(checked > 0, "aucun étage avec clef et porte verrouillée");
 });
 
-test("salle d'essai, section 2 (champignonnière) : tout est accessible, décor « champi », pas de PNJ (Thomas, 2026-11-14)", () => {
+test("salle d'essai, section 2 (champignonnière) : tout est accessible, décor « champi », pas de PNJ de la section 1 (Thomas, 2026-11-14)", () => {
   setSandboxSection(2);
   try {
     const game = new Game(3, undefined, undefined, undefined, true);
     assert.equal(game.look(), "champi");
     assert.equal(game.floorStyle(game.hero.x, game.hero.y), "champi");
     for (const id of ["gluck", "soeur", "krik", "grum", "fifrelin"] as const) assert.equal(game.npc(id), null, `${id} absent`);
+    assert.ok(game.npc("morillon"), "Morillon, lui, est là (sa champignonnière)");
     // Toutes les salles sont accessibles depuis le départ (portes comprises, sauf la cellule verrouillée et la salle secrète).
     const plan = buildSandbox2();
     const seen = new Set<number>();
@@ -5078,4 +5079,91 @@ test("pièges : la section 2 a ses propres pièges (lacet, racines, vesse-de-lou
   assert.deepEqual([...kinds].sort(), ["hooks", "snare", "spores"]);
   assert.ok(s2 > s1, `plus de pièges en section 2 (${s2} contre ${s1})`);
   assert.ok(h2 / s2 > h1 / s1, "plus de pièges cachés en section 2");
+});
+
+test("section 2 : champignonnière de morilles (4 à 6 rangs, caillebotis, étagères orientées, engrais, arrosoirs) et atelier de sculpture", () => {
+  let morilles = 0;
+  let atelier = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    for (const d of [6, 7, 8, 9]) {
+      game.teleport(d);
+      const st = (game as unknown as { current: { themes: { room: number; id: string }[] } }).current;
+      for (const t of st.themes) {
+        assert.ok(["morilles", "sculpture", "bain"].includes(t.id), `salle de la section 1 en section 2 : ${t.id}`);
+        const r = game.rooms[t.room];
+        const inside = game.furnitureList().filter((f) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
+        if (t.id === "morilles") {
+          morilles++;
+          // Des rangs : des suites de cases de billon, sur une même ligne.
+          const rows = new Set<string>();
+          for (const f of inside.filter((f) => f.kind.startsWith("morelRow"))) {
+            const left = inside.some((g) => g.kind.startsWith("morelRow") && g.x === f.x - 1 && g.y === f.y);
+            if (!left) rows.add(`${f.x},${f.y}`);
+          }
+          assert.ok(rows.size >= 4 && rows.size <= 6, `${rows.size} rangs`);
+          assert.ok(inside.some((f) => f.kind.startsWith("caill")), "caillebotis");
+          assert.ok(inside.some((f) => f.kind.startsWith("potShelf")), "étagère à pots");
+          assert.ok(inside.some((f) => f.kind.startsWith("arrosoir")), "arrosoir");
+          assert.ok(inside.some((f) => f.kind.startsWith("engrais")), "sacs d'engrais");
+          assert.equal(game.floorStyle(r.x, r.y), "morilles");
+        }
+        if (t.id === "sculpture") {
+          atelier++;
+          assert.ok(inside.some((f) => f.kind === "champiPierre"), "champignon de pierre");
+          assert.ok(inside.some((f) => f.kind.startsWith("toolShelfS")), "étagère de matériel");
+          assert.equal(game.floorStyle(r.x, r.y), "sculpture");
+        }
+        // Tout reste accessible : chaque case de sol de la salle se rejoint depuis le héros.
+        const dist = distanceField(game.map, game.hero);
+        for (let y = r.y; y < r.y + r.h; y++) {
+          for (let x = r.x; x < r.x + r.w; x++) {
+            if (game.map.isWalkable(x, y)) assert.ok(dist[game.map.index(x, y)] >= 0, `graine ${seed} étage ${d} : (${x}, ${y}) coupée dans ${t.id}`);
+          }
+        }
+      }
+    }
+  }
+  assert.ok(morilles >= 30 && atelier >= 10, `${morilles} champignonnières, ${atelier} ateliers`);
+});
+
+test("section 2 : la quête de Morillon — arroser tous les rangs, revenir, recevoir des morilles", () => {
+  setSandboxSection(2);
+  try {
+    const game = new Game(3, undefined, undefined, undefined, true);
+    const g = game.morillon();
+    assert.ok(g, "Morillon est dans sa champignonnière");
+    for (const id of ["gluck", "soeur", "krik", "grum", "fifrelin"] as const) assert.equal(game.npc(id), null);
+    game.hero.x = g.x + (game.map.isWalkable(g.x + 1, g.y) ? 1 : -1);
+    game.hero.y = g.y;
+    const scene = game.npcScene("morillon");
+    assert.ok(scene.choices.some((c) => c.id === "water"));
+    game.npcChoose("morillon", "water");
+    assert.ok(game.quest && game.quest.id === "morillon_arrosage");
+    const need = game.quest.need;
+    assert.ok(need >= 8, `${need} cases à arroser`);
+    // Le héros longe chaque rang (on le pose dans l'allée, puis un tour passe).
+    const rows = game.furnitureList().filter((f) => f.kind.startsWith("morelRow"));
+    for (const f of rows) {
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        if (!game.map.isWalkable(f.x + dx, f.y + dy) || game.monsterAt(f.x + dx, f.y + dy)) continue;
+        game.hero.x = f.x + dx;
+        game.hero.y = f.y + dy;
+        game.monsters.splice(0);
+        game.wait();
+        game.tick();
+        break;
+      }
+    }
+    assert.equal(game.quest!.got, need, "tous les rangs arrosés");
+    assert.ok(game.furnitureList().filter((f) => f.kind.endsWith("Wet")).length === need);
+    game.hero.x = g.x + (game.map.isWalkable(g.x + 1, g.y) ? 1 : -1);
+    game.hero.y = g.y;
+    game.npcChoose("morillon", "turnin");
+    assert.equal(game.quest, null);
+    assert.ok(game.ground.some((o) => o.item === "morille") || game.inventory.count("morille") > 0, "des morilles");
+  } finally {
+    setSandboxSection(1);
+  }
 });

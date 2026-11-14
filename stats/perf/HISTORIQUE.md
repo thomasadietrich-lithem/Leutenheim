@@ -30,3 +30,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-14_20h27 | 71795c7 | 29 | 28.4 | 28 | 29.7 | 16.7 | 31 | 0.81 | 0.4 | section 2 dans le donjon, coffre doré, partie d'essai |
 | 2026-11-14_20h31 | d788645 | 29.4 | 25.4 | 27.4 | 28.3 | 16.7 | 23.7 | 0.7 | 0.19 | escalier de la Tisseuse scellé |
 | 2026-11-14_21h03 | 96985a7 | 22.4 | 20.9 | 20.9 | 22.9 | 16.7 | 25.2 | 0.82 | 0.32 | section 2 : pièges propres, escaliers en niche, vue refaite après porte |
+| 2026-11-14_21h23 | b3bc343 | 24.5 | 22.8 | 20.7 | 22 | 16.7 | 22.1 | 0.8 | 0.33 | salles à thème section 2 (morilles, sculpture), Morillon, montée de niveau dorée |

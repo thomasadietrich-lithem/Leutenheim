@@ -17,7 +17,7 @@ export interface AchievementDef {
   /** « count » : un total qui monte ; « best » : le meilleur résultat d'une partie ; « low » : le plus petit (tours). */
   kind: "count" | "best" | "low";
   /** Un succès de quête : le PNJ (les missions différentes réussies comptent). */
-  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
+  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon";
 }
 
 export const TIER_NAMES = ["cuivre", "argent", "or"] as const;

@@ -90,6 +90,25 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
       { item: "sac_cuir", min: 1, max: 1, weight: 1, minDepth: 5 }, // pas avant la fin de la section 1 (Thomas)
     ],
   },
+  // Section 2 (Thomas, 2026-11-14 ; planche art/champi_salles_v1.png) : la champignonnière de morilles (avec la quête de
+  // Morillon) et l'atelier de sculpture. Butins des caches (C).
+  {
+    id: "morilles",
+    name: "Champignonnière de morilles",
+    loot: [
+      { item: "or", min: 10, max: 18, weight: 2 },
+      { item: "pomme", min: 1, max: 3, weight: 2 },
+      { item: "cuisse_poulet", min: 1, max: 1, weight: 1 },
+    ],
+  },
+  {
+    id: "sculpture",
+    name: "Atelier de sculpture",
+    loot: [
+      { item: "or", min: 12, max: 22, weight: 3 },
+      { item: "fleche", min: 3, max: 6, weight: 1 },
+    ],
+  },
 ];
 
 /**
@@ -198,6 +217,45 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   lueursP2: { blocks: false, w: 1, h: 1, burns: true },
   lueursP3: { blocks: false, w: 1, h: 1, burns: true },
   eboulis: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  // Champignonnière de morilles (planche art/champi_salles_v1.png) : rangs de terre battue où poussent les morilles
+  // (on n'y marche pas, on voit par-dessus), caillebotis (on marche dessus), étagères à pots (2 cases, une par
+  // orientation : fond, bas, gauche, droite), sacs d'engrais (1 à 3), arrosoirs, outils, brouette.
+  morelRowA: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  morelRowB: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  morelRowC: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  morelRowEmpty: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  // Arrosés (quête de Morillon) : la terre a foncé.
+  morelRowAWet: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  morelRowBWet: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  morelRowCWet: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  caill0: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  caill1: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  caill2: { blocks: false, w: 1, h: 1, burns: true, flat: true },
+  potShelf: { blocks: true, w: 2, h: 1, burns: true },
+  potShelfBack: { blocks: true, w: 2, h: 1, burns: true },
+  potShelfL: { blocks: true, w: 1, h: 2, burns: true },
+  potShelfR: { blocks: true, w: 1, h: 2, burns: true },
+  engrais1: { blocks: true, w: 1, h: 1, burns: true },
+  engrais2: { blocks: true, w: 1, h: 1, burns: true },
+  engrais3: { blocks: true, w: 1, h: 1, burns: true },
+  arrosoir: { blocks: false, w: 1, h: 1, burns: false },
+  arrosoirTombe: { blocks: false, w: 1, h: 1, burns: false },
+  outils: { blocks: true, w: 1, h: 1, burns: true },
+  brouette: { blocks: true, w: 2, h: 1, burns: true },
+  // Atelier de sculpture : l'immense champignon de pierre dans ses échafaudages (3 × 3), la grue, les gravats (1 à 3),
+  // les étagères de matériel (mêmes orientations que les étagères à pots), les pioches rouillées, le plan sur son tréteau.
+  champiPierre: { blocks: true, w: 3, h: 3, burns: false },
+  grue: { blocks: true, w: 2, h: 1, burns: true },
+  gravats1: { blocks: true, w: 1, h: 1, burns: false },
+  gravats2: { blocks: true, w: 1, h: 1, burns: false },
+  gravats3: { blocks: true, w: 1, h: 1, burns: false },
+  toolShelfS: { blocks: true, w: 2, h: 1, burns: true },
+  toolShelfSBack: { blocks: true, w: 2, h: 1, burns: true },
+  toolShelfSL: { blocks: true, w: 1, h: 2, burns: true },
+  toolShelfSR: { blocks: true, w: 1, h: 2, burns: true },
+  pioches: { blocks: true, w: 1, h: 1, burns: false },
+  piocheSol: { blocks: false, w: 1, h: 1, burns: false },
+  planChampi: { blocks: true, w: 2, h: 1, burns: true },
   terre: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   mycCurtain: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   wallHoleB: { blocks: false, w: 1, h: 1, burns: false, wall: true },

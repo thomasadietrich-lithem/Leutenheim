@@ -8,7 +8,7 @@ import { SOEUR_PALETTE, SOEUR_SPRITE } from "../render/sprites/soeur";
 import { FERMIER } from "../render/sprites/ferme";
 import { MARCHAND, MARCHAND_PALETTE } from "../render/sprites/marchand";
 import { POULET, POULET_PALETTE } from "../render/sprites/poulet";
-import { FIFRELIN_PALETTE, FRONDEUR_PALETTE, GLUCK_PALETTE, KRIK_PALETTE } from "../render/renderer";
+import { FIFRELIN_PALETTE, FRONDEUR_PALETTE, GLUCK_PALETTE, KRIK_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE } from "../render/renderer";
 
 type Pic = { rows: readonly string[]; palette: Record<string, string> };
 const kobold = (palette: Record<string, string>): Pic => ({ rows: SCHRAT.idleDown[0], palette });
@@ -24,6 +24,7 @@ const PORTRAITS: Record<string, Pic> = {
   "n:compteur": kobold(SCHRAT_PALETTE),
   "n:soeur": { rows: SOEUR_SPRITE[0], palette: SOEUR_PALETTE },
   "n:grum": { rows: FERMIER.rows, palette: FERMIER.palette },
+  "n:morillon": { rows: MORILLON_FRAMES.idleDown0, palette: MORILLON_PALETTE },
   "n:colporteur": { rows: MARCHAND.front, palette: MARCHAND_PALETTE },
   "n:poulet": { rows: POULET.idle, palette: POULET_PALETTE },
   "n:bain": BAIN.tub0,

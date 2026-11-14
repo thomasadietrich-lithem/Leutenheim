@@ -18,3 +18,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-14_13h34 | c10ea45 | 49.3 | 31.4 | 24.1 | 53.8 | 23.4 | 23.1 | 3.1 | 0.7 | largeur du mur de succès |
 | 2026-11-14_13h35 | 8116da1 | 48 | 31.6 | 25.3 | 41.4 | 28.5 | 20.7 | 3.6 | 0.59 | largeur du mur (2e mesure) |
 | 2026-11-14_14h36 | 5bcfc53 | 49.7 | 25.6 | 28 | 48.1 | 25.1 | 26.3 | 4.07 | 0.83 | tonneau creux redessiné |
+| 2026-11-14_16h01 | 5b7c44e | 50.3 | 27.4 | 26.9 | 44.5 | 22.7 | 20.8 | 3.6 | 0.72 | clef inutile |

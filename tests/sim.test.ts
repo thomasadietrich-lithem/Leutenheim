@@ -4864,3 +4864,22 @@ test("d20 enchanté : un 1 naturel devient un 20 critique, une seule fois", () =
   assert.equal(b.d20, 1);
   assert.ok(!b.hit && !b.enchanted);
 });
+
+test("clef inutile : la dernière porte verrouillée forcée, la clef de l'étage disparaît (Thomas, 2026-11-14)", () => {
+  let checked = 0;
+  for (let seed = 1; seed < 80 && checked < 3; seed++) {
+    const game = new Game(seed);
+    if (!game.ground.some((g) => g.item === "clef")) continue;
+    const doors: { x: number; y: number }[] = [];
+    for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.DoorLocked) doors.push({ x, y });
+    if (doors.length === 0) continue;
+    game.alloc.force = 60;
+    const priv = game as unknown as { resolveDoor(a: string, p: { x: number; y: number }): void; isVisible(x: number, y: number): boolean };
+    doors.slice(0, -1).forEach((d) => priv.resolveDoor("break", d));
+    if (doors.length > 1) assert.ok(game.ground.some((g) => g.item === "clef"), `graine ${seed} : il reste une porte, la clef reste`);
+    priv.resolveDoor("break", doors[doors.length - 1]);
+    assert.ok(!game.ground.some((g) => g.item === "clef" && !priv.isVisible(g.x, g.y)), `graine ${seed} : la clef a disparu`);
+    checked++;
+  }
+  assert.ok(checked > 0, "aucun étage avec clef et porte verrouillée");
+});

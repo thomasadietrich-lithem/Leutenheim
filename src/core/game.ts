@@ -6970,6 +6970,22 @@ export class Game {
     }
     this.resolveDoorOpening(action, door);
     if (counter && this.map.get(door.x, door.y) !== Tile.DoorLocked) this.releaseCounter(counter);
+    this.dropUselessKeys();
+  }
+
+  /**
+   * CLEF INUTILE (Thomas, 2026-11-14 : « quand on a forcé une porte, on ne peut plus trouver une clef associée dans
+   * l'étage ») : dès qu'il ne reste plus aucune porte verrouillée que la clef pourrait ouvrir, les clefs encore au sol
+   * de l'étage disparaissent (sauf celle qu'on a sous les yeux). Pas en salle d'essai.
+   */
+  private dropUselessKeys(): void {
+    if (this.sandbox) return;
+    for (let y = 0; y < this.map.height; y++)
+      for (let x = 0; x < this.map.width; x++) if (this.map.get(x, y) === Tile.DoorLocked && !this.sealedDoor(x, y)) return;
+    for (let i = this.ground.length - 1; i >= 0; i--) {
+      const g = this.ground[i];
+      if (g.item === "clef" && !this.isVisible(g.x, g.y)) this.ground.splice(i, 1);
+    }
   }
 
   private resolveDoorOpening(action: DoorAction, door: Point): void {

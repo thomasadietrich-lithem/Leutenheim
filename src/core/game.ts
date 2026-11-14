@@ -606,6 +606,12 @@ export class Game {
       hens.push({ x: c.x, y: c.y, fromX: c.x, fromY: c.y });
     }
     state.farm = { field, hens };
+    // Des plumes dans le pré (Thomas, 2026-11-14), là où il n'y a rien d'autre que la terre.
+    const bare = free.filter((c) => !hens.some((h) => h.x === c.x && h.y === c.y));
+    for (let k = Math.min(bare.length, rng.int(3, 5)); k > 0; k--) {
+      const c = bare.splice(rng.int(0, bare.length - 1), 1)[0];
+      furniture.push({ x: c.x, y: c.y, kind: rng.chance(0.5) ? "plumesA" : "plumesB" });
+    }
     // Le poulet du truc fun est déjà là (salle d'essai) : celui de la ferme a son propre emplacement.
     const slot: "chicken" | "farmChicken" = state.chicken ? "farmChicken" : "chicken";
     const room = state.rooms[theme.room];

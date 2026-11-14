@@ -504,6 +504,37 @@
   #bag-buttons[hidden] { display: none; }
   #bag-qty { display: flex; gap: 6px; align-items: center; }
   #bag-qty[hidden] { display: none; }
+  /* Mur de succès (Thomas, 2026-11-14 ; maquette art/succes_v1.html). */
+  #screen-succes { position: relative; }
+  .succes-sub { text-align: center; color: var(--dim); font-size: 18px; margin-top: -6px; }
+  #succes-tally { display: flex; justify-content: center; gap: 14px; font-size: 22px; align-items: center; margin: 4px 0; }
+  #succes-tally span { display: flex; align-items: center; gap: 4px; }
+  #succes-tally .dim { color: var(--dim); }
+  .succes-sec { font-size: 20px; color: var(--gold); margin: 6px 4px 2px; border-bottom: 2px solid var(--panel-hi); letter-spacing: .06em; text-align: left; }
+  .succes-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+  .succes-cell { background: none; border: 0; padding: 2px 0; margin: 0; box-shadow: none; text-align: center; color: var(--ink); font-size: 16px; line-height: 1; min-width: 0; }
+  .succes-cell canvas { width: 66px; height: 66px; image-rendering: pixelated; }
+  .succes-cell.locked .nm { color: #6a6050; }
+  .succes-cell .nm { margin-top: 1px; white-space: nowrap; overflow: hidden; text-transform: none; }
+  .succes-cell .bar { height: 5px; background: #281e14; margin: 3px 8px 0; }
+  .succes-cell .bar i { display: block; height: 5px; background: var(--gold); }
+  .succes-cell .bar i.full { background: #ffd75e; }
+  .succes-cell .pg { color: var(--dim); font-size: 14px; margin-top: 1px; }
+  #succes-detail { position: absolute; left: 6px; right: 6px; bottom: 52px; background: var(--panel); border: 3px solid var(--panel-hi); padding: 8px 10px; font-size: 18px; text-align: left; z-index: 2; }
+  #succes-detail[hidden] { display: none; }
+  #succes-detail .row { display: flex; gap: 10px; align-items: center; }
+  #succes-detail .row canvas { width: 52px; height: 52px; image-rendering: pixelated; flex: none; }
+  #succes-detail .ti { font-size: 22px; }
+  #succes-detail .dim { color: var(--dim); }
+  #succes-detail .tiers { display: flex; justify-content: space-between; margin-top: 6px; font-size: 16px; }
+  .succes-x { position: absolute; right: 4px; top: 4px; width: 30px; height: 30px; padding: 0; font-size: 20px; }
+  .succes-pop { position: absolute; left: 0; right: 0; top: 18px; display: flex; flex-direction: column; align-items: center; z-index: 30; pointer-events: auto; }
+  .succes-pop .succes-rays { position: absolute; top: -61px; width: 200px; height: 200px; opacity: 0; pointer-events: none; }
+  .succes-pop .succes-medal { width: 78px; height: 78px; image-rendering: pixelated; position: relative; }
+  .succes-banner { margin-top: 10px; background: #1b1612f2; border: 3px solid var(--gold); padding: 4px 14px; text-align: center; font-size: 18px; opacity: 0; }
+  .succes-banner .a { color: var(--gold); font-size: 24px; letter-spacing: .08em; }
+  .log-medal { display: flex; align-items: center; gap: 5px; }
+  .log-medal canvas { width: 18px; height: 18px; image-rendering: pixelated; flex: none; }
   #bag-sure { border: 2px solid #b0453c; background: #2a1414; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
   #bag-sure[hidden] { display: none; }
   #sure-text { color: #ffd9c0; text-align: center; }
@@ -660,6 +691,7 @@
       <button id="menu-sandbox" type="button">Salle d'essai</button>
       <button id="menu-codex" type="button">Encyclopédie</button>
       <button id="menu-records" type="button">Records</button>
+      <button id="menu-succes" type="button">Succès</button>
       <button id="menu-settings" type="button">Paramètres</button>
       <span id="seed"></span>
     </section>
@@ -682,6 +714,14 @@
       <h2>Sauvegardes</h2>
       <div id="saves-list"></div>
       <button id="saves-back" type="button" class="ghost">Retour</button>
+    </section>
+    <section id="screen-succes" hidden>
+      <h2>Succès</h2>
+      <div class="succes-sub">Toutes vos parties comptent</div>
+      <div id="succes-tally"></div>
+      <div id="succes-grid"></div>
+      <div id="succes-detail" hidden></div>
+      <button id="succes-back" type="button" class="ghost">Retour</button>
     </section>
     <section id="screen-records" hidden>
       <h2>Records</h2>

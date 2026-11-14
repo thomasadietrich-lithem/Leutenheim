@@ -1,3 +1,5 @@
+import { medalLine, onEvents, playUnlock, renderWall, splitMedal, type Unlock } from "./ui/achievements";
+import { medal } from "./ui/medals";
 import { addRecord, loadRecords, recordLine } from "./ui/records";
 import { FERMIER } from "./render/sprites/ferme";
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./render/sprites/escaliers";
@@ -478,6 +480,14 @@ function renderLog(): void {
   log.replaceChildren(
     ...logLines.map((line) => {
       const p = document.createElement("div");
+      // Une ligne de succès : le mini médaillon devant (son texte est déjà traduit).
+      const m = splitMedal(line);
+      if (m) {
+        p.className = "log-medal";
+        const icon = medal(m.id, m.tier, 1);
+        p.append(icon, document.createTextNode(m.text));
+        return p;
+      }
       p.textContent = capFirst(tr(line));
       return p;
     }),
@@ -1330,7 +1340,28 @@ function collectEvents(): void {
     if (e.type === "death" && e.actor.kind === "monster") ghosts.push(e.actor);
     queue.push(e);
   }
+  // Le mur de succès (Thomas, 2026-11-14) : la première fois, l'animation ; ensuite, une ligne au journal.
+  for (const u of onEvents(game.events, game)) {
+    logLines.push(medalLine(u.id, u.tier, u.line));
+    if (u.first) unlockQueue.push(u);
+  }
+  if (unlockQueue.length > 0 && !unlockPlaying) nextUnlock();
   game.events.length = 0;
+}
+
+/** Les succès obtenus pour la première fois, montrés l'un après l'autre. */
+const unlockQueue: Unlock[] = [];
+let unlockPlaying = false;
+function nextUnlock(): void {
+  const u = unlockQueue.shift();
+  if (!u) {
+    unlockPlaying = false;
+    return;
+  }
+  unlockPlaying = true;
+  sfx.play("unlock");
+  playUnlock(document.querySelector(".frame") as HTMLElement, $("open-menu"), u, nextUnlock);
+  renderLog();
 }
 
 // ---------- Commandes ----------
@@ -2981,12 +3012,12 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "records" | "saves";
+type Screen = "main" | "new" | "settings" | "codex" | "records" | "saves" | "succes";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
-  for (const name of ["main", "new", "settings", "codex", "records", "saves"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "records", "saves", "succes"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   $("menu-resume").hidden = (!started || game.over) && savedRun === null;
@@ -2997,6 +3028,7 @@ function showScreen(screen: Screen | null): void {
   if (screen === "codex") renderCodex();
   if (screen === "records") renderRecords();
   if (screen === "saves") renderSaves();
+  if (screen === "succes") renderWall($("succes-grid"), $("succes-detail"), $("succes-tally"));
 }
 
 interface Card {
@@ -3205,6 +3237,8 @@ button("menu-settings", () => {
 });
 button("menu-codex", () => showScreen("codex"));
 button("menu-records", () => showScreen("records"));
+button("menu-succes", () => showScreen("succes"));
+button("succes-back", () => showScreen("main"));
 // Toucher le bandeau de quête : l'objectif en entier au journal (le bandeau peut être coupé).
 button("quest-banner", () => {
   const q = game.questLine();

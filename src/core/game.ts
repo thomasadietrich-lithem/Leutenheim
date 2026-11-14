@@ -6207,7 +6207,7 @@ export class Game {
    * champion seul, contre le héros.
    */
   private startBout(g: GluckSpot, bet: "champ" | "small" | "duel" | null, payout: number, rigged = false): void {
-    g.bout = { bet, payout, over: bet === null };
+    g.bout = { bet, payout, over: bet === null, rigged };
     const spots: Point[] = [];
     // Dans la petite arène : un de chaque côté.
     if (g.ring && bet !== "duel") {
@@ -6323,7 +6323,7 @@ export class Game {
     const at = winner ?? g;
     if (bout.bet === side) {
       this.gold += bout.payout;
-      this.events.push({ type: "bout", what: "win", x: at.x, y: at.y, gold: bout.payout, winner: side });
+      this.events.push({ type: "bout", what: "win", x: at.x, y: at.y, gold: bout.payout, winner: side, rigged: bout.rigged });
     } else this.events.push({ type: "bout", what: "lose", x: at.x, y: at.y, winner: side });
   }
 

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T12:13:05.913Z",
+ "commit": "3cb7340",
+ "note": "mur de succès (médaillons, animation, comptage des événements)",
+ "logic": {
+  "tickMs": 3.77,
+  "lightMs": 0.7,
+  "visionMs": 0.25
+ },
+ "scenes": {
+  "immobile": {
+   "n": 49,
+   "avg": 49.3,
+   "p95": 100,
+   "max": 150,
+   "fps": 20,
+   "js": 17
+  },
+  "marche": {
+   "n": 193,
+   "avg": 25.8,
+   "p95": 49.9,
+   "max": 116.7,
+   "fps": 39,
+   "js": 9
+  },
+  "retour": {
+   "n": 200,
+   "avg": 24.9,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 40,
+   "js": 7
+  },
+  "zoom": {
+   "n": 78,
+   "avg": 44.7,
+   "p95": 83.4,
+   "max": 116.7,
+   "fps": 22,
+   "js": 39
+  },
+  "combat": {
+   "n": 195,
+   "avg": 21.5,
+   "p95": 33.4,
+   "max": 233.3,
+   "fps": 46,
+   "js": 17
+  },
+  "donjon": {
+   "n": 210,
+   "avg": 23.6,
+   "p95": 33.4,
+   "max": 150,
+   "fps": 42,
+   "js": 15
+  }
+ },
+ "errors": []
+}

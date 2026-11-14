@@ -1,0 +1,50 @@
+/**
+ * MUR DE SUCCÈS (Thomas, 2026-11-14 : « design un mur de succès » → maquette art/succes_v1.html, « Fonce »).
+ * Chaque succès a trois rangs : cuivre, argent, or. Toutes les parties s'additionnent (salle d'essai exclue).
+ * Pour en ajouter un : une ligne ici (son picto dans `src/ui/medals.ts`), puis ce qui le fait avancer dans
+ * `src/ui/achievements.ts` (`onEvent`). Valeurs (C).
+ */
+export type AchievementGroup = "combat" | "quetes" | "exploration";
+
+export interface AchievementDef {
+  id: string;
+  name: string;
+  group: AchievementGroup;
+  /** Ce qui compte, en une phrase (la fiche du mur). */
+  what: string;
+  /** Seuils cuivre, argent, or. */
+  tiers: [number, number, number];
+  /** « count » : un total qui monte ; « best » : le meilleur résultat d'une partie ; « low » : le plus petit (tours). */
+  kind: "count" | "best" | "low";
+  /** Un succès de quête : le PNJ (les missions différentes réussies comptent). */
+  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin";
+}
+
+export const TIER_NAMES = ["cuivre", "argent", "or"] as const;
+
+/** Les issues du tripot de Fifrelin qui comptent comme ses « missions ». */
+export const FIFRELIN_FEATS = ["fifre_champ", "fifre_petit", "fifre_truque", "fifre_duel"] as const;
+
+export const ACHIEVEMENTS: AchievementDef[] = [
+  { id: "chasseur", name: "Chasseur", group: "combat", what: "Vaincre des monstres, toutes parties confondues.", tiers: [25, 100, 500], kind: "count" },
+  { id: "bourreau", name: "Bourreau", group: "combat", what: "Infliger des dégâts, toutes parties confondues.", tiers: [500, 2500, 10000], kind: "count" },
+  { id: "tisseuse", name: "Tisseuse", group: "combat", what: "Vaincre la Tisseuse.", tiers: [1, 5, 20], kind: "count" },
+  { id: "course", name: "Course", group: "combat", what: "Atteindre la Tisseuse en peu de tours (une partie).", tiers: [1500, 1000, 600], kind: "low" },
+  { id: "gluck", name: "Gluck", group: "quetes", what: "Réussir les missions de Gluck (chacune compte une fois).", tiers: [1, 4, 7], kind: "count", npc: "gluck" },
+  { id: "soeur", name: "Sœur Osseuse", group: "quetes", what: "Réussir les missions de Sœur Osseuse.", tiers: [1, 2, 4], kind: "count", npc: "soeur" },
+  { id: "krik", name: "Krik", group: "quetes", what: "Réussir les missions de Krik.", tiers: [1, 4, 8], kind: "count", npc: "krik" },
+  { id: "grum", name: "Grum", group: "quetes", what: "Réussir les missions de Grum.", tiers: [1, 2, 3], kind: "count", npc: "grum" },
+  { id: "fifrelin", name: "Fifrelin", group: "quetes", what: "Gagner au tripot de Fifrelin : sur le champion, sur le petit, en trichant, en duel.", tiers: [1, 2, 4], kind: "count", npc: "fifrelin" },
+  { id: "fouineur", name: "Fouineur", group: "exploration", what: "Trouver des pièces secrètes.", tiers: [1, 5, 15], kind: "count" },
+  { id: "profondeur", name: "Plus bas", group: "exploration", what: "Descendre le plus bas possible (une partie).", tiers: [3, 5, 10], kind: "best" },
+  { id: "poulet", name: "Côôt !", group: "exploration", what: "Effrayer des poulets.", tiers: [1, 5, 15], kind: "count" },
+];
+
+/** Le rang atteint pour cette valeur : -1 (aucun), 0 cuivre, 1 argent, 2 or. */
+export function tierOf(def: AchievementDef, value: number): number {
+  let t = -1;
+  def.tiers.forEach((need, i) => {
+    if (def.kind === "low" ? value > 0 && value < need : value >= need) t = i;
+  });
+  return t;
+}

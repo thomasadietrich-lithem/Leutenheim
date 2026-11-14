@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-14T19:17:01.543Z",
+ "commit": "813c81e",
+ "note": "section 2 : lumière lente, éboulis contre les murs, zigzags",
+ "logic": {
+  "tickMs": 0.64,
+  "lightMs": 0.68,
+  "visionMs": 0.58
+ },
+ "scenes": {
+  "immobile": {
+   "n": 79,
+   "avg": 31,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 32,
+   "js": 6
+  },
+  "marche": {
+   "n": 157,
+   "avg": 31.7,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 32,
+   "js": 5
+  },
+  "retour": {
+   "n": 154,
+   "avg": 32.4,
+   "p95": 50,
+   "max": 66.8,
+   "fps": 31,
+   "js": 5
+  },
+  "zoom": {
+   "n": 94,
+   "avg": 30.5,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 33,
+   "js": 5
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 177,
+   "avg": 28.2,
+   "p95": 50,
+   "max": 133.3,
+   "fps": 35,
+   "js": 13
+  }
+ },
+ "errors": []
+}

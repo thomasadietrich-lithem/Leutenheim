@@ -1509,7 +1509,9 @@ export class Renderer {
     const ox = this.originX();
     const oy = this.originY();
     // Vacillement des torches : deux ondes lentes superposées.
-    const flicker = 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
+    // Section 2 (Thomas, 2026-11-14 : « une lumière plus lente et plus statique, là tout clignote ») : les champignons
+    // respirent doucement (une lente onde de 6 secondes, ±3 %) au lieu de vaciller comme des flammes.
+    const flicker = game.look() === "champi" ? 0.92 + 0.03 * Math.sin(this.time / 950) : 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
 
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, this.width, this.height);
@@ -2344,7 +2346,8 @@ export class Renderer {
         }
         const brightness = Math.min(1, Math.max(lit * flicker, glow));
         dark = (1 - brightness) * 0.55;
-        warm = lit * flicker * 0.2;
+        // Section 2 : pas de reflet orange sur les meubles (la lumière y est bleu-vert).
+        warm = game.look() === "champi" ? 0 : lit * flicker * 0.2;
       }
       // Meubles animés (bougie de la table, jambon qui se balance, robinet qui goutte, corde, candélabre) : 3 images.
       const animated = f.kind.startsWith("table") || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);

@@ -44,7 +44,8 @@ export const SECRET_LAYOUTS: Record<SecretLayout, { name: string; size: [number,
   contrebandier: { name: "La cache du contrebandier", size: [3, 3], plan: ["bck", "o..", "..."] },
 };
 
-const KIND: Record<string, string> = { s: "statueKnight", a: "armorStand", p: "display", b: "barrel", k: "crateStack" };
+// Jamais deux caisses empilées (Thomas, 2026-11-14 : « sinon on cache le coffre ») : une seule caisse, basse.
+const KIND: Record<string, string> = { s: "statueKnight", a: "armorStand", p: "display", b: "barrel", k: "crate" };
 
 /** Les murs des salles où l'on peut accrocher un creux ou une brique manquante (pas aux coins, ni près d'une porte). */
 function roomWalls(floor: Floor, room: Room): { cell: Point; dir: Point }[] {

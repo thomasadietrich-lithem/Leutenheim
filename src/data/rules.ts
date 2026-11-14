@@ -155,13 +155,18 @@ export const RULES = {
   bossDepths: [5],
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,
-  bossRetreatDamage: 10,
+  bossRetreatDamage: 20,
   /** Un cocon mangé lui rend tant de PV ; elle reste tant de tours tapie avant de revenir. */
   bossCocoonHeal: 6,
-  bossLurkTurns: 2,
-  /** Sur sa toile, tant de cases par tour (1 ailleurs). Ce qu'elle sent : le héros sur une toile, ou à cette distance. */
-  bossWebSteps: 2,
-  bossSenseRange: 2,
+  bossLurkTurns: 1,
+  /**
+   * Thomas, 2026-11-14 : « améliore sa mobilité, et la vitesse d'agro ». Sur sa toile, 3 cases par tour (2 ailleurs).
+   * Elle sent le héros sur une toile, ou à 5 cases ; une fois réveillée, elle le suit tant qu'il est à 8 cases et pas caché.
+   */
+  bossWebSteps: 3,
+  bossGroundSteps: 2,
+  bossSenseRange: 5,
+  bossChaseRange: 8,
   /** Grande toile effondrée (amarres coupées, ou brûlée) : elle tombe sur le dos, sonnée tant de tours. */
   bossFallTurns: 3,
   /** Un leurre (flèche plantée dans une toile) l'attire tant de tours. */

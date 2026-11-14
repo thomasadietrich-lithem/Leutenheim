@@ -1028,52 +1028,6 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
-  /**
-   * Amarres de la grande toile (planche art/objets_v4.png, Thomas : « la toile sur les poteaux devrait être tendue entre
-   * eux ») : un fil épais tendu de chaque colonne jusqu'au centre de la grande toile ; une amarre coupée pend, effilochée.
-   */
-  private drawAnchorThreads(game: Game, ox: number, oy: number): void {
-    const layout = game.bossLayout();
-    if (!layout) return;
-    const furniture = game.furnitureList();
-    if (!furniture.some((f) => f.kind.startsWith("webHub"))) return;
-    const { ctx, tile } = this;
-    const hx = ox + (layout.hub.x + 1.5) * tile;
-    const hy = oy + (layout.hub.y + 1.5) * tile;
-    ctx.save();
-    ctx.lineCap = "round";
-    for (const p of layout.pillars) {
-      if (!game.isExplored(p.x, p.y)) continue;
-      const px = ox + (p.x + 0.5) * tile;
-      const py = oy + (p.y + 0.5) * tile;
-      const intact = furniture.some((f) => f.kind === "anchor" && f.x === p.x && f.y === p.y);
-      const lit = game.isVisible(p.x, p.y) ? 1 : 0.45;
-      const strand = (x0: number, y0: number, x1: number, y1: number) => {
-        ctx.strokeStyle = `rgba(60,56,50,${0.8 * lit})`;
-        ctx.lineWidth = Math.max(2, tile * 0.14);
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(x1, y1);
-        ctx.stroke();
-        ctx.strokeStyle = `rgba(240,236,226,${0.9 * lit})`;
-        ctx.lineWidth = Math.max(1, tile * 0.06);
-        ctx.stroke();
-      };
-      if (intact) strand(px, py, hx, hy);
-      else {
-        // Tranchée : un bout pend de la colonne, l'autre de la toile.
-        const dx = hx - px;
-        const dy = hy - py;
-        const len = Math.hypot(dx, dy) || 1;
-        const ux = dx / len;
-        const uy = dy / len;
-        strand(px, py, px + ux * tile * 0.7, py + uy * tile * 0.7 + tile * 0.25);
-        strand(hx - ux * tile * 1.4, hy - uy * tile * 1.4, hx - ux * tile * 2.1, hy - uy * tile * 2.1 + tile * 0.3);
-      }
-    }
-    ctx.restore();
-  }
-
   /** Barre de vie du boss, en haut de la carte, tant que le combat est engagé (Thomas). */
   private drawBossBar(game: Game): void {
     const queen = game.bossActor();
@@ -1494,8 +1448,9 @@ export class Renderer {
       ctx.fill(path);
     }
 
+    this.drawAreas(game, ox, oy);
     this.drawFurniture(game, ox, oy, flicker, "early");
-    this.drawAnchorThreads(game, ox, oy);
+    this.drawSigns(game, ox, oy);
 
     // Torches murales : une flamme qui vacille.
     for (const torch of game.torches) {
@@ -2120,6 +2075,73 @@ export class Renderer {
    * après les cases, du fond vers l'avant (le tapis d'abord), avec la même ombre et la même lueur que leurs cases.
    * La bougie de la table vacille (3 images).
    */
+  /**
+   * Zones de l'armurerie (salle d'essai, Thomas 2026-11-14) : un cadre de couleur peint au sol, son nom dans la rangée du
+   * haut. Seulement une fois la zone vue ; plus pâle hors de vue.
+   */
+  private drawAreas(game: Game, ox: number, oy: number): void {
+    const { ctx, tile } = this;
+    for (const a of game.areas()) {
+      if (!game.isExplored(a.x, a.y) && !game.isExplored(a.x + a.w - 1, a.y + a.h - 1)) continue;
+      const seen = game.isVisible(a.x, a.y) || game.isVisible(a.x + a.w - 1, a.y + a.h - 1);
+      const x = ox + a.x * tile;
+      const y = oy + a.y * tile;
+      ctx.save();
+      ctx.globalAlpha = seen ? 1 : 0.45;
+      ctx.fillStyle = a.color + "22";
+      ctx.fillRect(x + 2, y + 2, a.w * tile - 4, a.h * tile - 4);
+      ctx.strokeStyle = a.color;
+      ctx.lineWidth = Math.max(2, tile * 0.07);
+      ctx.setLineDash([tile * 0.22, tile * 0.12]);
+      ctx.strokeRect(x + 3, y + 3, a.w * tile - 6, a.h * tile - 6);
+      ctx.setLineDash([]);
+      ctx.font = `${Math.round(tile * 0.5)}px "VT323", "Courier New", monospace`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#000000aa";
+      ctx.fillText(tr(a.label), x + tile * 0.25 + 1, y + tile * 0.5 + 1);
+      ctx.fillStyle = a.color;
+      ctx.fillText(tr(a.label), x + tile * 0.25, y + tile * 0.5);
+      ctx.restore();
+    }
+  }
+
+  /** Écriteaux au mur (salle d'essai) : une plaque de bois, le nom de la salle gravé en clair. */
+  private drawSigns(game: Game, ox: number, oy: number): void {
+    const { ctx, tile } = this;
+    for (const s of game.signs()) {
+      // Visible dès que le mur (ou une case juste dessous ou dessus) a été vu.
+      if (!game.isExplored(s.x, s.y) && !game.isExplored(s.x, s.y + 1) && !game.isExplored(s.x, s.y - 1)) continue;
+      const text = tr(s.text);
+      ctx.save();
+      ctx.font = `${Math.round(tile * 0.5)}px "VT323", "Courier New", monospace`;
+      const w = Math.ceil(ctx.measureText(text).width + tile * 0.4);
+      const h = Math.round(tile * 0.62);
+      const cx = ox + (s.x + 0.5) * tile;
+      const cy = oy + (s.y + 0.5) * tile;
+      const x = Math.round(cx - w / 2);
+      const y = Math.round(cy - h / 2);
+      ctx.fillStyle = "#2a1a0e";
+      ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+      ctx.fillStyle = "#7a5230";
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#946640";
+      ctx.fillRect(x, y, w, Math.max(2, Math.round(h * 0.18)));
+      // Deux clous.
+      ctx.fillStyle = "#c9b48a";
+      const nail = Math.max(2, Math.round(tile * 0.06));
+      ctx.fillRect(x + nail, Math.round(cy - nail / 2), nail, nail);
+      ctx.fillRect(x + w - 2 * nail, Math.round(cy - nail / 2), nail, nail);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#1c120a";
+      ctx.fillText(text, cx + 1, cy + 2);
+      ctx.fillStyle = "#f3e2b8";
+      ctx.fillText(text, cx, cy + 1);
+      ctx.restore();
+    }
+  }
+
   private drawFurniture(game: Game, ox: number, oy: number, flicker: number, phase: "early" | "late"): void {
     // L'ordre de dessin (du fond vers l'avant) ne change que si les meubles changent : on le garde.
     const source = game.furnitureList();

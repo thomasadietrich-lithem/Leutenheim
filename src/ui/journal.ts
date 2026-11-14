@@ -241,6 +241,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;
     case "getUp":
       return null;
+    case "sandboxReset":
+      return "De retour au HUB : toutes les salles d'essai sont remises à neuf.";
     case "push": {
       const name = e.target.name;
       const outcome = !e.success

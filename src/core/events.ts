@@ -105,6 +105,8 @@ export type GameEvent =
   | { type: "push"; target: Actor; d20: number; bonus: number; total: number; success: boolean; moved: boolean; slam: number; prone?: boolean }
   /** Un monstre renversé se relève (il y passe son tour). */
   | { type: "getUp"; actor: Actor }
+  /** Salle d'essai : de retour au HUB, l'étage est remis à neuf. */
+  | { type: "sandboxReset" }
   /** Quelqu'un a marché sur un piège. */
   | { type: "trap"; x: number; y: number; victim: Actor; damage: number; kind: TrapKind }
   /** Fouille : commencée, interrompue, ou finie avec le jet et les cases où l'on a trouvé quelque chose. */

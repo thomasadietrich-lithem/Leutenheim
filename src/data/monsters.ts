@@ -105,7 +105,8 @@ export const MONSTERS = {
     family: "araignées",
     description: "Reine des araignées, grosse comme un chariot, l'abdomen marqué d'un crâne. Elle sent chaque vibration de sa toile, avance pour mordre puis recule dans l'ombre.",
     // Rééquilibrée le 2026-11-11 (proposée à 45 PV, +5, 2d6 : un héros niveau 5 qui fonce perdait toujours).
-    hp: 36,
+    // Thomas, 2026-11-14 : « double le nombre de points de vie de la Tisseuse » (36 → 72).
+    hp: 72,
     armorClass: 13,
     attackBonus: 4,
     damage: { count: 1, sides: 8, bonus: 1 },

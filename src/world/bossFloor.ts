@@ -141,7 +141,6 @@ export function buildBossFloor(seed: number): BossFloor {
     furniture.push({ x, y, kind: `webHub${i}` });
     take(x, y);
   }
-  for (const p of pillars) furniture.push({ x: p.x, y: p.y, kind: "anchor" });
   furniture.push({ x: seal.x, y: seal.y, kind: "sealedStairs" });
 
   // Sentiers sans toile : de la brèche d'arrivée à la grande toile, et entre des brèches (trajets un peu sinueux).

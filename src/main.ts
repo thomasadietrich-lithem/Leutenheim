@@ -307,7 +307,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   logLines = lines ?? (sandbox
     ? [
         "Salle d'essai : les dernières nouveautés, toujours au même endroit.",
-        "Ici : les nouveaux objets. L'escalier du coin en bas à droite mène au boss. « Réveiller » : tous les monstres foncent sur vous.",
+        "Le HUB : une sortie par type de salle (écriteaux au mur). Y revenir remet tout l'étage à neuf.",
       ]
     : [`Vous incarnez un ${game.hero.name}. Touchez un monstre pour l'attaquer.`]);
   renderLog();
@@ -3198,6 +3198,22 @@ button("reset-talks", () => {
   logLines.push("Dialogues remis à zéro : Gluck, Sœur Osseuse et Krik reprennent depuis le début.");
   renderLog();
 });
+// Salle d'essai v21 (Thomas, 2026-11-14) : tout l'étage remis à neuf ; l'arène remise, ou un monstre de plus.
+button("reset-floor", () => {
+  game.resetSandbox();
+  collectEvents();
+});
+button("arena-reset", () => {
+  game.arenaReset();
+  logLines.push("L'arène est remise : un monstre de chaque sorte.");
+  renderLog();
+});
+for (const kind of ["schrat", "frondeur", "araignee"] as const) {
+  button(`arena-${kind}`, () => {
+    if (game.arenaSpawn(kind)) logLines.push("Un monstre de plus entre dans l'arène.");
+    renderLog();
+  });
+}
 button("settings-sound", () => {
   options.sound = !options.sound;
   sfx.enabled = options.sound;
@@ -3298,6 +3314,10 @@ function frame(now: number): void {
   music.stage = game.alarmOff() ? 2 : game.alarm().stage;
   music.update();
 
+  // Les boutons de l'arène n'apparaissent que dans l'arène (salle d'essai).
+  const arenaTools = $("arena-tools");
+  const showArena = started && game.sandbox && game.inArena();
+  if (arenaTools.hidden === showArena) arenaTools.hidden = !showArena;
   advanceCues(dt);
   dieIdle = cue || queue.length > 0 ? 0 : dieIdle + dt;
   if (dieIdle >= DIE_CLEAR_MS && die.textContent !== "") clearDie();

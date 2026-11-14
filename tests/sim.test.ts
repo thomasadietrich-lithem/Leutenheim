@@ -16,6 +16,20 @@ import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
 import { guaranteedLoot } from "../src/core/floor";
 import { FURNITURE_KINDS } from "../src/data/themedRooms";
 import { MOTIF_SIZE } from "../src/data/motifs";
+import { buildSandbox, setSandboxPlan } from "../src/world/sandbox";
+import { buildBanc } from "./banc";
+
+// Les tests de mécanique jouent sur le banc d'essai (l'ancienne salle d'essai, cases connues) ; ceux de la vraie salle
+// d'essai passent par `withSandbox`.
+setSandboxPlan(buildBanc);
+function withSandbox<T>(run: () => T): T {
+  setSandboxPlan(() => buildSandbox());
+  try {
+    return run();
+  } finally {
+    setSandboxPlan(buildBanc);
+  }
+}
 
 const FLOORS = 1000;
 
@@ -2161,6 +2175,77 @@ test("salle d'essai : tout est accessible depuis le départ, et chaque nouveaut�
   assert.ok(game.setDestination(stairs.x, stairs.y, true));
 });
 
+test("salle d'essai v21 : HUB, six directions, tout accessible, écriteaux, armurerie, arène, remise à neuf", () => {
+  withSandbox(() => {
+    const game = new Game(1, undefined, undefined, undefined, true);
+    const dist = distanceField(game.map, game.hero);
+    const chicken = game.chicken();
+    for (const [i, r] of game.rooms.entries()) {
+      let ok = false;
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (dist[game.map.index(x, y)] >= 0) ok = true;
+      // La salle du poulet est fermée exprès (sa porte ne cède pas).
+      assert.ok(ok || (chicken && chicken.room === i), `salle ${i} (${r.x},${r.y}) inaccessible`);
+    }
+    for (let y = 0; y < game.map.height; y++)
+      for (let x = 0; x < game.map.width; x++) {
+        if (game.map.get(x, y) !== Tile.DoorLocked) continue;
+        assert.ok([[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => dist[game.map.index(x + dx, y + dy)] >= 0), `porte verrouillée (${x},${y}) inaccessible`);
+      }
+    // Chaque thème est là, avec ses meubles.
+    const themes = new Set(game.rooms.map((_, i) => game.roomTheme(i)));
+    for (const id of ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "bain", "ferme"]) assert.ok(themes.has(id), `${id} manque`);
+    const kinds = new Set(game.furnitureList().map((f) => f.kind));
+    for (const k of ["shelf2", "counter", "ham", "barrique", "altar", "pew", "rackTable", "toolRack", "maiden", "tub", "bell", "statue"]) assert.ok(kinds.has(k), `${k} manque`);
+    assert.ok(game.furnitureList().some((f) => f.kind === "statue" && f.hollow), "statue creuse");
+    // PNJ, poulet, Kobold qui compte, Colporteur.
+    for (const id of ["gluck", "soeur", "krik"] as const) assert.ok(game.npc(id), `${id} absent`);
+    assert.ok(chicken && !chicken.done, "poulet");
+    assert.ok((game as unknown as { current: { counter?: unknown } }).current.counter, "Kobold qui compte");
+    assert.ok(game.merchant(), "Colporteur");
+    // Chaque objet (hors objets de quête) est dans l'armurerie, dans une zone.
+    const areas = game.areas();
+    for (const id of Object.keys(ITEMS)) {
+      if (["sac_pommes", "magot_krik", "robe", "clef"].includes(id)) continue;
+      assert.ok(game.ground.some((g) => g.item === id && areas.some((a) => g.x >= a.x && g.x < a.x + a.w && g.y >= a.y && g.y < a.y + a.h)), `${id} hors des zones`);
+    }
+    // Écriteaux : sur un mur, et un par salle nommée.
+    assert.ok(game.signs().length >= 20);
+    for (const s of game.signs()) assert.equal(game.map.get(s.x, s.y), Tile.Wall, `écriteau « ${s.text} » hors d'un mur`);
+    // Arène : un monstre de chaque sorte ; on en ajoute, on la remet.
+    const kindsIn = new Set(game.monsters.map((m) => m.defId));
+    for (const k of ["schrat", "frondeur", "araignee"]) assert.ok(kindsIn.has(k), `${k} manque`);
+    const before = game.monsters.length;
+    assert.ok(game.arenaSpawn("araignee"));
+    assert.equal(game.monsters.length, before + 1);
+    assert.ok(game.arenaReset());
+    assert.equal(game.monsters.length, before);
+    // Les quatre pièges, l'escalier du boss.
+    assert.equal(game.traps().length, 4);
+    let stairs = { x: -1, y: -1 };
+    for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.StairsDown) stairs = { x, y };
+    assert.ok(dist[game.map.index(stairs.x, stairs.y)] >= 0, "escalier du boss inaccessible");
+    // Remise à neuf : on sort du HUB, on prend une épée, on y revient : l'épée est de nouveau au sol, le sac la garde.
+    const sword = game.ground.find((g) => g.item === "epee_longue")!;
+    const at = { x: sword.x, y: sword.y };
+    game.ground.splice(game.ground.indexOf(sword), 1);
+    game.inventory.add("epee_longue", 1);
+    const hub = game.rooms[0];
+    game.hero.x = hub.x - 2;
+    game.hero.y = 45;
+    game.wait();
+    game.tick();
+    game.hero.x = hub.x + 1;
+    game.wait();
+    game.tick();
+    assert.ok(game.events.some((e) => e.type === "sandboxReset"), "pas de remise à neuf");
+    assert.ok(game.ground.some((g) => g.item === "epee_longue" && g.x === at.x && g.y === at.y), "l'épée n'est pas revenue");
+    assert.ok(game.inventory.items.some((i) => i.defId === "epee_longue"), "le sac a perdu l'épée");
+    assert.equal(game.level, 4);
+    // Une partie reprise retrouve son plan.
+    assert.ok(Game.restore(game.snapshot()));
+  });
+});
+
 /** Un joueur automatique simple : fonce sur le monstre visible le plus proche, sinon vers l'escalier. */
 function autoStep(game: Game): void {
   if (game.pendingStairs === "down") {
@@ -3475,8 +3560,7 @@ test("nichée de la Tisseuse : 300 plans variés, tout accessible, sentiers sans
         if (map.isWalkable(x, y)) assert.notEqual(dist[map.index(x, y)], -1, `graine ${seed} : (${x},${y}) inaccessible`);
     assert.equal(map.get(boss.chest.x, boss.chest.y), Tile.Chest, `graine ${seed} : coffre`);
     assert.ok(f.furniture.some((o) => o.kind === "sealedStairs" && o.x === boss.seal.x && o.y === boss.seal.y));
-    assert.equal(f.furniture.filter((o) => o.kind === "anchor").length, 4);
-    for (const p of boss.pillars) assert.equal(map.get(p.x, p.y), Tile.Wall, `graine ${seed} : amarre hors du mur`);
+    assert.equal(f.furniture.filter((o) => o.kind === "anchor").length, 0, "plus d'amarres (Thomas, 2026-11-14)");
     assert.equal(f.furniture.filter((o) => o.kind.startsWith("webHub")).length, 9);
     assert.ok(boss.breaches.length >= 4 && boss.breaches.length <= 6, `graine ${seed} : ${boss.breaches.length} brèches`);
     assert.ok(f.furniture.filter((o) => o.kind.startsWith("cocoon")).length >= 3, `graine ${seed} : cocons`);
@@ -3521,7 +3605,7 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
   const game = bossGame();
   const layout = (game as unknown as { current: { boss: { spawn: { x: number; y: number }; hub: { x: number; y: number }; seal: { x: number; y: number }; pillars: { x: number; y: number }[] } } }).current.boss;
   const queen = game.bossActor()!;
-  assert.ok(queen && queen.size === 2 && queen.hp === 36);
+  assert.ok(queen && queen.size === 2 && queen.hp === 72);
   assert.equal(game.monsters.length, 1, "seule dans la nichée");
   assert.equal(game.map.get(layout.seal.x, layout.seal.y), Tile.Furniture, "escalier scellé");
   // Elle ne sent pas le héros dans l'antichambre.
@@ -3559,20 +3643,14 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
   }
   assert.ok(queen.hp > 30, `elle a mangé (${queen.hp} PV)`);
   assert.ok(!game.furnitureList().includes(cocoon), "le cocon a disparu");
-  // Les amarres tranchées pendant qu'elle est sur sa toile : elle tombe sur le dos.
+  // La grande toile brûlée pendant qu'elle est dessus : elle tombe sur le dos.
   queen.x = layout.spawn.x;
   queen.y = layout.spawn.y;
   queen.boss!.phase = "lurk";
   queen.boss!.lurk = 50;
-  for (const p of layout.pillars) {
-    const spot = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: p.x + dx, y: p.y + dy })).find((c) => game.map.isWalkable(c.x, c.y) && !game.monsterAt(c.x, c.y))!;
-    game.hero.x = spot.x;
-    game.hero.y = spot.y;
-    game.path = [];
-    assert.ok(game.setDestination(p.x, p.y, true), "on vise l'amarre");
-    for (let i = 0; i < 3 && game.furnitureList().some((f) => f.kind === "anchor" && f.x === p.x && f.y === p.y); i++) game.tick();
-  }
-  assert.equal(game.furnitureList().filter((f) => f.kind === "anchor").length, 0, "toutes les amarres tranchées");
+  const hubCells = game.furnitureList().filter((f) => f.kind.startsWith("webHub"));
+  (game as unknown as { current: { furniture: unknown[] } }).current.furniture = game.furnitureList().filter((f) => !hubCells.slice(0, 5).includes(f));
+  (game as unknown as { checkHub(): void }).checkHub();
   assert.equal(game.furnitureList().filter((f) => f.kind.startsWith("webHub")).length, 0, "la grande toile est tombée");
   assert.ok(queen.boss!.fallen > 0 || (queen.boss!.phase as string) === "advance", "renversée");
   assert.ok(game.heroHasAdvantageOn(queen) || queen.boss!.fallen === 0);

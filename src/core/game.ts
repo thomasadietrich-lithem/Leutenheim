@@ -14,7 +14,7 @@ import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
-import { buildSandbox, SANDBOX_LAYOUT, SandboxFloor } from "../world/sandbox";
+import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
@@ -289,7 +289,7 @@ export class Game {
     let sandboxFloor: SandboxFloor | null = null;
     if (!state) {
       const seed = floorSeed(this.runSeed, depth);
-      if (this.sandbox && depth === 1) sandboxFloor = buildSandbox();
+      if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan();
       // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
       const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? buildBossFloor(seed) : null;
       const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
@@ -403,7 +403,7 @@ export class Game {
     if (fresh) for (const f of state.furniture) if (f.kind === "basket" && f.count) state.ground.push({ x: f.x, y: f.y, item: "pomme", count: f.count });
     if (fresh) for (const f of state.furniture) if (f.kind === "plate" && f.count) state.ground.push({ x: f.x, y: f.y, item: "cuisse_poulet", count: f.count });
     if (fresh && sandboxFloor) {
-      this.populateSandbox(state, sandboxFloor);
+      this.populateSandbox(state, sandboxFloor, this.resetting);
     } else if (fresh && state.boss) {
       // La nichée : la Tisseuse seule, au centre de sa grande toile ; ni renforts, ni clef, ni pièges, ni butin au sol.
       const queen = this.newMonster(MONSTERS.tisseuse, state.boss.spawn.x, state.boss.spawn.y, false);
@@ -545,8 +545,8 @@ export class Game {
       return { x: at.x, y: at.y, door: { x: door.x, y: door.y }, crash: { x: crash.x, y: crash.y }, room: index, done: false };
     };
     if (sandbox) {
-      const index = rooms.findIndex((r) => r.x === 47 && r.y === 24);
-      return index >= 0 ? tryRoom(index, { x: 46, y: 26 }, { x: 7, y: 8 }) : null;
+      const spot = this.sandboxFloor()?.chicken;
+      return spot ? tryRoom(spot.room, spot.door, spot.at) : null;
     }
     const order = rooms.map((_, i) => i).filter((i) => i > 0 && !themed.has(i) && !inside(rooms[i], floor.start) && !inside(rooms[i], floor.stairs) && rooms[i].w >= 3 && rooms[i].h >= 3);
     while (order.length > 0) {
@@ -677,10 +677,11 @@ export class Game {
     const rng = new Rng(seed ^ 0x2a7c11e3);
     const { map } = floor;
     if (sandbox) {
-      // Salle d'essai : le placard au bout du couloir du dortoir.
-      if (map.get(13, 28) !== Tile.DoorClosed) return null;
-      map.set(13, 28, Tile.DoorLocked);
-      return { x: 13, y: 28, inside: { x: 13, y: 29 }, n: RULES.counterStart, heard: false, opened: false };
+      // Salle d'essai : le placard prévu par le plan.
+      const spot = this.sandboxFloor()?.counter;
+      if (!spot || map.get(spot.door.x, spot.door.y) !== Tile.DoorClosed) return null;
+      map.set(spot.door.x, spot.door.y, Tile.DoorLocked);
+      return { x: spot.door.x, y: spot.door.y, inside: { ...spot.inside }, n: RULES.counterStart, heard: false, opened: false };
     }
     const inRoom = (p: Point) => floor.rooms.findIndex((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
     const doors: Point[] = [];
@@ -929,9 +930,9 @@ export class Game {
     const queen = this.bossActor();
     const st = queen?.boss;
     if (!queen || !st || !st.hubUp || !this.current.boss) return;
-    const anchors = this.current.furniture.filter((f) => f.kind === "anchor").length;
+    // Plus d'amarres (Thomas, 2026-11-14 : « retire les cordes de toiles ! ») : seul le feu fait tomber la grande toile.
     const cells = this.current.furniture.filter((f) => f.kind.startsWith("webHub"));
-    if (anchors > 0 && cells.length > 4) return;
+    if (cells.length > 4) return;
     st.hubUp = false;
     for (const c of cells) this.map.touch(c.x, c.y);
     this.current.furniture = this.current.furniture.filter((f) => !f.kind.startsWith("webHub"));
@@ -1047,7 +1048,7 @@ export class Game {
       return;
     }
     // Ce qu'elle sent : le héros qui marche sur sa toile (les vibrations), ou tout près d'elle. Sinon, un leurre.
-    const sensed = this.stickyAt(hero.x, hero.y) || gapBetween(m, hero) <= RULES.bossSenseRange || (st.engaged && this.hidden === false && gapBetween(m, hero) <= 1);
+    const sensed = this.stickyAt(hero.x, hero.y) || gapBetween(m, hero) <= RULES.bossSenseRange || (st.engaged && this.hidden === false && gapBetween(m, hero) <= RULES.bossChaseRange);
     if (sensed) {
       st.target = { x: hero.x, y: hero.y };
       st.lure = undefined;
@@ -1108,7 +1109,7 @@ export class Game {
         return;
       }
       if (!st.target) return;
-      const steps = onWeb() ? RULES.bossWebSteps : 1;
+      const steps = onWeb() ? RULES.bossWebSteps : RULES.bossGroundSteps;
       for (let i = 0; i < steps && gapBetween(m, hero) !== 1; i++) {
         const step = bigStep(this.map, m, free, null, st.target);
         if (!step) break;
@@ -1161,6 +1162,8 @@ export class Game {
   private respawn(): void {
     const state = this.current;
     if (this.turn < state.nextRespawn || this.peaceful || state.boss) return;
+    // Salle d'essai avec arène : pas de renforts (on en ajoute à la main, par les boutons de l'arène).
+    if (this.depth === 1 && this.sandboxFloor()?.arena !== undefined) return;
     // Agité, puis alerte : les promeneurs arrivent un peu plus vite, et un peu plus nombreux (en douceur, Thomas 2026-11-11).
     const stage = Math.min(state.alarmStage, 2);
     state.nextRespawn = this.turn + [RULES.respawnTurns, RULES.agitatedRespawnTurns, RULES.alertRespawnTurns][stage];
@@ -1569,17 +1572,19 @@ export class Game {
   }
 
   /** Salle d'essai : monstres, objets, caches et pièges aux places prévues par le plan. */
-  private populateSandbox(state: FloorState, plan: SandboxFloor): void {
+  private populateSandbox(state: FloorState, plan: SandboxFloor, again = false): void {
     for (const m of plan.monsters) {
       const monster = this.newMonster(MONSTERS[m.monster ?? "schrat"], m.x, m.y, m.asleep);
       if (m.patrol) monster.patrol = state.rooms.find((r) => m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h);
       this.monsters.push(monster);
     }
     // Niveau 4 dans la salle d'essai : on peut y essayer l'épée longue, la lance et les flèches empoisonnées ;
-    // le cimeterre et le cuir clouté (niveau 5) montrent le refus.
-    this.level = plan.heroLevel;
-    // Les points des niveaux déjà passés sont à attribuer (et la voie à choisir).
-    this.points = plan.heroLevel - 1;
+    // le cimeterre et le cuir clouté (niveau 5) montrent le refus. (Pas quand l'étage est remis à neuf.)
+    if (!again) {
+      this.level = plan.heroLevel;
+      // Les points des niveaux déjà passés sont à attribuer (et la voie à choisir).
+      this.points = plan.heroLevel - 1;
+    }
     state.population = this.monsters.length;
     state.nextRespawn = this.turn + RULES.respawnTurns;
     for (const g of plan.ground) this.ground.push({ ...g });
@@ -3343,6 +3348,7 @@ export class Game {
       }
     }
 
+    this.sandboxHubCheck();
     this.turn++;
     // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
     if (this.turn % RULES.alarmTurnsPerPoint === 0) this.raiseAlarm(1);
@@ -3880,10 +3886,15 @@ export class Game {
   private placeQuestNpc(state: FloorState, depth: number): void {
     if (this.sandbox) {
       if (depth !== 1) return;
+      const spots = this.sandboxFloor()?.npcs ?? {};
+      const at = (list: Point[] | undefined): GluckSpot | null => {
+        const p = list?.find((c) => this.npcFree(state, c.x, c.y));
+        return p ? { x: p.x, y: p.y, gone: false } : null;
+      };
       state.gluck = this.placeGluck(state, depth) ?? undefined;
-      state.soeur = this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0)) ?? undefined;
-      state.krik = this.placeKrik(state, new Rng(this.runSeed ^ 0x6b1c)) ?? undefined;
-      this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
+      state.soeur = (at(spots.soeur) ?? this.placeSoeur(state, new Rng(this.runSeed ^ 0x50e0))) ?? undefined;
+      state.krik = (at(spots.krik) ?? this.placeKrik(state, new Rng(this.runSeed ^ 0x6b1c))) ?? undefined;
+      if (!this.sandboxFloor()?.hollowStatue) this.placeHollowStatue(state, new Rng(this.runSeed ^ 0x57a7));
       return;
     }
     const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
@@ -3996,8 +4007,8 @@ export class Game {
   private placeGluck(state: FloorState, depth: number, rng?: Rng): GluckSpot | null {
     const free = (x: number, y: number) => this.npcFree(state, x, y);
     if (this.sandbox && depth === 1) {
-      for (const [x, y] of [[20, 5], [21, 5], [20, 6], [22, 6]]) if (free(x, y)) return { x, y, gone: false };
-      return null;
+      const p = this.sandboxFloor()?.npcs?.gluck?.find((c) => free(c.x, c.y));
+      return p ? { x: p.x, y: p.y, gone: false } : null;
     }
     rng ??= new Rng(floorSeed(this.runSeed, depth) ^ 0x6a1b2c3d);
     const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
@@ -5155,6 +5166,119 @@ export class Game {
     }
   }
   private peacefulStash: Actor[] = [];
+
+  // ---------- Salle d'essai v21 : HUB, arène, écriteaux (Thomas, 2026-11-14) ----------
+
+  /** Le plan de la salle d'essai (refait à chaque remise à neuf) ; `null` hors salle d'essai. */
+  private plan: SandboxFloor | null = null;
+  private resetting = false;
+  private wasInHub = true;
+
+  private sandboxFloor(): SandboxFloor | null {
+    if (!this.sandbox) return null;
+    return (this.plan ??= sandboxPlan());
+  }
+
+  /** Les écriteaux au mur de l'étage (salle d'essai). */
+  signs(): readonly SandboxSign[] {
+    return this.depth === 1 ? (this.sandboxFloor()?.signs ?? []) : [];
+  }
+
+  /** Les zones dessinées au sol de l'étage (armurerie de la salle d'essai). */
+  areas(): readonly SandboxArea[] {
+    return this.depth === 1 ? (this.sandboxFloor()?.areas ?? []) : [];
+  }
+
+  /** Le héros est dans l'arène de la salle d'essai. */
+  inArena(): boolean {
+    const arena = this.depth === 1 ? this.sandboxFloor()?.arena : undefined;
+    return arena !== undefined && this.roomIndexAt(this.hero) === arena;
+  }
+
+  /**
+   * Salle d'essai : tout l'étage redevient comme au premier jour (monstres, objets, pièges, meubles, PNJ et leurs
+   * dialogues), sauf le héros, qui garde sa place, son sac et son niveau ; la carte reste connue.
+   */
+  resetSandbox(): boolean {
+    if (!this.sandbox || this.depth !== 1 || this.over) return false;
+    const old = this.current;
+    const { x, y } = this.hero;
+    this.floors.delete(1);
+    this.resetting = true;
+    try {
+      this.enterFloor(1, "down");
+    } finally {
+      this.resetting = false;
+    }
+    if (old.explored.length === this.current.explored.length) {
+      this.current.explored.set(old.explored);
+      this.current.sensed.set(old.sensed);
+    }
+    this.hero.x = this.hero.fromX = this.hero.prevX = x;
+    this.hero.y = this.hero.fromY = this.hero.prevY = y;
+    this.resetDialogues();
+    this.updateVision();
+    this.events.push({ type: "sandboxReset" });
+    return true;
+  }
+
+  /** Entrer dans le HUB (en venant d'ailleurs) remet l'étage à neuf. */
+  private sandboxHubCheck(): void {
+    if (!this.sandbox || this.depth !== 1) return;
+    const hub = this.sandboxFloor()?.hub;
+    if (hub === undefined) return;
+    const now = this.roomIndexAt(this.hero) === hub;
+    if (now && !this.wasInHub) this.resetSandbox();
+    this.wasInHub = now;
+  }
+
+  /** Arène : on retire ses monstres et on remet ceux du départ, à leur place. */
+  arenaReset(): boolean {
+    const plan = this.depth === 1 ? this.sandboxFloor() : null;
+    if (!plan || plan.arena === undefined) return false;
+    const r = this.rooms[plan.arena];
+    const inside = (m: Point) => m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h;
+    this.monsters = this.monsters.filter((m) => !inside(m));
+    this.current.monsters = this.monsters;
+    this.peacefulStash = this.peacefulStash.filter((m) => !inside(m));
+    for (const m of ARENA_MONSTERS) {
+      const x = r.x + m.x;
+      const y = r.y + m.y;
+      if (x === this.hero.x && y === this.hero.y) continue;
+      this.addArenaMonster(m.monster ?? "schrat", x, y, m.asleep, !!m.patrol);
+    }
+    return true;
+  }
+
+  /** Arène : un monstre de plus (éveillé, il fait sa ronde), sur une case libre loin du héros si possible. */
+  arenaSpawn(kind: SandboxMonsterKind): boolean {
+    const plan = this.depth === 1 ? this.sandboxFloor() : null;
+    if (!plan || plan.arena === undefined) return false;
+    const r = this.rooms[plan.arena];
+    let best: Point | null = null;
+    let far = -1;
+    for (let y = r.y; y < r.y + r.h; y++)
+      for (let x = r.x; x < r.x + r.w; x++) {
+        if (this.map.get(x, y) !== Tile.Floor || this.actorAt(x, y) || this.peacefulStash.some((m) => m.x === x && m.y === y)) continue;
+        const d = Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) + this.rng.next();
+        if (d > far) {
+          far = d;
+          best = { x, y };
+        }
+      }
+    if (!best) return false;
+    this.addArenaMonster(kind, best.x, best.y, false, true);
+    return true;
+  }
+
+  private addArenaMonster(kind: SandboxMonsterKind, x: number, y: number, asleep: boolean, patrol: boolean): void {
+    const m = this.newMonster(MONSTERS[kind], x, y, asleep);
+    if (patrol) m.patrol = this.rooms[this.sandboxFloor()!.arena!];
+    m.fromX = x;
+    m.fromY = y;
+    if (this.peaceful) this.peacefulStash.push(m);
+    else this.monsters.push(m);
+  }
 
   /** Un monstre éveillé a le héros en vue directe (ligne de vue dégagée, à portée de ses yeux) : impossible de se cacher. */
   isWatched(): boolean {

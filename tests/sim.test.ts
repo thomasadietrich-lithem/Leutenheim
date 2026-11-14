@@ -4907,7 +4907,7 @@ test("salle d'essai, section 2 (champignonnière) : tout est accessible, décor 
         queue.push({ x, y });
       }
     }
-    for (const r of plan.rooms.slice(0, 7)) assert.ok(seen.has(plan.map.index(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2))) || [...seen].some((i) => { const x = i % plan.map.width; const y = Math.floor(i / plan.map.width); return x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h; }), `salle ${JSON.stringify(r)} accessible`);
+    for (const r of plan.rooms) assert.ok(seen.has(plan.map.index(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2))) || [...seen].some((i) => { const x = i % plan.map.width; const y = Math.floor(i / plan.map.width); return x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h; }), `salle ${JSON.stringify(r)} accessible`);
     assert.ok(plan.secretRoom, "une salle secrète derrière un rideau de mycélium");
     assert.ok(plan.furniture.some((f) => f.kind === "mycCurtain"));
     // Une sauvegarde reprise garde la section 2.

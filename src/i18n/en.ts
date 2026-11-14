@@ -1684,4 +1684,6 @@ export const EN: Record<string, string> = {
   "↓ Nichée de la Tisseuse": "↓ The Weaver's nest",
   "Section 1": "Section 1",
   "Section 2": "Section 2",
+  "Sol B · pavés ronds": "Floor B · round cobbles",
+  "Sol D · feutre de mycélium": "Floor D · mycelium felt",
 };

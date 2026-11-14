@@ -149,7 +149,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -253,6 +253,18 @@ function cobbles(px: number, py: number): RGB {
   return [60 * k, 56 * k, 70 * k];
 }
 
+/** SOL D « feutre de mycélium » (planche art/champi_sols_v1.png ; Thomas : « fais une salle B et une D ») : fibres
+ * gris-bleu entrecroisées, taches plus sombres, spores lumineuses. Mêmes calculs que `floor_felt` de la planche. */
+function felt(px: number, py: number): RGB {
+  const n = fbm(px, py, 5, 931, 3);
+  let c: RGB = scale([70, 76, 88], 0.75 + 0.5 * n);
+  const mod = (v: number, m: number) => ((Math.trunc(v) % m) + m) % m;
+  if (mod(px + py * 0.5 + 6 * valueNoise(px, py, 6, 932), 5) === 0 || mod(px * 0.4 - py + 6 * valueNoise(px, py, 7, 933), 6) === 0) c = scale(c, 1.22);
+  if (fbm(px, py, 24, 934, 2) < 0.36) c = scale(c, 0.6);
+  if (hash2(px, py, 935) > 0.992) c = [150, 255, 220];
+  return c;
+}
+
 /** L'ancien sol de la section 2 (terre, flaques, rares dalles), gardé pour comparer. */
 export function champiEarthFloor(px: number, py: number): RGB {
   const n = fbm(px, py, 6, 13, 2);
@@ -307,7 +319,7 @@ export function groundImage(
   const water = around(map, x, y, Tile.Water);
   const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
   // Section 2 : éboulis jusqu'à 2 cases (leur tas déborde), terre meuble de la case, murs voisins (mycélium).
-  const champi = style === "champi";
+  const champi = style === "champi" || style === "champiFelt";
   const mounds: [number, number][] = [];
   const breaches: [number, number][] = [];
   let loose = false;
@@ -339,7 +351,7 @@ export function groundImage(
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "champi" ? cobbles(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
+      let c = style === "champi" ? cobbles(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

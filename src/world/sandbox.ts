@@ -98,7 +98,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 28;
+export const SANDBOX_LAYOUT = 29;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -494,6 +494,7 @@ export function buildSandbox2(): SandboxFloor {
   const ground: SandboxFloor["ground"] = [];
   const monsters: SandboxMonster[] = [];
   const areas: SandboxArea[] = [];
+  const themes: RoomTheme[] = [];
   const carve = (r: Room) => {
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
   };
@@ -595,6 +596,23 @@ export function buildSandbox2(): SandboxFloor {
   earth(85, 43, [".e.e", "eEEe", ".EE."]);
   monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
 
+  // ---------- En haut à droite : deux salles pour comparer les sols B et D (Thomas, 2026-11-14) ----------
+  line(71, 21, 71, 34);
+  map.set(72, 21, Tile.DoorClosed);
+  const solB: Room = { x: 73, y: 18, w: 9, h: 7 };
+  addRoom(solB, "Sol B · pavés ronds");
+  line(82, 21, 83, 21);
+  map.set(84, 21, Tile.DoorClosed);
+  const solD: Room = { x: 85, y: 18, w: 9, h: 7 };
+  const solDIndex = addRoom(solD, "Sol D · feutre de mycélium");
+  themes.push({ room: solDIndex, id: "feutre" });
+  for (const r of [solB, solD]) {
+    put(r.x + 1, r.y + 1, "champiGeant");
+    put(r.x + r.w - 2, r.y + r.h - 2, "champiGrappe");
+    glow([[r.x + 6, r.y + 2], [r.x + 2, r.y + 5], [r.x + 4, r.y + 4]]);
+    earth(r.x + 3, r.y - 1, [".EE.", "eEEe", ".ee."]);
+  }
+
   // ---------- En bas : la salle aux grilles ----------
   line(56, 40, 56, 42);
   map.set(56, 43, Tile.DoorClosed);
@@ -666,7 +684,7 @@ export function buildSandbox2(): SandboxFloor {
     map,
     rooms,
     furniture,
-    themes: [],
+    themes,
     motifs: [],
     start,
     merchant: { x: 59, y: 32, home: hub },

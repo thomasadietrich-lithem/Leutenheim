@@ -1799,9 +1799,9 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | undefined {
     const id = this.themeAt(x, y);
-    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : this.look() === "champi" ? "champi" : undefined;
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : this.look() === "champi" ? "champi" : undefined;
   }
 
   /** Section 2 : éboulis (« E », infranchissable) ou terre meuble (« e ») sur cette case (pour le dessin). */

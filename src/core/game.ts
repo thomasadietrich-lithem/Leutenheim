@@ -16,6 +16,7 @@ import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
 import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
+import { placeSecretRoom, placeWallMarks } from "../world/secretRoom";
 import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan } from "../world/sandbox";
 import { BossFloor, buildBossFloor } from "../world/bossFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
@@ -375,6 +376,17 @@ export class Game {
       // La ferme (Thomas, 2026-11-13) : 1 à 3 poules dans le pré, et un poulet échappé dehors (s'il n'y a pas déjà le
       // poulet du truc fun).
       this.placeFarm(state, seed);
+      // Pièce secrète (0 à 1 par étage) et marques dans les murs (Thomas, 2026-11-14).
+      if (sandboxFloor?.secretRoom) state.secretRoom = JSON.parse(JSON.stringify(sandboxFloor.secretRoom));
+      if (!sandboxFloor && !bossFloor) {
+        const srng = new Rng(seed ^ 0x5ec7e7);
+        if (srng.chance(RULES.secretRoomChance)) {
+          const hosts = new Set((state.themes ?? []).map((t) => t.room));
+          state.secretRoom = placeSecretRoom(floor, state.furniture, srng, hosts) ?? undefined;
+          if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2 });
+        }
+        placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
+      }
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -992,7 +1004,35 @@ export class Game {
     this.over = true;
     this.won = true;
     this.path = [];
-    this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y });
+    // Ses petits (Thomas, 2026-11-14 : « s'éloignent de quelques pas, puis fuient dans un nuage de fumée ») : chacun
+    // s'écarte du héros (3 pas au plus) ; l'affichage les fait marcher puis disparaître.
+    const fled: { id: number; path: Point[] }[] = [];
+    const taken = new Set<string>();
+    for (const m of this.monsters) {
+      if (m.boss || m.hp <= 0) continue;
+      const path: Point[] = [];
+      let at: Point = { x: m.x, y: m.y };
+      for (let step = 0; step < RULES.bossBroodFleeSteps; step++) {
+        let best: Point | null = null;
+        let far = Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) + Math.hypot(at.x - this.hero.x, at.y - this.hero.y) * 0.01;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+          const n = { x: at.x + dx, y: at.y + dy };
+          if (!this.map.isWalkable(n.x, n.y) || this.map.isDoor(n.x, n.y) || taken.has(`${n.x},${n.y}`) || !this.inReach(at, n)) continue;
+          if (this.monsters.some((o) => o !== m && cellsOf(o).some((c) => c.x === n.x && c.y === n.y))) continue;
+          const d = Math.max(Math.abs(n.x - this.hero.x), Math.abs(n.y - this.hero.y)) + Math.hypot(n.x - this.hero.x, n.y - this.hero.y) * 0.01;
+          if (d > far) {
+            far = d;
+            best = n;
+          }
+        }
+        if (!best) break;
+        path.push(best);
+        at = best;
+      }
+      taken.add(`${at.x},${at.y}`);
+      fled.push({ id: m.id, path });
+    }
+    this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y, fled });
   }
 
   /** Cases où la Tisseuse peut poser une patte : pas de mur, de meuble, d'autre personnage ni de flammes. */
@@ -1653,9 +1693,9 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | undefined {
     const id = this.themeAt(x, y);
-    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : undefined;
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : undefined;
   }
 
   /** Thème de la salle qui contient cette case (null hors des salles à thème). */
@@ -1744,6 +1784,7 @@ export class Game {
         grum: f.grum,
         fifrelin: f.fifrelin,
         courier: f.courier,
+        secretRoom: f.secretRoom,
     }));
     return clone({
       version: SAVE_VERSION,
@@ -1857,6 +1898,7 @@ export class Game {
         grum: f.grum,
         fifrelin: f.fifrelin,
         courier: f.courier,
+        secretRoom: f.secretRoom,
       });
     }
     game.turn = saved.turn;
@@ -3139,7 +3181,8 @@ export class Game {
   searchRefusal(): "corridor" | "searched" | "danger" | null {
     const room = this.roomIndexAt(this.hero);
     if (room < 0) return "corridor";
-    if (this.current.searched.has(room)) return "searched";
+    const secret = this.current.secretRoom;
+    if (this.current.searched.has(room) && !(secret && !secret.found && secret.host === room)) return "searched";
     if (this.visibleMonsters().length > 0) return "danger";
     return null;
   }
@@ -3616,7 +3659,9 @@ export class Game {
       this.events.push({ type: "zone", what: "complice", x: fif.x, y: fif.y });
     }
     this.current.searched.add(index);
-    const bonus = this.heroClass.searchBonus;
+    const secret = this.current.secretRoom;
+    // Un creux du mur entrevu : on sait où chercher (+5).
+    const bonus = this.heroClass.searchBonus + (secret && !secret.found && secret.host === index && secret.glimpsed ? RULES.secretGlimpseBonus : 0);
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
     const success = d20 === 20 || (d20 !== 1 && total >= RULES.searchDc);
@@ -3628,6 +3673,17 @@ export class Game {
         s.found = true;
         this.dropItem(s.x, s.y, s.item, s.count);
         found.push({ x: s.x, y: s.y });
+      }
+      // La pièce secrète derrière un mur de la salle (Thomas, 2026-11-14) : le pan de mur cède, le passage s'ouvre.
+      if (secret && !secret.found && secret.host === index) {
+        secret.found = true;
+        this.map.set(secret.entry.x, secret.entry.y, Tile.Floor);
+        this.current.rooms.push(secret.room);
+        const mark = this.current.furniture.findIndex((f) => f.x === secret.entry.x && f.y === secret.entry.y && /^wall(Gap|Hole)/.test(f.kind));
+        if (mark >= 0) this.current.furniture.splice(mark, 1);
+        found.push({ ...secret.entry });
+        this.events.push({ type: "secret", what: "found", x: secret.entry.x, y: secret.entry.y });
+        this.refreshLight();
       }
       // Pièges cachés de la salle (Thomas, 2026-11-13) : une fouille réussie les révèle.
       const room = this.rooms[index];
@@ -6512,6 +6568,17 @@ export class Game {
     this.refreshLight();
   }
 
+  /** Le coffre d'acier de la pièce secrète est-il sur cette case ? */
+  steelChestAt(x: number, y: number): boolean {
+    const s = this.current?.secretRoom;
+    return !!s && s.chest.x === x && s.chest.y === y;
+  }
+
+  /** La pièce secrète de l'étage (pour l'affichage et la salle d'essai). */
+  secretRoom(): import("../world/secretRoom").SecretRoom | null {
+    return this.current?.secretRoom ?? null;
+  }
+
   /** Ce qui se déclenche quand le héros marche sur une case particulière (autel à la pomme dorée, coffre). */
   private useFeatureAt(x: number, y: number): void {
     const t = this.map.get(x, y);
@@ -6525,13 +6592,15 @@ export class Game {
       this.events.push({ type: "fountain", healed });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
-      const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss ? 2 : 1);
+      const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1);
       // Coffre de la forge : une arme ; de l'alchimiste : une potion (Thomas). Ailleurs, un objet au hasard.
       const theme = this.themeAt(x, y);
       const pool = theme === "forge" ? lootPool(this.depth, (k) => k === "melee" || k === "ranged") : theme === "alchimiste" ? lootPool(this.depth, (_, id) => id.startsWith("potion_")) : [];
       // Coffre du boss : un objet RARE à coup sûr, et plus d'or.
       const bossChest = this.current.boss && this.current.boss.chest.x === x && this.current.boss.chest.y === y;
-      if (bossChest) pool.push(...lootPool(this.depth, () => true, "rare"));
+      // Le coffre d'acier de la pièce secrète aussi : un objet rare, et l'or doublé.
+      const steel = this.steelChestAt(x, y);
+      if (bossChest || steel) pool.push(...lootPool(this.depth, () => true, "rare"));
       const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
       const drops = this.spillLoot(x, y, gold, loot);
       this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
@@ -7495,6 +7564,8 @@ export class Game {
     }
     this.revealPillarPockets();
     this.senseBeyond();
+    // Après les cases devinées : on ne devine rien plus loin dans la pièce secrète que ce que montre le creux.
+    this.peekSecret();
     // Un monstre qui entre dans le champ de vision interrompt le déplacement en cours.
     for (const m of this.visibleMonsters()) {
       if (!this.seenMonsters.has(m.id)) {
@@ -7503,6 +7574,25 @@ export class Game {
         this.targetId = null;
         this.doorTarget = null;
       }
+    }
+  }
+
+  /**
+   * Le creux du mur de la pièce secrète (Thomas, 2026-11-14 : « à moins de 3 cases de certains creux, on voit quelques
+   * tuiles derrière le mur ») : quand on le voit d'assez près, les cases derrière lui se voient aussi.
+   */
+  private peekSecret(): void {
+    const s = this.current?.secretRoom;
+    if (!s || s.found || !this.visible[this.map.index(s.peek.x, s.peek.y)]) return;
+    if (Math.max(Math.abs(this.hero.x - s.peek.x), Math.abs(this.hero.y - s.peek.y)) > RULES.secretPeekRange) return;
+    for (const p of s.view) {
+      const i = this.map.index(p.x, p.y);
+      this.visible[i] = 1;
+      this.explored[i] = 1;
+    }
+    if (!s.glimpsed) {
+      s.glimpsed = true;
+      this.events.push({ type: "secret", what: "glimpse", x: s.peek.x, y: s.peek.y });
     }
   }
 

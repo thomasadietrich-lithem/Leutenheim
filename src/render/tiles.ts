@@ -3,6 +3,9 @@ import { FERME } from "./sprites/ferme";
 import { Tile } from "../world/map";
 import { AUTEL, AUTEL_PALETTE } from "./sprites/autel";
 import { DECOR, DECOR_PALETTE } from "./sprites/decor";
+
+/** Le coffre d'acier : les bois du coffre passent à l'acier, les bandes au fer sombre. */
+const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./sprites/escaliers";
 import { groundImage } from "./ground";
 import { wallImage } from "./walls";
@@ -206,7 +209,9 @@ export class TilePainter {
     if (decor) {
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.sprite(decor, DECOR_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      // Coffre d'acier des pièces secrètes (Thomas, 2026-11-14) : le même coffre, recoloré.
+      const palette = (t === Tile.Chest || t === Tile.ChestOpen) && game.steelChestAt(x, y) ? STEEL_PALETTE : DECOR_PALETTE;
+      ctx.drawImage(this.sprite(decor, palette), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
       ctx.imageSmoothingEnabled = smooth;
     } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
       this.drawDoor(game, t, x, y, sx, sy);

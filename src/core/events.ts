@@ -79,6 +79,8 @@ export type GameEvent =
       x: number;
       y: number;
       amount?: number;
+      /** À sa mort : ses petits s'éloignent de quelques pas puis disparaissent dans la fumée (Thomas, 2026-11-14). */
+      fled?: { id: number; path: Point[] }[];
     }
   | { type: "stuck" }
   | {
@@ -107,6 +109,8 @@ export type GameEvent =
   | { type: "getUp"; actor: Actor }
   /** Salle d'essai : de retour au HUB, l'étage est remis à neuf. */
   | { type: "sandboxReset" }
+  /** Pièce secrète (Thomas, 2026-11-14) : entrevue par un creux du mur, puis trouvée en fouillant la salle voisine. */
+  | { type: "secret"; what: "glimpse" | "found"; x: number; y: number }
   /** Quêtes v3 : la zone spéciale (montrée, tapisserie tranchée, bougie soufflée, dalle enfoncée). */
   | {
       type: "zone";

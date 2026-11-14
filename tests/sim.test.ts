@@ -2848,7 +2848,8 @@ test("passages : aucun PNJ dans un couloir, devant une porte ou un goulet ; aucu
         assert.ok(!isChokepoint(map, g.x, g.y), `graine ${seed} : PNJ dans un goulet (${g.x}, ${g.y})`);
       }
       for (const f of game.furnitureList()) {
-        if (!FURNITURE_KINDS[f.kind]?.blocks) continue;
+        // La grille d'une alcôve de prison ferme sa cellule, exprès : ce n'est pas un passage.
+        if (!FURNITURE_KINDS[f.kind]?.blocks || f.kind === "grille") continue;
         for (const c of furnitureCells(f)) {
           // Le plan de la salle nue (murs, colonnes, portes) : la case serait-elle un goulet ?
           const cut = isChokepoint(map, c.x, c.y, (a, b) => { const t = map.get(a, b); return t !== Tile.Wall && t !== Tile.Pillar && t !== Tile.DoorLocked; });
@@ -3041,8 +3042,15 @@ test("salles à thème dans le donjon : 0 à 2 par étage, de thèmes différent
     const chests = floor.map.tiles.filter((t) => t === Tile.Chest).length - chestsBefore;
     const blocked = furniture.filter((f) => FURNITURE_KINDS[f.kind].blocks).reduce((n, f) => n + furnitureCells(f).length, 0);
     const after = distanceField(floor.map, floor.start).filter((d) => d >= 0).length;
+    // La prison : ses cloisons (du mur posé dans la salle) et les cellules derrière une grille fermée sont perdues, exprès.
+    let prison = 0;
+    for (const t of themes.filter((th) => th.id === "prison")) {
+      const r = floor.rooms[t.room];
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (floor.map.get(x, y) === Tile.Wall) prison++;
+      prison += furniture.filter((f) => f.kind === "grille" && f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h).length;
+    }
     // Un coffre se compte comme une case où l'on marche : il ne change rien.
-    assert.equal(after, before - blocked, `graine ${seed} : un meuble coupe un passage (${chests} coffres)`);
+    assert.equal(after, before - blocked - prison, `graine ${seed} : un meuble coupe un passage (${chests} coffres)`);
   }
   for (const id of ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste"]) assert.ok((counts[id] ?? 0) >= 4, `${id} : ${counts[id] ?? 0}`);
 });
@@ -4723,4 +4731,55 @@ test("pièges : les monstres ne les contournent plus, même cachés ; celui qui 
     game.tick();
   }
   assert.ok(m.hp < hp, "le monstre a marché sur le piège");
+});
+
+test("pièce secrète (Thomas, 2026-11-14) : 0 à 1 par étage, murée, entrevue par un creux, ouverte en fouillant la salle voisine", () => {
+  let with_ = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed);
+    const s = game.secretRoom();
+    if (!s) continue;
+    with_++;
+    // Murée : l'entrée est du mur, la pièce est hors des salles, son coffre est d'acier.
+    assert.equal(game.map.get(s.entry.x, s.entry.y), Tile.Wall);
+    assert.ok(!game.rooms.includes(s.room));
+    assert.equal(game.map.get(s.chest.x, s.chest.y), Tile.Chest);
+    assert.ok(game.steelChestAt(s.chest.x, s.chest.y));
+    assert.ok(game.furnitureList().some((f) => f.x === s.peek.x && f.y === s.peek.y && f.kind.startsWith("wallHole")), "le creux du mur");
+    // Fouiller la salle hôte jusqu'à la trouver (la fouille d'une salle qui cache la pièce peut se refaire).
+    const host = game.rooms[s.host];
+    const g = game as unknown as { monsters: unknown[]; hero: { x: number; y: number }; searching: number; updateVision(): void };
+    g.monsters.length = 0;
+    const spot = { x: s.entry.x - s.dir.x, y: s.entry.y - s.dir.y };
+    g.hero.x = spot.x;
+    g.hero.y = spot.y;
+    g.updateVision();
+    assert.ok(host && spot.x >= host.x && spot.y >= host.y);
+    for (let tries = 0; tries < 40 && !s.found; tries++) {
+      assert.ok(game.search(), `graine ${seed} : fouille refusée (${game.searchRefusal()})`);
+      for (let i = 0; i < RULES.searchTurns + 1 && g.searching > 0; i++) game.tick();
+      if (!s.found) game.tick();
+    }
+    assert.ok(s.found, `graine ${seed} : pièce jamais trouvée`);
+    assert.notEqual(game.map.get(s.entry.x, s.entry.y), Tile.Wall);
+    assert.ok(game.rooms.includes(s.room));
+  }
+  assert.ok(with_ >= 15 && with_ <= 45, `${with_} étages 1 sur 60 avec une pièce secrète`);
+});
+
+test("prison (Thomas, 2026-11-14) : 3 à 6 alcôves à grilles, au moins une ouverte, un bureau", () => {
+  let seen = 0;
+  for (let seed = 1; seed <= 400 && seen < 6; seed++) {
+    const floor = generateFloor(seed, DEFAULT_FLOOR);
+    const { furniture, themes } = furnishFloor(floor, seed);
+    const t = themes.find((th) => th.id === "prison");
+    if (!t) continue;
+    seen++;
+    const r = floor.rooms[t.room];
+    const inR = (f: { x: number; y: number }) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h;
+    const grilles = furniture.filter((f) => f.kind.startsWith("grille") && inR(f));
+    assert.ok(grilles.length >= 3 && grilles.length <= 6, `${grilles.length} alcôves`);
+    assert.ok(grilles.some((f) => f.kind === "grilleOpen"), "au moins une grille ouverte");
+  }
+  assert.ok(seen > 0, "aucune prison sur 400 étages");
 });

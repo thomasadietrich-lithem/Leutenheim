@@ -504,6 +504,12 @@
   #bag-buttons[hidden] { display: none; }
   #bag-qty { display: flex; gap: 6px; align-items: center; }
   #bag-qty[hidden] { display: none; }
+  #bag-sure { border: 2px solid #b0453c; background: #2a1414; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+  #bag-sure[hidden] { display: none; }
+  #sure-text { color: #ffd9c0; text-align: center; }
+  #bag-sure .sure-row { display: flex; gap: 8px; }
+  #bag-sure .sure-row button { flex: 1; }
+  #sure-ok { color: #ffb0a0; }
   #bag-qty button { flex: none; min-width: 44px; padding: 8px 6px; }
   #bag-qty #qty-ok { flex: 1; }
   #qty-n { min-width: 54px; text-align: center; font-size: 22px; color: #fff3c8; }
@@ -618,6 +624,10 @@
         <button id="bag-equip" type="button" hidden></button>
         <button id="bag-throw" type="button" hidden>Lancer</button>
         <button id="bag-drop" type="button" hidden>Jeter</button>
+      </div>
+      <div id="bag-sure" hidden>
+        <div id="sure-text"></div>
+        <div class="sure-row"><button id="sure-ok" type="button">Boire quand même</button><button id="sure-cancel" type="button">Annuler</button></div>
       </div>
       <div id="bag-qty" hidden>
         <button id="qty-minus" type="button">−</button>

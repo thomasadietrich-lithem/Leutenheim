@@ -149,7 +149,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -189,6 +189,21 @@ function tortureFloor(px: number, py: number): RGB {
   return out;
 }
 
+/** Carreaux sombres de la prison (Thomas, 2026-11-14) : grandes dalles carrées d'ardoise, joints noirs, un peu d'humidité. */
+function prisonTiles(px: number, py: number): RGB {
+  const cell = 8;
+  const cx = Math.floor(px / cell);
+  const cy = Math.floor(py / cell);
+  const lx = px % cell;
+  const ly = py % cell;
+  if (lx === 0 || ly === 0) return hex("#16141c");
+  let c = scale(hex("#3a3846"), 0.85 + 0.2 * hash2(cx, cy, 711));
+  if (lx === 1 || ly === 1) c = scale(c, 1.12);
+  if (hash2(cx, cy, 712) < 0.12 && lx + ly === 7) c = hex("#24222c");
+  if (fbm(px, py, 16, 713, 2) < 0.33) c = [c[0] * 0.8, c[1] * 0.86, c[2] * 0.9];
+  return c;
+}
+
 /** Dalles de la forge : le sol B noirci de suie (planche art/forge_v1.png). */
 function forgeFloor(px: number, py: number): RGB {
   const c = floorB(px, py);
@@ -225,7 +240,7 @@ export function groundImage(map: GameMap, x: number, y: number, motifs: readonly
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : floorB(px, py);
+      let c = style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

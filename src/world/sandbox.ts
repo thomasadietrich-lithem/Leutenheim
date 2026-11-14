@@ -9,11 +9,13 @@ import {
   furnishFarm,
   furnishForge,
   furnishKitchen,
+  furnishPrison,
   furnishTorture,
   Furniture,
   RoomTheme,
 } from "./furnish";
 import { Motif } from "./grounds";
+import { placeSecretRoom, placeWallMarks, SecretRoom } from "./secretRoom";
 import { LightSource } from "./fov";
 import { Floor, Room } from "./generator";
 import { SPECIAL_ROOMS } from "../data/specialRooms";
@@ -64,6 +66,8 @@ export interface SandboxFloor extends Floor {
   hub?: number;
   /** L'arène (numéro de salle) : ses monstres se remettent ou s'ajoutent par boutons. */
   arena?: number;
+  /** La pièce secrète de démonstration (Thomas, 2026-11-14). */
+  secretRoom?: SecretRoom;
 }
 
 export interface SandboxMonster {
@@ -92,10 +96,10 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 25;
+export const SANDBOX_LAYOUT = 26;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
-export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7 };
+export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
 
 /** Le plan utilisé par la partie : les tests le remplacent par leur banc d'essai (`tests/banc.ts`). */
 let plan: () => SandboxFloor = () => buildSandbox();
@@ -376,6 +380,20 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   torches.push({ x: 112, y: 55, radius: 6, faceX: 0, faceY: 1 });
   furniture.push({ x: lair.x, y: lair.y, kind: "webTL" }, { x: lair.x + lair.w - 1, y: lair.y, kind: "webTR" });
 
+  // ---------- À droite de la nichée : la prison et la pièce secrète (Thomas, 2026-11-14) ----------
+  const [prisonRoom, secretHost] = chain(122, 58, 1, [
+    { w: 9, h: 7, name: "Prison" },
+    { w: 9, h: 7, name: "Pièce secrète ?" },
+  ]);
+  furnishPrison(floorPlan(), rooms[prisonRoom], new Rng(seeds.prison), furniture);
+  themes.push({ room: prisonRoom, id: "prison" });
+  torches.push({ x: rooms[prisonRoom].x + rooms[prisonRoom].w, y: rooms[prisonRoom].y + 4, radius: 6, faceX: -1, faceY: 0 });
+  // La salle d'à côté cache une pièce secrète derrière son mur (le creux laisse voir dedans ; fouiller la salle l'ouvre).
+  const secretRoom = placeSecretRoom(floorPlan(), furniture, new Rng(seeds.secret), new Set(), "reliquaire", secretHost) ?? undefined;
+  if (secretRoom) for (const g of secretRoom.gold) ground.push({ x: g.x, y: g.y, item: "or", count: 12 });
+  placeWallMarks({ ...floorPlan(), rooms: [rooms[hubIndex], rooms[secretHost], rooms[prisonRoom]] }, furniture, new Rng(seeds.secret + 1), 5);
+  torches.push({ x: rooms[secretHost].x + rooms[secretHost].w, y: rooms[secretHost].y + 4, radius: 6, faceX: -1, faceY: 0 });
+
   const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
   const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
   const gluck = rooms[gluckRoom];
@@ -411,6 +429,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
     areas,
     hub: hubIndex,
     arena: arenaIndex,
+    secretRoom,
   };
 }
 

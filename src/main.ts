@@ -213,6 +213,9 @@ let ghosts: Actor[] = [];
 
 let dieIdle = 0;
 let stepMs = 125;
+/** Les petits de la Tisseuse qui s'enfuient après sa mort, et la durée d'un de leurs pas. */
+let broodFlight: { id: number; path: { x: number; y: number }[] }[] = [];
+const BROOD_STEP_MS = 240;
 let stepping = false;
 let stepTime = 0;
 
@@ -745,9 +748,16 @@ function reveal(e: GameEvent): void {
     sfx.play("heal");
   } else if (e.type === "trapDodged") {
     renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");
+  } else if (e.type === "boss" && e.what === "eat") {
+    // Elle se soigne : des croix de santé montent d'elle (Thomas, 2026-11-14).
+    const queen = game.monsters.find((m) => m.boss);
+    if (queen) renderer.addHealCrosses(queen.x, queen.y, 2);
   } else if (e.type === "boss" && e.what === "dead") {
+    // Ses petits s'éloignent de quelques pas, puis fuient dans un nuage de fumée (Thomas, 2026-11-14).
+    broodFlight = (e.fled ?? []).filter((f) => game.monsters.some((m) => m.id === f.id));
+    const steps = Math.max(0, ...broodFlight.map((f) => f.path.length));
     // Thomas : la démo s'arrête après la Tisseuse, la partie est bloquée.
-    setTimeout(showDemoEnd, 900);
+    setTimeout(showDemoEnd, 900 + (broodFlight.length ? (steps + 2) * BROOD_STEP_MS : 0));
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       renderer.heroFalls();
@@ -1464,6 +1474,8 @@ function renderQuickButton(): void {
   } else b.replaceChildren(uiIcon("item"), el("span", "wheel-label", "Objet"));
 }
 
+/** Raccourci « Objet » sur une potion risquée : en attente du toucher qui confirme. */
+let quickSure: string | null = null;
 /** Utiliser le raccourci « Objet » : boire, manger, allumer, enduire ; la potion de feu se vise ensuite. */
 function useQuickItem(): void {
   const stack = game.quickStack();
@@ -1480,7 +1492,14 @@ function useQuickItem(): void {
     logLines.push(`Il faut être niveau ${def.level} pour cela.`);
     return;
   }
-  if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord") {
+  // Potion risquée à boire (Thomas, 2026-11-14) : un deuxième toucher sur « Objet » confirme.
+  if (def.drinkWarning && quickSure !== game.quickItem) {
+    quickSure = game.quickItem;
+    logLines.push(`Êtes-vous sûr ? ${tr(def.drinkWarning)} Touchez « Objet » encore une fois pour boire.`);
+    return;
+  }
+  quickSure = null;
+  if (def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") {
     throwUid = stack.uid;
     renderer.jumpCells = throwCells(stack.uid);
     logLines.push("Touchez la case où lancer la potion.");
@@ -2196,6 +2215,7 @@ function renderBag(): void {
   );
 
   showDropQty(false);
+  hideSure();
   const info = $("bag-info");
   const action = $("bag-equip");
   const item = selectedUid !== null ? bag.get(selectedUid) : selectedSlot ? game.equipment[selectedSlot] : null;
@@ -2367,6 +2387,22 @@ function dropSelected(count?: number): void {
   renderLog();
   renderHeroScreen();
 }
+var drinkSure = false; // « var » : lue par renderHeroScreen, qui peut tourner avant cette ligne.
+function hideSure(): void {
+  drinkSure = false;
+  $("bag-sure").hidden = true;
+}
+button("sure-ok", () => {
+  drinkSure = true;
+  $("bag-sure").hidden = true;
+  $("bag-buttons").hidden = false;
+  ($("bag-equip") as HTMLButtonElement).click();
+  drinkSure = false;
+});
+button("sure-cancel", () => {
+  hideSure();
+  $("bag-buttons").hidden = false;
+});
 button("bag-equip", () => {
   const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
@@ -2379,7 +2415,14 @@ button("bag-equip", () => {
     logLines.push("Touchez la case où lancer la potion.");
     bagOpen = false;
     $("bag").hidden = true;
+  } else if (chosen && chosenDef?.drinkWarning && !drinkSure) {
+    // Potion risquée à boire (Thomas, 2026-11-14) : « Êtes-vous sûr ? », et pourquoi.
+    $("sure-text").textContent = `${tr("Êtes-vous sûr ?")} ${tr(chosenDef.drinkWarning)}`;
+    $("bag-sure").hidden = false;
+    $("bag-buttons").hidden = true;
+    return;
   } else if (chosen && chosenDef?.kind === "use") {
+    drinkSure = false;
     // Utiliser prend un tour : on referme le sac pour le laisser passer.
     if (!game.useItem(chosen.uid)) {
       logLines.push("Vous êtes déjà en pleine santé.");
@@ -3381,6 +3424,29 @@ function frame(now: number): void {
       stepping = false;
       if (game.pendingStairs) beginStairs();
     }
+  }
+  // Les petits de la Tisseuse qui fuient (la partie est finie : on les fait marcher à la main, un pas à la fois).
+  if (!stepping && broodFlight.length > 0) {
+    for (const f of broodFlight) {
+      const m = game.monsters.find((o) => o.id === f.id);
+      if (!m) continue;
+      m.fromX = m.x;
+      m.fromY = m.y;
+      const next = f.path.shift();
+      if (next) {
+        m.x = next.x;
+        m.y = next.y;
+      } else {
+        // Pouf : un nuage de fumée, et il n'est plus là.
+        renderer.addPuff(m.x, m.y);
+        if (game.isVisible(m.x, m.y)) sfx.play("puff");
+        game.monsters.splice(game.monsters.indexOf(m), 1);
+      }
+    }
+    broodFlight = broodFlight.filter((f) => game.monsters.some((m) => m.id === f.id));
+    stepping = true;
+    stepTime = 0;
+    stepMs = BROOD_STEP_MS;
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
   advanceStairs(dt);

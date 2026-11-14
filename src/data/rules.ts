@@ -163,8 +163,18 @@ export const RULES = {
    * Thomas, 2026-11-14 : « améliore sa mobilité, et la vitesse d'agro ». Sur sa toile, 3 cases par tour (2 ailleurs).
    * Elle sent le héros sur une toile, ou à 5 cases ; une fois réveillée, elle le suit tant qu'il est à 8 cases et pas caché.
    */
+  /** Pièce secrète (Thomas, 2026-11-14 : « 0 à 1 par étage ») : chance par étage (C), or des piles au sol (C), portée
+   *  du creux qui laisse voir dedans (Thomas : « à moins de 3 cases »), bonus de fouille quand on l'a entrevue (C). */
+  secretRoomChance: 0.5,
+  secretGold: [8, 16] as [number, number],
+  secretPeekRange: 3,
+  secretGlimpseBonus: 5,
+  /** Briques manquantes et petits creux dans les murs, par étage (C). */
+  wallMarks: [3, 7] as [number, number],
   /** Rayon de la lueur autour du PNJ qui a donné la quête en cours (Thomas, 2026-11-14). */
   questNpcLight: 4,
+  /** À la mort de la Tisseuse, ses petits s'éloignent de ce nombre de pas avant de fuir dans la fumée (Thomas, 2026-11-14). */
+  bossBroodFleeSteps: 3,
   bossWebSteps: 3,
   bossGroundSteps: 2,
   bossSenseRange: 5,

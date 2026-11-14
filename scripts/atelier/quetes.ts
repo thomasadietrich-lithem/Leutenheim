@@ -46,6 +46,20 @@ const LEGEND: Record<string, { label: string; sprite?: () => Sprite | undefined;
   d: { label: "porte", floor: "#7a5230" },
   "@": { label: "le héros", sprite: () => find("Héros : Humain Guerrier", "idleDown") },
   "*": { label: "indice sur la carte (étoile dorée)", floor: "#4a4658" },
+  X: { label: "coffre d'acier (objet rare, or ×2)", sprite: () => find("Escaliers et coffres", "coffre d'acier") },
+  R: { label: "armure", sprite: () => find("Forge et alchimiste", "armorStand") },
+  V: { label: "présentoir", sprite: () => find("Pièces secrètes et prison", "display") },
+  $: { label: "pile d'or", floor: "#7a6420" },
+  Z: { label: "caisses", sprite: () => find("Tonneaux, caisses, toiles", "crateStack") },
+  b: { label: "tonneau", sprite: () => find("Tonneaux, caisses, toiles", "barrel") },
+  H: { label: "creux du mur (on voit derrière à 3 cases)", sprite: () => find("Pièces secrètes et prison", "wallHoleA"), floor: "#2a2533" },
+  "=": { label: "pan de mur qui cède à la fouille", floor: "#3c3444" },
+  G: { label: "grille fermée", sprite: () => find("Pièces secrètes et prison", "grille") },
+  O: { label: "grille ouverte", sprite: () => find("Pièces secrètes et prison", "grilleOpen") },
+  D: { label: "bureau du geôlier et son registre", sprite: () => find("Pièces secrètes et prison", "desk") },
+  u: { label: "seau", sprite: () => find("Pièces secrètes et prison", "bucket") },
+  q: { label: "Plumeau, le greffier (proposé)", sprite: () => find("Personnages", "Plumeau, le greffier (proposé)") },
+  j: { label: "le geôlier (Kobold endormi au bureau)", sprite: () => ({ group: "", name: "", rows: SCHRAT.sleep[0], palette: SCHRAT_PALETTE }) },
 };
 
 interface Choice {
@@ -182,6 +196,61 @@ const SLIDES: Slide[] = [
       { pick: "Analyser les règles", roll: "Intelligence", goal: "Récupérer le « vrai » gobelet : il est dans le coffre de son tripot, derrière un rideau.", win: "Le gobelet truqué en main, on peut le faire perdre à son propre jeu." },
       { pick: "Renverser la table", roll: "Force", goal: "Les deux gardes accourent : tenir la porte du tripot (embrasure).", win: "La caisse du tripot (or) ; Fifrelin part, vexé." },
     ],
+  },
+  {
+    kicker: "Pièces secrètes — EN JEU (2026-11-14)",
+    title: "Un mur qui sonne creux",
+    status: "EN JEU : 1 étage sur 2 (C) ; salle d'essai : la salle « Pièce secrète ? », à droite de la prison",
+    bullets: [
+      "OÙ : là où une surface de roche est entourée de murs contre une salle ordinaire, une petite pièce est taillée, MURÉE.",
+      "LES MURS : 3 à 7 briques manquantes et petits creux par étage, au hasard. Un seul creux, sur le mur de la pièce secrète, laisse VOIR DERRIÈRE : à 3 cases, on aperçoit quelques cases de l'autre côté (journal : « Par un creux du mur, vous apercevez… une pièce »).",
+      "L'OUVRIR : FOUILLER la salle voisine. Réussi, le pan de mur cède. Raté : on peut refouiller cette salle (pas les autres). Avoir entrevu la pièce donne +5 à la fouille.",
+      "DEDANS : un COFFRE D'ACIER (un objet RARE à coup sûr, l'or doublé), des piles d'or, et selon le plan : statues, armures, présentoir.",
+    ],
+  },
+  {
+    kicker: "Pièces secrètes — les quatre plans (EN JEU, à choisir ou compléter)",
+    title: "Trésor muré · Armurerie oubliée",
+    zone: {
+      name: "1. Le trésor muré (5 × 3) — 2. L'armurerie oubliée (5 × 3), séparés par un mur",
+      map: ["#############", "#s,X,s#R,X,R#", "#$,,,$#V,,,$#", "#,,,,,#,,,,,#", "###=H###H=###", "#...........#", "#...@.......#"],
+      how: ["Le trésor : deux statues de chevalier gardent le coffre d'acier ; deux piles d'or devant.", "L'armurerie : deux armures, un présentoir (calice et pièces), le coffre d'acier.", "H : le creux qui laisse voir dedans ; = : le pan de mur qui cède quand on fouille la salle."],
+    },
+  },
+  {
+    kicker: "Pièces secrètes — les quatre plans (suite)",
+    title: "Reliquaire · Cache du contrebandier",
+    zone: {
+      name: "3. Le reliquaire (5 × 4) — 4. La cache du contrebandier (3 × 3)",
+      map: ["###########", "#s,X,s#bXZ#", "#,,V,,#$,,#", "#$,,,$#,,,#", "#,,,,,##=H#", "###H=###..#", "#.........#", "#...@.....#"],
+      how: ["Le reliquaire : le présentoir au milieu, deux statues, le coffre au fond.", "La cache du contrebandier : tonneau, caisses, le coffre entre les deux, une pile d'or.", "Idées pour la suite : un squelette d'aventurier muré avec son journal ; une pièce murée par les Kobolds avec un Kobold coincé dedans depuis des années."],
+    },
+  },
+  {
+    kicker: "Nouvelle salle à thème — LA PRISON (EN JEU, 2026-11-14)",
+    title: "Alcôves, grilles, chaînes",
+    status: "EN JEU (dessins à valider : art/secret_prison_v1.png) ; salle d'essai : à droite de la nichée de la Tisseuse",
+    zone: {
+      name: "La prison (7 × 6 au moins), carreaux sombres",
+      map: ["###########", "##,#,#,#,##", "##G#O#G#O##", "#.........#", "#.u.......#", "#.......D.#", "#.@.......#", "###########"],
+      how: ["3 à 6 ALCÔVES d'une case contre le mur du fond, séparées par des cloisons ; une GRILLE devant chacune, au moins une ouverte.", "Dans les cellules : des chaînes au mur, de la paille, des os ou un seau. Dans la salle : le BUREAU du geôlier et son registre, une chaise, un seau qui traîne (souvent renversé), des ANNEAUX et des chaînes scellés dans les murs de côté.", "Cache de la salle : or, torche, pomme."],
+    },
+  },
+  {
+    kicker: "Quête 06 — PROPOSITION : Plumeau, le greffier enchaîné",
+    title: "« Je n'ai fait qu'écrire leurs contrats »",
+    lead: "Un vieux greffier de Leutenheim, maigre, lunettes rondes, plume derrière l'oreille, enchaîné dans une alcôve fermée. Les Kobolds l'ont enfermé parce qu'il avait rédigé leurs contrats… et qu'ils n'ont pas aimé les petites lignes. Il sait des choses sur l'étage : il a tout noté dans le REGISTRE du bureau.",
+    choices: [
+      { pick: "Prendre la clef au geôlier", roll: "Agilité (discrétion), moyen", goal: "Le geôlier (un Kobold) dort sur le bureau, la clef à la ceinture : s'approcher caché et la prendre sans le réveiller.", win: "La grille s'ouvre ; Plumeau, libre, MONTRE LA PIÈCE SECRÈTE de l'étage (« Ils ont muré quelque chose, là. J'ai entendu la truelle. »).", fail: "Le geôlier se réveille et crie : +10 d'alerte, il faut le vaincre ; la clef tombe." },
+      { pick: "Forcer la grille", roll: "Force, dur", goal: "Arracher la grille à mains nues (la Bousculade aide). Chaque essai fait du bruit (+5 d'alerte).", win: "CLANG ! La grille cède. Plumeau donne son trésor caché dans la paille (une gemme).", fail: "Raté : la grille tient ; le bruit réveille le geôlier." },
+      { pick: "Lire le registre", roll: "Intelligence, moyen", goal: "Le registre du bureau note le mot de passe des gardes ; le dire au geôlier.", win: "« C'est bon, c'est bon… » Le geôlier ouvre lui-même. Plumeau, reconnaissant, rédige un FAUX LAISSEZ-PASSER : un Kobold qui vous voit passe son chemin une fois.", fail: "Raté : le mot était faux ; le geôlier rit et vous enferme… dehors (rien ne se passe, la grille reste close, il faut une autre voie)." },
+      { pick: "Le laisser là", goal: "« Revenez quand vous aurez une conscience. » Il note votre nom dans le registre.", win: "À la rencontre suivante (un autre étage), il vous a précédé : les gardes vous attendent (mauvaise surprise, 2 Kobolds)." },
+    ],
+    zone: {
+      name: "La scène : la prison, le geôlier endormi au bureau, Plumeau dans une alcôve fermée",
+      map: ["###########", "##,#q#,#,##", "##O#G#G#O##", "#.........#", "#.......jD#", "#.u.......#", "#..@......#", "###########"],
+      how: ["Plumeau ne se trouve que dans une prison (1 sur 3, C).", "Le geôlier dort assis au bureau ; le registre se lit en le touchant (un tour).", "Dessin proposé : art/secret_prison_v1.png (plumeau0, plumeau1). À valider avant de coder."],
+    },
   },
   {
     kicker: "Objets fun déjà en jeu",

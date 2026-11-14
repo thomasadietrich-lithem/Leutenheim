@@ -236,7 +236,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   const rng = new Rng(seed ^ 0x6f4a1d93);
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
-  const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme"];
+  const pool = ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
   for (const chance of RULES.themedRoomChances) {
     if (!rng.chance(chance)) break;
     const id = pool.splice(rng.int(0, pool.length - 1), 1)[0];
@@ -274,7 +274,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
 }
 
 /** Taille minimale de chaque salle à thème. */
-const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7] };
+const MIN_SIZE: Record<string, [number, number]> = { dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
 function fits(id: string, room: Room): boolean {
   return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
 }
@@ -288,6 +288,7 @@ const FURNISHERS: Record<string, Furnisher> = {
   forge: furnishForge,
   alchimiste: furnishAlchemist,
   ferme: furnishFarm,
+  prison: furnishPrison,
 };
 
 /**
@@ -628,6 +629,79 @@ export function furnishTorture(floor: Floor, room: Room, rng: Rng, out: Furnitur
     if (P.tryPlace({ x, y, kind: "maiden" })) put++;
   }
   out.push(...P.placed);
+  return true;
+}
+
+/**
+ * LA PRISON (Thomas, 2026-11-14 ; art/secret_prison_v1.png) : contre le mur du fond, 3 à 6 ALCÔVES d'une case séparées
+ * par des cloisons de pierre, une GRILLE devant chacune (certaines ouvertes) ; dedans, des chaînes au mur, de la paille,
+ * des os ou un seau. Dans la salle : le BUREAU du geôlier et son registre, un seau qui traîne, des ANNEAUX scellés dans
+ * les murs de côté. Carreaux sombres (voir `Game.floorStyle`).
+ */
+export function furnishPrison(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const { map } = floor;
+  const P = roomPlacer(floor, room);
+  if (!P.allFloor()) return false;
+  const n = Math.min(rng.int(3, 6), Math.floor((room.w - 1) / 2));
+  if (n < 3) return false;
+  const x0 = room.x + Math.floor((room.w - (2 * n + 1)) / 2);
+  const y0 = room.y;
+  const cols = [...Array(2 * n + 1).keys()].map((i) => x0 + i);
+  // Les deux rangées des alcôves : libres, loin des ouvertures, sans torche au-dessus, sous un vrai mur.
+  for (const x of cols) {
+    for (const y of [y0, y0 + 1]) if (!P.free(x, y) || besideOpening(floor, room, x, y)) return false;
+    if (map.get(x, y0 - 1) !== Tile.Wall || underTorch(floor, x, y0)) return false;
+  }
+  if ((floor.start.y === y0 + 2 && cols.includes(floor.start.x)) || (floor.stairs.y === y0 + 2 && cols.includes(floor.stairs.x))) return false;
+  const before = reachable(map, floor.start);
+  const cells = (n + 1) * 2; // les cloisons
+  const open = new Set<number>();
+  open.add(rng.int(0, n - 1));
+  for (let i = 0; i < n; i++) if (rng.chance(0.3)) open.add(i);
+  for (let i = 0; i <= n; i++) for (const y of [y0, y0 + 1]) map.set(x0 + 2 * i, y, Tile.Wall);
+  const grilles: Furniture[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = x0 + 2 * i + 1;
+    const g = { x, y: y0 + 1, kind: open.has(i) ? "grilleOpen" : "grille" };
+    if (!open.has(i)) map.set(x, y0 + 1, Tile.Furniture);
+    grilles.push(g);
+  }
+  const closed = n - open.size;
+  // Tout le reste de l'étage doit rester atteignable : on perd seulement les cloisons, les grilles fermées et leurs cellules.
+  if (reachable(map, floor.start) !== before - cells - closed * 2) {
+    for (const x of cols) for (const y of [y0, y0 + 1]) map.set(x, y, Tile.Floor);
+    return false;
+  }
+  // Un nouvel outil de pose : la salle a changé (cloisons, grilles), le décompte des cases atteignables aussi.
+  const Q = roomPlacer(floor, room);
+  for (const x of cols) for (const y of [y0, y0 + 1, y0 + 2]) Q.reserve(x, y);
+  out.push(...grilles);
+  // Dans les cellules : chaînes au mur du fond, puis paille, os ou un seau.
+  for (let i = 0; i < n; i++) {
+    const x = x0 + 2 * i + 1;
+    if (rng.chance(0.7)) out.push({ x, y: y0 - 1, kind: "wallChains" });
+    const r = rng.next();
+    if (r < 0.35) out.push({ x, y: y0, kind: "pallet" });
+    else if (r < 0.6) out.push({ x, y: y0, kind: rng.chance(0.5) ? "bonesA" : "bonesB" });
+    else if (r < 0.8) out.push({ x, y: y0, kind: "bucket" });
+  }
+  // Le bureau du geôlier (deux cases), contre le mur du bas ou de côté, et sa chaise.
+  const spots: Point[] = [];
+  for (let y = y0 + 3; y < room.y + room.h; y++) for (let x = room.x; x + 1 < room.x + room.w; x++) spots.push({ x, y });
+  const edge = (p: Point) => p.y === room.y + room.h - 1 || p.x === room.x || p.x + 1 === room.x + room.w - 1;
+  const order = shuffle(rng, spots).sort((a, b) => Number(edge(b)) - Number(edge(a)));
+  for (const p of order) {
+    if (!Q.tryPlace({ x: p.x, y: p.y, kind: "desk" })) continue;
+    if (p.y - 1 > y0 + 2) Q.tryPlace({ x: p.x + rng.int(0, 1), y: p.y - 1, kind: rng.chance(0.5) ? "chairL" : "chairR" });
+    break;
+  }
+  // Un seau qui traîne (renversé une fois sur deux).
+  scatter(Q, rng, ["bucket", "bucketTipped", "bucketTipped"], rng.int(1, 2), () => ({ x: rng.int(room.x, room.x + room.w - 1), y: rng.int(y0 + 3, room.y + room.h - 1) }));
+  // Des anneaux (et parfois des chaînes) scellés dans les murs de côté.
+  const sideWalls: Point[] = [];
+  for (let y = y0 + 3; y < room.y + room.h; y++) for (const x of [room.x - 1, room.x + room.w]) if (map.get(x, y) === Tile.Wall && !floor.torches.some((t) => t.x === x && t.y === y) && !besideOpening(floor, room, x === room.x - 1 ? room.x : room.x + room.w - 1, y)) sideWalls.push({ x, y });
+  for (const w of shuffle(rng, sideWalls).slice(0, rng.int(2, 4))) out.push({ x: w.x, y: w.y, kind: rng.chance(0.75) ? "wallRing" : "wallChains" });
+  out.push(...Q.placed);
   return true;
 }
 

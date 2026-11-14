@@ -72,6 +72,7 @@ export interface SavedFloor {
   grum?: import("./floor").GluckSpot;
   fifrelin?: import("./floor").GluckSpot;
   courier?: import("./floor").FloorState["courier"];
+  secretRoom?: import("./floor").FloorState["secretRoom"];
 }
 
 export interface SaveData {

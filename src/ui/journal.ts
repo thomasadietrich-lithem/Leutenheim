@@ -231,7 +231,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         case "rise":
           return "La Tisseuse se remet sur ses pattes.";
         case "dead":
-          return "La Tisseuse est morte. La toile qui scellait l'escalier tombe.";
+          return e.fled && e.fled.length > 0
+            ? "La Tisseuse est morte. Ses petits détalent… et disparaissent dans un nuage de fumée."
+            : "La Tisseuse est morte. La toile qui scellait l'escalier tombe.";
       }
       return null;
     case "gravel":
@@ -241,6 +243,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;
     case "getUp":
       return null;
+    case "secret":
+      return e.what === "glimpse"
+        ? "Par un creux du mur, vous apercevez… une pièce, de l'autre côté. Fouiller cette salle la trouverait peut-être."
+        : "Un pan de mur cède sous vos doigts : une pièce secrète !";
     case "zone":
       if (e.what === "pushed") return "Vous poussez : ça glisse, et derrière, un passage !";
       if (e.what === "stuck") return "Vous poussez de toutes vos forces… ça ne bouge pas. Encore !";

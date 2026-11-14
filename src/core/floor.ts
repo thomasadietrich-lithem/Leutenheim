@@ -75,6 +75,8 @@ export interface FloorState {
   farm?: { field: Point[]; hens: { x: number; y: number; fromX: number; fromY: number }[] };
   /** Quêtes v3 : la zone spéciale taillée dans la roche quand la quête est donnée. */
   zone?: QuestZone;
+  /** La pièce secrète de l'étage (Thomas, 2026-11-14), s'il y en a une. */
+  secretRoom?: import("../world/secretRoom").SecretRoom;
   /** Quêtes v3, Sœur Osseuse : les cierges à rallumer (les cases) ; les grilles d'où monte le son (la bonne, indiquée ou non). */
   cierges?: Point[];
   grates?: { cells: Point[]; right: number; hinted: boolean };

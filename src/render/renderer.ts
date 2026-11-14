@@ -74,6 +74,7 @@ const SALLES: Record<string, { rows: string[]; palette: Record<string, string> }
 import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { BAIN } from "./sprites/bain";
 import { ZONES } from "./sprites/zones";
+import { SECRET } from "./sprites/secret";
 import { A_TERRE } from "./sprites/aterre";
 import { HEROS_V9_TWO } from "./sprites/heros_v9";
 import { furnitureCells, type Furniture } from "../world/furnish";
@@ -228,6 +229,8 @@ export class Renderer {
   private chickenRun: { path: { x: number; y: number }[]; start: number; door: number; onDoor: () => void; onCrash: () => void; doorDone: boolean } | null = null;
   /** Plumes qui retombent après le choc. */
   private feathers: { x: number; y: number; vx: number; vy: number; age: number; spin: number; venom?: boolean }[] = [];
+  /** Petites croix de santé qui montent (la Tisseuse qui se soigne, Thomas 2026-11-14). */
+  private crosses: { x: number; y: number; age: number; delay: number; sway: number }[] = [];
   /** Statue (potion de pierre) : l'instant où l'animation du héros s'est figée. */
   private heroStoneAt: number | undefined;
   /** Monstres pétrifiés : l'instant où leur animation s'est figée. */
@@ -544,6 +547,16 @@ export class Renderer {
     }
   }
 
+  /**
+   * Soin d'un monstre (Thomas, 2026-11-14 : « des petites croix de santé quand le boss se soigne ») : une dizaine de
+   * croix vertes en pixels montent de lui en se balançant et s'effacent.
+   */
+  addHealCrosses(x: number, y: number, size = 1): void {
+    for (let i = 0; i < 10; i++) {
+      this.crosses.push({ x: x + 0.15 + ((i * 0.37) % 1) * (size - 0.3), y: y + size * 0.6, age: 0, delay: i * 90, sway: i * 1.7 });
+    }
+  }
+
   /** Un nuage de plumes sur cette case. */
   addFeathers(x: number, y: number): void {
     for (let i = 0; i < 14; i++) {
@@ -605,6 +618,29 @@ export class Renderer {
           draw(rows, px, py - Math.abs(Math.sin(t * Math.PI)) * 0.12, b.x > a.x);
         }
       }
+    }
+    // Croix de santé : chacune part à son tour, monte d'une case et demie en se balançant, et s'efface.
+    this.crosses = this.crosses.filter((c) => (c.age += dt) < c.delay + 1100);
+    for (const c of this.crosses) {
+      const t = (c.age - c.delay) / 1100;
+      if (t < 0) continue;
+      const x = c.x + Math.sin(t * 7 + c.sway) * 0.08;
+      const y = c.y - t * 1.5;
+      if (!game.isVisible(Math.floor(x), Math.floor(c.y))) continue;
+      const u = Math.max(1, Math.round(tile / 16));
+      const px = Math.round(ox + x * tile);
+      const py = Math.round(oy + y * tile);
+      ctx.globalAlpha = Math.max(0, Math.min(1, (1 - t) * 1.6));
+      // Une croix de 5 × 5 pixels du jeu : contour sombre, puis le vert, un pixel clair au centre.
+      ctx.fillStyle = "#123018";
+      ctx.fillRect(px + u, py, u * 3, u * 5);
+      ctx.fillRect(px, py + u, u * 5, u * 3);
+      ctx.fillStyle = "#5fe06a";
+      ctx.fillRect(px + u * 2, py + u, u, u * 3);
+      ctx.fillRect(px + u, py + u * 2, u * 3, u);
+      ctx.fillStyle = "#d8ffd8";
+      ctx.fillRect(px + u * 2, py + u * 2, u, u);
+      ctx.globalAlpha = 1;
     }
     // Plumes : elles jaillissent, puis retombent en se balançant.
     this.feathers = this.feathers.filter((p) => (p.age += dt) < 1400);
@@ -2306,7 +2342,7 @@ export class Renderer {
       // Quêtes v3 : le tonneau creux et la botte de foin dans le mur gardent le dessin du tonneau et de la botte.
       const zoneName = f.kind === "barrelWall" ? "barrel" : f.kind === "hayWall" ? "hayBale" : null;
       const name = zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2323,7 +2359,7 @@ export class Renderer {
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
         py = (f.y + def.h) * 16 - h - (f.kind === "toolShelf" ? 6 : f.kind === "herbs" ? 12 : 0);
       } else {
-        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : f.kind.startsWith("candle") ? [4, -2] : f.kind.startsWith("cierge") ? [4, -1] : f.kind.startsWith("grate") ? [1, -2] : f.kind.startsWith("pressurePlate") ? [1, -1] : [2, -1];
+        const off = f.kind === "bell" || f.kind.startsWith("statue") ? [0, f.kind === "statueBroken" ? 2 : 0] : f.kind === "crateStack" ? [-1, 0] : f.kind === "barrel" || f.kind === "crate" ? [1, 0] : f.kind.startsWith("bunk") ? [-2, 0] : f.kind.startsWith("table") ? [1, -1] : f.kind === "chairFallen" ? [0, -1] : f.kind.startsWith("ashes") ? [0, -2] : f.kind.startsWith("candle") ? [4, -2] : f.kind.startsWith("cierge") ? [4, -1] : f.kind.startsWith("grate") ? [1, -2] : f.kind.startsWith("pressurePlate") ? [1, -1] : f.kind.startsWith("grille") || f.kind === "desk" ? [0, 0] : f.kind === "display" ? [1, 0] : [2, -1];
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }

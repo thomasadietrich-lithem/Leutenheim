@@ -23,6 +23,8 @@ import { SCHRAT, SCHRAT_PALETTE } from "../../src/render/sprites/schrat";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "../../src/render/sprites/soeur";
 import { STATUES } from "../../src/render/sprites/statue";
 import { TRAINARDS } from "../../src/render/sprites/trainards";
+import { SECRET } from "../../src/render/sprites/secret";
+import { ZONES } from "../../src/render/sprites/zones";
 import { PALETTE, STATUS_ICONS, itemIconRows } from "../../src/ui/icons";
 import { PICTOS } from "../../src/ui/pictos";
 import { ITEMS, ItemId } from "../../src/data/items";
@@ -91,6 +93,13 @@ export function allSprites(): Sprite[] {
   out.push(...fromTable("Assiette", ASSIETTE));
   out.push(...fromTable("Tonneaux, caisses, toiles", TRAINARDS));
   out.push(...fromTable("Pièges", PIEGES));
+  // Pièces secrètes et prison (Thomas, 2026-11-14) ; zones des quêtes v3.
+  const secret = Object.fromEntries(Object.entries(SECRET).filter(([k]) => !k.startsWith("plumeau")));
+  out.push(...fromTable("Pièces secrètes et prison", secret));
+  out.push({ group: "Personnages", name: "Plumeau, le greffier (proposé)", rows: SECRET.plumeau0.rows, palette: SECRET.plumeau0.palette, frames: [SECRET.plumeau0.rows, SECRET.plumeau1.rows] });
+  out.push(...fromTable("Zones de quête", ZONES));
+  const steel = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
+  out.push({ group: "Escaliers et coffres", name: "coffre d'acier", rows: DECOR.chest as string[], palette: steel });
   out.push(...Object.entries(DECOR).map(([name, rows]) => ({ group: "Escaliers et coffres", name, rows: rows as string[], palette: DECOR_PALETTE })));
   out.push(...Object.entries(AUTEL).map(([name, rows]) => ({ group: "Autel à la pomme dorée", name, rows: rows as string[], palette: AUTEL_PALETTE })));
   out.push({ group: "Feu", name: "flammes", rows: FIRE_STAGES[1][0], palette: FIRE_PALETTE, frames: FIRE_STAGES.flat() });

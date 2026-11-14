@@ -73,6 +73,15 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
     ],
   },
   {
+    id: "prison",
+    name: "Prison",
+    loot: [
+      { item: "or", min: 6, max: 14, weight: 3 },
+      { item: "torche", min: 1, max: 1, weight: 2 },
+      { item: "pomme", min: 1, max: 2, weight: 1 },
+    ],
+  },
+  {
     id: "dortoir",
     name: "Dortoir",
     loot: [
@@ -169,6 +178,19 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   tapestryCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestryLow: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestryLowCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // Pièces secrètes et prison v1 (Thomas, 2026-11-14 ; art/secret_prison_v1.png).
+  wallGapA: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  wallGapB: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  wallHoleA: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  wallHoleB: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  wallRing: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  wallChains: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  display: { blocks: true, w: 1, h: 1, burns: false },
+  grille: { blocks: true, w: 1, h: 1, burns: false },
+  grilleOpen: { blocks: false, w: 1, h: 1, burns: false },
+  bucket: { blocks: false, w: 1, h: 1, burns: true },
+  bucketTipped: { blocks: false, w: 1, h: 1, burns: true },
+  desk: { blocks: true, w: 2, h: 1, burns: true },
   tapestrySideL: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestrySideLCut: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   tapestrySideR: { blocks: false, w: 1, h: 1, burns: false, wall: true },

@@ -62,6 +62,8 @@ export interface ItemDef {
   potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip";
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
   throwRange?: number;
+  /** Potion qu'il est risqué de boire (Thomas, 2026-11-14) : on demande « Êtes-vous sûr ? » et l'on dit pourquoi. */
+  drinkWarning?: string;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
   ammoFamily?: string;
   /** Arme à deux mains (épée longue, lance) : marqué sur la fiche (Thomas, 2026-11-11). */
@@ -385,10 +387,10 @@ export const ITEMS = {
   outils_voleur: { id: "outils_voleur", name: "Outils de voleur", kind: "artifact", description: "Une trousse de crochets et de tensionneurs. Portée en artefact, toute serrure cède : le crochetage réussit à coup sûr.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
   flute_pan: { id: "flute_pan", name: "Flûte de pan", kind: "artifact", description: "Quelques roseaux liés. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
   // Thomas, 2026-11-13 : potions de pierre et de discorde.
-  potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 10 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5 },
+  potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 10 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5, drinkWarning: "Vous serez une statue pendant 10 tours, sans pouvoir rien faire." },
   potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et pétillante. À lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
   // Thomas, 2026-11-13 : potion d'agrandissement (« comme dans BG3 ») et potion glissante.
-  potion_geant: { id: "potion_geant", name: "Potion de géant", kind: "use", description: "Violette et bouillonnante. Bue : vous doublez de taille 8 tours, vos coups font deux fois plus mal, mais vous ne passez plus les portes. Lancée : c'est le monstre touché qui grandit (le boss aussi).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "grow", throwRange: 5 },
+  potion_geant: { id: "potion_geant", name: "Potion de géant", kind: "use", description: "Violette et bouillonnante. Bue : vous doublez de taille 8 tours, vos coups font deux fois plus mal, mais vous ne passez plus les portes. Lancée : c'est le monstre touché qui grandit (le boss aussi).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "grow", throwRange: 5, drinkWarning: "Pendant 8 tours, vous ne passerez plus les portes." },
   potion_glissante: { id: "potion_glissante", name: "Potion glissante", kind: "use", description: "Huileuse et verdâtre. À lancer : le monstre touché devient glissant pour toujours. Chaque coup qu'il reçoit le fait glisser jusqu'au mur, où il rebondit et se cogne.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "slip", throwRange: 5 },
   // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
   noeud_papillon: { id: "noeud_papillon", name: "Nœud papillon de Kobold", kind: "amulet", description: "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },

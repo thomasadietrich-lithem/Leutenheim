@@ -60,6 +60,8 @@ export type GameEvent =
   | { type: "luckyDie" }
   /** Le bas de la démo : l'escalier de l'étage 10 (Thomas, 2026-11-14). */
   | { type: "demoEnd" }
+  /** L'escalier de la nichée est scellé : la Tisseuse vit encore. */
+  | { type: "sealed" }
   /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */
   | { type: "npcRoll"; stat: string; d20: number; bonus: number; total: number; success: boolean }
   /** Le Kobold qui compte derrière sa porte : il compte (`count`), met le doigt dans l'œil (`poke`), ou il est attrapé (`caught`). */

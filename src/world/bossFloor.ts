@@ -94,7 +94,9 @@ export function buildBossFloor(seed: number): BossFloor {
   const ay = rng.int(ring.y + 2, ring.y + ring.h - 3);
   const chest = { x: ring.x + ring.w, y: ay };
   const seal = { x: ring.x + ring.w + 1, y: ay };
-  map.set(chest.x, chest.y, Tile.Chest);
+  // Plus de coffre dans l'alcôve (Thomas, 2026-11-15 : « on est coincé derrière en remontant ; on a déjà le coffre
+  // doré ») : la case reste du sol, l'entrée de l'escalier (on garde sa place : `chest`).
+  map.set(chest.x, chest.y, Tile.Floor);
   map.set(seal.x, seal.y, Tile.Furniture);
 
   // Grande toile au centre (à une ou deux cases près) et ses quatre colonnes.

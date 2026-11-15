@@ -1787,4 +1787,7 @@ export const EN: Record<string, string> = {
   "Ajouté au sac : {0}.": "Added to the bag: {0}.",
   "Sac plein : {0} tombe à côté.": "Bag full: {0} drops nearby.",
   "Chercher un objet…": "Search for an item…",
+  "Scellé": "Sealed",
+  "Une toile épaisse scelle l'escalier. Vous entendez quelque chose derrière vous…": "A thick web seals the stairs. You hear something behind you…",
+  "Triche": "Cheats",
 };

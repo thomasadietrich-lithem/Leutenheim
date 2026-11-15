@@ -343,6 +343,7 @@ function setupRun(next: Game, lines: string[] | null): void {
   const sandbox = game.sandbox;
   // Outils d'essai : en salle d'essai, et dans la partie d'essai « toutes les sections » (avec le téléporteur).
   $("test-tools").hidden = !sandbox && !game.testRun;
+  $("test-tools").classList.toggle("folded", localStorage.getItem("leutenheim.cheat") !== "open");
   $("reset-talks").hidden = !sandbox;
   $("reset-floor").hidden = !sandbox;
   $("tp-up").hidden = !game.testRun;
@@ -823,6 +824,10 @@ function reveal(e: GameEvent): void {
     // La partie continue (Thomas, 2026-11-14 : la section 2 existe) : l'escalier s'ouvre, un coffre doré apparaît.
     void steps;
     logLines.push("Un coffre doré luit là où la Tisseuse est tombée. L'escalier reste scellé : le toucher termine la démo.");
+    renderLog();
+  } else if (e.type === "sealed") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Scellé", "#e2ded6");
+    logLines.push("Une toile épaisse scelle l'escalier. Vous entendez quelque chose derrière vous…");
     renderLog();
   } else if (e.type === "demoEnd") {
     setTimeout(showDemoEnd, 300);
@@ -2668,6 +2673,9 @@ button("power", () => {
 });
 
 button("open-bag", () => {
+  // Un objet consommé n'a pas encore fait son tour : le sac reste fermé jusque-là (Thomas, 2026-11-15 : on pouvait
+  // en consommer un autre aussitôt).
+  if (game.usePending()) return;
   bagOpen = true;
   selected = null;
   pickedChoice = null;
@@ -3507,7 +3515,7 @@ if (!PUBLIC_BUILD) {
       if (game.teleport(game.depth + step)) {
         logLines.push(`Téléporté à l'étage ${game.depth}.`);
         collectEvents();
-      }
+      } else collectEvents();
     });
   }
 }
@@ -3542,6 +3550,14 @@ button("reset-talks", () => {
   renderLog();
 });
 // Salle d'essai v21 (Thomas, 2026-11-14) : tout l'étage remis à neuf ; l'arène remise, ou un monstre de plus.
+button("cheat-toggle", () => {
+  const folded = $("test-tools").classList.toggle("folded");
+  try {
+    localStorage.setItem("leutenheim.cheat", folded ? "closed" : "open");
+  } catch {
+    /* sans stockage : le choix ne dure que la partie */
+  }
+});
 button("reset-floor", () => {
   game.resetSandbox();
   collectEvents();

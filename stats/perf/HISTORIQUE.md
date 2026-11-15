@@ -47,3 +47,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_09h13 | fd7080e | 22.8 | 24.3 | 25.3 | 18.8 | 16.7 | 20.9 | 0.66 | 0.17 | correctif sac à ranger |
 | 2026-11-15_09h16 | 429d6f5 | 20.7 | 21.3 | 19.4 | 20.1 | 16.7 | 18.2 | 0.49 | 0.29 | reprendre toujours là, revivre pour toutes les parties de la démo |
 | 2026-11-15_09h32 | f39bbbb | 18.8 | 20.5 | 19.9 | 20.5 | 16.7 | 19.6 | 0.68 | 0.14 | répertoire d'objets en essai |
+| 2026-11-15_12h43 | e15f29e | 20.2 | 18.9 | 19 | 19.6 | 16.7 | 24.8 | 0.9 | 0.17 | escaliers orientés, nichée scellée, coffre doré, triche |

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T12:43:04.906Z",
+ "commit": "e15f29e",
+ "note": "escaliers orientés, nichée scellée, coffre doré, triche",
+ "logic": {
+  "tickMs": 0.9,
+  "lightMs": 0.17,
+  "visionMs": 0.35
+ },
+ "scenes": {
+  "immobile": {
+   "n": 122,
+   "avg": 20.2,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 49,
+   "js": 5
+  },
+  "marche": {
+   "n": 265,
+   "avg": 18.9,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 53,
+   "js": 5
+  },
+  "retour": {
+   "n": 263,
+   "avg": 19,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 53,
+   "js": 4
+  },
+  "zoom": {
+   "n": 130,
+   "avg": 19.6,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 200,
+   "avg": 24.8,
+   "p95": 33.4,
+   "max": 116.7,
+   "fps": 40,
+   "js": 13
+  }
+ },
+ "errors": []
+}

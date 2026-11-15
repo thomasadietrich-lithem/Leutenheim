@@ -218,6 +218,24 @@ export class TilePainter {
     ctx.restore();
   }
 
+  /**
+   * Le côté par où l'on entre dans un escalier : la seule case voisine praticable (escalier en niche), sinon le côté
+   * opposé au seul mur voisin ; sans indice, par le haut pour une descente, par le bas pour une montée (dessin d'origine).
+   */
+  stairsOpening(game: Game, x: number, y: number): { x: number; y: number } {
+    const dirs = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
+    const walk = dirs.filter((d) => game.map.isWalkable(x + d.x, y + d.y) || game.map.isDoor(x + d.x, y + d.y));
+    if (walk.length === 1) return walk[0];
+    const walls = dirs.filter((d) => game.map.get(x + d.x, y + d.y) === Tile.Wall);
+    if (walls.length === 1) return { x: -walls[0].x, y: -walls[0].y };
+    if (walls.length === 2 && walls[0].x === -walls[1].x && walls[0].y === -walls[1].y) {
+      // Couloir : les marches suivent le couloir (murs à gauche et à droite : le sens d'origine ; en haut et en bas :
+      // on entre par la gauche).
+      if (walls[0].y !== 0) return { x: -1, y: 0 };
+    }
+    return game.map.get(x, y) === Tile.StairsDown ? { x: 0, y: -1 } : { x: 0, y: 1 };
+  }
+
   /** Escalier, autel et coffre, dessinés par-dessus le sol. */
   drawFeature(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
     const { ctx, tile } = this;
@@ -229,7 +247,22 @@ export class TilePainter {
       const style = champi ? ESCALIERS_CHAMPI : ESCALIERS[STAIRS_STYLE];
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.sprite(t === Tile.StairsDown ? style.down : style.up, champi ? ESCALIERS_CHAMPI_PALETTE : ESCALIERS_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      // Sens des marches (Thomas, 2026-11-15 : « la direction des marches doit être bonne selon l'endroit ») : on entre
+      // dans l'escalier par le côté ouvert (la salle, hors de la niche) ; le fond (le noir) est à l'opposé. Le dessin de
+      // la descente s'entre par le haut, celui de la montée par le bas : on le tourne d'un quart de tour au besoin.
+      const open = this.stairsOpening(game, x, y);
+      const top = t === Tile.StairsDown ? open : { x: -open.x, y: -open.y };
+      const angle = top.y < 0 ? 0 : top.y > 0 ? Math.PI : top.x > 0 ? Math.PI / 2 : -Math.PI / 2;
+      const img = this.sprite(t === Tile.StairsDown ? style.down : style.up, champi ? ESCALIERS_CHAMPI_PALETTE : ESCALIERS_PALETTE);
+      const size = Math.round(tile);
+      if (angle === 0) ctx.drawImage(img, Math.round(sx), Math.round(sy), size, size);
+      else {
+        ctx.save();
+        ctx.translate(Math.round(sx) + size / 2, Math.round(sy) + size / 2);
+        ctx.rotate(angle);
+        ctx.drawImage(img, -size / 2, -size / 2, size, size);
+        ctx.restore();
+      }
       ctx.imageSmoothingEnabled = smooth;
       return;
     }

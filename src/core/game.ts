@@ -215,6 +215,10 @@ export class Game {
   private throwOrder: { uid: number; x: number; y: number } | null = null;
   private skillOrder: number | null = null;
   private useOrder: number | null = null;
+  /** Un objet du sac attend d'être consommé (ou lancé) au prochain tour. */
+  usePending(): boolean {
+    return this.useOrder !== null || this.throwOrder !== null;
+  }
   private lastGroundTorches = -1;
   private torchWasLit = false;
   /** Flèches brisées encore visibles au sol. */
@@ -962,6 +966,12 @@ export class Game {
     return !!this.current?.boss && !this.bossActor() && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
   }
 
+  /** L'escalier scellé tant que la Tisseuse vit (Thomas, 2026-11-15 : « s'assurer qu'elle est vaincue avant de
+   *  descendre ») : le toucher dit pourquoi on ne passe pas. */
+  sealedBlockedAt(x: number, y: number): boolean {
+    return !!this.current?.boss && !!this.bossActor() && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
+  }
+
   bellAt(x: number, y: number): Furniture | null {
     return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind === "bell") ?? null;
   }
@@ -1053,6 +1063,15 @@ export class Game {
     const bell = this.bellAt(at.x, at.y);
     if (bell) {
       this.ringBell(bell);
+      return;
+    }
+    if (this.sealedBlockedAt(at.x, at.y)) {
+      this.events.push({ type: "sealed" });
+      return;
+    }
+    // Partie d'essai : l'escalier ouvert mène à la section 2 (la vraie partie s'arrête à la fin de la démo).
+    if (this.sealedStairsAt(at.x, at.y) && this.testRun) {
+      this.teleport(this.depth + 1);
       return;
     }
     if (this.sealedStairsAt(at.x, at.y)) {
@@ -1159,8 +1178,15 @@ export class Game {
     // L'escalier RESTE SCELLÉ pour l'instant (Thomas, 2026-11-14 : « laisse l'étage fermé ») : le toucher termine la
     // démo, une fois le coffre doré pillé.
     // Le coffre doré : sur la case libre la plus proche de l'endroit où elle est tombée.
-    let chest: Point | null = null;
-    for (let r = 0; r <= 5 && !chest; r++) {
+    // À UNE case de son corps (Thomas, 2026-11-15 : « pour éviter de l'ouvrir automatiquement ») : sur le pourtour de
+    // ses 2 × 2 cases, jamais à côté du héros (la plus loin de lui) ; sinon, plus loin.
+    const free = (p: Point) =>
+      this.map.get(p.x, p.y) === Tile.Floor && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.ground.some((g) => g.x === p.x && g.y === p.y) && !this.isBurning(p.x, p.y);
+    const ring: Point[] = [];
+    for (let y = at.y - 1; y <= at.y + 2; y++) for (let x = at.x - 1; x <= at.x + 2; x++) if (x < at.x || x > at.x + 1 || y < at.y || y > at.y + 1) ring.push({ x, y });
+    const far = (p: Point) => Math.max(Math.abs(p.x - this.hero.x), Math.abs(p.y - this.hero.y));
+    let chest: Point | null = ring.filter((p) => free(p) && far(p) > 1).sort((a, b) => far(b) - far(a))[0] ?? null;
+    for (let r = 2; r <= 5 && !chest; r++) {
       for (let dy = -r; dy <= r && !chest; dy++) {
         for (let dx = -r; dx <= r && !chest; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
@@ -2022,6 +2048,8 @@ export class Game {
   private useFloor(state: FloorState, depth: number): void {
     this.current = state;
     this.depth = depth;
+    // Anciennes parties : le coffre de l'alcôve de la nichée disparaît (il bloquait le retour par l'escalier).
+    if (state.boss && (state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.Chest || state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.ChestOpen)) state.map.set(state.boss.chest.x, state.boss.chest.y, Tile.Floor);
     // Première arrivée au premier étage d'une nouvelle section : le texte d'arrivée (Thomas, 2026-11-15).
     const per = RULES.floorsPerSection;
     if (depth > this.deepest && depth > 1 && (depth - 1) % per === 0) this.events.push({ type: "sectionIntro", section: (depth - 1) / per + 1 });
@@ -2286,8 +2314,10 @@ export class Game {
     game.lastFoeId = saved.lastFoeId;
     game.failedDoorAttempts = new Set(saved.failedDoorAttempts);
     game.events = [];
-    game.useFloor(game.floors.get(saved.depth)!, saved.depth);
+    // L'étage le plus profond d'abord : sinon reprendre une partie en section 2 rejouait son texte d'arrivée (Thomas).
     game.deepest = saved.deepest;
+    game.useFloor(game.floors.get(saved.depth)!, saved.depth);
+    game.deepest = Math.max(game.deepest, saved.depth);
     game.fires = saved.fires;
     game.gas = saved.gas ?? [];
     game.fog = saved.fog ?? [];
@@ -3364,7 +3394,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -7117,6 +7147,11 @@ export class Game {
   teleport(depth: number): boolean {
     if (!this.testRun || this.over || depth < 1 || depth > RULES.demoLastDepth || depth === this.depth) return false;
     const down = depth > this.depth;
+    // On ne quitte pas la nichée par le bas tant que la Tisseuse vit (Thomas, 2026-11-15).
+    if (down && this.current?.boss && this.bossActor()) {
+      this.events.push({ type: "sealed" });
+      return false;
+    }
     this.enterFloor(depth, "down");
     this.deepest = Math.max(this.deepest, depth);
     this.events.push({ type: "stairs", direction: down ? "down" : "up", healed: 0 });

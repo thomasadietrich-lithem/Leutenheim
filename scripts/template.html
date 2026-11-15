@@ -195,6 +195,9 @@
   #status-pop b { display: block; color: #fff3c8; font-weight: normal; font-size: 20px; text-transform: uppercase; }
   #test-tools { position: absolute; bottom: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
   #test-tools button { padding: 4px 8px; font-size: 18px; }
+  /* Repliés (Thomas, 2026-11-15 : « un bouton fait apparaître tous les boutons ») : seul « Triche » reste. */
+  #test-tools.folded button:not(#cheat-toggle) { display: none; }
+  #test-tools:not(.folded) #cheat-toggle { color: var(--gold); }
   #arena-tools { position: absolute; bottom: 8px; right: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
   #arena-tools button { padding: 4px 8px; font-size: 18px; }
   body.frieze-on #arena-tools { bottom: 40px; }
@@ -595,7 +598,7 @@
     <div id="hero-status"></div>
     <div id="dice-log"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="spawn-open" type="button">Objets</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
+    <div id="test-tools" class="folded" hidden><button id="cheat-toggle" type="button">Triche</button><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="spawn-open" type="button">Objets</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
     <div id="arena-tools" hidden><button id="arena-reset" type="button">Arène : remettre</button><button id="arena-schrat" type="button">+ Kobold</button><button id="arena-frondeur" type="button">+ Frondeur</button><button id="arena-araignee" type="button">+ Araignée</button></div>
     <div id="wheel" hidden><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>

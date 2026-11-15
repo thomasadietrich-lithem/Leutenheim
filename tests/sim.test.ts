@@ -3582,7 +3582,8 @@ test("nichée de la Tisseuse : 300 plans variés, tout accessible, sentiers sans
     for (let y = 0; y < map.height; y++)
       for (let x = 0; x < map.width; x++)
         if (map.isWalkable(x, y)) assert.notEqual(dist[map.index(x, y)], -1, `graine ${seed} : (${x},${y}) inaccessible`);
-    assert.equal(map.get(boss.chest.x, boss.chest.y), Tile.Chest, `graine ${seed} : coffre`);
+    // Plus de coffre dans l'alcôve (Thomas, 2026-11-15) : sa case est l'entrée de l'escalier.
+    assert.equal(map.get(boss.chest.x, boss.chest.y), Tile.Floor, `graine ${seed} : entrée de l'alcôve libre`);
     assert.ok(f.furniture.some((o) => o.kind === "sealedStairs" && o.x === boss.seal.x && o.y === boss.seal.y));
     assert.equal(f.furniture.filter((o) => o.kind === "anchor").length, 0, "plus d'amarres (Thomas, 2026-11-14)");
     assert.equal(f.furniture.filter((o) => o.kind.startsWith("webHub")).length, 9);
@@ -3706,6 +3707,8 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
   let chest: { x: number; y: number } | null = null;
   for (let y = 0; y < game.map.height && !chest; y++) for (let x = 0; x < game.map.width && !chest; x++) if (game.goldChestAt(x, y)) chest = { x, y };
   assert.ok(chest && game.map.get(chest.x, chest.y) === Tile.Chest, "le coffre doré");
+  // Jamais collé au héros (Thomas, 2026-11-15 : il s'ouvrait tout seul).
+  assert.ok(Math.max(Math.abs(chest!.x - game.hero.x), Math.abs(chest!.y - game.hero.y)) > 1, "pas à côté du héros");
   // Il contient de l'or, un artefact, une arme et une armure.
   game.events.length = 0;
   (game as unknown as { useFeatureAt(x: number, y: number): void }).useFeatureAt(chest!.x, chest!.y);
@@ -5204,6 +5207,9 @@ test("niveau maximal : le verrou saute en entrant à l'étage 6 (section 2 : 10 
   assert.equal(game.levelCap(), 5);
   game.teleport(5);
   assert.equal(game.levelCap(), 5, "étage du boss : toujours 5");
+  // On ne descend pas tant que la Tisseuse vit : passer par l'étage 4.
+  assert.equal(game.teleport(6), false);
+  game.teleport(4);
   game.teleport(6);
   assert.equal(game.levelCap(), 10, "section 2 : 10");
   const g = game as unknown as { gainXp(n: number): void };
@@ -5349,12 +5355,20 @@ test("section 2 (Thomas, 2026-11-15) : texte d'arrivée une seule fois, décor d
   assert.equal(game.wallLookAt(seal.x, seal.y - 1), "champi");
   assert.ok(game.furnitureList().some((f) => f.kind.startsWith("lueurs")), "des champignons lumineux près de l'alcôve");
   game.events.length = 0;
+  // La Tisseuse vit : l'escalier reste scellé (Thomas, 2026-11-15).
+  assert.equal(game.teleport(6), false);
+  assert.ok(game.events.some((e) => e.type === "sealed"));
+  game.teleport(4);
+  game.events.length = 0;
   game.teleport(6);
   assert.ok(game.events.some((e) => e.type === "sectionIntro" && e.section === 2));
   game.events.length = 0;
-  game.teleport(5);
+  game.teleport(4);
   game.teleport(6);
   assert.ok(!game.events.some((e) => e.type === "sectionIntro"), "une seule fois");
+  // Reprendre la partie ne rejoue pas le texte (Thomas, 2026-11-15).
+  const back = Game.restore(JSON.parse(JSON.stringify(game.snapshot())));
+  assert.ok(!back!.events.some((e) => e.type === "sectionIntro"), "pas à la reprise");
 });
 
 test("« sans une égratignure » (Thomas, 2026-11-15) : un étage ne compte qu'à sa première sortie, pas en repassant par l'escalier", () => {

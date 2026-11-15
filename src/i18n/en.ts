@@ -1730,7 +1730,7 @@ export const EN: Record<string, string> = {
   "Morillon": "Morillon",
   "Un vieux Kobold cueilleur, masque de toile et hotte d'osier. Il cultive des morilles dans les caves de la section 2 et n'aime pas qu'on marche sur ses rangs.": "An old Kobold picker, cloth mask and wicker basket. He grows morels in the cellars of section 2 and hates it when you step on his rows.",
   "Morille": "Morel",
-  "Une morille de Morillon, alvéolée et parfumée. Rend 7 PV.": "One of Morillon's morels, honeycombed and fragrant. Restores 7 HP.",
+  "Une morille de Morillon, alvéolée et parfumée. Rend 9 PV.": "One of Morillon's morels, honeycombed and fragrant. Restores 9 HP.",
   "Un vieux Kobold au masque de toile, une hotte d'osier au dos, se redresse entre deux rangs de terre.": "An old Kobold in a cloth mask, a wicker basket on his back, straightens up between two rows of earth.",
   "« Pas un pas sur mes rangs, hein. Les morilles, c'est fragile. Plus fragile que toi. »": "“Not one step on my rows, eh. Morels are fragile. More fragile than you.”",
   "« Mais tu tombes bien. Mes rangs ont soif, et mon dos ne veut plus. »": "“But you're just in time. My rows are thirsty, and my back says no.”",
@@ -1764,4 +1764,7 @@ export const EN: Record<string, string> = {
   "Flèches ricochantes": "Ricochet arrows",
   "Une pointe d'acier bleuté, lourde et coupante des deux côtés. Quand elle touche, elle rebondit sur un autre ennemi proche.": "A heavy bluish steel tip, sharp on both sides. When it hits, it bounces to another nearby enemy.",
   "Ricochet !": "Ricochet!",
+  "Glou glou…": "Glug glug…",
+  "Vous ouvrez le robinet de l'alambic : une fiole se remplit, tiède et luisante. ({0})": "You open the alembic's tap: a vial fills up, warm and glowing. ({0})",
+  "Le laboratoire oublié": "The forgotten laboratory",
 };

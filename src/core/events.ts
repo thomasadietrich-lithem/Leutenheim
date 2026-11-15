@@ -78,6 +78,7 @@ export type GameEvent =
   | { type: "webbed"; by: Actor }
   /** Le héros évite d'un bond un piège qu'il vient de déclencher (agilité). */
   | { type: "watered"; x: number; y: number }
+  | { type: "alembic"; x: number; y: number; item: ItemId; toX: number; toY: number }
   | { type: "rise"; actor: Actor; what: "down" | "up" }
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }

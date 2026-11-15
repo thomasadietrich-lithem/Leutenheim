@@ -1,3 +1,4 @@
+import { CHAMPI_TUNE } from "./champiTune";
 import { GameMap, Tile } from "../world/map";
 
 /**
@@ -225,10 +226,18 @@ const canvases = new Map<string, HTMLCanvasElement>();
  * près d'un éboulis, les PIERRES DÉPLACÉES (décalées, de travers, manquantes : la terre derrière).
  */
 const CHAMPI = {
-  stone: [74, 62, 72] as RGB,
-  jamb: [98, 84, 94] as RGB,
-  mortar: [32, 24, 30] as RGB,
-  hi: [132, 118, 128] as RGB,
+  get stone(): RGB {
+    return CHAMPI_TUNE.wallStone;
+  },
+  get jamb(): RGB {
+    return CHAMPI_TUNE.wallJamb;
+  },
+  get mortar(): RGB {
+    return CHAMPI_TUNE.wallMortar;
+  },
+  get hi(): RGB {
+    return CHAMPI_TUNE.wallHi;
+  },
   sh: [16, 10, 14] as RGB,
   rock: [8, 7, 10] as RGB,
 };
@@ -315,8 +324,9 @@ export function wallImage(
       // Mycélium : filaments blancs dans les joints et sur les pierres, près de la salle ; points lumineux dans les joints.
       const n = smooth(X, Y, 8, 31);
       const r = hsh(X, Y, 32);
-      if (n > 0.7 && (mortar || r < (n - 0.7) * 3)) c = r < 0.5 ? MYC[0] : MYC[1];
-      else if (mortar && hsh(X, Y, 33) < 0.06) c = BIOLUM;
+      const mt = CHAMPI_TUNE.wallMyc;
+      if (n > mt && (mortar || r < (n - mt) * 3)) c = r < 0.5 ? MYC[0] : MYC[1];
+      else if (mortar && hsh(X, Y, 33) < CHAMPI_TUNE.wallBiolum) c = BIOLUM;
       // Éclats au bord côté salle.
       if (hsh(X, Y, 91) < 0.03) c = mul(c, 0.35);
     }
@@ -345,7 +355,7 @@ export function wallImage(
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
       const wx = x + dx;
       const wy = y + dy;
-      if (!reader.isWall(wx, wy) || hsh(wx, wy, 61) > 0.17) continue;
+      if (!reader.isWall(wx, wy) || hsh(wx, wy, 61) > CHAMPI_TUNE.wallDiscs) continue;
       if (!(open(wx, wy - 1) || open(wx, wy + 1) || open(wx - 1, wy) || open(wx + 1, wy))) continue;
       discs.push({ cx: wx * T + 3 + Math.floor(hsh(wx, wy, 62) * 10), cy: wy * T + 3 + Math.floor(hsh(wx, wy, 63) * 10), r: hsh(wx, wy, 64) < 0.5 ? 2 : 3, glow: hsh(wx, wy, 65) < 0.4 });
     }

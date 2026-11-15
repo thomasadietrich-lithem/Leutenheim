@@ -1,3 +1,4 @@
+import { CHAMPI_TUNE } from "./render/champiTune";
 import { medalLine, onEvents, playUnlock, renderWall, splitMedal, type Unlock } from "./ui/achievements";
 import { medal } from "./ui/medals";
 import { portrait } from "./ui/portraits";
@@ -781,6 +782,9 @@ function reveal(e: GameEvent): void {
     sfx.play("heal");
   } else if (e.type === "rise") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "down" ? "Il palpite…" : "Debout !", "#7fe0c8");
+  } else if (e.type === "alembic") {
+    renderer.addFloatingText(e.x, e.y, "Glou glou…", "#cfe8ff");
+    sfx.play("pickup");
   } else if (e.type === "burst") {
     renderer.addPuff(e.x, e.y, true);
     sfx.play("gravel");
@@ -3771,6 +3775,8 @@ requestAnimationFrame(frame);
   /** Pour les vérifications : les textes affichés sans traduction anglaise. */
   untranslated: () => [...i18nMissing],
   renderer: () => renderer,
+  /** Réglages de couleur de la section 2, à poser avant de lancer la partie (variantes à comparer). */
+  champiTune: CHAMPI_TUNE,
   /** Pour les captures : lance le passage d'escalier (le héros doit être sur un escalier). */
   stairs: (variant?: StairsVariant) => beginStairs(variant),
   /** Pour les captures : montre les événements en attente (comme après un toucher). */

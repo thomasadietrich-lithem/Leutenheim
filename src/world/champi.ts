@@ -17,11 +17,12 @@ import { Point, Tile } from "./map";
  *
  * Le décor (murs, sol de pavés ronds, lumière bleu-vert, grilles) est choisi à l'affichage d'après `FloorState.look`.
  */
-export function decorateChampi(floor: Floor, furniture: Furniture[], rng: Rng, skip: Set<number>): void {
+export function decorateChampi(floor: Floor, furniture: Furniture[], rng: Rng, skip: Set<number>, lit: Set<number> = new Set()): void {
   const { map, rooms, start, stairs } = floor;
   // Les torches : seule celle de la salle de départ reste.
   const startRoom = rooms.findIndex((r) => inRect(r, start));
-  floor.torches.splice(0, floor.torches.length, ...floor.torches.filter((t) => startRoom >= 0 && near(rooms[startRoom], { x: t.x + t.faceX, y: t.y + t.faceY })));
+  // Les salles à thème (champignonnière, atelier : Thomas, 2026-11-15) gardent aussi les leurs.
+  floor.torches.splice(0, floor.torches.length, ...floor.torches.filter((t) => [startRoom, ...lit].some((i) => i >= 0 && near(rooms[i], { x: t.x + t.faceX, y: t.y + t.faceY }))));
   const taken = (p: Point) =>
     furniture.some((f) => furnitureCells(f).some((c) => c.x === p.x && c.y === p.y)) || (p.x === start.x && p.y === start.y) || (p.x === stairs.x && p.y === stairs.y);
   const isDoor = (x: number, y: number) => map.isDoor(x, y);

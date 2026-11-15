@@ -1,5 +1,5 @@
 import { Rng } from "../core/rng";
-import { FURNITURE_KINDS } from "../data/themedRooms";
+import { ALEMBIC_POTIONS, FURNITURE_KINDS } from "../data/themedRooms";
 import { Furniture, furnitureCells } from "./furnish";
 import { Floor, Room } from "./generator";
 import { Point, Tile } from "./map";
@@ -13,7 +13,7 @@ import { Point, Tile } from "./map";
  * La pièce est taillée dans la roche pleine contre le mur d'une salle (la salle « hôte ») ; son entrée reste du mur tant
  * qu'on ne l'a pas trouvée. Un des creux du mur commun laisse voir dedans.
  */
-export type SecretLayout = "tresor" | "armurerie" | "reliquaire" | "contrebandier";
+export type SecretLayout = "tresor" | "armurerie" | "reliquaire" | "contrebandier" | "laboratoire";
 
 export interface SecretRoom {
   room: Room;
@@ -42,6 +42,8 @@ export const SECRET_LAYOUTS: Record<SecretLayout, { name: string; size: [number,
   armurerie: { name: "L'armurerie oubliée", size: [5, 3], plan: ["a.c.a", "p...o", "....."] },
   reliquaire: { name: "Le reliquaire", size: [5, 4], plan: ["s.c.s", "..p..", "o...o", "....."] },
   contrebandier: { name: "La cache du contrebandier", size: [3, 3], plan: ["bck", "o..", "..."] },
+  // Le laboratoire oublié (Thomas, 2026-11-15) : l'alambic (l), le pupitre au grimoire (g), des toiles dans les coins.
+  laboratoire: { name: "Le laboratoire oublié", size: [5, 3], plan: ["..l.g", "o....", "....."] },
 };
 
 // Jamais deux caisses empilées (Thomas, 2026-11-14 : « sinon on cache le coffre ») : une seule caisse, basse.
@@ -72,7 +74,7 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
   const { map } = floor;
   const inRoom = (p: Point) => floor.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
   const taken = (p: Point) => furniture.some((f) => furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
-  const order: SecretLayout[] = layout ? [layout] : (["tresor", "armurerie", "reliquaire", "contrebandier"] as SecretLayout[]).sort(() => rng.next() - 0.5);
+  const order: SecretLayout[] = layout ? [layout] : (["tresor", "armurerie", "reliquaire", "contrebandier", "laboratoire"] as SecretLayout[]).sort(() => rng.next() - 0.5);
   for (const lay of order) {
     const [W, D] = SECRET_LAYOUTS[lay].size;
     const half = Math.floor(W / 2);
@@ -112,9 +114,17 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
       const d = D - 1 - row;
       [...line].forEach((ch, a) => {
         const p = at(a, d);
-        if (ch === "c") {
+        if (ch === "c" && !rng.chance(0.35)) {
           map.set(p.x, p.y, Tile.Chest);
           chest = p;
+        } else if (ch === "c" || ch === "l") {
+          // Un alambic à la place du coffre, une fois sur trois environ (Thomas, 2026-11-15), ou celui du laboratoire.
+          furniture.push({ x: p.x, y: p.y, kind: "alambic", potion: ALEMBIC_POTIONS[rng.int(0, ALEMBIC_POTIONS.length - 1)] });
+          map.set(p.x, p.y, Tile.Furniture);
+          if (ch === "c" || lay === "laboratoire") chest = { x: -1, y: -1 };
+        } else if (ch === "g") {
+          furniture.push({ x: p.x, y: p.y, kind: "grimoire" });
+          map.set(p.x, p.y, Tile.Furniture);
         } else if (ch === "o") gold.push(p);
         else if (KIND[ch]) {
           furniture.push({ x: p.x, y: p.y, kind: KIND[ch] });
@@ -122,6 +132,12 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
         }
       });
     });
+    // Le laboratoire : des toiles d'araignée dans les coins libres de la pièce (une toile par coin, dessinée pour lui).
+    if (lay === "laboratoire") {
+      for (const [x, y, kind] of [[room.x, room.y, "webTL"], [room.x + room.w - 1, room.y, "webTR"], [room.x, room.y + room.h - 1, "webBL"], [room.x + room.w - 1, room.y + room.h - 1, "webBR"]] as const) {
+        if (map.get(x, y) === Tile.Floor && !taken({ x, y }) && !(x === entry.x + dir.x && y === entry.y + dir.y) && rng.chance(0.75)) furniture.push({ x, y, kind });
+      }
+    }
     // Le creux qui laisse voir dedans : sur le mur commun, à côté de l'entrée (ou l'entrée elle-même) ; il montre la
     // case derrière lui et ses deux voisines, plus la suivante.
     const shared = [-half, half, -1, 1, 0].map((k) => ({ x: entry.x + perp.x * k, y: entry.y + perp.y * k })).filter((p) => {

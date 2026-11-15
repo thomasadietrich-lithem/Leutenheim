@@ -336,7 +336,7 @@ export class Game {
       const champi = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) === 1;
       if (champi) {
         const skip = new Set<number>([...furnished.themes.map((t) => t.room), ...floor.specials.map((s) => floor.rooms.indexOf(s.room))]);
-        decorateChampi(floor, furnished.furniture, new Rng(seed ^ 0xc4a3b1), skip);
+        decorateChampi(floor, furnished.furniture, new Rng(seed ^ 0xc4a3b1), skip, new Set(furnished.themes.filter((t) => t.id === "morilles" || t.id === "sculpture").map((t) => t.room)));
       }
       // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
       // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
@@ -349,7 +349,8 @@ export class Game {
         const quiet = furnished.themes.filter((t) => t.id === "bain" || t.id === "ferme").map((t) => floor.rooms[t.room]);
         placeGrounds(floor, seed, depth, quiet);
       }
-      const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor ? [] : placeMotifs(floor, seed);
+      // Section 2 : pas de dalles gravées (Thomas, 2026-11-15 : « retire les designs gravure au sol »).
+      const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor || champi ? [] : placeMotifs(floor, seed);
       state = {
         map: floor.map,
         start: floor.start,
@@ -1079,6 +1080,11 @@ export class Game {
       this.blowCandle();
       return;
     }
+    const alembic = this.alembicAt(at.x, at.y);
+    if (alembic) {
+      this.drawAlembic(alembic);
+      return;
+    }
     const statue = this.statueAt(at.x, at.y);
     if (statue?.hinted) {
       this.smashStatue(statue);
@@ -1517,7 +1523,7 @@ export class Game {
     // Agrandi (potion de géant) : il ne passe plus les portes (Thomas, 2026-11-13).
     const giant = ((from as Actor).grown ?? 0) > 0;
     // Pièges et cases en feu : on les contourne (sauf si c'est la destination ou le point de départ).
-    return (x, y) => (!base || base(x, y)) && !(giant && this.map.isDoor(x, y) && !(x === from.x && y === from.y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero && this.knownTrap(x, y)) && !this.isBurning(x, y) && !this.isGassed(x, y)));
+    return (x, y) => (!base || base(x, y)) && !(giant && this.map.isDoor(x, y) && !(x === from.x && y === from.y)) && ((x === to.x && y === to.y) || (x === from.x && y === from.y) || (!(from === this.hero && this.knownTrap(x, y)) && !this.isBurning(x, y) && !this.isDenseGas(x, y)));
   }
 
   /**
@@ -1630,15 +1636,7 @@ export class Game {
     if (def.stuck) actor.stuck = Math.max(actor.stuck ?? 0, def.stuck);
     if (def.poison && kind === "needle") this.poisonActor(actor, def.poison);
     if (def.gasTurns) {
-      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const x = trap.x + dx;
-        const y = trap.y + dy;
-        if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.Furniture) continue;
-        const old = this.gas.find((g) => g.x === x && g.y === y);
-        if (old) old.turns = Math.max(old.turns, def.gasTurns);
-        else this.gas.push({ x, y, turns: def.gasTurns });
-      }
-      this.gasPoison();
+      this.puffGas(trap, def.gasTurns);
     }
     if (damage > 0) {
       this.bleed(actor, actor);
@@ -1663,15 +1661,43 @@ export class Game {
 
   /** Un nuage de spores (empoisonné) sur cette case et ses 4 voisines. */
   private puffGas(at: Point, turns: number): void {
-    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const x = at.x + dx;
-      const y = at.y + dy;
-      if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.Furniture) continue;
-      const old = this.gas.find((g) => g.x === x && g.y === y);
-      if (old) old.turns = Math.max(old.turns, turns);
-      else this.gas.push({ x, y, turns });
-    }
+    const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: at.x + dx, y: at.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) || this.map.get(c.x, c.y) === Tile.Furniture);
+    this.cloud(this.gas, cells, turns);
     this.gasPoison();
+  }
+
+  /**
+   * Pose un nuage (gaz ou brouillard) : ses cases DENSES, plus un halo LÉGER (Thomas, 2026-11-15 : « un niveau de fumée
+   * intermédiaire, moins dense et moins dangereux, dans les angles ») sur les cases voisines de deux cases denses au
+   * moins (les angles d'une croix, le pourtour d'un losange), vues depuis le cœur du nuage. Une case dense l'emporte.
+   */
+  private cloud(list: { x: number; y: number; turns: number; thin?: boolean }[], cells: Point[], turns: number): void {
+    const dense = new Set(cells.map((c) => `${c.x},${c.y}`));
+    const put = (x: number, y: number, thin: boolean) => {
+      const old = list.find((g) => g.x === x && g.y === y);
+      if (old) {
+        old.turns = Math.max(old.turns, turns);
+        if (!thin) old.thin = undefined;
+      } else list.push(thin ? { x, y, turns, thin: true } : { x, y, turns });
+    };
+    for (const c of cells) put(c.x, c.y, false);
+    const halo = new Map<string, number>();
+    for (const c of cells) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const k = `${c.x + dx},${c.y + dy}`;
+          if ((dx || dy) && !dense.has(k)) halo.set(k, (halo.get(k) ?? 0) + 1);
+        }
+      }
+    }
+    const center = cells[0];
+    for (const [k, n] of halo) {
+      if (n < 2) continue;
+      const [x, y] = k.split(",").map(Number);
+      if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.Furniture) continue;
+      if (center && !hasLineOfSight(this.map, center, { x, y })) continue;
+      put(x, y, true);
+    }
   }
 
   /**
@@ -1732,9 +1758,9 @@ export class Game {
   }
 
   /** Nuages de gaz empoisonné (piège à gaz) : case par case, tours restants. */
-  gas: { x: number; y: number; turns: number }[] = [];
+  gas: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Brouillard noir (potion de brouillard) : on ne voit ni à travers ni dedans ; personne ne s'y empoisonne. */
-  fog: { x: number; y: number; turns: number }[] = [];
+  fog: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
   /** Potion de pierre bue : tours où le héros est une statue (rien ne le blesse, il ne peut rien faire). */
@@ -1748,11 +1774,18 @@ export class Game {
     return this.gas.some((g) => g.x === x && g.y === y);
   }
 
+  /** Gaz dense (le héros le contourne ; la fumée légère, non). */
+  private isDenseGas(x: number, y: number): boolean {
+    return this.gas.some((g) => g.x === x && g.y === y && !g.thin);
+  }
+
   /** Qui se tient dans le gaz est empoisonné (s'il ne l'est pas déjà plus longtemps). */
   private gasPoison(): void {
     const poison = TRAPS.gas.poison!;
     for (const a of [this.hero, ...this.monsters]) {
       if (a.boss || this.sporeProof(a) || !this.isGassed(a.x, a.y) || (a.poison && a.poison.turns >= poison.turns)) continue;
+      // Gaz léger (halo, dernier tour) : une chance sur deux seulement.
+      if (this.gas.find((g) => g.x === a.x && g.y === a.y)?.thin && !this.rng.chance(RULES.thinGasPoisonChance)) continue;
       this.poisonActor(a, poison);
     }
   }
@@ -1763,11 +1796,14 @@ export class Game {
     this.gasPoison();
     for (const g of this.gas) g.turns--;
     this.gas = this.gas.filter((g) => g.turns > 0);
+    // Avant de disparaître, un nuage passe en fumée légère (son dernier tour).
+    for (const g of this.gas) if (g.turns === 1) g.thin = true;
   }
 
   /** Du brouillard sur cette case ? */
   fogAt(x: number, y: number): boolean {
-    return this.fog.some((f) => f.x === x && f.y === y);
+    // La nappe légère (halo, dernier tour) se voit, mais ne cache rien.
+    return this.fog.some((f) => f.x === x && f.y === y && !f.thin);
   }
 
   /** Le brouillard cache-t-il `b` aux yeux de `a` (b dedans, ou une nappe sur la ligne) ? */
@@ -1793,6 +1829,7 @@ export class Game {
     this.fogBlinds();
     for (const f of this.fog) f.turns--;
     this.fog = this.fog.filter((f) => f.turns > 0);
+    for (const f of this.fog) if (f.turns === 1) f.thin = true;
   }
 
   /**
@@ -1810,11 +1847,7 @@ export class Game {
         cells.push(c);
       }
     }
-    for (const c of cells) {
-      const old = this.fog.find((f) => f.x === c.x && f.y === c.y);
-      if (old) old.turns = Math.max(old.turns, RULES.fogTurns);
-      else this.fog.push({ x: c.x, y: c.y, turns: RULES.fogTurns });
-    }
+    this.cloud(this.fog, cells, RULES.fogTurns);
     this.fogBlinds();
     return cells;
   }
@@ -2412,7 +2445,7 @@ export class Game {
     // Toutes les bougies du décor éclairent un peu leur salle (Thomas, 2026-11-14) : la table du dortoir, la table basse
     // du bain, les candélabres de la chapelle (selon leurs bougies), le grimoire de l'alchimiste.
     for (const f of this.current?.furniture ?? []) {
-      const radius = CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : f.kind.startsWith("lueurs") ? 2 : 0);
+      const radius = f.kind === "alambic" ? (f.drained ? 0 : 2) : CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : f.kind.startsWith("lueurs") ? 2 : 0);
       if (!radius) continue;
       const cx = f.x + ((FURNITURE_KINDS[f.kind]?.w ?? 1) > 1 ? 1 : 0);
       const area = this.rooms.find((r) => cx >= r.x && cx < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
@@ -2901,11 +2934,7 @@ export class Game {
       // Potion de poison lancée (Thomas, 2026-11-12 : « lancer devrait faire quelque chose ») : un nuage vert en croix,
       // qui empoisonne qui s'y tient (comme le piège à gaz).
       const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) || this.map.get(c.x, c.y) === Tile.Furniture);
-      for (const c of cells) {
-        const old = this.gas.find((g) => g.x === c.x && g.y === c.y);
-        if (old) old.turns = Math.max(old.turns, RULES.thrownPoisonGasTurns);
-        else this.gas.push({ x: c.x, y: c.y, turns: RULES.thrownPoisonGasTurns });
-      }
+      this.cloud(this.gas, [{ x: order.x, y: order.y }, ...cells.filter((c) => c.x !== order.x || c.y !== order.y)], RULES.thrownPoisonGasTurns);
       this.gasPoison();
       for (const m of this.monsters) if (cells.some((c) => c.x === m.x && c.y === m.y)) { m.alerted = true; m.asleep = false; }
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
@@ -3280,7 +3309,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -3991,11 +4020,20 @@ export class Game {
     const bonus = this.heroClass.searchBonus + (secret && !secret.found && secret.host === index && secret.glimpsed ? RULES.secretGlimpseBonus : 0);
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
-    const success = d20 === 20 || (d20 !== 1 && total >= RULES.searchDc);
+    let success = d20 === 20 || (d20 !== 1 && total >= RULES.searchDc);
     const found: Point[] = [];
     const traps: Point[] = [];
+    // Un passage secret qui jouxte la salle se trouve D'OFFICE à la fouille, quel que soit le dé (Thomas, 2026-11-15 :
+    // « pas besoin d'être pile en face ») : la pièce secrète, et le tonneau creux de Gluck.
+    const zone0 = this.current.zone;
+    if ((secret && !secret.found && secret.host === index) || (zone0 && zone0.door === "barrel" && !zone0.open && !zone0.noticed && zone0.host === index)) {
+      if (!success) {
+        success = true;
+        this.searchLuck = true;
+      }
+    }
     if (success) {
-      for (const s of this.current.secrets) {
+      for (const s of this.searchLuck ? [] : this.current.secrets) {
         if (s.room !== index || s.found) continue;
         s.found = true;
         this.dropItem(s.x, s.y, s.item, s.count);
@@ -4020,16 +4058,23 @@ export class Game {
         this.map.touch(zone.entry.x, zone.entry.y);
         this.events.push({ type: "zone", what: "found", x: zone.entry.x, y: zone.entry.y });
       }
-      // Pièges cachés de la salle (Thomas, 2026-11-13) : une fouille réussie les révèle.
+      // Pièges cachés de la salle (Thomas, 2026-11-13) : une fouille réussie les révèle (pas celle qui n'a réussi que
+      // grâce au passage secret, ni les caches : le dé, lui, était raté).
       const room = this.rooms[index];
-      for (const t of this.current.traps) {
+      for (const t of this.searchLuck ? [] : this.current.traps) {
         if (!t.hidden || t.x < room.x || t.y < room.y || t.x >= room.x + room.w || t.y >= room.y + room.h) continue;
         t.hidden = false;
         traps.push({ x: t.x, y: t.y });
       }
     }
+    // Le dé était raté : la salle elle-même n'est pas fouillée, on pourra recommencer.
+    if (this.searchLuck) this.current.searched.delete(index);
+    this.searchLuck = false;
     this.events.push({ type: "searched", d20, bonus, total, success, found, traps, room: this.rooms[index] });
   }
+
+  /** La fouille n'a réussi que parce qu'un passage secret jouxte la salle (le reste de la salle n'est pas fouillé). */
+  private searchLuck = false;
 
   /** Saut pour se dégager : il faut réussir un jet. Réussi, pas d'attaque d'opportunité, mais ceux qu'on quitte restent sur leurs gardes. */
   private resolveJump(to: Point): void {
@@ -6077,6 +6122,22 @@ export class Game {
   /** Compatibilité : la tapisserie (fermée) sur cette case. */
   tapestryAt(x: number, y: number): boolean {
     return this.zoneDoorAt(x, y) && this.current.zone!.door === "tapestry";
+  }
+
+  /** Un alambic plein (pièce secrète) sur cette case. */
+  alembicAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind === "alambic" && !f.drained && f.x === x && f.y === y) ?? null;
+  }
+
+  /** Tirer une fiole de l'alambic (Thomas, 2026-11-15) : elle se remplit de sa potion et tombe à côté ; il reste vide. */
+  private drawAlembic(f: Furniture): void {
+    f.drained = true;
+    this.map.touch(f.x, f.y);
+    const item = (f.potion ?? "potion_feu") as ItemId;
+    const at = this.landingCell(f, item, f);
+    this.dropItem(at.x, at.y, item, 1);
+    this.refreshLight();
+    this.events.push({ type: "alembic", x: f.x, y: f.y, item, toX: at.x, toY: at.y });
   }
 
   /** La bougie (encore allumée) de la zone sur cette case (le cierge de la sacristie ne s'éteint pas). */

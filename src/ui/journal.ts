@@ -260,6 +260,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.what === "down"
         ? "Le Kobold envahi s'effondre… mais le champignon sur son crâne palpite encore. Achevez-le, ou brûlez-le !"
         : "Le Kobold envahi se relève, tiré par son champignon.";
+    case "alembic":
+      return `Vous ouvrez le robinet de l'alambic : une fiole se remplit, tiède et luisante. (${ITEMS[e.item].name})`;
     case "burst":
       return "Pouf ! Le sporelin éclate en un nuage de spores.";
     case "whistle":

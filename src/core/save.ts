@@ -128,8 +128,8 @@ export interface SaveData {
   quickItem?: ItemId | null;
   fires: { x: number; y: number; turns: number; gen?: number }[];
   /** Nuages de gaz empoisonné (absent des sauvegardes d'avant les pièges v3). */
-  gas?: { x: number; y: number; turns: number }[];
-  fog?: { x: number; y: number; turns: number }[];
+  gas?: { x: number; y: number; turns: number; thin?: boolean }[];
+  fog?: { x: number; y: number; turns: number; thin?: boolean }[];
   bagSize: { cols: number; rows: number };
   /** Ajoutés le 2026-11-11 (facultatifs : une sauvegarde plus ancienne se relit sans eux). */
   torchOff?: boolean;

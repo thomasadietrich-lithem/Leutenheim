@@ -256,6 +256,9 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   pioches: { blocks: true, w: 1, h: 1, burns: false },
   piocheSol: { blocks: false, w: 1, h: 1, burns: false },
   planChampi: { blocks: true, w: 2, h: 1, burns: true },
+  // Alambic des pièces secrètes (Thomas, 2026-11-15 ; planche art/alambic_v1.png) : on le touche, une fiole de sa potion
+  // se remplit et tombe à côté ; il reste vide.
+  alambic: { blocks: true, w: 1, h: 1, burns: false },
   terre: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   mycCurtain: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   wallHoleB: { blocks: false, w: 1, h: 1, burns: false, wall: true },
@@ -361,6 +364,9 @@ for (const pre of ["gut", "bgut"]) {
 }
 
 /** Meuble peint avec le sol (tapis, toile, rigole) : il prend exactement la lumière de sa case. */
+/** Les potions qu'un alambic peut distiller (une couleur chacune). */
+export const ALEMBIC_POTIONS = ["potion_feu", "potion_poison", "potion_vitesse", "potion_jouvence", "potion_brouillard", "potion_oursin", "potion_pierre", "potion_discorde", "potion_geant", "potion_glissante", "potion_fumee"] as const;
+
 export function isFlat(kind: string): boolean {
   return !!FURNITURE_KINDS[kind]?.flat;
 }

@@ -1,3 +1,4 @@
+import { CHAMPI_TUNE } from "./champiTune";
 import { GameMap, Tile } from "../world/map";
 import { MOTIF_SIZE } from "../data/motifs";
 import { Motif } from "../world/grounds";
@@ -247,11 +248,13 @@ function cobbles(px: number, py: number, burnt = false): RGB {
   }
   if (second - best < 1.4) {
     // Mousse brûlée : les veines passent au gris-noir de la cendre, quelques braises éteintes.
-    if (fbm(px, py, 10, 914, 2) > 0.5) return burnt ? (hash2(px, py, 915) > 0.9 ? [70, 50, 40] : [34, 30, 30]) : hash2(px, py, 915) > 0.9 ? [90, 200, 170] : [40, 110, 96];
-    return [22, 20, 26];
+    const T_ = CHAMPI_TUNE;
+    if (fbm(px, py, 10, 914, 2) > T_.mossThreshold) return burnt ? (hash2(px, py, 915) > 0.9 ? [70, 50, 40] : [34, 30, 30]) : hash2(px, py, 915) > 1 - T_.glowChance ? T_.glow : T_.moss;
+    return T_.joint;
   }
-  const k = (0.8 + 0.35 * seed) * Math.min(1.15, Math.max(0.75, 1.15 - best / cell));
-  return [60 * k, 56 * k, 70 * k];
+  const s = CHAMPI_TUNE.stone;
+  const k = (1.15 - CHAMPI_TUNE.stoneSpread + CHAMPI_TUNE.stoneSpread * seed) * Math.min(1.15, Math.max(0.75, 1.15 - best / cell));
+  return [s[0] * k, s[1] * k, s[2] * k];
 }
 
 /** SOL D « feutre de mycélium » (planche art/champi_sols_v1.png ; Thomas : « fais une salle B et une D ») : fibres
@@ -478,7 +481,7 @@ function champiOverlay(map: GameMap, x: number, y: number, pixels: RGB[], mounds
       if (wallCells.length > 0) {
         let d = 99;
         for (const [wx, wy] of wallCells) d = Math.min(d, Math.hypot(Math.max(wx * T - px, 0, px - (wx * T + T - 1)), Math.max(wy * T - py, 0, py - (wy * T + T - 1))));
-        if (d < 7 + 9 * fbm(px, py, 18, 311, 2) && fbm(px, py, 20, 312, 2) > 0.52 && (hash2(px, py, 313) > 0.93 || (px + py * 2) % 11 === 0)) {
+        if (d < 7 + 9 * fbm(px, py, 18, 311, 2) && fbm(px, py, 20, 312, 2) > CHAMPI_TUNE.footMyc && (hash2(px, py, 313) > 0.93 || (px + py * 2) % 11 === 0)) {
           const c = pixels[k];
           pixels[k] = [c[0] * 0.45 + 200 * 0.55, c[1] * 0.45 + 206 * 0.55, c[2] * 0.45 + 214 * 0.55];
         }

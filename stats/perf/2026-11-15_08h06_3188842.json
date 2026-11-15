@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T08:06:28.928Z",
+ "commit": "3188842",
+ "note": "torches salles S2, alambics, fumée légère, mobs S2 rééquilibrés",
+ "logic": {
+  "tickMs": 0.6,
+  "lightMs": 0.25,
+  "visionMs": 0.38
+ },
+ "scenes": {
+  "immobile": {
+   "n": 126,
+   "avg": 19.6,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 6
+  },
+  "marche": {
+   "n": 266,
+   "avg": 18.7,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 53,
+   "js": 5
+  },
+  "retour": {
+   "n": 257,
+   "avg": 19.4,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 52,
+   "js": 6
+  },
+  "zoom": {
+   "n": 126,
+   "avg": 20.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 49,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 253,
+   "avg": 19.8,
+   "p95": 33.4,
+   "max": 133.3,
+   "fps": 51,
+   "js": 14
+  }
+ },
+ "errors": []
+}

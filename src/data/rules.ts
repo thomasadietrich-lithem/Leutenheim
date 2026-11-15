@@ -328,6 +328,8 @@ export const RULES = {
   levelCapPerSection: 5,
   /** Flèche ricochante : distance du rebond, depuis la première cible (C). */
   ricochetRange: 4,
+  /** Fumée légère (halo d'un nuage, son dernier tour ; Thomas, 2026-11-15) : chance d'empoisonner par tour (C). */
+  thinGasPoisonChance: 0.5,
   /** Un coup critique du héros projette le monstre d'une case (Thomas, 2026-11-12). */
   critKnockback: true,
   /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */

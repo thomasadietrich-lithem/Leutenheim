@@ -400,7 +400,8 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
 
 test("les endormis ne bougent pas, les promeneurs si ; on dort moins en profondeur", () => {
   assert.ok(spawnsForDepth(1).sleepChance > spawnsForDepth(4).sleepChance);
-  assert.ok(spawnsForDepth(4).sleepChance > spawnsForDepth(8).sleepChance);
+  // Chaque section repart du calme (Thomas, 2026-11-15 : crescendo par section).
+  assert.ok(spawnsForDepth(1).sleepChance > spawnsForDepth(4).sleepChance && spawnsForDepth(6).sleepChance > spawnsForDepth(9).sleepChance);
   let sleepers = 0;
   let walkers = 0;
   let walkersMoved = 0;
@@ -4486,7 +4487,7 @@ test("potion de brouillard : lancée, un losange de 5 de large ; le monstre qui 
   assert.ok(game.throwPotion(uid, game.hero.x, game.hero.y) || game.throwPotion(uid, m.x, m.y));
   game.tick();
   assert.ok(game.fog.length >= 3, "une nappe de plusieurs cases");
-  assert.ok(game.fog.length <= 13, "un losange de 13 cases au plus");
+  assert.ok(game.fog.filter((f) => !f.thin).length <= 13, "un losange de 13 cases au plus");
   assert.ok(game.fogAt(game.hero.x, game.hero.y) || game.fogAt(m.x, m.y));
   if (game.fogAt(game.hero.x, game.hero.y) && Math.max(Math.abs(m.x - game.hero.x), Math.abs(m.y - game.hero.y)) > 1) assert.equal(m.alerted, false, "il ne voit plus le héros");
 });
@@ -4817,8 +4818,9 @@ test("pièges : les monstres ne les contournent plus, même cachés ; celui qui 
   assert.ok(m.hp < hp, "le monstre a marché sur le piège");
 });
 
-test("pièce secrète (Thomas, 2026-11-14) : 0 à 1 par étage, murée, entrevue par un creux, ouverte en fouillant la salle voisine", () => {
+test("pièce secrète (Thomas, 2026-11-14) : 0 à 1 par étage, murée, entrevue par un creux, ouverte en fouillant la salle voisine (d'office : Thomas, 2026-11-15)", () => {
   let with_ = 0;
+  let alembics = 0;
   for (let seed = 1; seed <= 60; seed++) {
     const game = new Game(seed);
     const s = game.secretRoom();
@@ -4827,8 +4829,15 @@ test("pièce secrète (Thomas, 2026-11-14) : 0 à 1 par étage, murée, entrevue
     // Murée : l'entrée est du mur, la pièce est hors des salles, son coffre est d'acier.
     assert.equal(game.map.get(s.entry.x, s.entry.y), Tile.Wall);
     assert.ok(!game.rooms.includes(s.room));
-    assert.equal(game.map.get(s.chest.x, s.chest.y), Tile.Chest);
-    assert.ok(game.steelChestAt(s.chest.x, s.chest.y));
+    // Son coffre d'acier, ou (Thomas, 2026-11-15) un alambic à sa place.
+    const still = game.furnitureList().find((f) => f.kind === "alambic" && f.x >= s.room.x && f.y >= s.room.y && f.x < s.room.x + s.room.w && f.y < s.room.y + s.room.h);
+    if (still) {
+      assert.ok(game.alembicAt(still.x, still.y), "un alambic plein");
+      alembics++;
+    } else {
+      assert.equal(game.map.get(s.chest.x, s.chest.y), Tile.Chest);
+      assert.ok(game.steelChestAt(s.chest.x, s.chest.y));
+    }
     assert.ok(game.furnitureList().some((f) => f.x === s.peek.x && f.y === s.peek.y && f.kind.startsWith("wallHole")), "le creux du mur");
     // Fouiller la salle hôte jusqu'à la trouver (la fouille d'une salle qui cache la pièce peut se refaire).
     const host = game.rooms[s.host];
@@ -4839,16 +4848,32 @@ test("pièce secrète (Thomas, 2026-11-14) : 0 à 1 par étage, murée, entrevue
     g.hero.y = spot.y;
     g.updateVision();
     assert.ok(host && spot.x >= host.x && spot.y >= host.y);
-    for (let tries = 0; tries < 40 && !s.found; tries++) {
-      assert.ok(game.search(), `graine ${seed} : fouille refusée (${game.searchRefusal()})`);
-      for (let i = 0; i < RULES.searchTurns + 1 && g.searching > 0; i++) game.tick();
-      if (!s.found) game.tick();
-    }
-    assert.ok(s.found, `graine ${seed} : pièce jamais trouvée`);
+    // Une seule fouille suffit, quel que soit le dé (Thomas, 2026-11-15 : « on le trouve d'office »).
+    assert.ok(game.search(), `graine ${seed} : fouille refusée (${game.searchRefusal()})`);
+    for (let i = 0; i < RULES.searchTurns + 2 && g.searching > 0; i++) game.tick();
+    if (!s.found) game.tick();
+    assert.ok(s.found, `graine ${seed} : pièce pas trouvée à la première fouille`);
     assert.notEqual(game.map.get(s.entry.x, s.entry.y), Tile.Wall);
     assert.ok(game.rooms.includes(s.room));
   }
   assert.ok(with_ >= 15 && with_ <= 45, `${with_} étages 1 sur 60 avec une pièce secrète`);
+  assert.ok(alembics > 0, "au moins un alambic");
+});
+
+test("alambic : le toucher remplit une fiole de sa potion, qui tombe à côté ; il reste vide", () => {
+  for (let seed = 1; seed <= 200; seed++) {
+    const game = new Game(seed);
+    const f = game.furnitureList().find((o) => o.kind === "alambic");
+    if (!f) continue;
+    const g = game as unknown as { monsters: unknown[]; hero: { x: number; y: number }; updateVision(): void; drawAlembic(f: unknown): void };
+    g.monsters.length = 0;
+    g.drawAlembic(f);
+    assert.ok(f.drained);
+    assert.equal(game.alembicAt(f.x, f.y), null);
+    assert.ok(game.ground.some((o) => o.item === f.potion && Math.max(Math.abs(o.x - f.x), Math.abs(o.y - f.y)) <= 2), "la fiole à côté");
+    return;
+  }
+  assert.fail("aucun alambic sur 200 étages");
 });
 
 test("prison (Thomas, 2026-11-14) : 3 à 6 alcôves à grilles, au moins une ouverte, un bureau", () => {
@@ -5192,7 +5217,10 @@ test("section 2 : seulement ses monstres (myconide, sporelin, Kobold cueilleur e
     for (const d of [6, 7, 8, 9]) {
       game.teleport(d);
       for (const m of game.monsters) seen.add(m.defId);
-      assert.ok(!game.furnitureList().some((f) => f.kind.startsWith("web")), "pas de toiles");
+      // Pas de toiles (les araignées sont restées en haut), sauf celles du laboratoire secret.
+      const sr = game.secretRoom();
+      const inLab = (f: { x: number; y: number }) => !!sr && f.x >= sr.room.x && f.y >= sr.room.y && f.x < sr.room.x + sr.room.w && f.y < sr.room.y + sr.room.h;
+      assert.ok(!game.furnitureList().some((f) => f.kind.startsWith("web") && !inLab(f)), "pas de toiles");
     }
   }
   for (const id of ["schrat", "frondeur", "araignee"]) assert.ok(!seen.has(id), `${id} en section 2`);
@@ -5243,4 +5271,31 @@ test("flèche ricochante (niveau 6, rare) : après un coup qui porte, elle frapp
     assert.ok(game.events.some((e) => e.type === "arrow" && e.ricochet) || b.hp === 50);
   }
   assert.ok(ricochets > 0, "au moins un ricochet");
+});
+
+test("fumée en croix : un halo léger dans les angles, et le dernier tour en fumée légère (Thomas, 2026-11-15)", () => {
+  const game = new Game(3);
+  game.monsters.splice(0);
+  const h = game.hero;
+  // Une case au milieu du sol, ses 8 voisines libres.
+  let at: { x: number; y: number } | null = null;
+  for (let y = 1; y < game.map.height - 1 && !at; y++)
+    for (let x = 1; x < game.map.width - 1 && !at; x++) {
+      let ok = true;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (game.map.get(x + dx, y + dy) !== Tile.Floor) ok = false;
+      if (ok && Math.max(Math.abs(x - h.x), Math.abs(y - h.y)) > 3) at = { x, y };
+    }
+  assert.ok(at);
+  (game as unknown as { puffGas(p: { x: number; y: number }, t: number): void }).puffGas(at!, 3);
+  const dense = game.gas.filter((g) => !g.thin);
+  const thin = game.gas.filter((g) => g.thin);
+  assert.equal(dense.length, 5, "la croix");
+  assert.equal(thin.length, 4, "les quatre angles");
+  assert.ok(thin.every((g) => Math.abs(g.x - at!.x) === 1 && Math.abs(g.y - at!.y) === 1));
+  // Le dernier tour, tout passe en fumée légère.
+  game.wait();
+  game.tick();
+  game.wait();
+  game.tick();
+  assert.ok(game.gas.length > 0 && game.gas.every((g) => g.thin), "avant de disparaître, fumée légère");
 });

@@ -57,6 +57,7 @@ import { ARAIGNEE } from "./sprites/araignee";
 import { PIEGES } from "./sprites/pieges";
 import { PIEGES_CHAMPI } from "./sprites/piegesChampi";
 import { CHAMPI_SALLES } from "./sprites/champiSalles";
+import { ALAMBIC } from "./sprites/alambic";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
@@ -778,7 +779,7 @@ export class Renderer {
    * dessins), peintes en trois couches à plat (ombre décalée vers le bas, corps, reflet vers le haut), puis agrandies
    * sans lissage. `puffs` : bouffées par case.
    */
-  private drawClouds(game: Game, cells: readonly { x: number; y: number; turns: number }[], ox: number, oy: number, tones: CloudTones, puffs: number): void {
+  private drawClouds(game: Game, cells: readonly { x: number; y: number; turns: number; thin?: boolean }[], ox: number, oy: number, tones: CloudTones, puffs: number): void {
     const shown = cells.filter((c) => game.isVisible(c.x, c.y) && !this.isHeld(c.x, c.y));
     if (shown.length === 0) return;
     const { ctx, tile } = this;
@@ -816,12 +817,15 @@ export class Renderer {
       lc.fillStyle = color;
       for (const c of shown) {
         const fade = Math.min(1, c.turns / 2);
-        for (let i = 0; i < puffs; i++) {
+        // Fumée légère (halo, dernier tour) : moins de bouffées, plus petites (Thomas, 2026-11-15).
+        const n = c.thin ? Math.max(2, Math.round(puffs * 0.4)) : puffs;
+        const thinK = c.thin ? 0.6 : 1;
+        for (let i = 0; i < n; i++) {
           const seed = (c.x * 73 + c.y * 151 + i * 37) % 997;
           const t = this.time / 1500 + seed;
           const bx = ((seed % 7) / 7 - 0.5) * 0.7 + Math.cos(t) * 0.14;
           const by = (((seed >> 3) % 7) / 7 - 0.5) * 0.6 + Math.sin(t * 1.3) * 0.1;
-          const r = P * (0.3 + ((seed >> 5) % 5) * 0.035 + 0.04 * Math.sin(t * 0.9)) * (0.55 + 0.45 * fade);
+          const r = P * (0.3 + ((seed >> 5) % 5) * 0.035 + 0.04 * Math.sin(t * 0.9)) * (0.55 + 0.45 * fade) * thinK;
           disc((c.x - minX + 0.5 + bx) * P, (c.y - minY + 0.5 + by) * P + shift, r * scale);
         }
       }
@@ -2458,6 +2462,9 @@ export class Renderer {
         // Section 2 : pas de reflet orange sur les meubles (la lumière y est bleu-vert).
         warm = game.look() === "champi" ? 0 : lit * flicker * 0.2;
       }
+      // Le rideau de mycélium luit de lui-même (Thomas, 2026-11-15 : « contraste davantage les passages secrets ») :
+      // presque pas d'ombre sur lui, même dans le noir d'une salle vue.
+      if (f.kind === "mycCurtain") dark = Math.min(dark, visible ? 0.08 : 0.3);
       // Meubles animés (bougie de la table, jambon qui se balance, robinet qui goutte, corde, candélabre) : 3 images.
       const animated = f.kind.startsWith("table") || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
       // Panier à fruits : son dessin montre les pommes qui restent dedans (0 à 3).
@@ -2482,8 +2489,10 @@ export class Renderer {
       const cz = f.kind === "barrelWall" ? game.zone() : null;
       const caskSide = !cz ? "" : cz.room.y + cz.room.h <= f.y ? "" : cz.room.y > f.y ? "Low" : cz.room.x + cz.room.w <= f.x ? "SideL" : "SideR";
       const zoneName = f.kind === "barrelWall" ? `cask${caskSide}${game.zoneNoticed() ? "Found" : ""}` : f.kind === "hayWall" ? "hayBale" : null;
-      const name = zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      // Alambic (pièces secrètes) : la couleur de sa potion, braises et bulles (2 images) ; vide une fois la fiole tirée.
+      const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
+      const name = alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
+      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2498,7 +2507,7 @@ export class Renderer {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || name === "scarecrowHat") {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

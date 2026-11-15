@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 31;
+export const SANDBOX_LAYOUT = 32;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -680,7 +680,7 @@ export function buildSandbox2(): SandboxFloor {
 
   // ---------- La salle secrète de la grotte, derrière un rideau de mycélium ----------
   const floorPlan = (): Floor => ({ map, rooms, start, stairs, torches, specials: [] });
-  const secretRoom = placeSecretRoom(floorPlan(), furniture, new Rng(5), new Set(), "contrebandier", grotteIndex) ?? undefined;
+  const secretRoom = (placeSecretRoom(floorPlan(), furniture, new Rng(5), new Set(), "laboratoire", grotteIndex) ?? placeSecretRoom(floorPlan(), furniture, new Rng(5), new Set(), "contrebandier", grotteIndex)) ?? undefined;
   if (secretRoom) {
     for (const g of secretRoom.gold) ground.push({ x: g.x, y: g.y, item: "or", count: 14 });
     // Le creux du mur devient le rideau de mycélium, posé sur la case qui s'ouvre (Thomas : « j'aime le rideau »).

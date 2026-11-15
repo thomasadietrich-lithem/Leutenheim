@@ -1,6 +1,6 @@
 import { Rng } from "../core/rng";
 import { RULES } from "../data/rules";
-import { FURNITURE_KINDS } from "../data/themedRooms";
+import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { Floor, Room } from "./generator";
 import { GameMap, Point, Tile } from "./map";
 import { isChokepoint } from "./pathfinding";
@@ -22,6 +22,9 @@ export interface Furniture {
   hinted?: boolean;
   /** Éboulis posé à la place d'un mur (section 2) : le mur est éventré, la terre passe au travers. */
   breach?: boolean;
+  /** Alambic (pièces secrètes, Thomas 2026-11-15) : la potion qu'il distille ; `drained` : la fiole a été tirée. */
+  potion?: string;
+  drained?: boolean;
 }
 
 /** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */
@@ -1119,7 +1122,13 @@ export function furnishMorilles(floor: Floor, room: Room, rng: Rng, out: Furnitu
   }
   // Étagères à pots (1 à 2), sacs d'engrais (1 à 3 par case), arrosoirs, outils, brouette.
   const shelves = rng.int(1, 2);
-  for (let k = 0; k < shelves; k++) wallShelf(P, room, rng, "potShelf");
+  let put = 0;
+  for (let k = 0; k < shelves; k++) if (wallShelf(P, room, rng, "potShelf")) put++;
+  // Au moins une étagère à pots (Thomas : « 1 à 2 ») : sinon la salle ne convient pas.
+  if (put === 0) {
+    P.undo();
+    return false;
+  }
   const edge = (): Point => {
     const side = rng.int(0, 3);
     return side === 0
@@ -1137,6 +1146,7 @@ export function furnishMorilles(floor: Floor, room: Room, rng: Rng, out: Furnitu
   // Un peu de lumière : des petits lumineux dans les coins (la salle n'a pas de torche).
   scatter(P, rng, ["lueursB2", "lueursG1", "lueursB3"], 2, edge);
   out.push(...P.placed);
+  themedTorches(floor, room, rng, out, rng.int(1, 2));
   return true;
 }
 
@@ -1165,7 +1175,12 @@ export function furnishSculpture(floor: Floor, room: Room, rng: Rng, out: Furnit
   };
   scatter(P, rng, ["grue"], 1, () => ({ x: rng.int(room.x, room.x + room.w - 2), y: rng.chance(0.5) ? room.y : room.y + room.h - 1 }));
   const shelves = rng.int(1, 2);
-  for (let k = 0; k < shelves; k++) wallShelf(P, room, rng, "toolShelfS");
+  let put = 0;
+  for (let k = 0; k < shelves; k++) if (wallShelf(P, room, rng, "toolShelfS")) put++;
+  if (put === 0) {
+    P.undo();
+    return false;
+  }
   scatter(P, rng, ["gravats1", "gravats2", "gravats3"], rng.int(1, 3), edge);
   scatter(P, rng, ["pioches"], 1, edge);
   if (rng.chance(0.5)) scatter(P, rng, ["piocheSol"], 1, edge);
@@ -1173,5 +1188,29 @@ export function furnishSculpture(floor: Floor, room: Room, rng: Rng, out: Furnit
   edgeChests(P, floor, room, rng, 1);
   scatter(P, rng, ["lueursP2", "lueursB1"], 2, edge);
   out.push(...P.placed);
+  themedTorches(floor, room, rng, out, 2);
   return true;
+}
+
+/**
+ * Torches murales d'une salle à thème de la section 2 (Thomas, 2026-11-15 : « des torches dans l'atelier et dans le champ
+ * de morilles ») : 1 à 2 sur les murs (d'abord celui du haut), jamais derrière un meuble haut, ni à côté d'une ouverture.
+ */
+function themedTorches(floor: Floor, room: Room, rng: Rng, out: Furniture[], count: number): void {
+  const tall = (x: number, y: number) => out.some((f) => !isFlat(f.kind) && FURNITURE_KINDS[f.kind]?.blocks && furnitureCells(f).some((c) => c.x === x && c.y === y));
+  const spots: { x: number; y: number; nx: number; ny: number }[] = [];
+  for (let x = room.x + 1; x < room.x + room.w - 1; x++) spots.push({ x, y: room.y - 1, nx: 0, ny: 1 });
+  for (let y = room.y + 1; y < room.y + room.h - 1; y++) spots.push({ x: room.x - 1, y, nx: 1, ny: 0 }, { x: room.x + room.w, y, nx: -1, ny: 0 });
+  const ok = shuffle(rng, spots).filter((w) => {
+    if (floor.map.get(w.x, w.y) !== Tile.Wall || tall(w.x + w.nx, w.y + w.ny)) return false;
+    if (floor.torches.some((t) => Math.abs(t.x - w.x) + Math.abs(t.y - w.y) < 3)) return false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (floor.map.isDoor(w.x + dx, w.y + dy)) return false;
+    return true;
+  });
+  // Le mur du haut d'abord (la torche s'y voit le mieux).
+  ok.sort((a, b) => (a.ny === 1 ? 0 : 1) - (b.ny === 1 ? 0 : 1));
+  for (const w of ok.slice(0, count)) {
+    if (floor.torches.some((t) => Math.abs(t.x - w.x) + Math.abs(t.y - w.y) < 3)) continue;
+    floor.torches.push({ x: w.x, y: w.y, radius: 6, faceX: w.nx, faceY: w.ny });
+  }
 }

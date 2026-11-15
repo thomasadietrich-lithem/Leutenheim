@@ -1,0 +1,306 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Cave Roller - statistiques anonymes (Thomas, 2026-11-15). Tout en un : bucket S3 des evenements (efface apres
+  2 ans), Lambda "caveroller-stats" et son adresse publique (Function URL, CORS ouvert), garde-fou de 5 appels
+  simultanes, base et table Athena (partitions par jour automatiques), groupe de travail Athena et requetes
+  enregistrees. Deploiement : aws cloudformation deploy (voir README.md). Sortie StatsUrl : l'adresse a coller
+  dans src/data/telemetry.ts.
+
+Parameters:
+  RetentionDays:
+    Type: Number
+    Default: 730
+    Description: Duree de conservation des evenements (jours).
+  MaxConcurrency:
+    Type: Number
+    Default: 5
+    Description: Appels simultanes au plus (garde-fou contre les abus et la facture).
+
+Resources:
+  EventsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "caveroller-stats-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-events
+            Status: Enabled
+            Prefix: events/
+            ExpirationInDays: !Ref RetentionDays
+          - Id: expire-athena-results
+            Status: Enabled
+            Prefix: athena-results/
+            ExpirationInDays: 30
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: write-events
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "${EventsBucket.Arn}/events/*"
+
+  FunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/caveroller-stats
+      RetentionInDays: 14
+
+  StatsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: FunctionLogs
+    Properties:
+      FunctionName: caveroller-stats
+      Description: Cave Roller - recoit les evenements anonymes et les range dans S3 (n'utilise jamais l'adresse IP).
+      Runtime: nodejs24.x
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 5
+      ReservedConcurrentExecutions: !Ref MaxConcurrency
+      Role: !GetAtt FunctionRole.Arn
+      Environment:
+        Variables:
+          BUCKET: !Ref EventsBucket
+      Code:
+        # Meme code que lambda/index.mjs, en CommonJS (le code en ligne de CloudFormation s'appelle index.js).
+        ZipFile: |
+          const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+          const { randomUUID } = require("node:crypto");
+          const s3 = new S3Client({});
+          const BUCKET = process.env.BUCKET;
+          const MAX_EVENTS = 50;
+          const MAX_BODY = 64 * 1024;
+          const NAME = /^[a-z_]{1,32}$/;
+          function clean(obj) {
+            const out = {};
+            for (const [k, v] of Object.entries(obj ?? {})) {
+              if (!/^[A-Za-z_]{1,24}$/.test(k)) continue;
+              if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+              else if (typeof v === "boolean") out[k] = v;
+              else if (typeof v === "string") out[k] = v.slice(0, 80);
+            }
+            return out;
+          }
+          const reply = (status, text = "") => ({ statusCode: status, headers: { "Content-Type": "text/plain" }, body: text });
+          exports.handler = async (event) => {
+            if (event.requestContext?.http?.method !== "POST") return reply(405);
+            let raw = event.body ?? "";
+            if (event.isBase64Encoded) raw = Buffer.from(raw, "base64").toString("utf8");
+            if (raw.length > MAX_BODY) return reply(413);
+            let body;
+            try { body = JSON.parse(raw); } catch { return reply(400, "json"); }
+            const ctx = clean({ device: body.device, version: body.version, platform: body.platform, build: body.build, lang: body.lang });
+            const events = Array.isArray(body.events) ? body.events.slice(0, MAX_EVENTS) : [];
+            const received = Date.now();
+            const lines = events
+              .filter((e) => e && NAME.test(e.e) && typeof e.run === "string")
+              .map((e) => JSON.stringify({ ...clean(e), ...ctx, received }));
+            if (lines.length === 0) return reply(204);
+            const now = new Date(received);
+            const key = `events/dt=${now.toISOString().slice(0, 10)}/${now.toISOString().slice(11, 19).replaceAll(":", "-")}-${randomUUID()}.jsonl`;
+            await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: lines.join("\n") + "\n", ContentType: "application/x-ndjson" }));
+            return reply(204);
+          };
+
+  StatsUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt StatsFunction.Arn
+      AuthType: NONE
+      Cors:
+        AllowOrigins: ["*"]
+        AllowMethods: ["POST"]
+        AllowHeaders: ["content-type"]
+        MaxAge: 86400
+
+  # Adresse publique : il faut les deux autorisations (InvokeFunctionUrl, et InvokeFunction par l'adresse).
+  PublicUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StatsFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  PublicInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StatsFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  # ---------- Lecture : Athena ----------
+  StatsDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: caveroller
+        Description: Statistiques anonymes de Cave Roller
+
+  EventsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref StatsDatabase
+      TableInput:
+        Name: events
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: json
+          projection.enabled: "true"
+          projection.dt.type: date
+          projection.dt.format: yyyy-MM-dd
+          projection.dt.range: "2026-11-01,NOW"
+          projection.dt.interval: "1"
+          projection.dt.interval.unit: DAYS
+          storage.location.template: !Sub "s3://${EventsBucket}/events/dt=${!dt}/"
+        PartitionKeys:
+          - { Name: dt, Type: string }
+        StorageDescriptor:
+          Location: !Sub "s3://${EventsBucket}/events/"
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+            Parameters:
+              ignore.malformed.json: "true"
+              case.insensitive: "true"
+          Columns:
+            - { Name: e, Type: string }
+            - { Name: t, Type: bigint }
+            - { Name: run, Type: string }
+            - { Name: device, Type: string }
+            - { Name: version, Type: string }
+            - { Name: platform, Type: string }
+            - { Name: build, Type: string }
+            - { Name: lang, Type: string }
+            - { Name: received, Type: bigint }
+            - { Name: depth, Type: int }
+            - { Name: level, Type: int }
+            - { Name: turn, Type: int }
+            - { Name: test, Type: boolean }
+            - { Name: hp, Type: int }
+            - { Name: maxhp, Type: int }
+            - { Name: gold, Type: int }
+            - { Name: unhurt, Type: boolean }
+            - { Name: cause, Type: string }
+            - { Name: deepest, Type: int }
+            - { Name: bosses, Type: int }
+            - { Name: id, Type: string }
+            - { Name: what, Type: string }
+            - { Name: section, Type: int }
+            - { Name: race, Type: string }
+            - { Name: cls, Type: string }
+            - { Name: sandbox, Type: boolean }
+
+  StatsWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: caveroller
+      Description: Requetes des statistiques de Cave Roller
+      RecursiveDeleteOption: true
+      WorkGroupConfiguration:
+        EnforceWorkGroupConfiguration: true
+        BytesScannedCutoffPerQuery: 1073741824
+        ResultConfiguration:
+          OutputLocation: !Sub "s3://${EventsBucket}/athena-results/"
+
+  QueryRunsPerDay:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: "1. Parties et appareils par jour"
+      Database: !Ref StatsDatabase
+      WorkGroup: !Ref StatsWorkGroup
+      QueryString: >-
+        SELECT dt, count(*) AS parties, count(DISTINCT device) AS appareils
+        FROM caveroller.events WHERE e = 'run_start' AND NOT coalesce(test, false)
+        GROUP BY dt ORDER BY dt DESC
+
+  QueryDeathsByFloor:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: "2. Morts par etage"
+      Database: !Ref StatsDatabase
+      WorkGroup: !Ref StatsWorkGroup
+      QueryString: >-
+        SELECT depth, count(*) AS morts FROM caveroller.events
+        WHERE e = 'death' AND NOT coalesce(test, false) GROUP BY depth ORDER BY depth
+
+  QueryCauses:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: "3. Causes de mort"
+      Database: !Ref StatsDatabase
+      WorkGroup: !Ref StatsWorkGroup
+      QueryString: >-
+        SELECT cause, count(*) AS morts FROM caveroller.events
+        WHERE e = 'death' AND NOT coalesce(test, false) GROUP BY cause ORDER BY morts DESC LIMIT 15
+
+  QueryFunnel:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: "4. Entonnoir des etages"
+      Database: !Ref StatsDatabase
+      WorkGroup: !Ref StatsWorkGroup
+      QueryString: >-
+        WITH runs AS (SELECT DISTINCT run FROM caveroller.events WHERE e = 'run_start' AND NOT coalesce(test, false)),
+        reach AS (SELECT run, max(depth) AS deepest FROM caveroller.events WHERE e = 'floor' GROUP BY run)
+        SELECT d AS etage, round(100.0 * count_if(coalesce(reach.deepest, 1) >= d) / count(*), 1) AS pourcent
+        FROM runs LEFT JOIN reach USING (run) CROSS JOIN UNNEST(sequence(1, 10)) AS s(d)
+        GROUP BY d ORDER BY d
+
+  QueryBoss:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: "5. La Tisseuse"
+      Database: !Ref StatsDatabase
+      WorkGroup: !Ref StatsWorkGroup
+      QueryString: >-
+        SELECT count(*) AS victoires, avg(level) AS niveau_moyen, avg(turn) AS tours_moyens
+        FROM caveroller.events WHERE e = 'boss_kill' AND NOT coalesce(test, false)
+
+  QueryQuests:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: "6. Quetes"
+      Database: !Ref StatsDatabase
+      WorkGroup: !Ref StatsWorkGroup
+      QueryString: >-
+        SELECT id, what, count(*) AS fois FROM caveroller.events
+        WHERE e = 'quest' AND NOT coalesce(test, false) GROUP BY id, what ORDER BY id, what
+
+Outputs:
+  StatsUrl:
+    Description: Adresse a coller dans src/data/telemetry.ts (champ url).
+    Value: !GetAtt StatsUrl.FunctionUrl
+  BucketName:
+    Description: Bucket des evenements.
+    Value: !Ref EventsBucket
+  AthenaWorkGroup:
+    Description: Groupe de travail Athena (console Athena > choisir "caveroller", puis Requetes enregistrees).
+    Value: !Ref StatsWorkGroup

@@ -449,7 +449,9 @@ test("embuscade : un monstre a l'avantage contre un héros dans l'encadrement d'
     const side = [[0, 1], [0, -1], [1, 0], [-1, 0]].find(([dx, dy]) => game.map.get(door!.x + dx, door!.y + dy) === Tile.Floor);
     if (!side) continue;
     game.monsters = [foe];
-    Object.assign(foe, { x: door.x + side[0], y: door.y + side[1], alerted: true, asleep: false });
+    const fx = door.x + side[0];
+    const fy = door.y + side[1];
+    Object.assign(foe, { x: fx, y: fy, fromX: fx, fromY: fy, prevX: fx, prevY: fy, alerted: true, asleep: false });
     Object.assign(game.hero, { x: door.x, y: door.y, hp: 1000, maxHp: 1000 });
     game.wait();
     game.tick();
@@ -5541,4 +5543,23 @@ test("statistiques anonymes (Thomas, 2026-11-15) : rien sans accord, file gardé
   } finally {
     TELEMETRY.url = saved;
   }
+});
+
+test("angle de mur (Thomas, 2026-11-15, capture) : arrêté depuis un tour, le monstre qui débouche de l'angle donne l'avantage", () => {
+  const game = new Game(9);
+  const map = game.map;
+  // Un petit plan : le héros en (10, 10), un mur au-dessus, une ouverture en (11, 9), le couloir monte en (11, 8).
+  for (let y = 6; y <= 12; y++) for (let x = 7; x <= 14; x++) map.set(x, y, Tile.Floor);
+  for (let x = 7; x <= 14; x++) if (x !== 11) map.set(x, 9, Tile.Wall);
+  game.monsters = [game.monsters[0]];
+  const foe = game.monsters[0];
+  // Le héros est arrivé au tour d'avant (de 9, 10), puis s'est arrêté.
+  Object.assign(game.hero, { x: 10, y: 10, fromX: 10, fromY: 10, prevX: 9, prevY: 10 });
+  // Le monstre vient de déboucher de l'angle : de (10, 8), derrière le mur, à (11, 9).
+  Object.assign(foe, { x: 11, y: 9, fromX: 10, fromY: 8, prevX: 10, prevY: 8, alerted: true, asleep: false, wary: false });
+  assert.ok(game.heroHasAdvantageOn(foe), "avantage au héros");
+  assert.ok(!game.hasEdge(foe, game.hero), "et pas au monstre");
+  // Arrivés au même moment : personne.
+  Object.assign(game.hero, { fromX: 9, fromY: 10 });
+  assert.ok(!game.heroHasAdvantageOn(foe));
 });

@@ -4300,13 +4300,22 @@ export class Game {
     if ((d.prone ?? 0) > 0 || (d.boss && d.boss.fallen > 0)) out.push("prone");
     const guarded = d !== this.hero && !!d.wary;
     if (!guarded && cellsOf(d).some((c) => this.map.isDoor(c.x, c.y)) && !cellsOf(a).some((c) => this.map.isDoor(c.x, c.y))) out.push("door");
-    if (!guarded && this.lastStepFrom(a) === null) {
+    // D est arrivé APRÈS A (Thomas, 2026-11-15 : arrêté depuis un tour, le monstre qui débouche de l'angle donne
+    // l'avantage ; avant, il fallait être resté immobile deux tours, et celui qui venait d'arriver gagnait aussi).
+    if (!guarded && this.stepAge(d) < this.stepAge(a)) {
       const from = this.lastStepFrom(d);
       // Embuscade : il arrive d'une case d'où il ne voyait pas A franchement (un mur, une porte, une colonne, ou un
       // angle de mur frôlé en diagonale : Thomas, 2026-11-15).
       if (from && !hasClearSight(this.map, from, a)) out.push("ambush");
     }
     return out;
+  }
+
+  /** Depuis quand ce personnage a bougé : 0 ce tour-ci, 1 au tour précédent, l'infini s'il est resté sur place. */
+  private stepAge(a: Actor): number {
+    if (a.fromX !== a.x || a.fromY !== a.y) return 0;
+    if (a.prevX !== undefined && a.prevY !== undefined && (a.prevX !== a.fromX || a.prevY !== a.fromY)) return 1;
+    return Infinity;
   }
 
   /** D'où ce personnage est parti à son dernier pas (ce tour-ci, ou au tour précédent) ; null s'il n'a pas bougé. */

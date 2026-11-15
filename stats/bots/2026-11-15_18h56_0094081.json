@@ -1,0 +1,84 @@
+{
+ "date": "2026-11-15T18:56:51.015Z",
+ "commit": "0094081",
+ "runs": 150,
+ "note": "embuscade : D arrivé après A (plus besoin de rester immobile deux tours)",
+ "levels": {
+  "debutant": {
+   "floor": 2.4,
+   "deathFloor1": 18,
+   "reach": {
+    "2": 82,
+    "3": 47,
+    "4": 11,
+    "5": 0
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 135.1,
+   "gold": 4.2,
+   "kills": 5.3,
+   "questsStarted": 0.2,
+   "questsDone": 0,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 100,
+    "une Araignée": 23,
+    "un Kobold frondeur": 24,
+    "un piège à pointes": 3
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 19,
+   "reach": {
+    "2": 81,
+    "3": 63,
+    "4": 33,
+    "5": 18
+   },
+   "boss": 0,
+   "dead": 98,
+   "heroLevel": 2.2,
+   "turns": 311.7,
+   "gold": 28.2,
+   "kills": 11.5,
+   "questsStarted": 0.3,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "la Tisseuse": 25,
+    "un Kobold": 69,
+    "un Kobold frondeur": 23,
+    "une Araignée": 30
+   }
+  },
+  "maitrise": {
+   "floor": 3.8,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 96,
+    "3": 83,
+    "4": 63,
+    "5": 35
+   },
+   "boss": 8,
+   "dead": 79,
+   "heroLevel": 3.8,
+   "turns": 768.1,
+   "gold": 59.6,
+   "kills": 29.9,
+   "questsStarted": 0.5,
+   "questsDone": 0.3,
+   "questsFailed": 0.1,
+   "causes": {
+    "une Araignée": 17,
+    "un Kobold": 33,
+    "la Tisseuse": 32,
+    "un Kobold frondeur": 32,
+    "le poison": 5
+   }
+  }
+ }
+}

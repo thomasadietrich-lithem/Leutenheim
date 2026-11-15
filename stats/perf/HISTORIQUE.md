@@ -44,3 +44,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_09h00 | 876f30a | 24.4 | 21.5 | 20.8 | 22.2 | 16.7 | 18.8 | 0.6 | 0.41 | bouton s'équiper du ruban |
 | 2026-11-15_09h09 | 4e51b6f | 21.1 | 22.8 | 21.4 | 20.9 | 16.7 | 19.7 | 1.02 | 0.19 | javeline grisée à deux mains, ranger le sac, revivre en essai |
 | 2026-11-15_09h09 | 4f0fb7c | 28.4 | 20.3 | 24.9 | 25.7 | 16.7 | 20.9 | 1.15 | 0.22 | relance |
+| 2026-11-15_09h13 | fd7080e | 22.8 | 24.3 | 25.3 | 18.8 | 16.7 | 20.9 | 0.66 | 0.17 | correctif sac à ranger |

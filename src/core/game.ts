@@ -7915,6 +7915,8 @@ export class Game {
     const taken = pile.count - left;
     pile.count = left;
     if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
+    // Sac plein : l'objet saute sur place et retombe (Thomas, 2026-11-12).
+    else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y, messy: this.inventory.fitsIfTidied(item) });
     if (taken > 0 && this.equipAfterPick) {
       this.equipAfterPick = false;
       const mine = this.inventory.items.filter((i) => i.defId === item).sort((a, b) => b.uid - a.uid)[0];
@@ -7925,8 +7927,6 @@ export class Game {
         return false;
       }
     }
-    // Sac plein : l'objet saute sur place et retombe (Thomas, 2026-11-12).
-    else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y, messy: this.inventory.fitsIfTidied(item) });
     this.ground = this.ground.filter((g) => g.count > 0);
     return left === 0 && this.itemsHere().some((g) => g.item === item);
   }

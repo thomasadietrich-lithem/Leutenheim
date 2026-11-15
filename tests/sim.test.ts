@@ -5468,3 +5468,12 @@ test("revivre (Thomas, 2026-11-15) : seulement en partie d'essai, tous les PV, s
   assert.equal(game.hero.poison, undefined);
   assert.deepEqual({ x: game.hero.x, y: game.hero.y }, at);
 });
+
+test("ramasser (Thomas, 2026-11-15 : « sac à ranger tout le temps ») : un ramassage réussi ne dit jamais « sac plein »", () => {
+  const game = new Game(7);
+  game.ground.push({ x: game.hero.x, y: game.hero.y, item: "pomme", count: 1 });
+  assert.ok(game.pickUp());
+  game.tick();
+  assert.ok(game.events.some((e) => e.type === "pickup"));
+  assert.ok(!game.events.some((e) => e.type === "bagFull"));
+});

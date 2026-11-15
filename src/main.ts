@@ -33,7 +33,7 @@ import { getLang, missing as i18nMissing, setLang, tr } from "./i18n/i18n";
 import { TELEMETRY } from "./data/telemetry";
 import { detectPlatform, Telemetry } from "./telemetry/telemetry";
 import { PICTOS } from "./ui/pictos";
-import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
+import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
@@ -660,9 +660,9 @@ function reveal(e: GameEvent): void {
       pulse(hpBar, "hit");
       pulse(mapFrame, "hurt");
     }
-    // Arme lourde (lente ou à deux mains) : un choc plus grave, pour sentir le poids de la lame.
+    // Arme lourde (lente) : un choc plus grave, pour sentir le poids de la lame.
     const melee = !foe && !e.ranged ? game.weapon("melee") : undefined;
-    const heavy = !!melee && (melee.speed === "slow" || !!melee.twoHanded);
+    const heavy = !!melee && melee.speed === "slow";
     sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : heavy ? "heavy" : "hit") : "miss");
   } else if (e.type === "door") {
     if (e.action === "key") {
@@ -1811,7 +1811,6 @@ function fireAt(x: number, y: number): void {
   if (refusal) {
     const why = {
       "no-bow": "Aucun arc en main.",
-      "two-hands": "Votre arme se tient à deux mains : pas de main libre pour tirer ou lancer.",
       "no-ammo": "Plus de munitions.",
       "no-target": "Impossible de tirer là.",
       "out-of-range": `Hors de portée (${game.shotProfile()?.range ?? 0} cases).`,
@@ -1845,8 +1844,6 @@ button("aim", () => {
     const target = aimTarget();
     if (target) fireAt(target.x, target.y);
     else aimMode = false; // personne à viser : le second appui range l'arc
-  } else if (game.twoHanded()) {
-    logLines.push(`Votre ${game.weapon("melee")!.name.toLowerCase()} se tient à deux mains : pas de main libre pour tirer ou lancer.`);
   } else if (game.isThreatened()) {
     logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
   } else if (game.arrows() < 1) {
@@ -2241,7 +2238,6 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.range) rows.push(["Portée", `${def.range} cases`]);
   if (def.reach && def.reach > 1) rows.push(["Allonge", `${def.reach} cases`]);
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
-  if (def.twoHanded) rows.push(["Prise", "Deux mains (l'arc retourne au sac ; pas de javeline)"]);
   if (def.stunOn) rows.push(["Assomme", `sur un ${def.stunOn} ou plus au dé`]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
   if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
@@ -2269,7 +2265,6 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.attackBonus !== undefined) bits.push(`d20 ${signedBonus(def.attackBonus)}`);
   if (def.damage) bits.push(diceLabel(def.damage));
   if (def.speed) bits.push(def.speed === "slow" ? "lente" : "rapide");
-  if (def.twoHanded) bits.push("deux mains");
   if (def.reach && def.reach > 1) bits.push(`allonge ${def.reach}`);
   if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
   if (def.range) bits.push(`portée ${def.range}`);
@@ -2286,20 +2281,9 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   return card;
 }
 
-/** Prise d'une arme de corps à corps (Thomas, 2026-11-11) : une paume ou deux, dans le coin de sa case. */
-function gripBadge(id: ItemId): SVGSVGElement | null {
-  const def = ITEMS[id] as ItemDef;
-  if (def.kind !== "melee") return null;
-  const badge = buildIcon(def.twoHanded ? GRIP_ICONS.two : GRIP_ICONS.one);
-  badge.classList.add("grip");
-  return badge;
-}
-
 function itemNode(item: { defId: ItemId; count: number }, className: string): HTMLElement {
   const node = el("div", className);
   node.append(itemIcon(item.defId));
-  const grip = gripBadge(item.defId);
-  if (grip) node.append(grip);
   if (item.count > 1) node.append(el("span", "bag-count", String(item.count)));
   return node;
 }
@@ -2317,8 +2301,6 @@ function renderBag(): void {
       const box = el("div", "slot-box");
       if (worn) {
         box.append(itemIcon(worn.defId));
-        const grip = gripBadge(worn.defId);
-        if (grip) box.append(grip);
       } else {
         // Emplacement vide : la silhouette estompée de ce qui s'y porte, à la place d'un nom.
         const ghost = { amulet: uiIcon("amulet"), hat: uiIcon("helm"), artifact: uiIcon("artifact"), armor: itemIcon("tunique"), melee: itemIcon("epee"), ranged: itemIcon("arc_court"), bag: itemIcon("sac_toile") }[slot];
@@ -2392,7 +2374,7 @@ function renderBag(): void {
       logLines.push("Pas de torche : utilisez-en une depuis le sac.");
     } else if (game.toggleTorch()) {
       logLines.push(game.torchOff ? "Vous éteignez la torche." : "Vous rallumez la torche.");
-    } else logLines.push("Impossible de rallumer la torche avec une arme à deux mains.");
+    }
     renderLog();
     renderHeroScreen();
   });
@@ -2657,15 +2639,9 @@ button("bag-equip", () => {
     $("bag").hidden = true;
   } else if (selected && "uid" in selected) {
     const bagSwap = chosenDef?.kind === "bag";
-    const hadBow = !!game.equipment.ranged;
-    if (game.equip(selected.uid)) {
-      const bounced = game.events.some((e) => e.type === "bounce");
-      if (chosenDef?.twoHanded && hadBow && !game.equipment.ranged && !bounced) logLines.push("Arme à deux mains : votre arc retourne dans le sac.");
-    } else {
+    if (!game.equip(selected.uid)) {
       logLines.push(
-        chosenDef?.kind === "ranged" && game.twoHanded()
-            ? "Votre arme se tient à deux mains : rangez-la d'abord pour prendre un arc."
-            : bagSwap
+        bagSwap
             ? "Ce sac est trop petit pour tout ce que vous portez."
             : "Pas assez de place dans le sac pour échanger.",
       );
@@ -3907,10 +3883,6 @@ function frame(now: number): void {
   const canShoot = !!bow || game.shotProfile() !== null;
   aim.hidden = !canShoot;
   if (!canShoot) aimMode = false;
-  // Arme à deux mains (Thomas, 2026-11-15 : « pas de javeline non plus ») : ni arc ni javeline, le bouton est grisé.
-  const busy = game.twoHanded();
-  aim.classList.toggle("off", busy);
-  if (busy) aimMode = false;
   // Dès qu'un ennemi arrive au contact, on repasse à l'arme de corps à corps.
   if (aimMode && game.isThreatened()) {
     aimMode = false;

@@ -225,4 +225,4 @@ export type GameEvent =
     };
 
 /** Pourquoi un tir est refusé. */
-export type ShootRefusal = "no-bow" | "two-hands" | "no-ammo" | "no-target" | "out-of-range";
+export type ShootRefusal = "no-bow" | "no-ammo" | "no-target" | "out-of-range";

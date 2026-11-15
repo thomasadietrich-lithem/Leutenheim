@@ -3513,7 +3513,6 @@ test("tir : l'arc donne le jet et la portée, la flèche les dégâts ; la javel
   assert.equal(game.shoot(target.x, target.y), null);
   game.tick();
   assert.equal(game.inventory.count("javeline"), before - 1);
-  assert.equal(ITEMS.epee_longue.twoHanded && ITEMS.lance.twoHanded, true);
 });
 
 test("fin de partie : on sait de quoi le héros est mort ; portes et coffres brûlent", () => {
@@ -3815,22 +3814,19 @@ test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèc
   assert.ok(q2.boss!.hatched);
 });
 
-test("arme à deux mains : l'arc retourne au sac, pas de javeline ; salle d'essai : l'escalier de la salle de départ mène à la Tisseuse", () => {
+test("plus de règle des deux mains (Thomas, 2026-11-15) : l'arc reste porté avec l'épée longue ; salle d'essai : l'escalier de la salle de départ mène à la Tisseuse", () => {
   const game = new Game(1, undefined, undefined, undefined, true);
   game.setPeaceful(true);
   game.inventory.add("epee_longue", 1);
   const sword = game.inventory.items.find((i) => i.defId === "epee_longue")!;
   assert.ok(game.equipment.ranged, "l'arc est en main");
   assert.ok(game.equip(sword.uid));
-  // L'épée longue fait sauter l'autre main : l'arc retourne dans le sac, et on ne peut pas le reprendre.
-  assert.equal(game.equipment.ranged, null);
-  const bow = game.inventory.items.find((i) => i.defId === "arc_court")!;
-  assert.ok(bow, "l'arc est dans le sac");
-  assert.equal(game.equip(bow.uid), false);
-  assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "no-bow");
+  // L'arc reste porté, on tire et on lance comme avant.
+  assert.ok(game.equipment.ranged, "l'arc reste en main");
   game.inventory.add("javeline", 3);
   assert.ok(game.chooseAmmo("javeline"));
-  assert.equal(game.shoot(game.hero.x + 2, game.hero.y), "two-hands");
+  assert.notEqual(game.shoot(game.hero.x + 2, game.hero.y), "no-bow");
+  game.wait();
   // Escalier du coin de la salle de départ.
   game.setPeaceful(false);
   assert.equal(game.map.get(11, 9), Tile.StairsDown);

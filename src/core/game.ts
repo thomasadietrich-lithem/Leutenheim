@@ -2391,19 +2391,10 @@ export class Game {
     const kind = ITEMS[item.defId].kind;
     if (kind === "ammo" || kind === "key" || kind === "gold" || kind === "use" || kind === "gem" || kind === "quest") return false;
     if (this.tooLow(ITEMS[item.defId])) return false;
-    // La torche a son propre emplacement (Thomas, 2026-11-13) : elle ne gêne plus les armes à deux mains.
-    // Pas d'arc tant qu'une arme à deux mains est en main : il faut d'abord la ranger.
-    if (kind === "ranged" && this.twoHanded()) return false;
     const previous = this.equipment[kind];
     const from = { x: item.x, y: item.y };
     this.inventory.removeItem(uid);
-    // Arme à deux mains (Thomas, 2026-11-11) : elle fait sauter l'autre main, l'arc retourne dans le sac.
-    const bow = (ITEMS[item.defId] as ItemDef).twoHanded ? this.equipment.ranged : null;
-    if (bow) {
-      // Sac plein (Thomas) : l'arc rebondit au sol, sur une case libre à côté.
-      if (!this.inventory.placeItem(bow)) this.bounceFromHero(bow.defId, bow.count);
-      this.equipment.ranged = null;
-    }
+    // Plus de règle des deux mains (Thomas, 2026-11-15 : « retire la règle des deux mains ») : l'arc reste porté.
     if (kind === "bag") {
       // Un sac : le sac change de taille ; ce qu'il contient doit tenir dans le nouveau.
       const def = ITEMS[item.defId] as ItemDef;
@@ -2521,10 +2512,6 @@ export class Game {
     this.lightVersion = this.map.version;
   }
 
-  /** Le héros tient-il une arme à deux mains (épée longue, lance) ? */
-  twoHanded(): boolean {
-    return !!this.weapon("melee")?.twoHanded;
-  }
 
   /** Peut-on mettre cet objet en raccourci ? Les objets qu'on consomme, boit ou lance (pomme, torche, potions). */
   canQuick(id: ItemId): boolean {
@@ -3334,8 +3321,6 @@ export class Game {
   shoot(x: number, y: number): ShootRefusal | null {
     const profile = this.shotProfile();
     if (this.over || (!profile && !this.weapon("ranged"))) return "no-bow";
-    // Arme à deux mains (Thomas, 2026-11-11) : elle empêche toute autre arme, ni arc ni javeline.
-    if (this.twoHanded()) return "two-hands";
     if (!profile || this.arrows() < 1) return "no-ammo";
     // On peut tirer vers une case qu'on ne voit pas (à l'aveugle), mais pas sur soi ni hors de la carte.
     if (!this.map.inBounds(x, y) || (x === this.hero.x && y === this.hero.y)) return "no-target";

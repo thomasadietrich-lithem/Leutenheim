@@ -2700,26 +2700,3 @@ export function uiIcon(name: keyof typeof UI_ICONS): SVGSVGElement {
   return buildIcon(UI_ICONS[name]);
 }
 
-/** Prise des armes (planche art/objets_v4.png, validée le 2026-11-11) : une paume, ou deux, dans le coin de la case. */
-export const GRIP_ICONS = {
-  one: [
-    "..K.K.K..",
-    ".KZKZKZK.",
-    ".KZKZKZK.",
-    "KKZZZZZK.",
-    "KZKZZZZK.",
-    ".KZZZZZK.",
-    "..KZZZK..",
-    "...KKK...",
-  ],
-  two: [
-    "..K.K.K....K.K.K..",
-    ".KZKZKZK..KZKZKZK.",
-    ".KZKZKZK..KZKZKZK.",
-    ".KZZZZZKKKKZZZZZK.",
-    ".KZZZZKZKKZKZZZZK.",
-    ".KZZZZZK..KZZZZZK.",
-    "..KZZZK....KZZZK..",
-    "...KKK......KKK...",
-  ],
-};

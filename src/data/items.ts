@@ -68,8 +68,6 @@ export interface ItemDef {
   drinkWarning?: string;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
   ammoFamily?: string;
-  /** Arme à deux mains (épée longue, lance) : marqué sur la fiche (Thomas, 2026-11-11). */
-  twoHanded?: boolean;
   /** Armes lourdes : un d20 naturel à partir de ce nombre SONNE la cible (elle perd son prochain tour). */
   stunOn?: number;
 }
@@ -230,14 +228,13 @@ export const ITEMS = {
     id: "epee_longue",
     name: "Épée longue",
     kind: "melee",
-    description: "Lourde et longue, elle se tient à deux mains. Chaque coup prend du temps, mais il porte, et peut assommer.",
+    description: "Lourde et longue. Chaque coup prend du temps, mais il porte, et peut assommer.",
     w: 1,
     h: 3,
     maxStack: 1,
     rarity: "uncommon",
     level: 2,
     speed: "slow",
-    twoHanded: true,
     attackBonus: 4,
     damage: { count: 2, sides: 8, bonus: 2 },
     stunOn: 18,
@@ -260,13 +257,12 @@ export const ITEMS = {
     id: "lance",
     name: "Lance",
     kind: "melee",
-    description: "Frappe à deux cases : on touche l'ennemi avant qu'il n'arrive au contact. À deux mains.",
+    description: "Frappe à deux cases : on touche l'ennemi avant qu'il n'arrive au contact.",
     w: 1,
     h: 4,
     maxStack: 1,
     rarity: "uncommon",
     level: 2,
-    twoHanded: true,
     reach: 2,
     attackBonus: 4,
     damage: { count: 1, sides: 10, bonus: 2 },
@@ -433,13 +429,12 @@ export const ITEMS = {
     id: "fourche",
     name: "Fourche de Grum",
     kind: "melee",
-    description: "Une fourche de fermier, solide. Pique à deux cases, comme une lance. À deux mains.",
+    description: "Une fourche de fermier, solide. Pique à deux cases, comme une lance.",
     w: 1,
     h: 4,
     maxStack: 1,
     rarity: "uncommon",
     level: 1,
-    twoHanded: true,
     reach: 2,
     attackBonus: 3,
     damage: { count: 1, sides: 8, bonus: 1 },

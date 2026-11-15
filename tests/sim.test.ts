@@ -5501,3 +5501,44 @@ test("répertoire d'objets (Thomas, 2026-11-15) : en partie d'essai seulement, a
   while (game.testGive("lance") === "bag");
   assert.ok(game.ground.some((g) => g.item === "lance"), "sac plein : à côté");
 });
+
+test("statistiques anonymes (Thomas, 2026-11-15) : rien sans accord, file gardée sans réseau, envoi par lots", async () => {
+  const { Telemetry } = await import("../src/telemetry/telemetry");
+  const { TELEMETRY } = await import("../src/data/telemetry");
+  const saved = TELEMETRY.url;
+  TELEMETRY.url = "https://exemple.invalid/stats";
+  try {
+    const mem = new Map<string, string>();
+    const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+    let online = false;
+    const sent: string[] = [];
+    const post = async (_u: string, body: string) => {
+      if (!online) return false;
+      sent.push(body);
+      return true;
+    };
+    const t = new Telemetry({ version: "test", platform: "web", build: "demo", lang: "fr" }, store, post);
+    t.track("death", { depth: 3 });
+    assert.equal(t.pending(), 0, "sans accord : rien");
+    t.setConsent("yes");
+    for (let i = 0; i < 30; i++) t.track("floor", { depth: i, objet: { gros: true } });
+    await t.flush();
+    assert.equal(t.pending(), 30, "hors ligne : tout attend");
+    // Rechargée (même appareil) : la file revient.
+    const again = new Telemetry({ version: "test", platform: "web", build: "demo", lang: "fr" }, store, post);
+    assert.equal(again.pending(), 30);
+    online = true;
+    await again.flush();
+    assert.equal(again.pending(), 0);
+    assert.equal(sent.length, 2, "deux lots (25 + 5)");
+    const first = JSON.parse(sent[0]);
+    assert.equal(first.events.length, 25);
+    assert.ok(first.device && first.version === "test" && first.platform === "web");
+    assert.equal(first.events[0].objet, undefined, "pas d'objet entier");
+    again.setConsent("no");
+    again.track("floor", { depth: 1 });
+    assert.equal(again.pending(), 0, "refus : plus rien");
+  } finally {
+    TELEMETRY.url = saved;
+  }
+});

@@ -425,6 +425,10 @@
   .spawn-row .spawn-meta { color: var(--dim); font-size: 15px; white-space: nowrap; }
   .spawn-dot { width: 8px; height: 8px; flex: none; }
   .spawn-kind { width: 100%; text-align: left; color: var(--dim); font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 6px; }
+  #stats-ask { z-index: 4; }
+  #stats-ask h2 { margin: 0; font-size: 30px; font-weight: 400; color: var(--gold); text-transform: uppercase; letter-spacing: 0.1em; }
+  #stats-ask p { max-width: 320px; font-size: 19px; line-height: 1.2; color: #fff3c8; }
+  #stats-ask button { width: 220px; padding: 8px; font-size: 20px; }
   #found { z-index: 2; background: rgba(13,10,8,0.92); }
   /* Synopsis au début d'une partie (Thomas, 2026-11-13) : les lignes apparaissent une à une ; toucher l'écran les montre
      toutes d'un coup ; « Descendre » lance la partie. */
@@ -674,6 +678,12 @@
     <input id="spawn-search" type="search" autocomplete="off">
     <div id="spawn-list"></div>
   </div>
+  <div id="stats-ask" class="overlay" hidden>
+    <h2>Statistiques</h2>
+    <p id="stats-ask-text">Pour améliorer le jeu, Cave Roller peut envoyer des statistiques anonymes : étages atteints, causes de mort, quêtes. Rien de personnel. Vous pourrez changer d'avis dans les Paramètres.</p>
+    <button id="stats-yes" type="button">D'accord</button>
+    <button id="stats-no" type="button">Non merci</button>
+  </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>
     <div id="found-card"></div>
@@ -784,6 +794,7 @@
       <button id="settings-sound" type="button"></button>
       <button id="settings-music" type="button"></button>
       <button id="settings-blood" type="button"></button>
+      <button id="settings-stats" type="button" hidden></button>
       <button id="settings-lang" type="button"></button>
       <div id="settings-note"></div>
       <button id="settings-back" type="button" class="ghost">Retour</button>

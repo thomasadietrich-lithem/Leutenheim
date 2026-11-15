@@ -29,7 +29,9 @@ import { MANUAL } from "./data/manual";
 import { NPC_IDS } from "./core/game";
 import { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } from "./data/codex";
 import { TRAPS } from "./data/traps";
-import { missing as i18nMissing, setLang, tr } from "./i18n/i18n";
+import { getLang, missing as i18nMissing, setLang, tr } from "./i18n/i18n";
+import { TELEMETRY } from "./data/telemetry";
+import { detectPlatform, Telemetry } from "./telemetry/telemetry";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, GRIP_ICONS, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
@@ -233,7 +235,34 @@ let stepTime = 0;
 /** Deux emplacements : la partie de donjon et la salle d'essai ; « last » dit laquelle reprendre. */
 /** Version publique (GitHub Pages) : pas de salle d'essai (Thomas, 2026-11-12). Fixé à la construction. */
 declare const __PUBLIC__: boolean;
+declare const __VERSION__: string;
 const PUBLIC_BUILD = typeof __PUBLIC__ !== "undefined" && __PUBLIC__;
+
+// Statistiques anonymes (Thomas, 2026-11-15) : navigateur et future appli (Capacitor) ; rien sans son accord.
+const stats = new Telemetry({
+  version: typeof __VERSION__ !== "undefined" ? __VERSION__ : "dev",
+  platform: detectPlatform(),
+  build: PUBLIC_BUILD ? "public" : "demo",
+  lang: getLang(),
+});
+stats.start();
+// Première fois (et seulement si l'adresse d'envoi est réglée) : on demande.
+if (TELEMETRY.url && stats.consent() === "unset") $("stats-ask").hidden = false;
+
+/** Ce que le jeu vient de vivre, traduit en événements de statistiques (quelques-uns seulement, sans détail). */
+function trackEvents(events: readonly GameEvent[]): void {
+  if (!stats.enabled()) return;
+  const base = { depth: game.depth, level: game.level, turn: game.turn, test: game.sandbox || game.testRun };
+  for (const e of events) {
+    if (e.type === "stairs" && e.direction === "down") stats.track("floor", { ...base, hp: game.hero.hp, maxHp: game.hero.maxHp, gold: game.gold, unhurt: !!e.unhurt });
+    else if (e.type === "death" && e.actor.kind === "hero") stats.track("death", { ...base, cause: game.deathCause ?? "", gold: game.gold, deepest: game.deepest });
+    else if (e.type === "boss" && e.what === "dead") stats.track("boss_kill", { ...base, hp: game.hero.hp, maxHp: game.hero.maxHp });
+    else if (e.type === "quest") stats.track("quest", { ...base, id: e.id, what: e.what });
+    else if (e.type === "levelup") stats.track("level_up", { ...base, level: e.level });
+    else if (e.type === "sectionIntro") stats.track("section", { ...base, section: e.section });
+    else if (e.type === "demoEnd") stats.track("demo_end", { ...base, deepest: game.deepest, bosses: game.bossKills });
+  }
+}
 if (PUBLIC_BUILD) $("menu-sandbox").remove();
 
 const SAVE_KEYS = { donjon: "leutenheim.save", essai: "leutenheim.save.essai", last: "leutenheim.save.last" };
@@ -313,7 +342,10 @@ function readSave(): Game | null {
 
 // Le téléphone peut fermer l'application à tout moment : on sauvegarde dès qu'elle passe en arrière-plan.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") writeSave(true);
+  if (document.visibilityState === "hidden") {
+    writeSave(true);
+    void stats.flush();
+  }
 });
 window.addEventListener("pagehide", () => writeSave(true));
 
@@ -322,12 +354,14 @@ let savedSlot = SAVE_KEYS.donjon;
 
 function newRun(sandbox = false, testRun = false): void {
   currentSlot = freshSlot(sandbox || testRun);
+  stats.newRun();
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
   const next = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox);
   // SECTION : ALL (Thomas, 2026-11-14) : une vraie partie, avec les outils d'essai et le téléporteur d'étage.
   next.testRun = testRun;
   setupRun(next, testRun ? ["Partie d'essai : toutes les sections. Les boutons « Étage − / + » téléportent d'un étage."] : null);
   started = true;
+  stats.track("run_start", { race: next.race.id, cls: next.heroClass.id, test: sandbox || testRun, sandbox });
   savedRun = null;
   writeSave(true);
 }
@@ -1243,6 +1277,7 @@ function showDeath(): void {
     back.type = "button";
     back.addEventListener("click", () => {
       if (!game.revive()) return;
+      stats.track("revive", { depth: game.depth, level: game.level, turn: game.turn, test: game.sandbox || game.testRun });
       renderer.heroRises();
       over.hidden = true;
       shownHp = game.hero.hp;
@@ -1446,6 +1481,7 @@ function advanceCues(dt: number): void {
 }
 
 function collectEvents(): void {
+  trackEvents(game.events);
   for (const e of game.events) {
     if (e.type === "death" && e.actor.kind === "monster") ghosts.push(e.actor);
     queue.push(e);
@@ -3186,6 +3222,9 @@ function showScreen(screen: Screen | null): void {
   $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
   $("settings-music").textContent = tr(`Musique : ${options.music ? "oui" : "non"}`);
   $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);
+  // Statistiques anonymes : le réglage n'apparaît que lorsque l'adresse d'envoi est réglée.
+  $("settings-stats").hidden = !TELEMETRY.url;
+  $("settings-stats").textContent = tr(`Statistiques anonymes : ${stats.consent() === "yes" ? "oui" : "non"}`);
   $("settings-lang").textContent = tr(`Langue : ${options.lang === "en" ? "English" : "Français"}`);
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();
@@ -3519,6 +3558,19 @@ if (!PUBLIC_BUILD) {
     });
   }
 }
+button("settings-stats", () => {
+  stats.setConsent(stats.consent() === "yes" ? "no" : "yes");
+  sfx.play("click");
+  showScreen("settings");
+});
+button("stats-yes", () => {
+  stats.setConsent("yes");
+  $("stats-ask").hidden = true;
+});
+button("stats-no", () => {
+  stats.setConsent("no");
+  $("stats-ask").hidden = true;
+});
 button("settings-blood", () => {
   options.blood = !options.blood;
   renderer.setBlood(options.blood);

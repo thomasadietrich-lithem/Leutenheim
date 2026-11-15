@@ -1790,4 +1790,8 @@ export const EN: Record<string, string> = {
   "Scellé": "Sealed",
   "Une toile épaisse scelle l'escalier. Vous entendez quelque chose derrière vous…": "A thick web seals the stairs. You hear something behind you…",
   "Triche": "Cheats",
+  "Statistiques anonymes : {0}": "Anonymous statistics: {0}",
+  "Statistiques": "Statistics",
+  "Pour améliorer le jeu, Cave Roller peut envoyer des statistiques anonymes : étages atteints, causes de mort, quêtes. Rien de personnel. Vous pourrez changer d'avis dans les Paramètres.": "To improve the game, Cave Roller can send anonymous statistics: floors reached, causes of death, quests. Nothing personal. You can change your mind in Settings.",
+  "Non merci": "No thanks",
 };

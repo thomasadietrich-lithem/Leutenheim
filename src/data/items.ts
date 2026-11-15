@@ -42,6 +42,11 @@ export interface ItemDef {
   rarity?: Rarity | "epic";
   /** Bonus de Charisme quand on le porte (nœud papillon). */
   charisma?: number;
+  /** Amulettes (Thomas, 2026-11-15 : « un chiffre, toujours actif ») : PV max, Force, Agilité, jet d'attaque en plus. */
+  bonusHp?: number;
+  bonusForce?: number;
+  bonusAgility?: number;
+  bonusHit?: number;
   /** Niveau du héros nécessaire pour équiper ou utiliser l'objet (Thomas : « le niveau du héros »). */
   level?: number;
   /** Armes de corps à corps : lente (une attaque prend 1,5 tour) ou rapide (¾ de tour). */
@@ -414,6 +419,16 @@ export const ITEMS = {
   potion_geant: { id: "potion_geant", name: "Potion de géant", kind: "use", description: "Violette et bouillonnante. Bue : vous doublez de taille 8 tours, vos coups font deux fois plus mal, mais vous ne passez plus les portes. Lancée : c'est le monstre touché qui grandit (le boss aussi).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "grow", throwRange: 5, drinkWarning: "Pendant 8 tours, vous ne passerez plus les portes." },
   potion_glissante: { id: "potion_glissante", name: "Potion glissante", kind: "use", description: "Huileuse et verdâtre. À lancer : le monstre touché devient glissant pour toujours. Chaque coup qu'il reçoit le fait glisser jusqu'au mur, où il rebondit et se cogne.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "slip", throwRange: 5 },
   // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).
+  // Amulettes (Thomas, 2026-11-15 ; planche art/amulettes_v1.png) : le même pendentif, une pierre de couleur ; « II » en
+  // section 2.
+  amulette_vitalite: { id: "amulette_vitalite", name: "Amulette de vitalité", kind: "amulet", description: "Un pendentif doré, une pierre rouge qui bat doucement. +4 PV max.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", level: 1, bonusHp: 4 },
+  amulette_force: { id: "amulette_force", name: "Amulette de force", kind: "amulet", description: "Un pendentif doré, une pierre orange, chaude au toucher. +1 en Force.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", level: 2, bonusForce: 1 },
+  amulette_agilite: { id: "amulette_agilite", name: "Amulette d'agilité", kind: "amulet", description: "Un pendentif doré, une pierre verte, légère comme une plume. +2 en Agilité.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", level: 2, bonusAgility: 2 },
+  amulette_precision: { id: "amulette_precision", name: "Amulette de précision", kind: "amulet", description: "Un pendentif doré, une pierre bleue, claire comme un œil. +1 au jet d'attaque, au contact et au tir.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 4, bonusHit: 1 },
+  amulette_vitalite_2: { id: "amulette_vitalite_2", name: "Amulette de vitalité II", kind: "amulet", description: "Le pendentif à la pierre rouge, deux éclats sur la chaîne. +8 PV max.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusHp: 8 },
+  amulette_force_2: { id: "amulette_force_2", name: "Amulette de force II", kind: "amulet", description: "Le pendentif à la pierre orange, deux éclats sur la chaîne. +2 en Force.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusForce: 2 },
+  amulette_agilite_2: { id: "amulette_agilite_2", name: "Amulette d'agilité II", kind: "amulet", description: "Le pendentif à la pierre verte, deux éclats sur la chaîne. +4 en Agilité.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusAgility: 4 },
+  amulette_precision_2: { id: "amulette_precision_2", name: "Amulette de précision II", kind: "amulet", description: "Le pendentif à la pierre bleue, deux éclats sur la chaîne. +2 au jet d'attaque, au contact et au tir.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusHit: 2 },
   noeud_papillon: { id: "noeud_papillon", name: "Nœud papillon de Kobold", kind: "amulet", description: "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
   // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
   sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. À rapporter à Gluck.", w: 1, h: 1, maxStack: 1 },

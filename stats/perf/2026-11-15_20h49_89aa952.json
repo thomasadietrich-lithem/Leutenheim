@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T20:49:54.868Z",
+ "commit": "89aa952",
+ "note": "amulettes, bibelots uniques",
+ "logic": {
+  "tickMs": 0.81,
+  "lightMs": 0.15,
+  "visionMs": 0.18
+ },
+ "scenes": {
+  "immobile": {
+   "n": 102,
+   "avg": 24.2,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 41,
+   "js": 5
+  },
+  "marche": {
+   "n": 227,
+   "avg": 22,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 45,
+   "js": 4
+  },
+  "retour": {
+   "n": 281,
+   "avg": 17.8,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 56,
+   "js": 6
+  },
+  "zoom": {
+   "n": 113,
+   "avg": 24,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 42,
+   "js": 5
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 12
+  },
+  "donjon": {
+   "n": 266,
+   "avg": 18.7,
+   "p95": 33.3,
+   "max": 100,
+   "fps": 53,
+   "js": 9
+  }
+ },
+ "errors": []
+}

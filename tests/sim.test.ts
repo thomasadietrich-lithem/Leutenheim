@@ -5559,3 +5559,52 @@ test("angle de mur (Thomas, 2026-11-15, capture) : arrêté depuis un tour, le m
   Object.assign(game.hero, { fromX: 9, fromY: 10 });
   assert.ok(!game.heroHasAdvantageOn(foe));
 });
+
+test("bibelots uniques (Thomas, 2026-11-15) : un bibelot ne sort qu'une fois par partie", () => {
+  let any = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    const seen = new Map<string, number>();
+    for (let d = 1; d <= 10; d++) {
+      if (d === 5) continue;
+      game.teleport(d === 6 ? 4 : d);
+      if (d === 6) game.teleport(6);
+      for (const g of game.ground) if (ITEMS[g.item].kind === "artifact") seen.set(g.item, (seen.get(g.item) ?? 0) + 1);
+      for (const w of game.merchant()?.wares ?? []) if (ITEMS[w.item].kind === "artifact") seen.set(w.item, (seen.get(w.item) ?? 0) + 1);
+    }
+    for (const [id, n] of seen) {
+      any++;
+      assert.ok(n <= 1, `graine ${seed} : ${id} sorti ${n} fois`);
+      assert.ok(game.uniques.has(id));
+    }
+  }
+  assert.ok(any > 0, "des bibelots sont sortis");
+});
+
+test("amulettes (Thomas, 2026-11-15) : un chiffre toujours actif ; la vie s'ajoute et s'enlève une seule fois, même après une reprise", () => {
+  const game = new Game(10);
+  game.level = 6;
+  const give = (id: "amulette_vitalite" | "amulette_force" | "amulette_agilite" | "amulette_precision" | "amulette_vitalite_2") => {
+    game.inventory.add(id, 1);
+    const it = game.inventory.items.find((i) => i.defId === id)!;
+    assert.ok(game.equip(it.uid), id);
+  };
+  const hp = game.hero.maxHp;
+  const dmg = game.hero.damage.bonus;
+  const atk = game.hero.attackBonus;
+  give("amulette_vitalite");
+  assert.equal(game.hero.maxHp, hp + 4);
+  const back = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  assert.equal(back.hero.maxHp, hp + 4, "pas compté deux fois à la reprise");
+  give("amulette_force");
+  assert.equal(game.hero.maxHp, hp, "l'amulette de vitalité ôtée : la vie revient");
+  assert.equal(game.hero.damage.bonus, dmg + 1);
+  const agi = game.agility();
+  give("amulette_agilite");
+  assert.equal(game.agility(), agi + 2);
+  give("amulette_precision");
+  assert.equal(game.hero.attackBonus, atk + 1);
+  give("amulette_vitalite_2");
+  assert.equal(game.hero.maxHp, hp + 8);
+});

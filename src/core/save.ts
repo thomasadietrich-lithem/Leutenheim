@@ -89,6 +89,8 @@ export interface SaveData {
   sandbox: boolean;
   depth: number;
   deepest: number;
+  /** Bibelots déjà sortis (uniques). Absent des anciennes sauvegardes. */
+  uniques?: string[];
   turn: number;
   hero: Actor;
   bag: { items: BagItem[]; nextUid: number };

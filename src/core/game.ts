@@ -32,7 +32,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, guaranteedLoot, lootPool, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements } from "./floor";
+import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, guaranteedLoot, lootPool, noteUnique, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements, trackUniques } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -296,8 +296,11 @@ export class Game {
       if (start.equip && placed) this.equip(placed.uid);
     }
     this.refreshStats();
+    trackUniques(this.uniques);
     this.enterFloor(1, "down");
   }
+  /** Les bibelots déjà sortis dans cette partie (chacun est unique). */
+  uniques = new Set<string>();
 
   // ---------- Mise en place d'un étage ----------
 
@@ -306,6 +309,7 @@ export class Game {
    * portes, objets au sol, carte explorée). `via` : par quel escalier on arrive.
    */
   private enterFloor(depth: number, via: "down" | "up"): void {
+    trackUniques(this.uniques);
     if (this.current) {
       // On range l'étage qu'on quitte.
       // Combats coupés : les monstres mis de côté restent sur leur étage.
@@ -2139,6 +2143,7 @@ export class Game {
       testRun: this.testRun || undefined,
       depth: this.depth,
       deepest: this.deepest,
+      uniques: [...this.uniques],
       turn: this.turn,
       hero: this.hero,
       bag: this.inventory.snapshot(),
@@ -2316,6 +2321,10 @@ export class Game {
     game.events = [];
     // L'étage le plus profond d'abord : sinon reprendre une partie en section 2 rejouait son texte d'arrivée (Thomas).
     game.deepest = saved.deepest;
+    game.uniques = new Set(saved.uniques ?? []);
+    // Les PV max de l'amulette sont déjà dans la sauvegarde : ne pas les rajouter.
+    game.gearHp = game.gear("bonusHp");
+    trackUniques(game.uniques);
     game.useFloor(game.floors.get(saved.depth)!, saved.depth);
     game.deepest = Math.max(game.deepest, saved.depth);
     game.fires = saved.fires;
@@ -2433,10 +2442,18 @@ export class Game {
   private refreshStats(): void {
     const melee = this.weapon("melee");
     const blessed = this.blessTurns > 0 ? RULES.blessBonus : 0;
-    this.hero.attackBonus = (melee?.attackBonus ?? UNARMED.attackBonus) + blessed;
+    this.hero.attackBonus = (melee?.attackBonus ?? UNARMED.attackBonus) + blessed + this.gear("bonusHit");
     // Chaque point de Force ajoute 1 aux dégâts au contact.
     const base = melee?.damage ?? UNARMED.damage;
-    this.hero.damage = { ...base, bonus: base.bonus + this.alloc.force };
+    this.hero.damage = { ...base, bonus: base.bonus + this.strength() };
+    // Amulette de vitalité : ses PV max s'ajoutent en la mettant, s'enlèvent en l'ôtant (sans jamais tuer).
+    const hp = this.gear("bonusHp");
+    if (hp !== this.gearHp) {
+      const diff = hp - this.gearHp;
+      this.gearHp = hp;
+      this.hero.maxHp += diff;
+      this.hero.hp = diff > 0 ? this.hero.hp + diff : Math.max(1, Math.min(this.hero.hp, this.hero.maxHp));
+    }
     const armor = this.equipment.armor;
     // Classe d'armure : l'armure, le casque, la peau dure, et l'ESQUIVE (Thomas, 2026-11-11 : +1 tous les 2 points
     // d'agilité).
@@ -2448,6 +2465,17 @@ export class Game {
       Math.floor(this.agility() / RULES.agilityPerDodge) +
       blessed +
       (this.protectTurns > 0 ? SOEUR.protectBonus : 0);
+  }
+
+  /** Ce que l'équipement porté ajoute (amulettes) : PV max, Force, Agilité, jet d'attaque. */
+  gear(field: "bonusHp" | "bonusForce" | "bonusAgility" | "bonusHit"): number {
+    return Object.values(this.equipment).reduce((n, it) => n + ((it && (ITEMS[it.defId] as ItemDef)[field]) || 0), 0);
+  }
+  /** Les PV max déjà ajoutés par l'équipement (pour ne les compter qu'une fois). */
+  gearHp = 0;
+  /** Force : les points placés, plus l'équipement (amulette de force). */
+  strength(): number {
+    return this.alloc.force + this.gear("bonusForce");
   }
 
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
@@ -2715,18 +2743,18 @@ export class Game {
 
   /** Bonus du héros pour pousser, se dégager, se cacher, fouiller, tirer : classe + points + compétences. */
   pushBonus(): number {
-    return this.heroClass.pushBonus + this.alloc.force;
+    return this.heroClass.pushBonus + this.strength();
   }
   /** Agilité : les points placés, plus Esquive (voie bleue : +2, puis +4). */
   agility(): number {
-    return this.alloc.agilite + [0, 2, 4][this.rank("esquive")];
+    return this.alloc.agilite + [0, 2, 4][this.rank("esquive")] + this.gear("bonusAgility");
   }
 
   disengageBonus(): number {
     return this.heroClass.disengageBonus + this.agility();
   }
   rangedBonus(): number {
-    return this.agility();
+    return this.agility() + this.gear("bonusHit");
   }
 
   /** Peut-on choisir sa voie maintenant ? */
@@ -3749,6 +3777,7 @@ export class Game {
 
   /** Joue un tour (action du héros, puis des monstres) si une action est en attente. */
   tick(): boolean {
+    trackUniques(this.uniques);
     const played = this.playTick();
     // Une porte a bougé après le dernier calcul de la vue (un monstre l'a refermée) : la vue se refait, comme le ferait
     // une partie reprise (sinon le héros « voit » encore à travers la porte fermée).
@@ -7035,7 +7064,9 @@ export class Game {
     for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Floor) cells.push({ x, y });
     if (cells.length === 0) return null;
     const at = cells[Math.floor(mix(seed, depth, 6) * cells.length)];
-    return makeMerchant(at, room, rollWares(depth, seed), seed);
+    const wares = rollWares(depth, seed);
+    for (const w of wares) noteUnique(w.item);
+    return makeMerchant(at, room, wares, seed);
   }
 
   inCombat(): boolean {
@@ -7549,7 +7580,7 @@ export class Game {
       return;
     }
     // Crocheter : l'agilité aide (Thomas, 2026-11-11) ; enfoncer : la force.
-    const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.agility() : this.heroClass.breakBonus + this.alloc.force;
+    const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.agility() : this.heroClass.breakBonus + this.strength();
     const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
     const d20 = this.rng.int(1, 20);
     const total = d20 + bonus;
@@ -7911,6 +7942,7 @@ export class Game {
   }
 
   private dropItem(x: number, y: number, item: ItemId, count: number, angle?: number): void {
+    noteUnique(item);
     // Rien ne reste sur un escalier : l'objet rebondit sur la marche et retombe à côté (Thomas, 2026-11-12).
     const t = this.map.get(x, y);
     // Une torche ne reste pas dans l'eau non plus (Thomas, 2026-11-12) : elle rebondit sur la berge.

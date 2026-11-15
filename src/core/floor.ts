@@ -363,6 +363,24 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
   });
 }
 
+/**
+ * BIBELOTS UNIQUES (Thomas, 2026-11-15 : « chaque bibelot est unique, et ne devrait pas pouvoir tomber une deuxième
+ * fois ») : la partie en cours tient la liste de ceux déjà sortis (butin, coffre, cache, Colporteur) ; le tirage les
+ * écarte. La partie y fait pointer ce registre (`trackUniques`) avant de tirer quoi que ce soit.
+ */
+let seenUniques: Set<string> = new Set();
+export function trackUniques(set: Set<string>): void {
+  seenUniques = set;
+}
+export function isUnique(id: ItemId): boolean {
+  return ITEMS[id]?.kind === "artifact";
+}
+/** Un bibelot vient d'entrer dans la partie : il ne sortira plus. */
+export function noteUnique(id: ItemId): void {
+  if (isUnique(id)) seenUniques.add(id);
+}
+const available = (id: string): boolean => id === "gold" || !isUnique(id as ItemId) || !seenUniques.has(id);
+
 /** Tire la rareté puis l'objet d'un butin, à cet étage. */
 export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number } {
   const odds = RARITY_ODDS[Math.min(sectionOf(depth), RARITY_ODDS.length - 1)];
@@ -375,7 +393,7 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
     }
     roll -= odds[r];
   }
-  const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth);
+  const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth && available(l.item));
   const pick = pool[rng.int(0, pool.length - 1)];
   // Très rare (nœud papillon) : il ne sort qu'une fois sur `odds`, sinon de l'or.
   const missed = pick.odds !== undefined && !rng.chance(pick.odds);
@@ -386,6 +404,7 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
     return { item: "or", count: rng.int(min, max) };
   }
   const count = pick.count ? rng.int(pick.count[0], pick.count[1]) : 1;
+  noteUnique(pick.item);
   return { item: pick.item, count: Math.min(count, ITEMS[pick.item].maxStack) };
 }
 
@@ -442,7 +461,7 @@ export function lootPool(depth: number, keep: (kind: string, id: string) => bool
   for (const rarity of ["common", "uncommon", "rare"] as Rarity[]) {
     if (only && rarity !== only) continue;
     for (const l of LOOT[rarity]) {
-      if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item)) continue;
+      if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item) || !available(l.item)) continue;
       if (keep(ITEMS[l.item].kind, l.item)) ids.push(l.item);
     }
   }

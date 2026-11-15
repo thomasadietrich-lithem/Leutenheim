@@ -1769,4 +1769,6 @@ export const EN: Record<string, string> = {
   "Le laboratoire oublié": "The forgotten laboratory",
   "Couleurs : actuelles": "Colours: current",
   "Couleurs : chaud, terreux": "Colours: warm, earthy",
+  "Passer un angle de mur": "Slip around a wall corner",
+  "Se glisser derrière un coin de mur, là où il ne vous voit plus franchement : pas de coup. Attendez-le là : il débouchera sans vous voir, et vous aurez l'avantage.": "Slip behind a wall corner, where it can no longer see you clearly: no free hit. Wait for it there: it will come round without seeing you, and you will have the advantage.",
 };

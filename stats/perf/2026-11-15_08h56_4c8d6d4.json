@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T08:56:51.741Z",
+ "commit": "4c8d6d4",
+ "note": "escalier scellé tourné, salle de bain derrière une porte seule",
+ "logic": {
+  "tickMs": 0.96,
+  "lightMs": 0.4,
+  "visionMs": 0.31
+ },
+ "scenes": {
+  "immobile": {
+   "n": 106,
+   "avg": 23.3,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 43,
+   "js": 11
+  },
+  "marche": {
+   "n": 208,
+   "avg": 24,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 42,
+   "js": 5
+  },
+  "retour": {
+   "n": 237,
+   "avg": 21,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 48,
+   "js": 4
+  },
+  "zoom": {
+   "n": 120,
+   "avg": 21.7,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 46,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 237,
+   "avg": 21.2,
+   "p95": 33.4,
+   "max": 183.4,
+   "fps": 47,
+   "js": 13
+  }
+ },
+ "errors": []
+}

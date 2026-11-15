@@ -39,3 +39,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_08h40 | 691cb68 | 20.9 | 22.2 | 19.6 | 21.3 | 16.7 | 20.2 | 0.58 | 0.26 | angle de mur (re-mesure) |
 | 2026-11-15_08h47 | 9f3a5f4 | 19.6 | 20.2 | 18.9 | 18.9 | 16.7 | 24.6 | 0.64 | 0.14 | texte d'arrivée section 2, escaliers champi, décor autour de l'escalier scellé |
 | 2026-11-15_08h53 | af2e743 | 23.6 | 23.3 | 19.8 | 18 | 16.7 | 20.9 | 0.6 | 0.41 | creux décoratifs retirés, Fifrelin en salle ordinaire, intouchable une fois par étage |
+| 2026-11-15_08h56 | 4c8d6d4 | 23.3 | 24 | 21 | 21.7 | 16.7 | 21.2 | 0.96 | 0.4 | escalier scellé tourné, salle de bain derrière une porte seule |

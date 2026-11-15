@@ -262,7 +262,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   if (bath) {
     const candidates = floor.rooms
       .map((room, index) => ({ room, index }))
-      .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && room.w >= 4 && room.h >= 4)
+      .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && room.w >= 4 && room.h >= 4 && singleDoor(floor, room))
       .sort((a, b) => a.room.w * a.room.h - b.room.w * b.room.h);
     for (const { room, index } of candidates) {
       if (furnishBath(floor, room, new Rng(seed ^ 0xba7b), furniture)) {
@@ -279,6 +279,21 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   // Pas de toiles en section 2 : les araignées sont restées en haut (Thomas, 2026-11-15).
   if (depth >= RULES.websFromDepth && section === 0) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
   return { furniture, themes };
+}
+
+/** La salle n'a qu'une ouverture sur son pourtour, et c'est une porte (salle de bain : Thomas, 2026-11-15). */
+export function singleDoor(floor: Floor, room: Room): boolean {
+  const { map } = floor;
+  let doors = 0;
+  for (let x = room.x - 1; x <= room.x + room.w; x++)
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      const inside = x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+      const corner = (x === room.x - 1 || x === room.x + room.w) && (y === room.y - 1 || y === room.y + room.h);
+      if (inside || corner || map.get(x, y) === Tile.Wall) continue;
+      if (map.get(x, y) !== Tile.DoorClosed) return false;
+      doors++;
+    }
+  return doors === 1;
 }
 
 /** Taille minimale de chaque salle à thème. */

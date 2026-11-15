@@ -88,6 +88,7 @@ import { HEROS_V9_TWO } from "./sprites/heros_v9";
 import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
+import { ESCALIERS_CHAMPI, ESCALIERS_CHAMPI_PALETTE } from "./sprites/escaliersChampi";
 
 /** Pincement : la taille des cases est prise quand les doigts ne bougent plus depuis ce temps (ms). */
 const ZOOM_SETTLE_MS = 180;
@@ -2501,7 +2502,7 @@ export class Renderer {
       // Alambic (pièces secrètes) : la couleur de sa potion, braises et bulles (2 images) ; vide une fois la fiole tirée.
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const name = alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art = (f.kind === "sealedStairs" ? sealedStairsArt(game) : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2526,7 +2527,7 @@ export class Renderer {
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }
-      const img = this.shadedSprite(name, art.rows, art.palette, dark, warm);
+      const img = this.shadedSprite(f.kind === "sealedStairs" ? `sealed${art.rows[0]}` : name, art.rows, art.palette, dark, warm);
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       const x = this.snap(ox + px * u);
@@ -2673,4 +2674,37 @@ export class Renderer {
     }
   }
 
+}
+
+/**
+ * L'escalier scellé de l'étage du boss (Thomas, 2026-11-15 : « la marche noire à l'opposé du joueur ») : l'escalier de
+ * terre de la section 2 qu'il ouvre, tourné pour que le joueur, qui arrive par le coffre, ait le noir devant lui ; la
+ * toile par-dessus (seulement ses fils clairs : les marches se voient dessous).
+ */
+const sealedCache = new Map<string, { rows: string[]; palette: Record<string, string> }>();
+function sealedStairsArt(game: Game): { rows: string[]; palette: Record<string, string> } | undefined {
+  const b = game.bossLayout();
+  if (!b) return undefined;
+  const dx = Math.sign(b.seal.x - b.chest.x);
+  const dy = Math.sign(b.seal.y - b.chest.y);
+  // Le dessin descend vers le bas : on le tourne d'un quart de tour vers la droite, la gauche, ou d'un demi-tour.
+  const key = `${dx},${dy}`;
+  const hit = sealedCache.get(key);
+  if (hit) return hit;
+  const src = ESCALIERS_CHAMPI.down;
+  const at = (x: number, y: number): string =>
+    dx > 0 ? src[x][15 - y] : dx < 0 ? src[15 - x][y] : dy < 0 ? src[15 - y][15 - x] : src[y][x];
+  const web = SALLES.sealedStairs;
+  const rows: string[] = [];
+  for (let y = 0; y < 16; y++) {
+    let row = "";
+    for (let x = 0; x < 16; x++) {
+      const w = web.rows[y][x];
+      row += w === "a" || w === "c" || w === "d" ? w : at(x, y);
+    }
+    rows.push(row);
+  }
+  const art = { rows, palette: { ...ESCALIERS_CHAMPI_PALETTE, a: web.palette.a, c: web.palette.c, d: web.palette.d } };
+  sealedCache.set(key, art);
+  return art;
 }

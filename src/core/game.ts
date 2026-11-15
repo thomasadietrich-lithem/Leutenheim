@@ -925,7 +925,7 @@ export class Game {
   }
 
   /** Le plan de la nichée (étage du boss), pour le dessin des amarres. */
-  bossLayout(): { hub: Point; pillars: Point[] } | undefined {
+  bossLayout(): { hub: Point; pillars: Point[]; seal: Point; chest: Point } | undefined {
     return this.current.boss;
   }
 

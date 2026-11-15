@@ -5391,3 +5391,31 @@ test("Fifrelin (Thomas, 2026-11-15) : toujours dans une salle ordinaire, et touj
   }
   assert.ok(n > 3, "Fifrelin apparaît");
 });
+
+test("salle de bain (Thomas, 2026-11-15) : toujours derrière une porte seule", () => {
+  let n = 0;
+  for (let seed = 1; seed <= 150 && n < 10; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    for (let d = 1; d <= 3; d++) {
+      if (d > 1) game.teleport(d);
+      const i = game.rooms.findIndex((_, k) => game.roomTheme(k) === "bain");
+      if (i < 0) continue;
+      n++;
+      const r = game.rooms[i];
+      let doors = 0;
+      let open = 0;
+      for (let x = r.x - 1; x <= r.x + r.w; x++)
+        for (let y = r.y - 1; y <= r.y + r.h; y++) {
+          const inside = x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+          const corner = (x === r.x - 1 || x === r.x + r.w) && (y === r.y - 1 || y === r.y + r.h);
+          if (inside || corner || game.map.get(x, y) === Tile.Wall) continue;
+          if (game.map.isDoor(x, y)) doors++;
+          else open++;
+        }
+      assert.equal(doors, 1, `graine ${seed}, étage ${d} : une porte`);
+      assert.equal(open, 0, `graine ${seed}, étage ${d} : aucune autre ouverture`);
+    }
+  }
+  assert.ok(n > 2, "des salles de bain");
+});

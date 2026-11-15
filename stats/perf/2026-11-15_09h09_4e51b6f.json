@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T09:09:20.490Z",
+ "commit": "4e51b6f",
+ "note": "javeline grisée à deux mains, ranger le sac, revivre en essai",
+ "logic": {
+  "tickMs": 1.02,
+  "lightMs": 0.19,
+  "visionMs": 0.18
+ },
+ "scenes": {
+  "immobile": {
+   "n": 117,
+   "avg": 21.1,
+   "p95": 33.4,
+   "max": 49.9,
+   "fps": 47,
+   "js": 6
+  },
+  "marche": {
+   "n": 219,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 8
+  },
+  "retour": {
+   "n": 234,
+   "avg": 21.4,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 47,
+   "js": 4
+  },
+  "zoom": {
+   "n": 126,
+   "avg": 20.9,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 48,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 253,
+   "avg": 19.7,
+   "p95": 33.3,
+   "max": 166.7,
+   "fps": 51,
+   "js": 11
+  }
+ },
+ "errors": []
+}

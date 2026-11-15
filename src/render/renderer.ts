@@ -415,6 +415,11 @@ export class Renderer {
     this.heroDown = true;
   }
 
+  /** Le héros se relève (partie d'essai : bouton « Revivre »). */
+  heroRises(): void {
+    this.heroDown = false;
+  }
+
   private face(dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
     this.heroFacing = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";

@@ -1779,4 +1779,8 @@ export const EN: Record<string, string> = {
   "S'équiper": "Equip",
   "Vous vous équipez : {0}.": "You equip: {0}.",
   "Impossible de porter {0} : il reste dans le sac.": "Can't wear {0}: it stays in the bag.",
+  "Ranger": "Tidy",
+  "Impossible de mieux ranger le sac.": "The bag can't be tidied any better.",
+  "Revivre": "Revive",
+  "Vous revivez (partie d'essai) : tous vos PV, sur place.": "You revive (test game): full HP, right here.",
 };

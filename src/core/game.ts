@@ -2817,6 +2817,21 @@ export class Game {
     }
   }
 
+  /** Parties d'essai seulement (Thomas, 2026-11-15 : « si vous êtes mort, un bouton revivre ») : le héros se relève
+   *  sur place, tous ses PV, sans poison, feu ni entrave. Rend faux hors essai ou s'il n'est pas mort. */
+  revive(): boolean {
+    if (!(this.sandbox || this.testRun) || !this.over || this.hero.hp > 0) return false;
+    this.over = false;
+    this.deathCause = null;
+    this.hero.hp = this.hero.maxHp;
+    this.hero.poison = undefined;
+    this.hero.burning = undefined;
+    this.hero.stuck = undefined;
+    this.hero.stunned = undefined;
+    this.path = [];
+    return true;
+  }
+
   // ---------- Potion de feu ----------
 
   /** Pourquoi on ne peut pas lancer cette potion sur cette case (null : c'est possible). */

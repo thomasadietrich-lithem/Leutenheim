@@ -5430,3 +5430,41 @@ test("ruban de ramassage (Thomas, 2026-11-15) : « S'équiper » ramasse l'objet
   game.ground.push({ x: game.hero.x, y: game.hero.y, item: "pomme", count: 1 });
   assert.ok(!game.pickUpAndEquip(), "une pomme ne se porte pas");
 });
+
+test("ranger le sac (Thomas, 2026-11-15) : piles réunies, place libérée pour un grand objet", () => {
+  const inv = new Inventory(6, 4);
+  // Des petits objets éparpillés : une lance (1 × 4) n'a plus de colonne libre.
+  for (const [x, y] of [[0, 0], [1, 1], [2, 2], [3, 3], [4, 0], [5, 2]] as const) {
+    inv.add("casque_cuir", 1);
+    const it = inv.items[inv.items.length - 1];
+    inv.moveTo(it.uid, x, y);
+  }
+  assert.equal(inv.add("lance", 1), 1, "la lance ne tient pas avant rangement");
+  assert.ok(inv.tidy());
+  assert.equal(inv.count("casque_cuir"), 6);
+  // Deux piles de flèches se réunissent.
+  const two = new Inventory(6, 4);
+  two.items.push({ uid: 90, defId: "fleche", x: 0, y: 0, count: 3 }, { uid: 91, defId: "fleche", x: 3, y: 2, count: 4 });
+  assert.ok(two.tidy());
+  assert.equal(two.items.length, 1);
+  assert.equal(two.count("fleche"), 7);
+  assert.equal(inv.add("lance", 1), 0, "après rangement, elle tient");
+});
+
+test("revivre (Thomas, 2026-11-15) : seulement en partie d'essai, tous les PV, sur place", () => {
+  const real = new Game(6);
+  real.hero.hp = 0;
+  real.over = true;
+  assert.equal(real.revive(), false, "pas dans une vraie partie");
+  const game = new Game(6);
+  game.testRun = true;
+  const at = { x: game.hero.x, y: game.hero.y };
+  game.hero.hp = 0;
+  game.over = true;
+  game.hero.poison = { damage: 1, turns: 3 };
+  assert.ok(game.revive());
+  assert.equal(game.over, false);
+  assert.equal(game.hero.hp, game.hero.maxHp);
+  assert.equal(game.hero.poison, undefined);
+  assert.deepEqual({ x: game.hero.x, y: game.hero.y }, at);
+});

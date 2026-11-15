@@ -128,6 +128,55 @@ export class Inventory {
     return false;
   }
 
+  /**
+   * Range le sac (Thomas, 2026-11-15 : « un bouton ranger dans l'inventaire ») : réunit les piles d'un même objet, puis
+   * replace tout, les grands objets d'abord, les semblables côte à côte. Rend faux (et ne change rien) si rien ne tient.
+   */
+  tidy(): boolean {
+    const before = this.snapshot();
+    // Les piles d'un même objet (même étage pour les clefs) se réunissent.
+    const merged: BagItem[] = [];
+    for (const item of this.items) {
+      const max = this.def(item).maxStack;
+      let left = item.count;
+      for (const m of merged) {
+        if (left === 0) break;
+        if (m.defId !== item.defId || m.floor !== item.floor) continue;
+        const room = Math.min(max - m.count, left);
+        m.count += room;
+        left -= room;
+      }
+      if (left > 0) merged.push({ ...item, count: left });
+    }
+    const area = (i: BagItem) => this.def(i).w * this.def(i).h;
+    const orders: ((a: BagItem, b: BagItem) => number)[] = [
+      (a, b) => this.def(b).h - this.def(a).h || this.def(b).w - this.def(a).w || a.defId.localeCompare(b.defId),
+      (a, b) => area(b) - area(a) || a.defId.localeCompare(b.defId),
+      (a, b) => this.def(b).w - this.def(a).w || this.def(b).h - this.def(a).h || a.defId.localeCompare(b.defId),
+    ];
+    for (const order of orders) {
+      this.items = [];
+      if ([...merged].sort(order).every((i) => this.placeColumns({ ...i }))) return true;
+    }
+    this.restore(before);
+    return false;
+  }
+
+  /** Pose un objet à la première place libre en remplissant colonne par colonne (le rangement garde des colonnes
+   *  entières libres à droite, pour les objets longs). */
+  private placeColumns(item: BagItem): boolean {
+    for (let x = 0; x < this.cols; x++) {
+      for (let y = 0; y < this.rows; y++) {
+        if (!this.fits(item.defId, x, y)) continue;
+        item.x = x;
+        item.y = y;
+        this.items.push(item);
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Déplace un objet vers une autre case, si la place est libre. */
   moveTo(uid: number, x: number, y: number): boolean {
     const item = this.get(uid);

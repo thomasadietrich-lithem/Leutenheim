@@ -1225,6 +1225,21 @@ function showDeath(): void {
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
   }
+  // Salle d'essai et partie d'essai (Thomas, 2026-11-15) : on peut revivre sur place.
+  if (game.sandbox || game.testRun) {
+    const back = el("button", "", "Revivre") as HTMLButtonElement;
+    back.type = "button";
+    back.addEventListener("click", () => {
+      if (!game.revive()) return;
+      renderer.heroRises();
+      over.hidden = true;
+      shownHp = game.hero.hp;
+      logLines.push("Vous revivez (partie d'essai) : tous vos PV, sur place.");
+      renderLog();
+      writeSave(true);
+    });
+    over.append(back);
+  }
   const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
   again.type = "button";
   again.addEventListener("click", () => showScreen("new"));
@@ -2544,6 +2559,15 @@ button("sure-cancel", () => {
   hideSure();
   $("bag-buttons").hidden = false;
 });
+// Ranger le sac (Thomas, 2026-11-15) : piles réunies, grands objets d'abord. Ne prend pas de tour.
+button("bag-tidy", () => {
+  if (game.inventory.tidy()) {
+    selected = null;
+    sfx.play("click");
+  } else logLines.push("Impossible de mieux ranger le sac.");
+  renderBag();
+  renderLog();
+});
 button("bag-equip", () => {
   const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
@@ -3675,7 +3699,8 @@ function frame(now: number): void {
       if (game.hero.x !== before.x || game.hero.y !== before.y) sfx.play("step");
       collectEvents();
       // Sauvegarde automatique après chaque tour (mort définitive : la sauvegarde s'efface à la mort).
-      if (game.over) eraseSave(currentSlot);
+      // Partie d'essai : la sauvegarde reste (on reprend juste avant la mort, ou l'on revit).
+      if (game.over && !game.sandbox && !game.testRun) eraseSave(currentSlot);
       else writeSave();
     } else {
       stepTime = 0;
@@ -3758,6 +3783,10 @@ function frame(now: number): void {
   const canShoot = !!bow || game.shotProfile() !== null;
   aim.hidden = !canShoot;
   if (!canShoot) aimMode = false;
+  // Arme à deux mains (Thomas, 2026-11-15 : « pas de javeline non plus ») : ni arc ni javeline, le bouton est grisé.
+  const busy = game.twoHanded();
+  aim.classList.toggle("off", busy);
+  if (busy) aimMode = false;
   // Dès qu'un ennemi arrive au contact, on repasse à l'arme de corps à corps.
   if (aimMode && game.isThreatened()) {
     aimMode = false;

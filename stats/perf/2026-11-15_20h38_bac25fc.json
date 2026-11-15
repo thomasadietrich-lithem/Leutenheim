@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T20:38:01.670Z",
+ "commit": "bac25fc",
+ "note": "sac ouvert après consommation",
+ "logic": {
+  "tickMs": 0.63,
+  "lightMs": 0.52,
+  "visionMs": 0.16
+ },
+ "scenes": {
+  "immobile": {
+   "n": 114,
+   "avg": 21.6,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 46,
+   "js": 5
+  },
+  "marche": {
+   "n": 256,
+   "avg": 19.5,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 5
+  },
+  "retour": {
+   "n": 213,
+   "avg": 23.5,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 43,
+   "js": 4
+  },
+  "zoom": {
+   "n": 232,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 6
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 249,
+   "avg": 20,
+   "p95": 33.4,
+   "max": 116.7,
+   "fps": 50,
+   "js": 14
+  }
+ },
+ "errors": []
+}

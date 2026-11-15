@@ -2599,6 +2599,7 @@ button("bag-tidy", () => {
   renderLog();
 });
 button("bag-equip", () => {
+  let keepUid: number | null = null;
   const chosen = selected && "uid" in selected ? game.inventory.get(selected.uid) : undefined;
   const chosenDef = chosen ? (ITEMS[chosen.defId] as ItemDef) : undefined;
   if (chosen && chosenDef && game.tooLow(chosenDef)) {
@@ -2631,12 +2632,16 @@ button("bag-equip", () => {
     return;
   } else if (chosen && chosenDef?.kind === "use") {
     drinkSure = false;
-    // Utiliser prend un tour : on referme le sac pour le laisser passer.
-    if (!game.useItem(chosen.uid)) {
-      logLines.push("Vous êtes déjà en pleine santé.");
-    }
-    bagOpen = false;
-    $("bag").hidden = true;
+    // Utiliser prend un tour (Thomas, 2026-11-15 : « le menu ne devrait pas se fermer ») : le tour se joue aussitôt,
+    // le sac reste ouvert, et l'objet reste choisi s'il en reste (on peut en reprendre un, un tour de plus).
+    if (game.useItem(chosen.uid)) {
+      game.tick();
+      if (game.inventory.get(chosen.uid)) keepUid = chosen.uid;
+      if (game.over) {
+        bagOpen = false;
+        $("bag").hidden = true;
+      }
+    } else logLines.push("Vous êtes déjà en pleine santé.");
   } else if (selected && "uid" in selected) {
     const bagSwap = chosenDef?.kind === "bag";
     if (!game.equip(selected.uid)) {
@@ -2650,7 +2655,7 @@ button("bag-equip", () => {
     game.unequip(selected.slot);
   }
   collectEvents();
-  selected = null;
+  selected = keepUid !== null ? { uid: keepUid } : null;
   aimShown = "";
   renderLog();
   renderHeroScreen();

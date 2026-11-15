@@ -1007,13 +1007,38 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  /**
+   * Un PNJ qui change de case (il s'écarte pour laisser passer le héros) GLISSE jusqu'à sa nouvelle case au lieu d'y
+   * apparaître d'un coup (Thomas, 2026-11-15 : « Sœur Osseuse s'est téléportée quand j'ai marché sur elle »).
+   */
+  private readonly npcSlides = new Map<string, { x: number; y: number; fx: number; fy: number; t: number }>();
+  private npcGlide(key: string, x: number, y: number): { x: number; y: number } {
+    const SLIDE_MS = 200;
+    let s = this.npcSlides.get(key);
+    if (!s) {
+      s = { x, y, fx: x, fy: y, t: this.time };
+      this.npcSlides.set(key, s);
+    }
+    const k = Math.min(1, Math.max(0, (this.time - s.t) / SLIDE_MS));
+    const shownX = s.fx + (s.x - s.fx) * k;
+    const shownY = s.fy + (s.y - s.fy) * k;
+    if (s.x !== x || s.y !== y) {
+      // Un saut de plus d'une case (nouvel étage, retour après une scène) : pas de glissade.
+      const near = Math.max(Math.abs(x - s.x), Math.abs(y - s.y)) <= 1;
+      this.npcSlides.set(key, { x, y, fx: near ? shownX : x, fy: near ? shownY : y, t: this.time });
+      return near ? { x: shownX, y: shownY } : { x, y };
+    }
+    return { x: shownX, y: shownY };
+  }
+
   /** Gluck (quête 01) : un Kobold pâle, immobile, avec une pomme dans une bulle quand le héros approche. */
   private drawGluck(game: Game, ox: number, oy: number): void {
     const g = game.gluck();
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { tile } = this;
-    const cx = Math.round(ox + (g.x + 0.5) * tile);
-    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const at = this.npcGlide("gluck", g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile);
     const hero = game.hero;
     // Quêtes v3 : il fait la sieste dans son cellier, roulé en boule.
     if (g.asleep) {
@@ -1031,8 +1056,9 @@ export class Renderer {
     const g = game.morillon();
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { tile } = this;
-    const cx = Math.round(ox + (g.x + 0.5) * tile);
-    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const at = this.npcGlide("morillon", g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile);
     const hero = game.hero;
     const rows = MORILLON_FRAMES[`idleDown${Math.floor(Math.abs(this.time) / 560) % 2}`];
     this.drawMonsterSprite(rows, cx, cy, hero.x < g.x, true, MORILLON_PALETTE);
@@ -1044,8 +1070,9 @@ export class Renderer {
     const g = game.grum();
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { tile } = this;
-    const cx = Math.round(ox + (g.x + 0.5) * tile);
-    const cy = Math.round(oy + (g.y + 0.5) * tile + (Math.floor(this.time / 700) % 2 === 0 ? 0 : tile / 32));
+    const at = this.npcGlide("grum", g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile + (Math.floor(this.time / 700) % 2 === 0 ? 0 : tile / 32));
     const hero = game.hero;
     this.drawMonsterSprite(FERMIER.rows, cx, cy, hero.x < g.x, true, FERMIER.palette);
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("oeuf_or"), ICON_PALETTE);
@@ -1056,8 +1083,9 @@ export class Renderer {
     const g = game.fifrelin();
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { ctx, tile } = this;
-    const cx = Math.round(ox + (g.x + 0.5) * tile);
-    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const at = this.npcGlide("fifrelin", g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile);
     const hero = game.hero;
     const frames = SCHRAT.idleDown;
     this.drawMonsterSprite(frames[Math.floor(Math.abs(this.time) / 380) % frames.length], cx, cy, hero.x < g.x, false, FIFRELIN_PALETTE);
@@ -1100,8 +1128,9 @@ export class Renderer {
     const g = game.soeur();
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { tile } = this;
-    const cx = Math.round(ox + (g.x + 0.5) * tile);
-    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const at = this.npcGlide("soeur", g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile);
     const hero = game.hero;
     const rows = SOEUR_SPRITE[Math.floor(Math.abs(this.time) / 520) % SOEUR_SPRITE.length];
     this.drawMonsterSprite(rows, cx, cy, false, true, SOEUR_PALETTE);
@@ -1113,8 +1142,9 @@ export class Renderer {
     const g = game.krik();
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { tile } = this;
-    const cx = Math.round(ox + (g.x + 0.5) * tile);
-    const cy = Math.round(oy + (g.y + 0.5) * tile);
+    const at = this.npcGlide("krik", g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile);
     const hero = game.hero;
     // Nerveux : il piétine (images de marche) en regardant de tous les côtés.
     const frames = SCHRAT.walkDown;

@@ -51,3 +51,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_15h54 | ad0d5a7 | 24.2 | 18.7 | 21.1 | 25 | 16.7 | 23.8 | 0.74 | 0.17 | module de statistiques (inactif tant que l'adresse est vide) |
 | 2026-11-15_18h56 | 0094081 | 19.9 | 20.8 | 22.5 | 19.8 | 16.7 | 20 | 0.59 | 0.36 | embuscade : celui qui arrive après |
 | 2026-11-15_20h20 | 251f4a3 | 20.7 | 19.8 | 19.5 | 18.9 | 16.7 | 19.6 | 0.48 | 0.12 | plus de règle des deux mains |
+| 2026-11-15_20h32 | 9888f4c | 19.9 | 19.6 | 19.4 | 24.3 | 16.7 | 21.3 | 0.45 | 0.23 | PNJ qui glissent en s'écartant |

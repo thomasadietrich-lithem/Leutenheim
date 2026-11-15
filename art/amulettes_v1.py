@@ -1,5 +1,5 @@
 """Planche « amulettes_v1 » (Thomas, 2026-11-15 : « propose 4 amulettes, une philosophie différente des bibelots :
-vitalité, force, agilité… » ; « Ok. Un peu moins de vie »). Même pendentif doré pour les quatre, une pierre de couleur :
+vitalité, force, agilité… » ; « Ok. Un peu moins de vie »). Même pendentif pour les quatre (cuivre ; argent pour la version II), une pierre de couleur :
 rouge vitalité, orange force, verte agilité, bleue précision ; la version « II » (section 2) a deux petites pierres sur
 la chaîne et un éclat. Icônes 16 × 16, palette du jeu (src/ui/icons.ts).
   python3 art/amulettes_v1.py           → art/amulettes_v1.png
@@ -42,11 +42,16 @@ GEMS = {
     "precision": {"A": "W", "B": "V", "C": "U", "D": "u"},
 }
 PAL = {"K": "#120d08", "G": "#f0c050", "g": "#a87c1c", "W": "#f4f7ff", "Y": "#ffe27a", "R": "#d03a44", "r": "#8e1f28", "3": "#e04048",
-       "O": "#e8782a", "X": "#ff9a3a", "x": "#c03a1a", "E": "#5cc860", "e": "#2e7a38", "J": "#8ef0a0", "U": "#4a8fd0", "u": "#2a5a94", "V": "#9fd0f4"}
+       "O": "#e8782a", "X": "#ff9a3a", "x": "#c03a1a", "E": "#5cc860", "e": "#2e7a38", "J": "#8ef0a0", "U": "#4a8fd0", "u": "#2a5a94", "V": "#9fd0f4", "T": "#b9824a", "t": "#7a5230", "S": "#c3cbe0", "D": "#7f88a6"}
+
+
+# Métal (Thomas, 2026-11-15 : « les niveaux 1 en cuivre, les niveaux 2 en argent ») : la monture et la chaîne.
+COPPER = {"G": "T", "g": "t"}
+SILVER = {"G": "S", "g": "D", "Y": "W"}
 
 
 def rows(kind, two=False):
-    m = GEMS[kind]
+    m = {**GEMS[kind], **(SILVER if two else COPPER)}
     return ["".join(m.get(c, c) for c in r) for r in (TWO if two else BASE)]
 
 

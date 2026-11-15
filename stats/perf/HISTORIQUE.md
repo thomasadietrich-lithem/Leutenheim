@@ -54,3 +54,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_20h32 | 9888f4c | 19.9 | 19.6 | 19.4 | 24.3 | 16.7 | 21.3 | 0.45 | 0.23 | PNJ qui glissent en s'écartant |
 | 2026-11-15_20h38 | bac25fc | 21.6 | 19.5 | 23.5 | 22.8 | 16.7 | 20 | 0.63 | 0.52 | sac ouvert après consommation |
 | 2026-11-15_20h49 | 89aa952 | 24.2 | 22 | 17.8 | 24 | 16.7 | 18.7 | 0.81 | 0.15 | amulettes, bibelots uniques |
+| 2026-11-15_20h52 | 5626b83 | 22.4 | 24.8 | 25 | 19.4 | 16.7 | 25.6 | 0.53 | 0.15 | amulettes cuivre / argent |

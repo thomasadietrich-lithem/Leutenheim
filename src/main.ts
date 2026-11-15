@@ -296,6 +296,12 @@ function readSave(): Game | null {
     const last = localStorage.getItem(SAVE_KEYS.last);
     let key = last === "essai" ? SAVE_KEYS.essai : last === "donjon" || !last ? SAVE_KEYS.donjon : last;
     if (PUBLIC_BUILD && key === SAVE_KEYS.essai) key = SAVE_KEYS.donjon;
+    // Plus rien à cet emplacement (partie finie) : la plus récente des autres sauvegardes (Thomas, 2026-11-15 :
+    // « Reprendre doit toujours reprendre la dernière partie »).
+    if (!localStorage.getItem(key)) {
+      const slots = PUBLIC_BUILD ? DUNGEON_SLOTS : [...DUNGEON_SLOTS, SAVE_KEYS.essai];
+      key = [...slots].sort((a, b) => savedAtOf(b) - savedAtOf(a))[0];
+    }
     const text = localStorage.getItem(key);
     const saved = text ? Game.restore(JSON.parse(text)) : null;
     if (saved) savedSlot = key;
@@ -1225,8 +1231,9 @@ function showDeath(): void {
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
   }
-  // Salle d'essai et partie d'essai (Thomas, 2026-11-15) : on peut revivre sur place.
-  if (game.sandbox || game.testRun) {
+  // Revivre (Thomas, 2026-11-15 : « un bouton sur l'écran de mort », partie en cours comprise) : dans la démo
+  // d'essai, pour toutes les parties ; jamais dans la version publique.
+  if (!PUBLIC_BUILD) {
     const back = el("button", "", "Revivre") as HTMLButtonElement;
     back.type = "button";
     back.addEventListener("click", () => {
@@ -3164,7 +3171,10 @@ function showScreen(screen: Screen | null): void {
   for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause", "essai"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
-  $("menu-resume").hidden = (!started || game.over) && savedRun === null;
+  // Toujours là (Thomas, 2026-11-15) ; grisé seulement s'il n'y a aucune partie à reprendre.
+  if ((!started || game.over) && savedRun === null) savedRun = readSave();
+  $("menu-resume").hidden = false;
+  ($("menu-resume") as HTMLButtonElement).disabled = (!started || game.over) && savedRun === null;
   $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
   $("settings-music").textContent = tr(`Musique : ${options.music ? "oui" : "non"}`);
   $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);

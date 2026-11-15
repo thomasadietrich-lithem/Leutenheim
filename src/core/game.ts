@@ -2817,10 +2817,10 @@ export class Game {
     }
   }
 
-  /** Parties d'essai seulement (Thomas, 2026-11-15 : « si vous êtes mort, un bouton revivre ») : le héros se relève
-   *  sur place, tous ses PV, sans poison, feu ni entrave. Rend faux hors essai ou s'il n'est pas mort. */
+  /** Bouton « Revivre » de l'écran de mort (Thomas, 2026-11-15 ; démo d'essai seulement, choisi par l'interface) : le
+   *  héros se relève sur place, tous ses PV, sans poison, feu ni entrave. Rend faux s'il n'est pas mort. */
   revive(): boolean {
-    if (!(this.sandbox || this.testRun) || !this.over || this.hero.hp > 0) return false;
+    if (!this.over || this.hero.hp > 0 || this.won) return false;
     this.over = false;
     this.deathCause = null;
     this.hero.hp = this.hero.maxHp;

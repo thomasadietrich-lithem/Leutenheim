@@ -5451,13 +5451,10 @@ test("ranger le sac (Thomas, 2026-11-15) : piles réunies, place libérée pour 
   assert.equal(inv.add("lance", 1), 0, "après rangement, elle tient");
 });
 
-test("revivre (Thomas, 2026-11-15) : seulement en partie d'essai, tous les PV, sur place", () => {
-  const real = new Game(6);
-  real.hero.hp = 0;
-  real.over = true;
-  assert.equal(real.revive(), false, "pas dans une vraie partie");
+test("revivre (Thomas, 2026-11-15) : tous les PV, sur place (le bouton n'existe que dans la démo d'essai)", () => {
+  const alive = new Game(6);
+  assert.equal(alive.revive(), false, "pas mort : rien à faire");
   const game = new Game(6);
-  game.testRun = true;
   const at = { x: game.hero.x, y: game.hero.y };
   game.hero.hp = 0;
   game.over = true;

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T09:16:36.850Z",
+ "commit": "429d6f5",
+ "note": "reprendre toujours là, revivre pour toutes les parties de la démo",
+ "logic": {
+  "tickMs": 0.49,
+  "lightMs": 0.29,
+  "visionMs": 0.22
+ },
+ "scenes": {
+  "immobile": {
+   "n": 119,
+   "avg": 20.7,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 48,
+   "js": 9
+  },
+  "marche": {
+   "n": 235,
+   "avg": 21.3,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 47,
+   "js": 9
+  },
+  "retour": {
+   "n": 258,
+   "avg": 19.4,
+   "p95": 33.3,
+   "max": 33.5,
+   "fps": 52,
+   "js": 5
+  },
+  "zoom": {
+   "n": 125,
+   "avg": 20.1,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 50,
+   "js": 6
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 273,
+   "avg": 18.2,
+   "p95": 33.3,
+   "max": 150,
+   "fps": 55,
+   "js": 12
+  }
+ },
+ "errors": []
+}

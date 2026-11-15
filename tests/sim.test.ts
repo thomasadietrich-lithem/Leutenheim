@@ -5474,3 +5474,16 @@ test("ramasser (Thomas, 2026-11-15 : « sac à ranger tout le temps ») : un ram
   assert.ok(game.events.some((e) => e.type === "pickup"));
   assert.ok(!game.events.some((e) => e.type === "bagFull"));
 });
+
+test("répertoire d'objets (Thomas, 2026-11-15) : en partie d'essai seulement, au sac, ou à côté si le sac est plein", () => {
+  const real = new Game(8);
+  assert.equal(real.testGive("cimeterre"), null);
+  const game = new Game(8);
+  game.testRun = true;
+  assert.equal(game.testGive("cimeterre"), "bag");
+  assert.equal(game.inventory.count("cimeterre"), 1);
+  assert.equal(game.testGive("fleche_ricochet"), "bag");
+  assert.equal(game.inventory.count("fleche_ricochet"), 10);
+  while (game.testGive("lance") === "bag");
+  assert.ok(game.ground.some((g) => g.item === "lance"), "sac plein : à côté");
+});

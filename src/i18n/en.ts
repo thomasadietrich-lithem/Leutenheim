@@ -1783,4 +1783,8 @@ export const EN: Record<string, string> = {
   "Impossible de mieux ranger le sac.": "The bag can't be tidied any better.",
   "Revivre": "Revive",
   "Vous revivez (partie d'essai) : tous vos PV, sur place.": "You revive (test game): full HP, right here.",
+  "Lv {0}": "Lv {0}",
+  "Ajouté au sac : {0}.": "Added to the bag: {0}.",
+  "Sac plein : {0} tombe à côté.": "Bag full: {0} drops nearby.",
+  "Chercher un objet…": "Search for an item…",
 };

@@ -2817,6 +2817,17 @@ export class Game {
     }
   }
 
+  /** Partie d'essai (Thomas, 2026-11-15 : « chercher manuellement l'équipement dans le répertoire ») : donne un objet
+   *  (un lot de 10 pour les munitions). Il va au sac ; sac plein, il tombe à côté. Rend « bag », « ground » ou null. */
+  testGive(id: ItemId): "bag" | "ground" | null {
+    if (!(this.sandbox || this.testRun) || this.over) return null;
+    const def = ITEMS[id] as ItemDef;
+    const count = def.kind === "ammo" ? Math.min(def.maxStack, 10) : 1;
+    const left = this.inventory.add(id, count, def.kind === "key" ? this.depth : undefined);
+    if (left > 0) this.bounceFromHero(id, left);
+    return left > 0 ? "ground" : "bag";
+  }
+
   /** Bouton « Revivre » de l'écran de mort (Thomas, 2026-11-15 ; démo d'essai seulement, choisi par l'interface) : le
    *  héros se relève sur place, tous ses PV, sans poison, feu ni entrave. Rend faux s'il n'est pas mort. */
   revive(): boolean {

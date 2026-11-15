@@ -3546,6 +3546,52 @@ button("reset-floor", () => {
   game.resetSandbox();
   collectEvents();
 });
+// Partie d'essai (Thomas, 2026-11-15) : chercher un objet dans le répertoire et le recevoir (au sac, ou à côté).
+const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function renderSpawn(): void {
+  const query = plain(($("spawn-search") as HTMLInputElement).value.trim());
+  const list = $("spawn-list");
+  list.replaceChildren();
+  const kinds = Object.keys(KIND_LABELS) as ItemDef["kind"][];
+  for (const kind of kinds) {
+    const defs = (Object.values(ITEMS) as ItemDef[])
+      .filter((d) => d.kind === kind && d.kind !== "gold")
+      .filter((d) => !query || plain(tr(d.name)).includes(query) || plain(d.name).includes(query) || plain(tr(KIND_LABELS[kind])).includes(query))
+      .sort((a, b) => (a.level ?? 1) - (b.level ?? 1) || tr(a.name).localeCompare(tr(b.name)));
+    if (defs.length === 0) continue;
+    list.append(el("div", "spawn-kind", KIND_LABELS[kind]));
+    for (const d of defs) {
+      const row = el("button", "spawn-row") as HTMLButtonElement;
+      row.type = "button";
+      const dot = el("span", "spawn-dot");
+      dot.style.background = RARITY_COLORS[d.rarity ?? "common"][0];
+      row.append(itemIcon(d.id as ItemId), dot, el("span", "spawn-name", d.name), el("span", "spawn-meta", `Lv ${d.level ?? 1}`));
+      row.addEventListener("click", () => {
+        const where = game.testGive(d.id as ItemId);
+        if (!where) return;
+        collectEvents();
+        logLines.push(where === "bag" ? `Ajouté au sac : ${d.name.toLowerCase()}.` : `Sac plein : ${d.name.toLowerCase()} tombe à côté.`);
+        renderLog();
+        sfx.play("click");
+        row.classList.add("on");
+        setTimeout(() => row.classList.remove("on"), 250);
+      });
+      list.append(row);
+    }
+  }
+}
+button("spawn-open", () => {
+  if (!game.sandbox && !game.testRun) return;
+  foundOpen = true;
+  ($("spawn-search") as HTMLInputElement).placeholder = tr("Chercher un objet…");
+  $("spawn").hidden = false;
+  renderSpawn();
+});
+button("spawn-close", () => {
+  foundOpen = false;
+  $("spawn").hidden = true;
+});
+$("spawn-search").addEventListener("input", renderSpawn);
 button("arena-reset", () => {
   game.arenaReset();
   logLines.push("L'arène est remise : un monstre de chaque sorte.");

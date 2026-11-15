@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T09:32:53.824Z",
+ "commit": "f39bbbb",
+ "note": "répertoire d'objets en essai",
+ "logic": {
+  "tickMs": 0.68,
+  "lightMs": 0.14,
+  "visionMs": 0.28
+ },
+ "scenes": {
+  "immobile": {
+   "n": 132,
+   "avg": 18.8,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 53,
+   "js": 6
+  },
+  "marche": {
+   "n": 244,
+   "avg": 20.5,
+   "p95": 33.4,
+   "max": 49.9,
+   "fps": 49,
+   "js": 6
+  },
+  "retour": {
+   "n": 252,
+   "avg": 19.9,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 50,
+   "js": 6
+  },
+  "zoom": {
+   "n": 123,
+   "avg": 20.5,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 49,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 255,
+   "avg": 19.6,
+   "p95": 33.4,
+   "max": 133.3,
+   "fps": 51,
+   "js": 11
+  }
+ },
+ "errors": []
+}

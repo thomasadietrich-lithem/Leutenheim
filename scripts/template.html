@@ -411,6 +411,17 @@
   .item-card-stats { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; font-size: 17px; color: var(--dim); }
   .item-card-value { color: var(--ink); }
   .item-card-desc { font-size: 15px; color: var(--dim); margin-top: 3px; }
+  /* Partie d'essai (Thomas, 2026-11-15) : chercher un objet dans le répertoire et le recevoir. */
+  #spawn { z-index: 3; justify-content: flex-start; gap: 8px; }
+  #spawn h2 { margin: 4px 0 0; font-size: 28px; font-weight: 400; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; }
+  #spawn-search { width: min(100%, 340px); font: inherit; font-size: 20px; padding: 6px 8px; background: #0c0906; color: #fff3c8; border: 2px solid #5a4a2a; border-radius: 0; }
+  #spawn-list { width: min(100%, 340px); display: flex; flex-direction: column; gap: 4px; }
+  .spawn-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; text-align: left; font-size: 18px; }
+  .spawn-row svg { width: 30px; height: 30px; flex: none; }
+  .spawn-row .spawn-name { flex: 1; min-width: 0; color: #fff3c8; text-transform: uppercase; }
+  .spawn-row .spawn-meta { color: var(--dim); font-size: 15px; white-space: nowrap; }
+  .spawn-dot { width: 8px; height: 8px; flex: none; }
+  .spawn-kind { width: 100%; text-align: left; color: var(--dim); font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 6px; }
   #found { z-index: 2; background: rgba(13,10,8,0.92); }
   /* Synopsis au début d'une partie (Thomas, 2026-11-13) : les lignes apparaissent une à une ; toucher l'écran les montre
      toutes d'un coup ; « Descendre » lance la partie. */
@@ -584,7 +595,7 @@
     <div id="hero-status"></div>
     <div id="dice-log"></div>
     <div id="status-pop" hidden></div>
-    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
+    <div id="test-tools" hidden><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="spawn-open" type="button">Objets</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
     <div id="arena-tools" hidden><button id="arena-reset" type="button">Arène : remettre</button><button id="arena-schrat" type="button">+ Kobold</button><button id="arena-frondeur" type="button">+ Frondeur</button><button id="arena-araignee" type="button">+ Araignée</button></div>
     <div id="wheel" hidden><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
@@ -653,6 +664,12 @@
   <div id="intro" class="overlay" hidden>
     <div id="intro-lines"></div>
     <button id="intro-go" type="button">Descendre</button>
+  </div>
+  <div id="spawn" class="overlay" hidden>
+    <button id="spawn-close" class="hero-close" type="button" aria-label="Fermer">×</button>
+    <h2>Objets</h2>
+    <input id="spawn-search" type="search" autocomplete="off">
+    <div id="spawn-list"></div>
   </div>
   <div id="found" class="overlay" hidden>
     <h2>Trouvé</h2>

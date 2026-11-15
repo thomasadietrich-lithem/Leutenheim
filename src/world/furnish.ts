@@ -273,7 +273,8 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   // Pas de salle qui convienne au bain : la cloche prend sa place (il y a toujours un truc fun dans la section).
   if (bath && !themes.some((t) => t.id === "bain")) bell = true;
   if (bell) placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
-  if (depth >= RULES.websFromDepth) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
+  // Pas de toiles en section 2 : les araignées sont restées en haut (Thomas, 2026-11-15).
+  if (depth >= RULES.websFromDepth && section === 0) placeWebs(floor, new Rng(seed ^ 0x3e5b7d19), furniture, special);
   return { furniture, themes };
 }
 

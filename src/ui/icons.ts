@@ -459,6 +459,25 @@ const ICONS: Record<ItemId, string[]> = {
     ".......KKKKKKKKKKKKKKKKKK.......",
     "................................",
   ],
+  // Flèche ricochante (Thomas, 2026-11-15) : pointe d'acier bleuté à double tranchant, empennage doré, un éclair.
+  fleche_ricochet: [
+    "...........KKKK.",
+    "..........KIIIIK",
+    "...........KiIiK",
+    "..Y........KBDiK",
+    ".YKY......KTKKDK",
+    "..Y......KBKKIK.",
+    "........KTK.KiK.",
+    ".......KBK...K..",
+    "...KKKKTK.......",
+    "..KYFFBK........",
+    ".KYFFTfK........",
+    "KYFFBffK........",
+    ".KKTfffK........",
+    "...KffK.........",
+    "...KfK..........",
+    "....K...........",
+  ],
   // Planche art/objets_v1.png, validée par Thomas le 2026-11-11.
   fleche_poison: [
     "...........KKKK.",

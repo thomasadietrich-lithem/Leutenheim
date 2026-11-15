@@ -1156,6 +1156,29 @@ export class Renderer {
     this.monsterFacing.set(m.id, facing);
     const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
     const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
+    // Section 2 (planche art/mobs_champi_v1.png ; Thomas, 2026-11-15) : myconide, sporelin, Kobold cueilleur et envahi.
+    const champi = MOBS_CHAMPI[m.defId];
+    if (champi) {
+      const beat = (ms: number, n: number) => Math.floor((Math.abs(this.time) + m.id * 170) / ms) % n;
+      const f = champi.frames;
+      const name = m.prone
+        ? m.risen && m.defId === "envahi" ? `rise${beat(380, 2)}` : `prone${beat(200, 2)}`
+        : m.asleep
+          ? "sleep"
+          : slash
+            ? `attack${dir}${slash.age < SLASH_MS * 0.45 ? 0 : 1}`
+            : hurt
+              ? "hurt"
+              : moving
+                ? `walk${dir}${progress < 0.5 ? 0 : 1}`
+                : m.defId === "myconide" && !m.alerted && beat(1400, 3) === 0
+                  ? `listen${beat(350, 2)}`
+                  : `idle${dir}${beat(560, 2)}`;
+      // Le myconide est aveugle : pas d'éventail de regard.
+      if (!m.asleep && !m.prone && m.defId !== "myconide") this.drawGaze(cx, cy, facing, m.alerted, m.vision);
+      this.drawMonsterSprite(f[name] ?? f[`idle${dir}0`], cx, cy, facing === "left", !m.prone && !m.asleep, champi.palette, m.grown ? 1.5 : 1);
+      return;
+    }
     if (m.defId === "araignee") {
       // Araignée v2 (art/araignee_v2.png ; Thomas, 2026-11-14 : « pas assez animée ») : une seule vue de 3/4,
       // retournée quand elle va à gauche. Repos sur 4 images, marche sur 4 (au fil du pas), aux aguets quand elle
@@ -1805,7 +1828,7 @@ export class Renderer {
         // Or : un tas, petit, moyen ou gros selon la somme comparée à ce qu'on trouve à cet étage.
         const size = g.count >= goldRange(game.depth, "large")[0] ? "large" : g.count >= goldRange(game.depth, "medium")[0] ? "medium" : "small";
         this.drawGroundIcon(GOLD_PILES[size], gx, gy);
-      } else if (g.item !== "fleche" && g.item !== "fleche_poison") {
+      } else if (g.item !== "fleche" && g.item !== "fleche_poison" && g.item !== "fleche_ricochet") {
         this.drawGroundIcon(itemIconRows(g.item), gx, gy);
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
@@ -1824,6 +1847,13 @@ export class Renderer {
         continue;
       }
       const spider = c.actor.defId === "araignee";
+      const champiDead = MOBS_CHAMPI[c.actor.defId];
+      if (champiDead) {
+        // Le sporelin ne laisse que sa peau vide ; l'envahi brûlé, sa version calcinée.
+        this.drawMonsterSprite(champiDead.frames.dead, ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false, champiDead.palette);
+        ctx.globalAlpha = 1;
+        continue;
+      }
       this.drawMonsterSprite(
         spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
         ox + (c.actor.x + 0.5) * tile,
@@ -1850,7 +1880,7 @@ export class Renderer {
         this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
-      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur") {
+      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || MOBS_CHAMPI[m.defId]) {
         const advantage = game.heroHasAdvantageOn(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.

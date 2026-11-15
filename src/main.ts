@@ -530,6 +530,12 @@ function launchArrow(e: GameEvent | undefined): void {
   if (!e || e.type !== "arrow" || launched.has(e)) return;
   launched.add(e);
   const aim = e.via ?? e;
+  if (e.ricochet) {
+    // Le ricochet part de la première cible, un peu après le premier vol.
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 200, false, false, false);
+    renderer.addFloatingText(e.fromX, e.fromY, "Ricochet !", "#8fd0f0");
+    return;
+  }
   renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
   if (e.via) {
     // Elle heurte l'obstacle, puis retombe en tournoyant.
@@ -773,6 +779,15 @@ function reveal(e: GameEvent): void {
     shownHp = game.hero.hp;
     renderer.levelUp();
     sfx.play("heal");
+  } else if (e.type === "rise") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "down" ? "Il palpite…" : "Debout !", "#7fe0c8");
+  } else if (e.type === "burst") {
+    renderer.addPuff(e.x, e.y, true);
+    sfx.play("gravel");
+  } else if (e.type === "whistle") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "FUIIIT !", "#ffd75e");
+  } else if (e.type === "lostTrack") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "?", "#cfc3e0");
   } else if (e.type === "watered") {
     renderer.addFloatingText(e.x, e.y, "Arrosé", "#8fd0f0");
   } else if (e.type === "trapDodged") {

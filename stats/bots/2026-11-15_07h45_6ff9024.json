@@ -1,0 +1,89 @@
+{
+ "date": "2026-11-15T07:45:30.031Z",
+ "commit": "6ff9024",
+ "runs": 150,
+ "note": "cotte de mailles niveau 6 (étage 6+), harnois niveau 10 (étage 8+), flèche ricochante",
+ "levels": {
+  "debutant": {
+   "floor": 2.4,
+   "deathFloor1": 19,
+   "reach": {
+    "2": 81,
+    "3": 43,
+    "4": 12,
+    "5": 1
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 130.5,
+   "gold": 7.3,
+   "kills": 5.2,
+   "questsStarted": 0.2,
+   "questsDone": 0,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 96,
+    "un Kobold frondeur": 23,
+    "une Araignée": 27,
+    "un piège à pointes": 1,
+    "un Kobold mouillé": 1,
+    "la Tisseuse": 2
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 83,
+    "3": 63,
+    "4": 35,
+    "5": 21
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 2.1,
+   "turns": 311.1,
+   "gold": 36.3,
+   "kills": 11.7,
+   "questsStarted": 0.3,
+   "questsDone": 0.1,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 71,
+    "un Kobold frondeur": 16,
+    "une Araignée": 31,
+    "la Tisseuse": 28,
+    "le poison": 2
+   }
+  },
+  "maitrise": {
+   "floor": 3.5,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 96,
+    "3": 79,
+    "4": 47,
+    "5": 29
+   },
+   "boss": 7,
+   "dead": 81,
+   "heroLevel": 3.6,
+   "turns": 726,
+   "gold": 67.4,
+   "kills": 28.6,
+   "questsStarted": 0.5,
+   "questsDone": 0.3,
+   "questsFailed": 0.2,
+   "causes": {
+    "la Tisseuse": 21,
+    "un Kobold": 38,
+    "un Kobold frondeur": 28,
+    "une Araignée": 27,
+    "le poison": 5,
+    "une chute dans une fosse": 1,
+    "un piège à pointes": 1
+   }
+  }
+ }
+}

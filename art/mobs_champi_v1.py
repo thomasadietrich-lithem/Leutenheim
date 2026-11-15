@@ -297,7 +297,7 @@ def sporelin_extra(name):
 
 # ---------------------------------------------------------------- 3. KOBOLD CUEILLEUR (masque, panier, serpette)
 CUEIL = {**KPAL, "C": "#8a6a44", "c": "#5a4228", "M": "#c9ccd2", "m": "#7e8590", "X": "#d6ceb2", "x": "#7e7660",
-         "V": "#b48a48", "v": "#6e5026", "A": "#9cb63e", "a": "#5c7426", "S": "#efe2c4", "N": "#6af0d2"}
+         "V": "#b48a48", "v": "#6e5026", "A": "#9cb63e", "a": "#5c7426", "S": "#efe2c4", "N": "#a47a4e", "n": "#64462c"}
 
 
 def mask(rows, y0=7, y1=10):
@@ -310,25 +310,34 @@ def mask(rows, y0=7, y1=10):
 
 
 def basket_back(g, view, dy=0):
+    """La hotte d'osier (Thomas, 2026-11-15 : « augmente la taille du panier ») : grande, elle dépasse de la tête et des
+    épaules ; tressée (lignes claires et sombres), des morilles cueillies dépassent du bord."""
+    def weave(x0, y0, w, h):
+        for y in range(y0, y0 + h):
+            for x in range(x0, x0 + w):
+                if g.get(x, y) == "." or view == "Up":
+                    g.p(x, y, "v" if (y - y0) % 3 == 0 else ("V" if (x + y) % 2 else "v" if (x - x0) % 4 == 0 else "V"))
     if view == "Up":
-        g.r(4, 8 + dy, 8, 5, "V")
-        for x in range(4, 12):
-            g.p(x, 8 + dy, "v")
-            g.p(x, 10 + dy, "v" if x % 2 else "V")
-        g.r(4, 12 + dy, 8, 1, "v")
-        g.p(3, 9 + dy, "O").p(12, 9 + dy, "O")
+        # De dos : la hotte couvre le dos, des épaules aux reins, et dépasse au-dessus de la tête.
+        weave(3, 4 + dy, 10, 10)
+        g.r(3, 4 + dy, 10, 1, "v")
+        g.p(5, 3 + dy, "N").p(7, 3 + dy, "S").p(9, 3 + dy, "N").p(10, 3 + dy, "S")
+        g.p(4, 3 + dy, "v").p(11, 3 + dy, "v")
     elif view == "Side":
-        g.r(1, 9 + dy, 3, 4, "V")
-        g.p(1, 9 + dy, "v").p(2, 9 + dy, "v").p(3, 9 + dy, "v").p(2, 11 + dy, "v")
-    else:  # de face : les sangles sur les épaules, le bord du panier dépasse derrière la tête
-        for y in (10 + dy, 11 + dy):
-            if g.a[y][4] not in ("."):
-                g.a[y][4] = "v"
-            if g.a[y][11] not in ("."):
-                g.a[y][11] = "v"
-        for x in (2, 3, 12, 13):
-            if g.a[7 + dy][x] == ".":
-                g.p(x, 7 + dy, "V")
+        # De profil (il regarde à droite) : la hotte derrière lui, haute et large.
+        weave(0, 4 + dy, 5, 10)
+        g.p(1, 3 + dy, "N").p(3, 3 + dy, "S")
+    else:
+        # De face : les sangles sur les épaules, et le haut de la hotte qui dépasse de part et d'autre de la tête.
+        for y in (10 + dy, 11 + dy, 12 + dy):
+            for x in (4, 11):
+                if g.a[y][x] != ".":
+                    g.a[y][x] = "v"
+        for x in list(range(0, 4)) + list(range(12, 16)):
+            for y in range(3 + dy, 9 + dy):
+                if g.a[y][x] == "." and not (x in (0, 15) and y in (3 + dy, 8 + dy)):
+                    g.p(x, y, "v" if (y - dy) % 3 == 0 else "V")
+        g.p(1, 2 + dy, "N").p(14, 2 + dy, "S")
 
 
 def kobold_variant(rows, view, kind):
@@ -343,7 +352,7 @@ def kobold_variant(rows, view, kind):
             basket_back(g2, "Side", top - 2)
         else:
             basket_back(g2, "Down", top - 2)
-        return ["".join(r) for r in g2.a]
+        return g2.done()
     # envahi : un champignon bleu-vert lui pousse sur le crâne, des fils de mycélium sur le corps
     g = G(rows)
     off = {"Down": 6, "Side": 5, "Up": 7}[view]
@@ -385,13 +394,15 @@ def kobold_set(kind):
     out["prone1"] = aterre("prone1")
     out["getUp"] = kobold_variant(aterre("getUp"), "Side", kind)
     if kind == "cueilleur":
-        # Le panier tombé (butin) : un dessin à part, posé au sol à sa mort.
+        # Le panier tombé (butin), plus grand (Thomas, 2026-11-15) : la hotte couchée, pleine de morilles.
         g = G()
-        g.r(4, 9, 8, 5, "V").r(4, 9, 8, 1, "v").r(4, 13, 8, 1, "v")
-        for x in range(5, 11, 2):
-            g.p(x, 11, "v")
-        g.r(3, 7, 1, 2, "v").r(12, 7, 1, 2, "v").r(4, 6, 8, 1, "v")
-        g.p(6, 8, "S").p(9, 8, "N").p(7, 8, "N")  # des champignons cueillis dépassent
+        for y in range(5, 15):
+            for x in range(1, 15):
+                g.p(x, y, "v" if (y - 5) % 3 == 0 else ("V" if (x + y) % 2 else "v" if x % 4 == 0 else "V"))
+        g.r(1, 5, 14, 1, "v").r(1, 14, 14, 1, "v")
+        g.r(0, 2, 1, 4, "v").r(15, 2, 1, 4, "v").r(1, 1, 14, 1, "v")  # l'anse
+        for x, c in ((3, "S"), (5, "N"), (7, "S"), (9, "S"), (11, "N"), (12, "S")):
+            g.p(x, 4, c).p(x, 3, c if c == "S" else "n")
         out["basket"] = g.done()
     else:
         # Il se relève UNE fois (le champignon le remet debout), sauf s'il a brûlé.

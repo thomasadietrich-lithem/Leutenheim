@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T07:45:26.586Z",
+ "commit": "6ff9024",
+ "note": "section 2 : ses 4 monstres, flèche ricochante, verrou de niveau par section",
+ "logic": {
+  "tickMs": 0.94,
+  "lightMs": 0.27,
+  "visionMs": 0.43
+ },
+ "scenes": {
+  "immobile": {
+   "n": 108,
+   "avg": 23,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 43,
+   "js": 9
+  },
+  "marche": {
+   "n": 240,
+   "avg": 20.8,
+   "p95": 33.4,
+   "max": 49.9,
+   "fps": 48,
+   "js": 6
+  },
+  "retour": {
+   "n": 237,
+   "avg": 21.2,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 47,
+   "js": 6
+  },
+  "zoom": {
+   "n": 131,
+   "avg": 19.7,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 266,
+   "avg": 18.8,
+   "p95": 33.3,
+   "max": 133.3,
+   "fps": 53,
+   "js": 13
+  }
+ },
+ "errors": []
+}

@@ -256,6 +256,16 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous tentez de vous dégager : ${roll(e.d20, e.bonus, e.total)} — ${e.success ? "réussi, d'un bond." : "raté, vous restez au contact."}`;
     case "getUp":
       return null;
+    case "rise":
+      return e.what === "down"
+        ? "Le Kobold envahi s'effondre… mais le champignon sur son crâne palpite encore. Achevez-le, ou brûlez-le !"
+        : "Le Kobold envahi se relève, tiré par son champignon.";
+    case "burst":
+      return "Pouf ! Le sporelin éclate en un nuage de spores.";
+    case "whistle":
+      return "Le Kobold cueilleur porte un sifflet à son masque : FUIIIT ! L'étage est prévenu.";
+    case "lostTrack":
+      return "Le myconide s'arrête et tend son chapeau : il ne vous entend plus.";
     case "secret":
       return e.what === "glimpse"
         ? "Par un creux du mur, vous apercevez… une pièce, de l'autre côté. Fouiller cette salle la trouverait peut-être."

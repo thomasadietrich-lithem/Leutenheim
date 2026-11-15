@@ -34,6 +34,7 @@ const BY_RARITY = { common: 8, uncommon: 25, rare: 60 } as const;
 const SPECIAL: Partial<Record<ItemId, number>> = {
   fleche: 1,
   fleche_poison: 3,
+  fleche_ricochet: 6,
   javeline: 8,
   pomme: 4,
   torche: 5,

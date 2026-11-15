@@ -82,7 +82,7 @@ export interface SandboxMonster {
   monster?: SandboxMonsterKind;
 }
 
-export type SandboxMonsterKind = "schrat" | "araignee" | "frondeur";
+export type SandboxMonsterKind = "schrat" | "araignee" | "frondeur" | "myconide" | "sporelin" | "cueilleur" | "envahi";
 
 export interface SandboxSign {
   x: number;
@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 30;
+export const SANDBOX_LAYOUT = 31;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -455,7 +455,7 @@ function addArmory(
     ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
     ["potion_oursin", 2], ["potion_pierre", 2], ["potion_discorde", 2], ["potion_geant", 2], ["potion_glissante", 2],
   ]);
-  zone(X(110), Y(27), 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["javeline", 3]], 2);
+  zone(X(110), Y(27), 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["fleche_ricochet", 6], ["javeline", 3]], 1);
   zone(X(117), Y(27), 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
   zone(X(97), Y(31), 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(X(106), Y(31), 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);
@@ -571,7 +571,8 @@ export function buildSandbox2(): SandboxFloor {
   put(33, 35, "champiGeant");
   put(32, 29, "champiCorail");
   glow([[29, 33], [23, 36], [31, 31], [26, 37], [30, 37], [22, 33]]);
-  monsters.push({ x: 27, y: 35, asleep: true }, { x: 24, y: 34, asleep: true }, { x: 32, y: 36, asleep: false, patrol: true, monster: "frondeur" });
+  // Section 2 : ses propres monstres (Thomas, 2026-11-15 : « retire les mobs de la section 1 dans la section 2 »).
+  monsters.push({ x: 27, y: 35, asleep: true, monster: "envahi" }, { x: 24, y: 34, asleep: true, monster: "envahi" }, { x: 32, y: 36, asleep: false, patrol: true, monster: "cueilleur" });
 
   // ---------- À droite : le couloir encombré, puis la grotte aux lueurs ----------
   line(64, 34, 70, 34);
@@ -596,7 +597,7 @@ export function buildSandbox2(): SandboxFloor {
   put(90, 33, "champiGrappe");
   glow([[80, 37], [83, 36], [87, 40], [83, 38], [82, 40], [89, 39], [85, 32], [88, 30], [86, 37], [83, 42]]);
   earth(85, 43, [".e.e", "eEEe", ".EE."]);
-  monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "araignee" });
+  monsters.push({ x: 84, y: 39, asleep: false, patrol: true, monster: "myconide" }, { x: 82, y: 41, asleep: true, monster: "sporelin" }, { x: 86, y: 41, asleep: true, monster: "sporelin" }, { x: 87, y: 32, asleep: true, monster: "sporelin" });
 
   // ---------- En haut à droite : les deux salles à thème de la section 2 (Thomas, 2026-11-14, la nuit) ----------
   // La champignonnière de morilles (salle de Morillon et de sa quête), puis l'atelier de sculpture, meublées par les
@@ -639,7 +640,7 @@ export function buildSandbox2(): SandboxFloor {
   earth(47, 49, ["Ee", "EEe", "E."]);
   put(61, 50, "champiGrappe");
   glow([[53, 46], [59, 48], [50, 50], [55, 50]]);
-  monsters.push({ x: 55, y: 47, asleep: false, patrol: true });
+  monsters.push({ x: 55, y: 47, asleep: false, patrol: true, monster: "envahi" });
 
   // ---------- En bas à gauche : le terrier ----------
   line(36, 47, 46, 48);
@@ -656,7 +657,7 @@ export function buildSandbox2(): SandboxFloor {
   put(31, 46, "champiGrappe");
   put(24, 51, "champiGeant");
   glow([[22, 46], [33, 49], [26, 49], [21, 49]]);
-  monsters.push({ x: 30, y: 50, asleep: false, patrol: true }, { x: 23, y: 47, asleep: false, patrol: true }, { x: 33, y: 52, asleep: false, patrol: true, monster: "frondeur" });
+  monsters.push({ x: 30, y: 50, asleep: false, patrol: true, monster: "sporelin" }, { x: 23, y: 47, asleep: false, patrol: true, monster: "myconide" }, { x: 33, y: 52, asleep: false, patrol: true, monster: "cueilleur" });
   const stairs = { x: 21, y: 52 };
   map.set(stairs.x, stairs.y, Tile.StairsDown);
   signs.push({ x: 26, y: 54, text: "↓ Nichée de la Tisseuse" });

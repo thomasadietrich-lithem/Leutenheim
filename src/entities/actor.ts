@@ -45,6 +45,12 @@ export interface Actor {
   /** Pétrifié (potion de pierre lancée) : tours restants ; il ne bouge plus et sert d'abri. */
   petrified?: number;
   fleeChecked?: boolean;
+  /** Section 2 : le Kobold envahi s'est déjà relevé une fois ; le cueilleur a déjà sifflé l'alerte ; le myconide n'a
+   *  plus senti de pas depuis tant de tours. */
+  risen?: boolean;
+  whistled?: boolean;
+  riseShown?: boolean;
+  quiet?: number;
   /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */
   lost?: number;
   /** Numéro de la cible que ce personnage vient de frapper AVEC avantage : jamais deux avantages de suite sur elle. */

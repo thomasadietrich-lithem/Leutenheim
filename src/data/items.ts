@@ -50,6 +50,8 @@ export interface ItemDef {
   reach?: number;
   /** Munitions : poison laissé dans la plaie (dégâts par tour, nombre de tours). */
   poison?: { damage: number; turns: number };
+  /** Munitions : la flèche ricoche sur un deuxième monstre proche après un coup qui porte. */
+  ricochet?: boolean;
   /** Objets à utiliser : PV rendus, ou tours de lumière (torche). */
   heal?: number;
   lightTurns?: number;
@@ -188,6 +190,22 @@ export const ITEMS = {
     ammoFamily: "fleche",
     damage: { count: 1, sides: 6, bonus: 0 },
     poison: { damage: 1, turns: 4 },
+  },
+  // Flèche ricochante (Thomas, 2026-11-15 : « niveau 6, rare ») : après un coup qui porte, elle repart vers un autre
+  // monstre en vue à 4 cases ou moins de la cible (nouveau jet, mêmes dégâts) (C).
+  fleche_ricochet: {
+    id: "fleche_ricochet",
+    name: "Flèches ricochantes",
+    kind: "ammo",
+    description: "Une pointe d'acier bleuté, lourde et coupante des deux côtés. Quand elle touche, elle rebondit sur un autre ennemi proche.",
+    w: 1,
+    h: 1,
+    maxStack: 20,
+    rarity: "rare",
+    level: 6,
+    ammoFamily: "fleche",
+    damage: { count: 1, sides: 6, bonus: 0 },
+    ricochet: true,
   },
   // Truc fun du poulet (Thomas, 2026-11-13) : ce qu'il reste de lui après le mur du fond.
   // Thomas (2026-11-13) : un Kobold mort dans les flammes laisse une escalope.
@@ -340,7 +358,8 @@ export const ITEMS = {
     h: 2,
     maxStack: 1,
     rarity: "rare",
-    level: 5,
+    // Thomas, 2026-11-15 : niveau 10 (5 avant).
+    level: 10,
     armorClass: 17,
   },
   cotte_mailles: {
@@ -352,7 +371,8 @@ export const ITEMS = {
     h: 2,
     maxStack: 1,
     rarity: "uncommon",
-    level: 3,
+    // Thomas, 2026-11-15 : niveau 6 (3 avant).
+    level: 6,
     armorClass: 16,
   },
   armure_cuir: {

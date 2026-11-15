@@ -838,7 +838,10 @@ test("armes et armures en paliers (Thomas, 2026-11-12) : chaque rareté se sent"
   assert.deepEqual(ac, [12, 13, 14, 16, 17]);
   const game = new Game(3);
   const base = game.stealthBonus();
-  game.level = 5;
+  // Harnois : niveau 10 (Thomas, 2026-11-15) ; cotte de mailles : niveau 6.
+  assert.equal((ITEMS as Record<string, { level?: number }>).harnois.level, 10);
+  assert.equal((ITEMS as Record<string, { level?: number }>).cotte_mailles.level, 6);
+  game.level = 10;
   game.inventory.add("harnois", 1);
   assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "harnois")!.uid));
   assert.equal(game.hero.armorClass, 17);
@@ -5166,4 +5169,78 @@ test("section 2 : la quête de Morillon — arroser tous les rangs, revenir, rec
   } finally {
     setSandboxSection(1);
   }
+});
+
+test("niveau maximal : le verrou saute en entrant à l'étage 6 (section 2 : 10 au plus), puis revient avant le boss suivant", () => {
+  const game = new Game(5);
+  game.testRun = true;
+  assert.equal(game.levelCap(), 5);
+  game.teleport(5);
+  assert.equal(game.levelCap(), 5, "étage du boss : toujours 5");
+  game.teleport(6);
+  assert.equal(game.levelCap(), 10, "section 2 : 10");
+  const g = game as unknown as { gainXp(n: number): void };
+  while (game.level < 10) g.gainXp(game.xpToNext() - game.xp);
+  assert.ok(game.xpBlocked(), "bloqué à 10 avant le boss de la section 2");
+});
+
+test("section 2 : seulement ses monstres (myconide, sporelin, Kobold cueilleur et envahi) ; envahi qui se relève, sporelin qui éclate", () => {
+  const seen = new Set<string>();
+  for (let seed = 1; seed <= 15; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    for (const d of [6, 7, 8, 9]) {
+      game.teleport(d);
+      for (const m of game.monsters) seen.add(m.defId);
+      assert.ok(!game.furnitureList().some((f) => f.kind.startsWith("web")), "pas de toiles");
+    }
+  }
+  for (const id of ["schrat", "frondeur", "araignee"]) assert.ok(!seen.has(id), `${id} en section 2`);
+  for (const id of ["myconide", "sporelin", "cueilleur", "envahi"]) assert.ok(seen.has(id), `${id} absent`);
+  // L'envahi abattu se relève une fois ; achevé à terre, il meurt.
+  const game = new Game(4);
+  game.testRun = true;
+  game.teleport(7);
+  const env = game.monsters.find((m) => m.defId === "envahi") ?? game.monsters[0];
+  env.defId = "envahi";
+  const kill = (game as unknown as { removeIfDead(m: unknown): void }).removeIfDead.bind(game);
+  env.hp = 0;
+  kill(env);
+  assert.ok(game.monsters.includes(env) && env.risen && env.hp > 0 && env.prone, "il se relève");
+  env.hp = 0;
+  kill(env);
+  assert.ok(!game.monsters.includes(env), "achevé");
+  // Le sporelin éclate en nuage.
+  const sp = game.monsters[0] ?? env;
+  sp.defId = "sporelin";
+  game.monsters.includes(sp) || game.monsters.push(sp);
+  sp.hp = 0;
+  kill(sp);
+  assert.ok(game.gas.some((c) => c.x === sp.x && c.y === sp.y), "nuage de spores");
+});
+
+test("flèche ricochante (niveau 6, rare) : après un coup qui porte, elle frappe un deuxième monstre proche", () => {
+  const def = ITEMS.fleche_ricochet as { level?: number; rarity: string; ricochet?: boolean };
+  assert.equal(def.level, 6);
+  assert.equal(def.rarity, "rare");
+  let ricochets = 0;
+  for (let seed = 1; seed <= 30 && ricochets === 0; seed++) {
+    const game = new Game(seed);
+    game.level = 6;
+    game.monsters.splice(0);
+    // Une ligne de tir libre vers la droite, deux monstres côte à côte.
+    const h = game.hero;
+    if (![1, 2, 3, 4].every((k) => game.map.isWalkable(h.x + k, h.y))) continue;
+    const mk = (x: number) => ({ ...JSON.parse(JSON.stringify(game.hero)), id: 900 + x, kind: "monster", defId: "schrat", name: "Kobold", x, y: h.y, fromX: x, fromY: h.y, hp: 50, maxHp: 50, armorClass: 1, alerted: true, asleep: false });
+    const a = mk(h.x + 3);
+    const b = mk(h.x + 4);
+    game.monsters.push(a, b);
+    game.inventory.add("fleche_ricochet", 5);
+    assert.ok(game.chooseAmmo("fleche_ricochet"));
+    (game as unknown as { updateVision(): void }).updateVision();
+    (game as unknown as { heroShoots(p: { x: number; y: number }): void }).heroShoots({ x: a.x, y: a.y });
+    if (b.hp < 50) ricochets++;
+    assert.ok(game.events.some((e) => e.type === "arrow" && e.ricochet) || b.hp === 50);
+  }
+  assert.ok(ricochets > 0, "au moins un ricochet");
 });

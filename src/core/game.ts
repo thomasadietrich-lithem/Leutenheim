@@ -860,6 +860,8 @@ export class Game {
     if (floor !== depth) return null;
     // Thomas, 2026-11-13 : la salle de bain du Kobold, puis le poulet, rejoignent la cloche et la porte du compteur
     // (un quart chacun).
+    // Section 2 : pas de Kobold de la section 1 (Thomas, 2026-11-15) : ni porte du compteur, ni salle de bain.
+    if (section >= 1) return rng.int(0, 1) === 0 ? "bell" : "chicken";
     const pick = rng.int(0, 3);
     return pick === 0 ? "bell" : pick === 1 ? "counter" : pick === 2 ? "bath" : "chicken";
   }
@@ -1649,6 +1651,69 @@ export class Game {
     }
   }
 
+  // ---------- Section 2 : les monstres de la champignonnière (Thomas, 2026-11-15) ----------
+
+  private fireWeak(a: Actor): boolean {
+    return a.kind === "monster" && !!(MONSTERS[a.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.fireWeak;
+  }
+
+  private sporeProof(a: Actor): boolean {
+    return a.kind === "monster" && !!(MONSTERS[a.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.sporeProof;
+  }
+
+  /** Un nuage de spores (empoisonné) sur cette case et ses 4 voisines. */
+  private puffGas(at: Point, turns: number): void {
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = at.x + dx;
+      const y = at.y + dy;
+      if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.Furniture) continue;
+      const old = this.gas.find((g) => g.x === x && g.y === y);
+      if (old) old.turns = Math.max(old.turns, turns);
+      else this.gas.push({ x, y, turns });
+    }
+    this.gasPoison();
+  }
+
+  /**
+   * Myconide : il ne voit rien, il sent les pas. Un héros qui marche à `radius` cases ou moins (murs compris) est entendu
+   * (chance de remarquer par tour) ; un héros immobile 2 tours de suite, hors de portée de coup, est perdu : il va
+   * « écouter » là où il l'a senti pour la dernière fois. Renvoie vrai si son tour est joué.
+   */
+  private tremorAct(m: Actor, radius: number): boolean {
+    const moved = this.hero.x !== this.hero.fromX || this.hero.y !== this.hero.fromY;
+    const near = Math.max(Math.abs(this.hero.x - m.x), Math.abs(this.hero.y - m.y)) <= radius;
+    if (!m.alerted) {
+      if (moved && near && this.rng.chance(MONSTERS[m.defId as keyof typeof MONSTERS].noticeChance)) {
+        this.faceToward(m, this.hero);
+        m.alerted = true;
+        m.asleep = false;
+        m.quiet = 0;
+        m.goal = { x: this.hero.x, y: this.hero.y };
+        this.events.push({ type: "noticed", actor: m });
+        this.raiseAlarm(RULES.alarmNoticed);
+        return true;
+      }
+      if (!m.asleep) this.wander(m);
+      return true;
+    }
+    if (this.inReach(m, this.hero)) {
+      m.quiet = 0;
+      return false; // au contact : il frappe (tour ordinaire)
+    }
+    if (moved && near) {
+      m.quiet = 0;
+      m.goal = { x: this.hero.x, y: this.hero.y };
+    } else if ((m.quiet = (m.quiet ?? 0) + 1) >= 2) {
+      // Il a perdu le héros : il va là où il l'a senti, et écoute.
+      m.alerted = false;
+      this.events.push({ type: "lostTrack", actor: m });
+      return true;
+    }
+    const goal = m.goal ?? { x: this.hero.x, y: this.hero.y };
+    if (!this.stepToward(m, goal)) m.goal = undefined;
+    return true;
+  }
+
   /** « un Kobold », « une Araignée » : le nom du monstre, pour l'écran de fin. */
   private killerName(m: Actor): string {
     if (m.boss) return m.name;
@@ -1687,7 +1752,7 @@ export class Game {
   private gasPoison(): void {
     const poison = TRAPS.gas.poison!;
     for (const a of [this.hero, ...this.monsters]) {
-      if (a.boss || !this.isGassed(a.x, a.y) || (a.poison && a.poison.turns >= poison.turns)) continue;
+      if (a.boss || this.sporeProof(a) || !this.isGassed(a.x, a.y) || (a.poison && a.poison.turns >= poison.turns)) continue;
       this.poisonActor(a, poison);
     }
   }
@@ -2981,7 +3046,7 @@ export class Game {
         continue;
       }
       a.burning--;
-      const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss ? RULES.bossFireFactor : 1);
+      const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss || this.fireWeak(a) ? RULES.bossFireFactor : 1);
       this.events.push({ type: "burn", actor: a, damage });
       if (a === this.hero) this.hurtHero(damage, "les flammes");
       else {
@@ -3001,7 +3066,7 @@ export class Game {
         if (a.boss && burnedBoss) continue;
         if (a.boss) burnedBoss = true;
         a.burning = RULES.burnAfter;
-        const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss ? RULES.bossFireFactor : 1);
+        const damage = rollDice(this.rng, RULES.fireDamage) * (a.boss || this.fireWeak(a) ? RULES.bossFireFactor : 1);
         this.events.push({ type: "burn", actor: a, damage });
         if (a === this.hero) this.hurtHero(damage, "les flammes");
         else {
@@ -3106,7 +3171,11 @@ export class Game {
 
   /** Niveau le plus haut avant d'avoir vaincu le boss de la section (5, puis 10…). */
   levelCap(): number {
-    return RULES.levelCapPerSection * (this.bossKills + 1);
+    // Le verrou saute dès qu'on entre dans une nouvelle section (Thomas, 2026-11-15 : « il saute une fois à l'étage 6,
+    // et réapparaît avant le prochain boss ») : section 2, niveau 10 au plus ; section 3, 15… Le boss vaincu l'ouvre
+    // aussi (son XP compte), comme avant.
+    const section = Math.floor((Math.max(this.depth, this.deepest) - 1) / RULES.floorsPerSection);
+    return RULES.levelCapPerSection * (Math.max(this.bossKills, section) + 1);
   }
 
   /** L'XP est bloquée : niveau maximal de la section atteint (petit panneau « stop » sur la jauge). */
@@ -7472,6 +7541,18 @@ export class Game {
   /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
   private removeIfDead(monster: Actor, byHero = true): void {
     if (monster.hp > 0) return;
+    const sdef = MONSTERS[monster.defId as keyof typeof MONSTERS] as MonsterDef | undefined;
+    // Kobold envahi (section 2) : le champignon le relève une fois, à moitié de ses PV, sauf s'il meurt en feu ; il reste
+    // à terre 2 tours (le frapper alors l'achève pour de bon).
+    if (sdef?.risesOnce && !monster.risen && !((monster.burning ?? 0) > 0) && !this.isBurning(monster.x, monster.y)) {
+      monster.risen = true;
+      monster.hp = Math.ceil(monster.maxHp / 2);
+      monster.prone = 2;
+      monster.alerted = true;
+      monster.asleep = false;
+      this.events.push({ type: "rise", actor: monster, what: "down" });
+      return;
+    }
     // Un Kobold mort dans les flammes laisse une escalope (Thomas, 2026-11-13).
     if ((monster.burning ?? 0) > 0 && !monster.boss && MONSTERS[monster.defId as keyof typeof MONSTERS]?.family === "kobolds") {
       this.dropItem(monster.x, monster.y, "escalope", 1);
@@ -7479,6 +7560,13 @@ export class Game {
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
     if (byHero) this.perks().kills = (this.perks().kills ?? 0) + 1;
+    // Sporelin : il éclate en un nuage de spores (empoisonné) sur sa case et ses 4 voisines.
+    if (sdef?.burstGas) {
+      this.puffGas(monster, sdef.burstGas);
+      this.events.push({ type: "burst", x: monster.x, y: monster.y });
+    }
+    // Kobold cueilleur : sa hotte tombe, avec des morilles.
+    if (sdef?.dropsMorels) this.dropItem(monster.x, monster.y, "morille", this.rng.int(sdef.dropsMorels[0], sdef.dropsMorels[1]));
     this.events.push({ type: "death", actor: monster, fire: (monster.burning ?? 0) > 0 || undefined, unaware: (byHero && monster.struckUnaware) || undefined });
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
@@ -7534,6 +7622,7 @@ export class Game {
     let hit = false;
     let keepChance = RULES.arrowKeepOnScenery;
     let victim: Actor | undefined;
+    let ricochet: { from: Point; target: Actor; result: ReturnType<typeof rollAttack> } | undefined;
 
     /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
     const fly = (c: Point): boolean => {
@@ -7587,6 +7676,22 @@ export class Game {
       }
       if (hit) {
         keepChance = RULES.arrowKeepOnHit;
+        // Flèche ricochante (Thomas, 2026-11-15) : elle repart vers un autre monstre en vue, à 4 cases de la cible.
+        if ((ITEMS[ammo] as ItemDef).ricochet) {
+          const from = { x: victim.x, y: victim.y };
+          const next = this.monsters
+            .filter((m) => m !== victim && !m.boss && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - from.x), Math.abs(m.y - from.y)) <= RULES.ricochetRange && hasLineOfSight(this.map, from, m))
+            .sort((p, q) => Math.max(Math.abs(p.x - from.x), Math.abs(p.y - from.y)) - Math.max(Math.abs(q.x - from.x), Math.abs(q.y - from.y)))[0];
+          if (next) {
+            const second = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(next) }, grown: this.hero.grown }, next, "normal");
+            next.struckUnaware = !next.alerted || next.asleep;
+            next.alerted = true;
+            next.asleep = false;
+            next.hp -= second.damage;
+            ricochet = { from, target: next, result: second };
+            if (second.damage > 0) this.bleed(next, from);
+          }
+        }
       } else {
         // Ratée : elle continue tout droit au-delà de la cible.
         keepChance = RULES.arrowKeepOnMiss;
@@ -7605,9 +7710,17 @@ export class Game {
     const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
     const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
     const javelin = ammo === "javeline" || undefined;
+    if (ricochet) landing = { x: ricochet.target.x, y: ricochet.target.y };
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, angle);
     else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
-    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: landing.x, y: landing.y, via, hit, kept, javelin });
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin });
+    if (ricochet) {
+      // Le ricochet : la flèche file de la première cible à la deuxième, puis tombe là.
+      const r = ricochet;
+      this.events.push({ type: "arrow", fromX: r.from.x, fromY: r.from.y, x: r.target.x, y: r.target.y, hit: r.result.hit, kept: false, ricochet: true });
+      this.events.push({ type: "attack", attacker: this.hero, target: r.target, result: r.result, ranged: true });
+      this.removeIfDead(r.target);
+    }
     if (victim) this.removeIfDead(victim);
     // Leurre : une flèche qui se plante dans une toile la fait vibrer ; la Tisseuse y accourt.
     else this.lureBoss(landing);
@@ -7693,7 +7806,8 @@ export class Game {
       if (m.prone) {
         // Renversé : il passe son tour à se relever.
         m.prone--;
-        if (m.prone === 0) this.events.push({ type: "getUp", actor: m });
+        if (m.prone === 0) this.events.push(m.risen && m.defId === "envahi" && !m.riseShown ? { type: "rise", actor: m, what: "up" } : { type: "getUp", actor: m });
+        if (m.prone === 0 && m.risen) m.riseShown = true;
         continue;
       }
       if (m.stunned) {
@@ -7714,6 +7828,11 @@ export class Game {
       }
       if (m.feud !== undefined && this.feudAct(m)) continue;
       if (m.soapy) m.soapy--;
+      const sdef = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;
+      // Myconide : lent, il ne joue qu'un tour sur deux.
+      if (sdef.slow && (this.turn + m.id) % 2 === 0) continue;
+      // Myconide : aveugle, il sent les pas (à travers les murs) ; un héros immobile 2 tours, il le perd.
+      if (sdef.tremorSense && !this.peaceful && this.tremorAct(m, sdef.tremorSense)) continue;
       // Le héros est une statue : on perd sa trace, on erre.
       if (this.stoneTurns > 0) {
         m.alerted = false;
@@ -7802,6 +7921,13 @@ export class Game {
           this.events.push({ type: "noticed", actor: m });
           this.raiseAlarm(RULES.alarmNoticed);
           this.reveal();
+          // Kobold cueilleur : il siffle l'alerte, une fois.
+          const whistle = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).alarmOnNotice;
+          if (whistle && !m.whistled) {
+            m.whistled = true;
+            this.raiseAlarm(whistle, m);
+            this.events.push({ type: "whistle", actor: m });
+          }
         } else if (!m.asleep) {
           this.wander(m);
         }

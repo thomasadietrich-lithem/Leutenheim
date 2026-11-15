@@ -35,6 +35,23 @@ export interface MonsterDef {
   sling?: { range: number; attackBonus: number; damage: Dice; keep: number };
   /** Boss : ne se pousse pas, ne se repeuple pas ; son comportement est à part (`src/core/boss.ts`). */
   boss?: boolean;
+  // ---- Section 2 (Thomas, 2026-11-15 : « retire les mobs de la section 1 dans la section 2 » ; `claude/MONSTRES_S2.md`) ----
+  /** Lent : il ne joue qu'un tour sur deux (le myconide). */
+  slow?: boolean;
+  /** Aveugle : il ne voit pas, il SENT les pas du héros à cette distance, à travers les murs ; immobile, on le perd. */
+  tremorSense?: number;
+  /** À sa mort, il éclate : un nuage de spores (empoisonné) sur sa case et ses 4 voisines, pendant ces tours (sporelin). */
+  burstGas?: number;
+  /** Insensible aux spores et au gaz (le Kobold cueilleur et son masque). */
+  sporeProof?: boolean;
+  /** Il siffle l'alerte en remarquant le héros, une fois : ce nombre de points d'alerte (le Kobold cueilleur). */
+  alarmOnNotice?: number;
+  /** Il se relève une fois après sa mort, à moitié de ses PV, sauf s'il meurt en feu (le Kobold envahi). */
+  risesOnce?: boolean;
+  /** Le feu lui fait deux fois plus mal (le myconide, sec à l'intérieur). */
+  fireWeak?: boolean;
+  /** À sa mort, il laisse tomber sa hotte : des morilles (le Kobold cueilleur). */
+  dropsMorels?: [number, number];
 }
 
 export const MONSTERS = {
@@ -98,6 +115,88 @@ export const MONSTERS = {
     // 1 fois sur 4 (Thomas, 2026-11-13, d'après les joueurs automatiques : 1 sur 3 en faisait un mur aux étages 3-4).
     webBite: 1 / 4,
   },
+  // ---------- SECTION 2, LA CHAMPIGNONNIÈRE (planche art/mobs_champi_v1.png ; comportements claude/MONSTRES_S2.md, C) ----------
+  myconide: {
+    id: "myconide",
+    name: "Myconide",
+    family: "champignons",
+    description: "Un grand champignon qui marche, aveugle. Il sent vos pas à travers la pierre : qui s'arrête, il le perd. Lent, mais il frappe fort, et le feu le dévore.",
+    hp: 14,
+    armorClass: 11,
+    attackBonus: 3,
+    damage: { count: 1, sides: 6, bonus: 0 },
+    vision: 0,
+    xpMin: 3,
+    xpMax: 4,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 0.6,
+    color: "#6e5a86",
+    blood: "green",
+    slow: true,
+    tremorSense: 6,
+    fireWeak: true,
+  },
+  sporelin: {
+    id: "sporelin",
+    name: "Sporelin",
+    family: "champignons",
+    description: "Une vesse-de-loup sur pattes, qui sautille vers vous en bande. Tué, il éclate en un nuage de spores qui empoisonne tout autour : mieux vaut l'abattre de loin.",
+    hp: 4,
+    armorClass: 10,
+    attackBonus: 1,
+    damage: { count: 1, sides: 2, bonus: 0 },
+    vision: 5,
+    xpMin: 1,
+    xpMax: 1,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 0.5,
+    color: "#bcae70",
+    blood: "green",
+    chaseSteps: 2,
+    burstGas: 3,
+  },
+  cueilleur: {
+    id: "cueilleur",
+    name: "Kobold cueilleur",
+    family: "kobolds",
+    description: "Un Kobold masqué, la hotte au dos et la serpette à la main. Les spores ne lui font rien ; en vous voyant, il siffle l'alerte. Sa hotte est pleine de morilles.",
+    hp: 8,
+    armorClass: 12,
+    attackBonus: 2,
+    damage: { count: 1, sides: 4, bonus: 0 },
+    vision: 6,
+    xpMin: 2,
+    xpMax: 3,
+    goldChance: 0.35,
+    goldMax: 6,
+    noticeChance: 0.45,
+    color: "#8a6a44",
+    blood: "yellow",
+    sporeProof: true,
+    alarmOnNotice: 10,
+    dropsMorels: [1, 2],
+  },
+  envahi: {
+    id: "envahi",
+    name: "Kobold envahi",
+    family: "kobolds",
+    description: "Un Kobold gris, l'œil voilé : un champignon lui pousse sur le crâne. Abattu, il se relève une fois, à moins d'avoir brûlé, ou qu'on l'achève à terre.",
+    hp: 9,
+    armorClass: 11,
+    attackBonus: 3,
+    damage: { count: 1, sides: 4, bonus: 1 },
+    vision: 5,
+    xpMin: 2,
+    xpMax: 3,
+    goldChance: 0.2,
+    goldMax: 4,
+    noticeChance: 0.25,
+    color: "#7f9a84",
+    blood: "green",
+    risesOnce: true,
+  },
   // BOSS DE LA SECTION 1 (étage 5 ; planche art/boss_v2.png, Thomas : « implémente », 2026-11-11). Valeurs (C).
   tisseuse: {
     id: "tisseuse",
@@ -144,6 +243,21 @@ export interface FloorSpawns {
 
 /** Table d'apparition selon la profondeur. Pour l'instant : les Schrats, en meutes qui grossissent. */
 export function spawnsForDepth(depth: number): FloorSpawns {
+  // Section 2, la champignonnière (Thomas, 2026-11-15 : « retire les mobs de la section 1 dans la section 2 ») : plus de
+  // Kobolds, de frondeurs ni d'araignées ; ses quatre monstres à elle (C).
+  if (depth > 5) {
+    const d = depth - 5;
+    return {
+      roomChance: Math.min(0.45 + d * 0.04, 0.7),
+      sleepChance: Math.max(0.2, 0.5 - (d - 1) * 0.08),
+      entries: [
+        { monster: "envahi", weight: 1, packMin: 1, packMax: d >= 3 ? 3 : 2 },
+        { monster: "sporelin", weight: 0.7, packMin: 2, packMax: d >= 3 ? 4 : 3 },
+        { monster: "cueilleur", weight: 0.5, packMin: 1, packMax: 1 },
+        { monster: "myconide", weight: 0.4, packMin: 1, packMax: d >= 4 ? 2 : 1 },
+      ],
+    };
+  }
   return {
     roomChance: Math.min(0.3 + depth * 0.05, 0.7),
     // Étages du haut : presque tout le monde dort. Plus on descend, plus ça se promène.

@@ -326,6 +326,8 @@ export const RULES = {
    * avant le boss ») : 5 tant que le boss de la section 1 vit, 10 après, etc.
    */
   levelCapPerSection: 5,
+  /** Flèche ricochante : distance du rebond, depuis la première cible (C). */
+  ricochetRange: 4,
   /** Un coup critique du héros projette le monstre d'une case (Thomas, 2026-11-12). */
   critKnockback: true,
   /** Après avoir quitté les flammes, on brûle encore tant de tours (C). */

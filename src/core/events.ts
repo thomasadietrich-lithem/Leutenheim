@@ -26,6 +26,8 @@ export type GameEvent =
       kept: boolean;
       /** Une javeline plutôt qu'une flèche (dessin en vol et morceaux brisés). */
       javelin?: boolean;
+      /** Le rebond d'une flèche ricochante, de la première cible vers la deuxième. */
+      ricochet?: boolean;
     }
   | { type: "pickup"; item: ItemId; count: number }
   /** `fire` : mort en brûlant ; `unaware` : tué par le héros sans l'avoir vu venir (succès). */
@@ -76,6 +78,10 @@ export type GameEvent =
   | { type: "webbed"; by: Actor }
   /** Le héros évite d'un bond un piège qu'il vient de déclencher (agilité). */
   | { type: "watered"; x: number; y: number }
+  | { type: "rise"; actor: Actor; what: "down" | "up" }
+  | { type: "burst"; x: number; y: number }
+  | { type: "whistle"; actor: Actor }
+  | { type: "lostTrack"; actor: Actor }
   | { type: "trapDodged"; x: number; y: number; kind: string; d20: number; bonus: number }
   /** Nichée : une nappe de toile (ou la grande toile) ralentit le héros. */
   | { type: "webSlow"; hub: boolean }

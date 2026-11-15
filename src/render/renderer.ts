@@ -1453,9 +1453,10 @@ export class Renderer {
     // Un ruban noué autour de la tige (Thomas, 2026-11-15) : vert pour la flèche empoisonnée, noir pour la ricochante.
     if (kind !== "plain" && part === "whole") {
       const rib = kind === "poison" ? "#4fae3c" : "#1a1620";
+      // Quelques pixels au milieu de la tige (Thomas, 2026-11-15), sans déborder.
       const rx = -L * 0.12;
-      shape(rib, [[rx - w * 0.9, -w * 0.95], [rx + w * 0.9, -w * 0.95], [rx + w * 0.9, w * 0.95], [rx - w * 0.9, w * 0.95]]);
-      shape(rib, [[rx, w * 0.9], [rx - w * 1.4, w * 2.6], [rx - w * 0.4, w * 2.8]]);
+      ctx.fillStyle = rib;
+      ctx.fillRect(rx - w * 1.1, -w / 2, w * 2.2, w);
     }
     if (part !== "back") {
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.

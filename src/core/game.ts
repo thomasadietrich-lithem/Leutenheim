@@ -54,6 +54,9 @@ export interface FloorPerks {
   /** Le héros a perdu de la vie sur cet étage ; monstres qu'il y a vaincus (succès « Intouchable »). */
   hurt?: number;
   kills?: number;
+  /** Déjà quitté une fois (par n'importe quel escalier) : le succès « sans une égratignure » ne compte plus (Thomas,
+   *  2026-11-15 : repasser par l'escalier par lequel on est arrivé ne doit pas marcher). */
+  left?: number;
 }
 
 /** Ce que Gluck sait du héros, le temps d'une partie (Thomas : pas de mémoire d'une partie à l'autre). */
@@ -2247,8 +2250,8 @@ export class Game {
     }
     game.floorPerks = {};
     for (const [d, pk] of Object.entries(saved.floorPerks ?? {})) {
-      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number; luckyDie?: number; hurt?: number; kills?: number };
-      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0, luckyDie: old.luckyDie ?? 0, hurt: old.hurt ?? 0, kills: old.kills ?? 0 };
+      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number; luckyDie?: number; hurt?: number; kills?: number; left?: number };
+      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0, luckyDie: old.luckyDie ?? 0, hurt: old.hurt ?? 0, kills: old.kills ?? 0, left: old.left ?? 0 };
     }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
@@ -4493,10 +4496,8 @@ export class Game {
       if (state.gluck) this.placeHollowStatue(state, rng);
     }
     else if (pick === "soeur") state.soeur = this.placeSoeur(state, rng) ?? undefined;
-    else if (pick === "fifrelin") {
-      state.fifrelin = this.placeKrik(state, rng) ?? undefined;
-      if (state.fifrelin) this.placeArena(state, state.fifrelin);
-    } else state.krik = this.placeKrik(state, rng) ?? undefined;
+    else if (pick === "fifrelin") state.fifrelin = this.placeFifrelin(state, rng) ?? undefined;
+    else state.krik = this.placeKrik(state, rng) ?? undefined;
   }
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
@@ -4672,6 +4673,25 @@ export class Game {
       const x = rng.int(1, state.map.width - 2);
       const y = rng.int(1, state.map.height - 2);
       if (free(x, y) && far(x, y) && !(startRoom && inside(startRoom, { x, y }))) return { x, y, gone: false };
+    }
+    return null;
+  }
+
+  /** Fifrelin (Thomas, 2026-11-15) : dans une salle ORDINAIRE (ni salle à thème, ni salle de départ, ni celle de
+   *  l'escalier), assez grande pour son ring, et toujours avec son ring. Aucune salle ne convient : il ne vient pas. */
+  private placeFifrelin(state: FloorState, rng: Rng): GluckSpot | null {
+    const inside = (r: Room, p: Point) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    const rooms = state.rooms.filter(
+      (r, i) => r.w >= 7 && r.h >= 7 && !(state.themes ?? []).some((t) => t.room === i) && !inside(r, state.start) && !inside(r, state.stairs) && !(state.secretRoom && state.secretRoom.host === i),
+    );
+    for (let i = rooms.length - 1; i > 0; i--) {
+      const j = rng.int(0, i);
+      [rooms[i], rooms[j]] = [rooms[j], rooms[i]];
+    }
+    for (const r of rooms) {
+      const g: GluckSpot = { x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2), gone: false };
+      this.placeArena(state, g);
+      if (g.ring) return g;
     }
     return null;
   }
@@ -8548,7 +8568,8 @@ export class Game {
     // Descendre sans être revenu voir le PNJ : la tâche est ratée (Thomas, 2026-11-12 : il reste sur l'étage).
     if (direction === "down" && this.quest && this.quest.depth === this.depth) this.failQuest();
     const left = this.perks();
-    const unhurt = (direction === "down" && !left.hurt && (left.kills ?? 0) > 0) || undefined;
+    const unhurt = (direction === "down" && !left.hurt && !left.left && (left.kills ?? 0) > 0) || undefined;
+    left.left = 1;
     this.enterFloor(target, direction);
     this.events.push({ type: "stairs", direction, healed, unhurt });
     if (direction === "down") this.settleKrik();

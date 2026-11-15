@@ -5325,3 +5325,69 @@ test("angle de mur (Thomas, 2026-11-15) : le monstre qui tourne le coin arrive s
   assert.ok(game.edgeReasons(h, m).includes("ambush"), "embuscade pour le héros");
   assert.ok(game.heroHasAdvantageOn(m));
 });
+
+test("pièce secrète : le creux donne toujours sur la salle où l'on fouille pour l'ouvrir (Thomas, 2026-11-15)", () => {
+  let n = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    const game = new Game(seed);
+    const s = game.secretRoom();
+    if (!s) continue;
+    n++;
+    const host = game.rooms[s.host];
+    const front = { x: s.peek.x - s.dir.x, y: s.peek.y - s.dir.y };
+    assert.ok(front.x >= host.x && front.y >= host.y && front.x < host.x + host.w && front.y < host.y + host.h, `graine ${seed} : le creux donne hors de la salle de l'entrée`);
+  }
+  assert.ok(n > 20);
+});
+
+test("section 2 (Thomas, 2026-11-15) : texte d'arrivée une seule fois, décor de la section 2 autour de l'escalier scellé", () => {
+  const game = new Game(5);
+  game.testRun = true;
+  game.teleport(5);
+  const seal = (game.bossLayout() as unknown as { seal: { x: number; y: number } }).seal;
+  assert.equal(game.floorStyle(seal.x - 1, seal.y), "champi");
+  assert.equal(game.wallLookAt(seal.x, seal.y - 1), "champi");
+  assert.ok(game.furnitureList().some((f) => f.kind.startsWith("lueurs")), "des champignons lumineux près de l'alcôve");
+  game.events.length = 0;
+  game.teleport(6);
+  assert.ok(game.events.some((e) => e.type === "sectionIntro" && e.section === 2));
+  game.events.length = 0;
+  game.teleport(5);
+  game.teleport(6);
+  assert.ok(!game.events.some((e) => e.type === "sectionIntro"), "une seule fois");
+});
+
+test("« sans une égratignure » (Thomas, 2026-11-15) : un étage ne compte qu'à sa première sortie, pas en repassant par l'escalier", () => {
+  const game = new Game(3);
+  game.perks().kills = 1;
+  const down = () => {
+    game.events.length = 0;
+    game.pendingStairs = "down";
+    game.takeStairs();
+    return game.events.some((e) => e.type === "stairs" && e.unhurt);
+  };
+  assert.ok(down(), "première sortie de l'étage 1 : compte");
+  game.events.length = 0;
+  game.pendingStairs = "up";
+  game.takeStairs();
+  assert.equal(game.depth, 1);
+  assert.ok(!down(), "redescendre par le même escalier : ne compte plus");
+});
+
+test("Fifrelin (Thomas, 2026-11-15) : toujours dans une salle ordinaire, et toujours avec son ring", () => {
+  let n = 0;
+  for (let seed = 1; seed <= 400 && n < 15; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    for (let d = 1; d <= 4; d++) {
+      if (d > 1) game.teleport(d);
+      const f = game.fifrelin();
+      if (!f) continue;
+      n++;
+      assert.ok(f.ring, `graine ${seed}, étage ${d} : un ring`);
+      const i = game.rooms.findIndex((r) => f.x >= r.x && f.y >= r.y && f.x < r.x + r.w && f.y < r.y + r.h);
+      assert.ok(i >= 0 && game.roomTheme(i) === null, `graine ${seed}, étage ${d} : salle ordinaire`);
+    }
+  }
+  assert.ok(n > 3, "Fifrelin apparaît");
+});

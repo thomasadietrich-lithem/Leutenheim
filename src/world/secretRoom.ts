@@ -140,9 +140,13 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
     }
     // Le creux qui laisse voir dedans : sur le mur commun, à côté de l'entrée (ou l'entrée elle-même) ; il montre la
     // case derrière lui et ses deux voisines, plus la suivante.
+    // Le creux donne toujours sur la salle de l'entrée (Thomas, 2026-11-15 : l'accès n'était pas forcément dans la salle
+    // du trou) : la case devant lui est dans cette salle, pas dans un couloir ni une salle voisine.
+    const host = floor.rooms[pick.host];
+    const inHost = (p: Point) => p.x >= host.x && p.x < host.x + host.w && p.y >= host.y && p.y < host.y + host.h;
     const shared = [-half, half, -1, 1, 0].map((k) => ({ x: entry.x + perp.x * k, y: entry.y + perp.y * k })).filter((p) => {
       const front = { x: p.x - dir.x, y: p.y - dir.y };
-      return map.get(p.x, p.y) === Tile.Wall && map.get(front.x, front.y) !== Tile.Wall && !taken(p) && !nearDoor(floor, p);
+      return map.get(p.x, p.y) === Tile.Wall && map.get(front.x, front.y) === Tile.Floor && inHost(front) && !taken(p) && !nearDoor(floor, p);
     });
     const peek = shared.length > 0 ? shared[rng.int(0, shared.length - 1)] : entry;
     furniture.push({ x: peek.x, y: peek.y, kind: rng.chance(0.5) ? "wallHoleA" : "wallHoleB" });
@@ -199,7 +203,7 @@ export function placeWallMarks(floor: Floor, furniture: Furniture[], rng: Rng, c
     if (taken(cell) || nearDoor(floor, cell) || floor.torches.some((t) => t.x === cell.x && t.y === cell.y)) continue;
     // Jamais deux marques côte à côte.
     if (furniture.some((f) => /^wall(Gap|Hole)/.test(f.kind) && Math.abs(f.x - cell.x) + Math.abs(f.y - cell.y) <= 2)) continue;
-    furniture.push({ x: cell.x, y: cell.y, kind: ["wallGapA", "wallGapB", "wallHoleA", "wallHoleB"][rng.int(0, 3)] });
+    furniture.push({ x: cell.x, y: cell.y, kind: ["wallGapA", "wallGapB"][rng.int(0, 1)] });
     put++;
   }
 }

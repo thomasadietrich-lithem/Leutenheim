@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T08:39:31.710Z",
+ "commit": "691cb68",
+ "note": "angle de mur : embuscade et pas d'opportunité",
+ "logic": {
+  "tickMs": 0.88,
+  "lightMs": 0.12,
+  "visionMs": 0.15
+ },
+ "scenes": {
+  "immobile": {
+   "n": 122,
+   "avg": 20.2,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 49,
+   "js": 8
+  },
+  "marche": {
+   "n": 271,
+   "avg": 18.4,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 54,
+   "js": 5
+  },
+  "retour": {
+   "n": 263,
+   "avg": 19,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 53,
+   "js": 6
+  },
+  "zoom": {
+   "n": 129,
+   "avg": 20.2,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 50,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 267,
+   "avg": 18.6,
+   "p95": 33.3,
+   "max": 133.3,
+   "fps": 54,
+   "js": 15
+  }
+ },
+ "errors": []
+}

@@ -28,3 +28,6 @@
 | 2026-11-15 07:45 | 6ff9024 | Débutant | 2.4 | 19 % | 1 % | 0 % | 1.4 | 5.2 | 0.2 / 0 / 0.1 | cotte de mailles niveau 6 (étage 6+), harnois niveau 10 (étage 8+), flèche ricochante |
 | 2026-11-15 07:45 | 6ff9024 | Moyen | 3 | 17 % | 21 % | 0 % | 2.1 | 11.7 | 0.3 / 0.1 / 0.1 | cotte de mailles niveau 6 (étage 6+), harnois niveau 10 (étage 8+), flèche ricochante |
 | 2026-11-15 07:45 | 6ff9024 | Maîtrise | 3.5 | 3 % | 29 % | 7 % | 3.6 | 28.6 | 0.5 / 0.3 / 0.2 | cotte de mailles niveau 6 (étage 6+), harnois niveau 10 (étage 8+), flèche ricochante |
+| 2026-11-15 08:39 | 691cb68 | Débutant | 2.4 | 17 % | 1 % | 0 % | 1.4 | 5.2 | 0.2 / 0 / 0.1 | angle de mur : embuscade franche, pas d'attaque d'opportunité derrière un coin ; monstres S2 rééquilibrés |
+| 2026-11-15 08:39 | 691cb68 | Moyen | 2.9 | 20 % | 15 % | 0 % | 2.1 | 11.2 | 0.3 / 0.2 / 0.1 | angle de mur : embuscade franche, pas d'attaque d'opportunité derrière un coin ; monstres S2 rééquilibrés |
+| 2026-11-15 08:39 | 691cb68 | Maîtrise | 3.6 | 3 % | 33 % | 5 % | 3.8 | 30.7 | 0.5 / 0.3 / 0.1 | angle de mur : embuscade franche, pas d'attaque d'opportunité derrière un coin ; monstres S2 rééquilibrés |

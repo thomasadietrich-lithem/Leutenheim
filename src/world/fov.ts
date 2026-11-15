@@ -41,6 +41,37 @@ export function hasLineOfSight(map: GameMap, from: Point, to: Point): boolean {
   return true;
 }
 
+/**
+ * Vue « franche » (Thomas, 2026-11-15 : « derrière un mur, sur la diagonale, le monstre me rejoint sans me voir ») : comme
+ * `hasLineOfSight`, mais un pas en diagonale qui frôle un coin de mur (un seul des deux côtés bouché suffit) coupe la vue.
+ * Sert à l'embuscade et à l'attaque d'opportunité : on se cache derrière un angle de mur.
+ */
+export function hasClearSight(map: GameMap, from: Point, to: Point): boolean {
+  let x = from.x;
+  let y = from.y;
+  const dx = Math.abs(to.x - x);
+  const dy = Math.abs(to.y - y);
+  const sx = x < to.x ? 1 : -1;
+  const sy = y < to.y ? 1 : -1;
+  let err = dx - dy;
+  while (x !== to.x || y !== to.y) {
+    if ((x !== from.x || y !== from.y) && map.blocksSight(x, y)) return false;
+    const e2 = 2 * err;
+    const stepX = e2 > -dy;
+    const stepY = e2 < dx;
+    if (stepX && stepY && (map.blocksSight(x + sx, y) || map.blocksSight(x, y + sy))) return false;
+    if (stepX) {
+      err -= dy;
+      x += sx;
+    }
+    if (stepY) {
+      err += dx;
+      y += sy;
+    }
+  }
+  return true;
+}
+
 /** Cases traversées en ligne droite de `from` (exclu) à `to` (inclus). */
 export function lineBetween(from: Point, to: Point): Point[] {
   const cells: Point[] = [];

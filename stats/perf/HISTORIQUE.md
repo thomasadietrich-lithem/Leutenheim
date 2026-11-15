@@ -35,3 +35,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_08h06 | 3188842 | 19.6 | 18.7 | 19.4 | 20.2 | 16.7 | 19.8 | 0.6 | 0.25 | torches salles S2, alambics, fumée légère, mobs S2 rééquilibrés |
 | 2026-11-15_08h12 | 563ad8b | 24 | 23.8 | 20 | 18.7 | 16.7 | 20.4 | 0.94 | 0.26 | salles de couleurs |
 | 2026-11-15_08h13 | daae74a | 19.8 | 19.9 | 22.6 | 21.5 | 16.7 | 19.5 | 0.47 | 0.27 | salles de couleurs (re-mesure) |
+| 2026-11-15_08h39 | 691cb68 | 20.2 | 18.4 | 19 | 20.2 | 16.7 | 18.6 | 0.88 | 0.12 | angle de mur : embuscade et pas d'opportunité |
+| 2026-11-15_08h40 | 691cb68 | 20.9 | 22.2 | 19.6 | 21.3 | 16.7 | 20.2 | 0.58 | 0.26 | angle de mur (re-mesure) |

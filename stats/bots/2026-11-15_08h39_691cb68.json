@@ -1,0 +1,87 @@
+{
+ "date": "2026-11-15T08:39:31.902Z",
+ "commit": "691cb68",
+ "runs": 150,
+ "note": "angle de mur : embuscade franche, pas d'attaque d'opportunité derrière un coin ; monstres S2 rééquilibrés",
+ "levels": {
+  "debutant": {
+   "floor": 2.4,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 83,
+    "3": 46,
+    "4": 12,
+    "5": 1
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 132.2,
+   "gold": 7.6,
+   "kills": 5.2,
+   "questsStarted": 0.2,
+   "questsDone": 0,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 99,
+    "un Kobold frondeur": 25,
+    "une Araignée": 22,
+    "un piège à pointes": 3,
+    "la Tisseuse": 1
+   }
+  },
+  "moyen": {
+   "floor": 2.9,
+   "deathFloor1": 20,
+   "reach": {
+    "2": 80,
+    "3": 61,
+    "4": 33,
+    "5": 15
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 2.1,
+   "turns": 296.7,
+   "gold": 32.4,
+   "kills": 11.2,
+   "questsStarted": 0.3,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 73,
+    "la Tisseuse": 21,
+    "un Kobold frondeur": 23,
+    "une Araignée": 31,
+    "le poison": 1
+   }
+  },
+  "maitrise": {
+   "floor": 3.6,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 95,
+    "3": 80,
+    "4": 56,
+    "5": 33
+   },
+   "boss": 5,
+   "dead": 83,
+   "heroLevel": 3.8,
+   "turns": 768.5,
+   "gold": 66.5,
+   "kills": 30.7,
+   "questsStarted": 0.5,
+   "questsDone": 0.3,
+   "questsFailed": 0.1,
+   "causes": {
+    "une Araignée": 27,
+    "la Tisseuse": 34,
+    "un Kobold": 27,
+    "un Kobold frondeur": 32,
+    "une chute dans une fosse": 1,
+    "le poison": 3
+   }
+  }
+ }
+}

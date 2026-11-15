@@ -15,7 +15,7 @@ import { MORILLON, MORILLON_OPENING } from "../data/morillon";
 import { FIFRELIN, FIFRELIN_OPENING } from "../data/fifrelin";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
-import { computeFov, computeLight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
+import { computeFov, computeLight, hasClearSight, hasLineOfSight, LightSource, lineBetween } from "../world/fov";
 import { generateFloor, Room } from "../world/generator";
 import { encaseStairs } from "../world/stairs";
 import { carvePocket, placeSecretRoom, placeWallMarks } from "../world/secretRoom";
@@ -3828,7 +3828,10 @@ export class Game {
           // Ceux à qui le héros échappe ainsi sont sur leurs gardes : pas d'embuscade contre eux ensuite.
           for (const m of threats) if (!this.inReach(m, this.hero)) m.wary = true;
         }
-        if (!throughDoor && this.opportunityAttacks(threats)) {
+        // Se cacher derrière un angle de mur (Thomas, 2026-11-15 : « pas d'attaque d'opportunité si je me cache derrière
+        // le mur ») : le monstre qui ne voit plus franchement la case d'arrivée ne frappe pas.
+        const striking = threats.filter((m) => hasClearSight(this.map, m, next));
+        if (!throughDoor && this.opportunityAttacks(striking)) {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
           this.doorTarget = null;
@@ -4205,7 +4208,9 @@ export class Game {
     if (!guarded && cellsOf(d).some((c) => this.map.isDoor(c.x, c.y)) && !cellsOf(a).some((c) => this.map.isDoor(c.x, c.y))) out.push("door");
     if (!guarded && this.lastStepFrom(a) === null) {
       const from = this.lastStepFrom(d);
-      if (from && !hasLineOfSight(this.map, from, a)) out.push("ambush");
+      // Embuscade : il arrive d'une case d'où il ne voyait pas A franchement (un mur, une porte, une colonne, ou un
+      // angle de mur frôlé en diagonale : Thomas, 2026-11-15).
+      if (from && !hasClearSight(this.map, from, a)) out.push("ambush");
     }
     return out;
   }
@@ -8046,8 +8051,13 @@ export class Game {
 
       // L'araignée fond sur sa proie : deux pas par tour (elle s'arrête si elle arrive au contact).
       const steps = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).chaseSteps ?? 1;
+      const before = { x: m.x, y: m.y };
       for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) if (!this.stepToward(m, this.hero)) break;
-      this.faceToward(m, this.hero);
+      // Il tourne un angle de mur derrière lequel le héros attend : il arrive en regardant devant lui, pas vers le héros
+      // (Thomas, 2026-11-15) ; le héros l'aura avec l'avantage (embuscade).
+      const moved = m.x !== before.x || m.y !== before.y;
+      if (moved && !hasClearSight(this.map, before, this.hero)) this.faceToward(m, { x: m.x + Math.sign(m.x - before.x), y: m.y + Math.sign(m.y - before.y) });
+      else this.faceToward(m, this.hero);
     }
   }
 

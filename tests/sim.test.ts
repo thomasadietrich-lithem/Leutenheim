@@ -10,7 +10,7 @@ import { spawnsForDepth } from "../src/data/monsters";
 import { Inventory } from "../src/items/inventory";
 import { generateFloor } from "../src/world/generator";
 import { GameMap, Tile } from "../src/world/map";
-import { computeFov, computeLight, hasLineOfSight } from "../src/world/fov";
+import { computeFov, computeLight, hasClearSight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath, isChokepoint } from "../src/world/pathfinding";
 import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
 import { guaranteedLoot } from "../src/core/floor";
@@ -380,6 +380,8 @@ test("se désengager provoque une attaque d'opportunité, puis le déplacement s
     // Passer une porte protège de l'attaque d'opportunité : ce cas a son propre test.
     const step = game.path[0];
     if (game.map.isDoor(step.x, step.y) || game.map.isDoor(game.hero.x, game.hero.y)) continue;
+    // Se cacher derrière un angle de mur protège aussi (Thomas, 2026-11-15) : ce cas a son propre test.
+    if (!hasClearSight(game.map, foe, step)) continue;
     game.tick();
     const stillNear = reach(foe.fromX, foe.fromY);
     const reactions = game.events.filter((e) => e.type === "attack" && e.opportunity && e.attacker === foe);
@@ -5298,4 +5300,28 @@ test("fumée en croix : un halo léger dans les angles, et le dernier tour en fu
   game.wait();
   game.tick();
   assert.ok(game.gas.length > 0 && game.gas.every((g) => g.thin), "avant de disparaître, fumée légère");
+});
+
+test("angle de mur (Thomas, 2026-11-15) : le monstre qui tourne le coin arrive sans voir le héros (avantage au héros), et s'y cacher évite l'attaque d'opportunité", () => {
+  const game = new Game(3);
+  game.monsters.splice(0);
+  // Une salle assez grande pour poser un pan de mur au milieu.
+  const room = game.rooms.find((r) => r.w >= 6 && r.h >= 6)!;
+  assert.ok(room);
+  const hx = room.x + 2;
+  const hy = room.y + 2;
+  // Un coin de mur juste à droite du héros : la case (hx + 1, hy).
+  game.map.set(hx + 1, hy, Tile.Wall);
+  const h = game.hero;
+  Object.assign(h, { x: hx, y: hy, fromX: hx, fromY: hy, prevX: hx, prevY: hy });
+  // Le monstre arrivait de (hx + 2, hy - 1)… et se retrouve en (hx + 1, hy - 1), en diagonale du héros.
+  const from = { x: hx + 2, y: hy };
+  assert.ok(!hasClearSight(game.map, from, h), "l'angle de mur coupe la vue franche");
+  // En diagonale juste derrière le coin : on se voit encore, mais pas « franchement ».
+  assert.ok(hasLineOfSight(game.map, { x: hx + 1, y: hy + 1 }, h));
+  assert.ok(!hasClearSight(game.map, { x: hx + 1, y: hy + 1 }, h));
+  const m = { ...JSON.parse(JSON.stringify(h)), id: 77, kind: "monster", defId: "schrat", name: "Kobold", x: hx + 1, y: hy + 1, fromX: from.x, fromY: from.y, prevX: from.x, prevY: from.y, hp: 7, maxHp: 7, alerted: true, asleep: false, wary: false };
+  game.monsters.push(m);
+  assert.ok(game.edgeReasons(h, m).includes("ambush"), "embuscade pour le héros");
+  assert.ok(game.heroHasAdvantageOn(m));
 });

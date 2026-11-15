@@ -6,6 +6,7 @@ import { DECOR, DECOR_PALETTE } from "./sprites/decor";
 import { SECRET } from "./sprites/secret";
 import { CHAMPI_SALLES } from "./sprites/champiSalles";
 import { CHAMPI } from "./sprites/champi";
+import { ESCALIERS_CHAMPI, ESCALIERS_CHAMPI_PALETTE } from "./sprites/escaliersChampi";
 
 /** Le coffre d'acier : les bois du coffre passent à l'acier, les bandes au fer sombre. */
 const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
@@ -223,10 +224,12 @@ export class TilePainter {
     // Escaliers et coffres : dessins en pixels validés par Thomas (`src/render/sprites/decor.ts`).
     // Escaliers droits v3 (Thomas, 2026-11-14 : « implémente l'escalier 3, garde les autres »).
     if (t === Tile.StairsDown || t === Tile.StairsUp) {
-      const style = ESCALIERS[STAIRS_STYLE];
+      // Section 2 (Thomas, 2026-11-15 : « refais les escaliers de la section deux ») : terre, planches, champignons.
+      const champi = game.look() === "champi";
+      const style = champi ? ESCALIERS_CHAMPI : ESCALIERS[STAIRS_STYLE];
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.sprite(t === Tile.StairsDown ? style.down : style.up, ESCALIERS_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.drawImage(this.sprite(t === Tile.StairsDown ? style.down : style.up, champi ? ESCALIERS_CHAMPI_PALETTE : ESCALIERS_PALETTE), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
       ctx.imageSmoothingEnabled = smooth;
       return;
     }

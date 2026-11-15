@@ -142,6 +142,22 @@ export function buildBossFloor(seed: number): BossFloor {
     take(x, y);
   }
   furniture.push({ x: seal.x, y: seal.y, kind: "sealedStairs" });
+  // La section 2 affleure (Thomas, 2026-11-15 : « du décor de la section 2 autour du dernier escalier ») : dans l'anneau,
+  // devant l'alcôve, de la terre meuble et des petits champignons lumineux (ils ne bloquent pas). Leur propre tirage, pour
+  // ne rien changer au reste de la nichée. Le sol et les murs proches prennent l'aspect de la section 2 (`champiPatch`).
+  const drng = new Rng(seed ^ 0x5ec710);
+  const LUEURS = ["lueursB1", "lueursB2", "lueursG1", "lueursG3", "lueursP1", "lueursP2"];
+  const near: Point[] = [];
+  for (let dy = -2; dy <= 2; dy++) for (const dx of [-1, -2]) if (map.get(chest.x + dx, ay + dy) === Tile.Floor) near.push({ x: chest.x + dx, y: ay + dy });
+  for (let i = near.length - 1; i > 0; i--) {
+    const j = drng.int(0, i);
+    [near[i], near[j]] = [near[j], near[i]];
+  }
+  near.forEach((q, i) => {
+    take(q.x, q.y);
+    if (i < 3) furniture.push({ x: q.x, y: q.y, kind: LUEURS[drng.int(0, LUEURS.length - 1)] });
+    else if (drng.chance(0.7)) furniture.push({ x: q.x, y: q.y, kind: "terre" });
+  });
 
   // Sentiers sans toile : de la brèche d'arrivée à la grande toile, et entre des brèches (trajets un peu sinueux).
   const clear = new Set<number>();

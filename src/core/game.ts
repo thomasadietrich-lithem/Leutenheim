@@ -1953,16 +1953,31 @@ export class Game {
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
   floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | undefined {
+    if (this.champiPatch(x, y)) return "champi";
     const id = this.themeAt(x, y);
     return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" ? "sculpture" : id === "chaud" ? "champiWarm" : this.look() === "champi" ? "champi" : undefined;
   }
 
   /** Le décor d'une case de mur : celui de l'étage, ou « chaud, terreux » au bord d'une salle de ce thème (salle d'essai). */
   wallLookAt(x: number, y: number): "s1" | "champi" | "champiWarm" {
+    if (this.champiPatch(x, y)) return "champi";
     const look = this.look();
     if (look !== "champi" || !this.current.themes.some((t) => t.id === "chaud")) return look;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.themeAt(x + dx, y + dy) === "chaud") return "champiWarm";
     return look;
+  }
+
+  /** Étage du boss de la section 1 : la section 2 affleure autour de l'escalier scellé (Thomas, 2026-11-15) ; un
+   *  contour irrégulier, mais toujours le même pour une case donnée. */
+  champiPatch(x: number, y: number): boolean {
+    const seal = this.current?.boss?.seal;
+    if (!seal) return false;
+    const dx = x - seal.x;
+    const dy = y - seal.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 12) return false;
+    if (d2 <= 5) return true;
+    return ((x * 73856093) ^ (y * 19349663)) % 3 !== 0;
   }
 
   /** Section 2 : éboulis (« E », infranchissable) ou terre meuble (« e ») sur cette case (pour le dessin). */
@@ -2004,6 +2019,9 @@ export class Game {
   private useFloor(state: FloorState, depth: number): void {
     this.current = state;
     this.depth = depth;
+    // Première arrivée au premier étage d'une nouvelle section : le texte d'arrivée (Thomas, 2026-11-15).
+    const per = RULES.floorsPerSection;
+    if (depth > this.deepest && depth > 1 && (depth - 1) % per === 0) this.events.push({ type: "sectionIntro", section: (depth - 1) / per + 1 });
     this.deepest = Math.max(this.deepest, depth);
     this.map = state.map;
     this.rng = state.rng;

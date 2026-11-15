@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T08:47:44.292Z",
+ "commit": "9f3a5f4",
+ "note": "texte d'arrivée section 2, escaliers champi, décor autour de l'escalier scellé",
+ "logic": {
+  "tickMs": 0.64,
+  "lightMs": 0.14,
+  "visionMs": 0.12
+ },
+ "scenes": {
+  "immobile": {
+   "n": 126,
+   "avg": 19.6,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 8
+  },
+  "marche": {
+   "n": 247,
+   "avg": 20.2,
+   "p95": 33.3,
+   "max": 50.1,
+   "fps": 50,
+   "js": 5
+  },
+  "retour": {
+   "n": 265,
+   "avg": 18.9,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 53,
+   "js": 4
+  },
+  "zoom": {
+   "n": 132,
+   "avg": 18.9,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 53,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 201,
+   "avg": 24.6,
+   "p95": 33.4,
+   "max": 133.3,
+   "fps": 41,
+   "js": 15
+  }
+ },
+ "errors": []
+}

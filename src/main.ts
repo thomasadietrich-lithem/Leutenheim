@@ -13,7 +13,7 @@ import { expectedDamagePerTurn, type AttackResult } from "./core/combat";
 import { DoorAction, Game, GameEvent, GluckResult, NpcId } from "./core/game";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "./render/sprites/soeur";
 import { CLASSES, ClassDef } from "./data/classes";
-import { INTRO_LINES } from "./data/intro";
+import { INTRO_LINES, SECTION_LINES } from "./data/intro";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
@@ -957,6 +957,9 @@ function reveal(e: GameEvent): void {
       },
       (p) => game.chickenGlow(p),
     );
+  } else if (e.type === "sectionIntro") {
+    const lines = SECTION_LINES[e.section];
+    if (lines) showIntro(lines);
   } else if (e.type === "stairs") {
     clearRollLog();
     shownHp = game.hero.hp;
@@ -3391,17 +3394,17 @@ button("new-start", () => {
 
 /** Le synopsis (Thomas, 2026-11-13), au début de chaque nouvelle partie : une ligne toutes les 0,7 s (« accélère »). */
 const INTRO_STEP_S = 0.7;
-function showIntro(): void {
+function showIntro(lines: string[] = INTRO_LINES): void {
   const box = $("intro");
   box.classList.remove("all");
   $("intro-lines").replaceChildren(
-    ...INTRO_LINES.map((line, i) => {
+    ...lines.map((line, i) => {
       const p = el("p", "", line);
       p.style.animationDelay = `${0.2 + i * INTRO_STEP_S}s`;
       return p;
     }),
   );
-  $("intro-go").style.animationDelay = `${0.2 + INTRO_LINES.length * INTRO_STEP_S}s`;
+  $("intro-go").style.animationDelay = `${0.2 + lines.length * INTRO_STEP_S}s`;
   box.hidden = false;
 }
 // Toucher l'écran : tout le texte d'un coup ; le bouton (une fois visible) lance la partie.

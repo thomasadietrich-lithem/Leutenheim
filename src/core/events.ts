@@ -37,6 +37,8 @@ export type GameEvent =
   | { type: "noticed"; actor: Actor }
   /** `unhurt` : l'étage quitté vers le bas sans avoir perdu de vie, avec au moins un monstre vaincu (succès). */
   | { type: "stairs"; direction: "down" | "up"; healed: number; unhurt?: boolean }
+  /** Première arrivée dans une nouvelle section : son texte d'arrivée. */
+  | { type: "sectionIntro"; section: number }
   /** Le sac est plein : l'objet reste au sol. */
   | { type: "bagFull"; item?: ItemId; x?: number; y?: number; messy?: boolean }
   /** Un objet tombé sur un escalier rebondit sur la marche et retombe à côté. */

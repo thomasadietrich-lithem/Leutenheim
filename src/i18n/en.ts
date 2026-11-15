@@ -1771,4 +1771,9 @@ export const EN: Record<string, string> = {
   "Couleurs : chaud, terreux": "Colours: warm, earthy",
   "Passer un angle de mur": "Slip around a wall corner",
   "Se glisser derrière un coin de mur, là où il ne vous voit plus franchement : pas de coup. Attendez-le là : il débouchera sans vous voir, et vous aurez l'avantage.": "Slip behind a wall corner, where it can no longer see you clearly: no free hit. Wait for it there: it will come round without seeing you, and you will have the advantage.",
+  "La Tisseuse ne tissera plus. Vous avez fouillé sa toile : des cocons, des œufs, et pas la moindre cloche.": "The Weaver will weave no more. You searched her web: cocoons, eggs, and not a single bell.",
+  "Derrière elle, l'escalier sent la terre mouillée.": "Behind her, the stairs smell of wet earth.",
+  "Ici les murs luisent, et des champignons poussent dans tous les sens.": "Here the walls glow, and mushrooms grow every which way.",
+  "Vous avez gagné des cicatrices, perdu des flèches, et il n'y a plus personne pour la tape dans le dos.": "You've gained scars, lost arrows, and there's no one left to pat you on the back.",
+  "Ça sonne plus bas.": "It's ringing further down.",
 };

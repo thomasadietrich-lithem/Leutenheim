@@ -957,6 +957,9 @@ function reveal(e: GameEvent): void {
       },
       (p) => game.chickenGlow(p),
     );
+  } else if (e.type === "pickEquip") {
+    const name = ITEMS[e.item].name;
+    logLines.push(e.ok ? `Vous vous équipez : ${name.toLowerCase()}.` : `Impossible de porter ${name.toLowerCase()} : il reste dans le sac.`);
   } else if (e.type === "sectionIntro") {
     const lines = SECTION_LINES[e.section];
     if (lines) showIntro(lines);
@@ -1812,9 +1815,16 @@ function renderHere(): void {
   const def: ItemDef = ITEMS[top.item];
   $("here-icon").replaceChildren(itemIcon(top.item));
   $("here-name").textContent = tr(`${def.name}${top.count > 1 ? ` ×${top.count}` : ""}${piles.length > 1 ? `  (1/${piles.length})` : ""}`);
+  // S'équiper directement depuis le sol (Thomas, 2026-11-15) : seulement ce qui se porte ; grisé si le niveau manque.
+  const equip = $("here-equip") as HTMLButtonElement;
+  equip.hidden = !game.wearable(def);
+  equip.disabled = game.tooLow(def);
 }
 button("here-take", () => {
   if (game.pickUp()) stepMs = COMBAT_STEP_MS;
+});
+button("here-equip", () => {
+  if (game.pickUpAndEquip()) stepMs = COMBAT_STEP_MS;
 });
 button("here-close", () => {
   hereDismissed = `${game.hero.x},${game.hero.y}`;
@@ -1831,6 +1841,8 @@ button("here-info", () => {
 $("here-take").replaceChildren(uiIcon("take"));
 $("here-take").setAttribute("aria-label", tr("Ramasser"));
 $("here-info").setAttribute("aria-label", tr("Fiche de l'objet"));
+$("here-equip").replaceChildren(uiIcon("equip"));
+$("here-equip").setAttribute("aria-label", tr("S'équiper"));
 $("here-close").setAttribute("aria-label", tr("Fermer"));
 
 // Boutons sans texte : un pictogramme, et un nom lisible par les aides à la lecture.

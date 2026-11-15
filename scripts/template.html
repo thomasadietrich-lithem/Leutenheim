@@ -274,6 +274,8 @@
   #here-name { font-size: 18px; line-height: 1; color: #fff3c8; text-transform: uppercase; overflow: hidden; min-width: 0; max-height: 54px; }
   #here button { width: 38px; height: 38px; padding: 3px; flex: none; font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   #here button svg { width: 100%; height: 100%; }
+  #here button:disabled { opacity: 0.35; }
+  #here button[hidden] { display: none; }
   /* Taille FIXE : ni la hauteur du panneau ni la largeur de la zone du dé ne bougent, quel que soit le texte
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
      désavantage) se loge en petit dans le coin du premier au lieu d'élargir la zone. */
@@ -619,6 +621,7 @@
     <div id="here-icon"></div>
     <div id="here-name"></div>
     <button id="here-take" type="button"></button>
+    <button id="here-equip" type="button"></button>
     <button id="here-info" type="button">?</button>
     <button id="here-close" type="button">×</button>
     </div>

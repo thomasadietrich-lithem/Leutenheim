@@ -5419,3 +5419,14 @@ test("salle de bain (Thomas, 2026-11-15) : toujours derrière une porte seule", 
   }
   assert.ok(n > 2, "des salles de bain");
 });
+
+test("ruban de ramassage (Thomas, 2026-11-15) : « S'équiper » ramasse l'objet et le porte aussitôt", () => {
+  const game = new Game(4);
+  game.ground.push({ x: game.hero.x, y: game.hero.y, item: "casque_cuir", count: 1 });
+  assert.ok(game.pickUpAndEquip());
+  game.tick();
+  assert.equal(game.equipment.hat?.defId, "casque_cuir");
+  assert.ok(!game.itemsHere().some((g) => g.item === "casque_cuir"));
+  game.ground.push({ x: game.hero.x, y: game.hero.y, item: "pomme", count: 1 });
+  assert.ok(!game.pickUpAndEquip(), "une pomme ne se porte pas");
+});

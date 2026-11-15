@@ -41,3 +41,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-15_08h53 | af2e743 | 23.6 | 23.3 | 19.8 | 18 | 16.7 | 20.9 | 0.6 | 0.41 | creux décoratifs retirés, Fifrelin en salle ordinaire, intouchable une fois par étage |
 | 2026-11-15_08h56 | 4c8d6d4 | 23.3 | 24 | 21 | 21.7 | 16.7 | 21.2 | 0.96 | 0.4 | escalier scellé tourné, salle de bain derrière une porte seule |
 | 2026-11-15_08h57 | bc95d0c | 31 | 22.9 | 27.5 | 25 | 16.7 | 21.8 | 0.55 | 0.27 | relance |
+| 2026-11-15_09h00 | 876f30a | 24.4 | 21.5 | 20.8 | 22.2 | 16.7 | 18.8 | 0.6 | 0.41 | bouton s'équiper du ruban |

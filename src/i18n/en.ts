@@ -1776,4 +1776,7 @@ export const EN: Record<string, string> = {
   "Ici les murs luisent, et des champignons poussent dans tous les sens.": "Here the walls glow, and mushrooms grow every which way.",
   "Vous avez gagné des cicatrices, perdu des flèches, et il n'y a plus personne pour la tape dans le dos.": "You've gained scars, lost arrows, and there's no one left to pat you on the back.",
   "Ça sonne plus bas.": "It's ringing further down.",
+  "S'équiper": "Equip",
+  "Vous vous équipez : {0}.": "You equip: {0}.",
+  "Impossible de porter {0} : il reste dans le sac.": "Can't wear {0}: it stays in the bag.",
 };

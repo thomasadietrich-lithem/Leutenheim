@@ -3519,7 +3519,24 @@ export class Game {
     this.skillOrder = null;
     this.picking = true;
     this.pickingItem = null;
+    this.equipAfterPick = false;
     return true;
+  }
+
+  /** Ramasser l'objet du dessus et le porter aussitôt (Thomas, 2026-11-15 : bouton « S'équiper » du ruban). */
+  pickUpAndEquip(): boolean {
+    const top = this.itemsHere()[0];
+    if (!top || !this.wearable(ITEMS[top.item]) || this.tooLow(ITEMS[top.item])) return false;
+    if (!this.pickUp()) return false;
+    this.pickingItem = top.item;
+    this.equipAfterPick = true;
+    return true;
+  }
+  private equipAfterPick = false;
+
+  /** Un objet qui se porte (arme, armure, casque, sac, bibelot…), pas une munition ni un objet à consommer. */
+  wearable(def: ItemDef): boolean {
+    return !["ammo", "key", "gold", "use", "gem", "quest"].includes(def.kind);
   }
 
   /** Pourquoi le héros ne peut pas se reposer maintenant (`null` : il le peut). */
@@ -7883,6 +7900,16 @@ export class Game {
     const taken = pile.count - left;
     pile.count = left;
     if (taken > 0) this.events.push({ type: "pickup", item, count: taken });
+    if (taken > 0 && this.equipAfterPick) {
+      this.equipAfterPick = false;
+      const mine = this.inventory.items.filter((i) => i.defId === item).sort((a, b) => b.uid - a.uid)[0];
+      const ok = !!mine && this.equip(mine.uid);
+      this.events.push({ type: "pickEquip", item, ok });
+      if (ok) {
+        this.ground = this.ground.filter((g) => g.count > 0);
+        return false;
+      }
+    }
     // Sac plein : l'objet saute sur place et retombe (Thomas, 2026-11-12).
     else this.events.push({ type: "bagFull", item, x: this.hero.x, y: this.hero.y, messy: this.inventory.fitsIfTidied(item) });
     this.ground = this.ground.filter((g) => g.count > 0);

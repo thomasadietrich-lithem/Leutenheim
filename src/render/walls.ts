@@ -1,4 +1,4 @@
-import { CHAMPI_TUNE } from "./champiTune";
+import { CHAMPI_PRESETS, CHAMPI_TUNE, withTune } from "./champiTune";
 import { GameMap, Tile } from "../world/map";
 
 /**
@@ -248,7 +248,7 @@ const DISC_GLOW: RGB[] = [[190, 255, 240], [90, 220, 200], [30, 120, 120]];
 const EARTH_BEHIND: RGB = [112, 84, 70];
 const JOINT: RGB = [22, 16, 20];
 
-export type WallLook = "s1" | "champi";
+export type WallLook = "s1" | "champi" | "champiWarm";
 
 /** Le dessin 16 × 16 de la case de mur (x, y). `earthAt` : les éboulis (section 2), qui éventrent les murs voisins. */
 export function wallImage(
@@ -259,13 +259,27 @@ export function wallImage(
   earthAt?: (x: number, y: number) => boolean,
   breachAt?: (x: number, y: number) => boolean,
 ): HTMLCanvasElement {
+  // Salle d'essai (Thomas, 2026-11-15) : les murs d'une salle « chaud, terreux » prennent cette variante.
+  if (look === "champiWarm") return withTune(CHAMPI_PRESETS.warm, () => wallImageInner(map, x, y, "champi", earthAt, breachAt, "warm"));
+  return wallImageInner(map, x, y, look, earthAt, breachAt, "");
+}
+
+function wallImageInner(
+  map: GameMap,
+  x: number,
+  y: number,
+  look: WallLook,
+  earthAt: ((x: number, y: number) => boolean) | undefined,
+  breachAt: ((x: number, y: number) => boolean) | undefined,
+  tone: string,
+): HTMLCanvasElement {
   // Le dessin dépend des murs jusqu'à 3 cases autour (liens entre parements, extrémités) : c'est la clé.
   let sig = "";
   for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) sig += !map.inBounds(x + dx, y + dy) || isWallLike(map.get(x + dx, y + dy)) ? "1" : breachAt?.(x + dx, y + dy) ? "2" : "0";
   const champi = look === "champi";
   const earth: [number, number][] = [];
   if (champi && earthAt) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (earthAt(x + dx, y + dy)) earth.push([x + dx, y + dy]);
-  const key = `${x},${y}|${sig}|${look}|${earth.join(";")}`;
+  const key = `${x},${y}|${sig}|${look}|${earth.join(";")}|${tone}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const reader = new WallReader(map, breachAt);

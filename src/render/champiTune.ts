@@ -28,3 +28,26 @@ export const CHAMPI_TUNE = {
 };
 
 export type ChampiTune = typeof CHAMPI_TUNE;
+
+/** Les variantes de la planche art/champi_couleurs_v1.png que l'on peut poser sur une salle (salle d'essai). */
+export const CHAMPI_PRESETS: Record<string, Partial<ChampiTune>> = {
+  /** E · chaud, terreux (Thomas, 2026-11-15 : « fais une salle chaud terreux et une salle normale »). */
+  warm: {
+    stone: [66, 56, 52], stoneSpread: 0.22, mossThreshold: 0.56, moss: [62, 96, 64], glow: [150, 210, 140], glowChance: 0.05,
+    joint: [26, 20, 18], wallStone: [80, 64, 58], wallJamb: [102, 84, 76], wallMortar: [34, 26, 22], wallHi: [138, 116, 104],
+    wallMyc: 0.75, wallBiolum: 0.04, wallDiscs: 0.12,
+  },
+};
+
+/** Dessine avec une variante posée le temps de `fn`, puis rend les réglages d'avant. */
+export function withTune<T>(preset: Partial<ChampiTune> | undefined, fn: () => T): T {
+  if (!preset) return fn();
+  const saved: Record<string, unknown> = {};
+  for (const k of Object.keys(preset)) saved[k] = (CHAMPI_TUNE as Record<string, unknown>)[k];
+  Object.assign(CHAMPI_TUNE, preset);
+  try {
+    return fn();
+  } finally {
+    Object.assign(CHAMPI_TUNE, saved);
+  }
+}

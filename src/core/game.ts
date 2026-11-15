@@ -1952,9 +1952,17 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | undefined {
     const id = this.themeAt(x, y);
-    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" ? "sculpture" : this.look() === "champi" ? "champi" : undefined;
+    return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" ? "sculpture" : id === "chaud" ? "champiWarm" : this.look() === "champi" ? "champi" : undefined;
+  }
+
+  /** Le décor d'une case de mur : celui de l'étage, ou « chaud, terreux » au bord d'une salle de ce thème (salle d'essai). */
+  wallLookAt(x: number, y: number): "s1" | "champi" | "champiWarm" {
+    const look = this.look();
+    if (look !== "champi" || !this.current.themes.some((t) => t.id === "chaud")) return look;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.themeAt(x + dx, y + dy) === "chaud") return "champiWarm";
+    return look;
   }
 
   /** Section 2 : éboulis (« E », infranchissable) ou terre meuble (« e ») sur cette case (pour le dessin). */

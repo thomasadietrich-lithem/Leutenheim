@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 32;
+export const SANDBOX_LAYOUT = 33;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -641,6 +641,26 @@ export function buildSandbox2(): SandboxFloor {
   put(61, 50, "champiGrappe");
   glow([[53, 46], [59, 48], [50, 50], [55, 50]]);
   monsters.push({ x: 55, y: 47, asleep: false, patrol: true, monster: "envahi" });
+
+  // ---------- À droite de la salle aux grilles : deux salles identiques pour comparer les couleurs ----------
+  // (Thomas, 2026-11-15 : « fais une salle chaud terreux et une salle normale dans le test » ; planche
+  // art/champi_couleurs_v1.png, variante E). Même plan, mêmes champignons, même éboulis ; seules les couleurs changent.
+  line(63, 50, 66, 50);
+  map.set(67, 50, Tile.DoorClosed);
+  const normale: Room = { x: 68, y: 48, w: 9, h: 7 };
+  addRoom(normale, "Couleurs : actuelles");
+  line(77, 51, 79, 51);
+  map.set(78, 51, Tile.DoorClosed);
+  const chaude: Room = { x: 80, y: 48, w: 9, h: 7 };
+  const chaudeIndex = addRoom(chaude, "Couleurs : chaud, terreux");
+  themes.push({ room: chaudeIndex, id: "chaud" });
+  for (const r of [normale, chaude]) {
+    put(r.x + 1, r.y + 1, "champiGeant");
+    put(r.x + r.w - 2, r.y + r.h - 2, "champiGrappe");
+    put(r.x + 6, r.y + 1, "champiCorail");
+    glow([[r.x + 6, r.y + 3], [r.x + 2, r.y + 5], [r.x + 4, r.y + 4]]);
+    earth(r.x + 3, r.y - 1, [".EE.", "eEEe", ".ee."]);
+  }
 
   // ---------- En bas à gauche : le terrier ----------
   line(36, 47, 46, 48);

@@ -1,4 +1,4 @@
-import { CHAMPI_TUNE } from "./champiTune";
+import { CHAMPI_PRESETS, CHAMPI_TUNE, withTune } from "./champiTune";
 import { GameMap, Tile } from "../world/map";
 import { MOTIF_SIZE } from "../data/motifs";
 import { Motif } from "../world/grounds";
@@ -150,7 +150,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -351,6 +351,22 @@ export function groundImage(
   /** Section 2 : la mousse de la case a brûlé (veines noircies). */
   burnt = false,
 ): HTMLCanvasElement {
+  // Salle d'essai (Thomas, 2026-11-15) : une salle aux couleurs « chaud, terreux », dessinée comme la section 2 avec
+  // cette variante ; le dessin se garde à part (clé « champiWarm »).
+  if (style === "champiWarm") return withTune(CHAMPI_PRESETS.warm, () => groundImageInner(map, x, y, motifs, "champi", earthAt, burnt, "warm"));
+  return groundImageInner(map, x, y, motifs, style, earthAt, burnt, "");
+}
+
+function groundImageInner(
+  map: GameMap,
+  x: number,
+  y: number,
+  motifs: readonly Motif[],
+  style: FloorStyle | undefined,
+  earthAt: ((x: number, y: number) => "E" | "B" | "e" | null) | undefined,
+  burnt: boolean,
+  tone: string,
+): HTMLCanvasElement {
   const gravel = around(map, x, y, Tile.Gravel);
   const water = around(map, x, y, Tile.Water);
   const motif = motifs.find((m) => x >= m.x && y >= m.y && x < m.x + MOTIF_SIZE[m.kind] && y < m.y + MOTIF_SIZE[m.kind]);
@@ -369,7 +385,7 @@ export function groundImage(
     loose = earthAt?.(x, y) === "e";
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) walls += map.get(x + dx, y + dy) === Tile.Wall ? "1" : "0";
   }
-  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${breaches.join(";")}|${loose ? "e" : ""}|${walls}|${burnt ? "b" : ""}`;
+  const key = `${x},${y}|${gravel.join(";")}|${water.join(";")}|${motif ? `${motif.kind}@${motif.x},${motif.y}` : ""}|${style ?? ""}|${mounds.join(";")}|${breaches.join(";")}|${loose ? "e" : ""}|${walls}|${burnt ? "b" : ""}|${tone}`;
   const cached = canvases.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");

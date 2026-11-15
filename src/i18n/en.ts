@@ -1767,4 +1767,6 @@ export const EN: Record<string, string> = {
   "Glou glou…": "Glug glug…",
   "Vous ouvrez le robinet de l'alambic : une fiole se remplit, tiède et luisante. ({0})": "You open the alembic's tap: a vial fills up, warm and glowing. ({0})",
   "Le laboratoire oublié": "The forgotten laboratory",
+  "Couleurs : actuelles": "Colours: current",
+  "Couleurs : chaud, terreux": "Colours: warm, earthy",
 };

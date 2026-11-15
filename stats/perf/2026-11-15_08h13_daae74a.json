@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-15T08:13:10.505Z",
+ "commit": "daae74a",
+ "note": "salles de couleurs (re-mesure)",
+ "logic": {
+  "tickMs": 0.47,
+  "lightMs": 0.27,
+  "visionMs": 0.24
+ },
+ "scenes": {
+  "immobile": {
+   "n": 124,
+   "avg": 19.8,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 5
+  },
+  "marche": {
+   "n": 252,
+   "avg": 19.9,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 50,
+   "js": 5
+  },
+  "retour": {
+   "n": 221,
+   "avg": 22.6,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 4
+  },
+  "zoom": {
+   "n": 120,
+   "avg": 21.5,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 46,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 256,
+   "avg": 19.5,
+   "p95": 33.4,
+   "max": 133.3,
+   "fps": 51,
+   "js": 11
+  }
+ },
+ "errors": []
+}

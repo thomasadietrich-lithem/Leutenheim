@@ -73,49 +73,54 @@ class S:
 
 
 def alembic(potion=None, phase=0):
-    """`potion` : l'id de la potion (couleur du liquide) ; None : vide, braises éteintes. 22 × 30."""
-    s = S(22, 30)
-    lit = potion is not None
-    # Le fourneau de briques (bas, 4 rangées), sa bouche aux braises.
-    s.r(2, 21, 12, 8, "brick")
-    for y in (23, 26):
-        s.r(2, y, 12, 1, "joint")
-    for y, off in ((21, 0), (24, 3), (27, 1)):
-        for x in range(2 + off, 14, 5):
-            s.p(x, y, "joint").p(x, y + 1, "joint")
-    s.r(2, 28, 12, 1, "brick_d").r(13, 21, 1, 8, "brick_d")
-    s.r(5, 25, 6, 3, "joint")
-    if lit:
-        for x in range(5, 11):
-            s.p(x, 26, "ember" if (x + phase) % 2 else "ember_d").p(x, 27, "ember_d")
-        s.p(6 + phase % 3, 25, "ember")
-    else:
-        s.r(5, 26, 6, 2, "ash")
-    # La cucurbite de cuivre, posée sur le fourneau.
-    s.ell(8, 17, 6.2, 5, "cu", "cu_d", "cu_h")
-    s.r(3, 20, 11, 1, "cu_dd")
-    # Le chapiteau (dôme) et son col.
-    s.ell(8, 10, 3.6, 3.2, "cu", "cu_d", "cu_h")
-    s.r(7, 12, 3, 2, "cu_d")
-    s.r(8, 6, 1, 2, "cu_dd").p(8, 5, "cu")
-    # Le col de cygne : de la tête du dôme, il file à droite et descend vers le ballon.
-    for i, (x, y) in enumerate(((11, 9), (12, 9), (13, 9), (14, 10), (15, 11), (16, 12), (16, 13), (17, 14), (17, 15))):
-        s.p(x, y, "cu" if i % 3 else "cu_h").p(x, y + 1, "cu_dd")
-    # Le ballon de verre (à droite, posé au sol), plein de la potion.
+    """v2 TOUT EN VERRE (Thomas, 2026-11-15 : « l'alambic dépasse sur le mur ; fais plutôt un design à base de verre ») :
+    compact (18 × 18, il ne monte presque plus sur la case du dessus) : une lampe à huile sous un trépied de fer, le
+    ballon de verre rond plein de la potion, un fin tube de verre qui descend vers une petite fiole posée à droite.
+    Vide : ballon et fiole vides, lampe éteinte. `potion` : l'id de la potion (couleur du liquide)."""
+    s = S(18, 18)
     liquid = POTIONS.get(potion)
-    s.ell(17.5, 24, 3.8, 4.2, "glass", "glass_d")
-    s.r(16, 17, 3, 3, "glass").r(16, 16, 3, 1, "cork")
+    lit = potion is not None
+    # La lampe à huile (laiton) et sa flamme bleue.
+    s.r(3, 15, 5, 2, "cu").r(3, 15, 5, 1, "cu_h").r(7, 15, 1, 2, "cu_d")
+    s.p(5, 14, "cu_d")
+    if lit:
+        s.p(5, 13, (120, 190, 255)).p(5, 12 - phase % 2, (200, 230, 255)).p(4 + phase % 2, 13, (90, 150, 240))
+    # Le trépied de fer : deux pieds et l'anneau.
+    for (x0, y0, x1, y1) in ((1, 16, 3, 11), (9, 16, 8, 11)):
+        n = max(abs(x1 - x0), abs(y1 - y0))
+        for i in range(n + 1):
+            s.p(round(x0 + (x1 - x0) * i / n), round(y0 + (y1 - y0) * i / n), (70, 70, 80))
+    s.r(2, 11, 8, 1, (90, 90, 104))
+    # Le ballon de verre, rond, sur l'anneau.
+    for y in range(18):
+        for x in range(18):
+            dx, dy = (x + 0.5 - 6) / 3.6, (y + 0.5 - 7.5) / 3.4
+            if dx * dx + dy * dy <= 1:
+                full = liquid and y >= 7
+                c = shade(liquid, 0.8 if dx > 0.3 else 1.0) if full else ("glass_d" if dx > 0.4 else "glass")
+                s.p(x, y, c)
+    s.p(4, 6, "hi").p(4, 5, "hi")
+    # Le col et son bouchon.
+    s.r(5, 2, 2, 3, "glass").p(6, 2, "glass_d").r(5, 1, 2, 1, "cork")
+    # Le tube de verre qui descend vers la fiole.
+    for x, y in ((7, 3), (8, 3), (9, 4), (10, 5), (11, 6), (12, 7), (13, 8), (13, 9)):
+        s.p(x, y, "glass_d" if (x + y) % 3 == 0 else "glass")
+    # La petite fiole qui recueille, posée au sol à droite.
+    s.r(12, 10, 3, 1, "cork")
+    for y in range(11, 17):
+        w = 1 if y < 13 else 2
+        for x in range(13 - w + 1, 14 + w):
+            c = "glass_d" if x == 14 + w - 1 else "glass"
+            if liquid and y >= 14 - (1 if lit else 0):
+                c = shade(liquid, 0.85 if x >= 14 else 1.0)
+            s.p(x, y, c)
     if liquid:
-        for y in range(23, 29):
-            for x in range(14, 22):
-                if s.a[y, x, 3] and tuple(s.a[y, x, :3]) in (C["glass"], C["glass_d"]):
-                    s.p(x, y, shade(liquid, 0.75 if x > 18 else 1.0))
-        s.p(15, 23, shade(liquid, 1.25))
-        # Des bulles qui montent dans le ballon.
-        for k, (x, y) in enumerate(((17, 25), (18, 23), (16, 26))):
+        # Une goutte qui tombe du tube, des bulles dans le ballon.
+        if phase % 2 == 0:
+            s.p(13, 10, shade(liquid, 1.3))
+        for k, (x, y) in enumerate(((6, 9), (7, 8), (5, 10))):
             if (k + phase) % 3 != 2:
-                s.p(x, y - (phase % 2), shade(liquid, 1.5))
-    s.p(16, 21, "hi").p(16, 22, "hi")
+                s.p(x, y - (phase % 2), shade(liquid, 1.45))
     return s.done()
 
 
@@ -131,7 +136,7 @@ if __name__ == "__main__":
             for ph in range(2):
                 sprites[f"{name[0].lower() + name[1:]}{ph}"] = alembic(pid, ph).img()
         sprites["alambicVide"] = alembic(None).img()
-        write("src/render/sprites/alambic.ts", "ALAMBIC", "Alambic des pièces secrètes (art/alambic_v1.png, 2026-11-15) : une version par potion (2 images), vide.", sprites)
+        write("src/render/sprites/alambic.ts", "ALAMBIC", "Alambic des pièces secrètes v2, tout en verre (art/alambic_v2.png, 2026-11-15) : une version par potion (2 images), vide.", sprites)
     else:
         W, H = 12 * 16, 4 * 16
         xs, ys = grid(W, H)
@@ -139,9 +144,9 @@ if __name__ == "__main__":
         for i, pid in enumerate(POTIONS):
             im = alembic(pid).img()
             room.alpha_composite(im, ((i % 6) * 32 + 4, (i // 6) * 32 + 32 - im.height + 2 if False else (i // 6) * 32))
-        planche("ALAMBIC v1 — une couleur par potion ; vide (fiole tirée)", room, [
+        planche("ALAMBIC v2 — tout en verre, compact : une couleur par potion ; vide (fiole tirée)", room, [
             ("feu / poison / vitesse / jouvence", [alembic(p).img() for p in ("potion_feu", "potion_poison", "potion_vitesse", "potion_jouvence")]),
             ("brouillard / oursin / pierre / discorde", [alembic(p).img() for p in ("potion_brouillard", "potion_oursin", "potion_pierre", "potion_discorde")]),
             ("géant / glissante / fumée / vide", [alembic(p).img() for p in ("potion_geant", "potion_glissante", "potion_fumee")] + [alembic(None).img()]),
             ("bulles et braises (2 images)", [alembic("potion_feu", 0).img(), alembic("potion_feu", 1).img()]),
-        ], "art/alambic_v1.png", S=3)
+        ], "art/alambic_v2.png", S=3)

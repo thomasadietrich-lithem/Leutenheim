@@ -1422,7 +1422,8 @@ export class Renderer {
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
-  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", poisoned = false): void {
+  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", kind: "plain" | "poison" | "ricochet" = "plain"): void {
+    const poisoned = kind === "poison";
     const { ctx } = this;
     ctx.save();
     ctx.translate(cx, cy);
@@ -1449,10 +1450,17 @@ export class Renderer {
     // Hampe fine (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
     const [x0, x1] = part === "whole" ? [-L * 0.46, L * 0.26] : part === "front" ? [-L * 0.05, L * 0.26] : [-L * 0.46, -L * 0.08];
     shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
+    // Un ruban noué autour de la tige (Thomas, 2026-11-15) : vert pour la flèche empoisonnée, noir pour la ricochante.
+    if (kind !== "plain" && part === "whole") {
+      const rib = kind === "poison" ? "#4fae3c" : "#1a1620";
+      const rx = -L * 0.12;
+      shape(rib, [[rx - w * 0.9, -w * 0.95], [rx + w * 0.9, -w * 0.95], [rx + w * 0.9, w * 0.95], [rx - w * 0.9, w * 0.95]]);
+      shape(rib, [[rx, w * 0.9], [rx - w * 1.4, w * 2.6], [rx - w * 0.4, w * 2.8]]);
+    }
     if (part !== "back") {
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
       // Pointe affinée (Thomas, 2026-11-12) : plus longue, plus étroite.
-      shape(poisoned ? "#b8e05a" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
+      shape(poisoned ? "#b8e05a" : kind === "ricochet" ? "#9fcfff" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
     }
     ctx.restore();
   }
@@ -1836,7 +1844,7 @@ export class Renderer {
         this.drawGroundIcon(itemIconRows(g.item), gx, gy);
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
-        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison");
+        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison" ? "poison" : g.item === "fleche_ricochet" ? "ricochet" : "plain");
       }
     }
 

@@ -134,18 +134,36 @@ def morel_row_empty():
 
 
 def caillebotis(variant=0):
-    """Caillebotis (planches de bois posées sur deux traverses) : rangées irrégulières, une planche manque ou a glissé."""
+    """Caillebotis v2 (Thomas, 2026-11-15 : « intègre mieux les caillebotis au sol ») : plus de contour noir ; des planches
+    étroites, ternies par la boue, posées À PLAT dans la terre (elles s'y enfoncent : ombre en bas, boue qui remonte entre
+    elles et sur les bords) ; le pas des planches (4 pixels) se raccorde d'une case à l'autre ; une planche manque ou a
+    glissé selon la variante."""
     s = S(16, 16)
-    s.r(1, 3, 14, 1, "wood_dd").r(1, 12, 14, 1, "wood_dd")  # les traverses, dessous
-    for k, x0 in enumerate((1, 5, 9, 12)):
+    MUD, MUD_D = (58, 44, 34, 150), (40, 30, 24, 200)
+    W_H, W, W_D = (150, 116, 80), (122, 92, 62), (88, 66, 46)
+    # La boue sous les planches (on la voit entre elles), un peu transparente : le sol passe au travers.
+    for y in range(1, 15):
+        for x in range(16):
+            s.p(x, y, MUD if hash2(x, y, 300 + variant) > 0.3 else MUD_D)
+    for k in range(4):
+        x0 = k * 4
         if variant == 1 and k == 2:
-            continue  # une planche manque
-        dy = (1 if (variant == 2 and k == 1) else 0)
-        w = 3 if k < 3 else 3
-        s.r(x0, 1 + dy, w, 14, "wood").r(x0, 1 + dy, 1, 14, "wood_h").r(x0 + w - 1, 1 + dy, 1, 14, "wood_d")
-        s.p(x0 + 1, 3 + dy, "iron").p(x0 + 1, 12 + dy, "iron")  # les clous
-        if (k + variant) % 3 == 0:
-            s.p(x0 + 1, 7 + dy, "wood_d").p(x0 + 1, 8 + dy, "wood_d")  # un nœud
+            continue  # une planche manque : la boue seule
+        dy = 1 if (variant == 2 and k == 1) else 0
+        top = 1 + dy + int(hash2(k, 0, 310 + variant) * 2)
+        bot = 14 + dy - int(hash2(k, 1, 310 + variant) * 2)
+        for y in range(top, min(bot, 16)):
+            for x in range(x0, x0 + 3):
+                c = W_H if (x == x0 and y < bot - 2) else (W_D if x == x0 + 2 else W)
+                # La boue remonte sur les planches, par plaques, surtout vers les bouts.
+                edge = min(y - top, bot - 1 - y)
+                if hash2(x, y, 320 + variant) > (0.55 + 0.12 * edge):
+                    c = (90, 70, 52)
+                s.p(x, y, c)
+        if bot < 16:
+            for x in range(x0, x0 + 3):
+                s.p(x, bot, (34, 26, 22, 220))  # l'ombre au pied de la planche : elle est posée, enfoncée
+        s.p(x0 + 1, top + 2, (70, 64, 60)).p(x0 + 1, bot - 3, (70, 64, 60))  # deux clous ternis
     return s
 
 
@@ -486,7 +504,7 @@ def room_morilles():
     for ry in (3, 5):
         for x in range(2, 10):
             if hash2(x, ry, 9) > 0.25:
-                put(caillebotis(int(hash2(x, ry, 8) * 3)).done(), x, ry)
+                put(caillebotis(int(hash2(x, ry, 8) * 3)), x, ry)
     put(pot_shelf("front").done(), 3, 0)
     put(pot_shelf("front").done(), 7, 0)
     put(tool_rack().done(), 1, 0)
@@ -545,7 +563,7 @@ def pieces():
         "morelRowEmpty": morel_row_empty().done(False).img(),
         "morelRowAWet": wet(morel_row(0).done(False).img()), "morelRowBWet": wet(morel_row(1).done(False).img()),
         "morelRowCWet": wet(morel_row(2).done(False).img()),
-        "caill0": caillebotis(0).done().img(), "caill1": caillebotis(1).done().img(), "caill2": caillebotis(2).done().img(),
+        "caill0": caillebotis(0).img(), "caill1": caillebotis(1).img(), "caill2": caillebotis(2).img(),
         "potShelf": pot_shelf("front").done().img(), "potShelfBack": pot_shelf("back").done().img(),
         "potShelfL": side, "potShelfR": side.transpose(Image.FLIP_LEFT_RIGHT),
         "engrais1": fertilizer(1).done().img(), "engrais2": fertilizer(2).done().img(), "engrais3": fertilizer(3).done().img(),

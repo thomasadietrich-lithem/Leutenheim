@@ -264,7 +264,9 @@ function pickAmmo(game: Game, target: Actor | null): void {
   let pick: ItemId | null = null;
   if (target) {
     const others = game.visibleMonsters().some((m) => m !== target && !game.isInert(m) && cheb(m, target) <= 4);
-    if (bow && have("fleche_ricochet") && others) pick = "fleche_ricochet";
+    // Flèche de recul : la cible qui arrive est renvoyée trois cases en arrière (de quoi tirer encore).
+    if (bow && have("fleche_recul" as ItemId) && !target.boss && d >= 2 && d <= 3 && !monsterDef(target)?.sling) pick = "fleche_recul" as ItemId;
+    else if (bow && have("fleche_ricochet") && others) pick = "fleche_ricochet";
     else if (bow && have("fleche_poison") && !target.boss && !target.poison && target.hp >= 6) pick = "fleche_poison";
     else if (have("javeline") && d <= (defOf("javeline").range ?? 6) && (target.hp >= 12 || !bow || game.inventory.count("fleche") === 0)) pick = "javeline";
   }
@@ -1036,6 +1038,9 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       const t = prey.reduce((a, b) => (gapBetween(b, hero) < gapBetween(a, hero) ? b : a));
       const tough = t.maxHp >= 10 || !!monsterDef(t)?.sling;
       if (!off.bow && tough && gapBetween(t, hero) >= 3 && tryShoot(game, t, mem)) return true;
+      // Œil de lynx (Elfe) : de loin, l'arc a l'avantage ; on ouvre toujours à la flèche tant qu'il en reste assez.
+      const lynx = (game.race as { lynxRange?: number }).lynxRange ?? 0;
+      if (!off.bow && lynx > 0 && gapBetween(t, hero) >= lynx && game.inventory.count("fleche") >= 6 && tryShoot(game, t, mem)) return true;
       return aim(`prey:${t.id}`, 80, () => game.setDestination(t.x, t.y));
     });
     rule("quête", quests);

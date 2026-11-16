@@ -2829,7 +2829,7 @@ export class Game {
     if (this.over || !item) return false;
     const def = ITEMS[item.defId] as ItemDef;
     // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
-    if (def.kind !== "use" || this.tooLow(def) || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.bomb || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -3231,6 +3231,13 @@ export class Game {
     const item = this.inventory.get(order.uid);
     if (!item || !this.inventory.take(item.defId, 1)) return;
     if (item.defId === "torche") return this.resolveTorchThrow(order);
+    if ((ITEMS[item.defId] as ItemDef).bomb) {
+      // Bombe arcanique (Thomas, 2026-11-16) : elle se pose là où elle tombe, et explosera dans quelques tours.
+      this.reveal();
+      (this.current.bombs ??= []).push({ x: order.x, y: order.y, turns: RULES.bombDelay });
+      this.events.push({ type: "bomb", what: "thrown", fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y });
+      return;
+    }
     const potion = (ITEMS[item.defId] as ItemDef).potion ?? "fire";
     this.reveal();
     // La croix, plus une éclaboussure au hasard sur une case voisine de la croix (Thomas).
@@ -4345,6 +4352,7 @@ export class Game {
     }
     this.merchantAct();
     this.burn();
+    this.bombTick();
     this.meltSnow();
     this.gasTick();
     this.fogTick();
@@ -6690,6 +6698,71 @@ export class Game {
   /** Compatibilité : la tapisserie (fermée) sur cette case. */
   tapestryAt(x: number, y: number): boolean {
     return this.zoneDoorAt(x, y) && this.current.zone!.door === "tapestry";
+  }
+
+  /** Les bombes posées : le compte à rebours, puis l'explosion. */
+  private bombTick(): void {
+    const bombs = this.current.bombs;
+    if (!bombs || bombs.length === 0) return;
+    for (const b of [...bombs]) {
+      b.turns--;
+      if (b.turns > 0) {
+        this.events.push({ type: "bomb", what: "tick", x: b.x, y: b.y, n: b.turns });
+        continue;
+      }
+      bombs.splice(bombs.indexOf(b), 1);
+      this.explodeBomb(b);
+      if (this.over) return;
+    }
+  }
+
+  /** Les bombes posées sur l'étage (pour l'affichage). */
+  bombs(): readonly { x: number; y: number; turns: number }[] {
+    return this.current.bombs ?? [];
+  }
+
+  /**
+   * L'explosion : la case et une croix de 4 cases dans chaque direction (arrêtée par les murs). Une porte sur le chemin
+   * saute (elle disparaît, l'onde s'arrête là). 2d6 à chacun dans la croix, le héros compris ; un nuage gris ; tout
+   * l'étage proche l'entend.
+   */
+  private explodeBomb(b: Point): void {
+    const cells: Point[] = [{ x: b.x, y: b.y }];
+    const doors: Point[] = [];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let k = 1; k <= RULES.bombArm; k++) {
+        const x = b.x + dx * k;
+        const y = b.y + dy * k;
+        const t = this.map.get(x, y);
+        if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {
+          this.map.set(x, y, Tile.Floor);
+          doors.push({ x, y });
+          cells.push({ x, y });
+          break;
+        }
+        if (!this.map.isWalkable(x, y)) break;
+        cells.push({ x, y });
+      }
+    }
+    const hit: Actor[] = [];
+    for (const m of [...this.monsters]) {
+      if (!cells.some((c) => occupies(m, c.x, c.y))) continue;
+      const dmg = rollDice(this.rng, RULES.bombDamage);
+      m.hp -= dmg;
+      m.alerted = true;
+      m.asleep = false;
+      hit.push(m);
+      this.events.push({ type: "burn", actor: m, damage: dmg });
+      this.removeIfDead(m);
+    }
+    const hero = this.hero;
+    this.raiseAlarm(RULES.alarmBreak, b);
+    this.events.push({ type: "bomb", what: "boom", x: b.x, y: b.y, cells, doors, hit });
+    this.smokeBurst(b, 1);
+    if (cells.some((c) => c.x === hero.x && c.y === hero.y)) {
+      hit.push(hero);
+      this.hurtHero(rollDice(this.rng, RULES.bombDamage), "une bombe arcanique");
+    }
   }
 
   /**

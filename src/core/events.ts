@@ -93,6 +93,10 @@ export type GameEvent =
   | { type: "alembic"; x: number; y: number; item: ItemId; toX: number; toY: number }
   /** La carotte magique se décroche du nez du bonhomme de neige. */
   | { type: "snowman"; x: number; y: number; toX: number; toY: number }
+  /** Bombe arcanique : lancée (elle vole et se pose), le compte à rebours, l'explosion (cases touchées, portes soufflées). */
+  | { type: "bomb"; what: "thrown"; fromX: number; fromY: number; x: number; y: number }
+  | { type: "bomb"; what: "tick"; x: number; y: number; n: number }
+  | { type: "bomb"; what: "boom"; x: number; y: number; cells: { x: number; y: number }[]; doors: { x: number; y: number }[]; hit: Actor[] }
   /** La chambre de neige fond (un feu dedans ou contre elle). */
   | { type: "melt"; x: number; y: number; seen: boolean }
   | { type: "rise"; actor: Actor; what: "down" | "up" }

@@ -6163,3 +6163,35 @@ test("les 10 étages s'enchaînent dans une vraie partie (Thomas, 2026-11-16) : 
     }
   }
 });
+
+test("bombe arcanique (Thomas, 2026-11-16) : lancée, elle explose 3 tours plus tard en croix, souffle une porte et blesse", () => {
+  const game = new Game(4);
+  game.monsters.length = 0;
+  const h = game.hero;
+  // Un couloir dégagé à droite du héros, une porte au bout du bras de la croix.
+  for (let x = h.x; x <= h.x + 7; x++) game.map.set(x, h.y, Tile.Floor);
+  game.map.set(h.x + 6, h.y, Tile.DoorClosed);
+  game.inventory.add("bombe_arcanique", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "bombe_arcanique")!.uid;
+  const g = game as unknown as { updateVision(): void };
+  g.updateVision();
+  assert.ok(game.throwPotion(uid, h.x + 2, h.y));
+  game.tick();
+  assert.equal(game.bombs().length, 1);
+  const hp = h.hp;
+  h.hp = 200;
+  h.maxHp = 200;
+  game.wait();
+  game.tick();
+  game.events.length = 0;
+  game.wait();
+  game.tick();
+  game.wait();
+  game.tick();
+  const boom = game.events.find((e) => e.type === "bomb" && e.what === "boom");
+  assert.ok(boom && boom.type === "bomb" && boom.what === "boom", "elle explose");
+  assert.equal(game.bombs().length, 0);
+  assert.notEqual(game.map.get(h.x + 6, h.y), Tile.DoorClosed, "la porte a sauté");
+  assert.ok(h.hp < 200, "le héros dans la croix est touché");
+  void hp;
+});

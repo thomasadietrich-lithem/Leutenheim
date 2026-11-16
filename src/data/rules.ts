@@ -180,6 +180,10 @@ export const RULES = {
   snowRoomChance: 0.08,
   /** Flaques laissées par la neige fondue. (C) */
   snowMeltPuddles: 4,
+  /** Bombe arcanique (Thomas, 2026-11-16) : tours avant l'explosion, longueur des bras de la croix, dégâts. (C) */
+  bombDelay: 3,
+  bombArm: 4,
+  bombDamage: { count: 2, sides: 6, bonus: 0 },
   carillonInkDropsHard: 4,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */

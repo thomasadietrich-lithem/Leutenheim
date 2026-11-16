@@ -640,6 +640,25 @@ const ICONS: Record<ItemId, string[]> = {
     ".KZZKK..........",
     "KzZZK...........",
   ],
+  // Bombe arcanique (Thomas, 2026-11-16) : sphère de laiton, runes violettes, mèche qui crépite.
+  bombe_arcanique: [
+    "..........Y.....",
+    ".........YkY....",
+    "........Kk......",
+    ".......KkK......",
+    ".....KKKKKK.....",
+    "....KgGGGGgK....",
+    "...KgGYGGGGgK...",
+    "...KGGPPGPGGK...",
+    "...KGGGPPGGgK...",
+    "...KGPGGPGPgK...",
+    "...KgGGGGGggK...",
+    "....KgggggggK...",
+    ".....KKKKKK.....",
+    "................",
+    "................",
+    "................",
+  ],
   // Carotte magique (Thomas, 2026-11-16) : en diagonale, fanes vertes, quelques étincelles.
   carotte_magique: [
     "............E.E.",

@@ -86,6 +86,8 @@ export interface FloorState {
   zone?: QuestZone;
   /** La pièce secrète de l'étage (Thomas, 2026-11-14), s'il y en a une. */
   secretRoom?: import("../world/secretRoom").SecretRoom;
+  /** Bombes arcaniques posées : leur case et les tours avant l'explosion. */
+  bombs?: { x: number; y: number; turns: number }[];
   /** Quêtes v3, Sœur Osseuse : les cierges à rallumer (les cases) ; les grilles d'où monte le son (la bonne, indiquée ou non). */
   cierges?: Point[];
   grates?: { cells: Point[]; right: number; hinted: boolean };

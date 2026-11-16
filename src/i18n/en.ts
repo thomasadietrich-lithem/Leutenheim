@@ -1967,4 +1967,11 @@ export const EN: Record<string, string> = {
   "GUERRIER": "WARRIOR",
   "ASSASSIN": "ASSASSIN",
   "MAGICIEN": "WIZARD",
+  "Bombe arcanique": "Arcane bomb",
+  "Une sphère de laiton qui bourdonne, des runes violettes au flanc. À lancer : elle explose 3 tours plus tard, en croix jusqu'à 4 cases (2d6 à qui s'y trouve, vous compris), fait sauter les portes et laisse un nuage gris.": "A humming brass sphere with violet runes on its side. Throw it: it explodes 3 turns later in a cross up to 4 tiles long (2d6 to anyone there, you included), blows doors apart and leaves a grey cloud.",
+  "La bombe arcanique se pose et bourdonne. Elle explosera dans 3 tours : éloignez-vous !": "The arcane bomb lands and hums. It will explode in 3 turns: get away!",
+  "BOUM !": "BOOM!",
+  "BOUM ! La bombe arcanique explose et souffle la porte.": "BOOM! The arcane bomb explodes and blows the door apart.",
+  "BOUM ! La bombe arcanique explose.": "BOOM! The arcane bomb explodes.",
+  "une bombe arcanique": "an arcane bomb",
 };

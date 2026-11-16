@@ -35,6 +35,8 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
     { item: "gold" }, { item: "cimeterre" }, { item: "harnois", minDepth: 8 }, { item: "fleche_ricochet", count: [3, 5], minDepth: 6 }, { item: "saphir" }, { item: "potion_jouvence" },
     { item: "emeraude", minDepth: 6 }, { item: "diamant", minDepth: 11 }, { item: "sac_voyage", minDepth: 6 },
     { item: "oeil_chauve_souris" },
+    // Bombe arcanique (Thomas, 2026-11-16) : rare.
+    { item: "bombe_arcanique", minDepth: 2 },
     { item: "outils_voleur", minDepth: 2 },
     { item: "d20_enchante", minDepth: 2 },
     { item: "amulette_precision", minDepth: 3 },

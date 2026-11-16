@@ -2060,6 +2060,24 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
+    // Bombes arcaniques posées : la sphère, un halo violet qui palpite, le compte à rebours.
+    for (const b of game.bombs()) {
+      if (!game.isExplored(b.x, b.y) || this.hops.some((h) => h.x === b.x && h.y === b.y && h.item === "bombe_arcanique")) continue;
+      const gx = ox + b.x * tile;
+      const gy = oy + b.y * tile;
+      const pulse = 0.35 + 0.25 * Math.sin(this.time / (b.turns <= 1 ? 70 : 160));
+      ctx.fillStyle = `rgba(170,110,255,${pulse.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.ellipse(gx + tile / 2, gy + tile * 0.6, tile * 0.42, tile * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      this.drawGroundIcon(itemIconRows("bombe_arcanique"), gx, gy);
+      ctx.save();
+      ctx.font = `${Math.round(tile * 0.42)}px "VT323", "Courier New", monospace`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#f0e0ff";
+      ctx.fillText(String(b.turns), gx + tile * 0.8, gy + tile * 0.25);
+      ctx.restore();
+    }
     for (const g of game.ground) {
       if (!game.isExplored(g.x, g.y)) continue;
       // Les pommes d'un panier sont dessinées dans le panier.

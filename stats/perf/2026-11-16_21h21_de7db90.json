@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T21:21:42.082Z",
+ "commit": "de7db90",
+ "note": "glissade lisible, poulet plus lent, chambre de neige",
+ "logic": {
+  "tickMs": 0.45,
+  "lightMs": 0.2,
+  "visionMs": 0.11
+ },
+ "scenes": {
+  "immobile": {
+   "n": 95,
+   "avg": 26.1,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 38,
+   "js": 9
+  },
+  "marche": {
+   "n": 182,
+   "avg": 27.4,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 37,
+   "js": 7
+  },
+  "retour": {
+   "n": 248,
+   "avg": 20.2,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 50,
+   "js": 4
+  },
+  "zoom": {
+   "n": 114,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 269,
+   "avg": 18.6,
+   "p95": 33.3,
+   "max": 83.3,
+   "fps": 54,
+   "js": 12
+  }
+ },
+ "errors": []
+}

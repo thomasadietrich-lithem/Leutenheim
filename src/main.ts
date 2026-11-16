@@ -762,6 +762,7 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "slippery") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Glissant !", "#b8e05a");
   } else if (e.type === "slide") {
+    renderer.startSlide(e.actor);
     renderer.addFloatingText(e.x, e.y, e.bumps > 0 ? (e.bumps > 1 ? "Bong ! Bong !" : "Bong !") : "Ziiip", "#b8e05a");
     sfx.play(e.bumps > 0 ? "thud" : "slide");
   } else if (e.type === "poisoned" && e.immune) {
@@ -858,6 +859,11 @@ function reveal(e: GameEvent): void {
     sfx.play("heal");
   } else if (e.type === "rise") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "down" ? "Il palpite…" : "Debout !", "#7fe0c8");
+  } else if (e.type === "snowman") {
+    renderer.addFloatingText(e.x, e.y, "Plop !", "#ffb060");
+    sfx.play("pickup");
+    logLines.push("La carotte se décroche du nez du bonhomme de neige. Elle brille un peu.");
+    renderLog();
   } else if (e.type === "alembic") {
     renderer.addFloatingText(e.x, e.y, "Glou glou…", "#cfe8ff");
     sfx.play("pickup");
@@ -1562,6 +1568,8 @@ function collectEvents(): void {
   trackEvents(game.events);
   for (const e of game.events) {
     if (e.type === "death" && e.actor.kind === "monster") ghosts.push(e.actor);
+    // Glissade : le monstre reste à son point de départ jusqu'à ce que la glissade soit montrée (après le dé).
+    if (e.type === "slide") renderer.slideActor(e.actor, { x: e.fromX, y: e.fromY }, e.path);
     queue.push(e);
   }
   // Le mur de succès (Thomas, 2026-11-14) : la première fois, l'animation ; ensuite, une ligne au journal.

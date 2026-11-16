@@ -233,6 +233,7 @@ export const ITEMS = {
   escalope: { id: "escalope", name: "Escalope de Kobold", kind: "use", description: "Bien grillée, un peu écailleuse. Rend 5 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 5 },
   cuisse_poulet: { id: "cuisse_poulet", name: "Cuisse de poulet", kind: "use", description: "Encore tiède. Rend 8 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 8 },
   // Section 2 : les morilles de Morillon (sa quête). Elles soignent (C).
+  carotte_magique: { id: "carotte_magique", name: "Carotte magique", kind: "use", description: "Le nez d'un bonhomme de neige, dans une pièce secrète. Froide, croquante, elle brille un peu. Rend 12 PV.", w: 1, h: 1, maxStack: 1, rarity: "rare", heal: 12 },
   morille: { id: "morille", name: "Morille", kind: "use", description: "Une morille de Morillon, alvéolée et parfumée. Rend 9 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 9 },
   pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
   torche: {

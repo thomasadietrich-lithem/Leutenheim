@@ -150,7 +150,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -267,6 +267,19 @@ function felt(px: number, py: number): RGB {
   if (fbm(px, py, 24, 934, 2) < 0.36) c = scale(c, 0.6);
   if (hash2(px, py, 935) > 0.992) c = [150, 255, 220];
   return c;
+}
+
+/** La chambre de neige (Thomas, 2026-11-16) : une neige épaisse, bleutée dans les creux, quelques congères, des
+ *  paillettes qui brillent. Un peu sombre pour rester dans la cave. */
+function snowFloor(px: number, py: number): RGB {
+  const n = fbm(px, py, 7, 941, 3);
+  let c: RGB = [196 + 34 * n, 204 + 32 * n, 220 + 28 * n];
+  // Les creux du vent, plus bleus.
+  const drift = fbm(px, py, 18, 942, 2);
+  if (drift < 0.38) c = [c[0] * 0.84, c[1] * 0.88, c[2] * 0.96];
+  if (Math.abs(drift - 0.38) < 0.012) c = [c[0] * 0.78, c[1] * 0.82, c[2] * 0.92];
+  if (hash2(px, py, 943) > 0.985) c = [255, 255, 255];
+  return scale(c, 0.86);
 }
 
 /** Terre battue de la champignonnière de morilles (planche art/champi_salles_v1.png) : brun chaud, tassé, des ornières,
@@ -403,7 +416,7 @@ function groundImageInner(
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "champi" ? cobbles(px, py, burnt) : style === "morilles" ? packedEarth(px, py) : style === "sculpture" ? darkSlabs(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : floorB(px, py);
+      let c = style === "champi" ? cobbles(px, py, burnt) : style === "morilles" ? packedEarth(px, py) : style === "sculpture" ? darkSlabs(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : style === "snow" ? snowFloor(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

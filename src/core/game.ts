@@ -1355,6 +1355,11 @@ export class Game {
       this.blowCandle();
       return;
     }
+    const snowman = this.snowmanAt(at.x, at.y);
+    if (snowman) {
+      this.pickCarrot(snowman);
+      return;
+    }
     const alembic = this.alembicAt(at.x, at.y);
     if (alembic) {
       this.drawAlembic(alembic);
@@ -2237,8 +2242,11 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | undefined {
     if (this.champiPatch(x, y)) return "champi";
+    // La chambre de neige : de la neige partout dans la pièce.
+    const sr = this.current?.secretRoom;
+    if (sr?.layout === "neige" && x >= sr.room.x && y >= sr.room.y && x < sr.room.x + sr.room.w && y < sr.room.y + sr.room.h) return "snow";
     const id = this.themeAt(x, y);
     return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" ? "sculpture" : id === "chaud" ? "champiWarm" : this.look() === "champi" ? "champi" : undefined;
   }
@@ -3712,7 +3720,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -6683,6 +6691,20 @@ export class Game {
     return this.zoneDoorAt(x, y) && this.current.zone!.door === "tapestry";
   }
 
+  /** Le bonhomme de neige (chambre de neige) qui a encore sa carotte, sur cette case. */
+  snowmanAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind === "bonhomme" && !f.drained && f.x === x && f.y === y) ?? null;
+  }
+
+  /** La carotte magique se décroche du nez du bonhomme de neige (Thomas, 2026-11-16) et tombe à côté. */
+  private pickCarrot(f: Furniture): void {
+    f.drained = true;
+    this.map.touch(f.x, f.y);
+    const at = this.landingCell(f, "carotte_magique", f);
+    this.dropItem(at.x, at.y, "carotte_magique", 1);
+    this.events.push({ type: "snowman", x: f.x, y: f.y, toX: at.x, toY: at.y });
+  }
+
   /** Un alambic plein (pièce secrète) sur cette case. */
   alembicAt(x: number, y: number): Furniture | null {
     return this.current.furniture.find((f) => f.kind === "alambic" && !f.drained && f.x === x && f.y === y) ?? null;
@@ -7767,7 +7789,8 @@ export class Game {
   /** Assombrissement d'une case de la pièce secrète : opacité à l'entrée de la case et à sa sortie, vers le fond. */
   secretShade(x: number, y: number): { from: number; to: number; dir: Point } | null {
     const s = this.current?.secretRoom;
-    if (!s) return null;
+    // La neige reste claire (pas d'ombre en dégradé).
+    if (!s || s.layout === "neige") return null;
     const r = s.room;
     if (x < r.x || y < r.y || x >= r.x + r.w || y >= r.y + r.h) return null;
     const depth = s.dir.x !== 0 ? (s.dir.x > 0 ? x - r.x : r.x + r.w - 1 - x) : s.dir.y > 0 ? y - r.y : r.y + r.h - 1 - y;

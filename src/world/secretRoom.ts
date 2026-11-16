@@ -13,7 +13,7 @@ import { Point, Tile } from "./map";
  * La pièce est taillée dans la roche pleine contre le mur d'une salle (la salle « hôte ») ; son entrée reste du mur tant
  * qu'on ne l'a pas trouvée. Un des creux du mur commun laisse voir dedans.
  */
-export type SecretLayout = "tresor" | "armurerie" | "reliquaire" | "contrebandier" | "laboratoire";
+export type SecretLayout = "tresor" | "armurerie" | "reliquaire" | "contrebandier" | "laboratoire" | "neige";
 
 export interface SecretRoom {
   room: Room;
@@ -44,10 +44,13 @@ export const SECRET_LAYOUTS: Record<SecretLayout, { name: string; size: [number,
   contrebandier: { name: "La cache du contrebandier", size: [3, 3], plan: ["bck", "o..", "..."] },
   // Le laboratoire oublié (Thomas, 2026-11-15) : l'alambic (l), le pupitre au grimoire (g), des toiles dans les coins.
   laboratoire: { name: "Le laboratoire oublié", size: [5, 3], plan: ["..l.g", "o....", "....."] },
+  // La chambre de neige (Thomas, 2026-11-16) : de la neige partout, des congères (d), le bonhomme de neige (n) et sa
+  // carotte magique ; pas de coffre.
+  neige: { name: "La chambre de neige", size: [5, 4], plan: ["d.n.d", ".....", "d...d", "....."] },
 };
 
 // Jamais deux caisses empilées (Thomas, 2026-11-14 : « sinon on cache le coffre ») : une seule caisse, basse.
-const KIND: Record<string, string> = { s: "statueKnight", a: "armorStand", p: "display", b: "barrel", k: "crate" };
+const KIND: Record<string, string> = { s: "statueKnight", a: "armorStand", p: "display", b: "barrel", k: "crate", n: "bonhomme" };
 
 /** Les murs des salles où l'on peut accrocher un creux ou une brique manquante (pas aux coins, ni près d'une porte). */
 function roomWalls(floor: Floor, room: Room): { cell: Point; dir: Point }[] {
@@ -74,7 +77,7 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
   const { map } = floor;
   const inRoom = (p: Point) => floor.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
   const taken = (p: Point) => furniture.some((f) => furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
-  const order: SecretLayout[] = layout ? [layout] : (["tresor", "armurerie", "reliquaire", "contrebandier", "laboratoire"] as SecretLayout[]).sort(() => rng.next() - 0.5);
+  const order: SecretLayout[] = layout ? [layout] : (["tresor", "armurerie", "reliquaire", "contrebandier", "laboratoire", "neige"] as SecretLayout[]).sort(() => rng.next() - 0.5);
   for (const lay of order) {
     const [W, D] = SECRET_LAYOUTS[lay].size;
     const half = Math.floor(W / 2);
@@ -108,7 +111,7 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
     for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) map.set(x, y, Tile.Floor);
     // Le plan : sa première ligne est le fond de la pièce.
     const plan = SECRET_LAYOUTS[lay].plan;
-    let chest: Point = at(half, D - 1);
+    let chest: Point = lay === "neige" ? { x: -1, y: -1 } : at(half, D - 1);
     const gold: Point[] = [];
     plan.forEach((line, row) => {
       const d = D - 1 - row;
@@ -125,6 +128,8 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
         } else if (ch === "g") {
           furniture.push({ x: p.x, y: p.y, kind: "grimoire" });
           map.set(p.x, p.y, Tile.Furniture);
+        } else if (ch === "d") {
+          furniture.push({ x: p.x, y: p.y, kind: rng.chance(0.5) ? "congereA" : "congereB" });
         } else if (ch === "o") gold.push(p);
         else if (KIND[ch]) {
           furniture.push({ x: p.x, y: p.y, kind: KIND[ch] });

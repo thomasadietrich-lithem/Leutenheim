@@ -91,6 +91,8 @@ export type GameEvent =
   /** Le héros évite d'un bond un piège qu'il vient de déclencher (agilité). */
   | { type: "watered"; x: number; y: number }
   | { type: "alembic"; x: number; y: number; item: ItemId; toX: number; toY: number }
+  /** La carotte magique se décroche du nez du bonhomme de neige. */
+  | { type: "snowman"; x: number; y: number; toX: number; toY: number }
   | { type: "rise"; actor: Actor; what: "down" | "up" }
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }

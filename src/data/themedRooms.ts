@@ -261,6 +261,10 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   // Alambic des pièces secrètes (Thomas, 2026-11-15 ; planche art/alambic_v1.png) : on le touche, une fiole de sa potion
   // se remplit et tombe à côté ; il reste vide.
   alambic: { blocks: true, w: 1, h: 1, burns: false },
+  // La chambre de neige (Thomas, 2026-11-16) : le bonhomme de neige (bloque) et les congères (décor au sol).
+  bonhomme: { blocks: true, w: 1, h: 1, burns: false },
+  congereA: { blocks: false, w: 1, h: 1, burns: false },
+  congereB: { blocks: false, w: 1, h: 1, burns: false },
   terre: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   mycCurtain: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   wallHoleB: { blocks: false, w: 1, h: 1, burns: false, wall: true },

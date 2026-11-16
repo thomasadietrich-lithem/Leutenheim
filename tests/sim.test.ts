@@ -4856,7 +4856,11 @@ test("pièce secrète (Thomas, 2026-11-14) : 0 à 1 par étage, murée, entrevue
     assert.ok(!game.rooms.includes(s.room));
     // Son coffre d'acier, ou (Thomas, 2026-11-15) un alambic à sa place.
     const still = game.furnitureList().find((f) => f.kind === "alambic" && f.x >= s.room.x && f.y >= s.room.y && f.x < s.room.x + s.room.w && f.y < s.room.y + s.room.h);
-    if (still) {
+    if (s.layout === "neige") {
+      // La chambre de neige (Thomas, 2026-11-16) : pas de coffre, le bonhomme et sa carotte.
+      const man = game.furnitureList().find((f) => f.kind === "bonhomme");
+      assert.ok(man && game.snowmanAt(man.x, man.y), "le bonhomme de neige");
+    } else if (still) {
       assert.ok(game.alembicAt(still.x, still.y), "un alambic plein");
       alembics++;
     } else {
@@ -6084,4 +6088,22 @@ test("flèche de recul : la cible touchée recule de trois cases au plus, loin d
     }
     assert.ok(s.frames.idleDown[0].join("").includes("S"), "le visage reste visible");
   }
+});
+
+test("chambre de neige (Thomas, 2026-11-16) : de la neige, le bonhomme ; sa carotte magique se décroche et rend 12 PV", () => {
+  let seen = 0;
+  for (let seed = 1; seed <= 400 && seen < 3; seed++) {
+    const game = new Game(seed);
+    const s = game.secretRoom();
+    if (!s || s.layout !== "neige") continue;
+    seen++;
+    assert.equal(game.floorStyle(s.room.x, s.room.y), "snow");
+    const man = game.furnitureList().find((f) => f.kind === "bonhomme")!;
+    const g = game as unknown as { pickCarrot(f: unknown): void };
+    g.pickCarrot(man);
+    assert.ok(!game.snowmanAt(man.x, man.y), "plus de carotte");
+    assert.ok(game.ground.some((o) => o.item === "carotte_magique"), "la carotte au sol");
+  }
+  assert.ok(seen > 0, "au moins une chambre de neige");
+  assert.equal(ITEMS.carotte_magique.heal, 12);
 });

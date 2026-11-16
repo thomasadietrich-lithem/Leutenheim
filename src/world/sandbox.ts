@@ -381,7 +381,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   themes.push({ room: prisonRoom, id: "prison" });
   torches.push({ x: rooms[prisonRoom].x + rooms[prisonRoom].w, y: rooms[prisonRoom].y + 4, radius: 6, faceX: -1, faceY: 0 });
   // La salle d'à côté cache une pièce secrète derrière son mur (le creux laisse voir dedans ; fouiller la salle l'ouvre).
-  const secretRoom = placeSecretRoom(floorPlan(), furniture, new Rng(seeds.secret), new Set(), "reliquaire", secretHost) ?? undefined;
+  const secretRoom = placeSecretRoom(floorPlan(), furniture, new Rng(seeds.secret), new Set(), "neige", secretHost) ?? undefined;
   if (secretRoom) for (const g of secretRoom.gold) ground.push({ x: g.x, y: g.y, item: "or", count: 12 });
   placeWallMarks({ ...floorPlan(), rooms: [rooms[hubIndex], rooms[secretHost], rooms[prisonRoom]] }, furniture, new Rng(seeds.secret + 1), 5);
   torches.push({ x: rooms[secretHost].x + rooms[secretHost].w, y: rooms[secretHost].y + 4, radius: 6, faceX: -1, faceY: 0 });
@@ -461,7 +461,7 @@ function addArmory(
   zone(X(117), Y(27), 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
   zone(X(97), Y(31), 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(X(106), Y(31), 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);
-  zone(X(115), Y(31), 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["morille", 2], ["torche", 2]], 1);
+  zone(X(115), Y(31), 7, "Vivres et lumière", "#d9853b", [["pomme", 3], ["escalope", 1], ["cuisse_poulet", 1], ["morille", 2], ["carotte_magique", 1], ["torche", 2]], 1);
   // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
   zone(X(97), Y(34), 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1]]);
   // Les amulettes (Thomas, 2026-11-15).

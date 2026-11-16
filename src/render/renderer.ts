@@ -59,6 +59,7 @@ import { PIEGES } from "./sprites/pieges";
 import { PIEGES_CHAMPI } from "./sprites/piegesChampi";
 import { CHAMPI_SALLES } from "./sprites/champiSalles";
 import { ALAMBIC } from "./sprites/alambic";
+import { NEIGE } from "./sprites/neige";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
@@ -609,7 +610,8 @@ export class Renderer {
     this.addPuff(x, y);
   }
 
-  private static readonly CHICKEN_CELL_MS = 55;
+  // Plus lent (Thomas, 2026-11-16 : « ça doit rester compréhensible, lisible ») : 55 ms avant.
+  private static readonly CHICKEN_CELL_MS = 100;
 
   /** Le poulet : immobile (il picore) avant d'être dérangé ; puis sa course, puis ses plumes. */
   private drawChicken(game: Game, ox: number, oy: number, dt: number): void {
@@ -1362,6 +1364,58 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  /** Potion glissante (Thomas, 2026-11-16 : « le mob reste visible, la glissade moins rapide, lisible, sans affecter les
+   *  tours ») : le monstre suit sa glissade case par case (110 ms par case, un petit choc contre le mur à chaque rebond),
+   *  à l'écran seulement ; puis il reste visible un instant là où il s'arrête. */
+  slideActor(actor: Actor, from: Point, path: readonly Point[]): void {
+    this.slides = this.slides.filter((s) => s.actor !== actor);
+    const pts: Point[] = [{ ...from }];
+    let prev = from;
+    let dir: Point | null = null;
+    for (const c of path) {
+      const d = { x: Math.sign(c.x - prev.x), y: Math.sign(c.y - prev.y) };
+      // Changement de sens : il a heurté le mur, il s'y cogne (un tiers de case) avant de repartir.
+      if (dir && d.x === -dir.x && d.y === -dir.y) pts.push({ x: prev.x + dir.x * 0.35, y: prev.y + dir.y * 0.35 }, { ...prev });
+      dir = d;
+      pts.push({ ...c });
+      prev = c;
+    }
+    this.slides.push({ actor, pts, start: Infinity, made: this.time });
+  }
+  /** La glissade annoncée commence (au moment où son événement est montré). */
+  startSlide(actor: Actor): void {
+    const s = this.slides.find((v) => v.actor === actor && v.start === Infinity);
+    if (s) s.start = this.time;
+  }
+  private slides: { actor: Actor; pts: Point[]; start: number; made: number }[] = [];
+  private static readonly SLIDE_CELL_MS = 110;
+  private static readonly SLIDE_LINGER_MS = 600;
+
+  /** Où dessiner un monstre qui glisse (null : il ne glisse pas). */
+  private slideAt(id: number): Point | null {
+    const s = this.slides.find((v) => v.actor.id === id);
+    if (!s) return null;
+    // Jamais montrée (au bout de 3 s) : on l'oublie, le monstre reprend sa place.
+    if (s.start === Infinity && this.time - s.made > 3000) {
+      this.slides = this.slides.filter((v) => v !== s);
+      return null;
+    }
+    if (s.start === Infinity) return { ...s.pts[0] };
+    const t = (this.time - s.start) / Renderer.SLIDE_CELL_MS;
+    const last = s.pts.length - 1;
+    if (t >= last + Renderer.SLIDE_LINGER_MS / Renderer.SLIDE_CELL_MS) {
+      this.slides = this.slides.filter((v) => v !== s);
+      return null;
+    }
+    // Glissade : un peu d'élan au départ, un peu de freinage à la fin.
+    if (t >= last) return { ...s.pts[last] };
+    const i = Math.floor(t);
+    const f = t - i;
+    const a = s.pts[i];
+    const b = s.pts[i + 1];
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+  }
+
   /** Une torche qu'on allume : la lumière s'étend en un peu moins d'une seconde. */
   torchFlare(): void {
     this.torchFlareAt = this.time;
@@ -1752,6 +1806,8 @@ export class Renderer {
     for (const [id, age] of this.monsterHurtAge) this.monsterHurtAge.set(id, age + dt);
     this.corpses = this.corpses.filter((c) => (c.age += dt) < CORPSE_MS);
     const shown = (a: Actor): Point => {
+      const sl = this.slideAt(a.id);
+      if (sl) return sl;
       const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
       // Élan : l'attaquant avance d'un tiers de case vers sa cible, puis revient.
       const s = this.slashes.find((sl) => sl.attackerId === a.id);
@@ -2071,7 +2127,10 @@ export class Renderer {
     if (bl?.kind === "carillon" && !game.bossActor() && game.isExplored(bl.spawn.x + 1, bl.spawn.y + 1)) {
       this.drawCarillonSprite(CARILLON.dead, ox + (bl.spawn.x + 1.5) * tile, oy + bl.spawn.y * tile);
     }
-    for (const m of [...game.visibleMonsters(), ...ghosts]) {
+    // Un monstre qui glisse (potion glissante) reste dessiné pendant toute sa glissade, même s'il sort de la vue.
+    const seen = [...game.visibleMonsters(), ...ghosts];
+    for (const s of this.slides) if (game.monsters.includes(s.actor) && !seen.includes(s.actor)) seen.push(s.actor);
+    for (const m of seen) {
       const p = shown(m);
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
@@ -2700,8 +2759,9 @@ export class Renderer {
       const zoneName = f.kind === "barrelWall" ? `cask${caskSide}${game.zoneNoticed() ? "Found" : ""}` : f.kind === "hayWall" ? "hayBale" : null;
       // Alambic (pièces secrètes) : la couleur de sa potion, braises et bulles (2 images) ; vide une fois la fiole tirée.
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
-      const name = alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
+      const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
+      const art = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2712,7 +2772,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (CHAMPI[name] || name === "souche") {
+      } else if (CHAMPI[name] || name === "souche" || NEIGE[name]) {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;

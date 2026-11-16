@@ -1934,4 +1934,9 @@ export const EN: Record<string, string> = {
   "Inventaire bonus": "Bonus inventory",
   "Langue": "Language",
   "Astuce : {0}": "Tip: {0}",
+  "Carotte magique": "Magic carrot",
+  "Le nez d'un bonhomme de neige, dans une pièce secrète. Froide, croquante, elle brille un peu. Rend 12 PV.": "A snowman's nose, found in a secret room. Cold, crunchy, it glows a little. Restores 12 HP.",
+  "La chambre de neige": "The snow chamber",
+  "Plop !": "Plop!",
+  "La carotte se décroche du nez du bonhomme de neige. Elle brille un peu.": "The carrot comes loose from the snowman's nose. It glows a little.",
 };

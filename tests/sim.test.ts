@@ -5746,6 +5746,7 @@ test("Carillon : pluie d'encre et coup de chapeau", () => {
   const bell = game.bossActor()!;
   const layout = game.bossLayout()!;
   assert.equal(bell.defId, "carillon");
+  game.carillonMode = "dure";
   // Dans la grotte, loin de lui : une ombre marque sa case, et la goutte tombe au tour suivant s'il ne bouge pas.
   Object.assign(game.hero, { x: layout.lair.x + 3, y: layout.lair.y + layout.lair.h - 3, hp: 500, maxHp: 500 });
   game.wait();
@@ -5768,4 +5769,43 @@ test("Carillon : pluie d'encre et coup de chapeau", () => {
     if (game.events.some((e) => e.type === "attack" && e.attacker === bell)) swung = true;
   }
   assert.ok(swung, "le chapeau frappe au contact");
+});
+
+test("Carillon doux : pas d'encre avant la première onde ; les monstres s'abritent avant l'onde ; fuir l'encre sans attaque d'opportunité", () => {
+  const game = new Game(31);
+  game.testRun = true;
+  game.teleport(10);
+  const bell = game.bossActor()!;
+  const layout = game.bossLayout()!;
+  Object.assign(game.hero, { x: layout.lair.x + 3, y: layout.lair.y + layout.lair.h - 3, hp: 500, maxHp: 500 });
+  const envahi = game.monsters.find((m) => m.defId === "envahi")!;
+  let firstInk = -1;
+  let ring = -1;
+  let cowered = false;
+  for (let t = 0; t < 2 * RULES.carillonEvery + 2; t++) {
+    game.events.length = 0;
+    // Un envahi éveillé, collé au héros.
+    if (t === RULES.carillonEvery - 3) {
+      envahi.asleep = false;
+      envahi.alerted = true;
+    }
+    game.wait();
+    game.tick();
+    if (firstInk < 0 && (bell.boss!.ink ?? []).length > 0) firstInk = t;
+    if (ring < 0 && game.events.some((e) => e.type === "carillon" && e.what === "ring")) ring = t;
+    if (game.events.some((e) => e.type === "carillon" && e.what === "cower")) cowered = true;
+  }
+  assert.ok(ring >= 0 && firstInk > ring, `encre après la première onde (onde ${ring}, encre ${firstInk})`);
+  assert.ok(cowered, "un monstre s'abrite avant l'onde");
+  // Fuir une case d'encre : aucune attaque d'opportunité.
+  const foe = game.monsters.find((m) => m.defId === "envahi" && m !== envahi) ?? envahi;
+  Object.assign(foe, { asleep: false, alerted: true, cower: 0, x: game.hero.x + 1, y: game.hero.y, prone: 0 });
+  bell.boss!.ink = [{ x: game.hero.x, y: game.hero.y }];
+  game.events.length = 0;
+  const to = { x: game.hero.x - 1, y: game.hero.y };
+  if (game.map.isWalkable(to.x, to.y) && !game.monsterAt(to.x, to.y)) {
+    game.path = [to];
+    game.tick();
+    assert.ok(!game.events.some((e) => e.type === "attack" && "opportunity" in e && e.opportunity), "pas d'attaque d'opportunité");
+  }
 });

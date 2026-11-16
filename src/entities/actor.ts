@@ -38,6 +38,8 @@ export interface Actor {
   prevY?: number;
   /** À terre (renversé par une poussée, Thomas 2026-11-13) : il perd son tour à se relever ; on le frappe avec l'avantage. */
   prone?: number;
+  /** Abrité de l'onde du Carillon : il ne fait rien pendant tant de tours. */
+  cower?: number;
   /** Agrandi (potion d'agrandissement, Thomas 2026-11-13) : tours restants ; dégâts doublés, il ne passe plus les portes. */
   grown?: number;
   /** Glissant (potion glissante, Thomas 2026-11-13) : pour toujours ; chaque coup reçu le fait glisser et rebondir. */
@@ -118,4 +120,7 @@ export interface BossState {
   sprouted?: boolean;
   /** Pluie d'encre : les cases marquées, où une goutte tombera au tour suivant. */
   ink?: { x: number; y: number }[];
+  /** L'encre a commencé (après la première onde) ; compteur de tours pour l'encre un tour sur deux. */
+  inked?: boolean;
+  inkTick?: number;
 }

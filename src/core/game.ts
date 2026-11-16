@@ -214,6 +214,9 @@ export class Game {
   fires: { x: number; y: number; turns: number; gen?: number }[] = [];
   /** Salle d'essai : combats coupés (bouton « Combats »), pour visiter tranquillement. Pas sauvegardé. */
   peaceful = false;
+  /** Mode du Carillon (Thomas, 2026-11-16 : « fais un mode dans le test ») : « douce » en jeu ; les outils d'essai
+   *  passent à « onde » (l'onde seule, sans encre ni chapeau) ou « dure » (l'encre dès l'arrivée, à chaque tour). */
+  carillonMode: "onde" | "douce" | "dure" = "douce";
   private throwOrder: { uid: number; x: number; y: number } | null = null;
   private skillOrder: number | null = null;
   private useOrder: number | null = null;
@@ -1016,22 +1019,30 @@ export class Game {
       m.stunned--;
       return;
     }
-    // Coup de chapeau : collé à lui, son bord retombe sur vous.
-    if (gapBetween(m, this.hero) <= 1 && this.inLair(layout.lair, this.hero)) {
+    // Coup de chapeau : collé à lui, son bord retombe sur vous (pas en mode « onde seule »).
+    if (this.carillonMode !== "onde" && gapBetween(m, this.hero) <= 1 && this.inLair(layout.lair, this.hero)) {
       const result = rollAttack(this.rng, m, this.hero);
       this.events.push({ type: "attack", attacker: m, target: this.hero, result });
       this.hurtHero(result.damage, this.killerName(m));
       if (this.over) return;
     }
-    this.carillonInkMark(m);
-    if (!st.clapperUp) return;
+    // L'encre : en mode « douce », seulement après la première onde (pas dès l'arrivée) et un tour sur deux.
+    const mode = this.carillonMode;
+    st.inkTick = (st.inkTick ?? 0) + 1;
+    if (mode === "dure" || (mode === "douce" && st.inked && st.inkTick % 2 === 0)) this.carillonInkMark(m, mode === "dure" ? RULES.carillonInkDropsHard : RULES.carillonInkDrops);
+    if (!st.clapperUp) {
+      st.inked = true;
+      return;
+    }
     st.ring = (st.ring ?? RULES.carillonEvery) - 1;
     if (st.ring === 1) {
       this.events.push({ type: "carillon", what: "warn", actor: m });
+      this.carillonCower(m);
       return;
     }
     if (st.ring > 0) return;
     st.ring = RULES.carillonEvery;
+    st.inked = true;
     if (st.falseNote) {
       st.falseNote = false;
       st.fallen = RULES.carillonFalseTurns;
@@ -1092,7 +1103,7 @@ export class Game {
 
   /** Pluie d'encre : marque les cases où tombera la goutte au prochain tour (une ombre au sol). La case du héros
    *  d'abord (sauf s'il est collé au Carillon : là, c'est le chapeau qui frappe), puis d'autres autour de lui. */
-  private carillonInkMark(m: Actor): void {
+  private carillonInkMark(m: Actor, drops: number): void {
     const st = m.boss!;
     const lair = this.current.boss!.lair;
     const hero = this.hero;
@@ -1101,13 +1112,51 @@ export class Game {
     const ok = (x: number, y: number) =>
       this.map.isWalkable(x, y) && this.inLair(lair, { x, y }) && !occupies(m, x, y) && !cells.some((c) => c.x === x && c.y === y);
     if (gapBetween(m, hero) > 1 && ok(hero.x, hero.y)) cells.push({ x: hero.x, y: hero.y });
-    for (let tries = 0; cells.length < RULES.carillonInkDrops && tries < 60; tries++) {
+    for (let tries = 0; cells.length < drops && tries < 60; tries++) {
       const x = hero.x + this.rng.int(-3, 3);
       const y = hero.y + this.rng.int(-3, 3);
       if (ok(x, y)) cells.push({ x, y });
     }
     st.ink = cells;
     this.events.push({ type: "carillon", what: "inkMark", actor: m, cells });
+  }
+
+  /** Une goutte d'encre est-elle annoncée sur cette case ? (S'en écarter ne donne pas d'attaque d'opportunité.) */
+  inkMarkedAt(x: number, y: number): boolean {
+    const b = this.bossActor();
+    return !!b?.boss?.ink?.some((c) => c.x === x && c.y === y);
+  }
+
+  /** Avant l'onde (Thomas, 2026-11-16 : « fais reculer les mobs avant l'attaque ») : les monstres de la grotte lâchent
+   *  le héros et courent s'abriter (2 pas au plus vers une case que l'onde n'atteint pas) ; ils ne font rien d'autre
+   *  pendant l'avertissement et le coup. */
+  private carillonCower(m: Actor): void {
+    const layout = this.current.boss!;
+    const from = layout.clapper ?? { x: m.x + 1, y: m.y + 2 };
+    for (const o of this.monsters) {
+      if (o === m || o.boss || this.isInert(o) || o.asleep || !this.inLair(layout.lair, o)) continue;
+      let best: Point[] | null = null;
+      for (let dy = -3; dy <= 3; dy++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const c = { x: o.x + dx, y: o.y + dy };
+          if (!this.map.isWalkable(c.x, c.y) || !this.inLair(layout.lair, c) || this.waveReaches(from, c)) continue;
+          if ((dx || dy) && this.actorAt(c.x, c.y)) continue;
+          const path = dx || dy ? findPath(this.map, o, c, (x, y) => !this.actorAt(x, y) || (x === c.x && y === c.y)) : [];
+          if (!path || path.length > 3) continue;
+          const score = path.length + (gapBetween(this.hero, c) <= 1 ? 2 : 0);
+          const bestScore = best ? best.length + (gapBetween(this.hero, best[best.length - 1] ?? o) <= 1 ? 2 : 0) : Infinity;
+          if (score < bestScore) best = path;
+        }
+      }
+      if (best === null) continue;
+      for (const step of best.slice(0, 2)) {
+        if (this.actorAt(step.x, step.y)) break;
+        o.x = step.x;
+        o.y = step.y;
+      }
+      o.cower = 2;
+      this.events.push({ type: "carillon", what: "cower", actor: o });
+    }
   }
 
   /** Un coup du héros a porté sur le Carillon : pendant son avertissement, il sonnera faux. */
@@ -4184,7 +4233,9 @@ export class Game {
         }
         // Se cacher derrière un angle de mur (Thomas, 2026-11-15 : « pas d'attaque d'opportunité si je me cache derrière
         // le mur ») : le monstre qui ne voit plus franchement la case d'arrivée ne frappe pas.
-        const striking = threats.filter((m) => hasClearSight(this.map, m, next));
+        // Fuir une goutte d'encre annoncée (Carillon, Thomas 2026-11-16) : personne ne frappe, ils esquivent aussi.
+        const dodging = this.inkMarkedAt(left.x, left.y);
+        const striking = dodging ? [] : threats.filter((m) => hasClearSight(this.map, m, next));
         if (!throughDoor && this.opportunityAttacks(striking)) {
           // Après une attaque d'opportunité, le déplacement s'arrête : au joueur de décider de la suite.
           this.path = [];
@@ -8305,6 +8356,11 @@ export class Game {
       }
       // Le battant du Carillon ne fait rien.
       if (this.isInert(m)) continue;
+      // Abrité de l'onde du Carillon : il attend que ça passe.
+      if (m.cower) {
+        m.cower--;
+        continue;
+      }
       if (m.prone) {
         // Renversé : il passe son tour à se relever.
         m.prone--;

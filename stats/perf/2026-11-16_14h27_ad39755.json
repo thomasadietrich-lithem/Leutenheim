@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T14:27:23.930Z",
+ "commit": "ad39755",
+ "note": "Carillon doux, abri des monstres, mode d'essai",
+ "logic": {
+  "tickMs": 0.59,
+  "lightMs": 0.28,
+  "visionMs": 0.1
+ },
+ "scenes": {
+  "immobile": {
+   "n": 103,
+   "avg": 23.9,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 42,
+   "js": 6
+  },
+  "marche": {
+   "n": 225,
+   "avg": 22.2,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 45,
+   "js": 4
+  },
+  "retour": {
+   "n": 221,
+   "avg": 22.6,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 5
+  },
+  "zoom": {
+   "n": 127,
+   "avg": 19.4,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 51,
+   "js": 6
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 8
+  },
+  "donjon": {
+   "n": 198,
+   "avg": 25,
+   "p95": 33.4,
+   "max": 116.6,
+   "fps": 40,
+   "js": 15
+  }
+ },
+ "errors": []
+}

@@ -168,7 +168,8 @@ export const RULES = {
   carillonWaveDamage: { count: 1, sides: 6, bonus: 0 },
   carillonFalseTurns: 2,
   /** Pluie d'encre (Thomas, 2026-11-16) : gouttes marquées par tour, dégâts d'une goutte. (C) */
-  carillonInkDrops: 4,
+  carillonInkDrops: 3,
+  carillonInkDropsHard: 4,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,

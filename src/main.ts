@@ -372,8 +372,23 @@ function resumeRun(saved: Game): void {
   started = true;
 }
 
+const CARILLON_MODES = ["douce", "onde", "dure"] as const;
+const CARILLON_LABELS = { douce: "Carillon : doux", onde: "Carillon : onde seule", dure: "Carillon : dur" } as const;
+function applyCarillonMode(): void {
+  let mode: (typeof CARILLON_MODES)[number] = "douce";
+  try {
+    const saved = localStorage.getItem("leutenheim.carillonMode");
+    if (saved === "onde" || saved === "dure") mode = saved;
+  } catch {
+    /* sans stockage : doux */
+  }
+  game.carillonMode = game.sandbox || game.testRun ? mode : "douce";
+  $("carillon-mode").textContent = tr(CARILLON_LABELS[game.carillonMode]);
+}
+
 function setupRun(next: Game, lines: string[] | null): void {
   game = next;
+  applyCarillonMode();
   const sandbox = game.sandbox;
   // Outils d'essai : en salle d'essai, et dans la partie d'essai « toutes les sections » (avec le téléporteur).
   $("test-tools").hidden = !sandbox && !game.testRun;
@@ -892,6 +907,8 @@ function reveal(e: GameEvent): void {
       sfx.play("splash");
       for (const o of e.hit ?? []) renderer.addFloatingText(o.x, o.y, "Splotch !", o === game.hero ? "#ff6b7a" : "#b7a6d6");
       if ((e.hit ?? []).includes(game.hero)) logLines.push("Une goutte d'encre vous tombe dessus.");
+    } else if (e.what === "cower") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "À l'abri !", "#b7a6d6");
     } else if (e.what === "inkMark") {
       // L'ombre est dessinée par le renderer (état du boss) : rien à écrire.
     } else if (e.what === "sprout") {
@@ -3688,6 +3705,19 @@ for (const tier of ["faible", "moyen", "eleve"] as const) {
     sfx.play("click");
   });
 }
+// Mode du Carillon (Thomas, 2026-11-16 : « fais un mode dans le test ») : doux, onde seule, dur.
+button("carillon-mode", () => {
+  const next = CARILLON_MODES[(CARILLON_MODES.indexOf(game.carillonMode) + 1) % CARILLON_MODES.length];
+  try {
+    localStorage.setItem("leutenheim.carillonMode", next);
+  } catch {
+    /* sans stockage */
+  }
+  applyCarillonMode();
+  logLines.push(next === "douce" ? "Carillon doux : l'encre ne commence qu'après la première onde, un tour sur deux." : next === "onde" ? "Carillon : l'onde seule, ni encre ni chapeau." : "Carillon dur : l'encre dès l'arrivée, à chaque tour.");
+  renderLog();
+  sfx.play("click");
+});
 button("spawn-close", () => {
   foundOpen = false;
   $("spawn").hidden = true;

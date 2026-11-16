@@ -1844,4 +1844,11 @@ export const EN: Record<string, string> = {
   "Une goutte d'encre vous tombe dessus.": "A drop of ink falls on you.",
   "Un coprin géant qui pousse de la voûte, tête en bas, le chapeau en forme de cloche. C'est lui qui sonnait. Tous les huit tours, son battant de spores frappe : l'onde jette à terre qui n'est pas à l'abri. Entre deux, il fait pleuvoir de l'encre sur des cases marquées d'une ombre, et son chapeau frappe qui se colle à lui.": "A giant inky cap growing upside down from the vault, its cap shaped like a bell. It was the one ringing. Every eight turns its spore clapper strikes: the wave knocks down anyone not under cover. In between, it rains ink on tiles marked by a shadow, and its cap strikes anyone who gets close.",
   "l'encre du Carillon": "the Carillon's ink",
+  "Carillon : doux": "Carillon: gentle",
+  "Carillon : onde seule": "Carillon: wave only",
+  "Carillon : dur": "Carillon: hard",
+  "À l'abri !": "Take cover!",
+  "Carillon doux : l'encre ne commence qu'après la première onde, un tour sur deux.": "Gentle Carillon: the ink only starts after the first wave, every other turn.",
+  "Carillon : l'onde seule, ni encre ni chapeau.": "Carillon: the wave only, no ink, no cap.",
+  "Carillon dur : l'encre dès l'arrivée, à chaque tour.": "Hard Carillon: ink from the start, every turn.",
 };

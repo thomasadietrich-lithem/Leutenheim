@@ -6001,3 +6001,45 @@ test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 5 cases ou plus)"
   }
   assert.ok(far >= 3 && near >= 3, `tirs observés : ${far} de loin, ${near} de près`);
 });
+
+import { heroLook, heroSprites } from "../src/render/heroLook";
+import { GUERRIER } from "../src/render/sprites/guerrier";
+
+test("héros en calques : l'Humain en tenue de départ est le Guerrier d'avant ; chaque race et chaque tenue ont toutes leurs poses", () => {
+  // Rien ne change pour l'Humain Guerrier de départ.
+  const start = heroSprites(heroLook("humain", { armor: "tunique", melee: "epee", ranged: "arc_court" }));
+  for (const [pose, list] of Object.entries(GUERRIER)) {
+    (list as readonly (readonly string[])[]).forEach((rows, i) => assert.deepEqual(start.frames[pose][i], rows, `${pose} ${i}`));
+  }
+  // La même tenue renvoie les mêmes tableaux (le dessin est gardé en mémoire d'après eux).
+  assert.equal(heroSprites(heroLook("humain", { armor: "tunique", melee: "epee" })), start);
+  const poses = [...Object.keys(GUERRIER), "prone0", "prone1", "getUp"];
+  const armors = ["tunique", "armure_cuir", "armure_cloutee", "cotte_mailles", "harnois"];
+  const weapons = [undefined, "couteau_boucher", "epee", "masse", "cimeterre", "epee_longue", "lance"];
+  for (const race of Object.keys(RACES)) {
+    for (const armor of armors) {
+      for (const melee of weapons) {
+        for (const hat of [undefined, "casque_cuir", "casque_maille"]) {
+          const s = heroSprites(heroLook(race, { armor, melee, hat, ranged: "arc_puissant" }));
+          for (const pose of poses) {
+            assert.ok(s.frames[pose]?.length > 0, `${race} ${armor} ${melee} : pose ${pose}`);
+            for (const rows of s.frames[pose]) {
+              assert.equal(rows.length, 16);
+              for (const row of rows) {
+                assert.equal(row.length, 16);
+                for (const c of row) assert.ok(c === "." || s.palette[c], `${race} ${armor} ${melee} ${pose} : couleur « ${c} » inconnue`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  // Les races se distinguent : le Halfelin est plus petit que l'Humain, l'Elfe plus grand.
+  const height = (race: string) => heroSprites(heroLook(race, { melee: "epee" })).frames.idleSide[0].filter((r) => /[^.]/.test(r)).length;
+  assert.ok(height("halfelin") < height("humain") && height("humain") < height("elfe"));
+  // Le casque et l'armure changent le dessin, y compris à terre.
+  const bare = heroSprites(heroLook("elfe", {}));
+  const clad = heroSprites(heroLook("elfe", { armor: "harnois", hat: "casque_maille" }));
+  for (const pose of ["idleDown", "prone0", "dead"]) assert.notDeepEqual(bare.frames[pose][0], clad.frames[pose][0], pose);
+});

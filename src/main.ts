@@ -25,6 +25,7 @@ import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, MORILLON_FRAMES, MORILLO
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
+import { heroLook, heroSprites } from "./render/heroLook";
 import { MANUAL } from "./data/manual";
 import { NPC_IDS } from "./core/game";
 import { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } from "./data/codex";
@@ -3023,7 +3024,7 @@ function renderHeroScreen(): void {
 }
 
 function renderCharacter(): void {
-  const head = buildIcon(HERO_HEAD, HERO_HEAD_PALETTE);
+  const head = heroHeadIcon();
   const who = el("span", "char-head");
   who.append(head, document.createTextNode(tr(`${game.heroClass.name} · Niv ${game.level}`)));
   $("char-who").replaceChildren(who);
@@ -3852,7 +3853,8 @@ function beginStairs(force?: StairsVariant): void {
     for (const [v, p] of table) if (r < (acc += p)) { variant = v; break; }
   }
   stairsGame = game;
-  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`));
+  // Le héros de la scène a la tête de sa race, sans son équipement.
+  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`), heroSprites(heroLook(game.race.id, { melee: "epee" })));
 }
 
 function advanceStairs(dt: number): void {
@@ -3993,6 +3995,7 @@ function frame(now: number): void {
   if (stairsScene) stairsScene.draw(canvas);
   else renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   $("bag-bang").hidden = !game.hasPendingChoice() || game.over;
+  refreshHeroHead();
   $("open-bag").classList.toggle("pending", game.hasPendingChoice() && !game.over);
   renderAlarm();
   renderHeroStatus();
@@ -4082,6 +4085,25 @@ requestAnimationFrame(frame);
   /** Pour les captures : montre les événements en attente (comme après un toucher). */
   flush: () => collectEvents(),
 };
+
+/** La tête du héros (bouton de son écran) : sa race, son casque et son armure, prises sur son image de repos de face. */
+function heroHeadIcon(): SVGSVGElement {
+  const gear = game.equipment;
+  const look = heroSprites(heroLook(game.race.id, { armor: gear.armor?.defId, hat: gear.hat?.defId }));
+  const rows = look.frames.idleDown[0];
+  const top = Math.max(0, rows.findIndex((r) => /[^.]/.test(r)));
+  return buildIcon(rows.slice(top, top + 9), look.palette);
+}
+
+/** Le bouton du héros montre sa tête : on ne la redessine que si la race, l'armure ou le casque ont changé. */
+let heroHeadKey = "";
+function refreshHeroHead(): void {
+  const gear = game.equipment;
+  const key = `${game.race.id}|${gear.armor?.defId ?? ""}|${gear.hat?.defId ?? ""}`;
+  if (key === heroHeadKey) return;
+  heroHeadKey = key;
+  $("open-bag").firstElementChild?.replaceWith(heroHeadIcon());
+}
 
 /** Une ligne du journal commence par une majuscule (en anglais, « jet de force » devient « strength roll »…). */
 function capFirst(s: string): string {

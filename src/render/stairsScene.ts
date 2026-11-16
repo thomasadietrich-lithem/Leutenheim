@@ -1,4 +1,5 @@
 import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
+import type { HeroSprites } from "./heroLook";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
 
 /**
@@ -106,7 +107,15 @@ export class StairsScene {
   /** Sons demandés depuis le dernier appel à `update` (« marche » à chaque marche, « chute » au début de la chute). */
   sounds: ("stairStep" | "tumble" | "flute" | "whoosh" | "slide" | "squeak")[] = [];
 
-  constructor(direction: "down" | "up", variant: StairsVariant, label: string) {
+  /** Les images du héros (sa race, sans équipement) ; à défaut, le Guerrier humain. */
+  private hero: { idleSide: readonly (readonly string[])[]; walkSide: readonly (readonly string[])[]; hurt: readonly (readonly string[])[] } = GUERRIER;
+  private heroPalette: Record<string, string> = GUERRIER_PALETTE;
+
+  constructor(direction: "down" | "up", variant: StairsVariant, label: string, hero?: HeroSprites) {
+    if (hero) {
+      this.hero = { idleSide: hero.frames.idleSide, walkSide: hero.frames.walkSide, hurt: hero.frames.hurt };
+      this.heroPalette = hero.palette;
+    }
     this.direction = direction;
     // Lianes, bassine et dégringolade : seulement en descendant.
     this.variant = direction === "up" && (variant === "vines" || variant === "basin" || variant === "tumble") ? "normal" : variant;
@@ -418,9 +427,9 @@ export class StairsScene {
     const hops = this.hops();
     const u = this.hop - Math.floor(this.hop);
     const rising = this.direction === "up";
-    const frames = GUERRIER.walkSide;
+    const frames = this.hero.walkSide;
     const still = this.hop >= hops;
-    const frame = bare(still ? GUERRIER.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length]);
+    const frame = bare(still ? this.hero.idleSide[0] : frames[Math.floor(this.hop * 2) % frames.length]);
     if (this.variant === "kobold") this.drawKobold();
     if (this.variant === "vines") return this.drawSwinging();
     if (this.variant === "basin") return this.drawBasin(u);
@@ -432,7 +441,7 @@ export class StairsScene {
     // Ombre sur la marche.
     g.fillStyle = "rgba(0,0,0,0.45)";
     g.fillRect(x + 4, HERO_Y + 15, 8, 1);
-    g.drawImage(this.spriteOf(frame), Math.round(x), Math.round(y));
+    g.drawImage(this.spriteOf(frame, this.heroPalette), Math.round(x), Math.round(y));
     if (this.variant === "rain") {
       // Il pleut dans l'escalier (Thomas, 2026-11-14 : « il pleut, avec un parapluie ») : le parapluie rouge à la main,
       // la lanterne… non : la torche, elle, est rangée. Une petite lueur suffit.
@@ -568,7 +577,7 @@ export class StairsScene {
     g.translate(Math.round(hx), Math.round(hy));
     g.rotate(-angle * 0.8);
     // Le bras levé qui tient la liane (peau, contour sombre), puis le héros qui pend dessous.
-    g.drawImage(this.spriteOf(bare(GUERRIER.idleSide[0])), -9, 4);
+    g.drawImage(this.spriteOf(bare(this.hero.idleSide[0]), this.heroPalette), -9, 4);
     g.fillStyle = "#18121e";
     g.fillRect(-1, -1, 3, 8);
     g.fillStyle = "#eebe91";
@@ -605,7 +614,7 @@ export class StairsScene {
     const x = HERO_X;
     const y = HERO_Y + 3 + bump;
     // Le héros assis : seulement le haut du corps dépasse.
-    const sprite = this.spriteOf(bare(GUERRIER.idleSide[0]));
+    const sprite = this.spriteOf(bare(this.hero.idleSide[0]), this.heroPalette);
     g.drawImage(sprite, 0, 0, 16, 10, Math.round(x), Math.round(y - 1), 16, 10);
     // La bassine de bois cerclée de fer, vue de profil.
     const bx = Math.round(x) - 1;
@@ -656,7 +665,7 @@ export class StairsScene {
     g.save();
     g.translate(Math.round(t.x + 8), Math.round(t.y + 8));
     g.rotate(Math.round(t.angle / (Math.PI / 4)) * (Math.PI / 4));
-    g.drawImage(this.spriteOf(bare(GUERRIER.hurt[0])), -8, -8);
+    g.drawImage(this.spriteOf(bare(this.hero.hurt[0]), this.heroPalette), -8, -8);
     g.restore();
   }
 

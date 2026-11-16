@@ -9,7 +9,8 @@ import { MONSTERS } from "../data/monsters";
 import { RULES } from "../data/rules";
 import { Actor } from "../entities/actor";
 import { Point, Tile } from "../world/map";
-import { GUERRIER, GUERRIER_PALETTE } from "./sprites/guerrier";
+import { GUERRIER_PALETTE } from "./sprites/guerrier";
+import { heroLook, heroSprites } from "./heroLook";
 import { CLOCHE } from "./sprites/cloche";
 import { STATUES } from "./sprites/statue";
 import { SCHRAT, SCHRAT_PALETTE } from "./sprites/schrat";
@@ -111,6 +112,8 @@ const SLASH_MS = 220;
 /** Durée du geste de tir à l'arc, et de la grimace quand le héros est blessé. */
 const BOW_MS = 320;
 const HURT_MS = 260;
+/** Durée de l'image « se relève », quand le héros n'est plus retenu au sol. */
+const GET_UP_MS = 320;
 const CORPSE_MS = 1400;
 type Facing = "down" | "up" | "left" | "right";
 
@@ -273,6 +276,9 @@ export class Renderer {
   /** Monstres vaincus : leur corps reste un instant au sol avant de s'effacer. */
   private corpses: { actor: Actor; age: number; facing: Facing }[] = [];
   private heroDown = false;
+  /** Le héros était retenu au sol à l'image précédente ; jusqu'à quand il montre l'image « se relève ». */
+  private heroWasStuck = false;
+  private getUpUntil = 0;
   /** Dessins déjà peints, par palette puis par liste de lignes : le Kobold et le frondeur partagent les mêmes lignes avec
    * des couleurs différentes (Thomas : « un Kobold tireur vert » — le cache ne regardait que les lignes). */
   private readonly spriteCache = new WeakMap<Record<string, string>, Map<readonly string[], HTMLCanvasElement>>();
@@ -467,14 +473,24 @@ export class Renderer {
     if (slash) this.face(slash.x - slash.fromX, slash.y - slash.fromY);
     else if (moving && this.bowAge >= BOW_MS) this.face(mdx, mdy);
     const dir = this.heroFacing === "down" ? "Down" : this.heroFacing === "up" ? "Up" : "Side";
+    // Le héros en calques (Thomas, 2026-11-16) : sa race, et ce qu'il porte (armure, casque, arme, arc).
+    const gear = game.equipment;
+    const look = heroSprites(heroLook(game.race.id, { armor: gear.armor?.defId, hat: gear.hat?.defId, melee: gear.melee?.defId, ranged: gear.ranged?.defId }));
+    const F = look.frames;
+    // À TERRE : retenu (fosse, toile, lacet, racines), il est couché et se débat ; libéré, il se relève un instant.
+    const stuck = !this.heroDown && (h.stuck ?? 0) > 0;
+    if (this.heroWasStuck && !stuck) this.getUpUntil = this.time + GET_UP_MS;
+    this.heroWasStuck = stuck;
     let rows: readonly string[];
-    if (this.heroDown) rows = GUERRIER.dead[0];
-    else if (this.hurtAge < HURT_MS) rows = GUERRIER.hurt[0];
-    else if (slash) rows = GUERRIER[`sword${dir}`][Math.min(2, Math.floor((3 * slash.age) / SLASH_MS))];
-    else if (this.bowAge < BOW_MS) rows = GUERRIER[`bow${dir}`][this.bowAge < BOW_MS * 0.5 ? 0 : 1];
-    else if (moving) rows = GUERRIER[`walk${dir}`][(((h.x + h.y) & 1) * 2 + (progress < 0.5 ? 0 : 1)) % 4];
+    if (this.heroDown) rows = F.dead[0];
+    else if (this.hurtAge < HURT_MS) rows = F.hurt[0];
+    else if (slash) rows = F[`sword${dir}`][Math.min(2, Math.floor((3 * slash.age) / SLASH_MS))];
+    else if (this.bowAge < BOW_MS) rows = F[`bow${dir}`][this.bowAge < BOW_MS * 0.5 ? 0 : 1];
+    else if (stuck) rows = F[`prone${Math.floor(Math.abs(this.time) / 260) % 2}`][0];
+    else if (this.time < this.getUpUntil) rows = F.getUp[0];
+    else if (moving) rows = F[`walk${dir}`][(((h.x + h.y) & 1) * 2 + (progress < 0.5 ? 0 : 1)) % 4];
     else {
-      const idle = GUERRIER[`idle${dir}`];
+      const idle = F[`idle${dir}`];
       // Le temps peut être très légèrement négatif à la toute première image : on prend sa valeur absolue.
       rows = idle[Math.floor(Math.abs(this.time) / 520) % idle.length];
     }
@@ -500,7 +516,7 @@ export class Renderer {
       ctx.globalAlpha = 0.55;
       ctx.filter = "grayscale(1) brightness(0.8)";
     }
-    ctx.drawImage(this.sprite(rows), -size / 2, top, size, size);
+    ctx.drawImage(this.sprite(rows, look.palette), -size / 2, top, size, size);
     ctx.restore();
     ctx.imageSmoothingEnabled = smooth;
   }
@@ -2062,21 +2078,21 @@ export class Renderer {
       // Le battant du Carillon est dessiné avec lui.
       if (game.isInert(m)) continue;
       if (m.boss && m.defId === "carillon") {
-        this.drawCarillon(m, ox + (p.x + 1.5) * tile, oy + p.y * tile, game.heroHasAdvantageOn(m));
+        this.drawCarillon(m, ox + (p.x + 1.5) * tile, oy + p.y * tile, game.heroEdgeShown(m));
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
         this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y + 0.2) * tile, burning);
         continue;
       }
       if (m.boss) {
         // La Tisseuse : 2 × 2 cases ; son dessin est centré sur son carré.
-        this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game.heroHasAdvantageOn(m));
+        this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game.heroEdgeShown(m));
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
         if (m.burning && !burning) this.drawFlames(ox + p.x * tile + tile / 2, oy + p.y * tile + tile / 2, m.id, 1.2);
         this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
       if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || MOBS_CHAMPI[m.defId]) {
-        const advantage = game.heroHasAdvantageOn(m);
+        const advantage = game.heroEdgeShown(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.
           ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
@@ -2108,7 +2124,7 @@ export class Renderer {
       ctx.closePath();
       ctx.fill();
       // Liseré doré qui palpite : le héros aurait l'avantage en l'attaquant maintenant.
-      if (game.heroHasAdvantageOn(m)) {
+      if (game.heroEdgeShown(m)) {
         ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
         ctx.lineWidth = Math.max(2, tile * 0.07);
         ctx.stroke();

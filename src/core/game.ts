@@ -4703,6 +4703,19 @@ export class Game {
     return this.hasEdge(this.hero, monster);
   }
 
+  /**
+   * L'anneau doré sous un monstre : le héros aurait l'avantage en l'attaquant maintenant, au contact, ou, pour l'Elfe
+   * (œil de lynx), en lui tirant dessus à l'arc : cible en vue, à portée, à 5 cases ou plus, et aucun ennemi au contact.
+   */
+  heroEdgeShown(m: Actor): boolean {
+    if (this.heroHasAdvantageOn(m)) return true;
+    if (!this.lynxShot(m) || !this.isVisible(m.x, m.y)) return false;
+    const profile = this.shotProfile();
+    if (!profile || profile.thrown) return false;
+    if (Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y)) > profile.range) return false;
+    return !this.monsters.some((o) => o.alerted && this.inReach(o, this.hero));
+  }
+
   /** ŒIL DE LYNX (Elfe) : cette case est-elle assez loin pour que son tir à l'arc ait l'avantage ? */
   lynxShot(p: Point): boolean {
     const far = this.race.lynxRange;

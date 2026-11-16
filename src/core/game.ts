@@ -1006,6 +1006,11 @@ export class Game {
       st.fallen--;
       return;
     }
+    // Sonné (potion de discorde, coup de bouclier) : il perd son tour, le décompte ne bouge pas.
+    if (m.stunned) {
+      m.stunned--;
+      return;
+    }
     if (!st.clapperUp) return;
     st.ring = (st.ring ?? RULES.carillonEvery) - 1;
     if (st.ring === 1) {
@@ -1029,7 +1034,8 @@ export class Game {
     const hit: Actor[] = [];
     if (this.waveReaches(from, this.hero) && this.inLair(layout.lair, this.hero)) {
       const close = gapBetween(m, this.hero) <= 1;
-      const dmg = rollDice(this.rng, RULES.carillonWaveDamage) * (close ? 2 : 1);
+      // Grandi par une potion de géant : l'onde frappe deux fois plus fort.
+      const dmg = rollDice(this.rng, RULES.carillonWaveDamage) * (close ? 2 : 1) * ((m.grown ?? 0) > 0 ? 2 : 1);
       this.hero.prone = Math.max(this.hero.prone ?? 0, 1);
       this.hurtHero(dmg, "l'onde du Carillon");
       hit.push(this.hero);
@@ -1098,13 +1104,15 @@ export class Game {
   /** La cloche d'alarme sur cette case, s'il y en a une. */
   /** L'escalier scellé de la nichée, une fois la Tisseuse morte : le toucher termine la démo (Thomas, 2026-11-14). */
   sealedStairsAt(x: number, y: number): boolean {
-    return !!this.current?.boss && !this.bossActor() && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
+    // Parties d'essai (Thomas, 2026-11-16 : « dans la zone d'essai, je ne devrais pas avoir d'étage scellé ») : ouvert.
+    const open = !this.bossActor() || this.testRun || this.sandbox;
+    return !!this.current?.boss && open && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
   }
 
   /** L'escalier scellé tant que la Tisseuse vit (Thomas, 2026-11-15 : « s'assurer qu'elle est vaincue avant de
    *  descendre ») : le toucher dit pourquoi on ne passe pas. */
   sealedBlockedAt(x: number, y: number): boolean {
-    return !!this.current?.boss && !!this.bossActor() && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
+    return !!this.current?.boss && !!this.bossActor() && !this.testRun && !this.sandbox && this.current.furniture.some((f) => f.kind === "sealedStairs" && f.x === x && f.y === y);
   }
 
   bellAt(x: number, y: number): Furniture | null {
@@ -3118,7 +3126,8 @@ export class Game {
         if (potion === "grow") {
           m.grown = RULES.growTurns;
           this.events.push({ type: "grow", actor: m });
-        } else {
+        } else if (m.defId !== "carillon") {
+          // Le Carillon est enraciné : la potion glissante n'y fait rien.
           m.slippery = true;
           this.events.push({ type: "slippery", actor: m });
         }
@@ -7328,11 +7337,7 @@ export class Game {
   teleport(depth: number): boolean {
     if (!this.testRun || this.over || depth < 1 || depth > RULES.demoLastDepth || depth === this.depth) return false;
     const down = depth > this.depth;
-    // On ne quitte pas la nichée par le bas tant que la Tisseuse vit (Thomas, 2026-11-15).
-    if (down && this.current?.boss && this.bossActor()) {
-      this.events.push({ type: "sealed" });
-      return false;
-    }
+    // Le téléporteur n'est qu'en partie d'essai : jamais d'étage scellé là (Thomas, 2026-11-16).
     this.enterFloor(depth, "down");
     this.deepest = Math.max(this.deepest, depth);
     this.events.push({ type: "stairs", direction: down ? "down" : "up", healed: 0 });
@@ -8002,6 +8007,7 @@ export class Game {
     let keepChance = RULES.arrowKeepOnScenery;
     let victim: Actor | undefined;
     let ricochet: { from: Point; target: Actor; result: ReturnType<typeof rollAttack> } | undefined;
+    let missLine: { dx: number; dy: number; from: Point; next: number } | undefined;
 
     /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
     const fly = (c: Point): boolean => {
@@ -8078,13 +8084,23 @@ export class Game {
         const dx = victim.x - origin.x;
         const dy = victim.y - origin.y;
         const n = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
-        for (let k = 1; k <= RULES.arrowOvershoot; k++) {
+        let k = 1;
+        for (; k <= RULES.arrowOvershoot; k++) {
           if (!fly({ x: Math.round(victim.x + (dx / n) * k), y: Math.round(victim.y + (dy / n) * k) })) break;
         }
+        missLine = { dx: dx / n, dy: dy / n, from: victim, next: k };
       }
     }
 
     const kept = this.rng.chance(keepChance);
+    // Ratée ET brisée (Thomas, 2026-11-16 : « remets certaines flèches manquées qui rebondissent derrière l'ennemi, mais
+    // seulement celles qui se brisent ») : elle file plus loin derrière lui, et peut rebondir sur un mur. Celle qui
+    // reste entière tombe juste derrière (on n'a pas à courir après).
+    if (!kept && missLine && !via) {
+      for (let k = missLine.next; k <= RULES.brokenArrowOvershoot; k++) {
+        if (!fly({ x: Math.round(missLine.from.x + missLine.dx * k), y: Math.round(missLine.from.y + missLine.dy * k) })) break;
+      }
+    }
     // Orientation au sol : plantée dans le sens du tir, ou couchée de travers après un rebond.
     const end = trail[trail.length - 1];
     const flight = Math.atan2(end.y - origin.y, end.x - origin.x);

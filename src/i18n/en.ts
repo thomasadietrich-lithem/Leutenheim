@@ -1827,4 +1827,10 @@ export const EN: Record<string, string> = {
   "LE CARILLON": "THE CARILLON",
   "Le Carillon s'effondre. Ce n'était pas la cloche : celle de Leutenheim sonne plus bas encore. Un coffre doré luit à côté de lui ; l'escalier, derrière, termine la démo.": "The Carillon collapses. It wasn't the bell: Leutenheim's rings deeper still. A golden chest glows beside it; the stairs behind it end the demo.",
   "↓ Grotte du Carillon": "↓ The Carillon's cave",
+  "Le Carillon se fige : il ne sonnera pas pendant 2 tours.": "The Carillon freezes: it won't ring for 2 turns.",
+  "Le Carillon tremble et se cogne lui-même : il perd un tour.": "The Carillon shudders and knocks against itself: it loses a turn.",
+  "Le Carillon enfle. Sa prochaine onde frappera deux fois plus fort…": "The Carillon swells. Its next wave will hit twice as hard…",
+  "Le Carillon est enraciné dans le mycélium : il ne glisse pas.": "The Carillon is rooted in the mycelium: it doesn't slip.",
+  "La fumée ne cache rien au Carillon : son onde est un son.": "Smoke hides nothing from the Carillon: its wave is sound.",
+  "Le brouillard n'arrête pas le son : l'onde vous trouvera quand même.": "Fog doesn't stop sound: the wave will find you anyway.",
 };

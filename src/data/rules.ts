@@ -32,6 +32,8 @@ export const RULES = {
   missStreakBonus: 3,
   /** Distance maximale parcourue par une flèche ratée au-delà de sa cible. */
   arrowOvershoot: 1,
+  /** Une flèche ratée qui se brise file jusqu'à tant de cases derrière la cible (et peut rebondir sur un mur). */
+  brokenArrowOvershoot: 4,
   /** Se cacher (roue d'actions) : d20 + bonus de discrétion contre cette difficulté (9 : 60 % de réussite sans bonus). */
   hideDc: 9,
   /** L'XP d'un monstre vaincu est multipliée par ceci (Thomas, 2026-11-12, soir : « divise par deux l'XP ramassée »). */

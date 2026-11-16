@@ -5205,10 +5205,8 @@ test("niveau maximal : le verrou saute en entrant à l'étage 6 (section 2 : 10 
   assert.equal(game.levelCap(), 5);
   game.teleport(5);
   assert.equal(game.levelCap(), 5, "étage du boss : toujours 5");
-  // On ne descend pas tant que la Tisseuse vit : passer par l'étage 4.
-  assert.equal(game.teleport(6), false);
-  game.teleport(4);
-  game.teleport(6);
+  // Partie d'essai : jamais d'étage scellé (Thomas, 2026-11-16).
+  assert.ok(game.teleport(6));
   assert.equal(game.levelCap(), 10, "section 2 : 10");
   const g = game as unknown as { gainXp(n: number): void };
   while (game.level < 10) g.gainXp(game.xpToNext() - game.xp);
@@ -5353,12 +5351,8 @@ test("section 2 (Thomas, 2026-11-15) : texte d'arrivée une seule fois, décor d
   assert.equal(game.wallLookAt(seal.x, seal.y - 1), "champi");
   assert.ok(game.furnitureList().some((f) => f.kind.startsWith("lueurs")), "des champignons lumineux près de l'alcôve");
   game.events.length = 0;
-  // La Tisseuse vit : l'escalier reste scellé (Thomas, 2026-11-15).
-  assert.equal(game.teleport(6), false);
-  assert.ok(game.events.some((e) => e.type === "sealed"));
-  game.teleport(4);
-  game.events.length = 0;
-  game.teleport(6);
+  // Partie d'essai : l'étage n'est jamais scellé (Thomas, 2026-11-16) ; dans une vraie partie, si (voir plus bas).
+  assert.ok(game.teleport(6));
   assert.ok(game.events.some((e) => e.type === "sectionIntro" && e.section === 2));
   game.events.length = 0;
   game.teleport(4);
@@ -5692,4 +5686,42 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette
   for (let y = 0; y < g4.map.height; y++) for (let x = 0; x < g4.map.width; x++) if (g4.goldChestAt(x, y)) chest = true;
   assert.ok(chest, "coffre doré");
   assert.ok(g4.sealedStairsAt(layout.seal.x, layout.seal.y));
+});
+
+test("étage scellé (Thomas, 2026-11-16) : dans une vraie partie tant que le boss vit ; jamais en partie d'essai", () => {
+  const real = new Game(5);
+  (real as unknown as { enterFloor(d: number, v: string): void }).enterFloor(5, "down");
+  const seal = real.bossLayout()!.seal;
+  assert.ok(real.sealedBlockedAt(seal.x, seal.y) && !real.sealedStairsAt(seal.x, seal.y), "vraie partie : scellé");
+  const test = new Game(5);
+  test.testRun = true;
+  test.teleport(5);
+  const s2 = test.bossLayout()!.seal;
+  assert.ok(!test.sealedBlockedAt(s2.x, s2.y) && test.sealedStairsAt(s2.x, s2.y), "essai : ouvert");
+});
+
+test("flèche ratée (Thomas, 2026-11-16) : brisée, elle file loin derrière la cible ; entière, elle tombe juste derrière", () => {
+  let far = 0;
+  let near = 0;
+  for (let seed = 1; seed <= 80; seed++) {
+    const game = new Game(seed);
+    game.monsters.splice(1);
+    const foe = game.monsters[0];
+    if (!foe) continue;
+    // Un couloir dégagé : le héros, la cible à 2 cases, du sol derrière.
+    for (let x = 2; x <= 14; x++) game.map.set(x, 20, Tile.Floor);
+    Object.assign(game.hero, { x: 2, y: 20 });
+    Object.assign(foe, { x: 4, y: 20, fromX: 4, fromY: 20, prevX: 4, prevY: 20, hp: 999, maxHp: 999, armorClass: 99, alerted: true, asleep: false });
+    game.events.length = 0;
+    assert.equal(game.shoot(foe.x, foe.y), null);
+    game.tick();
+    const e = game.events.find((v) => v.type === "arrow");
+    if (!e || e.type !== "arrow" || e.hit) continue;
+    const d = e.x - 4;
+    if (e.kept) {
+      assert.ok(d <= 1, `entière : tombée ${d} cases derrière`);
+      near++;
+    } else if (d > 1) far++;
+  }
+  assert.ok(near > 0 && far > 0, `entières ${near}, brisées loin ${far}`);
 });

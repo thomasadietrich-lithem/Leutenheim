@@ -416,6 +416,17 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         ? `${capFirst(e.actor.name)} glisse, rebondit contre le mur${e.bumps > 1 ? " deux fois" : ""} et se cogne (${e.damage} dégâts).`
         : `${capFirst(e.actor.name)} glisse sur ${e.path.length} cases.`;
     case "bossPotion":
+      if (e.actor.defId === "carillon")
+        return (
+          {
+            stone: "Le Carillon se fige : il ne sonnera pas pendant 2 tours.",
+            discord: "Le Carillon tremble et se cogne lui-même : il perd un tour.",
+            grow: "Le Carillon enfle. Sa prochaine onde frappera deux fois plus fort…",
+            slip: "Le Carillon est enraciné dans le mycélium : il ne glisse pas.",
+            smoke: "La fumée ne cache rien au Carillon : son onde est un son.",
+            fog: "Le brouillard n'arrête pas le son : l'onde vous trouvera quand même.",
+          } as Record<string, string>
+        )[e.potion] ?? null;
       return e.potion === "stone"
         ? "La carapace de la Tisseuse se fige… mais elle s'en dégage vite (2 tours)."
         : e.potion === "discord"

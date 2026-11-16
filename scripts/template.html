@@ -594,6 +594,11 @@
   #succes-tally .dim { color: var(--dim); }
   .succes-sec { font-size: 20px; color: var(--gold); margin: 6px 4px 2px; border-bottom: 2px solid var(--panel-hi); letter-spacing: .06em; text-align: left; }
   .succes-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 2px; }
+  /* Une page par race (Thomas, 2026-11-16). */
+  .succes-pages { display: flex; gap: 4px; margin: 2px 0 4px; }
+  .succes-pages button { flex: 1; padding: 4px 2px; font-size: 16px; }
+  .succes-pages button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
+  .succes-soon { color: var(--dim); font-size: 16px; text-align: left; margin: 2px 4px 6px; }
   .succes-cell { background: none; border: 0; padding: 2px 0; margin: 0; box-shadow: none; text-align: center; color: var(--ink); font-size: 16px; line-height: 1; min-width: 0; }
   .succes-cell canvas { width: 64px; height: 64px; image-rendering: pixelated; }
   .succes-cell.locked .nm { color: #6a6050; }

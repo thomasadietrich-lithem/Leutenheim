@@ -3661,7 +3661,9 @@ function showSuccesTab(tab: "succes" | "records"): void {
   $("tab-records").classList.toggle("active", tab === "records");
   $("pane-succes").hidden = tab !== "succes";
   $("records-list").hidden = tab !== "records";
-  if (tab === "succes") renderWall($("succes-grid"), $("succes-detail"), $("succes-tally"));
+  // La page de la race de la partie en cours (une page par race, Thomas 2026-11-16).
+  const racePage = (["humain", "halfelin", "elfe"] as const).find((r) => r === game?.race.id);
+  if (tab === "succes") renderWall($("succes-grid"), $("succes-detail"), $("succes-tally"), racePage);
   else renderRecords();
 }
 button("menu-succes", () => showScreen("succes"));

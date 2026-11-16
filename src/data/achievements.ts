@@ -4,7 +4,23 @@
  * Pour en ajouter un : une ligne ici (son picto dans `src/ui/medals.ts`), puis ce qui le fait avancer dans
  * `src/ui/achievements.ts` (`onEvent`). Valeurs (C).
  */
-export type AchievementGroup = "combat" | "quetes" | "exploration";
+/** Rubriques d'une page (Thomas, 2026-11-16) : les boss à part, puis combat, quêtes, exploration, et une par classe. */
+export type AchievementGroup = "boss" | "combat" | "quetes" | "exploration" | "classe";
+
+/** Une page de succès par race (Thomas, 2026-11-16 : « dupliquer la page en 3 pages »). */
+export const ACHIEVEMENT_PAGES = [
+  { id: "humain", name: "Humain" },
+  { id: "halfelin", name: "Halfelin" },
+  { id: "elfe", name: "Elfe" },
+] as const;
+export type AchievementPage = (typeof ACHIEVEMENT_PAGES)[number]["id"];
+
+/** Les rubriques de classe, dans l'ordre ; une classe sans succès s'affiche « bientôt ». */
+export const CLASS_SECTIONS = [
+  { id: "guerrier", name: "Guerrier" },
+  { id: "assassin", name: "Assassin" },
+  { id: "magicien", name: "Magicien" },
+] as const;
 
 export interface AchievementDef {
   id: string;
@@ -18,6 +34,8 @@ export interface AchievementDef {
   kind: "count" | "best" | "low";
   /** Un succès de quête : le PNJ (les missions différentes réussies comptent). */
   npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon";
+  /** Un succès de classe : seule cette classe le fait avancer. */
+  cls?: "guerrier" | "assassin" | "magicien";
 }
 
 export const TIER_NAMES = ["cuivre", "argent", "or"] as const;
@@ -28,8 +46,10 @@ export const FIFRELIN_FEATS = ["fifre_champ", "fifre_petit", "fifre_truque", "fi
 export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "chasseur", name: "Chasseur", group: "combat", what: "Vaincre des monstres, toutes parties confondues.", tiers: [25, 100, 500], kind: "count" },
   { id: "bourreau", name: "Bourreau", group: "combat", what: "Infliger des dégâts, toutes parties confondues.", tiers: [500, 2500, 10000], kind: "count" },
-  { id: "tisseuse", name: "Tisseuse", group: "combat", what: "Vaincre la Tisseuse.", tiers: [1, 5, 20], kind: "count" },
-  { id: "course", name: "Course", group: "combat", what: "Atteindre la Tisseuse en peu de tours (une partie).", tiers: [1500, 1000, 600], kind: "low" },
+  // Les boss, à part (Thomas, 2026-11-16 : « isole les kills de boss dans une section »).
+  { id: "tisseuse", name: "Tisseuse", group: "boss", what: "Vaincre la Tisseuse.", tiers: [1, 5, 20], kind: "count" },
+  { id: "carillon", name: "Carillon", group: "boss", what: "Vaincre le Carillon.", tiers: [1, 5, 20], kind: "count" },
+  { id: "course", name: "Course", group: "boss", what: "Atteindre la Tisseuse en peu de tours (une partie).", tiers: [1500, 1000, 600], kind: "low" },
   { id: "bousculeur", name: "Bousculeur", group: "combat", what: "Réussir des poussées.", tiers: [5, 25, 100], kind: "count" },
   { id: "fuyard", name: "Fuyard", group: "combat", what: "Se dégager d'un ennemi au contact (jet réussi).", tiers: [5, 20, 50], kind: "count" },
   { id: "intouchable", name: "Intouchable", group: "combat", what: "Quitter un étage vers le bas sans avoir perdu de vie, après y avoir vaincu au moins un monstre.", tiers: [1, 3, 5], kind: "count" },
@@ -42,12 +62,20 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "grum", name: "Grum", group: "quetes", what: "Réussir les missions de Grum.", tiers: [1, 2, 3], kind: "count", npc: "grum" },
   { id: "fifrelin", name: "Fifrelin", group: "quetes", what: "Gagner au tripot de Fifrelin : sur le champion, sur le petit, en trichant, en duel.", tiers: [1, 2, 4], kind: "count", npc: "fifrelin" },
   { id: "fouineur", name: "Fouineur", group: "exploration", what: "Trouver des salles secrètes.", tiers: [1, 5, 15], kind: "count" },
-  { id: "portier", name: "Portier", group: "exploration", what: "Ouvrir des portes verrouillées : crochetées, enfoncées ou à la clef.", tiers: [3, 10, 30], kind: "count" },
+  { id: "portier", name: "Portier", group: "exploration", what: "Ouvrir des portes verrouillées : crochetées, enfoncées ou à la clef.", tiers: [25, 100, 400], kind: "count" },
   { id: "profondeur", name: "Plus bas", group: "exploration", what: "Descendre le plus bas possible (une partie).", tiers: [3, 5, 10], kind: "best" },
   { id: "radin", name: "Radin", group: "exploration", what: "Gagner de l'or (ramassé, trouvé, vendu, gagné), toutes parties confondues.", tiers: [500, 2500, 10000], kind: "count" },
   { id: "pilleur", name: "Pilleur", group: "exploration", what: "Ouvrir des coffres et des sarcophages.", tiers: [10, 50, 200], kind: "count" },
   { id: "poulet", name: "Côôt !", group: "exploration", what: "Effrayer des poulets.", tiers: [1, 5, 15], kind: "count" },
+  // Guerrier (Thomas, 2026-11-16 : « une section par classe ; suggère des succès pour le guerrier »).
+  { id: "critique", name: "Coup critique", group: "classe", cls: "guerrier", what: "Porter des coups critiques (Guerrier).", tiers: [10, 50, 200], kind: "count" },
+  { id: "assommeur", name: "Assommeur", group: "classe", cls: "guerrier", what: "Assommer des ennemis d'un coup (Guerrier).", tiers: [5, 25, 100], kind: "count" },
+  { id: "net", name: "Net !", group: "classe", cls: "guerrier", what: "Vaincre un monstre intact d'un seul coup (Guerrier).", tiers: [10, 50, 200], kind: "count" },
+  { id: "rempart", name: "Dernier rempart", group: "classe", cls: "guerrier", what: "Survivre à un coup mortel grâce au Dernier rempart (Guerrier).", tiers: [1, 5, 20], kind: "count" },
 ];
+
+/** Le succès des succès (Thomas, 2026-11-16) : des médailles de la page ; l'or, c'est la page entière. */
+export const MASTER_ID = "maitre";
 
 /** Le rang atteint pour cette valeur : -1 (aucun), 0 cuivre, 1 argent, 2 or. */
 export function tierOf(def: AchievementDef, value: number): number {

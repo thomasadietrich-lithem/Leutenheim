@@ -73,3 +73,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_21h21 | de7db90 | 26.1 | 27.4 | 20.2 | 22.8 | 16.7 | 18.6 | 0.45 | 0.2 | glissade lisible, poulet plus lent, chambre de neige |
 | 2026-11-16_21h29 | 9f0d0a7 | 22.8 | 24.8 | 21 | 23.5 | 16.7 | 24.4 | 0.46 | 0.13 | tapisserie du culte, chambre de neige qui fond |
 | 2026-11-16_21h31 | bb56b61 | 22.2 | 27.9 | 26.7 | 25.1 | 16.7 | 21.6 | 0.54 | 0.13 | musique du cœur du boss |
+| 2026-11-16_21h35 | 12dbe21 | 26.2 | 26 | 25.4 | 28.8 | 16.7 | 29.5 | 0.53 | 0.11 | succès en pages par race |

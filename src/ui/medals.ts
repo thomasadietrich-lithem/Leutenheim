@@ -10,6 +10,37 @@ const PAL: Record<string, string> = {
 type Rect = (x: number, y: number, w: number, h: number, c: string) => void;
 
 const ICONS: Record<string, (r: Rect) => void> = {
+  carillon(r) {
+    // Le coprin-cloche, chapeau pâle strié, le battant dessous.
+    r(3, 2, 10, 2, "W"); r(2, 4, 12, 4, "W"); r(1, 8, 14, 2, "w"); r(4, 4, 1, 4, "w"); r(8, 4, 1, 4, "w"); r(11, 4, 1, 4, "w");
+    r(7, 0, 2, 2, "S"); r(7, 10, 2, 2, "s"); r(6, 12, 4, 3, "P"); r(7, 12, 1, 1, "W");
+  },
+  critique(r) {
+    // Une épée et une étoile d'impact.
+    for (let i = 0; i < 9; i++) r(3 + i, 12 - i, 1, 1, "S");
+    r(2, 11, 3, 3, "y"); r(11, 2, 3, 1, "S");
+    r(10, 8, 1, 7, "Y"); r(7, 11, 7, 1, "Y"); r(8, 9, 1, 1, "O"); r(12, 9, 1, 1, "O"); r(8, 13, 1, 1, "O"); r(12, 13, 1, 1, "O"); r(10, 11, 1, 1, "W");
+  },
+  assommeur(r) {
+    // Une masse et des étoiles qui tournent.
+    r(3, 3, 6, 6, "S"); r(4, 4, 2, 2, "W"); r(8, 8, 2, 2, "B"); r(10, 10, 2, 2, "B"); r(12, 12, 2, 2, "b");
+    r(1, 1, 1, 1, "Y"); r(10, 1, 1, 1, "Y"); r(13, 4, 1, 1, "Y"); r(1, 11, 1, 1, "Y");
+  },
+  net(r) {
+    // Une lame et un trait net.
+    for (let i = 0; i < 12; i++) r(2 + i, 13 - i, 1, 1, i < 3 ? "y" : "W");
+    for (let i = 0; i < 10; i++) r(3 + i, 3 + i, 1, 1, "R");
+  },
+  rempart(r) {
+    // Un écu fendu qui tient, un cœur.
+    r(3, 2, 10, 7, "S"); r(4, 9, 8, 2, "S"); r(5, 11, 6, 2, "s"); r(7, 13, 2, 1, "s"); r(8, 2, 1, 6, "K");
+    r(5, 5, 2, 2, "R"); r(9, 5, 2, 2, "R"); r(5, 7, 6, 1, "R"); r(6, 8, 4, 1, "R"); r(7, 9, 2, 1, "r");
+  },
+  maitre(r) {
+    // Une couronne de lauriers et une étoile.
+    for (const [x, y] of [[2, 5], [2, 7], [3, 9], [4, 11], [6, 12], [13, 5], [13, 7], [12, 9], [11, 11], [9, 12]]) r(x, y, 2, 2, "G");
+    r(7, 2, 2, 2, "Y"); r(6, 4, 4, 2, "Y"); r(5, 5, 6, 1, "Y"); r(6, 6, 1, 2, "Y"); r(9, 6, 1, 2, "Y"); r(7, 4, 2, 1, "W");
+  },
   intouchable(r) {
     // Un écu intact, sans une rayure, et une étincelle.
     r(3, 2, 10, 7, "S"); r(4, 9, 8, 2, "S"); r(5, 11, 6, 2, "s"); r(6, 13, 4, 1, "s"); r(7, 14, 2, 1, "s");

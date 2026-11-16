@@ -6,7 +6,7 @@
  */
 import type { Game } from "../core/game";
 import type { GameEvent } from "../core/events";
-import { ACHIEVEMENTS, AchievementDef, FIFRELIN_FEATS, TIER_NAMES, tierOf } from "../data/achievements";
+import { ACHIEVEMENTS, ACHIEVEMENT_PAGES, AchievementDef, AchievementPage, CLASS_SECTIONS, FIFRELIN_FEATS, MASTER_ID, TIER_NAMES, tierOf } from "../data/achievements";
 import { QUEST_TASKS } from "../data/quests";
 import { tr } from "../i18n/i18n";
 import { medal, miniTier, TIER_KEYS, TIER_TEXT } from "./medals";
@@ -29,7 +29,11 @@ let goldSeen: { game: Game | null; gold: number } = { game: null, gold: 0 };
 function load(): Profile {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (p && typeof p === "object" && p.values && p.tiers) return { values: p.values, done: p.done ?? {}, tiers: p.tiers };
+    if (p && typeof p === "object" && p.values && p.tiers) {
+      // Avant les pages par race (2026-11-16) : tout ce qui était gagné va sur la page de l'Humain.
+      const move = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.includes(":") ? k : `humain:${k}`, v]));
+      return { values: move(p.values) as Record<string, number>, done: move(p.done ?? {}) as Record<string, string[]>, tiers: move(p.tiers) as Record<string, number> };
+    }
   } catch {
     // Rien de lisible : on repart de zéro.
   }
@@ -53,7 +57,19 @@ export interface Unlock {
   line: string;
 }
 
-const defOf = (id: string) => ACHIEVEMENTS.find((a) => a.id === id)!;
+/** Les pages : une par race ; la clef d'un succès sur une page. */
+const key = (page: AchievementPage, id: string) => `${page}:${id}`;
+const pageOf = (game: Game): AchievementPage => (ACHIEVEMENT_PAGES.some((p) => p.id === game.race.id) ? (game.race.id as AchievementPage) : "humain");
+let shownPage: AchievementPage = "humain";
+
+/** Le succès des succès (Thomas, 2026-11-16) : un tiers des médailles de la page, deux tiers, puis toutes. */
+function masterDef(): AchievementDef {
+  const all = ACHIEVEMENTS.length * 3;
+  return { id: MASTER_ID, name: "Maître de la page", group: "boss", what: "Obtenir les médailles de cette page : l'or, c'est la page entière.", tiers: [Math.ceil(all / 3), Math.ceil((2 * all) / 3), all], kind: "count" };
+}
+const defOf = (id: string) => (id === MASTER_ID ? masterDef() : ACHIEVEMENTS.find((a) => a.id === id)!);
+/** Les médailles obtenues sur une page (chaque rang compte une médaille), sans celle du maître. */
+const pageMedals = (page: AchievementPage) => ACHIEVEMENTS.reduce((n, a) => n + (profile.tiers[key(page, a.id)] ?? -1) + 1, 0);
 const tierName = (t: number) => (t < 0 ? "" : TIER_NAMES[t]);
 
 /** Une ligne de journal avec le mini médaillon : la marque est lue par `splitMedal`. */
@@ -68,13 +84,13 @@ export function splitMedal(line: string): { id: string; tier: number; text: stri
 }
 
 /** La valeur change : rend le rang gagné (la première fois) ou rien. */
-function set(id: string, value: number): Unlock | null {
+function set(page: AchievementPage, id: string, value: number): Unlock | null {
   const def = defOf(id);
-  profile.values[id] = value;
+  profile.values[key(page, id)] = value;
   const t = tierOf(def, value);
-  const had = profile.tiers[id] ?? -1;
+  const had = profile.tiers[key(page, id)] ?? -1;
   if (t <= had) return null;
-  profile.tiers[id] = t;
+  profile.tiers[key(page, id)] = t;
   return { id, tier: t, first: true, line: `${tr("SUCCÈS !")} ${tr(def.name)} (${tr(tierName(t))}) : ${tr(goalText(def, t))}` };
 }
 
@@ -88,6 +104,18 @@ export function goalText(def: AchievementDef, t: number): string {
       return `${n} points de dégâts infligés.`;
     case "tisseuse":
       return n === 1 ? "la Tisseuse vaincue." : `la Tisseuse vaincue ${n} fois.`;
+    case "carillon":
+      return n === 1 ? "le Carillon vaincu." : `le Carillon vaincu ${n} fois.`;
+    case "critique":
+      return `${n} coups critiques.`;
+    case "assommeur":
+      return `${n} ennemis assommés.`;
+    case "net":
+      return `${n} monstres vaincus d'un seul coup.`;
+    case "rempart":
+      return n === 1 ? "un coup mortel encaissé grâce au Dernier rempart." : `${n} coups mortels encaissés grâce au Dernier rempart.`;
+    case "maitre":
+      return t === 2 ? "toutes les médailles de la page." : `${n} médailles de la page.`;
     case "course":
       return `la Tisseuse atteinte en moins de ${n} tours.`;
     case "profondeur":
@@ -120,15 +148,15 @@ export function goalText(def: AchievementDef, t: number): string {
 }
 
 /** Une mission (ou une issue du tripot) réussie : chacune ne compte qu'une fois. */
-function feat(id: string, featId: string, out: Unlock[]): void {
-  const list = (profile.done[id] ??= []);
+function feat(page: AchievementPage, id: string, featId: string, out: Unlock[]): void {
+  const list = (profile.done[key(page, id)] ??= []);
   if (list.includes(featId)) {
-    const t = profile.tiers[id] ?? -1;
+    const t = profile.tiers[key(page, id)] ?? -1;
     out.push({ id, tier: t, first: false, line: `${tr(defOf(id).name)}${t >= 0 ? ` (${tr(tierName(t))})` : ""} : ${tr("mission réussie, déjà faite dans une autre partie.")}` });
     return;
   }
   list.push(featId);
-  const u = set(id, list.length);
+  const u = set(page, id, list.length);
   if (u) out.push(u);
 }
 
@@ -139,8 +167,10 @@ function feat(id: string, featId: string, out: Unlock[]): void {
 export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
   if (game.sandbox || game.testRun) return [];
   const out: Unlock[] = [];
+  const page = pageOf(game);
+  const warrior = game.heroClass.id === "guerrier";
   const add = (id: string, n: number) => {
-    const u = set(id, (profile.values[id] ?? 0) + n);
+    const u = set(page, id, (profile.values[key(page, id)] ?? 0) + n);
     if (u) out.push(u);
   };
   for (const e of events) {
@@ -150,22 +180,28 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
       if (e.fire) add("pyromane", 1);
     } else if (e.type === "potionThrown") add("alchimiste", 1);
     else if (e.type === "chest" || e.type === "maiden") add("pilleur", 1);
-    else if (e.type === "attack" && e.attacker.kind === "hero" && e.result.hit && e.result.damage > 0) add("bourreau", e.result.damage);
-    else if (e.type === "boss" && e.what === "dead" && game.bossLayout()?.kind !== "carillon") {
-      const before = profile.tiers.tisseuse ?? -1;
+    else if (e.type === "attack" && e.attacker.kind === "hero" && e.result.hit && e.result.damage > 0) {
+      add("bourreau", e.result.damage);
+      if (warrior && e.result.critical) add("critique", 1);
+    } else if (e.type === "heavyBlow" && warrior && e.kind === "stun") add("assommeur", 1);
+    else if (e.type === "heavyBlow" && warrior && e.kind === "oneShot") add("net", 1);
+    else if (e.type === "lastStand" && warrior) add("rempart", 1);
+    else if (e.type === "boss" && e.what === "dead" && game.bossLayout()?.kind === "carillon") add("carillon", 1);
+    else if (e.type === "boss" && e.what === "dead") {
+      const before = profile.tiers[key(page, "tisseuse")] ?? -1;
       add("tisseuse", 1);
-      if ((profile.tiers.tisseuse ?? -1) === before && before >= 0)
-        out.push({ id: "tisseuse", tier: before, first: false, line: `${tr("Tisseuse")} (${tr(tierName(before))}) : ${tr(`la Tisseuse est vaincue… encore (${profile.values.tisseuse}e victoire).`)}` });
+      if ((profile.tiers[key(page, "tisseuse")] ?? -1) === before && before >= 0)
+        out.push({ id: "tisseuse", tier: before, first: false, line: `${tr("Tisseuse")} (${tr(tierName(before))}) : ${tr(`la Tisseuse est vaincue… encore (${profile.values[key(page, "tisseuse")]}e victoire).`)}` });
     } else if (e.type === "stairs" && e.direction === "down") {
       if (e.unhurt) add("intouchable", 1);
-      const deep = Math.max(profile.values.profondeur ?? 0, game.depth);
-      const u = set("profondeur", deep);
+      const deep = Math.max(profile.values[key(page, "profondeur")] ?? 0, game.depth);
+      const u = set(page, "profondeur", deep);
       if (u) out.push(u);
-      if (game.bossActor()) {
-        const best = profile.values.course;
+      if (game.bossActor() && game.bossLayout()?.kind !== "carillon") {
+        const best = profile.values[key(page, "course")];
         const value = best && best > 0 ? Math.min(best, game.turn) : game.turn;
-        const before = profile.tiers.course ?? -1;
-        const won = set("course", value);
+        const before = profile.tiers[key(page, "course")] ?? -1;
+        const won = set(page, "course", value);
         if (won) out.push(won);
         else if (before >= 0)
           out.push({ id: "course", tier: before, first: false, line: `${tr("Course")} (${tr(tierName(before))}) : ${tr(`la Tisseuse atteinte en ${game.turn} tours. Votre record : ${value}.`)}` });
@@ -175,11 +211,16 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     else if (e.type === "door" && e.success && e.action !== "peek") add("portier", 1);
     else if (e.type === "push" && e.success) add("bousculeur", 1);
     else if (e.type === "jump" && e.success) add("fuyard", 1);
-    else if (e.type === "quest" && e.what === "complete") feat(QUEST_TASKS[e.id].npc, e.id, out);
+    else if (e.type === "quest" && e.what === "complete") feat(page, QUEST_TASKS[e.id].npc, e.id, out);
     else if (e.type === "bout") {
       const f = e.what === "duelWin" ? "fifre_duel" : e.what === "win" ? (e.rigged ? "fifre_truque" : e.winner === "small" ? "fifre_petit" : "fifre_champ") : null;
-      if (f && (FIFRELIN_FEATS as readonly string[]).includes(f)) feat("fifrelin", f, out);
+      if (f && (FIFRELIN_FEATS as readonly string[]).includes(f)) feat(page, "fifrelin", f, out);
     }
+  }
+  // Le succès des succès : chaque médaille gagnée le fait avancer.
+  if (out.some((u) => u.first)) {
+    const m = set(page, MASTER_ID, pageMedals(page));
+    if (m) out.push(m);
   }
   // L'or gagné : ce que la bourse prend en plus depuis la dernière fois (les dépenses ne retirent rien).
   const earned = goldSeen.game === game && game.gold > goldSeen.gold;
@@ -189,27 +230,59 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
   return out;
 }
 
-/** Combien de médailles de chaque rang (or, argent, cuivre) et le total possible. */
-export function tally(): { or: number; ag: number; cu: number; got: number; all: number } {
+/** Combien de médailles de chaque rang (or, argent, cuivre) sur une page, et le total possible. */
+export function tally(page: AchievementPage = shownPage): { or: number; ag: number; cu: number; got: number; all: number } {
   let or = 0;
   let ag = 0;
   let cu = 0;
-  for (const a of ACHIEVEMENTS) {
-    const t = profile.tiers[a.id] ?? -1;
+  for (const a of [...ACHIEVEMENTS, masterDef()]) {
+    const t = profile.tiers[key(page, a.id)] ?? -1;
     if (t >= 2) or++;
     else if (t === 1) ag++;
     else if (t === 0) cu++;
   }
   // Chaque rang compte une médaille : un or vaut aussi l'argent et le cuivre.
-  const got = ACHIEVEMENTS.reduce((n, a) => n + (profile.tiers[a.id] ?? -1) + 1, 0);
-  return { or, ag, cu, got, all: ACHIEVEMENTS.length * 3 };
+  const got = pageMedals(page) + (profile.tiers[key(page, MASTER_ID)] ?? -1) + 1;
+  return { or, ag, cu, got, all: (ACHIEVEMENTS.length + 1) * 3 };
 }
 
 const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(".0", "").replace(".", ",")}k` : String(n));
 
-/** Le mur : trois rubriques de médaillons, une fiche en bas pour celui qu'on touche. */
-export function renderWall(host: HTMLElement, detail: HTMLElement, head: HTMLElement): void {
-  const t = tally();
+/** Une case du mur : le médaillon, le nom, la jauge vers le rang suivant. */
+function wallCell(detail: HTMLElement, def: AchievementDef, page: AchievementPage): HTMLElement {
+  const tier = profile.tiers[key(page, def.id)] ?? -1;
+  const value = def.id === MASTER_ID ? pageMedals(page) : (profile.values[key(page, def.id)] ?? 0);
+  const cell = document.createElement("button");
+  cell.type = "button";
+  cell.className = `succes-cell${tier < 0 ? " locked" : ""}`;
+  const name = document.createElement("div");
+  name.className = "nm";
+  name.textContent = tr(def.name);
+  const next = Math.min(2, tier + 1);
+  const need = def.tiers[next];
+  const full = tier >= 2;
+  const ratio = full ? 1 : def.kind === "low" ? (value > 0 ? Math.min(1, need / value) : 0) : Math.min(1, value / need);
+  const bar = document.createElement("div");
+  bar.className = "bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${Math.round(ratio * 100)}%`;
+  if (full) fill.className = "full";
+  bar.append(fill);
+  const pg = document.createElement("div");
+  pg.className = "pg";
+  pg.textContent = full ? tr("complet") : def.kind === "low" ? (value > 0 ? tr(`record ${value}`) : "—") : `${fmt(value)}/${fmt(need)}`;
+  cell.append(medal(def.id, tier, 3), name, bar, pg);
+  cell.addEventListener("click", () => showDetail(detail, def, page));
+  return cell;
+}
+
+/**
+ * Le mur (Thomas, 2026-11-16) : une PAGE PAR RACE (onglets), et sur chaque page le maître de la page, les boss à part,
+ * combat, quêtes, exploration, puis une rubrique par classe ; une fiche en bas pour le médaillon qu'on touche.
+ */
+export function renderWall(host: HTMLElement, detail: HTMLElement, head: HTMLElement, page: AchievementPage = shownPage): void {
+  shownPage = page;
+  const t = tally(page);
   head.replaceChildren();
   for (const [tier, n] of [[0, t.cu], [1, t.ag], [2, t.or]] as const) {
     const s = document.createElement("span");
@@ -222,45 +295,46 @@ export function renderWall(host: HTMLElement, detail: HTMLElement, head: HTMLEle
   head.append(all);
   host.replaceChildren();
   detail.hidden = true;
-  for (const [group, title] of [["combat", "COMBAT"], ["quetes", "QUÊTES"], ["exploration", "EXPLORATION"]] as const) {
+  // Les onglets des pages (une par race).
+  const tabs = document.createElement("div");
+  tabs.className = "succes-pages";
+  for (const p of ACHIEVEMENT_PAGES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = p.id === page ? "active" : "";
+    b.textContent = tr(p.name);
+    b.addEventListener("click", () => renderWall(host, detail, head, p.id));
+    tabs.append(b);
+  }
+  host.append(tabs);
+  const section = (title: string, defs: AchievementDef[], soon = false) => {
     const h = document.createElement("div");
     h.className = "succes-sec";
     h.textContent = tr(title);
+    host.append(h);
+    if (soon) {
+      const d = document.createElement("div");
+      d.className = "succes-soon";
+      d.textContent = tr("Bientôt : la classe n'est pas encore jouable.");
+      host.append(d);
+      return;
+    }
     const grid = document.createElement("div");
     grid.className = "succes-grid";
-    for (const def of ACHIEVEMENTS.filter((a) => a.group === group)) {
-      const tier = profile.tiers[def.id] ?? -1;
-      const value = profile.values[def.id] ?? 0;
-      const cell = document.createElement("button");
-      cell.type = "button";
-      cell.className = `succes-cell${tier < 0 ? " locked" : ""}`;
-      const name = document.createElement("div");
-      name.className = "nm";
-      name.textContent = tr(def.name);
-      const next = Math.min(2, tier + 1);
-      const need = def.tiers[next];
-      const full = tier >= 2;
-      const ratio = full ? 1 : def.kind === "low" ? (value > 0 ? Math.min(1, need / value) : 0) : Math.min(1, value / need);
-      const bar = document.createElement("div");
-      bar.className = "bar";
-      const fill = document.createElement("i");
-      fill.style.width = `${Math.round(ratio * 100)}%`;
-      if (full) fill.className = "full";
-      bar.append(fill);
-      const pg = document.createElement("div");
-      pg.className = "pg";
-      pg.textContent = full ? tr("complet") : def.kind === "low" ? (value > 0 ? tr(`record ${value}`) : "—") : `${fmt(value)}/${fmt(need)}`;
-      cell.append(medal(def.id, tier, 3), name, bar, pg);
-      cell.addEventListener("click", () => showDetail(detail, def));
-      grid.append(cell);
-    }
-    host.append(h, grid);
+    for (const def of defs) grid.append(wallCell(detail, def, page));
+    host.append(grid);
+  };
+  section("MAÎTRE DE LA PAGE", [masterDef()]);
+  for (const [group, title] of [["boss", "BOSS"], ["combat", "COMBAT"], ["quetes", "QUÊTES"], ["exploration", "EXPLORATION"]] as const) section(title, ACHIEVEMENTS.filter((a) => a.group === group));
+  for (const c of CLASS_SECTIONS) {
+    const defs = ACHIEVEMENTS.filter((a) => a.group === "classe" && a.cls === c.id);
+    section(c.name.toUpperCase(), defs, defs.length === 0);
   }
 }
 
-function showDetail(detail: HTMLElement, def: AchievementDef): void {
-  const tier = profile.tiers[def.id] ?? -1;
-  const value = profile.values[def.id] ?? 0;
+function showDetail(detail: HTMLElement, def: AchievementDef, page: AchievementPage): void {
+  const tier = profile.tiers[key(page, def.id)] ?? -1;
+  const value = def.id === MASTER_ID ? pageMedals(page) : (profile.values[key(page, def.id)] ?? 0);
   detail.hidden = false;
   detail.replaceChildren();
   const row = document.createElement("div");

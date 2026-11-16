@@ -31,6 +31,7 @@ import { canStep } from "../src/world/pathfinding";
 import { hasLineOfSight } from "../src/world/fov";
 import { QUEST_TASKS } from "../src/data/quests";
 import { RULES } from "../src/data/rules";
+import { RACES } from "../src/data/races";
 import type { Actor } from "../src/entities/actor";
 import type { StatId } from "../src/data/skills";
 import { lcg, stairsSeen, type RunStats } from "./bots";
@@ -43,6 +44,8 @@ const avgDice = (d: { count: number; sides: number; bonus: number }) => (d.count
 
 /** Réglages de l'expert (pour comparer des façons de jouer avec les mêmes graines). */
 export interface ExpertOptions {
+  /** La race du héros (Humain par défaut). */
+  race?: keyof typeof RACES;
   voie?: "blue" | "red";
   /** Ordre des points de caractéristique, répété. */
   stats?: StatId[];
@@ -265,7 +268,9 @@ function pickAmmo(game: Game, target: Actor | null): void {
     else if (bow && have("fleche_poison") && !target.boss && !target.poison && target.hp >= 6) pick = "fleche_poison";
     else if (have("javeline") && d <= (defOf("javeline").range ?? 6) && (target.hp >= 12 || !bow || game.inventory.count("fleche") === 0)) pick = "javeline";
   }
-  if (!pick) pick = bow && have("fleche") ? "fleche" : bow && have("fleche_poison") ? "fleche_poison" : bow && have("fleche_ricochet") ? "fleche_ricochet" : have("javeline") ? "javeline" : null;
+  // Sinon la munition ordinaire de l'arme en main (flèches pour l'arc, pierres pour le lance-pierre), puis ce qui reste.
+  const family = game.weapon("ranged")?.ammo as ItemId | undefined;
+  if (!pick) pick = family && have(family) ? family : (game.ammoKinds().find((id) => have(id)) ?? null);
   if (pick) game.chooseAmmo(pick);
 }
 
@@ -337,7 +342,7 @@ function talkX(game: Game, id: NpcId): void {
 // ---------- La partie ----------
 
 export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions = {}): ExpertStats {
-  const game = new Game(seed);
+  const game = new Game(seed, RACES[opts.race ?? "humain"]);
   const rnd = lcg(seed * 7919 + 6);
   const off = opts.off ?? {};
   const statOrder: StatId[] = opts.stats ?? ["vie", "force"];

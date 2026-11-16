@@ -19,6 +19,7 @@ import type { StatId } from "../src/data/skills";
 import { Tile } from "../src/world/map";
 import { NPC_IDS, type NpcId } from "../src/core/game";
 import { QUEST_TASKS } from "../src/data/quests";
+import { RACES } from "../src/data/races";
 
 export type Level = "debutant" | "moyen" | "maitrise";
 
@@ -139,10 +140,12 @@ function talk(game: Game, id: NpcId, level: Level, rnd: () => number): void {
 export interface BotOptions {
   voie?: "blue" | "red" | "none";
   build?: string[];
+  /** La race du héros (Humain par défaut : l'historique ne change pas). */
+  race?: keyof typeof RACES;
 }
 
 export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOptions = {}): RunStats {
-  const game = new Game(seed);
+  const game = new Game(seed, RACES[opts.race ?? "humain"]);
   const rnd = lcg(seed * 7919 + level.length);
   const stats: StatId[] = ["vie", "force", "agilite", "intelligence", "charisme"];
   let kills = 0;

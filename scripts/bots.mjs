@@ -6,14 +6,19 @@ import { build } from "esbuild";
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 
-const n = Number(process.argv[2] ?? 150);
-const note = process.argv.slice(3).join(" ");
+// `--race=halfelin` (ou elfe) : le même passage avec une autre race ; gardé à part (fichier et lignes marqués de la race).
+const args = process.argv.slice(2);
+const race = args.find((a) => a.startsWith("--race="))?.slice(7) ?? "humain";
+const rest = args.filter((a) => !a.startsWith("--race="));
+const n = Number(rest[0] ?? 150);
+const note = rest.slice(1).join(" ");
+const tag = race === "humain" ? "" : `_${race}`;
 await build({ entryPoints: ["tests/bots.ts"], bundle: true, platform: "node", format: "cjs", outfile: "dist/bots.cjs", logLevel: "error" });
 const { playBot, playExpert } = await import("../dist/bots.cjs");
 
 const dir = "stats/bots";
 mkdirSync(dir, { recursive: true });
-const previous = readdirSync(dir).filter((f) => f.endsWith(".json")).sort().pop();
+const previous = readdirSync(dir).filter((f) => f.endsWith(".json") && (race === "humain" ? !/_(halfelin|elfe)\.json$/.test(f) : f.endsWith(`${tag}.json`))).sort().pop();
 const before = previous ? JSON.parse(readFileSync(`${dir}/${previous}`, "utf8")) : null;
 
 let commit = "?";
@@ -22,12 +27,12 @@ try {
 } catch {}
 const now = new Date();
 const stamp = now.toISOString().slice(0, 16).replace("T", "_").replace(":", "h");
-const result = { date: now.toISOString(), commit, runs: n, note, levels: {} };
+const result = { date: now.toISOString(), commit, runs: n, race, note, levels: {} };
 
 const LABEL = { debutant: "Débutant", moyen: "Moyen", maitrise: "Maîtrise", expert: "Expert" };
 for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
   const runs = [];
-  for (let seed = 1; seed <= n; seed++) runs.push(level === "expert" ? playExpert(seed * 101) : playBot(level, seed * 101));
+  for (let seed = 1; seed <= n; seed++) runs.push(level === "expert" ? playExpert(seed * 101, 24000, { race }) : playBot(level, seed * 101, 8000, { race }));
   const avg = (f) => Math.round((10 * runs.reduce((a, r) => a + f(r), 0)) / runs.length) / 10;
   const pct = (f) => Math.round((100 * runs.filter(f).length) / runs.length);
   const causes = {};
@@ -59,7 +64,7 @@ for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
     });
   }
 }
-writeFileSync(`${dir}/${stamp}_${commit}.json`, JSON.stringify(result, null, 1) + "\n");
+writeFileSync(`${dir}/${stamp}_${commit}${tag}.json`, JSON.stringify(result, null, 1) + "\n");
 
 // Tableau de l'historique : une ligne par niveau et par passage.
 const hist = `${dir}/HISTORIQUE.md`;
@@ -72,14 +77,14 @@ if (!existsSync(hist)) {
   );
 }
 for (const [level, s] of Object.entries(result.levels)) {
-  appendFileSync(hist, `| ${result.date.slice(0, 16).replace("T", " ")} | ${commit} | ${LABEL[level]} | ${s.floor} | ${s.deathFloor1} % | ${s.reach[5]} % | ${s.boss} % | ${s.heroLevel} | ${s.kills} | ${s.questsStarted} / ${s.questsDone} / ${s.questsFailed} | ${level === "expert" ? `[section 2 : étage 8 ${s.reach[8]} %, étage 10 ${s.reach[10]} %, bat le Carillon ${s.boss2} %] ` : ""}${note} |\n`);
+  appendFileSync(hist, `| ${result.date.slice(0, 16).replace("T", " ")} | ${commit} | ${LABEL[level]}${race === "humain" ? "" : ` (${race})`} | ${s.floor} | ${s.deathFloor1} % | ${s.reach[5]} % | ${s.boss} % | ${s.heroLevel} | ${s.kills} | ${s.questsStarted} / ${s.questsDone} / ${s.questsFailed} | ${level === "expert" ? `[section 2 : étage 8 ${s.reach[8]} %, étage 10 ${s.reach[10]} %, bat le Carillon ${s.boss2} %] ` : ""}${note} |\n`);
 }
 
 // Résumé, et l'écart avec le passage précédent.
 const diff = (a, b) => (b === undefined ? "" : ` (${a - b >= 0 ? "+" : ""}${Math.round((a - b) * 10) / 10})`);
 for (const [level, s] of Object.entries(result.levels)) {
   const o = before?.levels?.[level];
-  console.log(`\n== ${LABEL[level]} (${n} parties)${o ? ` — comparé au ${before.date.slice(0, 16).replace("T", " ")} (${before.commit})` : ""}`);
+  console.log(`\n== ${LABEL[level]}${race === "humain" ? "" : ` · ${race}`} (${n} parties)${o ? ` — comparé au ${before.date.slice(0, 16).replace("T", " ")} (${before.commit})` : ""}`);
   console.log(`étage moyen ${s.floor}${diff(s.floor, o?.floor)} ; meurt à l'étage 1 ${s.deathFloor1} %${diff(s.deathFloor1, o?.deathFloor1)} ; arrive au boss ${s.reach[5]} %${diff(s.reach[5], o?.reach?.[5])} ; bat le boss ${s.boss} %${diff(s.boss, o?.boss)}`);
   console.log(`niveau ${s.heroLevel}${diff(s.heroLevel, o?.heroLevel)} ; monstres tués ${s.kills}${diff(s.kills, o?.kills)} ; quêtes données ${s.questsStarted}, rendues ${s.questsDone}, ratées ${s.questsFailed}`);
   if (level === "expert") {
@@ -89,4 +94,4 @@ for (const [level, s] of Object.entries(result.levels)) {
   }
   console.log("tué par : " + Object.entries(s.causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", "));
 }
-console.log(`\nGardé dans ${dir}/${stamp}_${commit}.json et ${hist}`);
+console.log(`\nGardé dans ${dir}/${stamp}_${commit}${tag}.json et ${hist}`);

@@ -888,7 +888,7 @@ function reveal(e: GameEvent): void {
     logLines.push(
       game.bossLayout()?.kind === "carillon"
         ? "Le Carillon s'effondre. Ce n'était pas la cloche : celle de Leutenheim sonne plus bas encore. Un coffre doré luit à côté de lui ; l'escalier, derrière, termine la démo."
-        : "Un coffre doré luit là où la Tisseuse est tombée. L'escalier reste scellé : le toucher termine la démo.",
+        : "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.",
     );
     renderLog();
   } else if (e.type === "carillon") {
@@ -1511,7 +1511,7 @@ function renderRecords(): void {
     text.append(
       el("div", "save-title", `${tr(race)} ${tr(cls)}`),
       el("div", "", `Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or · ${r.turns ?? "?"} tours`),
-      el("div", won ? "record-win" : "save-when", r.cause === "victoire" ? "La Tisseuse est tombée." : `Mort : ${r.cause}`),
+      el("div", won ? "record-win" : "save-when", r.cause === "victoire" ? (r.deepest >= 10 ? "Le Carillon est tombé." : "La Tisseuse est tombée.") : `Mort : ${r.cause}`),
       el("div", "save-when", `Le ${r.date}`),
     );
     card.append(pictos, text);

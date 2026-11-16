@@ -1317,9 +1317,10 @@ export class Game {
       this.events.push({ type: "sealed" });
       return;
     }
-    // Partie d'essai : l'escalier ouvert mène à la section 2 (la vraie partie s'arrête à la fin de la démo).
-    if (this.sealedStairsAt(at.x, at.y) && this.testRun && this.depth < RULES.demoLastDepth) {
-      this.teleport(this.depth + 1);
+    // Étage ouvert après le boss (Thomas, 2026-11-16 : « ouvre l'étage post Fileuse ») : l'escalier mène à l'étage
+    // suivant, dans toutes les parties ; seul celui du dernier boss de la démo (le Carillon) termine la partie.
+    if (this.sealedStairsAt(at.x, at.y) && this.depth < RULES.demoLastDepth) {
+      this.pendingStairs = "down";
       return;
     }
     if (this.sealedStairsAt(at.x, at.y)) {

@@ -1857,4 +1857,7 @@ export const EN: Record<string, string> = {
   "Musique": "Music",
   "Moins fort": "Quieter",
   "Plus fort": "Louder",
+  "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.": "A golden chest gleams where the Weaver fell. The web over the stairs tears: they lead further down.",
+  "Le Carillon est tombé.": "The Carillon has fallen.",
+  "D'accord": "OK",
 };

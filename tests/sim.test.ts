@@ -3717,10 +3717,10 @@ test("la Tisseuse : réveil par la toile, morsure, recul, cocon mangé, chute, f
   assert.ok(opened && opened.type === "chest" && opened.gold > 0 && opened.golden?.length === 2, "or, artefact, arme, armure");
   assert.equal(ITEMS[opened.item].kind, "artifact");
   assert.ok(["melee", "ranged"].includes(ITEMS[opened.golden![0]].kind) && ["armor", "hat"].includes(ITEMS[opened.golden![1]].kind));
-  // Toucher l'escalier scellé termine la démo.
+  // Toucher l'escalier ouvert mène plus bas (Thomas, 2026-11-16 : la démo continue en section 2).
   game.events.length = 0;
   (game as unknown as { resolveBreak(at: { x: number; y: number }): void }).resolveBreak(layout.seal);
-  assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"), "fin de la démo");
+  assert.ok(!game.over && game.pendingStairs === "down", "l'escalier mène plus bas");
 });
 
 test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticables, avec champignons et éboulements ; fin de la démo à l'étage 10 (Thomas, 2026-11-14)", () => {
@@ -5815,4 +5815,22 @@ test("Carillon doux : pas d'encre avant la première onde ; les monstres s'abrit
     game.tick();
     assert.ok(!game.events.some((e) => e.type === "attack" && "opportunity" in e && e.opportunity), "pas d'attaque d'opportunité");
   }
+});
+
+test("étage ouvert après la Tisseuse (Thomas, 2026-11-16) : l'escalier mène à l'étage 6 dans une vraie partie", () => {
+  const game = new Game(5);
+  (game as unknown as { enterFloor(d: number, v: string): void }).enterFloor(5, "down");
+  const queen = game.bossActor()!;
+  queen.hp = 0;
+  (game as unknown as { removeIfDead(m: unknown): void }).removeIfDead(queen);
+  game.over = false;
+  const seal = game.bossLayout()!.seal;
+  assert.ok(game.sealedStairsAt(seal.x, seal.y));
+  game.monsters.length = 0;
+  assert.ok(game.setDestination(seal.x, seal.y, true));
+  for (let t = 0; t < 80 && !game.pendingStairs; t++) game.tick();
+  assert.equal(game.pendingStairs, "down");
+  assert.ok(game.takeStairs());
+  assert.equal(game.depth, 6);
+  assert.ok(!game.won, "la partie continue");
 });

@@ -63,3 +63,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_14h27 | ad39755 | 23.9 | 22.2 | 22.6 | 19.4 | 16.7 | 25 | 0.59 | 0.28 | Carillon doux, abri des monstres, mode d'essai |
 | 2026-11-16_17h16 | 2c3cecf | 23.5 | 23.5 | 19.7 | 22.2 | 16.7 | 22.3 | 0.87 | 0.36 | torche animée, mélangeur, double toucher, creux ailleurs |
 | 2026-11-16_17h21 | 563ebec | 19.9 | 21.4 | 19.1 | 23.5 | 16.7 | 21.8 | 0.62 | 0.12 | salle de bain plus petite |
+| 2026-11-16_19h18 | 88f8b1f | 24.2 | 21.5 | 22.9 | 21.5 | 16.7 | 19.5 | 0.69 | 0.35 | étage ouvert après la Tisseuse |

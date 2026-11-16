@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T14:20:02.617Z",
+ "commit": "e7b1ca0",
+ "note": "Carillon : pluie d'encre, chapeau, souches resserrées",
+ "logic": {
+  "tickMs": 0.81,
+  "lightMs": 0.21,
+  "visionMs": 0.22
+ },
+ "scenes": {
+  "immobile": {
+   "n": 109,
+   "avg": 22.5,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 6
+  },
+  "marche": {
+   "n": 220,
+   "avg": 22.7,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 44,
+   "js": 5
+  },
+  "retour": {
+   "n": 220,
+   "avg": 22.7,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 44,
+   "js": 5
+  },
+  "zoom": {
+   "n": 116,
+   "avg": 23.4,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 43,
+   "js": 6
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 8
+  },
+  "donjon": {
+   "n": 184,
+   "avg": 26.9,
+   "p95": 50,
+   "max": 183.3,
+   "fps": 37,
+   "js": 14
+  }
+ },
+ "errors": []
+}

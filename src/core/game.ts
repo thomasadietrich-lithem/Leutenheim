@@ -1003,6 +1003,10 @@ export class Game {
         this.events.push({ type: "carillon", what: "sprout", actor: e });
       }
     }
+    // Pluie d'encre (Thomas, 2026-11-16 : « il est statique et ne fait aucun dommage ») : les gouttes marquées au tour
+    // d'avant tombent, même quand il est sonné.
+    this.carillonInkFall(m);
+    if (this.over) return;
     if ((st.fallen ?? 0) > 0) {
       st.fallen--;
       return;
@@ -1012,6 +1016,14 @@ export class Game {
       m.stunned--;
       return;
     }
+    // Coup de chapeau : collé à lui, son bord retombe sur vous.
+    if (gapBetween(m, this.hero) <= 1 && this.inLair(layout.lair, this.hero)) {
+      const result = rollAttack(this.rng, m, this.hero);
+      this.events.push({ type: "attack", attacker: m, target: this.hero, result });
+      this.hurtHero(result.damage, this.killerName(m));
+      if (this.over) return;
+    }
+    this.carillonInkMark(m);
     if (!st.clapperUp) return;
     st.ring = (st.ring ?? RULES.carillonEvery) - 1;
     if (st.ring === 1) {
@@ -1053,6 +1065,49 @@ export class Game {
       }
     }
     this.events.push({ type: "carillon", what: "ring", actor: m, hit });
+  }
+
+  /** Pluie d'encre : les cases marquées au tour d'avant reçoivent leur goutte (1d6 à qui s'y tient, monstres compris). */
+  private carillonInkFall(m: Actor): void {
+    const st = m.boss!;
+    const cells = st.ink ?? [];
+    if (cells.length === 0) return;
+    st.ink = [];
+    const hit: Actor[] = [];
+    for (const c of cells) {
+      this.stain(c.x, c.y, "black");
+      if (this.hero.x === c.x && this.hero.y === c.y && !this.over) {
+        this.hurtHero(rollDice(this.rng, RULES.carillonInkDamage), "l'encre du Carillon");
+        hit.push(this.hero);
+      }
+      const o = this.monsterAt(c.x, c.y);
+      if (o && !o.boss && !this.isInert(o)) {
+        o.hp -= rollDice(this.rng, RULES.carillonInkDamage);
+        hit.push(o);
+        this.removeIfDead(o);
+      }
+    }
+    this.events.push({ type: "carillon", what: "ink", actor: m, hit, cells });
+  }
+
+  /** Pluie d'encre : marque les cases où tombera la goutte au prochain tour (une ombre au sol). La case du héros
+   *  d'abord (sauf s'il est collé au Carillon : là, c'est le chapeau qui frappe), puis d'autres autour de lui. */
+  private carillonInkMark(m: Actor): void {
+    const st = m.boss!;
+    const lair = this.current.boss!.lair;
+    const hero = this.hero;
+    if (!this.inLair(lair, hero)) return;
+    const cells: Point[] = [];
+    const ok = (x: number, y: number) =>
+      this.map.isWalkable(x, y) && this.inLair(lair, { x, y }) && !occupies(m, x, y) && !cells.some((c) => c.x === x && c.y === y);
+    if (gapBetween(m, hero) > 1 && ok(hero.x, hero.y)) cells.push({ x: hero.x, y: hero.y });
+    for (let tries = 0; cells.length < RULES.carillonInkDrops && tries < 60; tries++) {
+      const x = hero.x + this.rng.int(-3, 3);
+      const y = hero.y + this.rng.int(-3, 3);
+      if (ok(x, y)) cells.push({ x, y });
+    }
+    st.ink = cells;
+    this.events.push({ type: "carillon", what: "inkMark", actor: m, cells });
   }
 
   /** Un coup du héros a porté sur le Carillon : pendant son avertissement, il sonnera faux. */

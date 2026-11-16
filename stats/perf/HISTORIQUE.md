@@ -59,3 +59,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_09h14 | 3c209c8 | 26.1 | 24 | 24 | 22.3 | 16.7 | 21.7 | 1 | 0.13 | le Carillon (boss de la section 2) |
 | 2026-11-16_10h21 | fc04d04 | 29.5 | 24 | 24.8 | 25.8 | 16.7 | 27.6 | 0.71 | 0.34 | étages ouverts en essai, flèches brisées qui filent, potions sur le Carillon |
 | 2026-11-16_11h00 | 3ef24e2 | 23.5 | 22.1 | 22.2 | 25 | 16.7 | 25 | 0.95 | 0.27 | Carillon tous les 8 tours, triche Stuff |
+| 2026-11-16_14h20 | e7b1ca0 | 22.5 | 22.7 | 22.7 | 23.4 | 16.7 | 26.9 | 0.81 | 0.21 | Carillon : pluie d'encre, chapeau, souches resserrées |

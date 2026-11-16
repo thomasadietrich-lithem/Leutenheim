@@ -38,11 +38,13 @@ export function buildCarillonFloor(seed: number): BossFloor {
   const clapper = { x: 9, y: 5 };
   map.set(seal.x, seal.y, Tile.Furniture);
   const furniture: Furniture[] = [{ x: seal.x, y: seal.y, kind: "sealedStairs" }];
-  // Les souches de pierre (abris), en arc devant lui ; un peu de jeu d'une partie à l'autre.
+  // Les souches de pierre (abris), resserrées (Thomas, 2026-11-16 : « rapproche les poteaux pour se cacher plus
+  // facilement ») : d'où qu'on soit dans la grotte, une souche est à deux pas ; un peu de jeu d'une partie à l'autre.
   const stumps: Point[] = [
-    { x: 5, y: 4 + rng.int(0, 1) }, { x: 13, y: 4 + rng.int(0, 1) },
-    { x: 4, y: 7 + rng.int(0, 1) }, { x: 14, y: 7 + rng.int(0, 1) },
-    { x: 7, y: 9 + rng.int(0, 1) }, { x: 11, y: 9 + rng.int(0, 1) },
+    { x: 6, y: 5 }, { x: 12, y: 5 },
+    { x: 4, y: 7 + rng.int(0, 1) }, { x: 8, y: 7 }, { x: 10, y: 7 }, { x: 14, y: 7 + rng.int(0, 1) },
+    { x: 6, y: 9 + rng.int(0, 1) }, { x: 12, y: 9 + rng.int(0, 1) },
+    { x: 9, y: 10 },
   ];
   for (const p of stumps) {
     map.set(p.x, p.y, Tile.Furniture);
@@ -53,7 +55,7 @@ export function buildCarillonFloor(seed: number): BossFloor {
   for (const p of [{ x: 4, y: 2 }, { x: 14, y: 2 }, { x: 2, y: 5 }, { x: 16, y: 5 }, { x: 3, y: 11 }, { x: 15, y: 11 }, { x: 2, y: 9 }, { x: 16, y: 9 }]) {
     if (map.get(p.x, p.y) === Tile.Floor) furniture.push({ x: p.x, y: p.y, kind: glow[rng.int(0, glow.length - 1)] });
   }
-  const sleepers = [{ x: 6, y: 6 }, { x: 12, y: 6 }, { x: 9, y: 10 + rng.int(0, 1) }];
+  const sleepers = [{ x: 6, y: 6 }, { x: 12, y: 6 }, { x: 9, y: 11 }];
   const sprouts = [{ x: 4, y: 10 }, { x: 14, y: 10 }];
   const floor: BossFloor = {
     map,

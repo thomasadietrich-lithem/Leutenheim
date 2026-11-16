@@ -869,7 +869,7 @@ function reveal(e: GameEvent): void {
     const mid = { x: e.actor.x + 1, y: e.actor.y + 1 };
     if (e.what === "wake") {
       sfx.play("bell");
-      logLines.push("Le Carillon s'ébranle. Tous les trois tours, il sonne : à l'abri derrière une souche quand il se balance !");
+      logLines.push("Le Carillon s'ébranle. Tous les huit tours, il sonne : à l'abri derrière une souche quand il se balance ! Entre deux, son encre pleut là où le sol s'assombrit : ne restez pas dessous.");
     } else if (e.what === "warn") {
       renderer.addFloatingText(mid.x, mid.y - 1, "Il se balance…", "#ffd75e");
     } else if (e.what === "ring") {
@@ -888,6 +888,12 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(e.actor.x, e.actor.y, "Crac !", "#c4d660");
       sfx.play("break");
       logLines.push("Le battant se brise : le Carillon ne sonnera plus.");
+    } else if (e.what === "ink") {
+      sfx.play("splash");
+      for (const o of e.hit ?? []) renderer.addFloatingText(o.x, o.y, "Splotch !", o === game.hero ? "#ff6b7a" : "#b7a6d6");
+      if ((e.hit ?? []).includes(game.hero)) logLines.push("Une goutte d'encre vous tombe dessus.");
+    } else if (e.what === "inkMark") {
+      // L'ombre est dessinée par le renderer (état du boss) : rien à écrire.
     } else if (e.what === "sprout") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#7f9a84");
       logLines.push("Le mycélium se soulève : un Kobold envahi en sort.");

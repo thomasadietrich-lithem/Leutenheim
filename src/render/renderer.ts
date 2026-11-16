@@ -1309,6 +1309,26 @@ export class Renderer {
       ctx.stroke();
     }
     this.drawCarillonSprite(CARILLON[name] ?? CARILLON.idle1, cx, top);
+    // Pluie d'encre : une ombre violette qui palpite sous chaque goutte à venir.
+    const pulse = 0.35 + 0.15 * Math.sin(this.time / 140);
+    for (const c of st.ink ?? []) {
+      const x = cx + (c.x + 0.5 - (m.x + 1.5)) * tile;
+      const y = top + (c.y + 0.5 - m.y) * tile;
+      ctx.fillStyle = `rgba(30,12,48,${pulse.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y + tile * 0.15, tile * 0.42, tile * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(20,6,34,${(pulse + 0.2).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y + tile * 0.15, tile * 0.18, tile * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Un cerne mauve qui se voit sur le sol sombre de la grotte.
+      ctx.strokeStyle = `rgba(196,150,255,${(pulse + 0.3).toFixed(2)})`;
+      ctx.lineWidth = Math.max(1.5, tile * 0.06);
+      ctx.beginPath();
+      ctx.ellipse(x, y + tile * 0.15, tile * 0.42, tile * 0.3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
       ctx.fillStyle = "rgba(255,255,255,0.18)";
       ctx.beginPath();

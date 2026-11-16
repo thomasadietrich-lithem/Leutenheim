@@ -1839,4 +1839,9 @@ export const EN: Record<string, string> = {
   "Stuff faible : {0}.": "Weak gear: {0}.",
   "Stuff moyen : {0}.": "Medium gear: {0}.",
   "Stuff élevé : {0}.": "Strong gear: {0}.",
+  "Le Carillon s'ébranle. Tous les huit tours, il sonne : à l'abri derrière une souche quand il se balance ! Entre deux, son encre pleut là où le sol s'assombrit : ne restez pas dessous.": "The Carillon stirs. Every eight turns it rings: take cover behind a stump when it sways! In between, its ink rains where the ground darkens: don't stay under it.",
+  "Splotch !": "Splotch!",
+  "Une goutte d'encre vous tombe dessus.": "A drop of ink falls on you.",
+  "Un coprin géant qui pousse de la voûte, tête en bas, le chapeau en forme de cloche. C'est lui qui sonnait. Tous les huit tours, son battant de spores frappe : l'onde jette à terre qui n'est pas à l'abri. Entre deux, il fait pleuvoir de l'encre sur des cases marquées d'une ombre, et son chapeau frappe qui se colle à lui.": "A giant inky cap growing upside down from the vault, its cap shaped like a bell. It was the one ringing. Every eight turns its spore clapper strikes: the wave knocks down anyone not under cover. In between, it rains ink on tiles marked by a shadow, and its cap strikes anyone who gets close.",
+  "l'encre du Carillon": "the Carillon's ink",
 };

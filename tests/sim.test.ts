@@ -5603,7 +5603,7 @@ test("amulettes (Thomas, 2026-11-15) : un chiffre toujours actif ; la vie s'ajou
   assert.equal(game.hero.maxHp, hp + 8);
 });
 
-test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette à terre hors d'un abri ; sonner faux ; battant cassé ; vaincu", () => {
+test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 8 tours, l'onde jette à terre hors d'un abri ; sonner faux ; battant cassé ; vaincu", () => {
   const setup = (seed: number) => {
     const game = new Game(seed);
     game.testRun = true;
@@ -5737,4 +5737,35 @@ test("triche « Stuff » : équipement complet porté et consommables au sac", (
   }
   assert.equal(game.equipment.bag!.defId, "sac_voyage");
   assert.equal(new Game(12).testKit("eleve"), null, "pas hors essai");
+});
+
+test("Carillon : pluie d'encre et coup de chapeau", () => {
+  const game = new Game(31);
+  game.testRun = true;
+  game.teleport(10);
+  const bell = game.bossActor()!;
+  const layout = game.bossLayout()!;
+  assert.equal(bell.defId, "carillon");
+  // Dans la grotte, loin de lui : une ombre marque sa case, et la goutte tombe au tour suivant s'il ne bouge pas.
+  Object.assign(game.hero, { x: layout.lair.x + 3, y: layout.lair.y + layout.lair.h - 3, hp: 500, maxHp: 500 });
+  game.wait();
+  game.tick();
+  const marks = bell.boss!.ink ?? [];
+  assert.ok(marks.some((c) => c.x === game.hero.x && c.y === game.hero.y), "sa case est marquée");
+  const before = game.hero.hp;
+  game.events.length = 0;
+  game.wait();
+  game.tick();
+  assert.ok(game.events.some((e) => e.type === "carillon" && e.what === "ink" && (e.hit ?? []).includes(game.hero)), "la goutte tombe");
+  assert.ok(game.hero.hp < before);
+  // Collé à lui : le chapeau frappe.
+  Object.assign(game.hero, { x: bell.x - 1, y: bell.y + 1 });
+  let swung = false;
+  for (let t = 0; t < 4; t++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    if (game.events.some((e) => e.type === "attack" && e.attacker === bell)) swung = true;
+  }
+  assert.ok(swung, "le chapeau frappe au contact");
 });

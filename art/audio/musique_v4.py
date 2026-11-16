@@ -7,7 +7,8 @@ des tenues et des silences : en traque la boucle passe de 8 s à environ 40 s ; 
   B  crypte douce    : sons ronds (attaques lentes, plus de scie ni de tic-tac), battement feutré, écho plus long
   C  harpe et cordes : mélodie pincée, arpège de harpe, nappe de cordes, timbale douce ; pas de grosse caisse
   D  orgue et cloche : nappe d'orgue, mélodie de flûte, la cloche de Leutenheim qui sonne quand l'alerte monte
-python3 art/audio/musique_v4.py → art/audio/musique_v4_<lettre>_<nom>.mp3
+python3 art/audio/musique_v4.py → art/audio/musique_v4_<lettre>_<nom>.mp3 ; CHOISIE : C (en jeu, `src/audio/music.ts`).
+`python3 art/audio/musique_v4.py boss` → art/audio/musique_v4_boss_coeur.mp3 (proposition pour les combats de boss).
 Tout reste faisable en direct dans le jeu (oscillateurs, filtres, échos)."""
 import subprocess
 import sys
@@ -202,11 +203,66 @@ def render(v):
     return name, out / (np.max(np.abs(out)) + 1e-9) * 0.85
 
 
+def boss():
+    """PROPOSITION « le cœur du boss » (Thomas, 2026-11-16 : « creuse les battements de cœur de D pour le combat de
+    boss »). Les sons de la variante C (cordes, harpe) sans mélodie pressée ; un cœur (deux coups feutrés, « poum-poum »)
+    donne le tempo, et ce tempo suit la VIE DU BOSS : 50 battements par minute quand il est intact, 66 sous les deux
+    tiers, 88 sous le tiers. À sa mort : le cœur rate un coup, s'arrête, silence, puis un accord de ré MAJEUR et la cloche."""
+    prog = [DM, BB, GM, A]
+    theme = [62, 60, 57, 58, 57, 53, 55, 57]  # le début du thème, deux octaves plus bas, une note par mesure
+    parts = []
+    for phase, (bpm, bars) in enumerate([(50, 6), (66, 6), (88, 8)]):
+        beat = 60 / bpm
+        buf = np.zeros(int((bars * 4 * beat + 5) * SR))
+        for bar in range(bars):
+            chord, t0 = prog[bar % 4], bar * 4 * beat
+            add(buf, pad("C", chord, 4 * beat, phase), t0, 0.9)
+            add(buf, tone(hz(38), 4 * beat, "sine", a=0.3, s=0.9, r=0.5), t0, 0.16)
+            # Le cœur : « poum » sur chaque temps, « poum » plus faible juste après.
+            for k in range(4):
+                add(buf, soft_kick(), t0 + k * beat, 0.5)
+                add(buf, soft_kick(), t0 + k * beat + min(0.3, beat * 0.36), 0.3)
+            # Le thème au violoncelle, lent ; plus haut et doublé quand le boss faiblit.
+            n = theme[bar % 8] + (12 if phase == 2 else 0)
+            cello = lowpass(tone(hz(n), 3.6 * beat, "saw", a=0.25, d=0.3, s=0.8, r=0.6, detune=0.003), 900)
+            add(buf, cello, t0, 0.09)
+            if phase >= 1:  # la harpe répond : à la noire, puis en croches
+                arp = [chord[0], chord[2], chord[1] + 12, chord[2]]
+                div = phase
+                for k in range(4 * div):
+                    add(buf, partials(hz(arp[k % 4] + 12), beat / div + 0.5, [1, 0.45, 0.2, 0.08], a=0.004, r=0.4, decay=1.6), t0 + k * beat / div, 0.05)
+            if phase == 2 and bar % 4 == 0:
+                add(buf, bell(hz(50)), t0, 0.08)
+        parts.append(buf[: int((bars * 4 * beat + 1.5) * SR)])
+    # La mort : deux battements qui ralentissent, un demi-coup, le silence, puis la lumière.
+    end = np.zeros(int(14 * SR))
+    for t, g in [(0.0, 0.5), (0.3, 0.3), (1.1, 0.42), (1.45, 0.24), (2.7, 0.3)]:
+        add(end, soft_kick(), t, g)
+    major = [50, 57, 62, 66, 69, 74, 78]
+    for i, n in enumerate(major):
+        add(end, partials(hz(n), 5.0, [1, 0.45, 0.2, 0.08], a=0.004, r=1.0, decay=0.5), 5.2 + i * 0.09, 0.09)
+    add(end, pad("C", (50, 54, 57), 6.0, 0), 5.2, 0.9)
+    add(end, bell(hz(62)), 5.2, 0.07)
+    fade = int(1.5 * SR)
+    out = parts[0]
+    for q in parts[1:]:
+        ramp = np.linspace(0, 1, fade)
+        out[-fade:] = out[-fade:] * (1 - ramp) + q[:fade] * ramp
+        out = np.concatenate([out, q[fade:]])
+    cut = int(0.25 * SR)
+    out[-cut:] *= np.linspace(1, 0, cut)
+    out = np.concatenate([out, end])
+    out = reverb(out / (np.max(np.abs(out)) + 1e-9) * 0.85, "C")
+    tail = int(2 * SR)
+    out[-tail:] *= np.linspace(1, 0, tail)
+    return "coeur", out / (np.max(np.abs(out)) + 1e-9) * 0.85
+
+
 if __name__ == "__main__":
     for v in sys.argv[1:] or VARIANTS:
-        name, out = render(v)
+        name, out = boss() if v == "boss" else render(v)
         base = f"musique_v4_{v}_{name}"
         wavfile.write(f"/tmp/{base}.wav", SR, (out * 32767).astype(np.int16))
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", f"/tmp/{base}.wav", "-b:a", "128k", f"art/audio/{base}.mp3"], check=True)
         rms = [round(float(np.sqrt(np.mean(out[i:i + 5 * SR] ** 2))), 2) for i in range(0, len(out), 20 * SR)]
-        print(base, f"{len(out) / SR:.0f} s", "tempos", VARIANTS[v][1], "niveau", rms)
+        print(base, f"{len(out) / SR:.0f} s", "tempos", VARIANTS.get(v, ("", [50, 66, 88]))[1], "niveau", rms)

@@ -1,21 +1,31 @@
 /**
- * Musique « Crypte » (Thomas, 2026-11-12 : « j'aime la crypte », « implémente » ; maquette `art/audio/musique_v3.py`).
- * Fabriquée en direct, sans fichier, sans fin : en ré mineur, mesure par mesure. Elle se tend avec le NIVEAU D'ALERTE de
- * l'étage (calme 72, agité 84, alerte 100, traque 120 battements par minute) ; le changement se fait à la mesure suivante.
+ * Musique « Harpe et cordes » (Thomas, 2026-11-16 : « implémente C » ; maquette `art/audio/musique_v4.py`, variante C ;
+ * remplace la « Crypte » v3, dont la traque tournait en boucle toutes les 8 s).
+ * Fabriquée en direct, sans fichier, sans fin : en ré mineur, mesure par mesure, sur une phrase de 16 mesures (accords et
+ * mélodie, avec des tenues et des silences). Elle se tend avec le NIVEAU D'ALERTE de l'étage (calme 58, agité 66,
+ * alerte 76, traque 88 battements par minute) ; le changement se fait à la mesure suivante. Pas de grosse caisse :
+ * c'est l'arpège de harpe qui presse (noires, puis croches), avec une timbale douce.
  * Le réglage « Musique » des Paramètres la coupe.
  */
 
-const PROG = [
-  [50, 53, 57],
-  [46, 50, 53],
-  [48, 52, 55],
-  [45, 49, 52],
+const DM = [50, 53, 57];
+const BB = [46, 50, 53];
+const C = [48, 52, 55];
+const A = [45, 49, 52];
+const GM = [43, 46, 50];
+const F = [41, 45, 48];
+const PROG = [DM, BB, C, A, DM, GM, BB, A, F, C, GM, DM, BB, GM, A, A];
+/** Une case par temps : note, -1 = la note d'avant tient, 0 = silence. */
+const MELODY = [
+  [74, -1, 72, 69], [70, -1, 69, 65], [67, -1, 69, 72], [73, -1, -1, 0],
+  [74, 77, 76, 74], [70, -1, 67, 70], [74, -1, 72, 70], [69, -1, -1, 0],
+  [77, -1, 76, 72], [76, -1, 72, 67], [70, -1, 74, 70], [69, -1, -1, 0],
+  [65, 70, 74, -1], [67, 70, 79, -1], [76, -1, 73, -1], [69, -1, -1, 0],
 ];
-const MELODY = [74, 72, 69, 70, 69, 65, 67, 69, 74, 77, 76, 74, 73, 69, 70, 69];
-const BPM = [72, 84, 100, 120];
+const BPM = [58, 66, 76, 88];
 /** Volume général de la musique (sous les bruitages). Relevé (Thomas : « la musique semble ne pas marcher ») : les
  *  haut-parleurs de téléphone ne rendent presque pas les graves, d'où aussi le bourdon doublé à l'octave. */
-const VOLUME = 0.5;
+const VOLUME = 0.65;
 
 const hz = (n: number) => 440 * 2 ** ((n - 69) / 12);
 
@@ -25,7 +35,7 @@ export class Music {
   stage = 0;
   private out: GainNode | null = null;
   private wet: GainNode | null = null;
-  private noiseBuf: AudioBuffer | null = null;
+  private harp: PeriodicWave | null = null;
   private nextBar = 0;
   private bar = 0;
   private playing = false;
@@ -72,7 +82,7 @@ export class Music {
     }
   }
 
-  /** Réverbération de cave (quelques échos filtrés) et sortie. */
+  /** Écho de voûte (quatre échos qui se répètent en s'éteignant, filtrés) et sortie. */
   private build(ctx: AudioContext): void {
     this.out = ctx.createGain();
     this.out.gain.value = 0;
@@ -81,25 +91,27 @@ export class Music {
     this.wet.gain.value = 1;
     const tone = ctx.createBiquadFilter();
     tone.type = "lowpass";
-    tone.frequency.value = 2500;
+    tone.frequency.value = 1800;
+    const send = ctx.createGain();
+    send.gain.value = 0.09;
     this.wet.connect(this.out);
-    for (const [delay, g] of [
-      [0.083, 0.25],
-      [0.137, 0.18],
-      [0.211, 0.12],
-      [0.31, 0.08],
+    for (const [delay, feedback] of [
+      [0.0297, 0.78],
+      [0.0371, 0.76],
+      [0.0411, 0.74],
+      [0.0437, 0.72],
     ]) {
-      const d = ctx.createDelay(1);
+      const d = ctx.createDelay(0.1);
       d.delayTime.value = delay;
-      const gain = ctx.createGain();
-      gain.gain.value = g;
-      this.wet.connect(d).connect(gain).connect(tone);
+      const fb = ctx.createGain();
+      fb.gain.value = feedback;
+      this.wet.connect(d);
+      d.connect(fb).connect(d);
+      d.connect(tone);
     }
-    tone.connect(this.out);
-    const length = Math.floor(ctx.sampleRate * 0.3);
-    this.noiseBuf = ctx.createBuffer(1, length, ctx.sampleRate);
-    const data = this.noiseBuf.getChannelData(0);
-    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    tone.connect(send).connect(this.out);
+    // Timbre de corde pincée : le fondamental et quatre harmoniques de plus en plus faibles.
+    this.harp = ctx.createPeriodicWave(new Float32Array([0, 0, 0, 0, 0, 0]), new Float32Array([0, 1, 0.5, 0.25, 0.12, 0.06]));
   }
 
   /** Une note : oscillateur, enveloppe (attaque, maintien, relâche), filtre éventuel. */
@@ -125,30 +137,23 @@ export class Music {
     osc.stop(t + dur + release + 0.05);
   }
 
-  private kick(ctx: AudioContext, t: number, vol: number): void {
+  /** Une corde pincée : attaque franche, le son s'éteint tout seul et s'assourdit en s'éteignant. */
+  private pluck(ctx: AudioContext, t: number, freq: number, dur: number, vol: number, fade = 0.75): void {
     const osc = ctx.createOscillator();
-    osc.frequency.setValueAtTime(150, t);
-    osc.frequency.exponentialRampToValueAtTime(42, t + 0.12);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-    osc.connect(g).connect(this.wet!);
-    osc.start(t);
-    osc.stop(t + 0.4);
-  }
-
-  private tick(ctx: AudioContext, t: number, vol: number): void {
-    const src = ctx.createBufferSource();
-    src.buffer = this.noiseBuf;
+    osc.setPeriodicWave(this.harp!);
+    osc.frequency.value = freq;
     const f = ctx.createBiquadFilter();
-    f.type = "highpass";
-    f.frequency.value = 6000;
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(Math.min(freq * 6, 9000), t);
+    f.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 1.2);
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-    src.connect(f).connect(g).connect(this.wet!);
-    src.start(t);
-    src.stop(t + 0.06);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol * Math.exp(-dur / fade)), t + dur);
+    g.gain.linearRampToValueAtTime(0, t + dur + 0.4);
+    osc.connect(f).connect(g).connect(this.wet!);
+    osc.start(t);
+    osc.stop(t + dur + 0.45);
   }
 
   private tom(ctx: AudioContext, t: number, freq: number, vol: number): void {
@@ -163,52 +168,49 @@ export class Music {
     osc.stop(t + 0.32);
   }
 
-  /** Joue une mesure (4 temps) à partir de `t0` ; renvoie sa durée. Mêmes couches que la maquette v3. */
+  /** Joue une mesure (4 temps) à partir de `t0` ; renvoie sa durée. Mêmes couches que la maquette v4 C. */
   private playBar(ctx: AudioContext, t0: number, stage: number): number {
     const beat = 60 / BPM[stage];
-    const bar = this.bar;
-    const chord = PROG[bar % 4];
-    // Nappe sombre (trois scies filtrées) et bourdon grave de ré : toujours.
-    for (const n of chord) this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.05, 0.6, 0.8, 500 + Math.min(stage, 2) * 400, (n % 3) * 4);
-    this.note(ctx, t0, hz(38), 4 * beat, "sine", 0.2, 0.3, 0.5);
-    this.note(ctx, t0, hz(50), 4 * beat, "triangle", 0.08, 0.3, 0.5);
-    if (stage <= 1) {
-      // Calme : une note sur deux temps ; agité : une par temps.
-      const step = stage === 0 ? 2 : 1;
-      for (let k = 0; k < 4 / step; k++) {
-        if (stage === 0 && k % 2) continue;
-        const note = MELODY[(bar * (4 / step) + k) % MELODY.length];
-        this.note(ctx, t0 + k * step * beat, hz(note), step * beat * 0.9, "triangle", 0.16, 0.005, 0.4);
-      }
-      if (stage === 1) {
-        for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(chord[0] - 12), beat * 0.8, "sawtooth", 0.12, 0.01, 0.1, 700);
-        this.kick(ctx, t0, 0.5);
-        this.kick(ctx, t0 + 2 * beat, 0.5);
-        this.kick(ctx, t0 + 0.35 * beat, 0.2);
-      }
-      return 4 * beat;
+    const chord = PROG[this.bar % 16];
+    const cells = MELODY[this.bar % 16];
+    // Nappe de cordes (scies désaccordées, filtrées, qui enflent lentement) et bourdon grave de ré : toujours.
+    const cutoff = 1100 + stage * 150;
+    for (const n of chord) {
+      this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.028, 1.0, 1.2, cutoff, 0);
+      this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.028, 1.0, 1.2, cutoff, 10);
+      this.note(ctx, t0, hz(n + 12), 4 * beat, "sawtooth", 0.012, 1.4, 1.2, cutoff, 8);
     }
-    // Alerte et traque, allégés (Thomas : « trop dense ») : la mélodie à la noire (une mesure sur deux en alerte).
-    if (stage === 3 || bar % 2 === 0) {
-      for (let k = 0; k < 4; k++) this.note(ctx, t0 + k * beat, hz(MELODY[(bar * 4 + k) % MELODY.length]), beat * 0.85, "triangle", 0.16, 0.005, 0.35);
-    }
-    if (stage === 2) {
-      for (let k = 0; k < 4; k++) {
-        this.note(ctx, t0 + k * beat, hz(chord[0] - 12), beat * 0.8, "sawtooth", 0.11, 0.01, 0.1, 650);
-        this.tick(ctx, t0 + (k + 0.5) * beat, 0.05);
+    this.note(ctx, t0, hz(38), 4 * beat, "sine", 0.16, 0.3, 0.5);
+    this.note(ctx, t0, hz(50), 4 * beat, "triangle", 0.05, 0.3, 0.5);
+    // Mélodie pincée : calme = la première note de la mesure ; agité = temps 1 et 3 ; alerte et traque = la phrase.
+    const slots = stage === 0 ? [0] : stage === 1 ? [0, 2] : [0, 1, 2, 3];
+    for (const k of slots) {
+      if (cells[k] <= 0) continue;
+      let length = 1;
+      while (k + length < 4 && cells[k + length] === -1) length++;
+      if (stage === 0) length = 3;
+      else if (stage === 1) length = Math.max(length, k === 0 ? 2 : 1.5);
+      const dur = length * beat + 0.6;
+      this.pluck(ctx, t0 + k * beat, hz(cells[k]), dur, 0.16);
+      // Traque : une deuxième voix en dessous sur le premier temps (de l'harmonie, pas de la vitesse).
+      if (stage === 3 && k === 0) {
+        const sixth = cells[k] - 9;
+        const fits = chord.some((n) => (sixth - n) % 12 === 0);
+        this.pluck(ctx, t0, hz(fits ? sixth : cells[k] - 12), dur, 0.08);
       }
-      this.kick(ctx, t0, 0.5);
-      this.kick(ctx, t0 + 2 * beat, 0.5);
-      this.kick(ctx, t0 + 2.35 * beat, 0.25);
-      if (bar % 2 === 1) this.note(ctx, t0 + 2.5 * beat, hz(63), beat * 1.5, "triangle", 0.06, 0.05, 0.3);
-    } else {
-      for (let k = 0; k < 8; k++) this.note(ctx, t0 + (k * beat) / 2, hz(chord[0] - 12), beat * 0.4, "sawtooth", 0.1, 0.005, 0.05, 600);
-      for (let k = 0; k < 4; k++) {
-        this.kick(ctx, t0 + k * beat, 0.45);
-        this.tick(ctx, t0 + (k + 0.5) * beat, 0.045);
-      }
-      if (bar % 4 === 3) [150, 130, 115, 100].forEach((f, j) => this.tom(ctx, t0 + (3 + j / 4) * beat, f, 0.22));
     }
+    // Arpège de harpe : à la noire, puis en croches quand l'alerte monte.
+    const arp = [chord[0], chord[2], chord[1] + 12, chord[2]];
+    const div = stage < 2 ? 1 : 2;
+    for (let k = 0; k < 4 * div; k++) {
+      if (stage === 0 && k % 2) continue;
+      const n = arp[k % 4] + (div === 2 && Math.floor(k / 4) % 2 ? 12 : 0);
+      this.pluck(ctx, t0 + (k * beat) / div, hz(n), beat / div + 0.5, 0.09, 0.6);
+    }
+    // Basse pincée dès « agité » ; timbale douce en alerte (temps 1) et en traque (temps 1 et 3).
+    if (stage >= 1) this.pluck(ctx, t0, hz(chord[0] - 12), 2 * beat, 0.28, 1.2);
+    if (stage >= 2) this.tom(ctx, t0, 73, 0.4);
+    if (stage === 3) this.tom(ctx, t0 + 2 * beat, 73, 0.4);
     return 4 * beat;
   }
 }

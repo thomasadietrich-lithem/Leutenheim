@@ -66,3 +66,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_19h18 | 88f8b1f | 24.2 | 21.5 | 22.9 | 21.5 | 16.7 | 19.5 | 0.69 | 0.35 | étage ouvert après la Tisseuse |
 | 2026-11-16_20h23 | f31520f | 25.5 | 27.3 | 24.6 | 25.2 | 16.7 | 27.7 | 0.66 | 0.2 | Héros en calques (race, armure, casque, arme), Halfelin et Elfe jouables, règles d'avantage |
 | 2026-11-16_20h24 | f31520f | 26.5 | 25.4 | 25.1 | 25.5 | 16.7 | 26.6 | 0.7 | 0.23 | Héros en calques : second passage (le premier signalait le donjon) |
+| 2026-11-16_20h54 | f79659b | 26.9 | 25.2 | 26 | 24.4 | 16.7 | 18 | 0.74 | 0.44 | musique harpe et cordes (v4 C) |

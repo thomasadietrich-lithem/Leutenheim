@@ -55,8 +55,6 @@ export interface Actor {
   quiet?: number;
   /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */
   lost?: number;
-  /** Numéro de la cible que ce personnage vient de frapper AVEC avantage : jamais deux avantages de suite sur elle. */
-  lastAdvantageOn?: number;
   /** Sonné (poussé par le héros) : il perd ce nombre de tours. */
   stunned?: number;
   /** Quêtes v3 : la bougie du dortoir soufflée, ce dormeur n'entend plus rien (seul un coup le réveille). */

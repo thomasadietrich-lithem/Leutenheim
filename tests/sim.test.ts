@@ -537,7 +537,8 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
     [game.equipment.armor?.defId, game.equipment.melee?.defId, game.equipment.ranged?.defId, game.equipment.hat, game.equipment.amulet],
     ["tunique", "epee", "arc_court", null, null],
   );
-  assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
+  // L'Humain ajoute une torche et une cuisse de poulet à l'équipement du Guerrier (Thomas, 2026-11-16).
+  assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche", "torche", "cuisse_poulet"]);
   assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 12]);
   assert.equal(game.arrows(), 10);
   // On retire l'épée : elle va dans le sac, on se bat à mains nues.
@@ -552,7 +553,7 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
   assert.ok(game.equip(sword.uid));
   assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "tunique")!.uid));
   assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4, 12]);
-  assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche"]);
+  assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche", "torche", "cuisse_poulet"]);
   // Les flèches ne se portent pas.
   assert.equal(game.equip(game.inventory.items[0].uid), false);
 });
@@ -1661,14 +1662,8 @@ test("passer une porte au contact d'un monstre ne déclenche pas d'attaque d'opp
     game.tick();
     assert.deepEqual([game.hero.x, game.hero.y], [x + dx, y + dy]);
     assert.equal(game.events.filter((e) => e.type === "attack" && e.opportunity).length, 0, `graine ${seed}`);
-    // Un avantage à la fois : le monstre semé ainsi ne se laisse pas surprendre dans la porte…
-    assert.equal(monster.wary, true, `graine ${seed} : le monstre devrait être sur ses gardes`);
+    // « Un avantage à la fois » est retiré (Thomas, 2026-11-16) : le monstre semé par la porte s'y fait prendre tout de suite.
     Object.assign(monster, { x, y });
-    assert.equal(game.heroHasAdvantageOn(monster), false, `graine ${seed}`);
-    // …jusqu'à ce qu'il ait rattrapé et attaqué le héros.
-    game.wait();
-    game.tick();
-    assert.equal(monster.wary, false, `graine ${seed}`);
     assert.equal(game.heroHasAdvantageOn(monster), true, `graine ${seed}`);
     checked++;
   }
@@ -1677,6 +1672,7 @@ test("passer une porte au contact d'un monstre ne déclenche pas d'attaque d'opp
 
 test("après 3 attaques ratées d'affilée, les suivantes sont aidées jusqu'au premier coup qui porte", () => {
   const game = new Game(4);
+  game.perks().stubborn = 1; // la relance de l'Humain têtu a déjà servi : on ne teste que la série
   const foe = game.monsters[0];
   assert.ok(foe);
   game.monsters = [foe];
@@ -2364,10 +2360,11 @@ function foeAt(dist: number, maxSeed = 200): { game: Game; m: import("../src/ent
 
 test("torche : 300 tours de lumière, rangée sous l'arc ; on l'éteint et la rallume ; on ne peut pas se cacher avec", () => {
   const game = new Game(7);
+  const had = game.inventory.count("torche"); // l'Humain part avec une torche
   game.inventory.add("torche", 1);
   assert.ok(game.useItem(bagUid(game, "torche")));
   game.tick();
-  assert.equal(game.inventory.count("torche"), 0);
+  assert.equal(game.inventory.count("torche"), had);
   assert.ok(game.torchTurns >= 298 && game.torchTurns <= 300);
   assert.ok(game.heroInLight(), "le héros n'est pas éclairé");
   // Éteinte : elle ne brûle plus ; rallumée, elle reprend.
@@ -3307,27 +3304,51 @@ test("motifs au sol : 0 à 2 par étage, sur du sol nu d'une salle, jamais à l'
   assert.ok(total >= 30, `motifs : ${total}`);
 });
 
-test("avantage : jamais deux de suite sur la même cible (porte, coin de mur, cible surprise)", () => {
-  for (let seed = 1; seed <= 60; seed++) {
+test("avantage : plus de « jamais deux de suite » ; quand chacun en aurait un, il revient au joueur (Thomas, 2026-11-16)", () => {
+  let again = false;
+  let conflict = false;
+  for (let seed = 1; seed <= 60 && !(again && conflict); seed++) {
     const game = new Game(seed);
+    game.perks().stubborn = 1;
     const foe = game.monsters[0];
     if (!foe) continue;
     game.monsters.splice(1);
     const h = game.hero;
-    const side = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor);
-    if (!side) continue;
-    // Une cible qui ne s'y attend pas : le premier coup a l'avantage, le suivant non.
-    Object.assign(foe, { x: side.x, y: side.y, hp: 99, maxHp: 99, alerted: false, asleep: true });
-    assert.equal(game.heroHasAdvantageOn(foe), true);
-    assert.ok(game.setDestination(foe.x, foe.y));
-    game.tick();
-    const first = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
-    assert.ok(first && first.type === "attack" && first.result.mode === "advantage");
-    foe.alerted = false; // même si elle « oubliait », pas deux avantages d'affilée
-    assert.equal(game.heroHasAdvantageOn(foe), false);
-    return;
+    if (!again) {
+      const side = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: h.x + dx, y: h.y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor);
+      if (side) {
+        // Une cible qui ne s'y attend pas : le premier coup a l'avantage ; si elle « oublie », le suivant aussi.
+        Object.assign(foe, { x: side.x, y: side.y, hp: 99, maxHp: 99, alerted: false, asleep: true });
+        assert.equal(game.heroHasAdvantageOn(foe), true);
+        assert.ok(game.setDestination(foe.x, foe.y));
+        game.tick();
+        const first = game.events.find((e) => e.type === "attack" && e.attacker === game.hero);
+        assert.ok(first && first.type === "attack" && first.result.mode === "advantage");
+        foe.alerted = false;
+        assert.equal(game.heroHasAdvantageOn(foe), true, "plus de limite « jamais deux de suite »");
+        again = true;
+        continue;
+      }
+    }
+    if (!conflict) {
+      // Le héros dans une porte (le monstre aurait l'avantage), le monstre surpris (le héros aussi) : il revient au joueur.
+      for (let y = 2; y < game.map.height - 2 && !conflict; y++) {
+        for (let x = 2; x < game.map.width - 2 && !conflict; x++) {
+          if (!game.map.isDoor(x, y)) continue;
+          const side = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: x + dx, y: y + dy })).find((p) => game.map.get(p.x, p.y) === Tile.Floor);
+          if (!side) continue;
+          Object.assign(h, { x, y, fromX: x, fromY: y, prevX: x, prevY: y });
+          Object.assign(foe, { x: side.x, y: side.y, fromX: side.x, fromY: side.y, prevX: side.x, prevY: side.y, alerted: false, asleep: false });
+          assert.ok(game.edgeReasons(foe, h).includes("door"), "le monstre aurait l'avantage de l'embrasure");
+          assert.ok(game.edgeReasons(h, foe).includes("surprise"), "le héros aurait celui de la surprise");
+          assert.equal(game.hasEdge(h, foe), true, "en cas de conflit, l'avantage revient au joueur");
+          assert.equal(game.hasEdge(foe, h), false, "et pas au monstre");
+          conflict = true;
+        }
+      }
+    }
   }
-  assert.fail("aucune graine utilisable");
+  assert.ok(again && conflict, "aucune graine utilisable");
 });
 
 test("regard : un monstre éveillé ne remarque le héros que dans son éventail (ou au contact)", () => {
@@ -3996,7 +4017,8 @@ test("sac plein : ce qui ne tient pas rebondit au sol sur une case libre ; le Co
   while (game.inventory.add("pomme", 5) === 0);
   game.gold = 500;
   const before = game.ground.length;
-  const ware = m.wares.find((w) => w.item !== "pomme")!;
+  // Un article que le héros n'a pas déjà (sinon il rejoint sa pile au lieu de rebondir).
+  const ware = m.wares.find((w) => w.item !== "pomme" && game.inventory.count(w.item) === 0)!;
   assert.equal(game.buy(m.wares.indexOf(ware)), "ok");
   const hop = game.events.find((e) => e.type === "bounce");
   assert.ok(hop && hop.type === "bounce");
@@ -5031,6 +5053,7 @@ test("torche lancée : sa case prend feu ; dans la section 2, la mousse propage 
   const game = new Game(5, undefined, undefined, undefined, true);
   game.monsters.splice(0);
   const uid = (game as unknown as { inventory: { add(id: string, n: number): number; snapshot(): { items: { uid: number; defId: string }[] } } }).inventory;
+  const hadTorches = game.inventory.count("torche"); // l'Humain part avec une torche
   uid.add("torche", 1);
   const torch = uid.snapshot().items.find((i) => i.defId === "torche")!;
   // Une case visible et libre à 2 cases du héros.
@@ -5044,7 +5067,7 @@ test("torche lancée : sa case prend feu ; dans la section 2, la mousse propage 
   assert.ok(game.throwPotion(torch.uid, target!.x, target!.y));
   game.tick();
   assert.ok(game.fires.some((f) => f.x === target!.x && f.y === target!.y), "la case de la torche brûle");
-  assert.equal(uid.snapshot().items.filter((i) => i.defId === "torche").length, 0, "la torche est partie");
+  assert.equal(game.inventory.count("torche"), hadTorches, "la torche est partie");
   // Section 2 : sur 60 feux, la mousse en propage quelques-uns, pas beaucoup.
   setSandboxSection(2);
   try {
@@ -5833,4 +5856,148 @@ test("étage ouvert après la Tisseuse (Thomas, 2026-11-16) : l'escalier mène �
   assert.ok(game.takeStairs());
   assert.equal(game.depth, 6);
   assert.ok(!game.won, "la partie continue");
+});
+
+// ---------------------------------------------------------------------------------------------------- Races (2026-11-16)
+import { RACES } from "../src/data/races";
+
+test("races : Humain, Halfelin et Elfe jouables ; PV, caractéristiques et objets de départ (Thomas, 2026-11-16)", () => {
+  const humain = new Game(3, RACES.humain);
+  const halfelin = new Game(3, RACES.halfelin);
+  const elfe = new Game(3, RACES.elfe);
+  assert.deepEqual([humain.hero.maxHp, halfelin.hero.maxHp, elfe.hero.maxHp], [12, 9, 10]);
+  // Objets de départ : torche et cuisse de poulet ; deux pommes ; dix flèches de plus. Ni potion ni or.
+  assert.deepEqual([humain.inventory.count("torche"), humain.inventory.count("cuisse_poulet")], [1, 1]);
+  assert.equal(halfelin.inventory.count("pomme"), 2);
+  assert.deepEqual([humain.arrows(), elfe.arrows()], [10, 20]);
+  for (const g of [humain, halfelin, elfe]) assert.equal(g.gold, 0);
+  // Halfelin : Agilité +2 (donc +1 en classe d'armure), Discrétion +3.
+  assert.equal(halfelin.agility(), 2);
+  assert.equal(halfelin.hero.armorClass, humain.hero.armorClass + 1);
+  assert.equal(halfelin.stealthBonus(), humain.stealthBonus() + 3);
+  // Elfe : vue perçante, Charisme +5 (prix du Colporteur), Force −1 (dégâts au contact).
+  assert.deepEqual([elfe.race.darkVision, elfe.race.sight], [6, 13]);
+  assert.equal(elfe.charisma(), 5);
+  assert.deepEqual([humain.buyPrice(100), elfe.buyPrice(100)], [100, 90]);
+  assert.equal(elfe.hero.damage.bonus, humain.hero.damage.bonus - 1);
+  // La race est gardée dans la sauvegarde.
+  const copy = Game.restore(JSON.parse(JSON.stringify(halfelin.snapshot())))!;
+  assert.equal(copy.race.id, "halfelin");
+  assert.equal(copy.hero.maxHp, 9);
+});
+
+test("Halfelin : gourmand (+3 PV par nourriture) ; une chaise lui suffit pour se cacher", () => {
+  const game = new Game(5, RACES.halfelin);
+  game.monsters = [];
+  game.hero.hp = 1;
+  assert.ok(game.useItem(bagUid(game, "pomme")));
+  game.tick();
+  assert.equal(game.hero.hp, 1 + 5 + 3);
+  // Une chaise posée à côté de lui, au milieu d'une salle : abri pour lui, pas pour un Humain.
+  for (const race of [RACES.halfelin, RACES.humain]) {
+    const g = new Game(5, race);
+    let spot: { x: number; y: number } | null = null;
+    for (let y = 2; y < g.map.height - 2 && !spot; y++) {
+      for (let x = 2; x < g.map.width - 2 && !spot; x++) {
+        let open = true;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (g.map.get(x + dx, y + dy) !== Tile.Floor || g.furnitureAt(x + dx, y + dy)) open = false;
+        if (open) spot = { x, y };
+      }
+    }
+    assert.ok(spot, "une place dégagée");
+    Object.assign(g.hero, { x: spot!.x, y: spot!.y, fromX: spot!.x, fromY: spot!.y });
+    assert.equal(g.hasCover(g.hero), false);
+    (g.furnitureList() as { x: number; y: number; kind: string }[]).push({ x: spot!.x + 1, y: spot!.y, kind: "chairL" });
+    assert.equal(g.hasCover(g.hero), race.id === "halfelin");
+  }
+});
+
+test("Humain : têtu (une relance par étage) et opportuniste (coup gratuit, avec l'avantage, sur un monstre qui s'éloigne)", () => {
+  // Têtu : le premier coup raté de l'étage est relancé, pas le suivant.
+  const game = new Game(4);
+  const foe = game.monsters[0];
+  assert.ok(foe);
+  game.monsters = [foe];
+  const side = game.map.isWalkable(game.hero.x + 1, game.hero.y) ? 1 : -1;
+  Object.assign(foe, { x: game.hero.x + side, y: game.hero.y, fromX: game.hero.x + side, fromY: game.hero.y, armorClass: 40, hp: 9999, maxHp: 9999, alerted: true, asleep: false });
+  Object.assign(game.hero, { hp: 99999, maxHp: 99999 });
+  let rerolls = 0;
+  for (let i = 0; i < 6; i++) {
+    game.events.length = 0;
+    assert.ok(game.setDestination(foe.x, foe.y, true));
+    game.tick();
+    rerolls += game.events.filter((e) => e.type === "stubborn").length;
+  }
+  assert.equal(rerolls, 1, "une seule relance par étage");
+  // Ni l'Elfe ni le Halfelin ne relancent.
+  assert.equal(RACES.elfe.stubborn || RACES.halfelin.stubborn, false);
+
+  // Opportuniste : un Kobold alerté, au contact, qui prend la fuite.
+  let seen = 0;
+  for (let seed = 1; seed <= 40 && seen < 3; seed++) {
+    for (const race of [RACES.humain, RACES.elfe]) {
+      const g = new Game(seed, race);
+      const m = g.monsters.find((x) => x.defId === "schrat");
+      if (!m) continue;
+      g.monsters = [m];
+      const s = g.map.isWalkable(g.hero.x + 1, g.hero.y) ? 1 : -1;
+      Object.assign(g.hero, { hp: 999, maxHp: 999 });
+      Object.assign(m, { x: g.hero.x + s, y: g.hero.y, fromX: g.hero.x + s, fromY: g.hero.y, hp: 500, maxHp: 500, alerted: true, asleep: false, fleeChecked: true, fleeTurns: 3 });
+      g.events.length = 0;
+      g.wait();
+      g.tick();
+      const left = Math.max(Math.abs(m.x - g.hero.x), Math.abs(m.y - g.hero.y)) > 1;
+      if (!left) continue;
+      const blows = g.events.filter((e) => e.type === "attack" && e.attacker === g.hero);
+      if (race.id === "humain") {
+        assert.equal(g.events.filter((e) => e.type === "opportunist").length, 1, `graine ${seed}`);
+        assert.ok(blows.length === 1 && blows[0].type === "attack" && blows[0].result.mode === "advantage", `graine ${seed}`);
+        seen++;
+      } else {
+        assert.equal(blows.length, 0, `graine ${seed} : l'Elfe ne frappe pas`);
+      }
+    }
+  }
+  assert.ok(seen >= 3, `seulement ${seen} fuites observées`);
+});
+
+test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 5 cases ou plus)", () => {
+  let far = 0;
+  let near = 0;
+  for (let seed = 1; seed <= 60 && (far < 3 || near < 3); seed++) {
+    for (const dist of [5, 3]) {
+      const g = new Game(seed, RACES.elfe);
+      const m = g.monsters[0];
+      if (!m) continue;
+      g.monsters = [m];
+      // Une ligne droite dégagée et visible, dans la salle de départ.
+      const dir = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).find(([dx, dy]) => {
+        for (let k = 1; k <= dist; k++) if (g.map.get(g.hero.x + k * dx, g.hero.y + k * dy) !== Tile.Floor || g.furnitureAt(g.hero.x + k * dx, g.hero.y + k * dy)) return false;
+        return true;
+      });
+      if (!dir) continue;
+      const at = { x: g.hero.x + dist * dir[0], y: g.hero.y + dist * dir[1] };
+      Object.assign(m, { ...at, fromX: at.x, fromY: at.y, prevX: at.x, prevY: at.y, hp: 500, maxHp: 500, alerted: true, asleep: false, stunned: 9 });
+      g.wait();
+      g.tick();
+      if (!g.isVisible(m.x, m.y) || m.x !== at.x || m.y !== at.y) continue;
+      assert.equal(g.lynxShot(m), dist >= 5);
+      g.events.length = 0;
+      if (g.shoot(m.x, m.y) !== null) continue;
+      g.tick();
+      const shot = g.events.find((e) => e.type === "attack" && e.attacker === g.hero);
+      if (!shot || shot.type !== "attack") continue;
+      // Arc court + 2 d'Archer (et le bonus du couloir étroit, quand la cible s'y trouve).
+      const base = (ITEMS.arc_court.attackBonus ?? 0) + 2;
+      assert.ok(shot.result.bonus === base || shot.result.bonus === base + RULES.narrowShotBonus, `graine ${seed} : bonus ${shot.result.bonus}`);
+      if (dist >= 5) {
+        assert.equal(shot.result.mode, "advantage", `graine ${seed}`);
+        far++;
+      } else {
+        assert.equal(shot.result.mode, "normal", `graine ${seed}`);
+        near++;
+      }
+    }
+  }
+  assert.ok(far >= 3 && near >= 3, `tirs observés : ${far} de loin, ${near} de près`);
 });

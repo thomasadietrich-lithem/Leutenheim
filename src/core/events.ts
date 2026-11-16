@@ -56,6 +56,9 @@ export type GameEvent =
   | { type: "statue"; x: number; y: number; look?: boolean; grille?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
   | { type: "luck" }
+  /** Races (2026-11-16) : la relance de l'Humain têtu ; son coup gratuit sur un monstre qui s'éloigne. */
+  | { type: "stubborn" }
+  | { type: "opportunist"; actor: Actor }
   /** Le d20 enchanté (artefact) change un 1 naturel du héros en 20 : un coup critique, une fois par étage. */
   | { type: "luckyDie" }
   /** Le bas de la démo : l'escalier de l'étage 10 (Thomas, 2026-11-14). */

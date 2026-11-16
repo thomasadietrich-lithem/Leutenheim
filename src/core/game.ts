@@ -53,6 +53,8 @@ export interface FloorPerks {
   chainRefunds: number;
   /** D20 enchanté déjà servi sur cet étage. */
   luckyDie?: number;
+  /** TÊTU (Humain) : la relance de l'étage a déjà servi. */
+  stubborn?: number;
   /** Le héros a perdu de la vie sur cet étage ; monstres qu'il y a vaincus (succès « Intouchable »). */
   hurt?: number;
   kills?: number;
@@ -300,6 +302,8 @@ export class Game {
       const placed = this.inventory.items.find((i) => i.defId === start.item);
       if (start.equip && placed) this.equip(placed.uid);
     }
+    // La race ajoute quelques objets à ceux de la classe (Thomas, 2026-11-16 : ni potion, ni or).
+    for (const start of race.startingItems) this.inventory.add(start.item, start.count);
     this.refreshStats();
     trackUniques(this.uniques);
     this.enterFloor(1, "down");
@@ -1988,7 +1992,8 @@ export class Game {
    */
   private tremorAct(m: Actor, radius: number): boolean {
     const moved = this.hero.x !== this.hero.fromX || this.hero.y !== this.hero.fromY;
-    const near = Math.max(Math.abs(this.hero.x - m.x), Math.abs(this.hero.y - m.y)) <= radius;
+    // PIEDS NUS (Halfelin) : on le sent de moins loin.
+    const near = Math.max(Math.abs(this.hero.x - m.x), Math.abs(this.hero.y - m.y)) <= Math.min(radius, this.race.tremorRange ?? radius);
     if (!m.alerted) {
       if (moved && near && this.rng.chance(MONSTERS[m.defId as keyof typeof MONSTERS].noticeChance)) {
         this.faceToward(m, this.hero);
@@ -2531,8 +2536,8 @@ export class Game {
     }
     game.floorPerks = {};
     for (const [d, pk] of Object.entries(saved.floorPerks ?? {})) {
-      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number; luckyDie?: number; hurt?: number; kills?: number; left?: number };
-      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0, luckyDie: old.luckyDie ?? 0, hurt: old.hurt ?? 0, kills: old.kills ?? 0, left: old.left ?? 0 };
+      const old = pk as unknown as { secondWind: boolean | number; doubleStrikes: number; lastStand: boolean | number; chainRefunds?: number; luckyDie?: number; stubborn?: number; hurt?: number; kills?: number; left?: number };
+      game.floorPerks[Number(d)] = { secondWind: Number(old.secondWind), doubleStrikes: old.doubleStrikes, lastStand: Number(old.lastStand), chainRefunds: old.chainRefunds ?? 0, luckyDie: old.luckyDie ?? 0, stubborn: old.stubborn ?? 0, hurt: old.hurt ?? 0, kills: old.kills ?? 0, left: old.left ?? 0 };
     }
     game.weaponPoison = saved.weaponPoison;
     game.hasteTurns = saved.hasteTurns;
@@ -2723,7 +2728,7 @@ export class Game {
   gearHp = 0;
   /** Force : les points placés, plus l'équipement (amulette de force). */
   strength(): number {
-    return this.alloc.force + this.gear("bonusForce");
+    return this.alloc.force + this.race.force + this.gear("bonusForce");
   }
 
   /** Vrai si le héros n'a pas encore le niveau demandé par l'objet. */
@@ -2832,7 +2837,8 @@ export class Game {
     if (!this.inventory.take(item.defId, 1)) return;
     if (def.heal) {
       const before = this.hero.hp;
-      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + def.heal);
+      // GOURMAND (Halfelin) : toute nourriture rend quelques PV de plus.
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + def.heal + this.race.foodBonus);
       this.events.push({ type: "used", item: item.defId, healed: this.hero.hp - before });
     }
     if (def.potion === "youth") {
@@ -2978,7 +2984,7 @@ export class Game {
   /** Place un point dans une caractéristique (ne prend pas de tour). */
   /** Charisme : les points placés, plus ce que donne l'équipement (nœud papillon). */
   charisma(): number {
-    return this.alloc.charisme + Object.values(this.equipment).reduce((n, it) => n + ((it && (ITEMS[it.defId] as ItemDef).charisma) || 0), 0);
+    return this.alloc.charisme + this.race.charisme + Object.values(this.equipment).reduce((n, it) => n + ((it && (ITEMS[it.defId] as ItemDef).charisma) || 0), 0);
   }
 
   allocate(stat: StatId): boolean {
@@ -2999,7 +3005,7 @@ export class Game {
   }
   /** Agilité : les points placés, plus Esquive (voie bleue : +2, puis +4). */
   agility(): number {
-    return this.alloc.agilite + [0, 2, 4][this.rank("esquive")] + this.gear("bonusAgility");
+    return this.alloc.agilite + this.race.agilite + [0, 2, 4][this.rank("esquive")] + this.gear("bonusAgility");
   }
 
   disengageBonus(): number {
@@ -3933,11 +3939,17 @@ export class Game {
    */
   hasCover(p: Point): boolean {
     const wall = (x: number, y: number) => this.map.get(x, y) === Tile.Wall;
+    const small = this.race.smallCover && p.x === this.hero.x && p.y === this.hero.y;
     // Une colonne, ou un meuble qui bloque (lit, table, chaise renversée…), sur une des 8 cases voisines.
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const t = this.map.get(p.x + dx, p.y + dy);
         if (t === Tile.Pillar || t === Tile.Furniture) return true;
+        // PETIT (Halfelin) : une chaise, un panier ou un seau suffisent, même s'ils ne bloquent pas.
+        if (small && (dx || dy)) {
+          const f = this.furnitureAt(p.x + dx, p.y + dy);
+          if (f && /^(chair|basket|bucket)/.test(f.kind)) return true;
+        }
         // Un monstre pétrifié fait un bon abri (potion de pierre lancée).
         if ((dx || dy) && this.monsterAt(p.x + dx, p.y + dy)?.petrified) return true;
       }
@@ -4360,16 +4372,21 @@ export class Game {
 
   /** Discrétion du héros : celle de sa classe, moins le malus d'une armure lourde (cotte de mailles, harnois). */
   stealthBonus(): number {
-    // Thomas (2026-11-13) : l'équipement ne touche plus à la discrétion.
-    return this.heroClass.stealthBonus;
+    // Thomas (2026-11-13) : l'équipement ne touche plus à la discrétion. La race compte (Halfelin : +3).
+    return this.heroClass.stealthBonus + this.race.stealthBonus;
   }
 
   /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
   private resolveHide(): void {
     const bonus = this.stealthBonus();
-    const d20 = this.rng.int(1, 20);
-    const total = d20 + bonus;
-    const success = d20 === 20 || (d20 !== 1 && total >= RULES.hideDc);
+    let d20 = this.rng.int(1, 20);
+    let total = d20 + bonus;
+    let success = d20 === 20 || (d20 !== 1 && total >= RULES.hideDc);
+    if (!success && this.useStubborn()) {
+      d20 = this.rng.int(1, 20);
+      total = d20 + bonus;
+      success = d20 === 20 || (d20 !== 1 && total >= RULES.hideDc);
+    }
     if (success) {
       this.hidden = true;
       for (const m of this.monsters) {
@@ -4408,10 +4425,15 @@ export class Game {
     // Bousculade (voie rouge, ex-Enchaînement ; Thomas, 2026-11-13 : « un boost pour pousser ») : +2 puis +4 au jet,
     // et la poussée envoie une case plus loin.
     const shove = this.rank("enchainement");
-    const bonus = this.pushBonus() + [0, 2, 4][shove];
-    const d20 = this.rng.int(1, 20);
-    const total = d20 + bonus;
-    const success = d20 === 20 || (d20 !== 1 && total >= RULES.pushDc);
+    const bonus = this.pushBonus() + this.race.pushBonus + [0, 2, 4][shove];
+    let d20 = this.rng.int(1, 20);
+    let total = d20 + bonus;
+    let success = d20 === 20 || (d20 !== 1 && total >= RULES.pushDc);
+    if (!success && this.useStubborn()) {
+      d20 = this.rng.int(1, 20);
+      total = d20 + bonus;
+      success = d20 === 20 || (d20 !== 1 && total >= RULES.pushDc);
+    }
     m.alerted = true;
     m.asleep = false;
     let moved = false;
@@ -4533,9 +4555,14 @@ export class Game {
     const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
     const from = { x: this.hero.x, y: this.hero.y };
     const bonus = this.disengageBonus();
-    const d20 = this.rng.int(1, 20);
-    const total = d20 + bonus;
-    const success = d20 === 20 || (d20 !== 1 && total >= RULES.disengageDc);
+    let d20 = this.rng.int(1, 20);
+    let total = d20 + bonus;
+    let success = d20 === 20 || (d20 !== 1 && total >= RULES.disengageDc);
+    if (!success && this.useStubborn()) {
+      d20 = this.rng.int(1, 20);
+      total = d20 + bonus;
+      success = d20 === 20 || (d20 !== 1 && total >= RULES.disengageDc);
+    }
     if (!success) {
       // Raté : le héros reste au contact, et le tour est perdu.
       this.events.push({ type: "jump", fromX: from.x, fromY: from.y, x: from.x, y: from.y, d20, bonus, total, success });
@@ -4622,22 +4649,22 @@ export class Game {
   /**
    * AVANTAGE (Thomas, 2026-11-13 : « une mécanique centrale ; lisible et prévisible ; jamais les deux camps à la fois »).
    * L'attaquant A a l'avantage sur le défenseur D si l'une de ces situations est vraie, ET si elle ne l'est pas aussi
-   * dans l'autre sens (sinon elles s'annulent) :
+   * dans l'autre sens (voir plus bas) :
    *  1. SURPRISE : D ne l'a pas remarqué (monstre qui dort ou se promène).
    *  2. À TERRE : D est renversé (poussée), ou la Tisseuse est sur le dos.
    *  3. EMBRASURE : D se tient dans une porte, A non.
    *  4. EMBUSCADE : A n'a pas bougé à son dernier tour, et D vient d'arriver d'une case d'où il ne voyait pas A
    *     (il passe une porte, contourne une colonne, un meuble ou un angle de mur) : celui qui attend frappe le premier.
-   * Et jamais deux avantages de suite d'A sur D. Le monstre « sur ses gardes » (semé par une porte) ne se laisse plus
-   * prendre à l'embrasure ni à l'embuscade.
+   * Thomas, 2026-11-16 : « jamais deux avantages de suite » et le monstre « sur ses gardes » sont RETIRÉS (« une erreur ») ;
+   * et quand chacun aurait l'avantage sur l'autre, il REVIENT AU JOUEUR (entre deux monstres, ils s'annulent toujours).
    */
   hasEdge(a: Actor, d: Actor): boolean {
-    if (a.lastAdvantageOn === d.id) return false;
     const mine = this.edgeReasons(a, d);
     if (mine.length === 0) return false;
     // Celui qui est à terre ne menace personne : sa propre situation ne compte pas.
     if (mine.includes("prone")) return true;
-    return this.edgeReasons(d, a).length === 0;
+    if (this.edgeReasons(d, a).length === 0) return true;
+    return a === this.hero;
   }
 
   /** Les raisons pour lesquelles A aurait l'avantage sur D (sans tenir compte de l'autre sens). */
@@ -4645,11 +4672,10 @@ export class Game {
     const out: ("surprise" | "prone" | "door" | "ambush")[] = [];
     if (d !== this.hero && !d.alerted) out.push("surprise");
     if ((d.prone ?? 0) > 0 || (d.boss && d.boss.fallen > 0)) out.push("prone");
-    const guarded = d !== this.hero && !!d.wary;
-    if (!guarded && cellsOf(d).some((c) => this.map.isDoor(c.x, c.y)) && !cellsOf(a).some((c) => this.map.isDoor(c.x, c.y))) out.push("door");
+    if (cellsOf(d).some((c) => this.map.isDoor(c.x, c.y)) && !cellsOf(a).some((c) => this.map.isDoor(c.x, c.y))) out.push("door");
     // D est arrivé APRÈS A (Thomas, 2026-11-15 : arrêté depuis un tour, le monstre qui débouche de l'angle donne
     // l'avantage ; avant, il fallait être resté immobile deux tours, et celui qui venait d'arriver gagnait aussi).
-    if (!guarded && this.stepAge(d) < this.stepAge(a)) {
+    if (this.stepAge(d) < this.stepAge(a)) {
       const from = this.lastStepFrom(d);
       // Embuscade : il arrive d'une case d'où il ne voyait pas A franchement (un mur, une porte, une colonne, ou un
       // angle de mur frôlé en diagonale : Thomas, 2026-11-15).
@@ -4675,6 +4701,12 @@ export class Game {
   /** Le héros aurait-il l'avantage en frappant ce monstre maintenant ? (cible distraite, dans une porte, ou au coin d'un mur) */
   heroHasAdvantageOn(monster: Actor): boolean {
     return this.hasEdge(this.hero, monster);
+  }
+
+  /** ŒIL DE LYNX (Elfe) : cette case est-elle assez loin pour que son tir à l'arc ait l'avantage ? */
+  lynxShot(p: Point): boolean {
+    const far = this.race.lynxRange;
+    return far > 0 && Math.max(Math.abs(p.x - this.hero.x), Math.abs(p.y - this.hero.y)) >= far;
   }
 
   /**
@@ -4748,19 +4780,26 @@ export class Game {
     return true;
   }
 
+  /** Le prix payé au Colporteur pour ce lot : le Charisme le fait baisser (Thomas, 2026-11-16). */
+  buyPrice(price: number): number {
+    const cut = Math.min(RULES.charismaDiscountMax, Math.max(0, this.charisma()) * RULES.charismaDiscount);
+    return Math.max(1, Math.round(price * (1 - cut)));
+  }
+
   /** Acheter le lot n° `index` : il faut l'or et la place dans le sac ; ne prend pas de tour. */
   buy(index: number): "ok" | "gold" | "full" | "none" | "away" {
     const m = this.current.merchant;
     const ware = m?.wares[index];
     if (!m || !ware) return "none";
     if (!this.canTrade()) return "away";
-    if (this.gold < ware.price) return "gold";
+    const price = this.buyPrice(ware.price);
+    if (this.gold < price) return "gold";
     const left = this.inventory.add(ware.item, ware.count);
     // Sac plein (Thomas) : ce qui ne tient pas rebondit au sol à côté du héros.
     if (left > 0) this.bounceFromHero(ware.item, left);
-    this.gold -= ware.price;
+    this.gold -= price;
     m.wares.splice(index, 1);
-    this.events.push({ type: "bought", item: ware.item, count: ware.count, price: ware.price });
+    this.events.push({ type: "bought", item: ware.item, count: ware.count, price });
     return "ok";
   }
 
@@ -5819,6 +5858,34 @@ export class Game {
 
   /** CHANCE : un 1 naturel du héros est relancé, tant qu'il en reste. */
   /** D20 ENCHANTÉ (Thomas, 2026-11-14) : porté en artefact, un 1 naturel du héros devient un 20, une fois par étage. */
+  /**
+   * TÊTU (Humain ; Thomas, 2026-11-16) : une fois par étage, un d20 raté du héros est relancé (attaque au contact ou à
+   * distance, se cacher, pousser, se dégager, crocheter ou enfoncer une porte). La relance part toute seule, au premier
+   * raté de l'étage (C). Renvoie vrai si elle sert maintenant.
+   */
+  private useStubborn(): boolean {
+    if (!this.race.stubborn || this.perks().stubborn) return false;
+    this.perks().stubborn = 1;
+    this.events.push({ type: "stubborn" });
+    return true;
+  }
+
+  /** Le héros peut-il frapper ce monstre au corps à corps d'où il est ? */
+  private heroReaches(m: Actor): boolean {
+    return this.inReach(this.hero, m) || this.inWeaponReach(m);
+  }
+
+  /**
+   * OPPORTUNISTE (Humain ; Thomas, 2026-11-16) : un monstre alerté qui était au contact du héros vient de s'en éloigner
+   * (Kobold qui fuit, frondeur qui recule) : le héros lui porte un coup gratuit, avec l'avantage.
+   */
+  private heroOpportunity(m: Actor, wasInReach: boolean): void {
+    if (!wasInReach || !this.race.opportunist || this.over || this.peaceful || this.stoneTurns > 0 || this.hero.stuck) return;
+    if (!m.alerted || !this.monsters.includes(m) || this.heroReaches(m) || !this.isVisible(m.x, m.y)) return;
+    this.events.push({ type: "opportunist", actor: m });
+    this.heroAttacks(m, true, true);
+  }
+
   private useLuckyDie(): boolean {
     if (this.equipment.artifact?.defId !== "d20_enchante" || (this.perks().luckyDie ?? 0) >= 1) return false;
     this.perks().luckyDie = 1;
@@ -7911,12 +7978,17 @@ export class Game {
     // Crocheter : l'agilité aide (Thomas, 2026-11-11) ; enfoncer : la force.
     const bonus = action === "pick" ? this.heroClass.lockpickBonus + this.agility() : this.heroClass.breakBonus + this.strength();
     const dc = action === "pick" ? RULES.lockpickDc : RULES.breakDc;
-    const d20 = this.rng.int(1, 20);
-    const total = d20 + bonus;
+    let d20 = this.rng.int(1, 20);
+    let total = d20 + bonus;
     const sealed = this.sealedDoor(door.x, door.y);
     // Outils de voleur en artefact : le crochetage réussit à coup sûr (sauf la porte du poulet).
     const tools = action === "pick" && this.equipment.artifact?.defId === "outils_voleur";
-    const success = !sealed && (tools || d20 === 20 || (d20 !== 1 && total >= dc));
+    let success = !sealed && (tools || d20 === 20 || (d20 !== 1 && total >= dc));
+    if (!success && !sealed && this.useStubborn()) {
+      d20 = this.rng.int(1, 20);
+      total = d20 + bonus;
+      success = d20 === 20 || (d20 !== 1 && total >= dc);
+    }
     if (success) {
       // Crochetée, la porte s'ouvre ; enfoncée, elle est détruite.
       this.map.set(door.x, door.y, action === "pick" ? Tile.DoorOpen : Tile.Floor);
@@ -7956,7 +8028,7 @@ export class Game {
   }
 
   /** Une attaque au corps à corps du héros. `extra` : un coup en plus du même tour (double frappe, vitesse). */
-  private heroAttacks(monster: Actor, extra = false): void {
+  private heroAttacks(monster: Actor, extra = false, opportunity = false): void {
     this.reveal();
     this.lastFoeId = monster.id;
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
@@ -7967,12 +8039,14 @@ export class Game {
     damageBonus += this.curseBonusOn(monster);
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus(), damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus }, grown: this.hero.grown };
     const critFrom = this.rank("coup_puissant") > 0 ? 19 - this.rank("coup_puissant") : 20;
-    const advantaged = this.heroHasAdvantageOn(monster);
+    const advantaged = opportunity || this.heroHasAdvantageOn(monster);
     // Un coup de serviette dans la figure (le Kobold du bain) : le coup suivant a le désavantage.
     const blinded = this.towelBlind > 0;
     this.towelBlind = 0;
-    const result = rollAttack(this.rng, attacker, monster, advantaged && !blinded ? "advantage" : blinded && !advantaged ? "disadvantage" : "normal", critFrom, () => this.useLuck(), () => this.useLuckyDie());
-    this.hero.lastAdvantageOn = advantaged ? monster.id : undefined;
+    const mode = advantaged && !blinded ? "advantage" : blinded && !advantaged ? "disadvantage" : "normal";
+    let result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
+    // Têtu : le premier coup raté de l'étage est relancé.
+    if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
     this.noteHeroAttack(result.hit);
     if (!extra) {
       // Vitesse de l'arme : une attaque lente laisse plus de temps aux monstres, une rapide moins.
@@ -8201,18 +8275,21 @@ export class Game {
       // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.
       // Une cible qu'on ne voit pas (tir à l'aveugle) : jamais d'avantage, et désavantage.
       const blind = !this.isVisible(victim.x, victim.y);
-      const favoured =
-        !blind && this.hasEdge(this.hero, victim);
-      const threatened = blind || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+      // ARCHER et ŒIL DE LYNX (Elfe, à l'arc seulement) : pas de désavantage à l'aveugle ; avantage sur une cible lointaine.
+      const bowShot = !profile.thrown;
+      const favoured = !blind && (this.hasEdge(this.hero, victim) || (bowShot && this.lynxShot(victim)));
+      const threatened = (blind && !(bowShot && this.race.blindShot)) || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
       const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);
       const narrow = (!open(-1, 0) && !open(1, 0)) || (!open(0, -1) && !open(0, 1));
       // L'arc (ou la main qui lance) donne le jet ; la flèche (ou la javeline) donne les dégâts (Thomas, 2026-11-11).
-      const attackBonus = profile.attackBonus + this.rangedBonus() + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
+      const attackBonus = profile.attackBonus + this.rangedBonus() + (bowShot ? this.race.bowBonus : 0) + (narrow ? RULES.narrowShotBonus : 0) + this.streakBonus();
       const ammoDamage = (ITEMS[ammo] as ItemDef).damage ?? UNARMED.damage;
-      const result = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) }, grown: this.hero.grown }, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
-      this.hero.lastAdvantageOn = mode === "advantage" ? victim.id : undefined;
+      const shooter = { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) }, grown: this.hero.grown };
+      let result = rollAttack(this.rng, shooter, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
+      // Têtu : le premier tir raté de l'étage est relancé.
+      if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, shooter, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
       this.noteHeroAttack(result.hit);
       victim.struckUnaware = !victim.alerted || victim.asleep;
       victim.alerted = true;
@@ -8471,10 +8548,12 @@ export class Game {
         const away = this.fleeStep(m) ?? this.stepAway(m);
         if (away) {
           const left = { x: m.x, y: m.y };
+          const near = this.heroReaches(m);
           this.faceToward(m, away);
           m.x = away.x;
           m.y = away.y;
           this.closeDoorAt(left.x, left.y);
+          this.heroOpportunity(m, near);
         }
         continue;
       }
@@ -8534,7 +8613,6 @@ export class Game {
           this.towelBlind = 1;
           this.events.push({ type: "bath", what: "towel", x: this.hero.x, y: this.hero.y });
         }
-        m.lastAdvantageOn = ambush ? this.hero.id : undefined;
         // Morsure d'araignée : parfois elle englue (le héros perd son prochain déplacement).
         const bite = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;
         if (result.damage > 0 && bite.webBite && this.rng.chance(bite.webBite)) {
@@ -8585,10 +8663,12 @@ export class Game {
       const away = this.stepAway(m);
       if (away) {
         const left = { x: m.x, y: m.y };
+        const near = this.heroReaches(m);
         this.faceToward(m, hero);
         m.x = away.x;
         m.y = away.y;
         this.closeDoorAt(left.x, left.y);
+        this.heroOpportunity(m, near);
         return true;
       }
       // Acculé : au contact il se défend à la dague, sinon il tire quand même.

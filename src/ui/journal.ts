@@ -122,6 +122,10 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return "Le d20 enchanté s'illumine : votre 1 devient un 20. Coup critique !";
     case "luck":
       return "Chance ! Votre 1 est relancé.";
+    case "stubborn":
+      return "Têtu ! Vous relancez le dé.";
+    case "opportunist":
+      return `${capFirst(e.actor.name)} s'éloigne : vous en profitez pour frapper, avec l'avantage.`;
     case "npcRoll":
       return `Jet de ${e.stat.toLowerCase()} : d20 ${e.d20} ${e.bonus < 0 ? "−" : "+"} ${Math.abs(e.bonus)} = ${e.total} — ${e.success ? "réussi" : "raté"}.`;
     case "counter":

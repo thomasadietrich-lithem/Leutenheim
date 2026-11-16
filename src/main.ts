@@ -13,7 +13,7 @@ import { expectedDamagePerTurn, type AttackResult } from "./core/combat";
 import { DoorAction, Game, GameEvent, GluckResult, NpcId } from "./core/game";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "./render/sprites/soeur";
 import { CLASSES, ClassDef } from "./data/classes";
-import { INTRO_LINES, SECTION_LINES } from "./data/intro";
+import { INTRO_LINES, introLines, SECTION_LINES } from "./data/intro";
 import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot, SLOTS, UNARMORED_AC } from "./data/items";
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
@@ -734,6 +734,10 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(game.hero.x, game.hero.y, "D20 enchanté !", "#c8a0ff");
   } else if (e.type === "luck") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Chance !", "#ffd75e");
+  } else if (e.type === "stubborn") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Têtu !", "#ffd75e");
+  } else if (e.type === "opportunist") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, "Opportuniste !", "#ffd75e");
   } else if (e.type === "statue") {
     if (!e.look) {
       landDie(e.d20!, e.success ? "hit" : "miss", false);
@@ -2052,11 +2056,11 @@ function renderShop(): void {
   if (shopTab === "buy") {
     if (m.wares.length === 0) list.append(el("div", "shop-empty", "Plus rien à vendre… mais je rachète."));
     m.wares.forEach((w, i) => {
-      const card = el("button", `shop-ware${shopPick === i ? " picked" : ""}${game.gold < w.price ? " dear" : ""}`) as HTMLButtonElement;
+      const card = el("button", `shop-ware${shopPick === i ? " picked" : ""}${game.gold < game.buyPrice(w.price) ? " dear" : ""}`) as HTMLButtonElement;
       card.type = "button";
       const icon = el("div", "shop-icon");
       icon.append(itemIcon(w.item));
-      card.append(icon, namedWithRarity("shop-name", ITEMS[w.item] as ItemDef, `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", `${w.price} or`));
+      card.append(icon, namedWithRarity("shop-name", ITEMS[w.item] as ItemDef, `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", `${game.buyPrice(w.price)} or`));
       card.addEventListener("click", () => {
         sfx.play("click");
         shopPick = shopPick === i ? null : i;
@@ -2067,9 +2071,9 @@ function renderShop(): void {
     });
     const w = shopPick !== null ? m.wares[shopPick] : undefined;
     if (w) {
-      const buy = el("button", "shop-act", `Acheter (${w.price} or)`) as HTMLButtonElement;
+      const buy = el("button", "shop-act", `Acheter (${game.buyPrice(w.price)} or)`) as HTMLButtonElement;
       buy.type = "button";
-      buy.disabled = game.gold < w.price;
+      buy.disabled = game.gold < game.buyPrice(w.price);
       buy.addEventListener("click", () => {
         const r = game.buy(shopPick!);
         shopNote = r === "gold" ? "Pas assez d'or." : r === "full" ? "Votre sac est plein." : "";
@@ -2311,7 +2315,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.speed) rows.push(["Vitesse", def.speed === "slow" ? "Lente" : "Rapide"]);
   if (def.stunOn) rows.push(["Assomme", `sur un ${def.stunOn} ou plus au dé`]);
   if (def.poison) rows.push(["Poison", `${def.poison.damage} / tour, ${def.poison.turns} tours`]);
-  if (def.heal) rows.push(["Soin", `+${def.heal} PV`]);
+  if (def.heal) rows.push(["Soin", `+${def.heal + game.race.foodBonus} PV`]);
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
   if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
@@ -3340,7 +3344,7 @@ function raceCard(r: RaceDef): Card {
       `Points de vie : ${signedBonus(r.hpBonus)}`,
       `Vue dans le noir : ${r.darkVision} cases`,
       `Vue des zones éclairées : ${r.sight} cases`,
-      `Trait — ${r.trait}`,
+      ...r.traits,
     ],
   };
 }
@@ -3565,7 +3569,7 @@ button("new-start", () => {
   newRun();
   started = true;
   showScreen(null);
-  showIntro();
+  showIntro(introLines(game.race.id));
 });
 
 /** Le synopsis (Thomas, 2026-11-13), au début de chaque nouvelle partie : une ligne toutes les 0,7 s (« accélère »). */

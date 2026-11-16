@@ -2,6 +2,8 @@
  * Le manuel du menu (Thomas, 2026-11-12 : « un onglet manuel, avec pour l'instant l'explication des caractéristiques,
  * et des avantages / désavantages »). Chaque entrée : un titre et quelques lignes courtes. Traduit par `en.ts`.
  */
+import { RACES } from "./races";
+
 export interface ManualEntry {
   title: string;
   lines: string[];
@@ -14,6 +16,11 @@ export interface ManualSection {
 }
 
 export const MANUAL: ManualSection[] = [
+  {
+    title: "Races",
+    intro: "La race se choisit au début de la partie, avec la classe.",
+    entries: Object.values(RACES).map((r) => ({ title: r.name, lines: [r.tagline, ...r.traits] })),
+  },
   {
     title: "Caractéristiques",
     intro: "À chaque niveau, un point à placer dans l'une d'elles (hors combat).",
@@ -32,7 +39,7 @@ export const MANUAL: ManualSection[] = [
         ],
       },
       { title: "Intelligence", lines: ["La magie. Pas encore en jeu."] },
-      { title: "Charisme", lines: ["Les quêtes et les marchands. Pas encore en jeu."] },
+      { title: "Charisme", lines: ["Aide dans les dialogues.", "Chaque point baisse de 2 % les prix du Colporteur (30 % au plus)."] },
     ],
   },
   {
@@ -47,7 +54,6 @@ export const MANUAL: ManualSection[] = [
           "À terre : contre un ennemi renversé par une poussée.",
           "Embrasure : contre un ennemi qui se tient dans une porte (et vous non).",
           "Embuscade : vous n'avez pas bougé, et l'ennemi débouche d'un angle, d'une porte ou d'une colonne d'où il ne vous voyait pas.",
-          "Jamais deux fois de suite contre la même cible.",
         ],
       },
       {
@@ -55,7 +61,7 @@ export const MANUAL: ManualSection[] = [
         lines: [
           "Les mêmes règles valent pour eux : ne vous arrêtez pas dans une porte, ne foncez pas à l'aveugle derrière un angle.",
           "Un anneau doré sous un monstre : vous avez l'avantage. Un anneau rouge autour de vous : c'est lui.",
-          "Jamais les deux camps à la fois : si chacun a une raison, elles s'annulent.",
+          "Jamais les deux camps à la fois : si chacun a une raison, l'avantage vous revient.",
         ],
       },
       {

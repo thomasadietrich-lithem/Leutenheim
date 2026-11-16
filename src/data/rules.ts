@@ -44,6 +44,9 @@ export const RULES = {
   hideRestTurns: 4,
   /** Un Kobold sous le tiers de ses PV prend la fuite une fois sur trois, pendant tant de tours (Thomas ; C). */
   koboldFleeChance: 0.35,
+  /** Chez le Colporteur, chaque point de Charisme baisse les prix d'achat (Thomas, 2026-11-16 ; taux et plafond C). */
+  charismaDiscount: 0.02,
+  charismaDiscountMax: 0.3,
   koboldFleeTurns: 4,
   /** Fuite : jusqu'où (en pas) le fuyard cherche la case la plus éloignée du héros ; il passe les portes. */
   fleeLookAhead: 8,

@@ -1974,4 +1974,12 @@ export const EN: Record<string, string> = {
   "BOUM ! La bombe arcanique explose et souffle la porte.": "BOOM! The arcane bomb explodes and blows the door apart.",
   "BOUM ! La bombe arcanique explose.": "BOOM! The arcane bomb explodes.",
   "une bombe arcanique": "an arcane bomb",
+  "Serpe": "Sickle",
+  "Une serpe de jardinier, courbe et bien affûtée. Elle a coupé plus de ronces que de Kobolds.": "A gardener's sickle, curved and well sharpened. It has cut more brambles than Kobolds.",
+  "Lance-pierre": "Slingshot",
+  "Une fourche de noisetier et une lanière de cuir. Il lance des pierres ; les pierres, on en trouve partout.": "A hazel fork and a leather strap. It shoots stones; stones are everywhere.",
+  "Pierres": "Stones",
+  "Des galets bien ronds, pour le lance-pierre.": "Nice round pebbles, for the slingshot.",
+  "Départ : une serpe, un lance-pierre et des pierres (plutôt qu'une épée courte, un arc et des flèches), deux pommes.": "Starts with a sickle, a slingshot and stones (instead of a short sword, a bow and arrows), two apples.",
+  "Des pierres : de petits tas, sur chaque étage ; un arc court à trouver dans la section 1.": "Stones: small piles on every floor; a short bow to find in section 1.",
 };

@@ -42,6 +42,10 @@ export interface RaceDef {
   lynxRange: number;
   /** Objets de départ, en plus de ceux de la classe. Ni potion ni or (Thomas, 2026-11-16). */
   startingItems: { item: ItemId; count: number }[];
+  /** Objets de la classe remplacés par d'autres au départ (le Halfelin : serpe, lance-pierre, pierres). */
+  swapItems?: Partial<Record<ItemId, ItemId>>;
+  /** Le Halfelin trouve de petits tas de pierres sur chaque étage, et un arc court dans la section 1. */
+  stonePiles?: number;
 }
 
 const BASE = {
@@ -97,7 +101,8 @@ export const RACES = {
       "Petit : Discrétion +3 ; n'importe quel meuble lui sert d'abri.",
       "Gourmand : toute nourriture lui rend 3 PV de plus.",
       "Faiblesse : Pousser −2.",
-      "Départ : deux pommes.",
+      "Départ : une serpe, un lance-pierre et des pierres (plutôt qu'une épée courte, un arc et des flèches), deux pommes.",
+      "Des pierres : de petits tas, sur chaque étage ; un arc court à trouver dans la section 1.",
     ],
     abilities: [
       { id: "petit", name: "Petit", text: "N'importe quel meuble lui sert d'abri pour se cacher." },
@@ -110,6 +115,8 @@ export const RACES = {
     smallCover: true,
     foodBonus: 3,
     startingItems: [{ item: "pomme", count: 2 }],
+    swapItems: { epee: "serpe", arc_court: "lance_pierre", fleche: "pierre" },
+    stonePiles: 2,
   },
   elfe: {
     ...BASE,

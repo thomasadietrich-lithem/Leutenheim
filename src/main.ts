@@ -3424,8 +3424,8 @@ function raceCard(r: RaceDef): Card {
 }
 
 function classCard(c: ClassDef): Card {
-  // Les statistiques d'attaque sont celles des armes de départ, pas de la classe.
-  const gear = c.startingItems.map((g) => ({ def: ITEMS[g.item] as ItemDef, count: g.count }));
+  // Les statistiques d'attaque sont celles des armes de départ, pas de la classe (le Halfelin en change certaines).
+  const gear = c.startingItems.map((g) => ({ def: ITEMS[chosenRace.swapItems?.[g.item] ?? g.item] as ItemDef, count: g.count }));
   const weapons = gear.filter((g) => g.def.kind === "melee" || g.def.kind === "ranged");
   const armorClass = gear.find((g) => g.def.armorClass)?.def.armorClass ?? UNARMORED_AC;
   return {
@@ -3570,6 +3570,10 @@ function buildCards(container: HTMLElement, cards: Card[], selectedId: string, o
 function renderCards(): void {
   buildCards($("race-cards"), Object.values(RACES).map(raceCard), chosenRace.id, (id) => {
     chosenRace = RACES[id as keyof typeof RACES];
+    // L'équipement de la classe dépend de la race (le Halfelin) : les cartes de classe se refont.
+    buildCards($("class-cards"), Object.values(CLASSES).map(classCard), chosenClass.id, (cid) => {
+      chosenClass = CLASSES[cid as keyof typeof CLASSES];
+    });
   });
   buildCards($("class-cards"), Object.values(CLASSES).map(classCard), chosenClass.id, (id) => {
     chosenClass = CLASSES[id as keyof typeof CLASSES];
@@ -3635,7 +3639,9 @@ function raceSheet(r: RaceDef): HTMLElement[] {
     abilities.append(row);
   }
   const items = el("div", "race-items");
-  for (const it of r.startingItems) {
+  // Ce que la race change dans l'équipement de la classe (le Halfelin : serpe, lance-pierre, pierres), puis ses bonus.
+  const swapped = chosenClass.startingItems.filter((g) => r.swapItems?.[g.item]).map((g) => ({ item: r.swapItems![g.item]!, count: g.count }));
+  for (const it of [...swapped, ...r.startingItems]) {
     const box = el("div", "race-item");
     box.append(itemIcon(it.item), el("span", "", `${tr(ITEMS[it.item].name)}${it.count > 1 ? ` ×${it.count}` : ""}`));
     items.append(box);

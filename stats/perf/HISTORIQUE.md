@@ -75,3 +75,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_21h31 | bb56b61 | 22.2 | 27.9 | 26.7 | 25.1 | 16.7 | 21.6 | 0.54 | 0.13 | musique du cœur du boss |
 | 2026-11-16_21h35 | 12dbe21 | 26.2 | 26 | 25.4 | 28.8 | 16.7 | 29.5 | 0.53 | 0.11 | succès en pages par race |
 | 2026-11-16_21h39 | 80c8b68 | 25.4 | 27.9 | 26.4 | 29 | 16.7 | 26.8 | 0.44 | 0.22 | bombe arcanique |
+| 2026-11-16_21h43 | 930d56e | 25.4 | 27.7 | 23.1 | 22 | 16.7 | 26.4 | 0.62 | 0.07 | halfelin : serpe, lance-pierre, pierres |

@@ -297,7 +297,9 @@ export class Game {
       alerted: true,
       asleep: false,
     };
-    for (const start of heroClass.startingItems) {
+    for (const start0 of heroClass.startingItems) {
+      // Le Halfelin change l'équipement de la classe (serpe, lance-pierre, pierres).
+      const start = { ...start0, item: race.swapItems?.[start0.item] ?? start0.item };
       this.inventory.add(start.item, start.count);
       const placed = this.inventory.items.find((i) => i.defId === start.item);
       if (start.equip && placed) this.equip(placed.uid);
@@ -308,6 +310,20 @@ export class Game {
     trackUniques(this.uniques);
     this.enterFloor(1, "down");
   }
+  /**
+   * Le butin propre à la race (Thomas, 2026-11-16) : le Halfelin trouve de PETITS tas de pierres (2 ou 3) sur chaque
+   * étage, plusieurs fois, et un ARC COURT sur un étage de la section 1 (tiré au début de la partie).
+   */
+  private raceLoot(depth: number): { item: ItemId; count: number }[] {
+    const piles = this.race.stonePiles ?? 0;
+    if (!piles) return [];
+    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x57a11);
+    const out: { item: ItemId; count: number }[] = [];
+    for (let i = 0; i < piles; i++) out.push({ item: "pierre", count: rng.int(2, 3) });
+    if (depth === new Rng(this.runSeed ^ 0xa4c).int(2, 4)) out.push({ item: "arc_court", count: 1 });
+    return out;
+  }
+
   /** Les bibelots déjà sortis dans cette partie (chacun est unique). */
   uniques = new Set<string>();
 
@@ -500,7 +516,7 @@ export class Game {
       placeTraps(state, floorSeed(this.runSeed, depth), depth);
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
-      placeGuaranteed(state, guaranteedLoot(this.runSeed, depth), floorSeed(this.runSeed, depth));
+      placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth)], floorSeed(this.runSeed, depth));
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     for (const m of this.monsters) {

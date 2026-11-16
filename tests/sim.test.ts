@@ -6195,3 +6195,21 @@ test("bombe arcanique (Thomas, 2026-11-16) : lancée, elle explose 3 tours plus 
   assert.ok(h.hp < 200, "le héros dans la croix est touché");
   void hp;
 });
+
+test("Halfelin (Thomas, 2026-11-16) : serpe, lance-pierre et pierres au départ ; des petits tas de pierres ; un arc dans la section 1", async () => {
+  const { RACES } = await import("../src/data/races");
+  const game = new Game(8, RACES.halfelin);
+  assert.equal(game.equipment.melee?.defId, "serpe");
+  assert.equal(game.equipment.ranged?.defId, "lance_pierre");
+  assert.ok(game.inventory.count("pierre") >= 10 && game.inventory.count("fleche") === 0);
+  assert.equal(game.shotProfile()?.range, 7);
+  let bow = false;
+  const g = game as unknown as { enterFloor(d: number, v: string): void };
+  for (let d = 1; d <= 4; d++) {
+    if (d > 1) g.enterFloor(d, "down");
+    const piles = game.ground.filter((o) => o.item === "pierre");
+    assert.ok(piles.length >= 2 && piles.every((p) => p.count <= 3), `étage ${d} : de petits tas de pierres`);
+    if (game.ground.some((o) => o.item === "arc_court")) bow = true;
+  }
+  assert.ok(bow, "un arc court dans la section 1");
+});

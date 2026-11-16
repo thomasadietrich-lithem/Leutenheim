@@ -1,0 +1,147 @@
+{
+ "date": "2026-11-16T22:00:27.015Z",
+ "commit": "279201a",
+ "runs": 150,
+ "race": "humain",
+ "note": "batterie du soir : les trois races, Guerrier (les bots savent maintenant choisir la race)",
+ "levels": {
+  "debutant": {
+   "floor": 2.8,
+   "deathFloor1": 14,
+   "reach": {
+    "2": 85,
+    "3": 58,
+    "4": 24,
+    "5": 9
+   },
+   "boss": 0,
+   "dead": 98,
+   "heroLevel": 1.6,
+   "turns": 161.7,
+   "gold": 5,
+   "kills": 6.7,
+   "questsStarted": 0.3,
+   "questsDone": 0,
+   "questsFailed": 0.2,
+   "causes": {
+    "une Araignée": 31,
+    "un Kobold": 84,
+    "un Kobold frondeur": 18,
+    "la Tisseuse": 12,
+    "un piège à pointes": 2
+   }
+  },
+  "moyen": {
+   "floor": 3.3,
+   "deathFloor1": 11,
+   "reach": {
+    "2": 87,
+    "3": 76,
+    "4": 41,
+    "5": 24
+   },
+   "boss": 0,
+   "dead": 95,
+   "heroLevel": 2.5,
+   "turns": 421.5,
+   "gold": 33.7,
+   "kills": 14.9,
+   "questsStarted": 0.4,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "la Tisseuse": 31,
+    "un Kobold": 57,
+    "un Kobold frondeur": 14,
+    "une Araignée": 39,
+    "le poison": 1
+   }
+  },
+  "maitrise": {
+   "floor": 3.7,
+   "deathFloor1": 6,
+   "reach": {
+    "2": 90,
+    "3": 80,
+    "4": 58,
+    "5": 39
+   },
+   "boss": 13,
+   "dead": 67,
+   "heroLevel": 3.8,
+   "turns": 802,
+   "gold": 60.7,
+   "kills": 29.6,
+   "questsStarted": 0.7,
+   "questsDone": 0.4,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold frondeur": 23,
+    "un Kobold": 26,
+    "le poison": 5,
+    "la Tisseuse": 29,
+    "une Araignée": 17
+   }
+  },
+  "expert": {
+   "floor": 7.7,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 97,
+    "3": 95,
+    "4": 93,
+    "5": 92,
+    "6": 83,
+    "7": 61,
+    "8": 51,
+    "9": 49,
+    "10": 45
+   },
+   "boss": 83,
+   "dead": 63,
+   "heroLevel": 7.7,
+   "turns": 2222,
+   "gold": 447,
+   "kills": 93.8,
+   "questsStarted": 0.7,
+   "questsDone": 0.6,
+   "questsFailed": 0.1,
+   "causes": {
+    "une Araignée": 4,
+    "un Sporelin": 10,
+    "un Kobold cueilleur": 6,
+    "un Kobold envahi": 23,
+    "le poison": 21,
+    "l'onde du Carillon": 3,
+    "un Kobold": 6,
+    "la Tisseuse": 13,
+    "le Carillon": 3,
+    "l'encre du Carillon": 2,
+    "un Kobold frondeur": 3
+   },
+   "boss2": 40,
+   "stuck": 0,
+   "armorClass": 18.2,
+   "searches": 41.4,
+   "chests": 7.1,
+   "doors": 8.3,
+   "bought": 3.3,
+   "sold": 3.6,
+   "potions": 4.8,
+   "pushes": 4.3,
+   "shots": 78.4,
+   "deathFloors": {
+    "1": 3,
+    "2": 1,
+    "3": 3,
+    "4": 1,
+    "5": 9,
+    "6": 22,
+    "7": 9,
+    "8": 3,
+    "9": 3,
+    "10": 8
+   }
+  }
+ }
+}

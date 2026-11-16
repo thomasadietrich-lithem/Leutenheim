@@ -1,0 +1,148 @@
+{
+ "date": "2026-11-16T19:59:41.627Z",
+ "commit": "2b338e3",
+ "runs": 150,
+ "note": "arrivée de l'Expert (4e joueur : équipement, tactique, fouille, boss, section 2) ; les trois autres bots inchangés, mais l'escalier de la Tisseuse mène maintenant à l'étage 6 (9f66782) ; coffre doré corrigé",
+ "levels": {
+  "debutant": {
+   "floor": 2.4,
+   "deathFloor1": 18,
+   "reach": {
+    "2": 82,
+    "3": 47,
+    "4": 11,
+    "5": 1
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.4,
+   "turns": 134.9,
+   "gold": 4.2,
+   "kills": 5.3,
+   "questsStarted": 0.2,
+   "questsDone": 0,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 101,
+    "un Kobold frondeur": 25,
+    "une Araignée": 20,
+    "un piège à pointes": 3,
+    "la Tisseuse": 1
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 19,
+   "reach": {
+    "2": 81,
+    "3": 65,
+    "4": 33,
+    "5": 16
+   },
+   "boss": 0,
+   "dead": 98,
+   "heroLevel": 2.1,
+   "turns": 329.1,
+   "gold": 28.1,
+   "kills": 12.3,
+   "questsStarted": 0.3,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "la Tisseuse": 21,
+    "un Kobold": 66,
+    "un Kobold frondeur": 28,
+    "une Araignée": 31,
+    "le poison": 1
+   }
+  },
+  "maitrise": {
+   "floor": 3.9,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 97,
+    "3": 85,
+    "4": 67,
+    "5": 38
+   },
+   "boss": 6,
+   "dead": 77,
+   "heroLevel": 3.8,
+   "turns": 758.4,
+   "gold": 61.6,
+   "kills": 29,
+   "questsStarted": 0.5,
+   "questsDone": 0.3,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold frondeur": 25,
+    "un piège à pointes": 1,
+    "une Araignée": 24,
+    "le poison": 3,
+    "la Tisseuse": 38,
+    "un Kobold": 25
+   }
+  },
+  "expert": {
+   "floor": 6.5,
+   "deathFloor1": 6,
+   "reach": {
+    "2": 94,
+    "3": 86,
+    "4": 81,
+    "5": 81,
+    "6": 73,
+    "7": 44,
+    "8": 33,
+    "9": 31,
+    "10": 29
+   },
+   "boss": 73,
+   "dead": 74,
+   "heroLevel": 6.7,
+   "turns": 1885,
+   "gold": 391.1,
+   "kills": 78.1,
+   "questsStarted": 0.5,
+   "questsDone": 0.4,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Sporelin": 17,
+    "des racines-crochets": 2,
+    "un Kobold": 18,
+    "un Kobold cueilleur": 3,
+    "une Araignée": 5,
+    "un Kobold envahi": 27,
+    "la Tisseuse": 8,
+    "le poison": 18,
+    "un Myconide": 1,
+    "un Kobold frondeur": 9,
+    "l'encre du Carillon": 1,
+    "le Carillon": 2
+   },
+   "boss2": 27,
+   "stuck": 0,
+   "armorClass": 16.8,
+   "searches": 33.9,
+   "chests": 6.1,
+   "doors": 7.5,
+   "bought": 2.4,
+   "sold": 2.3,
+   "potions": 3.9,
+   "pushes": 3.8,
+   "shots": 67,
+   "deathFloors": {
+    "1": 6,
+    "2": 8,
+    "3": 5,
+    "4": 0,
+    "5": 7,
+    "6": 29,
+    "7": 11,
+    "8": 3,
+    "9": 1,
+    "10": 3
+   }
+  }
+ }
+}

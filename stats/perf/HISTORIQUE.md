@@ -68,3 +68,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_20h24 | f31520f | 26.5 | 25.4 | 25.1 | 25.5 | 16.7 | 26.6 | 0.7 | 0.23 | Héros en calques : second passage (le premier signalait le donjon) |
 | 2026-11-16_20h54 | f79659b | 26.9 | 25.2 | 26 | 24.4 | 16.7 | 18 | 0.74 | 0.44 | musique harpe et cordes (v4 C) |
 | 2026-11-16_20h57 | f79659b | 29.9 | 31.2 | 30.5 | 32.1 | 16.7 | 24.1 | 0.51 | 0.35 | Paramètres en sous-menus, fiche de race, astuces, flèches de recul, casque de mailles |
+| 2026-11-16_21h10 | 636af84 | 24.5 | 23.8 | 24.1 | 22.2 | 16.7 | 20.1 | 0.59 | 0.29 | double toucher pour consommer (après les races) |

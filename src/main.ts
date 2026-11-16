@@ -2636,8 +2636,9 @@ $("bag-grid").addEventListener("click", (e) => {
   const y = Math.floor(((e.clientY - rect.top) / rect.height) * bag.rows);
   const hit = bag.at(x, y);
   const selectedUid = selected && "uid" in selected ? selected.uid : null;
-  // Double toucher sur un équipement du sac (Thomas, 2026-11-16 : « double clic équipement ») : il est porté.
-  if (hit && isDoubleTap(`bag-${hit.uid}`) && WEARABLE_KINDS.has(ITEMS[hit.defId].kind)) {
+  // Double toucher sur un équipement du sac (Thomas, 2026-11-16 : « double clic équipement ») : il est porté ; sur un
+  // consommable (pomme, potion…), il est consommé (ou lancé, ou « Êtes-vous sûr ? », comme le bouton).
+  if (hit && isDoubleTap(`bag-${hit.uid}`) && (WEARABLE_KINDS.has(ITEMS[hit.defId].kind) || ITEMS[hit.defId].kind === "use")) {
     selected = { uid: hit.uid };
     ($("bag-equip") as HTMLButtonElement).click();
     return;

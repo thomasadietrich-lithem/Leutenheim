@@ -26,7 +26,7 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
   uncommon: [
     { item: "fleche_poison", count: [2, 4] }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
     { item: "amethyste" }, { item: "masse", minDepth: 2 }, { item: "sac_cuir", minDepth: 5 }, { item: "casque_maille", minDepth: 6 }, { item: "armure_cloutee", minDepth: 2 }, { item: "cotte_mailles", minDepth: 6 },
-    { item: "javeline", count: [3, 3], minDepth: 3 }, { item: "arc_puissant", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
+    { item: "javeline", count: [4, 4], minDepth: 3 }, { item: "fleche_recul", count: [3, 5], minDepth: 2 }, { item: "arc_puissant", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
     { item: "potion_brouillard" }, { item: "potion_oursin" }, { item: "potion_pierre", minDepth: 2 }, { item: "potion_discorde", minDepth: 2 }, { item: "potion_geant", minDepth: 2 }, { item: "potion_glissante", minDepth: 2 }, { item: "flute_pan", minDepth: 2 },
     // Amulettes (Thomas, 2026-11-15).
     { item: "amulette_vitalite" }, { item: "amulette_force", minDepth: 2 }, { item: "amulette_agilite", minDepth: 2 },

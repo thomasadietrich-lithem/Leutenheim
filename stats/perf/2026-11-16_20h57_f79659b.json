@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T20:57:16.216Z",
+ "commit": "f79659b",
+ "note": "Paramètres en sous-menus, fiche de race, astuces, flèches de recul, casque de mailles",
+ "logic": {
+  "tickMs": 0.51,
+  "lightMs": 0.35,
+  "visionMs": 0.4
+ },
+ "scenes": {
+  "immobile": {
+   "n": 82,
+   "avg": 29.9,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 33,
+   "js": 6
+  },
+  "marche": {
+   "n": 160,
+   "avg": 31.2,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 32,
+   "js": 5
+  },
+  "retour": {
+   "n": 164,
+   "avg": 30.5,
+   "p95": 49.9,
+   "max": 50,
+   "fps": 33,
+   "js": 4
+  },
+  "zoom": {
+   "n": 94,
+   "avg": 32.1,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 31,
+   "js": 7
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 7
+  },
+  "donjon": {
+   "n": 208,
+   "avg": 24.1,
+   "p95": 33.4,
+   "max": 99.9,
+   "fps": 41,
+   "js": 15
+  }
+ },
+ "errors": []
+}

@@ -57,6 +57,8 @@ export interface ItemDef {
   poison?: { damage: number; turns: number };
   /** Munitions : la flèche ricoche sur un deuxième monstre proche après un coup qui porte. */
   ricochet?: boolean;
+  /** Flèche de recul : quand elle touche, la cible recule de tant de cases. */
+  knockback?: number;
   /** Objets à utiliser : PV rendus, ou tours de lumière (torche). */
   heal?: number;
   lightTurns?: number;
@@ -169,14 +171,15 @@ export const ITEMS = {
     id: "javeline",
     name: "Javelines",
     kind: "ammo",
-    description: "Se lance à la main, sans arc. Moins précise qu'une flèche, mais frappe fort ; se ramasse.",
+    description: "Se lance à la main, sans arc. Aussi précise qu'une flèche, et frappe plus fort ; se ramasse.",
     w: 1,
     h: 2,
-    maxStack: 6,
+    maxStack: 8,
     rarity: "uncommon",
     level: 3,
     ammoFamily: "jet",
-    attackBonus: -2,
+    // Thomas (2026-11-16) : « même précision que les flèches » : le bonus de l'arc court.
+    attackBonus: 3,
     range: 6,
     damage: { count: 1, sides: 8, bonus: 2 },
   },
@@ -193,6 +196,21 @@ export const ITEMS = {
     ammoFamily: "fleche",
     damage: { count: 1, sides: 6, bonus: 0 },
     poison: { damage: 1, turns: 4 },
+  },
+  // Flèche de recul (Thomas, 2026-11-16 : « une flèche bleue qui recule de 3 cases une personne touchée ») : l'Elfe en a
+  // cinq au départ. Rareté, niveau et butin : C.
+  fleche_recul: {
+    id: "fleche_recul",
+    name: "Flèches de recul",
+    kind: "ammo",
+    description: "Une flèche bleue à la pointe ronde et lourde. Quand elle touche, la cible recule de trois cases.",
+    w: 1,
+    h: 1,
+    maxStack: 20,
+    rarity: "uncommon",
+    ammoFamily: "fleche",
+    damage: { count: 1, sides: 6, bonus: 0 },
+    knockback: 3,
   },
   // Flèche ricochante (Thomas, 2026-11-15 : « niveau 6, rare ») : après un coup qui porte, elle repart vers un autre
   // monstre en vue à 4 cases ou moins de la cible (nouveau jet, mêmes dégâts) (C).

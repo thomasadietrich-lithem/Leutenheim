@@ -8,8 +8,10 @@ export interface RaceDef {
   available: boolean;
   /** Phrase courte affichée sur la case. */
   tagline: string;
-  /** Traits, décrits dans la fiche détaillée (une ligne par trait). */
+  /** Traits, une ligne par trait (rubrique « Races » du manuel). */
   traits: string[];
+  /** Capacités spéciales, montrées avec leur picto sur la fiche « + » (`src/ui/racePictos.ts`). */
+  abilities: { id: string; name: string; text: string }[];
   /** PV ajoutés à ceux de la classe (le Guerrier en a 10). */
   hpBonus: number;
   /** Rayon de la lueur portée par le héros : ce qu'il voit dans le noir. */
@@ -26,8 +28,6 @@ export interface RaceDef {
   pushBonus: number;
   /** PETIT : n'importe quel meuble voisin sert d'abri pour se cacher, même s'il ne bloque pas (chaise…). */
   smallCover: boolean;
-  /** PIEDS NUS : les monstres qui sentent les pas (myconide) ne le sentent qu'à cette distance au plus. */
-  tremorRange?: number;
   /** GOURMAND : PV en plus à chaque nourriture mangée. */
   foodBonus: number;
   /** TÊTU : une fois par étage, il relance un d20 raté. */
@@ -74,6 +74,10 @@ export const RACES = {
       "Opportuniste : quand un monstre à son contact s'éloigne, il le frappe, avec l'avantage.",
       "Départ : une torche et une cuisse de poulet.",
     ],
+    abilities: [
+      { id: "tetu", name: "Têtu", text: "Une fois par étage, il relance un d20 raté." },
+      { id: "opportuniste", name: "Opportuniste", text: "Quand un monstre à son contact s'éloigne, il le frappe, avec l'avantage." },
+    ],
     hpBonus: 2,
     stubborn: true,
     opportunist: true,
@@ -91,17 +95,19 @@ export const RACES = {
     traits: [
       "Agile : Agilité +2.",
       "Petit : Discrétion +3 ; n'importe quel meuble lui sert d'abri.",
-      "Pieds nus : les myconides le sentent de moins loin.",
       "Gourmand : toute nourriture lui rend 3 PV de plus.",
       "Faiblesse : Pousser −2.",
       "Départ : deux pommes.",
+    ],
+    abilities: [
+      { id: "petit", name: "Petit", text: "N'importe quel meuble lui sert d'abri pour se cacher." },
+      { id: "gourmand", name: "Gourmand", text: "Toute nourriture lui rend 3 PV de plus." },
     ],
     hpBonus: -1,
     agilite: 2,
     stealthBonus: 3,
     pushBonus: -2,
     smallCover: true,
-    tremorRange: 3,
     foodBonus: 3,
     startingItems: [{ item: "pomme", count: 2 }],
   },
@@ -117,7 +123,11 @@ export const RACES = {
       "Œil de lynx : avantage à l'arc sur une cible à 5 cases ou plus.",
       "Beau parleur : Charisme +5.",
       "Faiblesse : Force −1.",
-      "Départ : dix flèches de plus.",
+      "Départ : cinq flèches de plus et cinq flèches de recul.",
+    ],
+    abilities: [
+      { id: "archer", name: "Archer", text: "+2 à l'arc, et pas de désavantage vers une case qu'il ne voit pas." },
+      { id: "lynx", name: "Œil de lynx", text: "Avantage à l'arc sur une cible à 5 cases ou plus." },
     ],
     hpBonus: 0,
     darkVision: 6,
@@ -127,6 +137,9 @@ export const RACES = {
     bowBonus: 2,
     blindShot: true,
     lynxRange: 5,
-    startingItems: [{ item: "fleche", count: 10 }],
+    startingItems: [
+      { item: "fleche", count: 5 },
+      { item: "fleche_recul", count: 5 },
+    ],
   },
 } satisfies Record<string, RaceDef>;

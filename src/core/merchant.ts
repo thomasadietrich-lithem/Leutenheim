@@ -62,7 +62,7 @@ export function rollWares(depth: number, seed: number): { item: ItemId; count: n
   const gear = pick(lootPool(depth, (kind) => ["melee", "ranged", "armor", "hat"].includes(kind)), 2);
   if (gear) out.push({ item: gear, count: 1 });
   const ammo = pick(lootPool(depth, (kind) => kind === "ammo"), 3) ?? "fleche";
-  out.push({ item: ammo, count: ammo === "fleche" ? 10 : ammo === "javeline" ? 3 : 5 });
+  out.push({ item: ammo, count: ammo === "fleche" ? 10 : ammo === "javeline" ? 4 : 5 });
   const rare = pick(lootPool(depth, (kind) => kind !== "gem", "rare"), 4) ?? pick(lootPool(depth, (kind) => kind !== "gem", "uncommon"), 5);
   if (rare) out.push({ item: rare, count: 1 });
   const extra = pick(lootPool(depth, (kind) => kind !== "gem" && kind !== "gold" && kind !== "ammo" && kind !== "key" && kind !== "quest"), 6);

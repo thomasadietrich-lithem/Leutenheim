@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 36;
+export const SANDBOX_LAYOUT = 37;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -457,7 +457,7 @@ function addArmory(
     ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
     ["potion_oursin", 2], ["potion_pierre", 2], ["potion_discorde", 2], ["potion_geant", 2], ["potion_glissante", 2],
   ]);
-  zone(X(110), Y(27), 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["fleche_ricochet", 6], ["javeline", 3]], 1);
+  zone(X(110), Y(27), 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["fleche_ricochet", 6], ["fleche_recul", 6], ["javeline", 4]], 1);
   zone(X(117), Y(27), 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
   zone(X(97), Y(31), 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(X(106), Y(31), 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1]]);

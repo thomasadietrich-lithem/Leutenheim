@@ -26,6 +26,8 @@ import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
 import { heroLook, heroSprites } from "./render/heroLook";
+import { RACE_PICTOS } from "./ui/racePictos";
+import { TIPS } from "./data/tips";
 import { MANUAL } from "./data/manual";
 import { NPC_IDS } from "./core/game";
 import { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } from "./data/codex";
@@ -1915,7 +1917,42 @@ function aimTarget(): Actor | null {
 }
 
 // Bouton de tir : un premier appui vise le monstre le plus proche, un second tire sur lui.
+// Appui long sur le bouton de tir : passer à la munition suivante (Thomas, 2026-11-16), comme en touchant le carquois.
+let aimHeld = false;
+function cycleAmmo(): void {
+  const usable = game.ammoKinds().filter((id) => !game.tooLow(ITEMS[id] as ItemDef));
+  const current = game.currentAmmo();
+  if (usable.length < 2 || !current) {
+    logLines.push("Une seule sorte de munition dans le sac.");
+  } else {
+    const next = usable[(usable.indexOf(current) + 1) % usable.length];
+    game.chooseAmmo(next);
+    aimShown = "";
+    sfx.play("click");
+    logLines.push(`Munition choisie : ${tr(ITEMS[next].name)}.`);
+  }
+  renderLog();
+}
+{
+  let timer = 0;
+  const stop = () => window.clearTimeout(timer);
+  $("aim").addEventListener("pointerdown", () => {
+    aimHeld = false;
+    stop();
+    timer = window.setTimeout(() => {
+      aimHeld = true;
+      cycleAmmo();
+    }, LONG_PRESS_MS);
+  });
+  for (const name of ["pointerup", "pointerleave", "pointercancel"]) $("aim").addEventListener(name, stop);
+  $("aim").addEventListener("contextmenu", (e) => e.preventDefault());
+}
 button("aim", () => {
+  // Le toucher qui termine un appui long ne tire pas.
+  if (aimHeld) {
+    aimHeld = false;
+    return;
+  }
   if (aimMode) {
     const target = aimTarget();
     if (target) fireAt(target.x, target.y);
@@ -3308,7 +3345,7 @@ function showScreen(screen: Screen | null): void {
   if ((!started || game.over) && savedRun === null) savedRun = readSave();
   $("menu-resume").hidden = false;
   ($("menu-resume") as HTMLButtonElement).disabled = (!started || game.over) && savedRun === null;
-  if (screen === "settings") renderMixer();
+  if (screen === "settings") showSettingsPane(settingsPane);
   $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);
   // Statistiques anonymes : le réglage n'apparaît que lorsque l'adresse d'envoi est réglée.
   $("settings-stats").hidden = !TELEMETRY.url;
@@ -3321,6 +3358,8 @@ function showScreen(screen: Screen | null): void {
 }
 
 interface Card {
+  /** Une race : sa fiche « + » a sa propre mise en page (stats, capacités, inventaire bonus). */
+  race?: RaceDef;
   id: string;
   name: string;
   available: boolean;
@@ -3335,6 +3374,7 @@ const signedBonus = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
 function raceCard(r: RaceDef): Card {
   return {
+    race: r,
     id: r.id,
     name: r.name,
     available: r.available,
@@ -3505,9 +3545,69 @@ function renderCards(): void {
 
 function showDetail(card: Card): void {
   $("detail-title").textContent = tr(card.name);
-  const lines = card.available ? card.details : [...card.details, "Pas encore jouable : valeurs provisoires."];
-  $("detail-body").replaceChildren(...lines.map((line) => el("div", "", line)));
+  $("detail-body").classList.toggle("race-sheet", !!card.race);
+  if (card.race) {
+    $("detail-body").replaceChildren(...raceSheet(card.race));
+  } else {
+    const lines = card.available ? card.details : [...card.details, "Pas encore jouable : valeurs provisoires."];
+    $("detail-body").replaceChildren(...lines.map((line) => el("div", "", line)));
+  }
   $("detail").hidden = false;
+}
+
+/**
+ * Fiche d'une race (Thomas, 2026-11-16 : « les stats en haut ; en bas les capacités spéciales, un picto par capacité avec
+ * la couleur de leur race ; en bas l'inventaire bonus »).
+ */
+function raceSheet(r: RaceDef): HTMLElement[] {
+  const color = PICTOS[r.id]?.palette.F ?? "#e0b040";
+  const head = el("div", "race-head");
+  const picto = PICTOS[r.id];
+  if (picto) {
+    const icon = buildIcon(picto.rows, picto.palette);
+    icon.classList.add("race-picto");
+    head.append(icon);
+  }
+  head.append(el("div", "race-tagline", r.tagline));
+  // Les stats : les PV sont ceux de la classe choisie, plus ceux de la race.
+  const stat = (label: string, value: string, tone: number): HTMLElement => {
+    const cell = el("div", `race-stat${tone > 0 ? " up" : tone < 0 ? " down" : ""}`);
+    cell.append(el("span", "race-stat-name", label), el("span", "race-stat-value", value));
+    return cell;
+  };
+  const stats = el("div", "race-stats");
+  stats.append(
+    stat("Vie", String(chosenClass.hp + r.hpBonus), r.hpBonus),
+    stat("Vue", `${r.darkVision} / ${r.sight}`, r.darkVision - 4),
+    stat("Force", signedBonus(r.force), r.force),
+    stat("Agilité", signedBonus(r.agilite), r.agilite),
+    stat("Charisme", signedBonus(r.charisme), r.charisme),
+    stat("Discrétion", signedBonus(r.stealthBonus), r.stealthBonus),
+  );
+  if (r.pushBonus) stats.append(stat("Pousser", signedBonus(r.pushBonus), r.pushBonus));
+  const abilities = el("div", "race-abilities");
+  for (const a of r.abilities) {
+    const row = el("div", "race-ability");
+    const rows = RACE_PICTOS[a.id];
+    if (rows) {
+      const icon = buildIcon(rows, { X: color });
+      icon.classList.add("race-ability-picto");
+      row.append(icon);
+    }
+    const text = el("div", "race-ability-text");
+    const name = el("div", "race-ability-name", a.name);
+    name.style.color = color;
+    text.append(name, el("div", "", a.text));
+    row.append(text);
+    abilities.append(row);
+  }
+  const items = el("div", "race-items");
+  for (const it of r.startingItems) {
+    const box = el("div", "race-item");
+    box.append(itemIcon(it.item), el("span", "", `${tr(ITEMS[it.item].name)}${it.count > 1 ? ` ×${it.count}` : ""}`));
+    items.append(box);
+  }
+  return [head, el("h3", "", "Statistiques"), stats, el("h3", "", "Capacités spéciales"), abilities, el("h3", "", "Inventaire bonus"), items];
 }
 
 // Le menu en jeu, allégé (Thomas, 2026-11-14) : reprendre, réglages, menu principal.
@@ -3515,6 +3615,7 @@ button("open-menu", () => showScreen(started && !game.over ? "pause" : "main"));
 button("pause-resume", () => showScreen(null));
 button("pause-settings", () => {
   settingsFrom = "pause";
+  settingsPane = "general";
   showScreen("settings");
 });
 button("pause-main", () => showScreen("main"));
@@ -3529,8 +3630,10 @@ button("menu-resume", () => {
 button("menu-new", () => showScreen("new"));
 /** D'où l'on est venu aux réglages : le menu en jeu ou le menu principal (le bouton Retour y revient). */
 let settingsFrom: "main" | "pause" = "main";
+let settingsPane: "general" | "son" | "lang" = "general";
 button("menu-settings", () => {
   settingsFrom = "main";
+  settingsPane = "general";
   $("settings-note").textContent = tr("");
   showScreen("settings");
 });
@@ -3562,7 +3665,8 @@ button("menu-saves", () => showScreen("saves"));
 button("saves-back", () => showScreen("main"));
 button("codex-back", () => showScreen("main"));
 button("new-back", () => showScreen("main"));
-button("settings-back", () => showScreen(settingsFrom));
+// « Retour » : d'un sous-menu (Son, Langue) vers les Paramètres, puis vers le menu d'où l'on vient.
+button("settings-back", () => (settingsPane === "general" ? showScreen(settingsFrom) : showSettingsPane("general")));
 button("detail-close", () => {
   $("detail").hidden = true;
 });
@@ -3666,16 +3770,34 @@ button("settings-blood", () => {
   sfx.play("click");
   showScreen("settings");
 });
-// Paramètres en deux onglets (Thomas, 2026-11-16) : Général, et Son (mélangeur à 5 niveaux).
-function showSettingsTab(tab: "general" | "son"): void {
-  $("tab-general").classList.toggle("active", tab === "general");
-  $("tab-son").classList.toggle("active", tab === "son");
-  $("pane-general").hidden = tab !== "general";
-  $("pane-son").hidden = tab !== "son";
+// Paramètres (Thomas, 2026-11-16, soir) : une seule liste ; « Son » (mélangeur à 5 niveaux) et « Langue » sont des
+// sous-menus, plus d'onglets Général / Son.
+function showSettingsPane(pane: "general" | "son" | "lang"): void {
+  settingsPane = pane;
+  $("pane-general").hidden = pane !== "general";
+  $("pane-son").hidden = pane !== "son";
+  $("pane-lang").hidden = pane !== "lang";
+  $("settings-title").textContent = tr(pane === "son" ? "Son" : pane === "lang" ? "Langue" : "Paramètres");
+  $("lang-fr").classList.toggle("active", options.lang !== "en");
+  $("lang-en").classList.toggle("active", options.lang === "en");
   renderMixer();
 }
-button("tab-general", () => showSettingsTab("general"));
-button("tab-son", () => showSettingsTab("son"));
+button("settings-son", () => showSettingsPane("son"));
+button("settings-lang", () => showSettingsPane("lang"));
+function chooseLang(lang: "fr" | "en"): void {
+  sfx.play("click");
+  if (options.lang !== lang) {
+    options.lang = lang;
+    saveOptions();
+    setLang(options.lang);
+    translatePage();
+    logLines = [...logLines];
+    renderLog();
+  }
+  showScreen("settings");
+}
+button("lang-fr", () => chooseLang("fr"));
+button("lang-en", () => chooseLang("en"));
 function setLevel(which: "soundLevel" | "musicLevel", level: number): void {
   options[which] = Math.max(0, Math.min(5, level));
   applyAudio();
@@ -3703,16 +3825,6 @@ button("vol-sound-minus", () => setLevel("soundLevel", options.soundLevel - 1));
 button("vol-sound-plus", () => setLevel("soundLevel", options.soundLevel + 1));
 button("vol-music-minus", () => setLevel("musicLevel", options.musicLevel - 1));
 button("vol-music-plus", () => setLevel("musicLevel", options.musicLevel + 1));
-button("settings-lang", () => {
-  options.lang = options.lang === "fr" ? "en" : "fr";
-  saveOptions();
-  sfx.play("click");
-  setLang(options.lang);
-  translatePage();
-  logLines = [...logLines];
-  renderLog();
-  showScreen("settings");
-});
 // Salle d'essai : Gluck et Sœur Osseuse reprennent à leur première scène (Thomas, 2026-11-12).
 button("reset-talks", () => {
   game.resetDialogues();
@@ -3853,10 +3965,16 @@ function beginStairs(force?: StairsVariant): void {
     for (const [v, p] of table) if (r < (acc += p)) { variant = v; break; }
   }
   stairsGame = game;
+  // Une astuce défile pendant le passage, puis reste au journal (Thomas, 2026-11-16).
+  tipIndex = (tipIndex + 1) % TIPS.length;
+  stairsTip = tr(TIPS[tipIndex]);
   // Le héros de la scène a la tête de sa race, sans son équipement.
-  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`), heroSprites(heroLook(game.race.id, { melee: "epee" })));
+  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`), heroSprites(heroLook(game.race.id, { melee: "epee" })), stairsTip);
 }
 
+/** L'astuce du passage d'escalier en cours ; on les fait défiler dans l'ordre, à partir d'une astuce tirée au hasard. */
+let tipIndex = Math.floor(Math.random() * TIPS.length);
+let stairsTip = "";
 function advanceStairs(dt: number): void {
   const scene = stairsScene;
   if (!scene) return;
@@ -3868,10 +3986,9 @@ function advanceStairs(dt: number): void {
   if (game.takeStairs()) {
     renderer.snapTo(game);
     collectEvents();
-    if (scene.tumbled) {
-      logLines.push("Vous dégringolez l'escalier… et vous relevez, un peu sonné, mais entier.");
-      renderLog();
-    }
+    if (scene.tumbled) logLines.push("Vous dégringolez l'escalier… et vous relevez, un peu sonné, mais entier.");
+    if (stairsTip) logLines.push(`Astuce : ${stairsTip}`);
+    renderLog();
   }
 }
 

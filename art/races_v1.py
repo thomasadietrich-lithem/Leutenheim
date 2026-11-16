@@ -99,13 +99,32 @@ HELMET_NAME = {"aucun": "Sans casque", "cuir": "Casque de cuir", "mailles": "Cas
 
 
 def apply_helmet(g, kind, lying=False):
-    """Recouvre les trois premières rangées de cheveux (ou colonnes, si le héros est couché)."""
+    """Casque de cuir : recouvre les trois premières rangées de cheveux (ou colonnes, si le héros est couché).
+    Casque de mailles (Thomas, 2026-11-16 : « toute la tête sauf le visage ») : une coiffe qui recouvre TOUS les cheveux
+    de la tête (six rangées depuis le sommet, ou six colonnes si le héros est couché) ; seul le visage reste nu."""
     if kind == "aucun":
         return
     cells = [(x, y) for y in range(16) for x in range(16) if g[y][x] in "HG"]
     if not cells:
         return
-    top, mid, rim = ("C", "c", "e") if kind == "cuir" else ("7", "4", "5")
+    if kind == "mailles":
+        x0, x1 = min(x for x, _ in cells), max(x for x, _ in cells)
+        y0, y1 = min(y for _, y in cells), max(y for _, y in cells)
+        if lying:
+            x1 = min(15, x0 + 5)
+            y0, y1 = max(0, y0 - 1), min(15, y1 + 1)
+        else:
+            y1 = min(15, y0 + 6)
+            x0, x1 = max(0, x0 - 1), min(15, x1 + 1)
+        first = x0 if lying else y0
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                # La septième rangée (longs cheveux de l'Elfe) : seulement les mèches claires, pas la lettre « h », qui
+                # est aussi la hampe de la flèche encochée.
+                if g[y][x] in ("HG" if not lying and y == y0 + 6 else "HGh"):
+                    g[y][x] = "7" if (x if lying else y) == first else ("4" if (x + y) % 2 == 0 else "5")
+        return
+    top, mid, rim = ("C", "c", "e")
     if lying:
         x0 = min(x for x, _ in cells)
         for y in range(16):

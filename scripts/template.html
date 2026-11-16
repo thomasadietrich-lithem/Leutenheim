@@ -94,7 +94,10 @@
     box-shadow: inset 2px 2px 0 var(--btn-hi), inset -2px -2px 0 var(--btn-lo), 0 0 0 2px var(--panel-lo); }
   button:active { box-shadow: inset -2px -2px 0 var(--btn-hi), inset 2px 2px 0 var(--btn-lo), 0 0 0 2px var(--panel-lo); transform: translateY(1px); }
   button.active { background: #6b4a12; color: #fff3c8; }
-  button.ghost { background: #241c14; color: var(--dim); }
+  /* Boutons secondaires (Retour, Menu principal) : un vrai bouton, un ton plus sombre ; « Retour » porte un chevron doré
+     (Thomas, 2026-11-16 : « ils ont juste l'air grisés »). */
+  button.ghost { background: #2e2518; color: var(--ink); box-shadow: inset 2px 2px 0 #5c4a2c, inset -2px -2px 0 var(--btn-lo), 0 0 0 2px var(--panel-lo); }
+  button.back::before { content: "<"; color: var(--gold); margin-right: 10px; }
 
   .overlay { position: absolute; inset: 0; background: #0d0a08; display: flex; flex-direction: column;
     align-items: center; justify-content: center; justify-content: safe center; gap: 12px; text-align: center; padding: 16px;
@@ -356,6 +359,27 @@
   #detail { z-index: 3; }
   #detail-body { display: flex; flex-direction: column; gap: 4px; font-size: 18px; text-align: left; max-width: 310px; }
   #detail-body div:first-child { color: var(--dim); margin-bottom: 4px; }
+  /* Fiche d'une race (2026-11-16) : stats, capacités avec picto, inventaire bonus. */
+  #detail-body.race-sheet { width: 100%; max-width: 340px; gap: 6px; }
+  #detail-body.race-sheet h3 { margin: 8px 0 2px; font-size: 17px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); border-bottom: 2px solid #4a3e2a; padding-bottom: 2px; }
+  .race-head { display: flex; align-items: center; gap: 10px; }
+  .race-picto { width: 52px; height: 52px; flex: none; shape-rendering: crispEdges; }
+  #detail-body .race-tagline { color: var(--ink); font-size: 20px; margin: 0; }
+  .race-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+  .race-stat { display: flex; justify-content: space-between; background: #17120d; box-shadow: inset 0 0 0 2px #3a2f20; padding: 3px 8px; }
+  #detail-body .race-stat:first-child { color: inherit; margin-bottom: 0; }
+  .race-stat-name { color: var(--dim); text-transform: uppercase; font-size: 16px; }
+  .race-stat-value { color: var(--ink); }
+  .race-stat.up .race-stat-value { color: #9fd66a; }
+  .race-stat.down .race-stat-value { color: #e0685a; }
+  .race-abilities { display: flex; flex-direction: column; gap: 8px; }
+  .race-ability { display: flex; align-items: flex-start; gap: 10px; }
+  .race-ability-picto { width: 42px; height: 42px; flex: none; padding: 5px; background: #17120d; box-shadow: inset 0 0 0 2px #3a2f20; shape-rendering: crispEdges; box-sizing: border-box; }
+  .race-ability-name { text-transform: uppercase; letter-spacing: 0.06em; }
+  #detail-body .race-ability-text div:first-child { margin-bottom: 0; }
+  .race-items { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .race-item { display: flex; align-items: center; gap: 6px; }
+  .race-item svg { width: 30px; height: 30px; flex: none; shape-rendering: crispEdges; }
 
   /* Sac : cases en creux, objets en gros pixels. */
   #bag { z-index: 2; }
@@ -400,8 +424,10 @@
   #settings-tabs { display: flex; gap: 6px; width: 100%; }
   #settings-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
   #settings-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
-  #pane-general, #pane-son { display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: stretch; }
-  #pane-general[hidden], #pane-son[hidden] { display: none; }
+  #pane-general, #pane-son, #pane-lang { display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: stretch; }
+  #pane-general[hidden], #pane-son[hidden], #pane-lang[hidden] { display: none; }
+  #pane-general, #pane-lang { align-items: center; }
+  #pane-general button, #pane-lang button { width: min(250px, 80%); padding: 10px; font-size: 22px; }
   .mixer { display: flex; align-items: center; gap: 6px; }
   .mixer-name { flex: 0 0 96px; font-size: 20px; text-transform: uppercase; }
   .mixer > button { width: 38px; height: 38px; padding: 0; font-size: 22px; }
@@ -764,7 +790,7 @@
       <button id="essai-s1" type="button">Section 1</button>
       <button id="essai-s2" type="button">Section 2</button>
       <button id="essai-all" type="button">Section : toutes</button>
-      <button id="essai-back" type="button" class="ghost">Retour</button>
+      <button id="essai-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-pause" hidden>
       <h2>Pause</h2>
@@ -776,7 +802,7 @@
       <h2>Encyclopédie</h2>
       <div id="codex-tabs"></div>
       <div id="codex-list"></div>
-      <button id="codex-back" type="button" class="ghost">Retour</button>
+      <button id="codex-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-new" hidden>
       <h2>Nouvelle partie</h2>
@@ -785,12 +811,12 @@
       <h3>Classe</h3>
       <div id="class-cards" class="cards"></div>
       <button id="new-start" type="button">Commencer</button>
-      <button id="new-back" type="button" class="ghost">Retour</button>
+      <button id="new-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-saves" hidden>
       <h2>Sauvegardes</h2>
       <div id="saves-list"></div>
-      <button id="saves-back" type="button" class="ghost">Retour</button>
+      <button id="saves-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-succes" hidden>
       <h2>Succès</h2>
@@ -802,22 +828,26 @@
         <div id="succes-detail" hidden></div>
       </div>
       <div id="records-list" hidden></div>
-      <button id="succes-back" type="button" class="ghost">Retour</button>
+      <button id="succes-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-settings" hidden>
-      <h2>Paramètres</h2>
-      <div id="settings-tabs"><button id="tab-general" type="button" class="active">Général</button><button id="tab-son" type="button">Son</button></div>
+      <h2 id="settings-title">Paramètres</h2>
       <div id="pane-general">
+        <button id="settings-son" type="button">Son</button>
+        <button id="settings-lang" type="button"></button>
         <button id="settings-blood" type="button"></button>
         <button id="settings-stats" type="button" hidden></button>
-        <button id="settings-lang" type="button"></button>
+      </div>
+      <div id="pane-lang" hidden>
+        <button id="lang-fr" type="button">Français</button>
+        <button id="lang-en" type="button">English</button>
       </div>
       <div id="pane-son" hidden>
         <div class="mixer"><span class="mixer-name">Bruitages</span><button id="vol-sound-minus" type="button" aria-label="Moins fort">−</button><div id="vol-sound" class="mixer-bars"></div><button id="vol-sound-plus" type="button" aria-label="Plus fort">+</button></div>
         <div class="mixer"><span class="mixer-name">Musique</span><button id="vol-music-minus" type="button" aria-label="Moins fort">−</button><div id="vol-music" class="mixer-bars"></div><button id="vol-music-plus" type="button" aria-label="Plus fort">+</button></div>
       </div>
       <div id="settings-note"></div>
-      <button id="settings-back" type="button" class="ghost">Retour</button>
+      <button id="settings-back" type="button" class="ghost back">Retour</button>
     </section>
     <div id="detail" class="overlay" hidden>
       <h2 id="detail-title"></h2>

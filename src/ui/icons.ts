@@ -459,6 +459,25 @@ const ICONS: Record<ItemId, string[]> = {
     ".......KKKKKKKKKKKKKKKKKK.......",
     "................................",
   ],
+  // Flèche de recul (Thomas, 2026-11-16) : toute bleue, pointe ronde et lourde, pennes blanches.
+  fleche_recul: [
+    "..........KKKK..",
+    ".........KVIIIK.",
+    ".........KIIIiK.",
+    ".........KIIiiK.",
+    "..........KiiK..",
+    ".........KUKK...",
+    "........KuK.....",
+    ".......KUK......",
+    "...KKKKuK.......",
+    "..KWWWUK........",
+    ".KWWWuSK........",
+    "KWWWUSSK........",
+    ".KKuSSSK........",
+    "...KSSK.........",
+    "...KSK..........",
+    "....K...........",
+  ],
   // Flèche ricochante (Thomas, 2026-11-15) : pointe d'acier bleuté à double tranchant, empennage doré, un éclair.
   fleche_ricochet: [
     "...........KKKK.",

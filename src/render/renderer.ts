@@ -1580,7 +1580,7 @@ export class Renderer {
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
-  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", kind: "plain" | "poison" | "ricochet" = "plain"): void {
+  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", kind: "plain" | "poison" | "ricochet" | "recul" = "plain"): void {
     const poisoned = kind === "poison";
     const { ctx } = this;
     ctx.save();
@@ -1602,14 +1602,15 @@ export class Renderer {
     if (part !== "front") {
       // Empennage : deux pennes bleues couchées vers l'arrière, qui laissent une encoche en V au talon.
       for (const side of [-1, 1]) {
-        shape(side < 0 ? "#6aa8e0" : "#3a6fb0", [[-L * 0.2, (side * w) / 2], [-L * 0.34, side * w * 2.4], [-L * 0.56, side * w * 2.4], [-L * 0.44, (side * w) / 2]]);
+        // Flèche de recul : pennes blanches, pour ressortir sur sa hampe bleue.
+        shape(kind === "recul" ? (side < 0 ? "#f4f7ff" : "#c3cbe0") : side < 0 ? "#6aa8e0" : "#3a6fb0", [[-L * 0.2, (side * w) / 2], [-L * 0.34, side * w * 2.4], [-L * 0.56, side * w * 2.4], [-L * 0.44, (side * w) / 2]]);
       }
     }
     // Hampe fine (entière, ou seulement la moitié avant ou arrière pour une flèche brisée).
     const [x0, x1] = part === "whole" ? [-L * 0.46, L * 0.26] : part === "front" ? [-L * 0.05, L * 0.26] : [-L * 0.46, -L * 0.08];
-    shape("#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
+    shape(kind === "recul" ? "#4a8fd0" : "#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
     // Un ruban noué autour de la tige (Thomas, 2026-11-15) : vert pour la flèche empoisonnée, noir pour la ricochante.
-    if (kind !== "plain" && part === "whole") {
+    if (kind !== "plain" && kind !== "recul" && part === "whole") {
       const rib = kind === "poison" ? "#4fae3c" : "#1a1620";
       // Quelques pixels au milieu de la tige (Thomas, 2026-11-15), sans déborder.
       const rx = -L * 0.12;
@@ -1619,7 +1620,7 @@ export class Renderer {
     if (part !== "back") {
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
       // Pointe affinée (Thomas, 2026-11-12) : plus longue, plus étroite.
-      shape(poisoned ? "#b8e05a" : kind === "ricochet" ? "#9fcfff" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
+      shape(poisoned ? "#b8e05a" : kind === "ricochet" ? "#9fcfff" : kind === "recul" ? "#6ad0ff" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
     }
     ctx.restore();
   }
@@ -2026,11 +2027,11 @@ export class Renderer {
         // Or : un tas, petit, moyen ou gros selon la somme comparée à ce qu'on trouve à cet étage.
         const size = g.count >= goldRange(game.depth, "large")[0] ? "large" : g.count >= goldRange(game.depth, "medium")[0] ? "medium" : "small";
         this.drawGroundIcon(GOLD_PILES[size], gx, gy);
-      } else if (g.item !== "fleche" && g.item !== "fleche_poison" && g.item !== "fleche_ricochet") {
+      } else if (g.item !== "fleche" && g.item !== "fleche_poison" && g.item !== "fleche_ricochet" && g.item !== "fleche_recul") {
         this.drawGroundIcon(itemIconRows(g.item), gx, gy);
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
-        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison" ? "poison" : g.item === "fleche_ricochet" ? "ricochet" : "plain");
+        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison" ? "poison" : g.item === "fleche_ricochet" ? "ricochet" : g.item === "fleche_recul" ? "recul" : "plain");
       }
     }
 

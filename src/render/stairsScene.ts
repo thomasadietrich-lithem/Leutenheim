@@ -111,7 +111,11 @@ export class StairsScene {
   private hero: { idleSide: readonly (readonly string[])[]; walkSide: readonly (readonly string[])[]; hurt: readonly (readonly string[])[] } = GUERRIER;
   private heroPalette: Record<string, string> = GUERRIER_PALETTE;
 
-  constructor(direction: "down" | "up", variant: StairsVariant, label: string, hero?: HeroSprites) {
+  /** Une astuce, écrite en haut de la scène pendant tout le passage (Thomas, 2026-11-16). */
+  private readonly tip: string;
+
+  constructor(direction: "down" | "up", variant: StairsVariant, label: string, hero?: HeroSprites, tip = "") {
+    this.tip = tip;
     if (hero) {
       this.hero = { idleSide: hero.frames.idleSide, walkSide: hero.frames.walkSide, hurt: hero.frames.hurt };
       this.heroPalette = hero.palette;
@@ -370,6 +374,26 @@ export class StairsScene {
     ctx.drawImage(this.backBuffer, Math.round(dx - scale - fx), Math.round(dy - scale + fy), (W + 2) * scale, (H + 2) * scale);
     ctx.restore();
     ctx.drawImage(this.buffer, dx, dy, dw, dh);
+    // L'astuce, en haut, sur trois lignes au plus.
+    if (this.tip) {
+      ctx.save();
+      ctx.fillStyle = "#cdbf9c";
+      ctx.font = `${Math.round(scale * 4.4)}px VT323, monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const lines: string[] = [];
+      let line = "";
+      for (const word of this.tip.split(" ")) {
+        const next = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(next).width > dw - scale * 8) {
+          lines.push(line);
+          line = word;
+        } else line = next;
+      }
+      if (line) lines.push(line);
+      lines.slice(0, 3).forEach((text, i) => ctx.fillText(text, target.width / 2, dy + scale * (3 + i * 4.6)));
+      ctx.restore();
+    }
     // Le numéro de l'étage où l'on arrive, en bas, sur le fondu de fin.
     if (this.phase === "out" || this.phase === "dark") {
       const alpha = this.phase === "dark" ? 0.9 : Math.min(1, 0.4 + this.phaseTime / FADE_OUT);

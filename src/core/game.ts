@@ -1992,8 +1992,7 @@ export class Game {
    */
   private tremorAct(m: Actor, radius: number): boolean {
     const moved = this.hero.x !== this.hero.fromX || this.hero.y !== this.hero.fromY;
-    // PIEDS NUS (Halfelin) : on le sent de moins loin.
-    const near = Math.max(Math.abs(this.hero.x - m.x), Math.abs(this.hero.y - m.y)) <= Math.min(radius, this.race.tremorRange ?? radius);
+    const near = Math.max(Math.abs(this.hero.x - m.x), Math.abs(this.hero.y - m.y)) <= radius;
     if (!m.alerted) {
       if (moved && near && this.rng.chance(MONSTERS[m.defId as keyof typeof MONSTERS].noticeChance)) {
         this.faceToward(m, this.hero);
@@ -8171,6 +8170,30 @@ export class Game {
     this.springTrap(m);
   }
 
+  /**
+   * Flèche de recul : le monstre recule de `steps` cases au plus, dans l'axe du tir, tant que la case suivante est libre
+   * (ni mur, ni porte fermée, ni personnage). Il peut finir sur un piège.
+   */
+  private shoveBack(m: Actor, from: Point, steps: number): void {
+    if (this.isInert(m) || m.petrified) return;
+    const dx = Math.sign(m.x - from.x);
+    const dy = Math.sign(m.y - from.y);
+    if (!dx && !dy) return;
+    const start = { x: m.x, y: m.y };
+    for (let i = 0; i < steps; i++) {
+      const to = { x: m.x + dx, y: m.y + dy };
+      const free = this.map.isWalkable(to.x, to.y) && this.map.get(to.x, to.y) !== Tile.DoorClosed && !this.actorAt(to.x, to.y) &&
+        canStep(this.map, m.x, m.y, dx, dy) && !this.npcAt(to.x, to.y);
+      if (!free) break;
+      m.x = to.x;
+      m.y = to.y;
+    }
+    if (m.x === start.x && m.y === start.y) return;
+    this.closeDoorAt(start.x, start.y);
+    this.events.push({ type: "heavyBlow", actor: m, kind: "knockback", fromX: start.x, fromY: start.y });
+    this.springTrap(m);
+  }
+
   /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
   private removeIfDead(monster: Actor, byHero = true): void {
     if (monster.hp > 0) return;
@@ -8318,6 +8341,9 @@ export class Game {
         // Un nouveau poison remet le compteur à zéro, il ne s'ajoute pas (C).
         this.poisonActor(victim, poison);
       }
+      // Flèche de recul (Thomas, 2026-11-16) : la cible touchée recule, loin du tireur (pas un boss).
+      const recoil = (ITEMS[ammo] as ItemDef).knockback;
+      if (hit && recoil && victim.hp > 0 && !victim.boss) this.shoveBack(victim, origin, recoil);
       if (hit) {
         keepChance = RULES.arrowKeepOnHit;
         // Flèche ricochante (Thomas, 2026-11-15) : elle repart vers un autre monstre en vue, à 4 cases de la cible.

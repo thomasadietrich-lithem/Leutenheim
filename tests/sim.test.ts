@@ -3528,7 +3528,7 @@ test("tir : l'arc donne le jet et la portée, la flèche les dégâts ; la javel
   assert.ok(game.chooseAmmo("javeline") || true);
   game.level = 4;
   const profile = game.shotProfile();
-  assert.ok(profile && profile.thrown && profile.range === 6 && profile.attackBonus === -2, JSON.stringify(profile));
+  assert.ok(profile && profile.thrown && profile.range === 6 && profile.attackBonus === ITEMS.arc_court.attackBonus, JSON.stringify(profile)); // aussi précise qu'une flèche (Thomas, 2026-11-16)
   const before = game.inventory.count("javeline");
   const target = { x: game.hero.x + 2, y: game.hero.y };
   assert.equal(game.shoot(target.x, target.y), null);
@@ -5866,10 +5866,10 @@ test("races : Humain, Halfelin et Elfe jouables ; PV, caractéristiques et objet
   const halfelin = new Game(3, RACES.halfelin);
   const elfe = new Game(3, RACES.elfe);
   assert.deepEqual([humain.hero.maxHp, halfelin.hero.maxHp, elfe.hero.maxHp], [12, 9, 10]);
-  // Objets de départ : torche et cuisse de poulet ; deux pommes ; dix flèches de plus. Ni potion ni or.
+  // Objets de départ : torche et cuisse de poulet ; deux pommes ; cinq flèches et cinq flèches de recul. Ni potion ni or.
   assert.deepEqual([humain.inventory.count("torche"), humain.inventory.count("cuisse_poulet")], [1, 1]);
   assert.equal(halfelin.inventory.count("pomme"), 2);
-  assert.deepEqual([humain.arrows(), elfe.arrows()], [10, 20]);
+  assert.deepEqual([humain.inventory.count("fleche"), elfe.inventory.count("fleche"), elfe.inventory.count("fleche_recul")], [10, 15, 5]);
   for (const g of [humain, halfelin, elfe]) assert.equal(g.gold, 0);
   // Halfelin : Agilité +2 (donc +1 en classe d'armure), Discrétion +3.
   assert.equal(halfelin.agility(), 2);
@@ -6042,4 +6042,46 @@ test("héros en calques : l'Humain en tenue de départ est le Guerrier d'avant ;
   const bare = heroSprites(heroLook("elfe", {}));
   const clad = heroSprites(heroLook("elfe", { armor: "harnois", hat: "casque_maille" }));
   for (const pose of ["idleDown", "prone0", "dead"]) assert.notDeepEqual(bare.frames[pose][0], clad.frames[pose][0], pose);
+});
+
+test("flèche de recul : la cible touchée recule de trois cases au plus, loin du tireur ; le casque de mailles couvre toute la tête", () => {
+  let seen = 0;
+  for (let seed = 1; seed <= 80 && seen < 3; seed++) {
+    const g = new Game(seed, RACES.elfe);
+    g.perks().stubborn = 1;
+    const m = g.monsters[0];
+    if (!m) continue;
+    g.monsters = [m];
+    // Une ligne droite dégagée de 6 cases : le monstre à 2 cases, 3 cases libres derrière lui.
+    const dir = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).find(([dx, dy]) => {
+      for (let k = 1; k <= 6; k++) if (g.map.get(g.hero.x + k * dx, g.hero.y + k * dy) !== Tile.Floor || g.furnitureAt(g.hero.x + k * dx, g.hero.y + k * dy)) return false;
+      return true;
+    });
+    if (!dir) continue;
+    const at = { x: g.hero.x + 2 * dir[0], y: g.hero.y + 2 * dir[1] };
+    Object.assign(m, { ...at, fromX: at.x, fromY: at.y, prevX: at.x, prevY: at.y, hp: 500, maxHp: 500, armorClass: -50, alerted: true, asleep: false, stunned: 9 });
+    g.wait();
+    g.tick();
+    if (!g.isVisible(m.x, m.y) || m.x !== at.x || m.y !== at.y || g.isTrap(at.x + dir[0], at.y + dir[1])) continue;
+    assert.ok(g.chooseAmmo("fleche_recul"));
+    g.events.length = 0;
+    if (g.shoot(m.x, m.y) !== null) continue;
+    g.tick();
+    const shot = g.events.find((e) => e.type === "attack" && e.attacker === g.hero);
+    if (!shot || shot.type !== "attack" || !shot.result.hit) continue;
+    assert.deepEqual([m.x, m.y], [at.x + 3 * dir[0], at.y + 3 * dir[1]], `graine ${seed} : il devrait avoir reculé de 3 cases`);
+    assert.ok(g.events.some((e) => e.type === "heavyBlow" && e.kind === "knockback"));
+    seen++;
+  }
+  assert.ok(seen >= 3, `seulement ${seen} tirs observés`);
+  // Casque de mailles : plus un seul pixel de cheveux sur la tête, de face, de dos et couché ; le visage reste nu.
+  for (const race of Object.keys(RACES)) {
+    const s = heroSprites(heroLook(race, { hat: "casque_maille" }));
+    for (const pose of ["idleDown", "idleUp", "dead"]) {
+      const rows = s.frames[pose][0];
+      const hair = rows.join("").split("").filter((c) => c === "H" || c === "G").length;
+      assert.equal(hair, 0, `${race} ${pose} : des cheveux dépassent`);
+    }
+    assert.ok(s.frames.idleDown[0].join("").includes("S"), "le visage reste visible");
+  }
 });

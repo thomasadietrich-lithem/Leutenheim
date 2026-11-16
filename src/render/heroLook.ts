@@ -87,13 +87,49 @@ function applyArmor(g: string[][], armor: HeroArmor): void {
   }
 }
 
-/** Le casque recouvre les trois premières rangées de cheveux (ou colonnes, si le héros est couché). */
+/**
+ * Casque de cuir : il recouvre les trois premières rangées de cheveux (ou colonnes, si le héros est couché).
+ * Casque de mailles (Thomas, 2026-11-16 : « toute la tête sauf le visage ») : une coiffe qui recouvre TOUS les cheveux de
+ * la tête (sept rangées depuis le sommet, ou six colonnes si le héros est couché) ; seul le visage reste nu.
+ */
 function applyHelmet(g: string[][], helmet: HeroHelmet, lying: boolean): void {
   if (helmet === "aucun") return;
-  const tones = helmet === "cuir" ? "Cce" : "745";
-  let first = 16;
-  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (g[y][x] === "H" || g[y][x] === "G") first = Math.min(first, lying ? x : y);
-  if (first > 15) return;
+  let x0 = 16;
+  let x1 = -1;
+  let y0 = 16;
+  let y1 = -1;
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      if (g[y][x] !== "H" && g[y][x] !== "G") continue;
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+  }
+  if (x1 < 0) return;
+  if (helmet === "mailles") {
+    if (lying) {
+      x1 = Math.min(15, x0 + 5);
+      y0 = Math.max(0, y0 - 1);
+      y1 = Math.min(15, y1 + 1);
+    } else {
+      y1 = Math.min(15, y0 + 6);
+      x0 = Math.max(0, x0 - 1);
+      x1 = Math.min(15, x1 + 1);
+    }
+    const start = lying ? x0 : y0;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        // La septième rangée (longs cheveux de l'Elfe) : seulement les mèches claires, pas la lettre « h », qui est
+        // aussi la hampe de la flèche encochée.
+        if ((!lying && y === y0 + 6 ? "HG" : "HGh").includes(g[y][x])) g[y][x] = (lying ? x : y) === start ? "7" : (x + y) % 2 === 0 ? "4" : "5";
+      }
+    }
+    return;
+  }
+  const tones = "Cce";
+  const first = lying ? x0 : y0;
   for (let i = 0; i < 3 && first + i < 16; i++) {
     for (let k = 0; k < 16; k++) {
       const x = lying ? first + i : k;

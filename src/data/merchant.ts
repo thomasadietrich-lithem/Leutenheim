@@ -35,6 +35,7 @@ const SPECIAL: Partial<Record<ItemId, number>> = {
   fleche: 1,
   fleche_poison: 3,
   fleche_ricochet: 6,
+  fleche_recul: 4,
   javeline: 8,
   pomme: 4,
   torche: 5,
@@ -61,7 +62,7 @@ export const SANDBOX_WARES: { item: ItemId; count: number }[] = [
   { item: "cuisse_poulet", count: 1 },
   { item: "potion_feu", count: 1 },
   { item: "casque_maille", count: 1 },
-  { item: "javeline", count: 3 },
+  { item: "javeline", count: 4 },
   { item: "outils_voleur", count: 1 },
   { item: "pomme", count: 2 },
 ];

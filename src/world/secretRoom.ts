@@ -140,18 +140,37 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
     }
     // Le creux qui laisse voir dedans : sur le mur commun, à côté de l'entrée (ou l'entrée elle-même) ; il montre la
     // case derrière lui et ses deux voisines, plus la suivante.
-    // Le creux donne toujours sur la salle de l'entrée (Thomas, 2026-11-15 : l'accès n'était pas forcément dans la salle
-    // du trou) : la case devant lui est dans cette salle, pas dans un couloir ni une salle voisine.
+    // Repli : un creux sur le mur de l'entrée, qui donne sur la salle à fouiller.
     const host = floor.rooms[pick.host];
     const inHost = (p: Point) => p.x >= host.x && p.x < host.x + host.w && p.y >= host.y && p.y < host.y + host.h;
     const shared = [-half, half, -1, 1, 0].map((k) => ({ x: entry.x + perp.x * k, y: entry.y + perp.y * k })).filter((p) => {
       const front = { x: p.x - dir.x, y: p.y - dir.y };
       return map.get(p.x, p.y) === Tile.Wall && map.get(front.x, front.y) === Tile.Floor && inHost(front) && !taken(p) && !nearDoor(floor, p);
     });
-    const peek = shared.length > 0 ? shared[rng.int(0, shared.length - 1)] : entry;
+    // MIEUX (Thomas, 2026-11-16 : « l'entrée ne doit pas forcément être du côté de sa fenêtre : pousser le joueur à
+    // trouver la porte ailleurs ») : le creux se met d'abord sur un AUTRE côté de la pièce, qui donne sur une autre
+    // salle ou un couloir ; on voit le trésor d'un côté, il faut chercher l'entrée de l'autre. Sinon, comme avant.
+    const inside = (p: Point) => p.x >= room.x && p.y >= room.y && p.x < room.x + room.w && p.y < room.y + room.h;
+    const elsewhere: { p: Point; d: Point }[] = [];
+    for (const d of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
+      if (d.x === dir.x && d.y === dir.y) continue; // le mur de l'entrée
+      for (let y = room.y - 1; y <= room.y + room.h; y++)
+        for (let x = room.x - 1; x <= room.x + room.w; x++) {
+          const p = { x, y };
+          const q = { x: x + d.x, y: y + d.y };
+          const f = { x: x - d.x, y: y - d.y };
+          if (inside(p) || !inside(q) || map.get(x, y) !== Tile.Wall) continue;
+          if (map.get(f.x, f.y) !== Tile.Floor || inHost(f) || taken(p) || taken(f) || nearDoor(floor, p)) continue;
+          elsewhere.push({ p, d });
+        }
+    }
+    const far = elsewhere.length > 0 ? elsewhere[rng.int(0, elsewhere.length - 1)] : null;
+    const peek = far ? far.p : shared.length > 0 ? shared[rng.int(0, shared.length - 1)] : entry;
+    const look = far ? far.d : dir;
+    const side = { x: look.y !== 0 ? 1 : 0, y: look.x !== 0 ? 1 : 0 };
     furniture.push({ x: peek.x, y: peek.y, kind: rng.chance(0.5) ? "wallHoleA" : "wallHoleB" });
-    const behind = { x: peek.x + dir.x, y: peek.y + dir.y };
-    const view = [behind, { x: behind.x + perp.x, y: behind.y + perp.y }, { x: behind.x - perp.x, y: behind.y - perp.y }, { x: behind.x + dir.x, y: behind.y + dir.y }].filter(
+    const behind = { x: peek.x + look.x, y: peek.y + look.y };
+    const view = [behind, { x: behind.x + side.x, y: behind.y + side.y }, { x: behind.x - side.x, y: behind.y - side.y }, { x: behind.x + look.x, y: behind.y + look.y }].filter(
       (p) => p.x >= room.x && p.y >= room.y && p.x < room.x + room.w && p.y < room.y + room.h,
     );
     return { room, entry, dir, host: pick.host, layout: lay, peek, view, chest, gold, glimpsed: false, found: false };

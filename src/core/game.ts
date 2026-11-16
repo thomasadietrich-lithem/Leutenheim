@@ -3663,8 +3663,19 @@ export class Game {
    * Le joueur désigne une case. Sur un monstre en vue : on va l'attaquer. Sur sa propre case : on attend un tour.
    * Sinon on s'y rend. `ignoreFog` (réservé aux tests) autorise les cases jamais vues.
    */
+  /** Trajet repris par le bouton « avance rapide » : il s'arrête à la prochaine alerte (voir `tick`). */
+  wary = false;
+
+  /** Reprendre un trajet coupé : comme `setDestination`, mais il s'arrêtera à la prochaine interruption. */
+  resumeTravel(x: number, y: number): boolean {
+    const ok = this.setDestination(x, y);
+    this.wary = ok;
+    return ok;
+  }
+
   setDestination(x: number, y: number, ignoreFog = false): boolean {
     if (this.over) return false;
+    this.wary = false;
     // Toucher le poulet : il prend peur (Thomas, 2026-11-13).
     if (this.chickenAt(x, y) && this.isVisible(x, y)) {
       this.path = [];
@@ -4066,7 +4077,20 @@ export class Game {
   /** Joue un tour (action du héros, puis des monstres) si une action est en attente. */
   tick(): boolean {
     trackUniques(this.uniques);
+    const hpBefore = this.hero.hp;
+    const eventsBefore = this.events.length;
     const played = this.playTick();
+    // Trajet repris (Thomas, 2026-11-16 : « jusqu'à la prochaine interruption, pas coûte que coûte ») : il s'arrête dès
+    // que le héros est blessé, qu'un monstre le remarque, ou qu'un monstre éveillé en vue arrive à 3 cases.
+    if (this.wary && this.path.length > 0) {
+      const noticed = this.events.slice(eventsBefore).some((e) => e.type === "noticed");
+      const close = this.visibleMonsters().some((m) => !m.asleep && m.alerted && gapBetween(m, this.hero) <= RULES.waryStopRange);
+      if (this.hero.hp < hpBefore || noticed || close) {
+        this.path = [];
+        this.targetId = null;
+      }
+    }
+    if (this.path.length === 0) this.wary = false;
     // Une porte a bougé après le dernier calcul de la vue (un monstre l'a refermée) : la vue se refait, comme le ferait
     // une partie reprise (sinon le héros « voit » encore à travers la porte fermée).
     if (this.map.version !== this.visionVersion) this.updateVision();

@@ -1346,6 +1346,13 @@ export class Renderer {
     ctx.imageSmoothingEnabled = smooth;
   }
 
+  /** Une torche qu'on allume : la lumière s'étend en un peu moins d'une seconde. */
+  torchFlare(): void {
+    this.torchFlareAt = this.time;
+  }
+  private torchFlareAt = -1e9;
+  private static readonly FLARE_MS = 900;
+
   /** Le Carillon vient de sonner : l'onde part de son battant (et le dessin vibre un instant). */
   carillonRing(x: number, y: number): void {
     this.carillonRingAt = this.time;
@@ -1788,6 +1795,8 @@ export class Renderer {
       path.rect(x, y, w, h);
     };
     const q = (a: number) => (Math.round(a * 64) / 64).toFixed(4);
+    const flareAge = this.time - this.torchFlareAt;
+    const flareR = flareAge >= 0 && flareAge < Renderer.FLARE_MS ? 1 + (RULES.torchRadius + 2) * (1 - Math.pow(1 - flareAge / Renderer.FLARE_MS, 2)) : null;
     // Section 2 : la lumière des champignons est bleu-vert, pas orange.
     const champi = game.look() === "champi";
     for (let y = y0; y <= y1; y++) {
@@ -1810,6 +1819,15 @@ export class Renderer {
         // Les murs restent lisibles même dans l'ombre : on les assombrit moins que le sol.
         const shade = wall ? 0.6 : 1;
         if (game.isVisible(x, y)) {
+          // Torche qu'on allume (Thomas, 2026-11-16 : « voir le champ augmenter ») : un cercle de lumière qui
+          // s'élargit depuis le héros ; au-delà, les cases restent dans le noir le temps de l'animation.
+          if (flareR !== null) {
+            const d = Math.hypot(x - hero.x, y - hero.y);
+            if (d > flareR) {
+              veil(`rgba(8,7,14,${q(Math.min(0.9, (d - flareR) * 0.6))})`, rx, ry, rw, rh);
+              continue;
+            }
+          }
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
           // Un mur ne montre que la lumière qui tombe sur la face qu'on regarde : celle des cases dégagées
           // en vue qui le touchent. Le feu d'une salle qu'on ne voit pas ne colore pas l'autre côté du mur.
@@ -1830,6 +1848,21 @@ export class Renderer {
     for (const [style, path] of [...veils].sort((a, b) => Number(!a[0].startsWith("rgba(12") && !a[0].startsWith("rgba(8")) - Number(!b[0].startsWith("rgba(12") && !b[0].startsWith("rgba(8")))) {
       ctx.fillStyle = style;
       ctx.fill(path);
+    }
+    // La torche qu'on allume : un anneau de lumière chaude qui s'élargit jusqu'au bout de son rayon.
+    if (flareR !== null) {
+      const fade = 1 - flareAge / Renderer.FLARE_MS;
+      const hx = ox + (hero.x + 0.5) * tile;
+      const hy = oy + (hero.y + 0.5) * tile;
+      const r = flareR * tile;
+      const ring = ctx.createRadialGradient(hx, hy, Math.max(0, r - tile * 1.2), hx, hy, r);
+      ring.addColorStop(0, "rgba(255,170,60,0)");
+      ring.addColorStop(0.75, `rgba(255,180,70,${(0.35 * fade).toFixed(3)})`);
+      ring.addColorStop(1, "rgba(255,170,60,0)");
+      ctx.fillStyle = ring;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     this.drawAreas(game, ox, oy);
@@ -2695,7 +2728,7 @@ export class Renderer {
         }
       }
       // Au-dessus : les « Z » du Kobold endormi, les croches du tourne-disque.
-      const over = !visible ? null : f.kind === "tub" && bath && !bath.out ? `zzz${frame}` : f.kind === "gramophone" && bath?.music ? `notes${frame}` : null;
+      const over = !visible ? null : f.kind === "tub" && bath && !bath.out ? `zzz${frame}` : f.kind === "gramophone" && bath?.music ? `notes${Math.floor(performance.now() / 480) % 3}` : null;
       const extra = over ? BAIN[over] : undefined;
       if (extra) {
         const ex = f.kind === "tub" ? px + 6 : px - 4;

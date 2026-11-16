@@ -5328,18 +5328,25 @@ test("angle de mur (Thomas, 2026-11-15) : le monstre qui tourne le coin arrive s
   assert.ok(game.heroHasAdvantageOn(m));
 });
 
-test("pièce secrète : le creux donne toujours sur la salle où l'on fouille pour l'ouvrir (Thomas, 2026-11-15)", () => {
+test("pièce secrète : le creux donne de préférence ailleurs que sur la salle de l'entrée (Thomas, 2026-11-16)", () => {
   let n = 0;
+  let away = 0;
   for (let seed = 1; seed <= 200; seed++) {
     const game = new Game(seed);
     const s = game.secretRoom();
     if (!s) continue;
     n++;
     const host = game.rooms[s.host];
-    const front = { x: s.peek.x - s.dir.x, y: s.peek.y - s.dir.y };
-    assert.ok(front.x >= host.x && front.y >= host.y && front.x < host.x + host.w && front.y < host.y + host.h, `graine ${seed} : le creux donne hors de la salle de l'entrée`);
+    // Le creux touche la pièce, et une case de sol dehors le regarde.
+    const inRoom = (p: { x: number; y: number }) => p.x >= s.room.x && p.y >= s.room.y && p.x < s.room.x + s.room.w && p.y < s.room.y + s.room.h;
+    const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => inRoom({ x: s.peek.x + dx, y: s.peek.y + dy }));
+    assert.ok(sides.length > 0, `graine ${seed} : le creux touche la pièce`);
+    const [dx, dy] = sides[0];
+    const front = { x: s.peek.x - dx, y: s.peek.y - dy };
+    assert.ok(game.map.isWalkable(front.x, front.y), `graine ${seed} : on peut s'en approcher`);
+    if (!(front.x >= host.x && front.y >= host.y && front.x < host.x + host.w && front.y < host.y + host.h)) away++;
   }
-  assert.ok(n > 20);
+  assert.ok(n > 20 && away > n / 4, `creux ailleurs : ${away} / ${n}`);
 });
 
 test("section 2 (Thomas, 2026-11-15) : texte d'arrivée une seule fois, décor de la section 2 autour de l'escalier scellé", () => {

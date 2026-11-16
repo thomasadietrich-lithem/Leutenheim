@@ -190,6 +190,10 @@
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
+  #hero-status button { position: relative; }
+  #hero-status .st-gauge { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 4px; background: #2a2016; box-shadow: 0 0 0 1px #0c0906; }
+  #hero-status .st-gauge i { display: block; height: 100%; background: #f0a030; }
+  #hero-status .st-gauge.low i { background: #d04a2a; }
   #status-pop.right { left: auto; right: 6px; }
   #status-pop { position: absolute; top: 42px; left: 6px; z-index: 1; width: min(260px, 80%); padding: 8px; background: #241c14; box-shadow: inset 0 0 0 2px var(--gold); font-size: 17px; color: var(--dim); }
   #status-pop b { display: block; color: #fff3c8; font-weight: normal; font-size: 20px; text-transform: uppercase; }
@@ -393,6 +397,18 @@
   #codex-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
   #codex-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
   #succes-tabs { display: flex; gap: 6px; width: 100%; }
+  #settings-tabs { display: flex; gap: 6px; width: 100%; }
+  #settings-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
+  #settings-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
+  #pane-general, #pane-son { display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: stretch; }
+  #pane-general[hidden], #pane-son[hidden] { display: none; }
+  .mixer { display: flex; align-items: center; gap: 6px; }
+  .mixer-name { flex: 0 0 96px; font-size: 20px; text-transform: uppercase; }
+  .mixer > button { width: 38px; height: 38px; padding: 0; font-size: 22px; }
+  .mixer-bars { flex: 1; display: flex; align-items: flex-end; gap: 5px; height: 38px; }
+  .mixer-bars button { flex: 1; padding: 0; min-width: 0; background: #2a2016; border: 2px solid #4a3e2a; }
+  .mixer-bars button.on { background: var(--gold); border-color: #fff3c8; }
+  .mixer-off { font-size: 16px; color: var(--dim); text-align: center; margin-top: -4px; }
   #succes-tabs button { flex: 1; padding: 6px 2px; font-size: 18px; }
   #succes-tabs button.active { background: #4a3408; color: #fff3c8; border-color: var(--gold); }
   #pane-succes[hidden], #records-list[hidden] { display: none; }
@@ -790,11 +806,16 @@
     </section>
     <section id="screen-settings" hidden>
       <h2>Paramètres</h2>
-      <button id="settings-sound" type="button"></button>
-      <button id="settings-music" type="button"></button>
-      <button id="settings-blood" type="button"></button>
-      <button id="settings-stats" type="button" hidden></button>
-      <button id="settings-lang" type="button"></button>
+      <div id="settings-tabs"><button id="tab-general" type="button" class="active">Général</button><button id="tab-son" type="button">Son</button></div>
+      <div id="pane-general">
+        <button id="settings-blood" type="button"></button>
+        <button id="settings-stats" type="button" hidden></button>
+        <button id="settings-lang" type="button"></button>
+      </div>
+      <div id="pane-son" hidden>
+        <div class="mixer"><span class="mixer-name">Bruitages</span><button id="vol-sound-minus" type="button" aria-label="Moins fort">−</button><div id="vol-sound" class="mixer-bars"></div><button id="vol-sound-plus" type="button" aria-label="Plus fort">+</button></div>
+        <div class="mixer"><span class="mixer-name">Musique</span><button id="vol-music-minus" type="button" aria-label="Moins fort">−</button><div id="vol-music" class="mixer-bars"></div><button id="vol-music-plus" type="button" aria-label="Plus fort">+</button></div>
+      </div>
       <div id="settings-note"></div>
       <button id="settings-back" type="button" class="ghost">Retour</button>
     </section>

@@ -1851,4 +1851,10 @@ export const EN: Record<string, string> = {
   "Carillon doux : l'encre ne commence qu'après la première onde, un tour sur deux.": "Gentle Carillon: the ink only starts after the first wave, every other turn.",
   "Carillon : l'onde seule, ni encre ni chapeau.": "Carillon: the wave only, no ink, no cap.",
   "Carillon dur : l'encre dès l'arrivée, à chaque tour.": "Hard Carillon: ink from the start, every turn.",
+  "Général": "General",
+  "Son": "Sound",
+  "Bruitages": "Sound effects",
+  "Musique": "Music",
+  "Moins fort": "Quieter",
+  "Plus fort": "Louder",
 };

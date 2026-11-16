@@ -61,3 +61,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_11h00 | 3ef24e2 | 23.5 | 22.1 | 22.2 | 25 | 16.7 | 25 | 0.95 | 0.27 | Carillon tous les 8 tours, triche Stuff |
 | 2026-11-16_14h20 | e7b1ca0 | 22.5 | 22.7 | 22.7 | 23.4 | 16.7 | 26.9 | 0.81 | 0.21 | Carillon : pluie d'encre, chapeau, souches resserrées |
 | 2026-11-16_14h27 | ad39755 | 23.9 | 22.2 | 22.6 | 19.4 | 16.7 | 25 | 0.59 | 0.28 | Carillon doux, abri des monstres, mode d'essai |
+| 2026-11-16_17h16 | 2c3cecf | 23.5 | 23.5 | 19.7 | 22.2 | 16.7 | 22.3 | 0.87 | 0.36 | torche animée, mélangeur, double toucher, creux ailleurs |

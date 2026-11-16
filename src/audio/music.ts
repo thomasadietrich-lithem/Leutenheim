@@ -32,6 +32,17 @@ export class Music {
 
   constructor(private readonly getContext: () => AudioContext | null) {}
 
+  /** Volume de la musique (mélangeur à 5 niveaux) : 1 = le volume d'origine. */
+  private level = 1;
+  setVolume(v: number): void {
+    this.level = v;
+    const ctx = this.getContext();
+    if (ctx && this.out && this.playing) {
+      this.out.gain.cancelScheduledValues(ctx.currentTime);
+      this.out.gain.setTargetAtTime(VOLUME * v, ctx.currentTime, 0.1);
+    }
+  }
+
   /** À appeler à chaque image : prépare les mesures un peu à l'avance ; coupe en douceur si la musique est désactivée. */
   update(): void {
     const ctx = this.getContext();
@@ -50,7 +61,7 @@ export class Music {
     if (!this.playing) {
       this.playing = true;
       out.gain.cancelScheduledValues(now);
-      out.gain.setTargetAtTime(VOLUME, now, 1.2);
+      out.gain.setTargetAtTime(VOLUME * this.level, now, 1.2);
       this.nextBar = Math.max(this.nextBar, now + 0.1);
     }
     // Une mesure à la fois, préparée au plus 0,4 s avant qu'elle ne commence.

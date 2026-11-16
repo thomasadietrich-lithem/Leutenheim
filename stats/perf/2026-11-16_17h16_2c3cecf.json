@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T17:16:56.542Z",
+ "commit": "2c3cecf",
+ "note": "torche animée, mélangeur, double toucher, creux ailleurs",
+ "logic": {
+  "tickMs": 0.87,
+  "lightMs": 0.36,
+  "visionMs": 0.14
+ },
+ "scenes": {
+  "immobile": {
+   "n": 105,
+   "avg": 23.5,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 43,
+   "js": 7
+  },
+  "marche": {
+   "n": 213,
+   "avg": 23.5,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 43,
+   "js": 4
+  },
+  "retour": {
+   "n": 254,
+   "avg": 19.7,
+   "p95": 33.3,
+   "max": 33.4,
+   "fps": 51,
+   "js": 4
+  },
+  "zoom": {
+   "n": 120,
+   "avg": 22.2,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 45,
+   "js": 5
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.4,
+   "fps": 60,
+   "js": 9
+  },
+  "donjon": {
+   "n": 224,
+   "avg": 22.3,
+   "p95": 33.4,
+   "max": 133.4,
+   "fps": 45,
+   "js": 12
+  }
+ },
+ "errors": []
+}

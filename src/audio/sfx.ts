@@ -48,6 +48,22 @@ export class Sfx {
   private fluteAt = 0;
   private recordAt = 0;
 
+  /** Volume des bruitages (Thomas, 2026-11-16 : un mélangeur à 5 niveaux) : 1 = le volume d'origine. */
+  private bus: GainNode | null = null;
+  private level = 1;
+  setVolume(v: number): void {
+    this.level = v;
+    if (this.bus) this.bus.gain.value = v;
+  }
+  private output(ctx: AudioContext): AudioNode {
+    if (!this.bus) {
+      this.bus = ctx.createGain();
+      this.bus.gain.value = this.level;
+      this.bus.connect(ctx.destination);
+    }
+    return this.bus;
+  }
+
   /** Le contexte audio (partagé avec la musique), une fois débloqué par un geste du joueur. */
   context(): AudioContext | null {
     return this.ctx;
@@ -76,7 +92,7 @@ export class Sfx {
     osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), t + duration);
     gain.gain.setValueAtTime(volume, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this.output(ctx));
     osc.start(t);
     osc.stop(t + duration + 0.02);
   }
@@ -96,7 +112,7 @@ export class Sfx {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(volume, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
-    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.connect(filter).connect(gain).connect(this.output(ctx));
     src.start(t);
   }
 
@@ -117,7 +133,7 @@ export class Sfx {
     filter.Q.value = q;
     const gain = ctx.createGain();
     gain.gain.value = volume;
-    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.connect(filter).connect(gain).connect(this.output(ctx));
     src.start(t);
   }
 

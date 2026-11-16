@@ -104,12 +104,18 @@ const menu = $("menu");
 // ---------- Options (mémorisées sur l'appareil quand c'est possible) ----------
 
 /** Réglages (Thomas, 2026-11-12) : bruitages et musique séparés ; langue (français ou anglais). */
-const options = { sound: true, music: true, blood: true, lang: "fr" as "fr" | "en" };
+const options = { sound: true, music: true, blood: true, lang: "fr" as "fr" | "en", soundLevel: 4, musicLevel: 4 };
 try {
-  Object.assign(options, JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}"));
+  const saved = JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}") as Partial<typeof options>;
+  Object.assign(options, saved);
+  // Avant le mélangeur (Thomas, 2026-11-16) : « oui / non » ; « non » devient le niveau 0.
+  if (saved.soundLevel === undefined) options.soundLevel = options.sound ? 4 : 0;
+  if (saved.musicLevel === undefined) options.musicLevel = options.music ? 4 : 0;
 } catch {
   /* pas de stockage : on garde les réglages par défaut */
 }
+/** Mélangeur à 5 niveaux (0 : coupé) ; le niveau 4 est le volume d'origine. */
+const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1, 1.4];
 function saveOptions(): void {
   try {
     localStorage.setItem(OPTIONS_KEY, JSON.stringify(options));
@@ -147,10 +153,17 @@ function translatePage(root: Node = document.body): void {
 translatePage();
 
 const sfx = new Sfx();
-sfx.enabled = options.sound;
 // Musique « Crypte », en direct : elle suit le niveau d'alerte de l'étage (Thomas, 2026-11-12).
 const music = new Music(() => sfx.context());
-music.enabled = options.music;
+function applyAudio(): void {
+  options.sound = options.soundLevel > 0;
+  options.music = options.musicLevel > 0;
+  sfx.enabled = options.sound;
+  sfx.setVolume(VOLUME_STEPS[options.soundLevel]);
+  music.enabled = options.music;
+  music.setVolume(VOLUME_STEPS[options.musicLevel]);
+}
+applyAudio();
 const renderer = new Renderer(canvas);
 renderer.setBlood(options.blood);
 
@@ -987,6 +1000,7 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
   } else if (e.type === "used") {
     sfx.play(e.healed !== undefined ? "heal" : "pickup");
+    if (e.item === "torche") renderer.torchFlare();
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
@@ -1857,7 +1871,7 @@ function watchTravel(): void {
 button("resume", () => {
   const to = resumeTo;
   if (!to) return;
-  if (game.setDestination(to.x, to.y)) {
+  if (game.resumeTravel(to.x, to.y)) {
     stepMs = stepDuration(game.path.length);
     noteTravel(to.x, to.y);
   } else resumeTo = null;
@@ -2369,6 +2383,12 @@ function renderBag(): void {
       node.setAttribute("aria-label", tr(label));
       node.addEventListener("click", () => {
         sfx.play("click");
+        // Double toucher sur un objet porté (Thomas, 2026-11-16) : il retourne au sac.
+        if (worn && isDoubleTap(`slot-${slot}`)) {
+          selected = { slot };
+          ($("bag-equip") as HTMLButtonElement).click();
+          return;
+        }
         selected = worn && selectedSlot !== slot ? { slot } : null;
         renderHeroScreen();
       });
@@ -2431,6 +2451,7 @@ function renderBag(): void {
       logLines.push("Pas de torche : utilisez-en une depuis le sac.");
     } else if (game.toggleTorch()) {
       logLines.push(game.torchOff ? "Vous éteignez la torche." : "Vous rallumez la torche.");
+      if (!game.torchOff) renderer.torchFlare();
     }
     renderLog();
     renderHeroScreen();
@@ -2547,6 +2568,15 @@ $("bag-grid").addEventListener("pointerdown", (e) => {
     renderHeroScreen();
   }, LONG_PRESS_MS);
 });
+/** Deux touchers sur la même chose en moins de 0,4 s. */
+let lastTap = { key: "", at: 0 };
+function isDoubleTap(key: string): boolean {
+  const now = performance.now();
+  const double = lastTap.key === key && now - lastTap.at < 400;
+  lastTap = double ? { key: "", at: 0 } : { key, at: now };
+  return double;
+}
+const WEARABLE_KINDS = new Set(["melee", "ranged", "armor", "hat", "amulet", "artifact", "bag"]);
 $("bag-grid").addEventListener("pointermove", (e) => {
   if (pressStart && Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > 10) cancelPress();
 });
@@ -2564,6 +2594,12 @@ $("bag-grid").addEventListener("click", (e) => {
   const y = Math.floor(((e.clientY - rect.top) / rect.height) * bag.rows);
   const hit = bag.at(x, y);
   const selectedUid = selected && "uid" in selected ? selected.uid : null;
+  // Double toucher sur un équipement du sac (Thomas, 2026-11-16 : « double clic équipement ») : il est porté.
+  if (hit && isDoubleTap(`bag-${hit.uid}`) && WEARABLE_KINDS.has(ITEMS[hit.defId].kind)) {
+    selected = { uid: hit.uid };
+    ($("bag-equip") as HTMLButtonElement).click();
+    return;
+  }
   if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
   else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
   sfx.play("click");
@@ -2905,7 +2941,7 @@ $("alarm-badge").addEventListener("click", (ev) => {
 
 function renderHeroStatus(): void {
   const list = heroStatuses();
-  const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${statusOpen}#${statusOpen === "tocsin" ? game.alarm().level : ""}`;
+  const key = list.map((st) => `${st.id}:${st.detail}`).join("|") + `#${game.torchTurns}#${statusOpen}#${statusOpen === "tocsin" ? game.alarm().level : ""}`;
   if (key === statusShown) return;
   statusShown = key;
   $("hero-status").replaceChildren(
@@ -2914,6 +2950,16 @@ function renderHeroStatus(): void {
       b.type = "button";
       b.setAttribute("aria-label", tr(st.name));
       b.append(buildIcon(STATUS_ICONS[st.id]));
+      // Torche (Thomas, 2026-11-16) : une mini jauge de ce qu'il lui reste à brûler.
+      if (st.id === "torche") {
+        const full = (ITEMS.torche as ItemDef).lightTurns ?? 300;
+        const left = Math.max(0, Math.min(1, game.torchTurns / full));
+        const gauge = el("span", left < 0.2 ? "st-gauge low" : "st-gauge");
+        const bar = el("i", "");
+        bar.style.width = `${Math.round(left * 100)}%`;
+        gauge.append(bar);
+        b.append(gauge);
+      }
       b.addEventListener("click", (ev) => {
         ev.stopPropagation();
         statusOpen = statusOpen === st.id ? null : st.id;
@@ -3257,8 +3303,7 @@ function showScreen(screen: Screen | null): void {
   if ((!started || game.over) && savedRun === null) savedRun = readSave();
   $("menu-resume").hidden = false;
   ($("menu-resume") as HTMLButtonElement).disabled = (!started || game.over) && savedRun === null;
-  $("settings-sound").textContent = tr(`Bruitages : ${options.sound ? "oui" : "non"}`);
-  $("settings-music").textContent = tr(`Musique : ${options.music ? "oui" : "non"}`);
+  if (screen === "settings") renderMixer();
   $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);
   // Statistiques anonymes : le réglage n'apparaît que lorsque l'adresse d'envoi est réglée.
   $("settings-stats").hidden = !TELEMETRY.url;
@@ -3616,13 +3661,43 @@ button("settings-blood", () => {
   sfx.play("click");
   showScreen("settings");
 });
-button("settings-music", () => {
-  options.music = !options.music;
-  music.enabled = options.music;
+// Paramètres en deux onglets (Thomas, 2026-11-16) : Général, et Son (mélangeur à 5 niveaux).
+function showSettingsTab(tab: "general" | "son"): void {
+  $("tab-general").classList.toggle("active", tab === "general");
+  $("tab-son").classList.toggle("active", tab === "son");
+  $("pane-general").hidden = tab !== "general";
+  $("pane-son").hidden = tab !== "son";
+  renderMixer();
+}
+button("tab-general", () => showSettingsTab("general"));
+button("tab-son", () => showSettingsTab("son"));
+function setLevel(which: "soundLevel" | "musicLevel", level: number): void {
+  options[which] = Math.max(0, Math.min(5, level));
+  applyAudio();
   saveOptions();
   sfx.play("click");
-  showScreen("settings");
-});
+  renderMixer();
+}
+function renderMixer(): void {
+  for (const [id, which] of [["vol-sound", "soundLevel"], ["vol-music", "musicLevel"]] as const) {
+    const level = options[which];
+    $(id).replaceChildren(
+      ...[1, 2, 3, 4, 5].map((n) => {
+        const bar = el("button", n <= level ? "on" : "") as HTMLButtonElement;
+        bar.type = "button";
+        bar.style.height = `${30 + n * 14}%`;
+        bar.setAttribute("aria-label", `${n} / 5`);
+        // Toucher la barre la plus haute allumée l'éteint (on descend d'un cran ; la première : coupé).
+        bar.addEventListener("click", () => setLevel(which, n === level ? n - 1 : n));
+        return bar;
+      }),
+    );
+  }
+}
+button("vol-sound-minus", () => setLevel("soundLevel", options.soundLevel - 1));
+button("vol-sound-plus", () => setLevel("soundLevel", options.soundLevel + 1));
+button("vol-music-minus", () => setLevel("musicLevel", options.musicLevel - 1));
+button("vol-music-plus", () => setLevel("musicLevel", options.musicLevel + 1));
 button("settings-lang", () => {
   options.lang = options.lang === "fr" ? "en" : "fr";
   saveOptions();
@@ -3734,13 +3809,7 @@ for (const kind of ["schrat", "frondeur", "araignee"] as const) {
     renderLog();
   });
 }
-button("settings-sound", () => {
-  options.sound = !options.sound;
-  sfx.enabled = options.sound;
-  saveOptions();
-  sfx.play("click");
-  showScreen("settings");
-});
+
 
 let gravelCrik = true;
 

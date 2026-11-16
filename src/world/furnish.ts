@@ -4,6 +4,7 @@ import { FURNITURE_KINDS, isFlat } from "../data/themedRooms";
 import { Floor, Room } from "./generator";
 import { GameMap, Point, Tile } from "./map";
 import { isChokepoint } from "./pathfinding";
+import { carvePocket } from "./secretRoom";
 
 /**
  * Un meuble : `x`, `y` = sa case en haut à gauche ; il couvre `FURNITURE_KINDS[kind].w × h` cases. Ceux qui bloquent
@@ -258,15 +259,30 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
       }
     }
   }
-  // Salle de bain du Kobold (truc fun, Thomas 2026-11-13) : la plus petite salle qui convient (4 × 4 au moins).
+  // Salle de bain du Kobold (truc fun, Thomas 2026-11-13) : une PETITE salle (Thomas, 2026-11-16 : « plus petite ») :
+  // une salle à une seule porte de 20 cases au plus ; sinon un cabinet de 5 × 4 taillé dans la roche au-dessus d'une
+  // salle ordinaire, derrière une porte (la baignoire au fond, face à la porte).
   if (bath) {
     const candidates = floor.rooms
       .map((room, index) => ({ room, index }))
-      .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && room.w >= 4 && room.h >= 4 && singleDoor(floor, room))
+      .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && room.w >= 4 && room.h >= 4 && room.w * room.h <= RULES.bathMaxArea && singleDoor(floor, room))
       .sort((a, b) => a.room.w * a.room.h - b.room.w * b.room.h);
     for (const { room, index } of candidates) {
       if (furnishBath(floor, room, new Rng(seed ^ 0xba7b), furniture)) {
         themes.push({ room: index, id: "bain" });
+        break;
+      }
+    }
+    if (!themes.some((t) => t.id === "bain")) {
+      const brng = new Rng(seed ^ 0xba7c);
+      const hosts = floor.rooms.map((_, index) => index).filter((index) => index > 0 && !themes.some((t) => t.room === index));
+      while (hosts.length > 0) {
+        const host = hosts.splice(brng.int(0, hosts.length - 1), 1)[0];
+        const pocket = carvePocket(floor, furniture, brng, host, 5, 4, -1);
+        if (!pocket) continue;
+        floor.map.set(pocket.entry.x, pocket.entry.y, Tile.DoorClosed);
+        floor.rooms.push(pocket.room);
+        if (furnishBath(floor, pocket.room, new Rng(seed ^ 0xba7b), furniture)) themes.push({ room: floor.rooms.length - 1, id: "bain" });
         break;
       }
     }

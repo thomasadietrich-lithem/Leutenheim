@@ -182,7 +182,7 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
  * Une petite pièce W × D taillée dans la roche contre un mur de la salle `host` (le poulailler de la ferme) : rend la
  * pièce et la case de mur entre les deux (à transformer en porte), ou `null`. Mêmes règles que la pièce secrète.
  */
-export function carvePocket(floor: Floor, furniture: Furniture[], rng: Rng, host: number, W: number, D: number): { room: Room; entry: Point; dir: Point } | null {
+export function carvePocket(floor: Floor, furniture: Furniture[], rng: Rng, host: number, W: number, D: number, dirY?: number): { room: Room; entry: Point; dir: Point } | null {
   const { map } = floor;
   const inRoom = (p: Point) => floor.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
   const taken = (p: Point) => furniture.some((f) => furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
@@ -191,6 +191,7 @@ export function carvePocket(floor: Floor, furniture: Furniture[], rng: Rng, host
   if (!r) return null;
   const found: { entry: Point; dir: Point; room: Room }[] = [];
   for (const { cell: e, dir } of roomWalls(floor, r)) {
+    if (dirY !== undefined && dir.y !== dirY) continue;
     const xs = dir.x !== 0 ? [e.x + dir.x, e.x + dir.x * D] : [e.x - half, e.x + half];
     const ys = dir.y !== 0 ? [e.y + dir.y, e.y + dir.y * D] : [e.y - half, e.y + half];
     const room: Room = { x: Math.min(...xs), y: Math.min(...ys), w: Math.abs(xs[1] - xs[0]) + 1, h: Math.abs(ys[1] - ys[0]) + 1 };

@@ -171,6 +171,8 @@ export const RULES = {
   carillonInkDrops: 3,
   /** Trajet repris (bouton avance rapide) : il s'arrête quand un monstre alerté arrive à tant de cases. (C) */
   waryStopRange: 3,
+  /** Salle de bain du Kobold (Thomas, 2026-11-16 : « plus petite ») : 20 cases au plus, sinon un cabinet taillé. */
+  bathMaxArea: 20,
   carillonInkDropsHard: 4,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */

@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 35;
+export const SANDBOX_LAYOUT = 36;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -261,7 +261,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   const [bellRoom, counterRoom, bathRoom, chickenHall, trapRoom, altarRoom] = chain(91, 28, -1, [
     { w: 9, h: 7, name: "La cloche" },
     { w: 9, h: 7, name: "Le Kobold qui compte" },
-    { w: 7, h: 5, name: "Salle de bain" },
+    { w: 5, h: 4, name: "Salle de bain" },
     { w: 9, h: 7, name: "Le poulet" },
     { w: 11, h: 7, name: "Pièges et sols" },
     { w: 11, h: 7, name: "Autel et coffre" },
@@ -280,6 +280,8 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   torches.push({ x: rooms[counterRoom].x + 7, y: rooms[counterRoom].y - 1, radius: 6, faceX: 0, faceY: 1 });
   furnishBath(floorPlan(), rooms[bathRoom], new Rng(seeds.bath), furniture);
   themes.push({ room: bathRoom, id: "bain" });
+  // Petite salle (Thomas, 2026-11-16) : l'écriteau monte d'une case pour ne pas cacher la baignoire.
+  signs.find((s) => s.text === "Salle de bain")!.y -= 1;
   // Le poulet attend au milieu de sa salle ; la salle fermée est au-dessus, porte dans le mur du haut.
   const hall = rooms[chickenHall];
   const lockedRoom: Room = { x: hall.x + 2, y: hall.y - 6, w: 5, h: 5 };

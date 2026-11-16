@@ -69,3 +69,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_20h54 | f79659b | 26.9 | 25.2 | 26 | 24.4 | 16.7 | 18 | 0.74 | 0.44 | musique harpe et cordes (v4 C) |
 | 2026-11-16_20h57 | f79659b | 29.9 | 31.2 | 30.5 | 32.1 | 16.7 | 24.1 | 0.51 | 0.35 | Paramètres en sous-menus, fiche de race, astuces, flèches de recul, casque de mailles |
 | 2026-11-16_21h10 | 636af84 | 24.5 | 23.8 | 24.1 | 22.2 | 16.7 | 20.1 | 0.59 | 0.29 | double toucher pour consommer (après les races) |
+| 2026-11-16_21h12 | c3cc86b | 21.5 | 20.3 | 21.2 | 21.4 | 16.7 | 17.8 | 0.65 | 0.4 | PNJ sur la moitié des étages |

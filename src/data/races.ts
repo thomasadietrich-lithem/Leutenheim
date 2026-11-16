@@ -38,6 +38,8 @@ export interface RaceDef {
   bowBonus: number;
   /** ARCHER : pas de désavantage pour tirer vers une case qu'il ne voit pas. */
   blindShot: boolean;
+  /** Tir au contact (Elfe, Thomas 2026-11-16) : pas de désavantage à l'arc quand un ennemi est au contact. */
+  closeShot?: boolean;
   /** ŒIL DE LYNX : avantage à l'arc sur une cible à cette distance ou plus (0 : jamais). */
   lynxRange: number;
   /** Objets de départ, en plus de ceux de la classe. Ni potion ni or (Thomas, 2026-11-16). */
@@ -128,6 +130,7 @@ export const RACES = {
       "Vue perçante : il voit plus loin, dans le noir comme en lumière.",
       "Archer : +2 à l'arc ; pas de désavantage vers une case qu'il ne voit pas.",
       "Œil de lynx : avantage à l'arc sur une cible à 5 cases ou plus.",
+      "Tir au contact : pas de désavantage à l'arc quand un ennemi le touche.",
       "Beau parleur : Charisme +5.",
       "Faiblesse : Force −1.",
       "Départ : cinq flèches de plus et cinq flèches de recul.",
@@ -135,6 +138,7 @@ export const RACES = {
     abilities: [
       { id: "archer", name: "Archer", text: "+2 à l'arc, et pas de désavantage vers une case qu'il ne voit pas." },
       { id: "lynx", name: "Œil de lynx", text: "Avantage à l'arc sur une cible à 5 cases ou plus." },
+      { id: "contact", name: "Tir au contact", text: "Pas de désavantage à l'arc quand un ennemi le touche : il tire même au corps à corps." },
     ],
     hpBonus: 0,
     darkVision: 6,
@@ -143,6 +147,7 @@ export const RACES = {
     charisme: 5,
     bowBonus: 2,
     blindShot: true,
+    closeShot: true,
     lynxRange: 5,
     startingItems: [
       { item: "fleche", count: 5 },

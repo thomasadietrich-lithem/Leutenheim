@@ -89,6 +89,9 @@ export const RULES = {
   secretChanceMax: 0.6,
   /** Une cache contient de l'or (de min à max, plus un bonus par étage) ou, sinon, quelques flèches. */
   secretGoldChance: 0.6,
+  /** Moins d'or partout (Thomas, 2026-11-16 : « réduis la quantité d'or qu'on ramasse à toutes les étapes ») : tas,
+   *  coffres, caches, pièces secrètes, monstres (pas les récompenses des PNJ). (C) */
+  goldFactor: 0.6,
   secretGoldMin: 6,
   secretGoldMax: 16,
   secretGoldPerDepth: 2,

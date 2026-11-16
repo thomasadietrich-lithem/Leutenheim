@@ -1,3 +1,4 @@
+import { RULES } from "./rules";
 import { ItemId, Rarity } from "./items";
 
 /**
@@ -58,7 +59,12 @@ export function goldRange(depth: number, size: "small" | "medium" | "large"): [n
   const section = sectionOf(depth);
   const row = GOLD_PILES[Math.min(section, GOLD_PILES.length - 1)][size];
   const factor = 2 ** Math.max(0, section - (GOLD_PILES.length - 1));
-  return [row[0] * factor, row[1] * factor];
+  return [lessGold(row[0] * factor), lessGold(row[1] * factor)];
+}
+
+/** L'or trouvé, réduit (Thomas, 2026-11-16) : au moins une pièce. */
+export function lessGold(n: number): number {
+  return Math.max(1, Math.round(n * RULES.goldFactor));
 }
 
 /**

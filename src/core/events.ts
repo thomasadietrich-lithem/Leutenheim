@@ -26,6 +26,8 @@ export type GameEvent =
       kept: boolean;
       /** Une javeline plutôt qu'une flèche (dessin en vol et morceaux brisés). */
       javelin?: boolean;
+      /** Une pierre de lance-pierre (le Halfelin). */
+      stone?: boolean;
       /** Le rebond d'une flèche ricochante, de la première cible vers la deuxième. */
       ricochet?: boolean;
     }

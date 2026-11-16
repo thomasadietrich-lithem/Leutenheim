@@ -176,6 +176,8 @@ let game: Game;
 let logLines: string[] = [];
 let menuOpen = true;
 let bagOpen = false;
+/** Une torche allumée dans le sac : sa lumière s'étend quand le sac se referme. */
+let flarePending = false;
 /** Objet sélectionné dans l'écran du sac : dans le sac (par identifiant) ou porté (par emplacement). */
 let selected: { uid: number } | { slot: Slot } | null = null;
 /** Vrai : l'arc est bandé, le prochain toucher tire une flèche. Puis on revient à l'arme de corps à corps. */
@@ -612,10 +614,10 @@ function launchArrow(e: GameEvent | undefined): void {
   renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
   if (e.via) {
     // Elle heurte l'obstacle, puis retombe en tournoyant.
-    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y, 0, false, false, !!e.javelin);
-    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true, false, !!e.javelin);
+    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y, 0, false, !!e.stone, !!e.javelin);
+    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true, !!e.stone, !!e.javelin);
   } else {
-    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 0, false, false, !!e.javelin);
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 0, false, !!e.stone, !!e.javelin);
   }
 }
 
@@ -828,7 +830,7 @@ function reveal(e: GameEvent): void {
       sfx.play(e.action === "pick" ? "unlock" : "break");
     }
   } else if (e.type === "arrow") {
-    if (!launched.has(e)) sfx.play("bow");
+    if (!launched.has(e)) sfx.play(e.stone ? "whoosh" : "bow");
     launchArrow(e);
   } else if (e.type === "pickup") {
     discover([e.item]);
@@ -1037,7 +1039,8 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
   } else if (e.type === "used") {
     sfx.play(e.healed !== undefined ? "heal" : "pickup");
-    if (e.item === "torche") renderer.torchFlare();
+    // Allumée depuis le sac : l'animation attend qu'on le referme (Thomas, 2026-11-16).
+    if (e.item === "torche") flarePending = true;
   } else if (e.type === "noticed") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#ffd75e");
     sfx.play("notice");
@@ -2525,7 +2528,7 @@ function renderBag(): void {
       logLines.push("Pas de torche : utilisez-en une depuis le sac.");
     } else if (game.toggleTorch()) {
       logLines.push(game.torchOff ? "Vous éteignez la torche." : "Vous rallumez la torche.");
-      if (!game.torchOff) renderer.torchFlare();
+      if (!game.torchOff) flarePending = true;
     }
     renderLog();
     renderHeroScreen();
@@ -4063,6 +4066,10 @@ function frame(now: number): void {
   const dt = Math.min(now - last, 100);
   last = now;
   watchSpeed(dt);
+  if (flarePending && !bagOpen && !menuOpen) {
+    flarePending = false;
+    renderer.torchFlare();
+  }
   // Étage du boss : pas d'alerte ; la musique y reste tendue (palier « alerte »), puis « le cœur du boss » pendant le
   // combat (Thomas, 2026-11-16) : son tempo suit la vie du boss.
   music.stage = game.alarmOff() ? 2 : game.alarm().stage;
@@ -4222,7 +4229,9 @@ function frame(now: number): void {
   const aimKey = `${bow?.id}|${ammo}|${game.arrows()}`;
   if (aimKey !== aimShown) {
     aimShown = aimKey;
-    aim.replaceChildren(ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow"), document.createTextNode(tr(`×${game.arrows()}`)));
+    // Le lance-pierre (Thomas, 2026-11-16) : son picto, et le nombre de pierres à côté.
+    const picto = bow?.id === "lance_pierre" ? itemIcon("lance_pierre") : ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow");
+    aim.replaceChildren(picto, document.createTextNode(tr(`×${game.arrows()}`)));
   }
   aim.classList.toggle("active", aimMode);
   renderPower();

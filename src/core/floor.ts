@@ -1,6 +1,6 @@
 import { RULES } from "../data/rules";
 import { ItemId, ITEMS, Rarity } from "../data/items";
-import { GOLD_SIZE, goldRange, LOOT, RARITY_ODDS, SECTION_GUARANTEES, sectionOf } from "../data/loot";
+import { GOLD_SIZE, goldRange, lessGold, LOOT, RARITY_ODDS, SECTION_GUARANTEES, sectionOf } from "../data/loot";
 import { Actor } from "../entities/actor";
 import { LightSource } from "../world/fov";
 import { Room } from "../world/generator";
@@ -300,7 +300,8 @@ export function placeSecrets(state: FloorState, depth: number, seed: number): vo
       const pool = theme.loot.filter((l) => (l.minDepth ?? 1) <= depth);
       let pick = rng.next() * pool.reduce((sum, l) => sum + l.weight, 0);
       const loot = pool.find((l) => (pick -= l.weight) < 0) ?? pool[0];
-      const count = rng.int(loot.min, loot.max) + (loot.item === "or" ? RULES.secretGoldPerDepth * (depth - 1) : 0);
+      const raw = rng.int(loot.min, loot.max) + (loot.item === "or" ? RULES.secretGoldPerDepth * (depth - 1) : 0);
+      const count = loot.item === "or" ? lessGold(raw) : raw;
       state.secrets.push({ x: spot.x, y: spot.y, room: index, item: loot.item, count, found: false });
       return;
     }
@@ -317,7 +318,7 @@ export function placeSecrets(state: FloorState, depth: number, seed: number): vo
         room: index,
         item: gold ? "or" : "fleche",
         count: gold
-          ? rng.int(RULES.secretGoldMin, RULES.secretGoldMax) + RULES.secretGoldPerDepth * (depth - 1)
+          ? lessGold(rng.int(RULES.secretGoldMin, RULES.secretGoldMax) + RULES.secretGoldPerDepth * (depth - 1))
           : rng.int(RULES.secretArrowsMin, RULES.secretArrowsMax),
         found: false,
       });

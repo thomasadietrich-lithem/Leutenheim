@@ -1422,7 +1422,9 @@ export class Renderer {
     this.torchFlareAt = this.time;
   }
   private torchFlareAt = -1e9;
-  private static readonly FLARE_MS = 900;
+  /** Plus longue (Thomas, 2026-11-16 : « rallonge un peu l'animation ») ; les cases gagnées restent soulignées un moment. */
+  private static readonly FLARE_MS = 1600;
+  private static readonly GAINED_MS = 2800;
 
   /** Le Carillon vient de sonner : l'onde part de son battant (et le dessin vibre un instant). */
   carillonRing(x: number, y: number): void {
@@ -1870,6 +1872,7 @@ export class Renderer {
     };
     const q = (a: number) => (Math.round(a * 64) / 64).toFixed(4);
     const flareAge = this.time - this.torchFlareAt;
+    const gained = flareAge >= 0 && flareAge < Renderer.GAINED_MS ? game.torchBefore : null;
     const flareR = flareAge >= 0 && flareAge < Renderer.FLARE_MS ? 1 + (RULES.torchRadius + 2) * (1 - Math.pow(1 - flareAge / Renderer.FLARE_MS, 2)) : null;
     // Section 2 : la lumière des champignons est bleu-vert, pas orange.
     const champi = game.look() === "champi";
@@ -1901,6 +1904,13 @@ export class Renderer {
               veil(`rgba(8,7,14,${q(Math.min(0.9, (d - flareR) * 0.6))})`, rx, ry, rw, rh);
               continue;
             }
+          }
+          // Cases gagnées par la torche (Thomas, 2026-11-16 : « met en exergue les cases gagnées ») : une lueur dorée
+          // qui pulse puis s'efface.
+          if (gained && !gained[game.map.index(x, y)] && !wall) {
+            const fade = Math.min(1, (Renderer.GAINED_MS - flareAge) / 900);
+            const pulse = 0.5 + 0.5 * Math.sin(flareAge / 140);
+            veil(`rgba(255,215,110,${q((0.2 + 0.18 * pulse) * fade)})`, rx, ry, rw, rh);
           }
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
           // Un mur ne montre que la lumière qui tombe sur la face qu'on regarde : celle des cases dégagées

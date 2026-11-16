@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T22:12:05.720Z",
+ "commit": "0ef7cc1",
+ "note": "torche plus lente, cases gagnées, moins d'or, elfe tir au contact",
+ "logic": {
+  "tickMs": 0.46,
+  "lightMs": 0.16,
+  "visionMs": 0.2
+ },
+ "scenes": {
+  "immobile": {
+   "n": 118,
+   "avg": 21,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 48,
+   "js": 4
+  },
+  "marche": {
+   "n": 239,
+   "avg": 20.9,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 48,
+   "js": 4
+  },
+  "retour": {
+   "n": 188,
+   "avg": 26.5,
+   "p95": 33.4,
+   "max": 66.7,
+   "fps": 38,
+   "js": 4
+  },
+  "zoom": {
+   "n": 122,
+   "avg": 20.8,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 48,
+   "js": 4
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 7
+  },
+  "donjon": {
+   "n": 169,
+   "avg": 29.5,
+   "p95": 50,
+   "max": 200,
+   "fps": 34,
+   "js": 16
+  }
+ },
+ "errors": []
+}

@@ -2497,16 +2497,17 @@ test("flèches empoisonnées : choisies dans le carquois (niveau 4), le poison r
 test("butin : rareté selon la section, tas d'or selon la section, jamais dans la salle de départ", async () => {
   const { rollLoot } = await import("../src/core/floor");
   const { goldRange } = await import("../src/data/loot");
-  assert.deepEqual(goldRange(1, "small"), [3, 8]);
-  assert.deepEqual(goldRange(7, "medium"), [20, 40]);
-  assert.deepEqual(goldRange(12, "large"), [100, 160]);
+  // Réduit de 40 % (Thomas, 2026-11-16).
+  assert.deepEqual(goldRange(1, "small"), [2, 5]);
+  assert.deepEqual(goldRange(7, "medium"), [12, 24]);
+  assert.deepEqual(goldRange(12, "large"), [60, 96]);
   const rng = new Rng(5);
   const count = { common: 0, uncommon: 0, rare: 0 };
   for (let i = 0; i < 4000; i++) {
     const loot = rollLoot(rng, 1);
     const def = ITEMS[loot.item] as import("../src/data/items").ItemDef;
     if (loot.item === "or") {
-      assert.ok(loot.count >= 3 && loot.count <= 40);
+      assert.ok(loot.count >= 2 && loot.count <= 24);
       continue;
     }
     count[def.rarity === "epic" ? "rare" : def.rarity!]++;
@@ -6203,6 +6204,7 @@ test("Halfelin (Thomas, 2026-11-16) : serpe, lance-pierre et pierres au départ 
   assert.equal(game.equipment.ranged?.defId, "lance_pierre");
   assert.ok(game.inventory.count("pierre") >= 10 && game.inventory.count("fleche") === 0);
   assert.equal(game.shotProfile()?.range, 7);
+  assert.equal(game.arrows(), game.inventory.count("pierre"), "le bouton compte les pierres");
   let bow = false;
   const g = game as unknown as { enterFloor(d: number, v: string): void };
   for (let d = 1; d <= 4; d++) {
@@ -6212,4 +6214,10 @@ test("Halfelin (Thomas, 2026-11-16) : serpe, lance-pierre et pierres au départ 
     if (game.ground.some((o) => o.item === "arc_court")) bow = true;
   }
   assert.ok(bow, "un arc court dans la section 1");
+});
+
+test("Elfe : tir au contact, pas de désavantage à l'arc avec un ennemi au contact", async () => {
+  const { RACES } = await import("../src/data/races");
+  assert.equal(RACES.elfe.closeShot, true);
+  assert.ok(!("closeShot" in RACES.humain) || !RACES.humain.closeShot);
 });

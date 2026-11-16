@@ -12,6 +12,8 @@ export const INTRO_LINES: string[] = [
 
 /** Le synopsis selon la race : l'Elfe part avec vingt flèches (Thomas, 2026-11-16). */
 export function introLines(raceId: string): string[] {
+  // Le Halfelin part avec une serpe, un lance-pierre et des pierres (Thomas, 2026-11-16).
+  if (raceId === "halfelin") return INTRO_LINES.map((l, i) => (i === 3 ? "On vous a donné une serpe, un lance-pierre, une poche de cailloux et une tape dans le dos." : l));
   if (raceId !== "elfe") return INTRO_LINES;
   return INTRO_LINES.map((l, i) => (i === 3 ? "On vous a donné une épée, vingt flèches et une tape dans le dos." : l));
 }

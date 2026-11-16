@@ -40,6 +40,7 @@ export type { DoorAction, GameEvent, ShootRefusal } from "./events";
 export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
 import { KitTier, TEST_KITS } from "../data/testKits";
+import { lessGold } from "../data/loot";
 import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
 import { buyBackPrice, MERCHANT, SANDBOX_WARES } from "../data/merchant";
 
@@ -156,6 +157,8 @@ export class Game {
   torchOff = false;
 
   /** La torche brûle-t-elle ? */
+  /** Les cases vues juste avant d'allumer la torche : l'affichage montre celles qu'on gagne (non sauvegardé). */
+  torchBefore: Uint8Array | null = null;
   torchLit(): boolean {
     return this.torchTurns > 0 && !this.torchOff;
   }
@@ -164,6 +167,7 @@ export class Game {
   toggleTorch(): boolean {
     if (this.over || this.torchTurns <= 0) return false;
     this.torchOff = !this.torchOff;
+    if (!this.torchOff) this.torchBefore = this.visible ? this.visible.slice() : null;
     this.refreshLight();
     if (!this.torchOff) this.reveal();
     return true;
@@ -448,7 +452,7 @@ export class Game {
         if (srng.chance(RULES.secretRoomChance)) {
           const hosts = new Set((state.themes ?? []).map((t) => t.room));
           state.secretRoom = placeSecretRoom(floor, state.furniture, srng, hosts) ?? undefined;
-          if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2 });
+          if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: lessGold(srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2) });
         }
         placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
@@ -1395,7 +1399,7 @@ export class Game {
     const left = this.current.furniture.filter((o) => o.kind === "anchor").length;
     this.events.push({ type: "breakWeb", kind: f.kind.startsWith("cocoon") ? "cocoon" : f.kind === "eggSac" ? "eggs" : "anchor", left, x: f.x, y: f.y });
     // Dans un cocon, il reste parfois quelques pièces de la victime.
-    if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", this.rng.int(2, 6));
+    if (f.kind.startsWith("cocoon") && this.rng.chance(0.5)) this.dropItem(f.x, f.y, "or", lessGold(this.rng.int(2, 6)));
     // Du sang (Thomas : « pense au sang ») : rouge pour la proie du cocon, vert pour les œufs.
     if (f.kind !== "anchor") this.stain(f.x, f.y, f.kind === "eggSac" ? "black" : "red");
     // Les œufs écrasés laissent leurs coquilles et une flaque au sol (Thomas).
@@ -2894,6 +2898,7 @@ export class Game {
       this.events.push({ type: "potion", potion: "urchin" });
     }
     if (def.lightTurns) {
+      this.torchBefore = this.visible ? this.visible.slice() : null;
       this.torchTurns = def.lightTurns;
       this.torchOff = false;
       this.refreshLight();
@@ -3403,7 +3408,7 @@ export class Game {
           const door = t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked;
           if (!door && t !== Tile.Chest) continue;
           if (t === Tile.Chest) {
-            const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+            const gold = lessGold(this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth);
             this.map.set(x, y, Tile.Floor);
             this.spillLoot(x, y, gold, rollLoot(this.rng, this.depth));
           } else this.map.set(x, y, Tile.Floor);
@@ -5065,7 +5070,7 @@ export class Game {
     f.kind = "statueBroken";
     this.map.set(f.x, f.y, Tile.Floor);
     if (this.quest?.id === "gluck_statue" && this.quest.depth === this.depth) this.quest.got = this.quest.need;
-    const gold = this.rng.int(10, 20) + this.depth * 3;
+    const gold = lessGold(this.rng.int(10, 20) + this.depth * 3);
     this.spillLoot(f.x, f.y, gold, rollLoot(this.rng, this.depth + RULES.floorsPerSection));
   }
 
@@ -7956,7 +7961,7 @@ export class Game {
     const cell = { x: f.x, y: f.y - 1 };
     if (this.map.get(cell.x, cell.y) !== Tile.Floor) return;
     const r = this.rng.next();
-    if (r < 0.45) this.dropItem(cell.x, cell.y, "or", this.rng.int(5, 12) + this.depth * 2);
+    if (r < 0.45) this.dropItem(cell.x, cell.y, "or", lessGold(this.rng.int(5, 12) + this.depth * 2));
     else if (r < 0.8) {
       const loot = rollLoot(this.rng, this.depth);
       this.dropItem(cell.x, cell.y, loot.item, loot.count);
@@ -7982,7 +7987,7 @@ export class Game {
     } else if (t === Tile.Chest && this.goldChestAt(x, y)) {
       // Le COFFRE DORÉ de la fin du boss (Thomas, 2026-11-14) : de l'argent, un artefact, une arme, une armure.
       this.map.set(x, y, Tile.ChestOpen);
-      const gold = this.rng.int(RULES.goldChestGold[0], RULES.goldChestGold[1]);
+      const gold = lessGold(this.rng.int(RULES.goldChestGold[0], RULES.goldChestGold[1]));
       // Plus aucun bibelot à donner (ils sont uniques, et le joueur les a peut-être déjà tous) : le tirage rendait
       // « rien », posé au sol tel quel, et la partie plantait en marchant dessus (trouvé par le bot expert, 2026-11-16).
       // Désormais ce lot manque simplement au coffre.
@@ -8000,7 +8005,7 @@ export class Game {
       this.events.push({ type: "chest", gold, item: lots[0] ?? "or", count: lots.length > 0 ? 1 : 0, x, y, drops, golden: lots.slice(1) });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
-      const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1);
+      const gold = lessGold((this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1));
       // Coffre de la forge : une arme ; de l'alchimiste : une potion (Thomas). Ailleurs, un objet au hasard.
       const theme = this.themeAt(x, y);
       const pool = theme === "forge" ? lootPool(this.depth, (k) => k === "melee" || k === "ranged") : theme === "alchimiste" ? lootPool(this.depth, (_, id) => id.startsWith("potion_")) : [];
@@ -8095,7 +8100,7 @@ export class Game {
       this.reveal();
       this.raiseAlarm(RULES.alarmMaiden, at);
     }
-    const gold = this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth;
+    const gold = lessGold(this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth);
     const loot = rollLoot(this.rng, this.depth);
     const drops = this.spillLoot(at.x, at.y, gold, loot);
     this.events.push({ type: "maiden", action: action as "pick" | "break" | "key", x: at.x, y: at.y, d20, bonus, total, success, damage, gold, item: loot.item, count: loot.count, drops });
@@ -8388,7 +8393,7 @@ export class Game {
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
-    else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", this.rng.int(1, def.goldMax));
+    else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", lessGold(this.rng.int(1, def.goldMax)));
     // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
     if (monster.boss) this.bossDefeated({ x: monster.x, y: monster.y });
     // Le Kobold du bain vaincu : sa dague tombe du porte-serviettes.
@@ -8469,7 +8474,8 @@ export class Game {
       // ARCHER et ŒIL DE LYNX (Elfe, à l'arc seulement) : pas de désavantage à l'aveugle ; avantage sur une cible lointaine.
       const bowShot = !profile.thrown;
       const favoured = !blind && (this.hasEdge(this.hero, victim) || (bowShot && this.lynxShot(victim)));
-      const threatened = (blind && !(bowShot && this.race.blindShot)) || this.monsters.some((m) => m.alerted && this.inReach(m, this.hero));
+      // TIR AU CONTACT (Elfe, Thomas 2026-11-16) : à l'arc, un ennemi au contact ne gêne pas.
+      const threatened = (blind && !(bowShot && this.race.blindShot)) || (!(bowShot && this.race.closeShot) && this.monsters.some((m) => m.alerted && this.inReach(m, this.hero)));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
       const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);
@@ -8545,10 +8551,13 @@ export class Game {
     const flight = Math.atan2(end.y - origin.y, end.x - origin.x);
     const angle = via ? flight + Math.PI + (this.rng.next() - 0.5) * 2.2 : flight + (this.rng.next() - 0.5) * 0.3;
     const javelin = ammo === "javeline" || undefined;
+    // Le lance-pierre du Halfelin (Thomas, 2026-11-16 : « il tire des pierres, pas des flèches ») : une pierre ne se
+    // brise pas en morceaux (perdue, elle disparaît) et retombe à plat, sans orientation.
+    const stone = (ITEMS[ammo] as ItemDef).ammoFamily === "pierre" || undefined;
     if (ricochet) landing = { x: ricochet.target.x, y: ricochet.target.y };
-    if (kept) this.dropItem(landing.x, landing.y, ammo, 1, angle);
-    else this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
-    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin });
+    if (kept) this.dropItem(landing.x, landing.y, ammo, 1, stone ? undefined : angle);
+    else if (!stone) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone });
     if (ricochet) {
       // Le ricochet : la flèche file de la première cible à la deuxième, puis tombe là.
       const r = ricochet;

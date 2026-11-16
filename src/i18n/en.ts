@@ -1982,4 +1982,8 @@ export const EN: Record<string, string> = {
   "Des galets bien ronds, pour le lance-pierre.": "Nice round pebbles, for the slingshot.",
   "Départ : une serpe, un lance-pierre et des pierres (plutôt qu'une épée courte, un arc et des flèches), deux pommes.": "Starts with a sickle, a slingshot and stones (instead of a short sword, a bow and arrows), two apples.",
   "Des pierres : de petits tas, sur chaque étage ; un arc court à trouver dans la section 1.": "Stones: small piles on every floor; a short bow to find in section 1.",
+  "On vous a donné une serpe, un lance-pierre, une poche de cailloux et une tape dans le dos.": "You were given a sickle, a slingshot, a pocket of pebbles and a pat on the back.",
+  "Tir au contact : pas de désavantage à l'arc quand un ennemi le touche.": "Point-blank: no disadvantage with the bow when an enemy is in contact.",
+  "Tir au contact": "Point-blank",
+  "Pas de désavantage à l'arc quand un ennemi le touche : il tire même au corps à corps.": "No disadvantage with the bow when an enemy is in contact: shoots even in melee.",
 };

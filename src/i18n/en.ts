@@ -1698,6 +1698,7 @@ export const EN: Record<string, string> = {
   "La champignonnière est traversée : c'est tout pour l'instant.": "The mushroom farm is behind you: that's all for now.",
   "Téléporté à l'étage {0}.": "Teleported to floor {0}.",
   "Le coffre doré s'ouvre : {0} pièces d'or, {1}, {2} !": "The golden chest opens: {0} gold coins, {1}, {2}!",
+  "Le coffre doré s'ouvre : {0} pièces d'or, {1} !": "The golden chest opens: {0} gold coins, {1}!",
   "Étage −": "Floor −",
   "Étage +": "Floor +",
   "Section : toutes": "Section: all",

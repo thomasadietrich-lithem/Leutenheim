@@ -368,7 +368,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "merchantShows":
       return "Le Colporteur ressort de l'ombre.";
     case "chest":
-      if (e.golden) return `Le coffre doré s'ouvre : ${e.gold} pièces d'or, ${ITEMS[e.item].name.toLowerCase()}, ${e.golden.map((id) => ITEMS[id].name.toLowerCase()).join(" et ")} !`;
+      // Le cas ordinaire : trois lots. S'il en manque un (plus aucun bibelot à donner), la phrase courte.
+      if (e.golden && e.golden.length >= 2) return `Le coffre doré s'ouvre : ${e.gold} pièces d'or, ${ITEMS[e.item].name.toLowerCase()}, ${e.golden.map((id) => ITEMS[id].name.toLowerCase()).join(" et ")} !`;
+      if (e.golden) return `Le coffre doré s'ouvre : ${e.gold} pièces d'or, ${[e.item, ...e.golden].filter((id) => id !== "or").map((id) => ITEMS[id].name.toLowerCase()).join(" et ")} !`;
       return `Le coffre s'ouvre : ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}${e.count > 1 ? ` ×${e.count}` : ""} tombent à côté.`;
     case "used":
       return e.healed !== undefined ? `Vous mangez : ${ITEMS[e.item].name.toLowerCase()}, +${e.healed} PV.` : "Vous allumez une torche.";

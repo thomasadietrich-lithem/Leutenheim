@@ -7749,21 +7749,21 @@ export class Game {
       // Le COFFRE DORÉ de la fin du boss (Thomas, 2026-11-14) : de l'argent, un artefact, une arme, une armure.
       this.map.set(x, y, Tile.ChestOpen);
       const gold = this.rng.int(RULES.goldChestGold[0], RULES.goldChestGold[1]);
-      const pickOne = (keep: (kind: string) => boolean): ItemId => {
+      // Plus aucun bibelot à donner (ils sont uniques, et le joueur les a peut-être déjà tous) : le tirage rendait
+      // « rien », posé au sol tel quel, et la partie plantait en marchant dessus (trouvé par le bot expert, 2026-11-16).
+      // Désormais ce lot manque simplement au coffre.
+      const pickOne = (keep: (kind: string) => boolean): ItemId | null => {
         const pool = lootPool(this.depth + RULES.floorsPerSection, (k) => keep(k), "rare");
         const fallback = lootPool(this.depth + RULES.floorsPerSection, (k) => keep(k));
         const list = pool.length > 0 ? pool : fallback;
-        return list[this.rng.int(0, list.length - 1)];
+        return list.length > 0 ? list[this.rng.int(0, list.length - 1)] : null;
       };
       const artifact = pickOne((k) => k === "artifact");
       const weapon = pickOne((k) => k === "melee" || k === "ranged");
       const armor = pickOne((k) => k === "armor" || k === "hat");
-      const drops = [
-        ...this.spillLoot(x, y, gold, { item: artifact, count: 1 }),
-        ...this.spillLoot(x, y, 0, { item: weapon, count: 1 }).slice(1),
-        ...this.spillLoot(x, y, 0, { item: armor, count: 1 }).slice(1),
-      ];
-      this.events.push({ type: "chest", gold, item: artifact, count: 1, x, y, drops, golden: [weapon, armor] });
+      const lots = [artifact, weapon, armor].filter((id): id is ItemId => id !== null);
+      const drops = lots.length === 0 ? this.spillLoot(x, y, 0, { item: "or", count: gold }) : lots.flatMap((item, i) => (i === 0 ? this.spillLoot(x, y, gold, { item, count: 1 }) : this.spillLoot(x, y, 0, { item, count: 1 }).slice(1)));
+      this.events.push({ type: "chest", gold, item: lots[0] ?? "or", count: lots.length > 0 ? 1 : 0, x, y, drops, golden: lots.slice(1) });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = (this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1);

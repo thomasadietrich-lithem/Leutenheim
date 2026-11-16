@@ -1,4 +1,5 @@
-// Trois joueurs automatiques (débutant, moyen, maîtrise) : `npm run bots` ou `node scripts/bots.mjs [parties] [note]`.
+// Quatre joueurs automatiques (débutant, moyen, maîtrise, expert) : `npm run bots` ou `node scripts/bots.mjs [parties] [note]`.
+// L'EXPERT (Thomas, 2026-11-16, `tests/botExpert.ts`) joue les deux sections, jusqu'au Carillon ; les trois autres ne changent pas.
 // Chaque passage est gardé dans stats/bots/ (un fichier JSON par passage) et ajouté au tableau stats/bots/HISTORIQUE.md,
 // pour comparer dans le temps (Thomas, 2026-11-13). Les graines sont toujours les mêmes : seules les règles changent.
 import { build } from "esbuild";
@@ -8,7 +9,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, append
 const n = Number(process.argv[2] ?? 150);
 const note = process.argv.slice(3).join(" ");
 await build({ entryPoints: ["tests/bots.ts"], bundle: true, platform: "node", format: "cjs", outfile: "dist/bots.cjs", logLevel: "error" });
-const { playBot } = await import("../dist/bots.cjs");
+const { playBot, playExpert } = await import("../dist/bots.cjs");
 
 const dir = "stats/bots";
 mkdirSync(dir, { recursive: true });
@@ -23,10 +24,10 @@ const now = new Date();
 const stamp = now.toISOString().slice(0, 16).replace("T", "_").replace(":", "h");
 const result = { date: now.toISOString(), commit, runs: n, note, levels: {} };
 
-const LABEL = { debutant: "Débutant", moyen: "Moyen", maitrise: "Maîtrise" };
-for (const level of ["debutant", "moyen", "maitrise"]) {
+const LABEL = { debutant: "Débutant", moyen: "Moyen", maitrise: "Maîtrise", expert: "Expert" };
+for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
   const runs = [];
-  for (let seed = 1; seed <= n; seed++) runs.push(playBot(level, seed * 101));
+  for (let seed = 1; seed <= n; seed++) runs.push(level === "expert" ? playExpert(seed * 101) : playBot(level, seed * 101));
   const avg = (f) => Math.round((10 * runs.reduce((a, r) => a + f(r), 0)) / runs.length) / 10;
   const pct = (f) => Math.round((100 * runs.filter(f).length) / runs.length);
   const causes = {};
@@ -34,7 +35,7 @@ for (const level of ["debutant", "moyen", "maitrise"]) {
   result.levels[level] = {
     floor: avg((r) => r.deepest),
     deathFloor1: pct((r) => r.dead && r.deepest === 1),
-    reach: Object.fromEntries([2, 3, 4, 5].map((d) => [d, pct((r) => r.deepest >= d)])),
+    reach: Object.fromEntries((level === "expert" ? [2, 3, 4, 5, 6, 7, 8, 9, 10] : [2, 3, 4, 5]).map((d) => [d, pct((r) => r.deepest >= d)])),
     boss: pct((r) => r.boss),
     dead: pct((r) => r.dead),
     heroLevel: avg((r) => r.heroLevel),
@@ -46,6 +47,17 @@ for (const level of ["debutant", "moyen", "maitrise"]) {
     questsFailed: avg((r) => r.questsFailed),
     causes,
   };
+  // L'expert : la section 2, et ce qu'il fait de son équipement (par partie).
+  if (level === "expert") {
+    Object.assign(result.levels[level], {
+      boss2: pct((r) => r.boss2),
+      stuck: pct((r) => !r.dead && !r.won),
+      armorClass: avg((r) => r.armorClass),
+      searches: avg((r) => r.searches), chests: avg((r) => r.chests), doors: avg((r) => r.doors), bought: avg((r) => r.bought), sold: avg((r) => r.sold),
+      potions: avg((r) => r.potions), pushes: avg((r) => r.pushes), shots: avg((r) => r.shots),
+      deathFloors: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => [d, pct((r) => r.dead && r.deepest === d)])),
+    });
+  }
 }
 writeFileSync(`${dir}/${stamp}_${commit}.json`, JSON.stringify(result, null, 1) + "\n");
 
@@ -60,7 +72,7 @@ if (!existsSync(hist)) {
   );
 }
 for (const [level, s] of Object.entries(result.levels)) {
-  appendFileSync(hist, `| ${result.date.slice(0, 16).replace("T", " ")} | ${commit} | ${LABEL[level]} | ${s.floor} | ${s.deathFloor1} % | ${s.reach[5]} % | ${s.boss} % | ${s.heroLevel} | ${s.kills} | ${s.questsStarted} / ${s.questsDone} / ${s.questsFailed} | ${note} |\n`);
+  appendFileSync(hist, `| ${result.date.slice(0, 16).replace("T", " ")} | ${commit} | ${LABEL[level]} | ${s.floor} | ${s.deathFloor1} % | ${s.reach[5]} % | ${s.boss} % | ${s.heroLevel} | ${s.kills} | ${s.questsStarted} / ${s.questsDone} / ${s.questsFailed} | ${level === "expert" ? `[section 2 : étage 8 ${s.reach[8]} %, étage 10 ${s.reach[10]} %, bat le Carillon ${s.boss2} %] ` : ""}${note} |\n`);
 }
 
 // Résumé, et l'écart avec le passage précédent.
@@ -70,6 +82,11 @@ for (const [level, s] of Object.entries(result.levels)) {
   console.log(`\n== ${LABEL[level]} (${n} parties)${o ? ` — comparé au ${before.date.slice(0, 16).replace("T", " ")} (${before.commit})` : ""}`);
   console.log(`étage moyen ${s.floor}${diff(s.floor, o?.floor)} ; meurt à l'étage 1 ${s.deathFloor1} %${diff(s.deathFloor1, o?.deathFloor1)} ; arrive au boss ${s.reach[5]} %${diff(s.reach[5], o?.reach?.[5])} ; bat le boss ${s.boss} %${diff(s.boss, o?.boss)}`);
   console.log(`niveau ${s.heroLevel}${diff(s.heroLevel, o?.heroLevel)} ; monstres tués ${s.kills}${diff(s.kills, o?.kills)} ; quêtes données ${s.questsStarted}, rendues ${s.questsDone}, ratées ${s.questsFailed}`);
+  if (level === "expert") {
+    console.log(`section 2 : étage 6 ${s.reach[6]} %${diff(s.reach[6], o?.reach?.[6])} ; étage 8 ${s.reach[8]} %${diff(s.reach[8], o?.reach?.[8])} ; étage 10 ${s.reach[10]} %${diff(s.reach[10], o?.reach?.[10])} ; bat le Carillon ${s.boss2} %${diff(s.boss2, o?.boss2)} ; bloqué ${s.stuck} %`);
+    console.log(`par partie : CA finale ${s.armorClass}, ${s.searches} fouilles, ${s.chests} coffres, ${s.doors} portes ou sarcophages, ${s.bought} achats, ${s.sold} ventes, ${s.potions} potions, ${s.pushes} poussées, ${s.shots} tirs`);
+    console.log("meurt à l'étage : " + Object.entries(s.deathFloors).map(([d, v]) => `${d}: ${v} %`).join(", "));
+  }
   console.log("tué par : " + Object.entries(s.causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", "));
 }
 console.log(`\nGardé dans ${dir}/${stamp}_${commit}.json et ${hist}`);

@@ -20,23 +20,23 @@ import { Tile } from "../src/world/map";
 import { NPC_IDS, type NpcId } from "../src/core/game";
 import { QUEST_TASKS } from "../src/data/quests";
 
-type Level = "debutant" | "moyen" | "maitrise";
+export type Level = "debutant" | "moyen" | "maitrise";
 
 /** Petit hasard propre au joueur (la partie garde le sien). */
-function lcg(seed: number): () => number {
+export function lcg(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
 }
 
-const gap = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+export const gap = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
-function stairsSeen(game: Game): { x: number; y: number } | null {
+export function stairsSeen(game: Game): { x: number; y: number } | null {
   for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.StairsDown && game.isExplored(x, y)) return { x, y };
   return null;
 }
 
 /** La case connue la plus proche (à pied) qui touche de l'inconnu : là où explorer. */
-function frontier(game: Game): { x: number; y: number } | null {
+export function frontier(game: Game): { x: number; y: number } | null {
   const { map } = game;
   const seen = new Uint8Array(map.width * map.height);
   const queue = [{ x: game.hero.x, y: game.hero.y }];
@@ -295,3 +295,5 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
     lastStands,
   };
 }
+
+export { playExpert } from "./botExpert";

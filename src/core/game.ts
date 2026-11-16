@@ -2246,7 +2246,7 @@ export class Game {
     if (this.champiPatch(x, y)) return "champi";
     // La chambre de neige : de la neige partout dans la pièce.
     const sr = this.current?.secretRoom;
-    if (sr?.layout === "neige" && x >= sr.room.x && y >= sr.room.y && x < sr.room.x + sr.room.w && y < sr.room.y + sr.room.h) return "snow";
+    if (sr?.layout === "neige" && !sr.melted && x >= sr.room.x && y >= sr.room.y && x < sr.room.x + sr.room.w && y < sr.room.y + sr.room.h) return "snow";
     const id = this.themeAt(x, y);
     return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" ? "sculpture" : id === "chaud" ? "champiWarm" : this.look() === "champi" ? "champi" : undefined;
   }
@@ -4345,6 +4345,7 @@ export class Game {
     }
     this.merchantAct();
     this.burn();
+    this.meltSnow();
     this.gasTick();
     this.fogTick();
     this.npcsFlee();
@@ -6689,6 +6690,48 @@ export class Game {
   /** Compatibilité : la tapisserie (fermée) sur cette case. */
   tapestryAt(x: number, y: number): boolean {
     return this.zoneDoorAt(x, y) && this.current.zone!.door === "tapestry";
+  }
+
+  /**
+   * La chambre de neige fond à la chaleur (Thomas, 2026-11-16 : « anticipe que tout va fondre ») : un feu dans la pièce
+   * ou contre elle, et tout fond d'un coup : congères, tas et igloo disparaissent, le bonhomme devient une flaque (sa
+   * carotte tombe s'il l'avait encore), quelques flaques d'eau restent au sol, la neige laisse la pierre.
+   */
+  private meltSnow(): void {
+    const s = this.current.secretRoom;
+    if (!s || s.layout !== "neige" || s.melted) return;
+    const r = s.room;
+    const hot = this.fires.some((f) => f.x >= r.x - 1 && f.y >= r.y - 1 && f.x <= r.x + r.w && f.y <= r.y + r.h && this.isBurning(f.x, f.y));
+    if (!hot) return;
+    s.melted = true;
+    const furniture = this.current.furniture;
+    for (let i = furniture.length - 1; i >= 0; i--) {
+      const f = furniture[i];
+      if (f.x < r.x || f.y < r.y || f.x >= r.x + r.w || f.y >= r.y + r.h) continue;
+      if (f.kind === "congereA" || f.kind === "congereB" || f.kind === "tasNeige" || f.kind === "igloo") {
+        if (this.map.get(f.x, f.y) === Tile.Furniture) this.map.set(f.x, f.y, Tile.Floor);
+        furniture.splice(i, 1);
+      } else if (f.kind === "bonhomme") {
+        if (!f.drained) {
+          f.drained = true;
+          const at = this.landingCell(f, "carotte_magique", f);
+          this.dropItem(at.x, at.y, "carotte_magique", 1);
+        }
+        f.kind = "bonhommeFondu";
+        this.map.set(f.x, f.y, Tile.Floor);
+      }
+    }
+    // Quelques flaques de neige fondue (pas sur l'entrée, ni sous un objet).
+    const cells: Point[] = [];
+    for (let y = r.y; y < r.y + r.h; y++)
+      for (let x = r.x; x < r.x + r.w; x++)
+        if (this.map.get(x, y) === Tile.Floor && !(x === s.entry.x + s.dir.x && y === s.entry.y + s.dir.y) && !this.ground.some((g) => g.x === x && g.y === y) && !furniture.some((f) => f.x === x && f.y === y)) cells.push({ x, y });
+    for (let k = Math.min(cells.length, RULES.snowMeltPuddles); k > 0; k--) {
+      const c = cells.splice(this.rng.int(0, cells.length - 1), 1)[0];
+      this.map.set(c.x, c.y, Tile.Water);
+    }
+    for (let y = r.y - 1; y <= r.y + r.h; y++) for (let x = r.x - 1; x <= r.x + r.w; x++) this.map.touch(x, y);
+    this.events.push({ type: "melt", x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2), seen: this.isVisible(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2)) });
   }
 
   /** Le bonhomme de neige (chambre de neige) qui a encore sa carotte, sur cette case. */

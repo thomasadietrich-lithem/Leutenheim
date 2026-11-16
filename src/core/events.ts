@@ -93,6 +93,8 @@ export type GameEvent =
   | { type: "alembic"; x: number; y: number; item: ItemId; toX: number; toY: number }
   /** La carotte magique se décroche du nez du bonhomme de neige. */
   | { type: "snowman"; x: number; y: number; toX: number; toY: number }
+  /** La chambre de neige fond (un feu dedans ou contre elle). */
+  | { type: "melt"; x: number; y: number; seen: boolean }
   | { type: "rise"; actor: Actor; what: "down" | "up" }
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }

@@ -287,6 +287,19 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
       }
     }
   }
+  // La même draperie, pliée, au pied du coffre d'une salle au trésor sur deux (Thomas, 2026-11-16).
+  const drng = new Rng(seed ^ 0xd4a9);
+  for (const sp of floor.specials ?? []) {
+    if (sp.kind.id !== "tresor" || !drng.chance(0.5)) continue;
+    const r = sp.room;
+    const cells: Point[] = [];
+    for (let y = r.y; y < r.y + r.h; y++)
+      for (let x = r.x; x < r.x + r.w; x++) {
+        const nearChest = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => floor.map.get(x + dx, y + dy) === Tile.Chest);
+        if (nearChest && floor.map.get(x, y) === Tile.Floor && !furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) cells.push({ x, y });
+      }
+    if (cells.length > 0) furniture.push({ ...cells[drng.int(0, cells.length - 1)], kind: "drapPlie" });
+  }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
   // Pas de salle qui convienne au bain : la cloche prend sa place (il y a toujours un truc fun dans la section).
@@ -624,6 +637,15 @@ function furnishChapelInner(floor: Floor, room: Room, rng: Rng, out: Furniture[]
     if (glassAt.some((g) => Math.abs(g - x) < 2)) continue;
     glassAt.push(x);
     P.placed.push({ x, y: wy, kind: `vitrail${glassAt.length % 2}` });
+  }
+  // La tapisserie du culte maudit (Thomas, 2026-11-16 : « derrière le pupitre », version A « la Lune pâle ») : sur le mur
+  // du fond, au-dessus de l'autel (3 cases de mur) ; elle remplace les vitraux qui s'y trouvaient. Sans hasard en plus.
+  if ([ax - 1, ax, ax + 1].every((x) => floor.map.get(x, wy) === Tile.Wall && !floor.torches.some((t) => t.x === x && t.y === wy))) {
+    for (let i = P.placed.length - 1; i >= 0; i--) {
+      const f = P.placed[i];
+      if (f.kind.startsWith("vitrail") && f.y === wy && Math.abs(f.x - ax) <= 1) P.placed.splice(i, 1);
+    }
+    P.placed.push({ x: ax - 1, y: wy, kind: "tapisserieCulte" });
   }
   out.push(...P.placed);
   return true;

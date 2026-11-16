@@ -176,6 +176,10 @@ export const RULES = {
   waryStopRange: 3,
   /** Salle de bain du Kobold (Thomas, 2026-11-16 : « plus petite ») : 20 cases au plus, sinon un cabinet taillé. */
   bathMaxArea: 20,
+  /** Chambre de neige (pièce secrète très rare, Thomas 2026-11-16) : sa part des pièces secrètes. (C) */
+  snowRoomChance: 0.08,
+  /** Flaques laissées par la neige fondue. (C) */
+  snowMeltPuddles: 4,
   carillonInkDropsHard: 4,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */

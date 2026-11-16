@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 37;
+export const SANDBOX_LAYOUT = 38;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -386,6 +386,9 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
   placeWallMarks({ ...floorPlan(), rooms: [rooms[hubIndex], rooms[secretHost], rooms[prisonRoom]] }, furniture, new Rng(seeds.secret + 1), 5);
   torches.push({ x: rooms[secretHost].x + rooms[secretHost].w, y: rooms[secretHost].y + 4, radius: 6, faceX: -1, faceY: 0 });
 
+  // L'écriteau d'une salle ne cache pas la tapisserie du culte (chapelle) : il monte d'une case.
+  for (const f of furniture.filter((o) => o.kind === "tapisserieCulte"))
+    for (const s of signs) if (s.y === f.y && s.x >= f.x - 1 && s.x <= f.x + 3) s.y -= 1;
   const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
   const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
   const gluck = rooms[gluckRoom];

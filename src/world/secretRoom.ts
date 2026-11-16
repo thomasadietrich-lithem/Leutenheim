@@ -1,5 +1,6 @@
 import { Rng } from "../core/rng";
 import { ALEMBIC_POTIONS, FURNITURE_KINDS } from "../data/themedRooms";
+import { RULES } from "../data/rules";
 import { Furniture, furnitureCells } from "./furnish";
 import { Floor, Room } from "./generator";
 import { Point, Tile } from "./map";
@@ -33,6 +34,8 @@ export interface SecretRoom {
   gold: Point[];
   glimpsed: boolean;
   found: boolean;
+  /** La chambre de neige a fondu (le feu). */
+  melted?: boolean;
 }
 
 /** Les quatre plans proposés (lettres : c coffre d'acier, s statue, a armure, p présentoir, b tonneau, k caisses, o or). */
@@ -46,11 +49,12 @@ export const SECRET_LAYOUTS: Record<SecretLayout, { name: string; size: [number,
   laboratoire: { name: "Le laboratoire oublié", size: [5, 3], plan: ["..l.g", "o....", "....."] },
   // La chambre de neige (Thomas, 2026-11-16) : de la neige partout, des congères (d), le bonhomme de neige (n) et sa
   // carotte magique ; pas de coffre.
-  neige: { name: "La chambre de neige", size: [5, 4], plan: ["d.n.d", ".....", "d...d", "....."] },
+  // Igloo dans un coin (i), tas de neige (t) (Thomas, 2026-11-16).
+  neige: { name: "La chambre de neige", size: [5, 4], plan: ["i.n.t", "d...d", ".t.t.", "....."] },
 };
 
 // Jamais deux caisses empilées (Thomas, 2026-11-14 : « sinon on cache le coffre ») : une seule caisse, basse.
-const KIND: Record<string, string> = { s: "statueKnight", a: "armorStand", p: "display", b: "barrel", k: "crate", n: "bonhomme" };
+const KIND: Record<string, string> = { s: "statueKnight", a: "armorStand", p: "display", b: "barrel", k: "crate", n: "bonhomme", i: "igloo", t: "tasNeige" };
 
 /** Les murs des salles où l'on peut accrocher un creux ou une brique manquante (pas aux coins, ni près d'une porte). */
 function roomWalls(floor: Floor, room: Room): { cell: Point; dir: Point }[] {
@@ -77,7 +81,9 @@ export function placeSecretRoom(floor: Floor, furniture: Furniture[], rng: Rng, 
   const { map } = floor;
   const inRoom = (p: Point) => floor.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
   const taken = (p: Point) => furniture.some((f) => furnitureCells(f).some((c) => c.x === p.x && c.y === p.y));
-  const order: SecretLayout[] = layout ? [layout] : (["tresor", "armurerie", "reliquaire", "contrebandier", "laboratoire", "neige"] as SecretLayout[]).sort(() => rng.next() - 0.5);
+  // La chambre de neige est très rare (Thomas, 2026-11-16) : une pièce secrète sur douze environ.
+  const snowy = rng.chance(RULES.snowRoomChance);
+  const order: SecretLayout[] = layout ? [layout] : snowy ? ["neige"] : (["tresor", "armurerie", "reliquaire", "contrebandier", "laboratoire"] as SecretLayout[]).sort(() => rng.next() - 0.5);
   for (const lay of order) {
     const [W, D] = SECRET_LAYOUTS[lay].size;
     const half = Math.floor(W / 2);

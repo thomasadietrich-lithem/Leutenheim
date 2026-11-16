@@ -859,6 +859,11 @@ function reveal(e: GameEvent): void {
     sfx.play("heal");
   } else if (e.type === "rise") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "down" ? "Il palpite…" : "Debout !", "#7fe0c8");
+  } else if (e.type === "melt") {
+    if (e.seen) renderer.addFloatingText(e.x, e.y, "Ploc… ploc…", "#9fd0f4");
+    sfx.play("splash");
+    logLines.push(e.seen ? "La chaleur fait fondre la neige : le bonhomme s'affaisse en une flaque, l'igloo s'effondre." : "Quelque part, de l'eau ruisselle…");
+    renderLog();
   } else if (e.type === "snowman") {
     renderer.addFloatingText(e.x, e.y, "Plop !", "#ffb060");
     sfx.play("pickup");

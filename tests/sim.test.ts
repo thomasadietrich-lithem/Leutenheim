@@ -6107,3 +6107,31 @@ test("chambre de neige (Thomas, 2026-11-16) : de la neige, le bonhomme ; sa caro
   assert.ok(seen > 0, "au moins une chambre de neige");
   assert.equal(ITEMS.carotte_magique.heal, 12);
 });
+
+test("chambre de neige : très rare, et tout fond au feu (Thomas, 2026-11-16)", () => {
+  let snowy = 0;
+  let rooms = 0;
+  let melted = false;
+  for (let seed = 1; seed <= 600; seed++) {
+    const game = new Game(seed);
+    const s = game.secretRoom();
+    if (!s) continue;
+    rooms++;
+    if (s.layout !== "neige") continue;
+    snowy++;
+    if (melted) continue;
+    assert.ok(game.furnitureList().some((f) => f.kind === "igloo"), "l'igloo");
+    // Un feu dans la pièce : tout fond.
+    const g = game as unknown as { fires: { x: number; y: number; turns: number }[]; meltSnow(): void };
+    g.fires.push({ x: s.room.x + 1, y: s.room.y + 1, turns: 3 });
+    g.meltSnow();
+    assert.ok(s.melted);
+    assert.ok(!game.furnitureList().some((f) => ["igloo", "congereA", "congereB", "tasNeige", "bonhomme"].includes(f.kind)), "plus de neige");
+    assert.ok(game.furnitureList().some((f) => f.kind === "bonhommeFondu"), "le bonhomme fondu");
+    assert.ok(game.ground.some((o) => o.item === "carotte_magique"), "la carotte tombe");
+    assert.notEqual(game.floorStyle(s.room.x, s.room.y), "snow");
+    melted = true;
+  }
+  assert.ok(melted, "au moins une chambre de neige");
+  assert.ok(snowy / rooms < 0.2, `rare : ${snowy} sur ${rooms}`);
+});

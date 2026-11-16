@@ -1939,4 +1939,7 @@ export const EN: Record<string, string> = {
   "La chambre de neige": "The snow chamber",
   "Plop !": "Plop!",
   "La carotte se décroche du nez du bonhomme de neige. Elle brille un peu.": "The carrot comes loose from the snowman's nose. It glows a little.",
+  "Ploc… ploc…": "Drip… drip…",
+  "La chaleur fait fondre la neige : le bonhomme s'affaisse en une flaque, l'igloo s'effondre.": "The heat melts the snow: the snowman slumps into a puddle, the igloo caves in.",
+  "Quelque part, de l'eau ruisselle…": "Somewhere, water trickles…",
 };

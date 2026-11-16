@@ -84,11 +84,69 @@ def drift(kind):
     return s.done(outline=False)
 
 
+def igloo():
+    """Igloo (22 × 17, décor d'un coin) : un dôme de blocs de neige, l'entrée sombre en bas à droite."""
+    s = Sprite(22, 17)
+    h, w = s.a.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    dome = ((xx - 10.5) / 10.5) ** 2 + ((yy - 16) / 15.5) ** 2 <= 1
+    s.a[dome] = C["sn"]
+    s.a[dome & ((((xx - 10.5) / 10.5) ** 2 + ((yy - 16) / 15.5) ** 2) > 0.72)] = C["sn_s"]
+    # Joints des blocs : rangées, et briques décalées.
+    for y in (4, 8, 12):
+        for x in range(w):
+            if dome[y, x]:
+                s.a[y, x] = C["sn_d"]
+    for row, y0 in enumerate((0, 4, 8, 12)):
+        for x in range(2 + (row % 2) * 3, w, 6):
+            for y in range(y0 + 1, min(y0 + 4, h)):
+                if dome[y, x]:
+                    s.a[y, x] = C["sn_d"]
+    # L'entrée : une arche sombre, un petit tunnel devant.
+    door = ((xx - 15) / 3.2) ** 2 + ((yy - 16.5) / 5) ** 2 <= 1
+    s.a[door] = (40, 48, 70, 255)
+    s.r(13, 15, 5, 2, "sn_s")
+    s.a[door & (yy >= 14)] = (24, 28, 44, 255)
+    s.p(6, 3, "sn_h").p(7, 3, "sn_h")
+    return s.done()
+
+
+def heap():
+    """Tas de neige (14 × 10) : plus haut qu'une congère."""
+    s = Sprite(14, 10)
+    h, w = s.a.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    m = (((xx - 6) / 6.5) ** 2 + ((yy - 9.5) / 8) ** 2 <= 1) | (((xx - 10) / 3.5) ** 2 + ((yy - 9.5) / 5) ** 2 <= 1)
+    s.a[m] = C["sn"]
+    s.a[m & (xx < 5) & (yy > 4)] = C["sn_s"]
+    s.a[m & (yy >= 8)] = C["sn_s"]
+    s.a[m & (yy >= 9)] = C["sn_d"]
+    s.p(7, 2, "sn_h").p(8, 3, "sn_h")
+    return s.done()
+
+
+def melted():
+    """Le bonhomme fondu (16 × 8, au sol) : une flaque, l'écharpe, deux charbons, une branche."""
+    s = Sprite(16, 8)
+    h, w = s.a.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    pool = ((xx - 7.5) / 7.5) ** 2 + ((yy - 5) / 3) ** 2 <= 1
+    s.a[pool] = (96, 130, 168, 200)
+    s.a[pool & (yy <= 3)] = (130, 166, 200, 200)
+    s.r(3, 4, 7, 1, "scarf").r(9, 5, 2, 1, "scarf_d").p(5, 4, "scarf_l")
+    s.p(11, 3, "coal").p(4, 6, "coal").p(12, 6, "coal")
+    s.r(1, 2, 3, 1, "twig").p(0, 1, "twig")
+    return s.done(outline=False)
+
+
 SPRITES = {
     "bonhomme": lambda: snowman(True),
     "bonhommeNu": lambda: snowman(False),
     "congereA": lambda: drift("A"),
     "congereB": lambda: drift("B"),
+    "igloo": igloo,
+    "tasNeige": heap,
+    "bonhommeFondu": melted,
 }
 
 

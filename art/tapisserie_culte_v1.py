@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 from pix import font, up  # noqa: E402
 from dortoir_v2 import Sprite, C  # noqa: E402
+from export_jeu_v4 import write  # noqa: E402
 
 C.update({
     "vio": (92, 40, 120, 255), "vio_d": (60, 24, 82, 255), "vio_l": (128, 64, 156, 255), "vio_dd": (40, 16, 56, 255),
@@ -204,4 +205,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "export":
+        # Retenue par Thomas (2026-11-16) : A, la Lune pâle.
+        os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        write("src/render/sprites/culte.ts", "CULTE",
+              "Tapisserie du culte maudit, version A « la Lune pâle » (art/tapisserie_culte_v1.png) : bannière et draperie pliée.",
+              {"tapisserieCulte": banner(sym_pale).img(), "drapPlie": folded(sym_pale).img()})
+    else:
+        main()

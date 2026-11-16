@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T21:29:12.434Z",
+ "commit": "9f0d0a7",
+ "note": "tapisserie du culte, chambre de neige qui fond",
+ "logic": {
+  "tickMs": 0.46,
+  "lightMs": 0.13,
+  "visionMs": 0.22
+ },
+ "scenes": {
+  "immobile": {
+   "n": 108,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 44,
+   "js": 4
+  },
+  "marche": {
+   "n": 201,
+   "avg": 24.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 40,
+   "js": 4
+  },
+  "retour": {
+   "n": 237,
+   "avg": 21,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 48,
+   "js": 3
+  },
+  "zoom": {
+   "n": 110,
+   "avg": 23.5,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 43,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 205,
+   "avg": 24.4,
+   "p95": 33.4,
+   "max": 150,
+   "fps": 41,
+   "js": 17
+  }
+ },
+ "errors": []
+}

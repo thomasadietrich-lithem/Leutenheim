@@ -89,6 +89,7 @@ import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
 import { COLORS, TilePainter } from "./tiles";
 import { ESCALIERS_CHAMPI, ESCALIERS_CHAMPI_PALETTE } from "./sprites/escaliersChampi";
+import { CARILLON, CARILLON_PALETTE } from "./sprites/carillon";
 
 /** Pincement : la taille des cases est prise quand les doigts ne bougent plus depuis ce temps (ms). */
 const ZOOM_SETTLE_MS = 180;
@@ -1282,6 +1283,81 @@ export class Renderer {
     }
   }
 
+  /** Le Carillon (planche art/carillon_v2.png, version A) : repos, avertissement, coup, sonné faux, fêlé, sans battant.
+   *  `cx` : milieu de son carré de 3 × 3 ; `top` : haut du carré. */
+  private drawCarillon(m: Actor, cx: number, top: number, advantage: boolean): void {
+    const { ctx, tile } = this;
+    const st = m.boss!;
+    const beat = (ms: number, n: number) => Math.floor(Math.abs(this.time) / ms) % n;
+    const ringing = this.time - this.carillonRingAt < 700;
+    const name = (st.fallen ?? 0) > 0
+      ? "false"
+      : !st.clapperUp
+        ? st.cracked ? "noclapCracked" : `noclap${beat(700, 2)}`
+        : ringing
+          ? `ring${beat(110, 2)}`
+          : st.ring === 1 && st.engaged
+            ? `warn${beat(180, 2)}`
+            : st.cracked
+              ? `cracked${beat(700, 2)}`
+              : `idle${[0, 1, 2, 1][beat(500, 4)]}`;
+    if (advantage) {
+      ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, tile * 0.08);
+      ctx.beginPath();
+      ctx.ellipse(cx, top + tile * 3.4, tile * 1.2, tile * 0.3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    this.drawCarillonSprite(CARILLON[name] ?? CARILLON.idle1, cx, top);
+    if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath();
+      ctx.ellipse(cx, top + tile * 1.6, tile * 1.3, tile * 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private drawCarillonSprite(rows: readonly string[], cx: number, top: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.sprite(rows, CARILLON_PALETTE), Math.round(cx - 24 * u), Math.round(top - u), Math.round(48 * u), Math.round(rows.length * u));
+    ctx.imageSmoothingEnabled = smooth;
+  }
+
+  /** Le Carillon vient de sonner : l'onde part de son battant (et le dessin vibre un instant). */
+  carillonRing(x: number, y: number): void {
+    this.carillonRingAt = this.time;
+    this.waves.push({ x, y, age: 0 });
+  }
+  private carillonRingAt = -1e9;
+  private lastDt = 16;
+  private waves: { x: number; y: number; age: number }[] = [];
+
+  private drawWaves(ox: number, oy: number, dt: number): void {
+    const { ctx, tile } = this;
+    const LIFE = 650;
+    for (const w of this.waves) w.age += dt;
+    this.waves = this.waves.filter((w) => w.age < LIFE);
+    for (const w of this.waves) {
+      const t = w.age / LIFE;
+      const cx = ox + (w.x + 0.5) * tile;
+      const cy = oy + (w.y + 0.5) * tile;
+      for (const k of [0, 0.18]) {
+        const r = Math.max(0, t - k) * tile * 8;
+        if (r <= 0) continue;
+        ctx.globalAlpha = Math.max(0, 0.85 * (1 - t));
+        ctx.strokeStyle = k === 0 ? "#6eecd2" : "#ffe27a";
+        ctx.lineWidth = Math.max(2, tile * 0.12);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, r, r * 0.62, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /** Un grand dessin (40 × 34 : 2 cases et demie de large) centré sur (cx, cy), pieds en bas du carré de 2 × 2. */
   private drawBig(rows: readonly string[], palette: Record<string, string>, cx: number, cy: number, mirror: boolean): void {
     const { ctx, tile } = this;
@@ -1314,9 +1390,12 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     ctx.fillStyle = "#000000";
-    ctx.fillText(tr("LA TISSEUSE"), W / 2 + scale, y - 2 * scale + scale);
-    ctx.fillStyle = "#ffe6aa";
-    ctx.fillText(tr("LA TISSEUSE"), W / 2, y - 2 * scale);
+    // Le Carillon : son nom et le compte avant le prochain coup (« 3 · 2 · 1 »), tant qu'il a son battant.
+    const st = queen.boss;
+    const title = queen.defId === "carillon" ? (st.clapperUp && !(st.fallen > 0) ? tr(`LE CARILLON · ${st.ring ?? 3}`) : tr("LE CARILLON")) : tr("LA TISSEUSE");
+    ctx.fillText(title, W / 2 + scale, y - 2 * scale + scale);
+    ctx.fillStyle = queen.defId === "carillon" && st.ring === 1 && st.clapperUp ? "#ffd75e" : "#ffe6aa";
+    ctx.fillText(title, W / 2, y - 2 * scale);
     ctx.fillStyle = "#1a1210";
     ctx.fillRect(x - scale, y - scale, bw + 2 * scale, bh + 2 * scale);
     ctx.fillStyle = "#4a1a14";
@@ -1622,6 +1701,7 @@ export class Renderer {
   private drawScene(game: Game, progress: number, dt: number, ghosts: readonly Actor[], aimRange: number | null, aimTarget: Actor | null): void {
     const { ctx, tile } = this;
     this.time += dt;
+    this.lastDt = dt;
     this.slashes = this.slashes.filter((s) => (s.age += dt) < SLASH_MS);
     this.bowAge += dt;
     this.hurtAge += dt;
@@ -1916,11 +1996,24 @@ export class Renderer {
     // Monstres en vue : leur sprite (le Schrat), ou un losange de la couleur de leur fiche s'ils n'en ont pas encore.
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    // Le Carillon vaincu : la cloche tombée reste au sol, à sa place.
+    const bl = game.bossLayout();
+    if (bl?.kind === "carillon" && !game.bossActor() && game.isExplored(bl.spawn.x + 1, bl.spawn.y + 1)) {
+      this.drawCarillonSprite(CARILLON.dead, ox + (bl.spawn.x + 1.5) * tile, oy + bl.spawn.y * tile);
+    }
     for (const m of [...game.visibleMonsters(), ...ghosts]) {
       const p = shown(m);
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
       const r = tile * 0.36;
+      // Le battant du Carillon est dessiné avec lui.
+      if (game.isInert(m)) continue;
+      if (m.boss && m.defId === "carillon") {
+        this.drawCarillon(m, ox + (p.x + 1.5) * tile, oy + p.y * tile, game.heroHasAdvantageOn(m));
+        const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
+        this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y + 0.2) * tile, burning);
+        continue;
+      }
       if (m.boss) {
         // La Tisseuse : 2 × 2 cases ; son dessin est centré sur son carré.
         this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game.heroHasAdvantageOn(m));
@@ -2256,6 +2349,7 @@ export class Renderer {
       ctx.fillText(tr(f.text), fx, fy);
     }
     ctx.globalAlpha = 1;
+    this.drawWaves(ox, oy, this.lastDt);
     this.drawBossBar(game);
   }
 
@@ -2537,7 +2631,7 @@ export class Renderer {
       // Alambic (pièces secrètes) : la couleur de sa potion, braises et bulles (2 images) ; vide une fois la fiole tirée.
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const name = alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = (f.kind === "sealedStairs" ? sealedStairsArt(game) : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;
@@ -2548,7 +2642,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (CHAMPI[name]) {
+      } else if (CHAMPI[name] || name === "souche") {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;

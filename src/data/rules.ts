@@ -159,7 +159,12 @@ export const RULES = {
   /** Coffre doré de la fin du boss (Thomas, 2026-11-14) : or (C). */
   goldChestGold: [80, 140] as [number, number],
   /** Étages des boss (un par section, le dernier de la section). */
-  bossDepths: [5],
+  bossDepths: [5, 10],
+  /** Le Carillon (boss de la section 2, Thomas, 2026-11-16) : il sonne tous les tant de tours ; l'onde fait tant de
+   *  dégâts (le double au contact de sa lèvre) ; sonné faux, il reste sonné tant de tours. (C) */
+  carillonEvery: 3,
+  carillonWaveDamage: { count: 1, sides: 6, bonus: 0 },
+  carillonFalseTurns: 2,
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,
   bossRetreatDamage: 20,

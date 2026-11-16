@@ -7,6 +7,7 @@ import { BAIN } from "../render/sprites/bain";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "../render/sprites/soeur";
 import { FERMIER } from "../render/sprites/ferme";
 import { MOBS_CHAMPI } from "../render/sprites/mobsChampi";
+import { CARILLON, CARILLON_PALETTE } from "../render/sprites/carillon";
 import { MARCHAND, MARCHAND_PALETTE } from "../render/sprites/marchand";
 import { POULET, POULET_PALETTE } from "../render/sprites/poulet";
 import { FIFRELIN_PALETTE, FRONDEUR_PALETTE, GLUCK_PALETTE, KRIK_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE } from "../render/renderer";
@@ -19,6 +20,9 @@ const PORTRAITS: Record<string, Pic> = {
   "m:frondeur": kobold(FRONDEUR_PALETTE),
   "m:araignee": ARAIGNEE.idle0,
   "m:tisseuse": BOSS.tisseuse_idle0,
+  // Le Carillon (boss de la section 2) et son battant (le bas du même dessin).
+  "m:carillon": { rows: CARILLON.idle1, palette: CARILLON_PALETTE },
+  "m:battant": { rows: CARILLON.idle1.slice(46, 62).map((r) => r.slice(16, 32)), palette: CARILLON_PALETTE },
   // Section 2 (planche art/mobs_champi_v1.png).
   ...Object.fromEntries(["myconide", "sporelin", "cueilleur", "envahi"].map((id) => [`m:${id}`, { rows: MOBS_CHAMPI[id].frames.idleDown0, palette: MOBS_CHAMPI[id].palette }])),
   "n:gluck": kobold(GLUCK_PALETTE),

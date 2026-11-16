@@ -52,6 +52,8 @@ export interface MonsterDef {
   fireWeak?: boolean;
   /** À sa mort, il laisse tomber sa hotte : des morilles (le Kobold cueilleur). */
   dropsMorels?: [number, number];
+  /** Ne bouge ni n'agit jamais, ne se pousse pas (le battant du Carillon). */
+  inert?: boolean;
 }
 
 export const MONSTERS = {
@@ -222,6 +224,50 @@ export const MONSTERS = {
     poisonBite: { chance: 1 / 4, damage: 1, turns: 3 },
     size: 2,
     boss: true,
+  },
+  // BOSS DE LA SECTION 2 (étage 10 ; planches art/carillon_v1.png et carillon_v2.png, version A « coprin » ; Thomas,
+  // 2026-11-16 : « A fonce »). Valeurs (C) : voir claude/BOSS_CARILLON.md.
+  carillon: {
+    id: "carillon",
+    name: "le Carillon",
+    family: "champignons",
+    description: "Un coprin géant qui pousse de la voûte, tête en bas, le chapeau en forme de cloche. C'est lui qui sonnait. Tous les trois tours, son battant de spores frappe : l'onde jette à terre qui n'est pas à l'abri.",
+    hp: 120,
+    armorClass: 12,
+    attackBonus: 0,
+    damage: { count: 1, sides: 6, bonus: 0 },
+    vision: 12,
+    xpMin: 30,
+    xpMax: 30,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 1,
+    color: "#e6dcc8",
+    blood: "green",
+    size: 3,
+    boss: true,
+    sporeProof: true,
+  },
+  /** Le battant du Carillon : une boule de spores pendue sous son chapeau ; on la casse pour le faire taire. */
+  battant: {
+    id: "battant",
+    name: "le battant",
+    family: "champignons",
+    description: "La grosse boule de spores qui pend sous le chapeau du Carillon et le fait sonner. Cassée (flèches, javelines, coups, ou une poussée), il ne sonne plus.",
+    hp: 20,
+    armorClass: 14,
+    attackBonus: 0,
+    damage: { count: 1, sides: 1, bonus: 0 },
+    vision: 0,
+    xpMin: 2,
+    xpMax: 2,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 0,
+    color: "#c4d660",
+    blood: "green",
+    sporeProof: true,
+    inert: true,
   },
 } satisfies Record<string, MonsterDef>;
 

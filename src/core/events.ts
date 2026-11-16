@@ -60,6 +60,9 @@ export type GameEvent =
   | { type: "luckyDie" }
   /** Le bas de la démo : l'escalier de l'étage 10 (Thomas, 2026-11-14). */
   | { type: "demoEnd" }
+  /** Le Carillon (boss de la section 2) : il s'éveille, avertit, sonne (qui est jeté à terre), sonne faux, perd son
+   *  battant ; à mi-vie, des envahis sortent du mycélium. */
+  | { type: "carillon"; what: "wake" | "warn" | "ring" | "false" | "clapper" | "sprout"; actor: Actor; hit?: Actor[] }
   /** L'escalier de la nichée est scellé : la Tisseuse vit encore. */
   | { type: "sealed" }
   /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */

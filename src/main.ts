@@ -857,7 +857,41 @@ function reveal(e: GameEvent): void {
     const steps = Math.max(0, ...broodFlight.map((f) => f.path.length));
     // La partie continue (Thomas, 2026-11-14 : la section 2 existe) : l'escalier s'ouvre, un coffre doré apparaît.
     void steps;
-    logLines.push("Un coffre doré luit là où la Tisseuse est tombée. L'escalier reste scellé : le toucher termine la démo.");
+    logLines.push(
+      game.bossLayout()?.kind === "carillon"
+        ? "Le Carillon s'effondre. Ce n'était pas la cloche : celle de Leutenheim sonne plus bas encore. Un coffre doré luit à côté de lui ; l'escalier, derrière, termine la démo."
+        : "Un coffre doré luit là où la Tisseuse est tombée. L'escalier reste scellé : le toucher termine la démo.",
+    );
+    renderLog();
+  } else if (e.type === "carillon") {
+    // Le Carillon (boss de la section 2, Thomas, 2026-11-16).
+    const b = game.bossLayout();
+    const mid = { x: e.actor.x + 1, y: e.actor.y + 1 };
+    if (e.what === "wake") {
+      sfx.play("bell");
+      logLines.push("Le Carillon s'ébranle. Tous les trois tours, il sonne : à l'abri derrière une souche quand il se balance !");
+    } else if (e.what === "warn") {
+      renderer.addFloatingText(mid.x, mid.y - 1, "Il se balance…", "#ffd75e");
+    } else if (e.what === "ring") {
+      const from = b?.clapper ?? { x: mid.x, y: mid.y + 1 };
+      renderer.carillonRing(from.x, from.y);
+      sfx.play("bell");
+      const heroHit = (e.hit ?? []).includes(game.hero);
+      if (heroHit) renderer.addFloatingText(game.hero.x, game.hero.y, "À terre !", "#ff6b7a");
+      for (const o of e.hit ?? []) if (o !== game.hero) renderer.addFloatingText(o.x, o.y, "À terre !", "#ffd75e");
+      logLines.push(heroHit ? "DONG ! L'onde vous jette à terre." : "DONG ! L'onde passe sur vous : à l'abri, vous ne bronchez pas.");
+    } else if (e.what === "false") {
+      renderer.addFloatingText(mid.x, mid.y - 1, "Il sonne faux !", "#ffd75e");
+      sfx.play("cowbell");
+      logLines.push("Frappé en plein élan, le Carillon sonne faux : il se fêle et reste sonné. À vous !");
+    } else if (e.what === "clapper") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "Crac !", "#c4d660");
+      sfx.play("break");
+      logLines.push("Le battant se brise : le Carillon ne sonnera plus.");
+    } else if (e.what === "sprout") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#7f9a84");
+      logLines.push("Le mycélium se soulève : un Kobold envahi en sort.");
+    }
     renderLog();
   } else if (e.type === "sealed") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Scellé", "#e2ded6");

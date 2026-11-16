@@ -151,7 +151,7 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     } else if (e.type === "potionThrown") add("alchimiste", 1);
     else if (e.type === "chest" || e.type === "maiden") add("pilleur", 1);
     else if (e.type === "attack" && e.attacker.kind === "hero" && e.result.hit && e.result.damage > 0) add("bourreau", e.result.damage);
-    else if (e.type === "boss" && e.what === "dead") {
+    else if (e.type === "boss" && e.what === "dead" && game.bossLayout()?.kind !== "carillon") {
       const before = profile.tiers.tisseuse ?? -1;
       add("tisseuse", 1);
       if ((profile.tiers.tisseuse ?? -1) === before && before >= 0)

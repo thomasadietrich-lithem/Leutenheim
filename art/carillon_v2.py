@@ -159,6 +159,75 @@ def champi_bell(style="A", sway=0.0, ring=False, clapper=True, cracked=False, st
     return s.done()
 
 
+def champi_dead(style="A"):
+    """Vaincu : le pied a cédé, le chapeau est tombé de côté, fendu ; le battant a roulé."""
+    st = STYLES[style]
+    cap = st["cap"]
+    s = S(48, 62)
+    for y in range(0, 16):
+        for x in range(22, 27):
+            s.p(x, y, STEM[0] if x < 24 else STEM[2])
+    s.line(23, 16, 21, 19, STEM[1]).line(25, 16, 26, 20, STEM[1])
+    s.ell(22, 47, 19, 9, cap[1], shade=cap[3], light=cap[0])
+    s.ell(22, 44, 8, 4, st["top"])
+    for x in range(6, 40, 4):
+        s.line(x, 44, x + 1, 52, st["stripe"] or cap[2])
+    s.ell(38, 47, 4, 8, GILL[1])
+    for y in range(40, 55, 2):
+        s.p(37, y, GILL[2])
+    s.line(10, 43, 16, 49, (24, 16, 22)).line(16, 49, 13, 53, (24, 16, 22))
+    if st.get("drip"):
+        for x in (8, 15, 29, 33):
+            s.p(x, 56, st["edge"]).p(x, 57, st["edge"])
+    s.ell(44.5, 55, 3, 3, CLAP[2], shade=(80, 96, 40))
+    return s.done()
+
+
+def export():
+    """Les images du jeu (version A, Thomas : « A fonce ») → src/render/sprites/carillon.ts."""
+    from carillon_v1 import stump
+    frames = {
+        "idle0": champi_bell("A", -1), "idle1": champi_bell("A", 0), "idle2": champi_bell("A", 1),
+        "warn0": champi_bell("A", -4), "warn1": champi_bell("A", 4),
+        "ring0": champi_bell("A", -3, ring=True), "ring1": champi_bell("A", 3, ring=True),
+        "false": champi_bell("A", 0, cracked=True, stunned=True),
+        "cracked0": champi_bell("A", -1, cracked=True), "cracked1": champi_bell("A", 1, cracked=True),
+        "noclap0": champi_bell("A", -1, clapper=False), "noclap1": champi_bell("A", 1, clapper=False),
+        "noclapCracked": champi_bell("A", 0, clapper=False, cracked=True),
+        "dead": champi_dead("A"),
+        "souche": stump(),
+    }
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    palette = {}
+    out = {}
+    for name, sp in frames.items():
+        im = sp.img()
+        rows = []
+        for y in range(im.height):
+            row = ""
+            for x in range(im.width):
+                r, g, b, a = im.getpixel((x, y))
+                if a == 0:
+                    row += "."
+                    continue
+                key = "#%02x%02x%02x" % (r, g, b)
+                if key not in palette:
+                    palette[key] = letters[len(palette)]
+                row += palette[key]
+            rows.append(row)
+        out[name] = rows
+    lines = ["// FICHIER GÉNÉRÉ par art/carillon_v2.py (export) : ne pas modifier à la main.",
+             "/** Le Carillon (version A, coprin) et la souche de pierre de sa grotte. */",
+             "export const CARILLON_PALETTE: Record<string, string> = {" + ", ".join('"%s": "%s"' % (v, k) for k, v in palette.items()) + "};",
+             "export const CARILLON: Record<string, string[]> = {"]
+    for name, rows in out.items():
+        lines.append("  %s: [%s]," % (name if name != "false" else '"false"', ", ".join('"%s"' % r for r in rows)))
+    lines.append("};")
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "render", "sprites", "carillon.ts")
+    open(path, "w").write("\n".join(lines) + "\n")
+    print("carillon.ts", len(palette), "couleurs")
+
+
 def main():
     W, H = 900, 1010
     sheet = Image.new("RGB", (W, H), (26, 20, 14))
@@ -181,4 +250,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "export":
+        export()
+    else:
+        main()

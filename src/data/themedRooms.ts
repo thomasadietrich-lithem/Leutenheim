@@ -208,6 +208,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   champiGeant: { blocks: true, w: 1, h: 1, burns: true },
   champiCorail: { blocks: false, w: 1, h: 1, burns: true },
   lueursB1: { blocks: false, w: 1, h: 1, burns: true },
+  // Grotte du Carillon (boss de la section 2) : une souche de pierre, l'abri contre son onde.
+  souche: { blocks: true, w: 1, h: 1, burns: false },
   lueursB2: { blocks: false, w: 1, h: 1, burns: true },
   lueursB3: { blocks: false, w: 1, h: 1, burns: true },
   lueursG1: { blocks: false, w: 1, h: 1, burns: true },

@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 34;
+export const SANDBOX_LAYOUT = 35;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -490,7 +490,7 @@ export const ARENA_MONSTERS: SandboxMonster[] = [
  * - à droite, un couloir encombré d'éboulis, puis la GROTTE AUX LUEURS (salle irrégulière, une araignée) : une salle
  *   secrète derrière un rideau de mycélium (fouiller la grotte) ;
  * - en bas, la SALLE AUX GRILLES : deux cellules derrière des grilles (l'une verrouillée, la clef traîne au sol) ;
- * - en bas à gauche, le TERRIER : un îlot d'éboulis au milieu, des monstres qui rôdent, l'escalier de la Tisseuse.
+ * - en bas à gauche, le TERRIER : un îlot d'éboulis au milieu, des monstres qui rôdent, l'escalier du Carillon.
  */
 export function buildSandbox2(): SandboxFloor {
   const map = new GameMap(110, 66);
@@ -685,7 +685,8 @@ export function buildSandbox2(): SandboxFloor {
   monsters.push({ x: 30, y: 50, asleep: false, patrol: true, monster: "sporelin" }, { x: 23, y: 47, asleep: false, patrol: true, monster: "myconide" }, { x: 33, y: 52, asleep: false, patrol: true, monster: "cueilleur" });
   const stairs = { x: 21, y: 52 };
   map.set(stairs.x, stairs.y, Tile.StairsDown);
-  signs.push({ x: 26, y: 54, text: "↓ Nichée de la Tisseuse" });
+  // L'escalier du terrier mène à la grotte du Carillon (boss de la section 2, Thomas, 2026-11-16).
+  signs.push({ x: 26, y: 54, text: "↓ Grotte du Carillon" });
 
   // Un éboulis ne fait jamais la jonction de deux pièces ni d'une porte (Thomas, 2026-11-14) : on retire ceux qui
   // touchent une porte ou une ouverture (une case de couloir collée à une salle) ; le mur éventré se referme.

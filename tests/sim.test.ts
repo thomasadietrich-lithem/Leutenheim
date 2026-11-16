@@ -5608,3 +5608,88 @@ test("amulettes (Thomas, 2026-11-15) : un chiffre toujours actif ; la vie s'ajou
   give("amulette_vitalite_2");
   assert.equal(game.hero.maxHp, hp + 8);
 });
+
+test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette à terre hors d'un abri ; sonner faux ; battant cassé ; vaincu", () => {
+  const setup = (seed: number) => {
+    const game = new Game(seed);
+    game.testRun = true;
+    game.teleport(10);
+    return game;
+  };
+  const game = setup(31);
+  const bell = game.bossActor()!;
+  assert.equal(bell.defId, "carillon");
+  const layout = game.bossLayout()!;
+  assert.equal(layout.kind, "carillon");
+  assert.ok(game.monsters.some((m) => m.defId === "battant"), "le battant");
+  assert.equal(game.monsters.filter((m) => m.defId === "envahi" && m.asleep).length, 3, "trois envahis endormis");
+  assert.equal(game.look(), "champi");
+  // Le héros dans la grotte, à découvert, juste devant le battant (2 cases dessous).
+  const clap = layout.clapper!;
+  Object.assign(game.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
+  game.setPeaceful(false);
+  const rings: number[] = [];
+  for (let t = 0; t < 8; t++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    if (game.events.some((e) => e.type === "carillon" && e.what === "ring")) rings.push(t);
+  }
+  assert.ok(rings.length >= 2 && rings[1] - rings[0] === 3, `il sonne tous les 3 tours : ${rings}`);
+  // À l'abri derrière une souche : l'onde ne le touche pas.
+  const stump = game.furnitureList().find((f) => f.kind === "souche")!;
+  const behind = { x: stump.x + Math.sign(stump.x - clap.x), y: stump.y + Math.sign(stump.y - clap.y) };
+  const g2 = setup(31);
+  const b2 = g2.bossActor()!;
+  Object.assign(g2.hero, { x: behind.x, y: behind.y, hp: 500, maxHp: 500 });
+  let sheltered = true;
+  for (let t = 0; t < 6; t++) {
+    g2.events.length = 0;
+    g2.wait();
+    g2.tick();
+    const ring = g2.events.find((e) => e.type === "carillon" && e.what === "ring");
+    if (ring && ring.type === "carillon" && (ring.hit ?? []).includes(g2.hero)) sheltered = false;
+  }
+  assert.ok(g2.inLairPublic(g2.hero), "le héros abrité est bien dans la grotte");
+  assert.ok(sheltered, "abrité derrière la souche");
+  void b2;
+  // Sonner faux : un coup qui porte pendant l'avertissement.
+  const g3 = setup(31);
+  const b3 = g3.bossActor()!;
+  Object.assign(g3.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
+  for (let t = 0; t < 10 && b3.boss!.ring !== 1; t++) {
+    g3.wait();
+    g3.tick();
+  }
+  assert.equal(b3.boss!.ring, 1, "avertissement");
+  (g3 as unknown as { noteBossHit(m: unknown, d: number): void }).noteBossHit(b3, 3);
+  g3.events.length = 0;
+  g3.wait();
+  g3.tick();
+  assert.ok(g3.events.some((e) => e.type === "carillon" && e.what === "false"), "il sonne faux");
+  assert.ok(b3.boss!.cracked && (b3.boss!.fallen ?? 0) > 0 && g3.heroHasAdvantageOn(b3), "fêlé, sonné : avantage");
+  // Battant cassé : plus d'onde.
+  const g4 = setup(31);
+  const b4 = g4.bossActor()!;
+  const battant = g4.monsters.find((m) => m.defId === "battant")!;
+  battant.hp = 0;
+  (g4 as unknown as { removeIfDead(m: unknown): void }).removeIfDead(battant);
+  assert.equal(b4.boss!.clapperUp, false);
+  Object.assign(g4.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
+  let rang = false;
+  for (let t = 0; t < 7; t++) {
+    g4.events.length = 0;
+    g4.wait();
+    g4.tick();
+    if (g4.events.some((e) => e.type === "carillon" && e.what === "ring")) rang = true;
+  }
+  assert.ok(!rang, "sans battant, il ne sonne plus");
+  // Vaincu : coffre doré, l'escalier derrière lui s'atteint.
+  b4.hp = 0;
+  (g4 as unknown as { removeIfDead(m: unknown): void }).removeIfDead(b4);
+  assert.equal(g4.bossActor(), undefined);
+  let chest = false;
+  for (let y = 0; y < g4.map.height; y++) for (let x = 0; x < g4.map.width; x++) if (g4.goldChestAt(x, y)) chest = true;
+  assert.ok(chest, "coffre doré");
+  assert.ok(g4.sealedStairsAt(layout.seal.x, layout.seal.y));
+});

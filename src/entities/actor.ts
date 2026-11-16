@@ -109,4 +109,11 @@ export interface BossState {
   hatched: boolean;
   hubUp: boolean;
   engaged: boolean;
+  /** Carillon : tours avant le prochain coup ; battant encore là ; fêlé (sonné faux) ; un coup a porté pendant son
+   *  avertissement (il va sonner faux) ; les envahis de mi-vie sont sortis. */
+  ring?: number;
+  clapperUp?: boolean;
+  cracked?: boolean;
+  falseNote?: boolean;
+  sprouted?: boolean;
 }

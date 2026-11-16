@@ -21,7 +21,8 @@ import { encaseStairs } from "../world/stairs";
 import { carvePocket, placeSecretRoom, placeWallMarks } from "../world/secretRoom";
 import { decorateChampi } from "../world/champi";
 import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan, sandboxSection, setSandboxSection } from "../world/sandbox";
-import { BossFloor, buildBossFloor } from "../world/bossFloor";
+import { BossFloor, BossLayout, buildBossFloor } from "../world/bossFloor";
+import { buildCarillonFloor } from "../world/carillonFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
 import { FURNITURE_KINDS } from "../data/themedRooms";
@@ -325,7 +326,7 @@ export class Game {
       const seed = floorSeed(this.runSeed, depth);
       if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan(this.sandboxSection);
       // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
-      const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? buildBossFloor(seed) : null;
+      const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : buildBossFloor(seed)) : null;
       const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
@@ -435,7 +436,7 @@ export class Game {
           }
         }
       }
-      if (champi) state.look = "champi";
+      if (champi || bossFloor?.boss.kind === "carillon") state.look = "champi";
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -474,6 +475,8 @@ export class Game {
     if (fresh) for (const f of state.furniture) if (f.kind === "plate" && f.count) state.ground.push({ x: f.x, y: f.y, item: "cuisse_poulet", count: f.count });
     if (fresh && sandboxFloor) {
       this.populateSandbox(state, sandboxFloor, this.resetting);
+    } else if (fresh && state.boss?.kind === "carillon") {
+      this.spawnCarillon(state);
     } else if (fresh && state.boss) {
       // La nichée : la Tisseuse seule, au centre de sa grande toile ; ni renforts, ni clef, ni pièges, ni butin au sol.
       const queen = this.newMonster(MONSTERS.tisseuse, state.boss.spawn.x, state.boss.spawn.y, false);
@@ -928,12 +931,140 @@ export class Game {
   }
 
   /** Étage d'un boss ? (le dernier de chaque section ; en salle d'essai, l'étage 2, sous l'escalier). */
+  /** La grotte du Carillon : lui (3 × 3), son battant sous son chapeau, trois Kobolds envahis endormis. */
+  private spawnCarillon(state: FloorState): void {
+    const b = state.boss!;
+    const bell = this.newMonster(MONSTERS.carillon, b.spawn.x, b.spawn.y, false);
+    bell.boss = { phase: "lurk", bites: 0, hpMark: bell.hp, lurk: 0, fallen: 0, hatched: false, hubUp: false, engaged: false, ring: RULES.carillonEvery, clapperUp: true };
+    bell.alerted = true;
+    bell.facing = "down";
+    this.monsters.push(bell);
+    if (b.clapper) {
+      const clap = this.newMonster(MONSTERS.battant, b.clapper.x, b.clapper.y, false);
+      clap.alerted = true;
+      this.monsters.push(clap);
+    }
+    for (const p of b.sleepers ?? []) this.monsters.push(this.newMonster(MONSTERS.envahi, p.x, p.y, true));
+    state.population = 0;
+  }
+
+  /** Le Carillon a-t-il le héros « en vue » pour son onde (rien entre eux qui bloque : mur, souche, autre monstre) ? */
+  private waveReaches(from: Point, to: Point): boolean {
+    for (const c of lineBetween(from, to)) {
+      if (c.x === to.x && c.y === to.y) break;
+      const t = this.map.get(c.x, c.y);
+      if (t === Tile.Wall || t === Tile.Pillar || t === Tile.Furniture || t === Tile.DoorClosed || t === Tile.DoorLocked) return false;
+      const o = this.monsterAt(c.x, c.y);
+      if (o && !o.boss && !this.isInert(o)) return false;
+    }
+    return true;
+  }
+
+  /** Pour les essais : le héros (ou un point) est-il dans la grotte du boss ? */
+  inLairPublic(p: Point): boolean {
+    const b = this.current.boss;
+    return !!b && this.inLair(b.lair, p);
+  }
+
+  private inLair(r: Room, p: Point): boolean {
+    return p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h;
+  }
+
+  /** Le battant du Carillon (et tout monstre inerte) : il ne bouge ni n'agit. */
+  isInert(m: Actor): boolean {
+    return !!(MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.inert;
+  }
+
+  /**
+   * Le tour du CARILLON (Thomas, 2026-11-16) : il ne bouge pas. Dès que le héros entre dans sa grotte, il compte ;
+   * le tour d'avant, il se balance fort (l'avertissement) ; puis il SONNE : l'onde jette à terre (1 tour) et blesse
+   * (1d6, le double au contact) qui n'est pas à l'abri, réveille les envahis. Un coup reçu pendant l'avertissement le
+   * fait SONNER FAUX : pas d'onde, il est sonné 2 tours et se fêle. Battant cassé : il ne sonne plus.
+   */
+  private carillonAct(m: Actor): void {
+    const st = m.boss!;
+    const layout = this.current.boss!;
+    if (!st.engaged) {
+      if (!this.inLair(layout.lair, this.hero)) return;
+      st.engaged = true;
+      st.ring = RULES.carillonEvery;
+      this.events.push({ type: "carillon", what: "wake", actor: m });
+    }
+    // À mi-vie, deux envahis sortent du mycélium.
+    if (!st.sprouted && m.hp * 2 <= m.maxHp) {
+      st.sprouted = true;
+      for (const p of layout.sprouts ?? []) {
+        if (this.actorAt(p.x, p.y) || !this.map.isWalkable(p.x, p.y)) continue;
+        const e = this.newMonster(MONSTERS.envahi, p.x, p.y, false);
+        e.alerted = true;
+        e.prone = 1;
+        this.monsters.push(e);
+        this.events.push({ type: "carillon", what: "sprout", actor: e });
+      }
+    }
+    if ((st.fallen ?? 0) > 0) {
+      st.fallen--;
+      return;
+    }
+    if (!st.clapperUp) return;
+    st.ring = (st.ring ?? RULES.carillonEvery) - 1;
+    if (st.ring === 1) {
+      this.events.push({ type: "carillon", what: "warn", actor: m });
+      return;
+    }
+    if (st.ring > 0) return;
+    st.ring = RULES.carillonEvery;
+    if (st.falseNote) {
+      st.falseNote = false;
+      st.fallen = RULES.carillonFalseTurns;
+      if (!st.cracked) {
+        st.cracked = true;
+        m.armorClass -= 2;
+      }
+      this.events.push({ type: "carillon", what: "false", actor: m });
+      return;
+    }
+    // L'onde : elle part du battant (sous le chapeau).
+    const from = layout.clapper ?? { x: m.x + 1, y: m.y + 2 };
+    const hit: Actor[] = [];
+    if (this.waveReaches(from, this.hero) && this.inLair(layout.lair, this.hero)) {
+      const close = gapBetween(m, this.hero) <= 1;
+      const dmg = rollDice(this.rng, RULES.carillonWaveDamage) * (close ? 2 : 1);
+      this.hero.prone = Math.max(this.hero.prone ?? 0, 1);
+      this.hurtHero(dmg, "l'onde du Carillon");
+      hit.push(this.hero);
+    }
+    for (const o of this.monsters) {
+      if (o === m || o.boss || this.isInert(o)) continue;
+      if (o.asleep) {
+        o.asleep = false;
+        o.alerted = true;
+      }
+      if (this.waveReaches(from, o)) {
+        o.prone = Math.max(o.prone ?? 0, 1);
+        hit.push(o);
+      }
+    }
+    this.events.push({ type: "carillon", what: "ring", actor: m, hit });
+  }
+
+  /** Un coup du héros a porté sur le Carillon : pendant son avertissement, il sonnera faux. */
+  private noteBossHit(m: Actor, damage: number): void {
+    if (m.defId !== "carillon" || damage <= 0 || !m.boss) return;
+    if (m.boss.ring === 1 && m.boss.clapperUp) m.boss.falseNote = true;
+  }
+
+  /** L'étage du Carillon : le 10 (boss de la section 2) ; en salle d'essai section 2, l'escalier du terrier y mène. */
+  isCarillonDepth(depth: number): boolean {
+    return this.sandbox ? depth === 2 && this.sandboxSection === 2 : depth === RULES.bossDepths[1];
+  }
+
   isBossDepth(depth: number): boolean {
     return this.sandbox ? depth === 2 : (RULES.bossDepths as readonly number[]).includes(depth);
   }
 
   /** Le plan de la nichée (étage du boss), pour le dessin des amarres. */
-  bossLayout(): { hub: Point; pillars: Point[]; seal: Point; chest: Point } | undefined {
+  bossLayout(): BossLayout | undefined {
     return this.current.boss;
   }
 
@@ -1074,7 +1205,7 @@ export class Game {
       return;
     }
     // Partie d'essai : l'escalier ouvert mène à la section 2 (la vraie partie s'arrête à la fin de la démo).
-    if (this.sealedStairsAt(at.x, at.y) && this.testRun) {
+    if (this.sealedStairsAt(at.x, at.y) && this.testRun && this.depth < RULES.demoLastDepth) {
       this.teleport(this.depth + 1);
       return;
     }
@@ -1186,8 +1317,11 @@ export class Game {
     // ses 2 × 2 cases, jamais à côté du héros (la plus loin de lui) ; sinon, plus loin.
     const free = (p: Point) =>
       this.map.get(p.x, p.y) === Tile.Floor && !this.furnitureAt(p.x, p.y) && !(p.x === this.hero.x && p.y === this.hero.y) && !this.ground.some((g) => g.x === p.x && g.y === p.y) && !this.isBurning(p.x, p.y);
+    // Le battant tombe avec lui.
+    for (const m of [...this.monsters]) if (this.isInert(m)) this.monsters.splice(this.monsters.indexOf(m), 1);
+    const s = layout.kind === "carillon" ? 3 : 2;
     const ring: Point[] = [];
-    for (let y = at.y - 1; y <= at.y + 2; y++) for (let x = at.x - 1; x <= at.x + 2; x++) if (x < at.x || x > at.x + 1 || y < at.y || y > at.y + 1) ring.push({ x, y });
+    for (let y = at.y - 1; y <= at.y + s; y++) for (let x = at.x - 1; x <= at.x + s; x++) if (x < at.x || x > at.x + s - 1 || y < at.y || y > at.y + s - 1) ring.push({ x, y });
     const far = (p: Point) => Math.max(Math.abs(p.x - this.hero.x), Math.abs(p.y - this.hero.y));
     let chest: Point | null = ring.filter((p) => free(p) && far(p) > 1).sort((a, b) => far(b) - far(a))[0] ?? null;
     for (let r = 2; r <= 5 && !chest; r++) {
@@ -2003,7 +2137,7 @@ export class Game {
   /** Étage du boss de la section 1 : la section 2 affleure autour de l'escalier scellé (Thomas, 2026-11-15) ; un
    *  contour irrégulier, mais toujours le même pour une case donnée. */
   champiPatch(x: number, y: number): boolean {
-    const seal = this.current?.boss?.seal;
+    const seal = this.current?.boss?.kind ? undefined : this.current?.boss?.seal;
     if (!seal) return false;
     const dx = x - seal.x;
     const dy = y - seal.y;
@@ -2536,6 +2670,10 @@ export class Game {
     // l'a donnée brille doucement, on le retrouve de loin.
     const giver = this.quest && this.current ? this.npc(QUEST_TASKS[this.quest.id].npc) : null;
     if (giver) candle.push({ x: giver.x, y: giver.y, faceX: 0, faceY: 0, radius: RULES.questNpcLight, area: this.rooms.find((r) => giver.x >= r.x && giver.x < r.x + r.w && giver.y >= r.y && giver.y < r.y + r.h) ?? { x: giver.x - 1, y: giver.y - 1, w: 3, h: 3 } });
+    // Le Carillon luit (ses taches et son battant) : sa grotte se voit, on voit venir le coup.
+    const bell = this.monsters.find((m) => m.defId === "carillon");
+    const lair = this.current?.boss?.lair;
+    if (bell && lair) candle.push({ x: bell.x + 1, y: bell.y + 3, faceX: 0, faceY: 0, radius: 8, area: lair });
     this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
     this.lightVersion = this.map.version;
   }
@@ -3800,6 +3938,13 @@ export class Game {
       this.current.merchant.fromY = this.current.merchant.y;
     }
 
+    // À terre (l'onde du Carillon) : le héros passe ce tour à se relever ; tout ordre est oublié.
+    if ((this.hero.prone ?? 0) > 0 && this.stoneTurns <= 0) {
+      this.hero.prone!--;
+      Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
+      this.waiting = true;
+      if (this.hero.prone === 0) this.events.push({ type: "getUp", actor: this.hero });
+    }
     // Statue (potion de pierre) : le héros ne peut rien faire ; tout ordre est oublié, le tour passe.
     if (this.stoneTurns > 0) {
       this.stoneTurns--;
@@ -4072,6 +4217,17 @@ export class Game {
    */
   private resolvePush(m: Actor): void {
     this.reveal();
+    // Le battant du Carillon : une poussée réussie l'arrache (Thomas, 2026-11-16).
+    if (this.isInert(m)) {
+      const d20 = this.rng.int(1, 20);
+      const ok = d20 === 20 || (d20 !== 1 && d20 + this.pushBonus() >= RULES.pushDc);
+      this.events.push({ type: "push", target: m, d20, bonus: this.pushBonus(), total: d20 + this.pushBonus(), success: ok, moved: false, slam: 0 });
+      if (ok) {
+        m.hp = 0;
+        this.removeIfDead(m);
+      }
+      return;
+    }
     // Bousculade (voie rouge, ex-Enchaînement ; Thomas, 2026-11-13 : « un boost pour pousser ») : +2 puis +4 au jet,
     // et la poussée envoie une case plus loin.
     const shove = this.rank("enchainement");
@@ -7655,6 +7811,7 @@ export class Game {
     monster.asleep = false;
     const intact = monster.hp >= monster.maxHp;
     monster.hp -= result.damage;
+    this.noteBossHit(monster, result.damage);
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
     // Arme lourde (épée longue) : un grand d20 assomme la cible, qui perd son prochain tour.
     const stunOn = this.weapon("melee")?.stunOn;
@@ -7739,6 +7896,7 @@ export class Game {
 
   /** Projeté par un coup critique : une case dans l'axe du héros, si elle est libre ; il peut tomber sur un piège. */
   private knockBack(m: Actor): void {
+    if (this.isInert(m)) return;
     const dx = Math.sign(m.x - this.hero.x);
     const dy = Math.sign(m.y - this.hero.y);
     const to = { x: m.x + dx, y: m.y + dy };
@@ -7774,6 +7932,12 @@ export class Game {
     }
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
+    // Le battant cassé : le Carillon ne sonne plus.
+    if (monster.defId === "battant") {
+      const bell = this.bossActor();
+      if (bell?.boss) bell.boss.clapperUp = false;
+      this.events.push({ type: "carillon", what: "clapper", actor: monster });
+    }
     if (byHero) this.perks().kills = (this.perks().kills ?? 0) + 1;
     // Sporelin : il éclate en un nuage de spores (empoisonné) sur sa case et ses 4 voisines.
     if (sdef?.burstGas) {
@@ -7880,6 +8044,7 @@ export class Game {
       victim.alerted = true;
       victim.asleep = false;
       victim.hp -= result.damage;
+      this.noteBossHit(victim, result.damage);
       this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
       if (result.damage > 0) this.bleed(victim, origin);
       hit = result.hit;
@@ -8026,9 +8191,12 @@ export class Game {
           if (m.petrified === 0) this.events.push({ type: "stone", what: "monsterBack", actor: m });
           continue;
         }
-        this.bossAct(m);
+        if (m.defId === "carillon") this.carillonAct(m);
+        else this.bossAct(m);
         continue;
       }
+      // Le battant du Carillon ne fait rien.
+      if (this.isInert(m)) continue;
       if (m.prone) {
         // Renversé : il passe son tour à se relever.
         m.prone--;

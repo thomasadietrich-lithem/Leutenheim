@@ -29,10 +29,23 @@ const VOLUME = 0.65;
 
 const hz = (n: number) => 440 * 2 ** ((n - 69) / 12);
 
+/** « Le cœur du boss » (Thomas, 2026-11-16 : « implémente la musique boss v4 avec les battements de cœur, pour les deux
+ *  boss » ; maquette `art/audio/musique_v4.py boss`) : un cœur donne le tempo, qui suit la vie du boss. */
+const BOSS_BPM = [50, 66, 88];
+const BOSS_PROG = [DM, BB, GM, A];
+const BOSS_THEME = [62, 60, 57, 58, 57, 53, 55, 57];
+
 export class Music {
   enabled = true;
   /** Palier voulu (0 calme … 3 traque) ; il prend effet à la mesure suivante. */
   stage = 0;
+  /** Combat de boss en cours : sa phase (0 intact, 1 sous les deux tiers, 2 sous le tiers), sinon null. */
+  boss: 0 | 1 | 2 | null = null;
+  /** Le boss vient de mourir : la mesure suivante joue sa fin (le cœur s'arrête, puis l'accord majeur et la cloche). */
+  private deathPending = false;
+  bossDied(): void {
+    this.deathPending = true;
+  }
   private out: GainNode | null = null;
   private wet: GainNode | null = null;
   private harp: PeriodicWave | null = null;
@@ -76,7 +89,12 @@ export class Music {
     }
     // Une mesure à la fois, préparée au plus 0,4 s avant qu'elle ne commence.
     while (this.nextBar < now + 0.4) {
-      const length = this.playBar(ctx, this.nextBar, this.stage);
+      let length: number;
+      if (this.deathPending) {
+        this.deathPending = false;
+        length = this.playBossDeath(ctx, this.nextBar);
+      } else if (this.boss !== null) length = this.playBossBar(ctx, this.nextBar, this.boss);
+      else length = this.playBar(ctx, this.nextBar, this.stage);
       this.nextBar += length;
       this.bar++;
     }
@@ -166,6 +184,69 @@ export class Music {
     osc.connect(g).connect(this.wet!);
     osc.start(t);
     osc.stop(t + 0.32);
+  }
+
+  /** Un battement de cœur feutré (« poum ») : une sinusoïde grave qui tombe vite. */
+  private heart(ctx: AudioContext, t: number, vol: number): void {
+    const osc = ctx.createOscillator();
+    osc.frequency.setValueAtTime(62, t);
+    osc.frequency.exponentialRampToValueAtTime(38, t + 0.22);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(g).connect(this.out!);
+    osc.start(t);
+    osc.stop(t + 0.32);
+  }
+
+  /** Cloche grave : quelques partiels inharmoniques qui s'éteignent lentement. */
+  private bellTone(ctx: AudioContext, t: number, freq: number, vol: number): void {
+    for (const [ratio, g, decay] of [[1, 1, 3.5], [2.0, 0.5, 2.5], [2.76, 0.35, 1.8], [5.4, 0.15, 1.0]]) {
+      const osc = ctx.createOscillator();
+      osc.frequency.value = freq * ratio;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(vol * g, t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0005, t + decay);
+      osc.connect(gain).connect(this.wet!);
+      osc.start(t);
+      osc.stop(t + decay + 0.05);
+    }
+  }
+
+  /** Une mesure du combat de boss : nappe, bourdon, le cœur sur chaque temps (« poum-poum »), le thème au violoncelle ;
+   *  la harpe répond dès la 2e phase ; la cloche en 3e phase. */
+  private playBossBar(ctx: AudioContext, t0: number, phase: 0 | 1 | 2): number {
+    const beat = 60 / BOSS_BPM[phase];
+    const chord = BOSS_PROG[this.bar % 4];
+    for (const n of chord) {
+      this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.026, 1.0, 1.2, 1000 + phase * 150, 0);
+      this.note(ctx, t0, hz(n), 4 * beat, "sawtooth", 0.026, 1.0, 1.2, 1000 + phase * 150, 10);
+    }
+    this.note(ctx, t0, hz(38), 4 * beat, "sine", 0.16, 0.3, 0.5);
+    for (let k = 0; k < 4; k++) {
+      this.heart(ctx, t0 + k * beat, 0.55);
+      this.heart(ctx, t0 + k * beat + Math.min(0.3, beat * 0.36), 0.32);
+    }
+    const n = BOSS_THEME[this.bar % 8] + (phase === 2 ? 12 : 0);
+    this.note(ctx, t0, hz(n), 3.6 * beat, "sawtooth", 0.07, 0.25, 0.6, 900, 5);
+    if (phase >= 1) {
+      const arp = [chord[0], chord[2], chord[1] + 12, chord[2]];
+      for (let k = 0; k < 4 * phase; k++) this.pluck(ctx, t0 + (k * beat) / phase, hz(arp[k % 4] + 12), beat / phase + 0.5, 0.07, 0.6);
+    }
+    if (phase === 2 && this.bar % 4 === 0) this.bellTone(ctx, t0, hz(50), 0.08);
+    return 4 * beat;
+  }
+
+  /** La mort du boss : deux battements qui ralentissent, un demi-coup, le silence, puis la lumière (ré majeur, cloche). */
+  private playBossDeath(ctx: AudioContext, t0: number): number {
+    for (const [t, g] of [[0, 0.55], [0.3, 0.32], [1.1, 0.45], [1.45, 0.26], [2.7, 0.32]]) this.heart(ctx, t0 + t, g);
+    const major = [50, 57, 62, 66, 69, 74, 78];
+    major.forEach((m, i) => this.pluck(ctx, t0 + 5.2 + i * 0.09, hz(m), 5, 0.12, 1.6));
+    for (const m of [50, 54, 57]) this.note(ctx, t0 + 5.2, hz(m), 5, "sawtooth", 0.03, 1.2, 2, 1200, 6);
+    this.bellTone(ctx, t0 + 5.2, hz(62), 0.08);
+    return 11;
   }
 
   /** Joue une mesure (4 temps) à partir de `t0` ; renvoie sa durée. Mêmes couches que la maquette v4 C. */

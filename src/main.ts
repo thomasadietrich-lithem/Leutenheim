@@ -898,6 +898,7 @@ function reveal(e: GameEvent): void {
     const queen = game.monsters.find((m) => m.boss);
     if (queen) renderer.addHealCrosses(queen.x, queen.y, 2);
   } else if (e.type === "boss" && e.what === "dead") {
+    music.bossDied();
     // Ses petits s'éloignent de quelques pas, puis fuient dans un nuage de fumée (Thomas, 2026-11-14).
     broodFlight = (e.fled ?? []).filter((f) => game.monsters.some((m) => m.id === f.id));
     const steps = Math.max(0, ...broodFlight.map((f) => f.path.length));
@@ -4036,8 +4037,14 @@ function frame(now: number): void {
   const dt = Math.min(now - last, 100);
   last = now;
   watchSpeed(dt);
-  // Étage du boss : pas d'alerte ; la musique y reste tendue (palier « alerte ») en attendant un thème à elle.
+  // Étage du boss : pas d'alerte ; la musique y reste tendue (palier « alerte »), puis « le cœur du boss » pendant le
+  // combat (Thomas, 2026-11-16) : son tempo suit la vie du boss.
   music.stage = game.alarmOff() ? 2 : game.alarm().stage;
+  const fighting = started && !game.over ? game.bossActor() : undefined;
+  if (fighting?.boss?.engaged) {
+    const left = fighting.hp / fighting.maxHp;
+    music.boss = left > 2 / 3 ? 0 : left > 1 / 3 ? 1 : 2;
+  } else music.boss = null;
   music.update();
 
   // Les boutons de l'arène n'apparaissent que dans l'arène (salle d'essai).

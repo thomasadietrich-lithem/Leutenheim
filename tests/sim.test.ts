@@ -6135,3 +6135,31 @@ test("chambre de neige : très rare, et tout fond au feu (Thomas, 2026-11-16)", 
   assert.ok(melted, "au moins une chambre de neige");
   assert.ok(snowy / rooms < 0.2, `rare : ${snowy} sur ${rooms}`);
 });
+
+test("les 10 étages s'enchaînent dans une vraie partie (Thomas, 2026-11-16) : chaque escalier s'atteint, les deux boss ouvrent la suite", () => {
+  for (const seed of [3, 17, 42, 99, 123]) {
+    const game = new Game(seed);
+    const g = game as unknown as { enterFloor(d: number, v: string): void; removeIfDead(m: unknown): void; current: { stairs: { x: number; y: number }; start: { x: number; y: number } } };
+    for (let depth = 1; depth <= 10; depth++) {
+      if (depth > 1) g.enterFloor(depth, "down");
+      assert.equal(game.depth, depth);
+      const boss = game.bossActor();
+      const to = boss ? game.bossLayout()!.seal : g.current.stairs;
+      if (boss) {
+        // Tant que le boss vit, l'escalier est scellé ; mort, il s'ouvre.
+        assert.ok(game.sealedBlockedAt(to.x, to.y), `graine ${seed}, étage ${depth} : scellé`);
+        boss.hp = 0;
+        g.removeIfDead(boss);
+        game.over = false;
+        assert.ok(game.sealedStairsAt(to.x, to.y), `graine ${seed}, étage ${depth} : ouvert après le boss`);
+      }
+      // L'escalier (ou une case à côté de l'escalier scellé) s'atteint à pied depuis l'arrivée.
+      const field = distanceField(game.map, game.hero);
+      const reach = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].some(([dx, dy]) => {
+        const d = field[game.map.index(to.x + dx, to.y + dy)];
+        return d >= 0;
+      });
+      assert.ok(reach, `graine ${seed}, étage ${depth} : escalier injoignable`);
+    }
+  }
+});

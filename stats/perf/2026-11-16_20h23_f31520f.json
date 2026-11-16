@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-16T20:23:53.416Z",
+ "commit": "f31520f",
+ "note": "Héros en calques (race, armure, casque, arme), Halfelin et Elfe jouables, règles d'avantage",
+ "logic": {
+  "tickMs": 0.66,
+  "lightMs": 0.2,
+  "visionMs": 0.17
+ },
+ "scenes": {
+  "immobile": {
+   "n": 96,
+   "avg": 25.5,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 39,
+   "js": 6
+  },
+  "marche": {
+   "n": 183,
+   "avg": 27.3,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 37,
+   "js": 6
+  },
+  "retour": {
+   "n": 204,
+   "avg": 24.6,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 41,
+   "js": 5
+  },
+  "zoom": {
+   "n": 109,
+   "avg": 25.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 40,
+   "js": 6
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 8
+  },
+  "donjon": {
+   "n": 180,
+   "avg": 27.7,
+   "p95": 33.4,
+   "max": 183.4,
+   "fps": 36,
+   "js": 18
+  }
+ },
+ "errors": []
+}

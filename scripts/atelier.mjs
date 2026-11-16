@@ -6,6 +6,9 @@ import { build } from "esbuild";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const PLANCHES = [
+  ["races_v1.png", "Races v1 — Humain, Halfelin, Elfe : toutes les poses", "EN JEU (2026-11-16) : grille 16 × 16 du Guerrier ; Halfelin plus petit et pieds nus, Elfe plus grand aux oreilles en pointe ; poses nouvelles : à terre (2 images) et se relève."],
+  ["races_equipement_v1.png", "Races v1 — le héros en calques", "EN JEU (2026-11-16) : armure, casque, arme et arc se posent sur n'importe quelle race et n'importe quelle pose. Remplace la proposition Paperdoll v1."],
+  ["halfelin_peau_v1.png", "Halfelin — teintes de peau", "Six teintes proposées (2026-11-16) ; Thomas garde la A (hâlé, cheveux cuivrés), en jeu."],
   ["paperdoll_v1.png", "Paperdoll v1 — le Guerrier change avec son équipement", "Proposition (2026-11-13) : couches de 24 × 24, trois races, nouvelles armures et casques. Rien en jeu."],
   ["zones_v1.png", "Zones spéciales v1 — objets des quêtes v3", "EN JEU (2026-11-14) : tapisserie, paillasse, bougie, dalle à pression, cierge, grille, épouvantail coiffé."],
   ["a_terre_v1.png", "À terre v1 — Kobold et frondeur renversés", "EN JEU (2026-11-14) : sur le dos mais vivants (œil ouvert, pattes qui pédalent)."],

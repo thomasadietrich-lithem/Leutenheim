@@ -1833,4 +1833,10 @@ export const EN: Record<string, string> = {
   "Le Carillon est enraciné dans le mycélium : il ne glisse pas.": "The Carillon is rooted in the mycelium: it doesn't slip.",
   "La fumée ne cache rien au Carillon : son onde est un son.": "Smoke hides nothing from the Carillon: its wave is sound.",
   "Le brouillard n'arrête pas le son : l'onde vous trouvera quand même.": "Fog doesn't stop sound: the wave will find you anyway.",
+  "Stuff faible": "Weak gear",
+  "Stuff moyen": "Medium gear",
+  "Stuff élevé": "Strong gear",
+  "Stuff faible : {0}.": "Weak gear: {0}.",
+  "Stuff moyen : {0}.": "Medium gear: {0}.",
+  "Stuff élevé : {0}.": "Strong gear: {0}.",
 };

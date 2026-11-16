@@ -16,6 +16,11 @@ export class Inventory {
   items: BagItem[] = [];
   private nextUid = 1;
 
+  /** Un objet neuf, hors du sac (pour le porter directement : triche « Stuff »). */
+  mint(defId: ItemId, count: number): BagItem {
+    return { uid: this.nextUid++, defId, x: 0, y: 0, count };
+  }
+
   constructor(
     public cols = 6,
     public rows = 4,

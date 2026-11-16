@@ -3670,6 +3670,18 @@ button("spawn-open", () => {
   $("spawn").hidden = false;
   renderSpawn();
 });
+// Triche « Stuff » (Thomas, 2026-11-16) : un équipement complet tiré au hasard, et ses consommables.
+for (const tier of ["faible", "moyen", "eleve"] as const) {
+  button(`kit-${tier}`, () => {
+    const given = game.testKit(tier);
+    if (!given) return;
+    collectEvents();
+    const list = given.map((id) => ITEMS[id].name.toLowerCase()).join(", ");
+    logLines.push(tier === "faible" ? `Stuff faible : ${list}.` : tier === "moyen" ? `Stuff moyen : ${list}.` : `Stuff élevé : ${list}.`);
+    renderLog();
+    sfx.play("click");
+  });
+}
 button("spawn-close", () => {
   foundOpen = false;
   $("spawn").hidden = true;

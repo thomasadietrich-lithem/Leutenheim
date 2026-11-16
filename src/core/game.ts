@@ -39,6 +39,7 @@ import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, 
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
 export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
+import { KitTier, TEST_KITS } from "../data/testKits";
 import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
 import { buyBackPrice, MERCHANT, SANDBOX_WARES } from "../data/merchant";
 
@@ -3017,6 +3018,42 @@ export class Game {
     const left = this.inventory.add(id, count, def.kind === "key" ? this.depth : undefined);
     if (left > 0) this.bounceFromHero(id, left);
     return left > 0 ? "ground" : "bag";
+  }
+
+  /** Bouton « Stuff » de la triche (Thomas, 2026-11-16) : un équipement complet faible, moyen ou élevé, tiré au hasard
+   *  dans `TEST_KITS`, porté aussitôt (l'ancien disparaît), plus ses munitions, vivres et potions au sac. Rend la liste
+   *  des objets donnés (pour le journal), ou null hors essai. */
+  testKit(tier: KitTier): ItemId[] | null {
+    if (!(this.sandbox || this.testRun) || this.over) return null;
+    const kit = TEST_KITS[tier];
+    const pick = <T,>(list: T[]): T => list[this.rng.int(0, list.length - 1)];
+    const given: ItemId[] = [];
+    const wear = (slot: Slot, id: ItemId) => {
+      const item = this.inventory.mint(id, 1);
+      this.equipment[slot] = item;
+      given.push(id);
+    };
+    // Le sac d'abord : tout ce qui était dedans y reste (le nouveau est au moins aussi grand) ; sinon on garde l'ancien.
+    const bag = ITEMS[kit.bag] as ItemDef;
+    if (this.inventory.resize(Math.max(this.inventory.cols, bag.bagCols ?? 6), Math.max(this.inventory.rows, bag.bagRows ?? 4))) wear("bag", kit.bag);
+    wear("melee", pick(kit.melee));
+    wear("armor", pick(kit.armor));
+    wear("hat", pick(kit.hat));
+    wear("ranged", pick(kit.ranged));
+    this.equipment.amulet = null;
+    this.equipment.artifact = null;
+    if (kit.amulet) wear("amulet", pick(kit.amulet));
+    if (kit.artifact) wear("artifact", pick(kit.artifact));
+    for (const id of given) noteUnique(id);
+    this.refreshStats();
+    const stock: [ItemId, number][] = [...pick(kit.ammo), ...pick(kit.food)];
+    for (let i = 0; i < kit.potions.count; i++) stock.push([pick(kit.potions.from), 1]);
+    for (const [id, n] of stock) {
+      const left = this.inventory.add(id, n);
+      if (left > 0) this.bounceFromHero(id, left);
+      if (!given.includes(id)) given.push(id);
+    }
+    return given;
   }
 
   /** Bouton « Revivre » de l'écran de mort (Thomas, 2026-11-15 ; démo d'essai seulement, choisi par l'interface) : le

@@ -164,7 +164,7 @@ export const RULES = {
   bossDepths: [5, 10],
   /** Le Carillon (boss de la section 2, Thomas, 2026-11-16) : il sonne tous les tant de tours ; l'onde fait tant de
    *  dégâts (le double au contact de sa lèvre) ; sonné faux, il reste sonné tant de tours. (C) */
-  carillonEvery: 3,
+  carillonEvery: 8,
   carillonWaveDamage: { count: 1, sides: 6, bonus: 0 },
   carillonFalseTurns: 2,
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */

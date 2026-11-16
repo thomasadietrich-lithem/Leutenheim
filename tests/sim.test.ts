@@ -5623,13 +5623,13 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette
   Object.assign(game.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
   game.setPeaceful(false);
   const rings: number[] = [];
-  for (let t = 0; t < 8; t++) {
+  for (let t = 0; t < 3 * RULES.carillonEvery; t++) {
     game.events.length = 0;
     game.wait();
     game.tick();
     if (game.events.some((e) => e.type === "carillon" && e.what === "ring")) rings.push(t);
   }
-  assert.ok(rings.length >= 2 && rings[1] - rings[0] === 3, `il sonne tous les 3 tours : ${rings}`);
+  assert.ok(rings.length >= 2 && rings[1] - rings[0] === RULES.carillonEvery, `il sonne tous les ${RULES.carillonEvery} tours : ${rings}`);
   // À l'abri derrière une souche : l'onde ne le touche pas.
   const stump = game.furnitureList().find((f) => f.kind === "souche")!;
   const behind = { x: stump.x + Math.sign(stump.x - clap.x), y: stump.y + Math.sign(stump.y - clap.y) };
@@ -5637,7 +5637,7 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette
   const b2 = g2.bossActor()!;
   Object.assign(g2.hero, { x: behind.x, y: behind.y, hp: 500, maxHp: 500 });
   let sheltered = true;
-  for (let t = 0; t < 6; t++) {
+  for (let t = 0; t < 2 * RULES.carillonEvery; t++) {
     g2.events.length = 0;
     g2.wait();
     g2.tick();
@@ -5651,7 +5651,7 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette
   const g3 = setup(31);
   const b3 = g3.bossActor()!;
   Object.assign(g3.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
-  for (let t = 0; t < 10 && b3.boss!.ring !== 1; t++) {
+  for (let t = 0; t < 3 * RULES.carillonEvery && b3.boss!.ring !== 1; t++) {
     g3.wait();
     g3.tick();
   }
@@ -5671,7 +5671,7 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 3 tours, l'onde jette
   assert.equal(b4.boss!.clapperUp, false);
   Object.assign(g4.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
   let rang = false;
-  for (let t = 0; t < 7; t++) {
+  for (let t = 0; t < 2 * RULES.carillonEvery; t++) {
     g4.events.length = 0;
     g4.wait();
     g4.tick();
@@ -5724,4 +5724,17 @@ test("flèche ratée (Thomas, 2026-11-16) : brisée, elle file loin derrière la
     } else if (d > 1) far++;
   }
   assert.ok(near > 0 && far > 0, `entières ${near}, brisées loin ${far}`);
+});
+
+test("triche « Stuff » : équipement complet porté et consommables au sac", () => {
+  const game = new Game(12, undefined, undefined, undefined, true);
+  for (const tier of ["faible", "moyen", "eleve"] as const) {
+    const given = game.testKit(tier);
+    assert.ok(given && given.length >= 6, tier);
+    for (const slot of ["melee", "armor", "hat", "ranged", "bag"] as const) assert.ok(game.equipment[slot], `${tier} : ${slot}`);
+    if (tier !== "faible") assert.ok(game.equipment.amulet && game.equipment.artifact, `${tier} : bibelots`);
+    assert.ok(game.inventory.items.some((i) => ITEMS[i.defId].kind === "use"), `${tier} : consommables`);
+  }
+  assert.equal(game.equipment.bag!.defId, "sac_voyage");
+  assert.equal(new Game(12).testKit("eleve"), null, "pas hors essai");
 });

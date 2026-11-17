@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T13:41:05.970Z",
+ "commit": "a982f29",
+ "note": "armes de section 2, masse revue, moins de flèches, butin de sa section",
+ "logic": {
+  "tickMs": 0.52,
+  "lightMs": 0.37,
+  "visionMs": 0.18
+ },
+ "scenes": {
+  "immobile": {
+   "n": 77,
+   "avg": 31.8,
+   "p95": 50.1,
+   "max": 50.1,
+   "fps": 31,
+   "js": 5
+  },
+  "marche": {
+   "n": 164,
+   "avg": 30.5,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 33,
+   "js": 7
+  },
+  "retour": {
+   "n": 184,
+   "avg": 27.2,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 37,
+   "js": 4
+  },
+  "zoom": {
+   "n": 93,
+   "avg": 29.9,
+   "p95": 50.1,
+   "max": 83.3,
+   "fps": 33,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 151,
+   "avg": 32.8,
+   "p95": 66.6,
+   "max": 233.4,
+   "fps": 31,
+   "js": 22
+  }
+ },
+ "errors": []
+}

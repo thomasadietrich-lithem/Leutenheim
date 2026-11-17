@@ -136,7 +136,7 @@ export const RACES = {
       "Tir au contact : pas de désavantage à l'arc quand un ennemi le touche.",
       "Beau parleur : Charisme +5.",
       "Faiblesse : Force −1.",
-      "Départ : cinq flèches de plus et huit flèches de recul ; un petit paquet de flèches de recul l'attend sur chaque étage.",
+      "Départ : cinq flèches de plus, huit flèches de recul et deux pains elfiques ; un petit paquet de flèches de recul l'attend sur chaque étage.",
     ],
     abilities: [
       { id: "archer", name: "Archer", text: "+2 à l'arc, et pas de désavantage vers une case qu'il ne voit pas." },
@@ -156,6 +156,7 @@ export const RACES = {
     startingItems: [
       { item: "fleche", count: 5 },
       { item: "fleche_recul", count: 8 },
+      { item: "pain_elfique", count: 2 },
     ],
   },
 } satisfies Record<string, RaceDef>;

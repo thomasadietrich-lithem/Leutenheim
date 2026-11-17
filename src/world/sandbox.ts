@@ -100,7 +100,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 40;
+export const SANDBOX_LAYOUT = 41;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -473,7 +473,9 @@ function addArmory(
     ["amulette_vitalite_2", 1], ["amulette_force_2", 1], ["amulette_agilite_2", 1], ["amulette_precision_2", 1],
   ]);
   // L'équipement du Halfelin (Thomas, 2026-11-16).
-  zone(X(115), Y(34), 5, "Halfelin", "#c8a060", [["serpe", 1], ["lance_pierre", 1], ["pierre", 10]]);
+  zone(X(115), Y(34), 5, "Races", "#c8a060", [["serpe", 1], ["lance_pierre", 1], ["pierre", 10], ["pain_elfique", 2]]);
+  // Les armes de la section 2 (Thomas, 2026-11-17).
+  zone(X(120), Y(34), 3, "S2", "#5cc8a8", [["pic_tailleur", 1], ["fauchard", 1], ["arc_corne", 1]]);
 
 }
 

@@ -210,6 +210,8 @@ export const RULES = {
   carillonClapperGuard: 40,
   /** Désamorcer un piège (Thomas, 2026-11-17) : d20 + agilité (+ crochetage) contre tant ; raté de 5 ou plus, il part. (C) */
   disarmDc: 12,
+  /** Un équipement d'une section passée, dans le butin : son poids (1 pour celui de la section en cours). (C) */
+  pastSectionGearWeight: 0.25,
   /** Fouiller dans un couloir (Thomas, 2026-11-17) : les cases de couloir à tant de cases du héros. (C) */
   corridorSearchReach: 5,
   /** Pièges de couloir (Thomas, 2026-11-17 : « à condition qu'il y ait un autre accès ») : dès l'étage 2, chance d'en

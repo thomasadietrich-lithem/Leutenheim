@@ -194,6 +194,21 @@ export const ITEMS = {
     range: 11,
     ammo: "fleche",
   },
+  // L'arc de la section 2 (Thomas, 2026-11-17) (C).
+  arc_corne: {
+    id: "arc_corne",
+    name: "Arc de corne",
+    kind: "ranged",
+    description: "Des branches d'ivoire pâle, une poignée de mousse qui luit. Il porte plus loin que tout autre arc, et vise juste.",
+    w: 1,
+    h: 2,
+    maxStack: 1,
+    rarity: "rare",
+    level: 7,
+    attackBonus: 7,
+    range: 12,
+    ammo: "fleche",
+  },
   fleche: {
     id: "fleche",
     name: "Flèches",
@@ -274,6 +289,8 @@ export const ITEMS = {
   // Section 2 : les morilles de Morillon (sa quête). Elles soignent (C).
   carotte_magique: { id: "carotte_magique", name: "Carotte magique", kind: "use", description: "Le nez d'un bonhomme de neige, dans une pièce secrète. Froide, croquante, elle brille un peu. Rend 12 PV.", w: 1, h: 1, maxStack: 1, rarity: "rare", heal: 12 },
   morille: { id: "morille", name: "Morille", kind: "use", description: "Une morille de Morillon, alvéolée et parfumée. Rend 9 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 9 },
+  // L'Elfe part avec deux pains elfiques (Thomas, 2026-11-17 : « du Lembas +3, ×2 » ; nom propre au jeu).
+  pain_elfique: { id: "pain_elfique", name: "Pain elfique", kind: "use", description: "Une galette dorée, enveloppée dans une feuille qui ne fane pas. Une bouchée suffit. Rend 3 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 3 },
   pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
   torche: {
     id: "torche",
@@ -331,6 +348,8 @@ export const ITEMS = {
     damage: { count: 1, sides: 10, bonus: 2 },
   },
   // Masse d'arme (Thomas, 2026-11-13) : une main, lourde ; elle assomme sur les beaux coups.
+  // Revue (Thomas, 2026-11-17 : « reconsidère le niveau de la masse et son efficacité ») : elle faisait moins de dégâts
+  // que l'épée courte de départ. Niveau 3, +4, 1d8+2 : entre l'épée courte et la lance, et elle assomme (C).
   masse: {
     id: "masse",
     name: "Masse d'arme",
@@ -340,10 +359,40 @@ export const ITEMS = {
     h: 2,
     maxStack: 1,
     rarity: "uncommon",
-    level: 2,
-    attackBonus: 3,
-    damage: { count: 1, sides: 8, bonus: 1 },
+    level: 3,
+    attackBonus: 4,
+    damage: { count: 1, sides: 8, bonus: 2 },
     stunOn: 17,
+  },
+  // Section 2 (Thomas, 2026-11-17 : « propose deux armes cohérentes, niveaux 7 et 8 ») (C).
+  pic_tailleur: {
+    id: "pic_tailleur",
+    name: "Pic de tailleur",
+    kind: "melee",
+    description: "La pioche à double pointe des sculpteurs de champignons de pierre. Lente, mais elle fend tout, et assomme sur un 18 ou plus au dé.",
+    w: 1,
+    h: 3,
+    maxStack: 1,
+    rarity: "uncommon",
+    level: 7,
+    speed: "slow",
+    attackBonus: 5,
+    damage: { count: 2, sides: 10, bonus: 4 },
+    stunOn: 18,
+  },
+  fauchard: {
+    id: "fauchard",
+    name: "Fauchard",
+    kind: "melee",
+    description: "Une lame recourbée au bout d'une longue hampe, pour faucher les chapeaux. Frappe à deux cases, comme la lance, mais bien plus fort.",
+    w: 1,
+    h: 4,
+    maxStack: 1,
+    rarity: "rare",
+    level: 8,
+    reach: 2,
+    attackBonus: 6,
+    damage: { count: 1, sides: 10, bonus: 5 },
   },
   cimeterre: {
     id: "cimeterre",

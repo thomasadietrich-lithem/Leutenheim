@@ -39,6 +39,8 @@ const WEAPON_OF: Record<string, HeroWeapon> = {
   baton: "lance",
   fourche: "lance",
   serpe: "serpe",
+  pic_tailleur: "masse",
+  fauchard: "lance",
 };
 
 export function heroLook(race: string, gear: { armor?: string; hat?: string; melee?: string; ranged?: string } = {}): HeroLook {
@@ -47,7 +49,7 @@ export function heroLook(race: string, gear: { armor?: string; hat?: string; mel
     armor: (gear.armor && ARMOR_OF[gear.armor]) || "tunique",
     helmet: (gear.hat && HELMET_OF[gear.hat]) || "aucun",
     weapon: gear.melee ? WEAPON_OF[gear.melee] ?? "epee" : "poings",
-    bow: gear.ranged === "arc_puissant" ? "puissant" : gear.ranged === "lance_pierre" ? "fronde" : "court",
+    bow: gear.ranged === "arc_puissant" || gear.ranged === "arc_corne" ? "puissant" : gear.ranged === "lance_pierre" ? "fronde" : "court",
   };
 }
 

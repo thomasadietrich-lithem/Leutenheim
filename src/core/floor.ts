@@ -457,6 +457,9 @@ export function noteUnique(id: ItemId): void {
 }
 const available = (id: string): boolean => id === "gold" || !isUnique(id as ItemId) || !seenUniques.has(id);
 
+/** Les objets qu'on porte (armes, armures, casques, sacs, amulettes, bibelots) : soumis à la règle de section. */
+const GEAR_KINDS = new Set(["melee", "ranged", "armor", "hat", "bag", "amulet", "artifact"]);
+
 /** Tire la rareté puis l'objet d'un butin, à cet étage. */
 export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number } {
   const odds = RARITY_ODDS[Math.min(sectionOf(depth), RARITY_ODDS.length - 1)];
@@ -470,7 +473,13 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
     roll -= odds[r];
   }
   const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth && available(l.item));
-  const pick = pool[rng.int(0, pool.length - 1)];
+  // LE BUTIN DE SA SECTION D'ABORD (Thomas, 2026-11-17 : règle pour la suite) : un équipement d'une section passée
+  // (son étage minimal y est) sort quatre fois moins souvent ; une section future est déjà exclue par `minDepth`.
+  const section = sectionOf(depth);
+  const weight = (l: (typeof pool)[number]): number =>
+    l.item !== "gold" && GEAR_KINDS.has((ITEMS[l.item] as { kind: string }).kind) && sectionOf(l.minDepth ?? 1) < section ? RULES.pastSectionGearWeight : 1;
+  let roll2 = rng.next() * pool.reduce((sum, l) => sum + weight(l), 0);
+  const pick = pool.find((l) => (roll2 -= weight(l)) < 0) ?? pool[pool.length - 1];
   // Très rare (nœud papillon) : il ne sort qu'une fois sur `odds`, sinon de l'or.
   const missed = pick.odds !== undefined && !rng.chance(pick.odds);
   // Raté : l'objet de rechange s'il y en a un (une pomme au lieu de la cuisse), sinon de l'or.

@@ -2976,19 +2976,43 @@ export class Renderer {
  * toile par-dessus (seulement ses fils clairs : les marches se voient dessous).
  */
 const sealedCache = new Map<string, { rows: string[]; palette: Record<string, string> }>();
+/** Le sceau de mycélium de l'escalier du Carillon : a = filament pâle, c = filament ombré, d = point qui luit. */
+const MYCELIUM_SEAL = {
+  rows: [
+    "aaaaaaaaaaaaaaaa",
+    "a.c.a..a.c..a.ca",
+    ".a.ca.a..a.a.ca.",
+    ".a..a.ac.a.a..a.",
+    "..a.c.a..ca..a..",
+    "..ad.a...a..ad..",
+    "..a..a..ca..a...",
+    ".ca..ca.a...ca..",
+    ".a...a..a..d.a..",
+    ".a..ad..ca...a..",
+    "..a..a...a..ca..",
+    "..c..a...d...a..",
+    "..d..c.......c..",
+    ".....d.......d..",
+    "................",
+    "................",
+  ],
+  palette: { a: "#e6efe2", c: "#9fb8ae", d: "#7ff0d6" },
+};
 function sealedStairsArt(game: Game): { rows: string[]; palette: Record<string, string> } | undefined {
   const b = game.bossLayout();
   if (!b) return undefined;
   const dx = Math.sign(b.seal.x - b.chest.x);
   const dy = Math.sign(b.seal.y - b.chest.y);
   // Le dessin descend vers le bas : on le tourne d'un quart de tour vers la droite, la gauche, ou d'un demi-tour.
-  const key = `${dx},${dy}`;
+  const key = `${b.kind}:${dx},${dy}`;
   const hit = sealedCache.get(key);
   if (hit) return hit;
   const src = ESCALIERS_CHAMPI.down;
   const at = (x: number, y: number): string =>
     dx > 0 ? src[x][15 - y] : dx < 0 ? src[15 - x][y] : dy < 0 ? src[15 - y][15 - x] : src[y][x];
-  const web = SALLES.sealedStairs;
+  // Le Carillon (étage 10) : pas une toile d'araignée mais un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-17 : « quelque
+  // chose en lien avec les champignons ») : filaments pâles qui pendent et des points qui luisent.
+  const web = b.kind === "carillon" ? MYCELIUM_SEAL : SALLES.sealedStairs;
   const rows: string[] = [];
   for (let y = 0; y < 16; y++) {
     let row = "";

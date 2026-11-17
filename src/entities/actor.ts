@@ -121,4 +121,8 @@ export interface BossState {
   /** L'encre a commencé (après la première onde) ; compteur de tours pour l'encre un tour sur deux. */
   inked?: boolean;
   inkTick?: number;
+  /** Encre en ZONES (Thomas, 2026-11-17) : le motif suivant (0 croix, 1 bandes, 2 anneau, 3 quart), dans l'ordre. */
+  inkPattern?: number;
+  /** Sans battant : tours avant la prochaine coulée d'encre au pied du chapeau. */
+  drip?: number;
 }

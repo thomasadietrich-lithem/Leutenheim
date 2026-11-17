@@ -1052,20 +1052,34 @@ export class Game {
       this.hurtHero(result.damage, this.killerName(m));
       if (this.over) return;
     }
-    // L'encre : en mode « douce », seulement après la première onde (pas dès l'arrivée) et un tour sur deux.
+    // L'ENCRE EN ZONES (Thomas, 2026-11-17) : en mode « douce », après la première onde, une zone tous les 3 tours ;
+    // « dure » : dès l'arrivée, tous les 2 tours. Les motifs se suivent dans l'ordre (croix, bandes, anneau, quart) :
+    // on apprend à les lire. Annoncée un tour avant.
     const mode = this.carillonMode;
     st.inkTick = (st.inkTick ?? 0) + 1;
-    if (mode === "dure" || (mode === "douce" && st.inked && st.inkTick % 2 === 0)) this.carillonInkMark(m, mode === "dure" ? RULES.carillonInkDropsHard : RULES.carillonInkDrops);
+    const every = mode === "dure" ? RULES.carillonInkEveryHard : RULES.carillonInkEvery;
+    const inkNow = mode === "dure" || (mode === "douce" && st.inked);
+    // Sans battant (Thomas, 2026-11-17 : « c'est idiot qu'il ne puisse plus attaquer ») : il ne sonne plus, mais son
+    // chapeau fond (c'est un coprin) : une COULÉE d'encre tout autour de lui, annoncée, tous les 4 tours ; et l'encre
+    // en zones continue (elle commence aussi, s'il n'avait pas encore sonné).
     if (!st.clapperUp) {
       st.inked = true;
+      st.drip = (st.drip ?? RULES.carillonDripEvery) - 1;
+      if (st.drip <= 0) {
+        st.drip = RULES.carillonDripEvery;
+        this.carillonInkMark(m, this.carillonDripCells(m), "drip");
+      } else if (mode !== "onde" && st.inkTick % every === 0) this.carillonInkMark(m, this.carillonInkZone(m), "zone");
       return;
     }
     st.ring = (st.ring ?? RULES.carillonEvery) - 1;
+    // Les monstres de la grotte s'écartent DEUX tours avant l'onde : le héros a le temps de rejoindre une souche.
+    if (st.ring === RULES.carillonCowerLead) this.carillonCower(m);
     if (st.ring === 1) {
       this.events.push({ type: "carillon", what: "warn", actor: m });
-      this.carillonCower(m);
       return;
     }
+    // Pas d'encre pendant l'avertissement ni au coup : un danger à la fois.
+    if (inkNow && st.ring > 1 && st.inkTick % every === 0) this.carillonInkMark(m, this.carillonInkZone(m), "zone");
     if (st.ring > 0) return;
     st.ring = RULES.carillonEvery;
     st.inked = true;
@@ -1127,24 +1141,69 @@ export class Game {
     this.events.push({ type: "carillon", what: "ink", actor: m, hit, cells });
   }
 
-  /** Pluie d'encre : marque les cases où tombera la goutte au prochain tour (une ombre au sol). La case du héros
-   *  d'abord (sauf s'il est collé au Carillon : là, c'est le chapeau qui frappe), puis d'autres autour de lui. */
-  private carillonInkMark(m: Actor, drops: number): void {
-    const st = m.boss!;
-    const lair = this.current.boss!.lair;
-    const hero = this.hero;
-    if (!this.inLair(lair, hero)) return;
-    const cells: Point[] = [];
-    const ok = (x: number, y: number) =>
-      this.map.isWalkable(x, y) && this.inLair(lair, { x, y }) && !occupies(m, x, y) && !cells.some((c) => c.x === x && c.y === y);
-    if (gapBetween(m, hero) > 1 && ok(hero.x, hero.y)) cells.push({ x: hero.x, y: hero.y });
-    for (let tries = 0; cells.length < drops && tries < 60; tries++) {
-      const x = hero.x + this.rng.int(-3, 3);
-      const y = hero.y + this.rng.int(-3, 3);
-      if (ok(x, y)) cells.push({ x, y });
+  /** L'encre annoncée : ces cases recevront une goutte au tour suivant (une ombre au sol). Les monstres qui s'y
+   *  tiennent s'en écartent aussitôt (Thomas, 2026-11-17 : « les mobs s'éloignent avant l'attaque »). */
+  private carillonInkMark(m: Actor, cells: Point[], kind: "zone" | "drip"): void {
+    if (cells.length === 0) return;
+    m.boss!.ink = cells;
+    this.events.push({ type: "carillon", what: "inkMark", actor: m, cells, kind });
+    const marked = (x: number, y: number) => cells.some((c) => c.x === x && c.y === y);
+    for (const o of this.monsters) {
+      if (o === m || o.boss || this.isInert(o) || o.asleep || !marked(o.x, o.y)) continue;
+      let best: Point | null = null;
+      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const x = o.x + dx;
+        const y = o.y + dy;
+        if (!this.map.isWalkable(x, y) || this.actorAt(x, y) || marked(x, y) || !canStep(this.map, o.x, o.y, dx, dy)) continue;
+        if (!best || gapBetween({ x, y } as Actor, this.hero) > gapBetween(best as Actor, this.hero)) best = { x, y };
+      }
+      if (best) {
+        o.x = best.x;
+        o.y = best.y;
+      }
     }
-    st.ink = cells;
-    this.events.push({ type: "carillon", what: "inkMark", actor: m, cells });
+  }
+
+  /** Les cases libres de la grotte (hors du Carillon). */
+  private lairCells(m: Actor): Point[] {
+    const lair = this.current.boss!.lair;
+    const out: Point[] = [];
+    for (let y = lair.y; y < lair.y + lair.h; y++)
+      for (let x = lair.x; x < lair.x + lair.w; x++) if (this.map.isWalkable(x, y) && !occupies(m, x, y)) out.push({ x, y });
+    return out;
+  }
+
+  /**
+   * Une ZONE d'encre (Thomas, 2026-11-17 : « de la cohérence, des zones plutôt que des cercles aléatoires »). Quatre
+   * motifs, toujours dans le même ordre, chacun avec sa porte de sortie :
+   * CROIX : la ligne et la colonne du héros, sur 3 cases de chaque côté (un pas en diagonale suffit) ;
+   * BANDES : une rangée sur trois de toute la grotte, celle du héros comprise (un pas en haut ou en bas) ;
+   * ANNEAU : les cases à 2 ou 3 cases du Carillon (venir à son contact, ou s'éloigner) ;
+   * QUART : le quart de la grotte où se tient le héros, à 3 cases de lui au plus (changer de côté).
+   */
+  private carillonInkZone(m: Actor): Point[] {
+    const st = m.boss!;
+    const hero = this.hero;
+    if (!this.inLair(this.current.boss!.lair, hero)) return [];
+    const pattern = (st.inkPattern ?? 0) % 4;
+    st.inkPattern = pattern + 1;
+    const cx = m.x + 1;
+    const cy = m.y + 1;
+    const near = (p: Point, r: number) => Math.max(Math.abs(p.x - hero.x), Math.abs(p.y - hero.y)) <= r;
+    return this.lairCells(m).filter((p) => {
+      if (pattern === 0) return (p.x === hero.x || p.y === hero.y) && near(p, 3);
+      if (pattern === 1) return (((p.y - hero.y) % 3) + 3) % 3 === 0;
+      if (pattern === 2) {
+        const gap = gapBetween(m, p as Actor);
+        return gap >= 2 && gap <= 3;
+      }
+      return Math.sign(p.x - cx) === Math.sign(hero.x - cx) && Math.sign(p.y - cy) === Math.sign(hero.y - cy) && near(p, 3);
+    });
+  }
+
+  /** Sans battant : la coulée au pied du chapeau, sur 2 cases tout autour de lui. */
+  private carillonDripCells(m: Actor): Point[] {
+    return this.lairCells(m).filter((p) => gapBetween(m, p as Actor) <= RULES.carillonDripReach);
   }
 
   /** Une goutte d'encre est-elle annoncée sur cette case ? (S'en écarter ne donne pas d'attaque d'opportunité.) */
@@ -1180,7 +1239,7 @@ export class Game {
         o.x = step.x;
         o.y = step.y;
       }
-      o.cower = 2;
+      o.cower = RULES.carillonCowerLead + 1;
       this.events.push({ type: "carillon", what: "cower", actor: o });
     }
   }

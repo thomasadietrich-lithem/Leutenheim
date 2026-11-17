@@ -65,7 +65,7 @@ function applyWeapon(g: string[][], packed: string | undefined): void {
 
 /**
  * SERPE de l'Halfelin (Thomas, 2026-11-17) : le couteau, dont la lame se recourbe au bout en crochet. On part de ses
- * pixels (manche « b », lame « M ») : la pointe s'allonge d'un pixel, puis tourne d'un quart de tour.
+ * pixels (manche « b », lame « M ») : un pixel de crochet au bout, tourné d'un quart de tour.
  */
 function sickle(packed: string | undefined): string | undefined {
   if (!packed) return packed;
@@ -84,10 +84,8 @@ function sickle(packed: string | undefined): string | undefined {
   let px2 = -dy;
   let py2 = dx;
   if (py2 < 0 || (py2 === 0 && px2 < 0)) [px2, py2] = [dy, -dx];
-  const add = [
-    { x: tip.x + dx, y: tip.y + dy },
-    { x: tip.x + dx + px2, y: tip.y + dy + py2 },
-  ];
+  // Raccourcie (Thomas, 2026-11-17 : « raccourcis un peu la serpe ») : pas d'allonge, le crochet part de la pointe.
+  const add = [{ x: tip.x + px2, y: tip.y + py2 }];
   let out = packed;
   for (const p of add) if (p.x >= 0 && p.x < 16 && p.y >= 0 && p.y < 16) out += p.x.toString(16) + p.y.toString(16) + "M";
   return out;

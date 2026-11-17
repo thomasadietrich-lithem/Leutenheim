@@ -1996,4 +1996,8 @@ export const EN: Record<string, string> = {
   "{0} PV rendus par le Second souffle.": "{0} HP restored by Second wind.",
   "{0} points de dégâts encaissés.": "{0} damage taken.",
   "{0} ennemis mis à terre d'une poussée.": "{0} enemies knocked down with a shove.",
+  "Le battant se brise : le Carillon ne sonnera plus. Mais son chapeau se met à fondre…": "The clapper shatters: the Carillon will ring no more. But its cap starts to melt…",
+  "Il fond…": "Melting…",
+  "Le chapeau du Carillon dégouline : l'encre va couler tout autour de lui. Écartez-vous !": "The Carillon's cap is dripping: ink is about to pour all around it. Stand back!",
+  "Un rideau de mycélium scelle l'escalier. Derrière vous, quelque chose se balance…": "A curtain of mycelium seals the stairs. Behind you, something is swaying…",
 };

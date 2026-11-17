@@ -188,6 +188,14 @@ export const RULES = {
   bombArm: 4,
   bombDamage: { count: 2, sides: 6, bonus: 0 },
   carillonInkDropsHard: 4,
+  /** Encre en zones (Thomas, 2026-11-17 : « des zones plutôt que des cercles aléatoires ») : une zone tous les tant
+   *  de tours (doux, dur) ; sans battant, une COULÉE au pied du chapeau tous les tant de tours, sur cette largeur. (C) */
+  carillonInkEvery: 3,
+  carillonInkEveryHard: 2,
+  carillonDripEvery: 4,
+  carillonDripReach: 2,
+  /** Les monstres de la grotte s'écartent tant de tours avant l'onde (2 : le héros a le temps de se placer). (C) */
+  carillonCowerLead: 2,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,

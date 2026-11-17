@@ -113,10 +113,31 @@ def draw():
     return img
 
 
+def chicken_strip():
+    """La poule qui traverse le bas de l'écran du logo, une fois de temps en temps (Thomas, 2026-11-17) : les deux
+    images du poulet du jeu (`src/render/sprites/poulet.ts`), côte à côte (32 × 16)."""
+    import re
+    src = open("src/render/sprites/poulet.ts").read()
+    pal = dict(re.findall(r'(\w): "(#[0-9a-f]{6})"', src.split("export const POULET:")[0]))
+    frames = []
+    for name in ("idle", "run"):
+        block = src.split(name + ": [")[1].split("]")[0]
+        frames.append(re.findall(r'"([^"]{16})"', block))
+    strip = Image.new("RGBA", (32, 16), (0, 0, 0, 0))
+    for i, rows in enumerate(frames):
+        for y, row in enumerate(rows):
+            for x, ch in enumerate(row):
+                if ch != ".":
+                    c = pal[ch]
+                    strip.putpixel((i * 16 + x, y), (int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16), 255))
+    return strip
+
+
 if __name__ == "__main__":
     img = draw()
     if len(sys.argv) > 1 and sys.argv[1] == "export":
         img.save("art/logo_studio.png")
+        chicken_strip().save("art/logo_poulet.png")
     else:
         big = Image.new("RGBA", (W * 6 + 40, H * 6 + 40), (14, 12, 18, 255))
         big.alpha_composite(img.resize((W * 6, H * 6), Image.NEAREST), (20, 20))

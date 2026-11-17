@@ -374,13 +374,13 @@ export class StairsScene {
     ctx.drawImage(this.backBuffer, Math.round(dx - scale - fx), Math.round(dy - scale + fy), (W + 2) * scale, (H + 2) * scale);
     ctx.restore();
     ctx.drawImage(this.buffer, dx, dy, dw, dh);
-    // L'astuce, en haut, sur trois lignes au plus.
+    // L'astuce, EN BAS (Thomas, 2026-11-17), sur trois lignes au plus, au-dessus du numéro de l'étage.
     if (this.tip) {
       ctx.save();
       ctx.fillStyle = "#cdbf9c";
       ctx.font = `${Math.round(scale * 4.4)}px VT323, monospace`;
       ctx.textAlign = "center";
-      ctx.textBaseline = "top";
+      ctx.textBaseline = "bottom";
       const lines: string[] = [];
       let line = "";
       for (const word of this.tip.split(" ")) {
@@ -391,7 +391,9 @@ export class StairsScene {
         } else line = next;
       }
       if (line) lines.push(line);
-      lines.slice(0, 3).forEach((text, i) => ctx.fillText(text, target.width / 2, dy + scale * (3 + i * 4.6)));
+      const shown = lines.slice(0, 3);
+      const bottom = Math.min(dy + dh, target.height) - scale * 12;
+      shown.forEach((text, i) => ctx.fillText(text, target.width / 2, bottom - (shown.length - 1 - i) * scale * 4.6));
       ctx.restore();
     }
     // Le numéro de l'étage où l'on arrive, en bas, sur le fondu de fin.

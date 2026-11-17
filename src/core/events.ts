@@ -69,7 +69,7 @@ export type GameEvent =
   | { type: "demoEnd" }
   /** Le Carillon (boss de la section 2) : il s'éveille, avertit, sonne (qui est jeté à terre), sonne faux, perd son
    *  battant ; à mi-vie, des envahis sortent du mycélium. */
-  | { type: "carillon"; what: "wake" | "warn" | "ring" | "false" | "clapper" | "sprout" | "ink" | "inkMark" | "cower"; actor: Actor; hit?: Actor[]; cells?: { x: number; y: number }[] }
+  | { type: "carillon"; what: "wake" | "warn" | "ring" | "false" | "clapper" | "sprout" | "ink" | "inkMark" | "cower"; actor: Actor; hit?: Actor[]; cells?: { x: number; y: number }[]; kind?: "zone" | "drip" }
   /** L'escalier de la nichée est scellé : la Tisseuse vit encore. */
   | { type: "sealed" }
   /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */

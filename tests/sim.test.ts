@@ -5784,10 +5784,14 @@ test("Carillon : pluie d'encre et coup de chapeau", () => {
   game.carillonMode = "dure";
   // Dans la grotte, loin de lui : une ombre marque sa case, et la goutte tombe au tour suivant s'il ne bouge pas.
   Object.assign(game.hero, { x: layout.lair.x + 3, y: layout.lair.y + layout.lair.h - 3, hp: 500, maxHp: 500 });
-  game.wait();
-  game.tick();
+  // Encre en zones (2026-11-17) : un tour sur deux en mode dur ; la première zone est la CROIX, sur sa case.
+  for (let t = 0; t < 3 && (bell.boss!.ink ?? []).length === 0; t++) {
+    game.wait();
+    game.tick();
+  }
   const marks = bell.boss!.ink ?? [];
   assert.ok(marks.some((c) => c.x === game.hero.x && c.y === game.hero.y), "sa case est marquée");
+  assert.ok(marks.every((c) => c.x === game.hero.x || c.y === game.hero.y), "une croix sur sa ligne et sa colonne");
   const before = game.hero.hp;
   game.events.length = 0;
   game.wait();
@@ -6220,4 +6224,24 @@ test("Elfe : tir au contact, pas de désavantage à l'arc avec un ennemi au cont
   const { RACES } = await import("../src/data/races");
   assert.equal(RACES.elfe.closeShot, true);
   assert.ok(!("closeShot" in RACES.humain) || !RACES.humain.closeShot);
+});
+
+test("Carillon sans battant : il attaque encore (coulée d'encre autour de lui, zones)", () => {
+  const game = new Game(31);
+  game.testRun = true;
+  game.teleport(10);
+  const bell = game.bossActor()!;
+  const layout = game.bossLayout()!;
+  Object.assign(game.hero, { x: layout.lair.x + 3, y: layout.lair.y + layout.lair.h - 3, hp: 500, maxHp: 500 });
+  game.wait();
+  game.tick();
+  bell.boss!.clapperUp = false;
+  let drip = false;
+  for (let t = 0; t < 6; t++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    if (game.events.some((e) => e.type === "carillon" && e.what === "inkMark" && e.kind === "drip")) drip = true;
+  }
+  assert.ok(drip, "la coulée s'annonce");
 });

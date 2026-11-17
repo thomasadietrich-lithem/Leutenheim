@@ -114,6 +114,13 @@
   #studio { position: fixed; inset: 0; z-index: 9999; background: #0b0a0e; display: flex; align-items: center; justify-content: center; animation: studio-out 0.6s ease-in 2.3s forwards; }
   #studio img { width: 320px; height: 256px; image-rendering: pixelated; opacity: 0; animation: studio-in 0.7s ease-out 0.2s forwards; }
   #studio.skip { animation: studio-out 0.25s ease-in forwards; }
+  /* Une fois de temps en temps, la poule du jeu traverse le bas de l'écran, sans se presser (Thomas, 2026-11-17). */
+  #studio-hen { display: none; position: absolute; bottom: 14%; left: 100%; width: 48px; height: 48px; background: url(__POULE__) 0 0 / 96px 48px no-repeat; image-rendering: pixelated; }
+  #studio.poule { animation-delay: 4.6s; }
+  #studio.poule #studio-hen { display: block; animation: hen-walk 4.6s linear 0.3s forwards, hen-step 0.36s steps(1) infinite; }
+  #studio.poule.skip { animation: studio-out 0.25s ease-in forwards; }
+  @keyframes hen-walk { to { left: -60px; } }
+  @keyframes hen-step { 50% { background-position: -48px 0; } }
   @keyframes studio-in { to { opacity: 1; } }
   @keyframes studio-out { to { opacity: 0; visibility: hidden; } }
   #title-word { width: 300px; height: 123px; image-rendering: pixelated; display: block; margin: 0 auto; }
@@ -641,9 +648,10 @@
 </style>
 </head>
 <body>
-  <div id="studio" onclick="this.classList.add('skip')"><img src="__STUDIO__" alt="LTH Studio"></div>
-  <!-- Navigateur piloté (mesures de performance, captures) : pas de logo, il cacherait les menus. -->
-  <script>if (navigator.webdriver) document.getElementById("studio").remove();</script>
+  <div id="studio" onclick="this.classList.add('skip')"><img src="__STUDIO__" alt="LTH Studio"><div id="studio-hen"></div></div>
+  <!-- Navigateur piloté (mesures de performance, captures) : pas de logo, il cacherait les menus. Une fois sur quatre
+       (C), la poule passe. -->
+  <script>(function () { var s = document.getElementById("studio"); if (navigator.webdriver && !location.hash.includes("studio")) s.remove(); else if (Math.random() < 0.25 || location.hash.includes("poule")) s.classList.add("poule"); })();</script>
 <div class="col">
   <div class="gauges">
     <div class="gauges-col">

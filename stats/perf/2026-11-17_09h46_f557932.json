@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T09:46:54.331Z",
+ "commit": "f557932",
+ "note": "Carillon en zones, poule du logo, astuces en bas",
+ "logic": {
+  "tickMs": 0.71,
+  "lightMs": 0.38,
+  "visionMs": 0.29
+ },
+ "scenes": {
+  "immobile": {
+   "n": 90,
+   "avg": 27.2,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 37,
+   "js": 8
+  },
+  "marche": {
+   "n": 183,
+   "avg": 27.3,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 37,
+   "js": 4
+  },
+  "retour": {
+   "n": 191,
+   "avg": 26.1,
+   "p95": 33.5,
+   "max": 50.1,
+   "fps": 38,
+   "js": 4
+  },
+  "zoom": {
+   "n": 103,
+   "avg": 28,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 36,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 224,
+   "avg": 22.4,
+   "p95": 33.4,
+   "max": 133.4,
+   "fps": 45,
+   "js": 13
+  }
+ },
+ "errors": []
+}

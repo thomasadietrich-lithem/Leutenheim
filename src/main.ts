@@ -936,7 +936,7 @@ function reveal(e: GameEvent): void {
     } else if (e.what === "clapper") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "Crac !", "#c4d660");
       sfx.play("break");
-      logLines.push("Le battant se brise : le Carillon ne sonnera plus.");
+      logLines.push("Le battant se brise : le Carillon ne sonnera plus. Mais son chapeau se met à fondre…");
     } else if (e.what === "ink") {
       sfx.play("splash");
       for (const o of e.hit ?? []) renderer.addFloatingText(o.x, o.y, "Splotch !", o === game.hero ? "#ff6b7a" : "#b7a6d6");
@@ -944,7 +944,11 @@ function reveal(e: GameEvent): void {
     } else if (e.what === "cower") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "À l'abri !", "#b7a6d6");
     } else if (e.what === "inkMark") {
-      // L'ombre est dessinée par le renderer (état du boss) : rien à écrire.
+      // L'ombre est dessinée par le renderer (état du boss) ; la coulée (sans battant) s'annonce.
+      if (e.kind === "drip") {
+        renderer.addFloatingText(e.actor.x + 1, e.actor.y, "Il fond…", "#b7a6d6");
+        logLines.push("Le chapeau du Carillon dégouline : l'encre va couler tout autour de lui. Écartez-vous !");
+      }
     } else if (e.what === "sprout") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#7f9a84");
       logLines.push("Le mycélium se soulève : un Kobold envahi en sort.");
@@ -952,7 +956,7 @@ function reveal(e: GameEvent): void {
     renderLog();
   } else if (e.type === "sealed") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Scellé", "#e2ded6");
-    logLines.push("Une toile épaisse scelle l'escalier. Vous entendez quelque chose derrière vous…");
+    logLines.push(game.bossLayout()?.kind === "carillon" ? "Un rideau de mycélium scelle l'escalier. Derrière vous, quelque chose se balance…" : "Une toile épaisse scelle l'escalier. Vous entendez quelque chose derrière vous…");
     renderLog();
   } else if (e.type === "demoEnd") {
     setTimeout(showDemoEnd, 300);
@@ -2805,10 +2809,13 @@ button("bag-equip", () => {
     drinkSure = false;
     // Utiliser prend un tour (Thomas, 2026-11-15 : « le menu ne devrait pas se fermer ») : le tour se joue aussitôt,
     // le sac reste ouvert, et l'objet reste choisi s'il en reste (on peut en reprendre un, un tour de plus).
+    // EN COMBAT (Thomas, 2026-11-17 : « on ne peut pas enchaîner les consommables ») : un seul, puis le sac se
+    // referme : on voit ce que font les monstres avant d'en reprendre un.
+    const fighting = game.inCombat();
     if (game.useItem(chosen.uid)) {
       game.tick();
-      if (game.inventory.get(chosen.uid)) keepUid = chosen.uid;
-      if (game.over) {
+      if (game.inventory.get(chosen.uid) && !fighting) keepUid = chosen.uid;
+      if (game.over || fighting) {
         bagOpen = false;
         $("bag").hidden = true;
       }

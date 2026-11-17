@@ -476,8 +476,9 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
   // LE BUTIN DE SA SECTION D'ABORD (Thomas, 2026-11-17 : règle pour la suite) : un équipement d'une section passée
   // (son étage minimal y est) sort quatre fois moins souvent ; une section future est déjà exclue par `minDepth`.
   const section = sectionOf(depth);
+  // `weight` : un objet qui sort un peu plus souvent que les autres (la torche : Thomas, 2026-11-17).
   const weight = (l: (typeof pool)[number]): number =>
-    l.item !== "gold" && GEAR_KINDS.has((ITEMS[l.item] as { kind: string }).kind) && sectionOf(l.minDepth ?? 1) < section ? RULES.pastSectionGearWeight : 1;
+    (l.weight ?? 1) * (l.item !== "gold" && GEAR_KINDS.has((ITEMS[l.item] as { kind: string }).kind) && sectionOf(l.minDepth ?? 1) < section ? RULES.pastSectionGearWeight : 1);
   let roll2 = rng.next() * pool.reduce((sum, l) => sum + weight(l), 0);
   const pick = pool.find((l) => (roll2 -= weight(l)) < 0) ?? pool[pool.length - 1];
   // Très rare (nœud papillon) : il ne sort qu'une fois sur `odds`, sinon de l'or.
@@ -537,6 +538,11 @@ export function guaranteedLoot(runSeed: number, depth: number): { item: ItemId; 
       if (floor === depth && pool.length > 0) out.push({ item: pool[pickIndex % pool.length], count: 1 });
     }
   }
+  // UNE TORCHE PAR SECTION, au moins (Thomas, 2026-11-17) : sur un de ses quatre premiers étages, tiré à part (le reste
+  // du butin garanti ne bouge pas).
+  const section = sectionOf(depth);
+  const torch = new Rng(runSeed ^ 0x51ed270b ^ Math.imul(section + 1, 7919));
+  if (section * RULES.floorsPerSection + torch.int(1, 4) === depth) out.push({ item: "torche", count: 1 });
   return out;
 }
 

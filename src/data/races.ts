@@ -42,6 +42,8 @@ export interface RaceDef {
   closeShot?: boolean;
   /** ŒIL DE LYNX : avantage à l'arc sur une cible à cette distance ou plus (0 : jamais). */
   lynxRange: number;
+  /** CARQUOIS SANS FOND : arc en main, les flèches simples ne s'épuisent pas et ne se ramassent plus. */
+  endlessArrows: boolean;
   /** Objets de départ, en plus de ceux de la classe. Ni potion ni or (Thomas, 2026-11-16). */
   startingItems: { item: ItemId; count: number }[];
   /** Objets de la classe remplacés par d'autres au départ (le Halfelin : serpe, lance-pierre, pierres). */
@@ -68,6 +70,7 @@ const BASE = {
   bowBonus: 0,
   blindShot: false,
   lynxRange: 0,
+  endlessArrows: false,
 };
 
 /** Races (Thomas, 2026-11-16). */
@@ -136,7 +139,8 @@ export const RACES = {
       "Tir au contact : pas de désavantage à l'arc quand un ennemi le touche.",
       "Beau parleur : Charisme +5.",
       "Faiblesse : Force −1.",
-      "Départ : cinq flèches de plus, huit flèches de recul et deux pains elfiques ; un petit paquet de flèches de recul l'attend sur chaque étage.",
+      "Carquois sans fond : ses flèches simples ne s'épuisent jamais (et ne se ramassent plus).",
+      "Départ : huit flèches de recul et deux pains elfiques ; un petit paquet de flèches de recul l'attend sur chaque étage.",
     ],
     abilities: [
       { id: "archer", name: "Archer", text: "+2 à l'arc, et pas de désavantage vers une case qu'il ne voit pas." },
@@ -152,9 +156,9 @@ export const RACES = {
     blindShot: true,
     closeShot: true,
     lynxRange: 5,
+    endlessArrows: true,
     recoilPiles: true,
     startingItems: [
-      { item: "fleche", count: 5 },
       { item: "fleche_recul", count: 8 },
       { item: "pain_elfique", count: 2 },
     ],

@@ -3462,7 +3462,12 @@ test("butin garanti de la section 1 : une pomme à l'étage 1, deux équipements
     assert.ok(all.some((i) => ITEMS[i].kind === "gem"));
     assert.ok(all.some((i) => i.startsWith("potion_")));
     assert.ok(!all.includes("sac_cuir"));
-    assert.equal(guaranteedLoot(seed, 6).length, 0);
+    // Section 2 : rien de garanti, sauf la torche de la section (Thomas, 2026-11-17).
+    assert.ok(guaranteedLoot(seed, 6).every((l) => l.item === "torche"));
+    for (const floors of [[1, 2, 3, 4], [6, 7, 8, 9]]) {
+      const torches = floors.flatMap((d) => guaranteedLoot(seed, d)).filter((l) => l.item === "torche");
+      assert.equal(torches.length, 1, "une torche garantie par section, sur un de ses quatre premiers étages");
+    }
   }
 });
 
@@ -5941,7 +5946,7 @@ test("races : Humain, Halfelin et Elfe jouables ; PV, caractéristiques et objet
   // Objets de départ : torche et cuisse de poulet ; deux pommes ; cinq flèches et cinq flèches de recul. Ni potion ni or.
   assert.deepEqual([humain.inventory.count("torche"), humain.inventory.count("cuisse_poulet")], [1, 1]);
   assert.equal(halfelin.inventory.count("pomme"), 2);
-  assert.deepEqual([humain.inventory.count("fleche"), elfe.inventory.count("fleche"), elfe.inventory.count("fleche_recul")], [10, 15, 8]);
+  assert.deepEqual([humain.inventory.count("fleche"), elfe.inventory.count("fleche"), elfe.inventory.count("fleche_recul")], [10, 10, 8]);
   for (const g of [humain, halfelin, elfe]) assert.equal(g.gold, 0);
   // Halfelin : Agilité +2 (donc +1 en classe d'armure), Discrétion +3.
   assert.equal(halfelin.agility(), 2);
@@ -6468,4 +6473,25 @@ test("figé dans un nuage (2026-11-17) : entouré de gaz, le héros peut encore 
   assert.ok(game.setDestination(target.x + 2, target.y + 2, true));
   game.tick();
   assert.ok(game.hero.x !== at.x || game.hero.y !== at.y, "il a bougé");
+});
+
+test("Elfe : flèches simples sans fin, et elles ne restent pas au sol (Thomas, 2026-11-17)", () => {
+  const game = new Game(4242, RACES.elfe);
+  const before = game.inventory.count("fleche");
+  game.chooseAmmo("fleche");
+  assert.equal(game.arrows(), Infinity);
+  for (let i = 0; i < 40; i++) {
+    assert.equal(game.shoot(game.hero.x + 2, game.hero.y), null, "le tir part toujours");
+    game.tick();
+    game.events.length = 0;
+    if (game.over) break;
+  }
+  assert.equal(game.inventory.count("fleche"), before, "aucune flèche simple n'est consommée");
+  assert.ok(!game.ground.some((g) => g.item === "fleche" && Math.abs(g.x - game.hero.x) <= 9 && Math.abs(g.y - game.hero.y) <= 1 && g.x !== game.hero.x), "aucune flèche tirée ne reste au sol");
+  // L'Humain, lui, vide toujours son carquois.
+  const human = new Game(4242);
+  const n = human.inventory.count("fleche");
+  human.shoot(human.hero.x + 2, human.hero.y);
+  human.tick();
+  assert.equal(human.inventory.count("fleche"), n - 1);
 });

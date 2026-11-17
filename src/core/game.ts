@@ -3277,8 +3277,14 @@ export class Game {
     const family = this.weapon("ranged")?.ammo;
     return (Object.keys(ITEMS) as ItemId[]).filter((id) => {
       const f = (ITEMS[id] as ItemDef).ammoFamily;
-      return (f === "jet" || (!!family && f === family)) && this.inventory.count(id) > 0;
+      return (f === "jet" || (!!family && f === family)) && (this.inventory.count(id) > 0 || this.endlessAmmo(id));
     });
+  }
+
+  /** CARQUOIS SANS FOND (Elfe ; Thomas, 2026-11-17 : « passe les flèches simples en illimité pour l'Elfe ») : arc en
+   *  main, ses flèches simples ne s'épuisent pas ; elles ne restent pas au sol après le tir (plus de ramassage). */
+  endlessAmmo(id: ItemId | null): boolean {
+    return !!this.race.endlessArrows && id === "fleche" && this.weapon("ranged")?.ammo === "fleche";
   }
 
   /** Le tir qui partira : portée et bonus au jet viennent de l'arc, ou de la javeline si on la lance à la main. */
@@ -3303,9 +3309,9 @@ export class Game {
   currentAmmo(): ItemId | null {
     const family = this.weapon("ranged")?.ammo;
     const chosen = ITEMS[this.ammoChoice] as ItemDef;
-    const usable = (id: ItemId) => !this.tooLow(ITEMS[id] as ItemDef) && this.inventory.count(id) > 0;
+    const usable = (id: ItemId) => !this.tooLow(ITEMS[id] as ItemDef) && (this.inventory.count(id) > 0 || this.endlessAmmo(id));
     if ((chosen.ammoFamily === "jet" || (!!family && chosen.ammoFamily === family)) && usable(this.ammoChoice)) return this.ammoChoice;
-    if (family && this.inventory.count(family as ItemId) > 0) return family as ItemId;
+    if (family && (this.inventory.count(family as ItemId) > 0 || this.endlessAmmo(family as ItemId))) return family as ItemId;
     // Sans arc (ou sans flèches) : on peut encore lancer une javeline.
     return this.ammoKinds().find((id) => (ITEMS[id] as ItemDef).ammoFamily === "jet" && usable(id)) ?? null;
   }
@@ -4153,6 +4159,7 @@ export class Game {
   /** Flèches prêtes à partir (celles choisies dans le carquois). */
   arrows(): number {
     const ammo = this.currentAmmo();
+    if (this.endlessAmmo(ammo)) return Infinity;
     return ammo ? this.inventory.count(ammo) : 0;
   }
 
@@ -9025,7 +9032,8 @@ export class Game {
   private heroShoots(target: Point): void {
     const profile = this.shotProfile();
     const ammo = this.currentAmmo();
-    if (!profile || !ammo || !this.inventory.take(ammo, 1)) return;
+    const endless = this.endlessAmmo(ammo);
+    if (!profile || !ammo || (!endless && !this.inventory.take(ammo, 1))) return;
     const poison = (ITEMS[ammo] as ItemDef).poison;
     this.reveal();
     const origin = { x: this.hero.x, y: this.hero.y };
@@ -9128,7 +9136,8 @@ export class Game {
       }
     }
 
-    const kept = this.rng.chance(keepChance);
+    // Flèche sans fin : elle ne se ramasse pas (le tirage a lieu quand même : le hasard des combats ne change pas).
+    const kept = this.rng.chance(keepChance) && !endless;
     // Ratée ET brisée (Thomas, 2026-11-16 : « remets certaines flèches manquées qui rebondissent derrière l'ennemi, mais
     // seulement celles qui se brisent ») : elle file plus loin derrière lui, et peut rebondir sur un mur. Celle qui
     // reste entière tombe juste derrière (on n'a pas à courir après).

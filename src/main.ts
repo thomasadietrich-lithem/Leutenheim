@@ -2575,7 +2575,7 @@ function renderBag(): void {
   const quiver = el("div", "slot slot-quiver");
   const qbox = el("div", "slot-box");
   if (current) {
-    qbox.append(itemIcon(current), el("span", "slot-count", String(game.inventory.count(current))));
+    qbox.append(itemIcon(current), el("span", "slot-count", game.endlessAmmo(current) ? "∞" : String(game.inventory.count(current))));
   } else {
     const ghost = itemIcon("fleche");
     ghost.classList.add("ghost");
@@ -4153,6 +4153,22 @@ function beginStairs(force?: StairsVariant): void {
   stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`), heroSprites(heroLook(game.race.id, { melee: "epee" })), stairsTip);
 }
 
+/** L'astuce reste sur la carte quelques secondes après l'escalier, puis s'efface (Thomas, 2026-11-17 : « elles
+ *  apparaissent et disparaissent trop vite »). Elle ne gêne pas le jeu : on joue à travers. */
+const TIP_SHOWN_MS = 7000;
+let tipTimer = 0;
+function showTip(text: string): void {
+  const el = $("tip-toast");
+  el.textContent = tr(`Astuce : ${text}`);
+  el.classList.remove("out");
+  el.hidden = false;
+  window.clearTimeout(tipTimer);
+  tipTimer = window.setTimeout(() => {
+    el.classList.add("out");
+    tipTimer = window.setTimeout(() => (el.hidden = true), 1000);
+  }, TIP_SHOWN_MS);
+}
+
 /** L'astuce du passage d'escalier en cours ; on les fait défiler dans l'ordre, à partir d'une astuce tirée au hasard. */
 let tipIndex = Math.floor(Math.random() * TIPS.length);
 let stairsTip = "";
@@ -4170,6 +4186,7 @@ function advanceStairs(dt: number): void {
     if (scene.tumbled) logLines.push("Vous dégringolez l'escalier… et vous relevez, un peu sonné, mais entier.");
     if (stairsTip) logLines.push(`Astuce : ${stairsTip}`);
     renderLog();
+    if (stairsTip) showTip(stairsTip);
   }
 }
 
@@ -4318,6 +4335,8 @@ function frame(now: number): void {
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
   setWidth(hpFill, `${(100 * shownHp) / game.hero.maxHp}%`);
+  // Vie sous 15 % en plein combat : le bord de la carte rougeoie doucement.
+  setHidden($("low-hp"), !(game.hero.hp > 0 && !game.over && game.hero.hp < game.hero.maxHp * 0.15 && game.inCombat()));
   hpOrbs();
   renderHere();
   setText($("hp-label"), tr(`PV ${shownHp}/${game.hero.maxHp}`));
@@ -4373,7 +4392,7 @@ function frame(now: number): void {
     aimShown = aimKey;
     // Le lance-pierre (Thomas, 2026-11-16) : son picto, et le nombre de pierres à côté.
     const picto = bow?.id === "lance_pierre" ? itemIcon("lance_pierre") : ammo && ammo !== "fleche" ? itemIcon(ammo) : uiIcon("arrow");
-    aim.replaceChildren(picto, document.createTextNode(tr(`×${game.arrows()}`)));
+    aim.replaceChildren(picto, document.createTextNode(Number.isFinite(game.arrows()) ? tr(`×${game.arrows()}`) : "∞"));
   }
   aim.classList.toggle("active", aimMode);
   renderPower();

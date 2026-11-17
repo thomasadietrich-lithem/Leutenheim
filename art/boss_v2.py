@@ -81,7 +81,23 @@ def giant_frames():
     d = ImageDraw.Draw(bite)
     d.rectangle([15, 27, 17, 32], fill=(236, 226, 196, 255))
     d.rectangle([22, 27, 24, 32], fill=(236, 226, 196, 255))
-    flipped = base.transpose(Image.FLIP_TOP_BOTTOM)
+    # Renversée : on retourne le CORPS seul ; son ombre reste au sol, en bas (Thomas, 2026-11-17 : « on a encore le sol
+    # sur le sprite » : l'ombre retournée avec elle se retrouvait au-dessus de sa tête).
+    px = np.array(base)
+    shade = np.zeros(px.shape[:2], dtype=bool)
+    for y in range(H - 5, H):
+        for x in range(W):
+            r, g, b, al = px[y, x]
+            if al and r < 40 and g < 32 and b < 44:
+                shade[y, x] = True
+    body = px.copy()
+    body[shade] = 0
+    flipped = Image.fromarray(body, "RGBA").transpose(Image.FLIP_TOP_BOTTOM)
+    under = px.copy()
+    under[~shade] = 0
+    ground = Image.fromarray(under, "RGBA")
+    ground.alpha_composite(flipped)
+    flipped = ground
     dead = Image.eval(flipped, lambda v: v)
     a = np.array(dead).astype(float)
     a[..., :3] *= 0.7

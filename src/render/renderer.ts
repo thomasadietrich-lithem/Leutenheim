@@ -322,7 +322,10 @@ export class Renderer {
   /** Arrondit une position au pixel réel de l'écran le plus proche. */
   private snap(v: number): number {
     const dpr = this.dpr();
-    return Math.round(v * dpr) / dpr;
+    // Un rien en dessous (Thomas, 2026-11-17 : « toute la carte vibre quand je dézoome ») : avec des cases d'un nombre
+    // IMPAIR de pixels, la vue centrée tombe pile entre deux pixels ; la moindre poussière de calcul la faisait sauter
+    // d'un pixel à l'autre à chaque image. Ce petit biais la range toujours du même côté.
+    return Math.round(v * dpr - 1e-3) / dpr;
   }
 
   /**

@@ -1043,7 +1043,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       if (!off.bow && tough && gapBetween(t, hero) >= 3 && tryShoot(game, t, mem)) return true;
       // Œil de lynx (Elfe) : de loin, l'arc a l'avantage ; on ouvre toujours à la flèche tant qu'il en reste assez.
       const lynx = (game.race as { lynxRange?: number }).lynxRange ?? 0;
-      if (!off.bow && lynx > 0 && gapBetween(t, hero) >= lynx && game.inventory.count("fleche") >= 6 && tryShoot(game, t, mem)) return true;
+      if (!off.bow && lynx > 0 && gapBetween(t, hero) >= lynx && (game.inventory.count("fleche") >= 6 || game.endlessAmmo("fleche")) && tryShoot(game, t, mem)) return true;
       return aim(`prey:${t.id}`, 80, () => game.setDestination(t.x, t.y));
     });
     rule("quête", quests);

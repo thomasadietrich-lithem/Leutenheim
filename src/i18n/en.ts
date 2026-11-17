@@ -2088,4 +2088,5 @@ export const EN: Record<string, string> = {
   "Rang I": "Rank I",
   "Rang II": "Rank II",
   "Carquois sans fond : ses flèches simples ne s'épuisent jamais (et ne se ramassent plus).": "Bottomless quiver: his plain arrows never run out (and are no longer picked up).",
+  "Le Colporteur se cache quand un monstre approche : chassez-le, il ressort.": "The Peddler hides when a monster comes near: drive it off and he comes back out.",
 };

@@ -7,8 +7,6 @@ import { ItemDef, ITEMS, ItemId } from "./items";
 export const MERCHANT = {
   /** Un Colporteur par section, à son 4e étage (Thomas, 2026-11-12 : « un marchand par section, étage 4 »). */
   floorInSection: 4,
-  /** Au palier d'alerte ALERTE (2) et au-delà, il quitte l'étage pour de bon (Thomas, 2026-11-12). */
-  leaveAtAlarmStage: 2,
   /** Un monstre à cette distance (en cases) ou moins : il se cache (presque transparent, on le devine). */
   hideRadius: 6,
   /** Sa bulle (une pièce d'or) n'apparaît que si le héros est à cette distance ou moins. */

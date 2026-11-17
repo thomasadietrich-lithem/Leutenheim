@@ -5468,13 +5468,8 @@ export class Game {
   private merchantAct(): void {
     const m = this.current.merchant;
     if (!m) return;
-    // Trop de bruit (Thomas : « il disparaît quand le niveau d'alerte est important ») : au palier ALERTE, il plie
-    // bagage et quitte l'étage pour de bon.
-    if (this.current.alarmStage >= MERCHANT.leaveAtAlarmStage) {
-      this.current.merchant = undefined;
-      this.events.push({ type: "merchantLeaves", x: m.x, y: m.y, seen: this.isVisible(m.x, m.y) });
-      return;
-    }
+    // Il ne quitte plus l'étage quand l'alerte monte (Thomas, 2026-11-18 : « retire la règle des 50 % d'alerte ») : il
+    // reste jusqu'au bout, et se cache seulement quand un monstre approche.
     const near = (p: Point, r: number) => Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= r;
     // Il se cache dès qu'un monstre approche (6 cases), ou qu'un monstre éveillé entre dans sa salle
     // (Thomas, 2026-11-12 : « le colpo n'est pas devenu invisible » : à 4 cases, il restait visible pendant les combats).

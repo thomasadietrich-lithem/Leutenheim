@@ -4056,15 +4056,17 @@ test("Colporteur : un par section, au 4e étage, gardé dans la sauvegarde", () 
   }
 });
 
-test("Colporteur : au palier d'alerte ALERTE, il quitte l'étage", () => {
+test("Colporteur : il reste sur l'étage même quand l'alerte monte (Thomas, 2026-11-18)", () => {
   const game = new Game(1, undefined, undefined, undefined, true);
   game.setPeaceful(true);
   assert.ok(game.merchant());
-  game.raiseAlarm(55);
-  game.wait();
-  game.tick();
-  assert.equal(game.merchant(), null);
-  assert.ok(game.events.some((e) => e.type === "merchantLeaves"));
+  game.raiseAlarm(100);
+  for (let i = 0; i < 5; i++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(game.merchant(), "il est toujours là");
+  assert.ok(!game.events.some((e) => e.type === "merchantLeaves"));
 });
 
 test("sac plein : ce qui ne tient pas rebondit au sol sur une case libre ; le Colporteur ne bouge pas quand on le voit", () => {

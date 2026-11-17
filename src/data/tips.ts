@@ -20,7 +20,7 @@ export const TIPS: string[] = [
   "Un appui long sur le bouton de tir change de munition.",
   "Le feu court sur les toiles et sur les meubles en bois.",
   "L'eau éteint un personnage en feu.",
-  "Le Colporteur plie bagage quand l'alerte monte trop.",
+  "Le Colporteur se cache quand un monstre approche : chassez-le, il ressort.",
   "Le Charisme fait baisser les prix du Colporteur.",
   "Un myconide ne voit rien, il sent vos pas : arrêtez-vous, et il vous perd.",
   "Un Kobold blessé peut prendre la fuite. Il revient.",

@@ -408,9 +408,14 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     }
     if (game.canChoosePath()) game.choosePath(opts.voie ?? "blue");
     if (game.voie && game.pathPoints() > 0 && !game.inCombat()) {
-      const tier2 = game.voie === "red" ? ["double_frappe", "cri_guerre", "tourbillon", "charge"] : ["second_souffle", "encaisseur", "riposte", "garde"];
-      const order = [...(opts.build ?? (game.voie === "red" ? ["double_frappe", "enchainement", "rage", "coup_puissant"] : ["second_souffle", "dernier_rempart", "peau_dure", "esquive"])), ...tier2];
-      for (let n = 0; n < 4 && game.pathPoints() > 0; n++) if (!order.some((id) => game.improve(id as never))) break;
+      // Ordre d'achat : (pouvoir, rang visé). Les pouvoirs du rang II (niveau 6) passent dès qu'ils s'ouvrent :
+      // Encaisseur (chaque coup reçu fait moins mal), Riposte et Garde en bleu ; Tourbillon, Charge et Cri de guerre en rouge.
+      const plan: [string, number][] = opts.build
+        ? opts.build.map((id) => [id, 4] as [string, number])
+        : game.voie === "red"
+          ? [["double_frappe", 1], ["enchainement", 1], ["tourbillon", 1], ["charge", 1], ["rage", 1], ["cri_guerre", 1], ["double_frappe", 2], ["coup_puissant", 1], ["tourbillon", 2], ["enchainement", 2], ["rage", 2], ["charge", 2], ["double_frappe", 4], ["coup_puissant", 2], ["cri_guerre", 2]]
+          : [["second_souffle", 1], ["encaisseur", 2], ["dernier_rempart", 1], ["peau_dure", 1], ["riposte", 1], ["peau_dure", 2], ["second_souffle", 2], ["garde", 1], ["dernier_rempart", 2], ["riposte", 2], ["garde", 2], ["second_souffle", 4], ["esquive", 2]];
+      for (let n = 0; n < 6 && game.pathPoints() > 0; n++) if (!plan.some(([id, rank]) => game.rank(id as never) < rank && game.improve(id as never))) break;
     }
     equipBestX(game);
     // Le rebut ne se garde que s'il y a un Colporteur devant et de la place.
@@ -504,6 +509,13 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     if ((r < 0.4 || hero.hp <= danger * 1.3) && hero.hp < hero.maxHp && eat(game, true)) return true;
     // 2. Potions à lancer.
     if (throwSomething(alerted)) return true;
+    // Voie rouge, rang II : le Cri de guerre contre un groupe (désavantage pour eux), le Tourbillon dès que deux
+    // ennemis sont au contact.
+    if (game.voie === "red") {
+      const close = alerted.filter((m) => gapBetween(m, hero) <= 3).length;
+      if (game.rank("cri_guerre" as never) > 0 && (close >= 3 || (close >= 2 && r < 0.6)) && game.powerRefusal("cri_guerre") === null && game.usePower("cri_guerre")) return true;
+      if (game.rank("tourbillon" as never) > 0 && adj.length >= 2 && game.powerRefusal("tourbillon") === null && game.usePower("tourbillon")) return true;
+    }
     // 3. Gros combat au contact : vitesse, oursin, poison sur l'arme.
     const bigFight = alerted.length >= 3 || alerted.some((m) => m.maxHp >= 20) || (alerted.length >= 2 && r < 0.6);
     if (!off.potions && adj.length > 0) {
@@ -549,6 +561,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     // Tirer : les frondeurs d'abord (ils ne viendront pas), puis le plus proche.
     const byNear = alerted.slice().sort((a, b) => Number(!!monsterDef(b)?.sling) - Number(!!monsterDef(a)?.sling) || gapBetween(a, hero) - gapBetween(b, hero));
     if (!off.bow) for (const m of byNear) if (tryShoot(game, m, mem)) return true;
+    // Charge (voie rouge) : fondre sur celui qui approche, avec le bonus au toucher, plutôt que de l'attendre.
+    if (game.voie === "red" && game.rank("charge" as never) > 0 && game.powerRefusal("charge") === null && game.usePower("charge")) return true;
     // Se replier dans un couloir contre un groupe.
     if (chokeStep(alerted)) return true;
     const nearest = alerted.reduce((a, b) => (gapBetween(b, hero) < gapBetween(a, hero) ? b : a));

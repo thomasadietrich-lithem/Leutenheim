@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T22:15:44.737Z",
+ "commit": "a53130c",
+ "note": "2e mesure après le correctif du gaz",
+ "logic": {
+  "tickMs": 0.66,
+  "lightMs": 0.29,
+  "visionMs": 0.13
+ },
+ "scenes": {
+  "immobile": {
+   "n": 75,
+   "avg": 32.9,
+   "p95": 50,
+   "max": 83.3,
+   "fps": 30,
+   "js": 6
+  },
+  "marche": {
+   "n": 158,
+   "avg": 31.8,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 31,
+   "js": 4
+  },
+  "retour": {
+   "n": 174,
+   "avg": 28.6,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 35,
+   "js": 4
+  },
+  "zoom": {
+   "n": 94,
+   "avg": 32.4,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 31,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 8
+  },
+  "donjon": {
+   "n": 172,
+   "avg": 29,
+   "p95": 50.1,
+   "max": 166.7,
+   "fps": 35,
+   "js": 15
+  }
+ },
+ "errors": []
+}

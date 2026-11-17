@@ -1,0 +1,146 @@
+{
+ "date": "2026-11-17T23:05:41.016Z",
+ "commit": "1a1ccce",
+ "runs": 150,
+ "race": "halfelin",
+ "note": "analyse complète : pouvoirs du rang II appris à l'Expert, Elfe aux flèches sans fin, Colporteur qui reste malgré l'alerte, torche par section",
+ "levels": {
+  "debutant": {
+   "floor": 2,
+   "deathFloor1": 38,
+   "reach": {
+    "2": 61,
+    "3": 29,
+    "4": 6,
+    "5": 1
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 1.2,
+   "turns": 101.1,
+   "gold": 2.8,
+   "kills": 3.4,
+   "questsStarted": 0.3,
+   "questsDone": 0,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold": 114,
+    "un Kobold frondeur": 21,
+    "une Araignée": 13,
+    "la Tisseuse": 1
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 83,
+    "3": 62,
+    "4": 34,
+    "5": 17
+   },
+   "boss": 0,
+   "dead": 97,
+   "heroLevel": 2.4,
+   "turns": 354,
+   "gold": 28,
+   "kills": 13.9,
+   "questsStarted": 0.6,
+   "questsDone": 0.4,
+   "questsFailed": 0.1,
+   "causes": {
+    "une Araignée": 24,
+    "un Kobold": 76,
+    "la Tisseuse": 21,
+    "un Kobold frondeur": 21,
+    "un piège à pointes": 1,
+    "le poison": 2
+   }
+  },
+  "maitrise": {
+   "floor": 3.9,
+   "deathFloor1": 2,
+   "reach": {
+    "2": 95,
+    "3": 87,
+    "4": 67,
+    "5": 43
+   },
+   "boss": 20,
+   "dead": 55,
+   "heroLevel": 4.2,
+   "turns": 999,
+   "gold": 56.8,
+   "kills": 37,
+   "questsStarted": 1.2,
+   "questsDone": 0.8,
+   "questsFailed": 0.3,
+   "causes": {
+    "la Tisseuse": 25,
+    "un Kobold frondeur": 16,
+    "une Araignée": 20,
+    "un Kobold": 17,
+    "le poison": 4
+   }
+  },
+  "expert": {
+   "floor": 8.3,
+   "deathFloor1": 8,
+   "reach": {
+    "2": 92,
+    "3": 91,
+    "4": 90,
+    "5": 89,
+    "6": 86,
+    "7": 75,
+    "8": 70,
+    "9": 69,
+    "10": 69
+   },
+   "boss": 87,
+   "dead": 33,
+   "heroLevel": 8.3,
+   "turns": 2488.6,
+   "gold": 280.5,
+   "kills": 111.3,
+   "questsStarted": 1.1,
+   "questsDone": 0.9,
+   "questsFailed": 0.2,
+   "causes": {
+    "le poison": 19,
+    "un Kobold": 13,
+    "un Kobold envahi": 4,
+    "un Kobold frondeur": 2,
+    "un Sporelin": 4,
+    "une Araignée": 2,
+    "un Myconide": 1,
+    "la Tisseuse": 2,
+    "le Carillon": 1,
+    "l'onde du Carillon": 1
+   },
+   "boss2": 67,
+   "stuck": 0,
+   "armorClass": 19.9,
+   "searches": 41.4,
+   "chests": 8.1,
+   "doors": 9,
+   "bought": 5.2,
+   "sold": 7.3,
+   "potions": 6,
+   "pushes": 9.1,
+   "shots": 88.4,
+   "deathFloors": {
+    "1": 8,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "5": 3,
+    "6": 11,
+    "7": 5,
+    "8": 1,
+    "9": 0,
+    "10": 1
+   }
+  }
+ }
+}

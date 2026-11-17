@@ -77,3 +77,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_21h39 | 80c8b68 | 25.4 | 27.9 | 26.4 | 29 | 16.7 | 26.8 | 0.44 | 0.22 | bombe arcanique |
 | 2026-11-16_21h43 | 930d56e | 25.4 | 27.7 | 23.1 | 22 | 16.7 | 26.4 | 0.62 | 0.07 | halfelin : serpe, lance-pierre, pierres |
 | 2026-11-16_22h12 | 0ef7cc1 | 21 | 20.9 | 26.5 | 20.8 | 16.7 | 29.5 | 0.46 | 0.16 | torche plus lente, cases gagnées, moins d'or, elfe tir au contact |
+| 2026-11-17_09h21 | b849d01 | 29.2 | 28.6 | 29.8 | 30.6 | 16.7 | 28.1 | 0.51 | 0.27 | lance-pierre de l'Halfelin dessiné |
+| 2026-11-17_09h21 | b849d01 | 27.7 | 25.4 | 31.2 | 26.6 | 16.7 | 22.8 | 0.9 | 0.14 | lance-pierre, 2e mesure |

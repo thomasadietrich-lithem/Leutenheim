@@ -9,7 +9,7 @@ import { HERO_BASE, HERO_PALETTE, HERO_RACE_PALETTE, HERO_WEAPON } from "./sprit
 export type HeroArmor = "tunique" | "cuir" | "cloute" | "mailles" | "harnois";
 export type HeroHelmet = "aucun" | "cuir" | "mailles";
 export type HeroWeapon = "poings" | "couteau" | "epee" | "masse" | "cimeterre" | "epee_longue" | "lance";
-export type HeroBow = "court" | "puissant";
+export type HeroBow = "court" | "puissant" | "fronde";
 
 export interface HeroLook {
   race: string;
@@ -38,6 +38,7 @@ const WEAPON_OF: Record<string, HeroWeapon> = {
   lance: "lance",
   baton: "lance",
   fourche: "lance",
+  serpe: "couteau",
 };
 
 export function heroLook(race: string, gear: { armor?: string; hat?: string; melee?: string; ranged?: string } = {}): HeroLook {
@@ -46,7 +47,7 @@ export function heroLook(race: string, gear: { armor?: string; hat?: string; mel
     armor: (gear.armor && ARMOR_OF[gear.armor]) || "tunique",
     helmet: (gear.hat && HELMET_OF[gear.hat]) || "aucun",
     weapon: gear.melee ? WEAPON_OF[gear.melee] ?? "epee" : "poings",
-    bow: gear.ranged === "arc_puissant" ? "puissant" : "court",
+    bow: gear.ranged === "arc_puissant" ? "puissant" : gear.ranged === "lance_pierre" ? "fronde" : "court",
   };
 }
 
@@ -150,6 +151,34 @@ function outline(g: string[][]): string[] {
   return out.map((r) => r.join(""));
 }
 
+/**
+ * LANCE-PIERRE (Thomas, 2026-11-17 : « mets à jour le sprite du Hobbit pour le lance-pierre ») : dans les poses de tir,
+ * l'arc (bois D/d, corde T) et la flèche disparaissent ; une fourche de bois en Y, son élastique rouge et une pierre
+ * prennent leur place. Positions pour la taille de l'Halfelin (les autres races gardent l'arc dessiné).
+ * Image 0 : élastique tendu (la pierre dans la poche) ; image 1 : lâché, la pierre part.
+ */
+const SLING: Record<string, { erase: [number, number][]; marks: [string, [number, number][]][] }[]> = {
+  bowSide: [
+    { erase: [], marks: [["D", [[11, 6], [13, 6], [11, 7], [13, 7]]], ["d", [[12, 7], [12, 9]]], ["A", [[10, 6], [10, 7]]], ["x", [[9, 6]]]] },
+    { erase: [], marks: [["D", [[11, 6], [13, 6], [11, 7], [13, 7]]], ["d", [[12, 7], [12, 9]]], ["A", [[12, 6]]], ["x", [[15, 5]]]] },
+  ],
+  bowDown: [
+    { erase: [[7, 14], [7, 15]], marks: [["D", [[5, 10], [9, 10], [6, 11], [8, 11], [7, 12]]], ["d", [[7, 13], [7, 14]]], ["A", [[6, 10], [7, 10], [8, 10]]], ["x", [[7, 9]]]] },
+    { erase: [], marks: [["D", [[5, 10], [9, 10], [6, 11], [8, 11], [7, 12]]], ["d", [[7, 13], [7, 14]]], ["A", [[6, 10], [7, 10], [8, 10]]], ["x", [[7, 15]]]] },
+  ],
+  bowUp: [
+    { erase: [[7, 0], [7, 1], [7, 2], [8, 2]], marks: [["D", [[6, 2], [8, 2], [6, 3], [8, 3]]], ["d", [[7, 3], [7, 4]]], ["A", [[7, 2], [7, 5]]], ["x", [[7, 6]]]] },
+    { erase: [], marks: [["D", [[6, 2], [8, 2], [6, 3], [8, 3]]], ["d", [[7, 3], [7, 4]]], ["A", [[7, 2]]], ["x", [[7, 0]]]] },
+  ],
+};
+function applySling(g: string[][], pose: string, frame: number): void {
+  const spec = SLING[pose]?.[frame];
+  if (!spec || g.length !== 16) return;
+  for (const row of g) for (let x = 0; x < 16; x++) if (row[x] === "D" || row[x] === "d" || row[x] === "T") row[x] = ".";
+  for (const [x, y] of spec.erase) g[y][x] = ".";
+  for (const [c, cells] of spec.marks) for (const [x, y] of cells) g[y][x] = c;
+}
+
 const cache = new Map<string, HeroSprites>();
 const palettes = new Map<string, Record<string, string>>();
 
@@ -172,6 +201,7 @@ export function heroSprites(look: HeroLook): HeroSprites {
       applyArmor(g, look.armor);
       applyHelmet(g, look.helmet, LYING.has(name));
       if (look.bow === "puissant" && name.startsWith("bow")) for (const row of g) for (let x = 0; x < 16; x++) if (row[x] === "d") row[x] = "A";
+      if (look.bow === "fronde" && look.race === "halfelin" && name.startsWith("bow")) applySling(g, name, i);
       return outline(g);
     });
   }

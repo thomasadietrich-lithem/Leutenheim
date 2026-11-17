@@ -2611,14 +2611,61 @@ test("voie : au niveau 2, définitive ; ensuite un point de voie par niveau, 2 r
   assert.equal(game.improve("peau_dure"), false, "pas dans la voie rouge");
   assert.ok(game.improve("rage"));
   assert.equal(game.pathPoints(), 0);
-  for (let k = 0; k < 4; k++) game.levelUpNow();
+  game.levelUpNow();
   assert.ok(game.improve("double_frappe"));
-  assert.equal(game.improve("double_frappe"), false, "rang 2 au plus");
   assert.equal(game.rank("double_frappe"), 2);
+  game.levelUpNow();
+  assert.equal(game.improve("double_frappe"), false, "rang 3 : seulement au niveau 6");
+  assert.equal(game.improve("tourbillon"), false, "Rang II fermé avant le niveau 6");
+  game.levelUpNow();
+  assert.equal(game.level, 6);
+  assert.equal(game.improve("rage"), false, "Rang I gelé au niveau 6");
+  assert.ok(game.improve("double_frappe"), "rang 3");
+  assert.equal(game.doubleStrikeUses(), 4);
+  assert.ok(game.improve("tourbillon"));
+  assert.equal(game.pathPoints(), 0);
+  game.levelUpNow();
+  game.levelUpNow();
+  assert.ok(game.improve("double_frappe"));
+  assert.equal(game.improve("double_frappe"), false, "rang 4 au plus");
+  game.ranks.double_frappe = 2;
   // Sauvegarde : les rangs sont repris.
   const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
   assert.equal(copy.rank("double_frappe"), 2);
   assert.equal(copy.rank("rage"), 1);
+});
+
+test("Rang II : encaisseur, riposte, garde (bleue) ; cri de guerre et tourbillon (rouge)", () => {
+  const { game, m } = foeAt(1);
+  game.voie = "blue";
+  game.ranks = { second_souffle: 1, encaisseur: 2, riposte: 1, garde: 1 };
+  assert.equal((game as unknown as { absorb(d: number): number }).absorb(5), 3);
+  assert.equal((game as unknown as { absorb(d: number): number }).absorb(2), 1, "au moins 1");
+  assert.equal(game.guardBonus(), 0, "un seul ennemi");
+  m.alerted = true;
+  // Riposte : une seule par tour.
+  const hp = m.hp;
+  (game as unknown as { riposte(a: typeof m): void }).riposte(m);
+  (game as unknown as { riposte(a: typeof m): void }).riposte(m);
+  assert.equal(game.events.filter((e) => e.type === "power").length, 1);
+  assert.ok(m.hp <= hp);
+  // Voie rouge.
+  game.voie = "red";
+  game.ranks = { double_frappe: 2, cri_guerre: 1, tourbillon: 1 };
+  if (!game.monsters.includes(m)) return;
+  assert.equal(game.powerRefusal("cri_guerre"), null);
+  game.events.length = 0;
+  assert.ok(game.usePower("cri_guerre"));
+  game.tick();
+  assert.ok(game.events.some((e) => e.type === "power" && e.power === "cri_guerre"));
+  assert.equal(game.powerRefusal("cri_guerre"), "used", "une fois par étage");
+  if (game.monsters.includes(m)) assert.ok((m.cowed ?? 0) > 0 || (m.fleeTurns ?? 0) > 0);
+  if (game.monsters.includes(m) && game.powerRefusal("tourbillon") === null) {
+    game.events.length = 0;
+    assert.ok(game.usePower("tourbillon"));
+    game.tick();
+    assert.ok(game.events.some((e) => e.type === "power" && e.power === "tourbillon"));
+  }
 });
 
 test("voie bleue : second souffle +5 PV au rang 1, une fois par étage ; dernier rempart laisse à 1 PV", () => {
@@ -2690,7 +2737,7 @@ test("équilibrage des voies : bousculade (pousser plus loin), esquive : +2 / +4
   snap.ranks = { second_souffle: 3, recuperation: 3 };
   const back = Game.restore(snap)!;
   assert.equal(back.rank("esquive"), 2);
-  assert.equal(back.rank("second_souffle"), 2);
+  assert.equal(back.rank("second_souffle"), 3, "le principal monte jusqu'au rang 4 (Rang II)");
 });
 
 test("sac : on commence avec le sac en toile (6×4) ; le sac de cuir (Lv3) agrandit à 7×5", () => {

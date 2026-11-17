@@ -389,6 +389,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous suivez désormais la voie : ${PATHS[e.path].name}.`;
     case "skill":
       return e.path === "blue" ? `Second souffle : +${e.healed} PV.` : "Double frappe !";
+    case "power":
+      return e.power === "riposte"
+        ? "Riposte !"
+        : e.power === "tourbillon"
+          ? `Tourbillon ! Ennemis frappés : ${e.count}.`
+          : e.power === "charge"
+            ? "Charge !"
+            : `Cri de guerre ! Ennemis impressionnés : ${e.count}${e.fled ? `, en fuite : ${e.fled}` : ""}.`;
     case "lastStand":
       return "Dernier rempart : vous tenez debout, à 1 PV.";
     case "fire":
@@ -520,6 +528,13 @@ export const REFUSALS = {
     "no-target": "Aucun ennemi au contact.",
     danger: "Pas maintenant.",
   },
+  /** Pouvoirs du Rang II qui s'utilisent (voie rouge). */
+  power: {
+    none: "Vous n'avez pas ce pouvoir.",
+    used: "Plus d'utilisation à cet étage.",
+    "no-target": "Personne à portée.",
+  },
+  chargeNoTarget: "Aucun ennemi à 2 ou 3 cases en ligne droite, chemin libre.",
   hide: {
     hidden: "Vous êtes déjà caché.",
     threatened: "Impossible de se cacher : un ennemi est à votre contact.",

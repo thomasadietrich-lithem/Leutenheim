@@ -37,7 +37,7 @@ import { TELEMETRY } from "./data/telemetry";
 import { detectPlatform, Telemetry } from "./telemetry/telemetry";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
-import { MAX_RANK, PATH_LEVEL, PATHS, PathId, PowerDef, StatId } from "./data/skills";
+import { PATH_LEVEL, PATHS, PathId, PowerDef, StatId, TIER2_LEVEL } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
@@ -1068,6 +1068,9 @@ function reveal(e: GameEvent): void {
       shownHp = game.hero.hp;
       sfx.play("heal");
     }
+  } else if (e.type === "power") {
+    const words = { riposte: "Riposte !", tourbillon: "Tourbillon !", charge: "Charge !", cri_guerre: "Cri de guerre !" };
+    renderer.addFloatingText(game.hero.x, game.hero.y, words[e.power], e.power === "riposte" ? "#9fd0f4" : "#ff8a7a");
   } else if (e.type === "lastStand") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Dernier rempart !", "#9fd0f4");
     shownHp = game.hero.hp;
@@ -1787,7 +1790,12 @@ const WHEEL = [
   ["wheel-hide", "hide", "Se cacher"],
   ["wheel-disarm", "disarm", "Désamorcer un piège"],
   ["wheel-skill", "actions", "Compétence de voie"],
+  // Rang II de la voie rouge (2026-11-17) : une rangée au-dessus, seulement les pouvoirs acquis.
+  ["wheel-tourbillon", "whirl", "Tourbillon"],
+  ["wheel-charge", "charge", "Charge"],
+  ["wheel-cri", "cry", "Cri de guerre"],
 ] as const;
+const WHEEL_POWERS = { "wheel-tourbillon": "tourbillon", "wheel-charge": "charge", "wheel-cri": "cri_guerre" } as const;
 
 function closeWheel(): void {
   wheelOpen = false;
@@ -1809,7 +1817,9 @@ function openWheel(): void {
   if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
   // DÉSAMORCER : seulement à côté d'un piège connu (Thomas, 2026-11-17) ; toucher le piège y marche toujours.
   $("wheel-disarm").hidden = game.disarmTargets().length === 0;
-  const shown = WHEEL.filter(([id]) => (id !== "wheel-skill" || withSkill) && (id !== "wheel-disarm" || !$("wheel-disarm").hidden));
+  for (const [id, pw] of Object.entries(WHEEL_POWERS)) $(id).hidden = game.rank(pw) === 0;
+  $("wheel-pow").hidden = Object.entries(WHEEL_POWERS).every(([id]) => $(id).hidden);
+  const shown = WHEEL.filter(([id]) => (id !== "wheel-skill" || withSkill) && (id !== "wheel-disarm" || !$("wheel-disarm").hidden) && !(id in WHEEL_POWERS && $(id).hidden));
   shown.forEach(([id]) => {
     const b = $(id);
     // Une action impossible reste visible, grisée ; « Objet » sert le raccourci choisi dans le sac.
@@ -1822,6 +1832,7 @@ function openWheel(): void {
       : id === "wheel-disarm" ? game.disarmRefusal() === null
       : id === "wheel-skill" ? game.skillRefusal() === null
       : id === "wheel-item" ? game.quickStack() !== null
+      : id in WHEEL_POWERS ? game.powerRefusal(WHEEL_POWERS[id as keyof typeof WHEEL_POWERS]) === null
       : false;
     b.classList.toggle("off", !possible);
   });
@@ -1877,7 +1888,7 @@ function useQuickItem(): void {
 }
 
 // Noms courts sous les pictogrammes (barre d'actions, design C).
-const WHEEL_SHORT: Record<string, string> = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
+const WHEEL_SHORT: Record<string, string> = { "wheel-tourbillon": "Tourbillon", "wheel-charge": "Charge", "wheel-cri": "Cri", "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
 for (const [id, icon, label] of WHEEL) {
   $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
   $(id).setAttribute("aria-label", tr(label));
@@ -1886,7 +1897,12 @@ for (const [id, icon, label] of WHEEL) {
     sfx.unlock();
     sfx.play("click");
     closeWheel();
-    if (id === "wheel-skill") {
+    if (id in WHEEL_POWERS) {
+      const pw = WHEEL_POWERS[id as keyof typeof WHEEL_POWERS];
+      const refusal = game.powerRefusal(pw);
+      if (refusal) logLines.push(pw === "charge" && refusal === "no-target" ? REFUSALS.chargeNoTarget : REFUSALS.power[refusal]);
+      else if (game.usePower(pw)) stepMs = COMBAT_STEP_MS;
+    } else if (id === "wheel-skill") {
       const refusal = game.skillRefusal();
       if (refusal) logLines.push(REFUSALS.skill[refusal]);
       else if (game.useSkill()) stepMs = COMBAT_STEP_MS;
@@ -3233,6 +3249,7 @@ function renderCharacter(): void {
   // VOIE : la choisir (niveau 2, définitif), ou la voie prise. POUVOIRS : les compétences de la voie.
   const pathCards: HTMLElement[] = [];
   const powerCards: HTMLElement[] = [];
+  let tier2Cards: HTMLElement[] = [];
   const confirm = $("char-confirm") as HTMLButtonElement;
   let note = "";
   if (!game.voie) {
@@ -3257,13 +3274,20 @@ function renderCharacter(): void {
     const points = game.pathPoints();
     const powerCard = (pw: PowerDef, main: boolean): HTMLElement => {
       const r = game.rank(pw.id);
-      const card = el("div", `skill-card${main ? " main" : ""}${r > 0 ? " owned" : ""}`);
+      const top = game.maxRank(pw.id);
+      const why = game.improveRefusal(pw.id);
+      const card = el("div", `skill-card${main ? " main" : ""}${r > 0 ? " owned" : ""}${why === "locked" && r === 0 ? " locked" : ""}`);
       const body = el("div", "");
       const now = r > 0 ? pw.ranks[r - 1] : "";
-      const next = r < MAX_RANK ? `Rang ${r + 1} : ${pw.ranks[r]}` : "Rang maximal";
-      // Nom, puis une rangée : 3 billes de rang (pleines jusqu'au rang atteint) et, à droite, le petit « + ».
+      // Rang I gelé dès le niveau 6, Rang II ouvert au niveau 6 (Thomas, 2026-11-17).
+      const next =
+        r >= top ? "Rang maximal"
+        : why === "frozen" ? "Rang I terminé"
+        : why === "locked" ? `Au niveau ${TIER2_LEVEL} : ${pw.ranks[r]}`
+        : `Rang ${r + 1} : ${pw.ranks[r]}`;
+      // Nom, puis une rangée : les billes de rang (pleines jusqu'au rang atteint) et, à droite, le petit « + ».
       const pips = el("div", "rank-pips");
-      for (let k = 0; k < MAX_RANK; k++) pips.append(rankPip(k < r));
+      for (let k = 0; k < top; k++) pips.append(rankPip(k < r));
       body.append(el("b", "", pw.name), pips);
       if (now) body.append(el("div", "rank-now", now));
       body.append(el("div", "rank-next", next));
@@ -3273,7 +3297,7 @@ function renderCharacter(): void {
         card.append(buildIcon(PATH_ICONS[path.id]));
       }
       card.append(body);
-      if (points > 0 && r < MAX_RANK) {
+      if (points > 0 && why === null) {
         const plus = el("button", "plus rank-plus") as HTMLButtonElement;
         plus.type = "button";
         plus.setAttribute("aria-label", tr(`Améliorer ${pw.name}`));
@@ -3294,11 +3318,14 @@ function renderCharacter(): void {
     pathCards.push(powerCard(path.main, true));
     $("char-powers-title").hidden = false;
     path.secondaries.forEach((pw) => powerCards.push(powerCard(pw, false)));
+    tier2Cards = path.tier2.map((pw) => powerCard(pw, false));
     if (points > 0) note = `${points} point${points > 1 ? "s" : ""} de voie à placer${game.inCombat() ? " (pas en combat)" : ""}`;
   }
   $("char-path").replaceChildren(...pathCards);
   $("char-path").classList.toggle("choose", !game.voie);
   $("char-skills").replaceChildren(...powerCards);
+  $("char-tier2").replaceChildren(...tier2Cards);
+  $("char-tier2").hidden = $("char-tier2-title").hidden = tier2Cards.length === 0;
   $("char-note").textContent = tr(note);
   confirm.hidden = pickedChoice === null;
   confirm.textContent = tr("Choisir cette voie (définitif)");

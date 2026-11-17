@@ -362,7 +362,11 @@ export const RULES = {
   /** Un point en Vie : PV max en plus. */
   hpPerVie: 4,
   /** Second souffle (voie bleue) : PV rendus aux rangs 1, 2, 3. Double frappe : autant de fois par étage que son rang. */
-  secondWindHeal: [4, 7, 10],
+  secondWindHeal: [4, 7, 10, 13],
+  /** Cri de guerre (voie rouge, Rang II) : portée, PV max d'un ennemi « faible », sa chance de fuir. */
+  warCryRadius: 3,
+  warCryWeakHp: 10,
+  warCryFleeChance: 0.5,
   /** Potion de géant (Thomas, 2026-11-13) : durée en tours. */
   growTurns: 8,
   /** Poussée (Thomas, 2026-11-13) : chance de renverser l'ennemi (toujours contre un mur), et en plus par rang de Bousculade. */

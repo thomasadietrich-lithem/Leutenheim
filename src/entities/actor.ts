@@ -31,6 +31,8 @@ export interface Actor {
   bather?: boolean;
   soapy?: number;
   fleeing?: boolean;
+  /** Cri de guerre (voie rouge, Rang II) : tours restants où ses attaques ont le désavantage. */
+  cowed?: number;
   /** Un Kobold blessé qui détale : tours de fuite restants ; le tirage n'a lieu qu'une fois. */
   fleeTurns?: number;
   /** Position au début du tour précédent (pour savoir d'où il venait à son dernier pas : règle de l'avantage). */

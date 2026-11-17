@@ -232,7 +232,11 @@
      pictogramme ; la carte reste visible ; toucher ailleurs referme. */
   #wheel { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; }
   #wheel[hidden], #wheel button[hidden] { display: none; }
-  #wheel-bar { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94);
+  #wheel-stack { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #wheel-pow[hidden] { display: none; }
+  #wheel-pow { justify-content: center; }
+  #wheel-pow button { flex: 0 1 31%; }
+  #wheel-bar, #wheel-pow { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94);
     box-shadow: inset 0 0 0 2px #6a5a3a, 0 0 0 2px #120d08; }
   #wheel button { flex: 1 1 0; min-width: 0; height: 74px; padding: 6px 0 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   #wheel button svg { width: 40px; height: 40px; flex: none; }
@@ -559,7 +563,8 @@
   .char-stat b { color: #fff3c8; font-weight: normal; min-width: 64px; text-align: right; }
   .char-plus { width: 34px; height: 30px; padding: 0; font-size: 24px; line-height: 1; }
   .char-sep { border-top: 2px solid #3a2e1e; margin: 6px 0; }
-  #char-skills { width: min(100%, 318px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #char-tier2[hidden], #char-tier2-title[hidden] { display: none; }
+  #char-skills, #char-tier2 { width: min(100%, 318px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .skill-card { padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; text-align: center; font-size: 15px; color: var(--dim); line-height: 1.1; cursor: pointer; }
   .skill-card svg { width: 40px; height: 40px; display: block; margin: 0 auto 4px; }
   .skill-card b { display: block; font-size: 17px; color: #fff3c8; font-weight: normal; text-transform: uppercase; }
@@ -675,7 +680,11 @@
     <div id="status-pop" hidden></div>
     <div id="test-tools" class="folded" hidden><button id="cheat-toggle" type="button">Triche</button><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="spawn-open" type="button">Objets</button><button id="kit-faible" type="button">Stuff faible</button><button id="kit-moyen" type="button">Stuff moyen</button><button id="kit-eleve" type="button">Stuff élevé</button><button id="carillon-mode" type="button">Carillon : doux</button><button id="boss2" type="button">Boss 2 · niv 10</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
     <div id="arena-tools" hidden><button id="arena-reset" type="button">Arène : remettre</button><button id="arena-schrat" type="button">+ Kobold</button><button id="arena-frondeur" type="button">+ Frondeur</button><button id="arena-araignee" type="button">+ Araignée</button></div>
-    <div id="wheel" hidden><div id="wheel-bar">
+    <div id="wheel" hidden><div id="wheel-stack"><div id="wheel-pow" hidden>
+      <button id="wheel-tourbillon" type="button" hidden></button>
+      <button id="wheel-charge" type="button" hidden></button>
+      <button id="wheel-cri" type="button" hidden></button>
+    </div><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
       <button id="wheel-push" type="button"></button>
       <button id="wheel-disengage" type="button"></button>
@@ -684,7 +693,7 @@
       <button id="wheel-hide" type="button"></button>
       <button id="wheel-disarm" type="button" hidden></button>
       <button id="wheel-skill" type="button" hidden></button>
-    </div></div>
+    </div></div></div>
     <div id="door-actions" hidden>
       <div class="door-choices">
         <button id="door-peek" type="button" hidden>Regarder par le trou</button>
@@ -797,8 +806,10 @@
       <div id="char-stats"></div>
       <div class="char-sec">Voie</div>
       <div id="char-path"></div>
-      <div class="char-sec" id="char-powers-title">Pouvoirs</div>
+      <div class="char-sec" id="char-powers-title">Rang I</div>
       <div id="char-skills"></div>
+      <div class="char-sec" id="char-tier2-title" hidden>Rang II</div>
+      <div id="char-tier2" hidden></div>
       <div id="char-note"></div>
       <button id="char-confirm" type="button" hidden></button>
     </section>

@@ -403,7 +403,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     }
     if (game.canChoosePath()) game.choosePath(opts.voie ?? "blue");
     if (game.voie && game.pathPoints() > 0 && !game.inCombat()) {
-      const order = opts.build ?? (game.voie === "red" ? ["double_frappe", "enchainement", "rage", "coup_puissant"] : ["second_souffle", "dernier_rempart", "peau_dure", "esquive"]);
+      const tier2 = game.voie === "red" ? ["double_frappe", "cri_guerre", "tourbillon", "charge"] : ["second_souffle", "encaisseur", "riposte", "garde"];
+      const order = [...(opts.build ?? (game.voie === "red" ? ["double_frappe", "enchainement", "rage", "coup_puissant"] : ["second_souffle", "dernier_rempart", "peau_dure", "esquive"])), ...tier2];
       for (let n = 0; n < 4 && game.pathPoints() > 0; n++) if (!order.some((id) => game.improve(id as never))) break;
     }
     equipBestX(game);
@@ -531,6 +532,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
           return stepTo(spot);
         }
       }
+      if (adj.length >= 2 && game.powerRefusal("tourbillon") === null && game.usePower("tourbillon")) return true;
+      if (game.visibleMonsters().filter((f) => cheb(f, hero) <= 3).length >= 2 && game.powerRefusal("cri_guerre") === null && game.usePower("cri_guerre")) return true;
       if (game.voie === "red" && target.hp > heroHit() && game.skillRefusal() === null && game.useSkill()) return true;
       const c = cellsOf(target).reduce((a, b) => (cheb(b, hero) < cheb(a, hero) ? b : a));
       return game.setDestination(c.x, c.y);

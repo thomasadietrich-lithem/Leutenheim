@@ -12,7 +12,14 @@ export type SkillId =
   | "dernier_rempart"
   | "coup_puissant"
   | "enchainement"
-  | "rage";
+  | "rage"
+  // RANG II (Thomas, 2026-11-17 : « 4 capacités de rang 2 », dès le niveau 6) : voie bleue, puis voie rouge.
+  | "riposte"
+  | "garde"
+  | "encaisseur"
+  | "tourbillon"
+  | "charge"
+  | "cri_guerre";
 
 /** Un pouvoir de voie : le principal (celui du bouton) ou un des trois autres. */
 export type PowerId = "second_souffle" | "double_frappe" | SkillId;
@@ -21,7 +28,8 @@ export type PowerId = "second_souffle" | "double_frappe" | SkillId;
 export interface PowerDef {
   id: PowerId;
   name: string;
-  ranks: [string, string];
+  /** Deux rangs (quatre pour le pouvoir principal : I et II au Rang I, III et IV au Rang II). */
+  ranks: string[];
 }
 
 export interface PathDef {
@@ -35,6 +43,8 @@ export interface PathDef {
   /** Le pouvoir principal (rang 1 à la prise de la voie), puis les trois autres. */
   main: PowerDef;
   secondaries: PowerDef[];
+  /** Rang II : trois pouvoirs nouveaux, ouverts au niveau 6 (le principal y continue, rangs 3 et 4). */
+  tier2: PowerDef[];
 }
 
 /**
@@ -48,12 +58,17 @@ export const PATHS: Record<PathId, PathDef> = {
     name: "Second souffle",
     color: "#4a8fd0",
     description: "Une fois par étage, en un tour : +4 PV. Se renforce.",
-    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage"] },
+    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage", "+10 PV, une fois par étage", "+13 PV, une fois par étage"] },
     secondaries: [
       { id: "peau_dure", name: "Peau dure", ranks: ["+1 à la classe d'armure", "+2 à la classe d'armure"] },
       // Thomas (2026-11-13) : remplace Récupération (« deux sources de soin direct, c'est trop »).
       { id: "esquive", name: "Esquive", ranks: ["+2 en agilité ; se dégager saute une case plus loin", "+4 en agilité ; se dégager saute une case plus loin"] },
       { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse à 1 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (1 fois par étage)"] },
+    ],
+    tier2: [
+      { id: "riposte", name: "Riposte", ranks: ["Un ennemi au contact vous rate : vous frappez aussitôt (une fois par tour)", "Riposte à +2 pour toucher et +2 dégâts"] },
+      { id: "garde", name: "Garde", ranks: ["+2 à la classe d'armure quand deux ennemis ou plus vous touchent", "+3 à la classe d'armure quand deux ennemis ou plus vous touchent"] },
+      { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât à chaque coup reçu (au moins 1)", "-2 dégâts à chaque coup reçu (au moins 1)"] },
     ],
   },
   red: {
@@ -61,12 +76,17 @@ export const PATHS: Record<PathId, PathDef> = {
     name: "Double frappe",
     color: "#d03a44",
     description: "Deux fois par étage : deux coups d'épée en un seul tour. Se renforce.",
-    main: { id: "double_frappe", name: "Double frappe", ranks: ["Deux fois par étage", "Trois fois par étage"] },
+    main: { id: "double_frappe", name: "Double frappe", ranks: ["Deux fois par étage", "Trois fois par étage", "Quatre fois par étage", "Cinq fois par étage"] },
     secondaries: [
       { id: "coup_puissant", name: "Coup puissant", ranks: ["Critique sur 18 à 20 ; un critique assomme", "Critique sur 17 à 20 ; un critique assomme"] },
       // Thomas (2026-11-13) : remplace Soif de combat, pour faire vivre l'action « Pousser ».
       { id: "enchainement", name: "Bousculade", ranks: ["+2 pour pousser ; la poussée envoie une case plus loin", "+4 pour pousser ; la poussée envoie une case plus loin"] },
       { id: "rage", name: "Rage", ranks: ["+1 dégât sous la moitié des PV", "+2 dégâts sous la moitié des PV"] },
+    ],
+    tier2: [
+      { id: "tourbillon", name: "Tourbillon", ranks: ["Une fois par étage : un coup à chaque ennemi au contact", "Deux fois par étage : un coup à chaque ennemi au contact"] },
+      { id: "charge", name: "Charge", ranks: ["Fond sur un ennemi à 2 cases en ligne droite et frappe à +2 (2 fois par étage)", "Jusqu'à 3 cases, frappe à +3 (3 fois par étage)"] },
+      { id: "cri_guerre", name: "Cri de guerre", ranks: ["Une fois par étage : les ennemis à 3 cases ont le désavantage 2 tours ; les plus faibles peuvent fuir", "Le désavantage dure 3 tours"] },
     ],
   },
 };
@@ -74,6 +94,10 @@ export const PATHS: Record<PathId, PathDef> = {
 /** Rang le plus haut d'un pouvoir. */
 /** Deux rangs par pouvoir (Thomas, 2026-11-13 : « garder de la marge pour après le boss et les niveaux suivants »). */
 export const MAX_RANK = 2;
+/** Le pouvoir principal monte jusqu'au rang 4 (rangs 3 et 4 au Rang II). */
+export const MAIN_MAX_RANK = 4;
+/** Niveau où s'ouvre le Rang II ; le Rang I ne reçoit plus de point ensuite (Thomas, 2026-11-17). */
+export const TIER2_LEVEL = 6;
 
 /** Niveau où l'on choisit sa voie (un point de voie à chaque niveau ensuite). */
 export const PATH_LEVEL = 2;

@@ -185,6 +185,8 @@ export type GameEvent =
   /** Voie choisie, compétence de voie utilisée, Dernier rempart, potion (feu lancé, case qui brûle, statut posé). */
   | { type: "path"; path: PathId }
   | { type: "skill"; path: PathId; healed: number }
+  /** Rang II des voies (2026-11-17) : riposte, tourbillon (ennemis touchés), charge, cri de guerre (ennemis touchés, fuyards). */
+  | { type: "power"; power: "riposte" | "tourbillon" | "charge" | "cri_guerre"; count?: number; fled?: number }
   | { type: "lastStand" }
   | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
   /** Une torche lancée (Thomas, 2026-11-14) : elle vole et met le feu à sa case (ou s'éteint dans l'eau). */

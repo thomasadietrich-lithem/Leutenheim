@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T10:46:39.016Z",
+ "commit": "62fc04f",
+ "note": "escalier du boss sans toile une fois le boss tombé",
+ "logic": {
+  "tickMs": 0.6,
+  "lightMs": 0.34,
+  "visionMs": 0.2
+ },
+ "scenes": {
+  "immobile": {
+   "n": 83,
+   "avg": 29.3,
+   "p95": 50,
+   "max": 66.6,
+   "fps": 34,
+   "js": 7
+  },
+  "marche": {
+   "n": 170,
+   "avg": 29.2,
+   "p95": 50,
+   "max": 83.3,
+   "fps": 34,
+   "js": 4
+  },
+  "retour": {
+   "n": 177,
+   "avg": 28.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 35,
+   "js": 4
+  },
+  "zoom": {
+   "n": 110,
+   "avg": 24.4,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 41,
+   "js": 5
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 9
+  },
+  "donjon": {
+   "n": 183,
+   "avg": 27,
+   "p95": 50,
+   "max": 133.4,
+   "fps": 37,
+   "js": 16
+  }
+ },
+ "errors": []
+}

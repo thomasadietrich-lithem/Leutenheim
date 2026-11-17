@@ -83,3 +83,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_09h46 | f557932 | 27.2 | 27.3 | 26.1 | 28 | 16.7 | 22.4 | 0.71 | 0.38 | Carillon en zones, poule du logo, astuces en bas |
 | 2026-11-17_09h57 | f2da185 | 41 | 38.5 | 39.7 | 43.2 | 17 | 35.5 | 0.81 | 0.69 | Carillon revu, torche étouffée |
 | 2026-11-17_10h00 | f2da185 | 28.5 | 24.7 | 27.9 | 32.8 | 16.7 | 26.5 | 0.8 | 0.19 | tapisserie pendue dans la salle au trésor |
+| 2026-11-17_10h46 | 62fc04f | 29.3 | 29.2 | 28.2 | 24.4 | 16.7 | 27 | 0.6 | 0.34 | escalier du boss sans toile une fois le boss tombé |

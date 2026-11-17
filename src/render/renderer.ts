@@ -2821,7 +2821,7 @@ export class Renderer {
         px = f.x * 16 + off[0];
         py = (f.y + def.h) * 16 - h + off[1];
       }
-      const img = this.shadedSprite(f.kind === "sealedStairs" ? `sealed${art.rows[0]}` : name, art.rows, art.palette, dark, warm);
+      const img = this.shadedSprite(f.kind === "sealedStairs" ? `sealed${art.rows.join("")}` : name, art.rows, art.palette, dark, warm);
       const smooth = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
       const x = this.snap(ox + px * u);
@@ -3001,10 +3001,13 @@ const MYCELIUM_SEAL = {
 function sealedStairsArt(game: Game): { rows: string[]; palette: Record<string, string> } | undefined {
   const b = game.bossLayout();
   if (!b) return undefined;
+  // Le boss tombé, le sceau se déchire : l'escalier se montre nu (Thomas, 2026-11-17 : « ouvre l'étage après la
+  // Fileuse » : la toile restait dessinée et l'escalier paraissait fermé).
+  const open = !game.bossActor();
   const dx = Math.sign(b.seal.x - b.chest.x);
   const dy = Math.sign(b.seal.y - b.chest.y);
   // Le dessin descend vers le bas : on le tourne d'un quart de tour vers la droite, la gauche, ou d'un demi-tour.
-  const key = `${b.kind}:${dx},${dy}`;
+  const key = `${b.kind}:${open ? "open" : "sealed"}:${dx},${dy}`;
   const hit = sealedCache.get(key);
   if (hit) return hit;
   const src = ESCALIERS_CHAMPI.down;
@@ -3012,17 +3015,17 @@ function sealedStairsArt(game: Game): { rows: string[]; palette: Record<string, 
     dx > 0 ? src[x][15 - y] : dx < 0 ? src[15 - x][y] : dy < 0 ? src[15 - y][15 - x] : src[y][x];
   // Le Carillon (étage 10) : pas une toile d'araignée mais un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-17 : « quelque
   // chose en lien avec les champignons ») : filaments pâles qui pendent et des points qui luisent.
-  const web = b.kind === "carillon" ? MYCELIUM_SEAL : SALLES.sealedStairs;
+  const web = open ? null : b.kind === "carillon" ? MYCELIUM_SEAL : SALLES.sealedStairs;
   const rows: string[] = [];
   for (let y = 0; y < 16; y++) {
     let row = "";
     for (let x = 0; x < 16; x++) {
-      const w = web.rows[y][x];
+      const w = web ? web.rows[y][x] : ".";
       row += w === "a" || w === "c" || w === "d" ? w : at(x, y);
     }
     rows.push(row);
   }
-  const art = { rows, palette: { ...ESCALIERS_CHAMPI_PALETTE, a: web.palette.a, c: web.palette.c, d: web.palette.d } };
+  const art = { rows, palette: web ? { ...ESCALIERS_CHAMPI_PALETTE, a: web.palette.a, c: web.palette.c, d: web.palette.d } : { ...ESCALIERS_CHAMPI_PALETTE } };
   sealedCache.set(key, art);
   return art;
 }

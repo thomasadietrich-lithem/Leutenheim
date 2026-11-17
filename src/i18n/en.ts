@@ -2052,4 +2052,6 @@ export const EN: Record<string, string> = {
   "Réparé !": "Repaired!",
   "Les fidèles ont remis le battant : le Carillon sonnera de nouveau.": "The faithful have put the clapper back: the Carillon will ring again.",
   "Le mycélium se soulève : un fidèle du Carillon en sort.": "The mycelium heaves: a Carillon faithful steps out.",
+  " « Au feu ! » {0} détale —": " “Fire!” {0} bolts —",
+  " {0} tousse et file —": " {0} coughs and runs off —",
 };

@@ -99,13 +99,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.actor.kind === "hero" ? null : e.actor.name.endsWith("e") ? `${capFirst(e.actor.name)} est vaincue.` : `${capFirst(e.actor.name)} est vaincu.`;
     case "npc": {
       if (e.what !== "leave") return null;
-      const name = e.who === "gluck" ? "Gluck" : e.who === "soeur" ? "Sœur Osseuse" : "Krik";
+      // Le bon nom pour chaque PNJ (Thomas, 2026-11-17 : « Krik » s'affichait quand Morillon partait, en section 2).
+      const name = ({ gluck: "Gluck", soeur: "Sœur Osseuse", krik: "Krik", grum: "Grum", fifrelin: "Fifrelin", morillon: "Morillon" } as Record<string, string>)[e.who] ?? "Krik";
       const apples = (e.drops ?? []).some((d) => d.item === "pomme");
       const gold = (e.drops ?? []).some((d) => d.item === "or");
       const why = e.fled === "fire"
-        ? (e.who === "gluck" ? " Gluck détale, la queue en feu : « Aïe aïe aïe ! » —" : e.who === "soeur" ? " « Mes os ! Mon voile ! » Sœur Osseuse s'enfuit en flammes —" : " « Je brûle ! C'est vrai, en plus ! » Krik détale —")
+        ? (e.who === "gluck" ? " Gluck détale, la queue en feu : « Aïe aïe aïe ! » —" : e.who === "soeur" ? " « Mes os ! Mon voile ! » Sœur Osseuse s'enfuit en flammes —" : e.who === "krik" ? " « Je brûle ! C'est vrai, en plus ! » Krik détale —" : ` « Au feu ! » ${name} détale —`)
         : e.fled === "gas"
-          ? (e.who === "gluck" ? " Gluck s'étrangle, tousse et file —" : e.who === "soeur" ? " Sœur Osseuse tousse… sans poumons, mais elle s'en va —" : " « C'est du poison ! Je le sais, je l'ai volé ! » Krik file —")
+          ? (e.who === "gluck" ? " Gluck s'étrangle, tousse et file —" : e.who === "soeur" ? " Sœur Osseuse tousse… sans poumons, mais elle s'en va —" : e.who === "krik" ? " « C'est du poison ! Je le sais, je l'ai volé ! » Krik file —" : ` ${name} tousse et file —`)
           : "";
       return `${why ? why.trim() + " " : ""}Pouf ! ${name} disparaît dans un petit nuage.${apples ? " Des pommes roulent par terre." : ""}${gold ? " De l'or tinte sur les dalles." : ""}`;
     }

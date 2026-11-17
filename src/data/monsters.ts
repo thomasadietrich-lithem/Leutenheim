@@ -253,7 +253,7 @@ export const MONSTERS = {
     id: "battant",
     name: "le battant",
     family: "champignons",
-    description: "La grosse boule de spores qui pend sous le chapeau du Carillon et le fait sonner. Cassée (flèches, javelines, coups, ou une poussée), il ne sonne plus.",
+    description: "La grosse boule de spores qui pend sous le chapeau du Carillon et le fait sonner. Il ne s'atteint que quand la cloche se balance, juste avant l'onde (sinon, seul un coup parfait passe). Cassée (flèches, javelines, coups, ou une poussée), il ne sonne plus, mais son chapeau se met à fondre.",
     hp: 20,
     armorClass: 14,
     attackBonus: 0,

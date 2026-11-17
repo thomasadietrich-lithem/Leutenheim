@@ -490,6 +490,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `${e.actor.name} est ralenti.`;
     case "torchOut":
       return "Votre torche s'éteint.";
+    case "torchHush":
+      return e.lit ? "Vous rallumez votre torche." : "Vous étouffez votre torche pour vous cacher.";
     case "poisoned":
       if (e.immune) return `${capFirst(e.actor.name)} ne craint pas le poison.`;
       return e.actor.kind === "hero" ? "Vous êtes empoisonné !" : `${e.actor.name} est empoisonné.`;
@@ -516,7 +518,6 @@ export const REFUSALS = {
     threatened: "Impossible de se cacher : un ennemi est à votre contact.",
     watched: "Impossible de se cacher : un ennemi vous a en vue.",
     "no-cover": "Rien pour vous cacher : il faut une colonne ou un angle de mur.",
-    torch: "Impossible de se cacher avec une torche allumée.",
   },
   disengage: {
     safe: "Aucun ennemi au contact : rien à quoi se dérober.",

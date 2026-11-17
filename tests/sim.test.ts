@@ -1169,7 +1169,7 @@ test("PNJ de quête dans le donjon : un au plus par étage (Gluck ou Sœur Osseu
     if (game.soeur()) soeur++;
     if (here.length) any++;
   }
-  assert.ok(any > 40 && any < 110, `un PNJ à l'étage 1 dans ${any} parties sur 200`);
+  assert.ok(any > 100 && any < 190, `un PNJ à l'étage 1 dans ${any} parties sur 200`); // 85 % (2026-11-17)
   assert.ok(gluck > 10 && soeur > 10, `Gluck ${gluck}, Sœur Osseuse ${soeur}`);
 });
 
@@ -2358,7 +2358,7 @@ function foeAt(dist: number, maxSeed = 200): { game: Game; m: import("../src/ent
   throw new Error("aucune position trouvée");
 }
 
-test("torche : 300 tours de lumière, rangée sous l'arc ; on l'éteint et la rallume ; on ne peut pas se cacher avec", () => {
+test("torche : 300 tours de lumière, rangée sous l'arc ; on l'éteint et la rallume ; elle s'étouffe pour se cacher", () => {
   const game = new Game(7);
   const had = game.inventory.count("torche"); // l'Humain part avec une torche
   game.inventory.add("torche", 1);
@@ -2375,7 +2375,16 @@ test("torche : 300 tours de lumière, rangée sous l'arc ; on l'éteint et la ra
   assert.equal(game.torchTurns, left, "éteinte, elle ne baisse pas");
   assert.ok(!game.torchLit());
   assert.ok(game.toggleTorch());
-  assert.equal(game.hideRefusal() === "torch" || game.hideRefusal() === "threatened", true);
+  // Se cacher torche allumée (2026-11-17) : elle s'étouffe, puis se rallume en sortant de l'ombre (ou si c'est raté).
+  const g = game as unknown as { resolveHide(): void; reveal(): void; hidden: boolean };
+  game.events.length = 0;
+  g.resolveHide();
+  assert.ok(game.events.some((e) => e.type === "torchHush" && !e.lit), "étouffée");
+  if (g.hidden) {
+    assert.ok(!game.torchLit());
+    g.reveal();
+  }
+  assert.ok(game.torchLit(), "rallumée");
   let out = false;
   for (let t = 0; t < 320 && !game.over && !out; t++) {
     game.events.length = 0;

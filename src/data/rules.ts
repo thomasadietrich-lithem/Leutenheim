@@ -196,6 +196,18 @@ export const RULES = {
   carillonDripReach: 2,
   /** Les monstres de la grotte s'écartent tant de tours avant l'onde (2 : le héros a le temps de se placer). (C) */
   carillonCowerLead: 2,
+  /** Carillon, suite (Thomas, 2026-11-17 : « go » sur les propositions) (C) : PHASES (sous 2/3 des PV, zones de 4 cases
+   *  au lieu de 3 ; sous 1/3, une onde tous les 6 tours) ; SOUCHES qui se fêlent quand elles arrêtent l'onde et
+   *  tombent au 2e coup ; ÉCHO : l'onde revient au tour suivant depuis le mur d'en face (moitié des dégâts) ; GLAS : sous
+   *  10 % des PV, trois ondes rapprochées (tous les 2 tours), puis il s'affaisse 3 tours (CA −2). */
+  carillonZoneReach: [3, 4],
+  carillonEveryLate: 6,
+  carillonStumpHits: 2,
+  carillonKnellAt: 0.1,
+  carillonKnellRings: 3,
+  carillonKnellFallen: 3,
+  /** Le battant, à l'abri sous le chapeau hors de l'avertissement : sa classe d'armure (seul un 20 naturel passe). */
+  carillonClapperGuard: 40,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,

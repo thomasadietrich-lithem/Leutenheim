@@ -941,6 +941,27 @@ function reveal(e: GameEvent): void {
       sfx.play("splash");
       for (const o of e.hit ?? []) renderer.addFloatingText(o.x, o.y, "Splotch !", o === game.hero ? "#ff6b7a" : "#b7a6d6");
       if ((e.hit ?? []).includes(game.hero)) logLines.push("Une goutte d'encre vous tombe dessus.");
+    } else if (e.what === "echo") {
+      sfx.play("bell");
+      if (e.cells?.[0]) {
+        renderer.carillonRing(e.cells[0].x, e.cells[0].y);
+        renderer.addFloatingText(e.cells[0].x, e.cells[0].y, "Écho !", "#b7a6d6");
+      }
+      if ((e.hit ?? []).includes(game.hero)) logLines.push("L'onde rebondit sur la paroi et revient vous frapper dans le dos.");
+      else logLines.push("L'écho de l'onde revient du mur d'en face.");
+    } else if (e.what === "knell") {
+      renderer.addFloatingText(e.actor.x + 1, e.actor.y, "GLAS", "#e2ded6");
+      logLines.push("Le Carillon chancelle et sonne le glas : trois ondes, coup sur coup !");
+    } else if (e.what === "slump") {
+      renderer.addFloatingText(e.actor.x + 1, e.actor.y, "Il s'affaisse !", "#c4d660");
+      logLines.push("Épuisé, le Carillon s'affaisse et se fêle. Finissez-le !");
+    } else if (e.what === "stumpCrack" && e.cells?.[0]) {
+      renderer.addFloatingText(e.cells[0].x, e.cells[0].y, "Crac", "#c9c2ae");
+      logLines.push("La souche qui vous abrite se fend.");
+    } else if (e.what === "stumpBreak" && e.cells?.[0]) {
+      renderer.addFloatingText(e.cells[0].x, e.cells[0].y, "Crac !", "#c9c2ae");
+      sfx.play("break");
+      logLines.push("La souche éclate : il faut trouver un autre abri.");
     } else if (e.what === "cower") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "À l'abri !", "#b7a6d6");
     } else if (e.what === "inkMark") {

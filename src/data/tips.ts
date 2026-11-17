@@ -11,7 +11,7 @@ export const TIPS: string[] = [
   "Le gravier et les flaques font du bruit. Votre héros les contourne quand il le peut.",
   "Chaque coup échangé fait monter l'alerte. Plus elle monte, plus il vient de monstres.",
   "Crocheter une porte est silencieux. L'enfoncer s'entend de loin.",
-  "Une torche allumée vous fait remarquer, et empêche de se cacher.",
+  "Une torche allumée vous fait remarquer. Pour vous cacher, vous l'étouffez : elle se rallume en sortant de l'ombre.",
   "Fouiller une salle fait briller tout ce que l'on peut toucher.",
   "Le repos rend la moitié des points de vie perdus, une fois par étage.",
   "Poussez un monstre contre un mur : il encaisse des dégâts en plus.",

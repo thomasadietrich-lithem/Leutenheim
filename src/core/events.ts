@@ -69,7 +69,7 @@ export type GameEvent =
   | { type: "demoEnd" }
   /** Le Carillon (boss de la section 2) : il s'éveille, avertit, sonne (qui est jeté à terre), sonne faux, perd son
    *  battant ; à mi-vie, des envahis sortent du mycélium. */
-  | { type: "carillon"; what: "wake" | "warn" | "ring" | "false" | "clapper" | "sprout" | "ink" | "inkMark" | "cower"; actor: Actor; hit?: Actor[]; cells?: { x: number; y: number }[]; kind?: "zone" | "drip" }
+  | { type: "carillon"; what: "wake" | "warn" | "ring" | "false" | "clapper" | "sprout" | "ink" | "inkMark" | "cower" | "echo" | "knell" | "slump" | "stumpCrack" | "stumpBreak"; actor: Actor; hit?: Actor[]; cells?: { x: number; y: number }[]; kind?: "zone" | "drip" }
   /** L'escalier de la nichée est scellé : la Tisseuse vit encore. */
   | { type: "sealed" }
   /** Un jet de dialogue avec un PNJ de quête (d20 + caractéristique). */
@@ -178,6 +178,8 @@ export type GameEvent =
   /** Objet utilisé (pomme : PV rendus ; torche : allumée), torche éteinte, poison posé et poison qui ronge. */
   | { type: "used"; item: ItemId; healed?: number }
   | { type: "torchOut" }
+  /** Se cacher torche allumée (Thomas, 2026-11-17) : elle s'étouffe toute seule, puis se rallume en sortant de l'ombre. */
+  | { type: "torchHush"; lit: boolean }
   /** Voie choisie, compétence de voie utilisée, Dernier rempart, potion (feu lancé, case qui brûle, statut posé). */
   | { type: "path"; path: PathId }
   | { type: "skill"; path: PathId; healed: number }

@@ -11,7 +11,9 @@ export const GLUCK = {
   name: "Gluck",
   /** Chance qu'il se montre sur un étage 1 à 4 d'une section (jamais à l'étage du boss), tant qu'on l'a vu moins de 4 fois. */
   // Un PNJ de quête sur la moitié des étages 1 à 4 (Thomas, 2026-11-16 : « environ 2 rencontres par section » ; 35 % avant).
-  chance: 0.5,
+  // Relevé à 85 % (Thomas, 2026-11-17 : « augmente la probabilité de décrocher des quêtes, 0,6 ou 0,7 par partie
+  // c'est nul ») : environ 3 rencontres par section.
+  chance: 0.85,
   maxEncounters: 4,
   /** Difficultés cachées des jets : facile, moyen, dur. */
   dc: { easy: 9, medium: 12, hard: 15 },

@@ -169,6 +169,7 @@ export class Game {
   toggleTorch(): boolean {
     if (this.over || this.torchTurns <= 0) return false;
     this.torchOff = !this.torchOff;
+    this.torchHushed = false;
     if (!this.torchOff) this.torchBefore = this.visible ? this.visible.slice() : null;
     this.refreshLight();
     if (!this.torchOff) this.reveal();
@@ -1012,6 +1013,14 @@ export class Game {
    * fait SONNER FAUX : pas d'onde, il est sonné 2 tours et se fêle. Battant cassé : il ne sonne plus.
    */
   private carillonAct(m: Actor): void {
+    this.carillonTurn(m);
+    // Le BATTANT ne s'atteint que pendant l'avertissement (Thomas, 2026-11-17, « go ») : le reste du temps il est
+    // à l'abri sous le chapeau (seul un 20 naturel passe) ; il faut venir sous la cloche quand elle se balance.
+    const clap = this.monsters.find((o) => o.defId === "battant");
+    if (clap) clap.armorClass = m.boss!.ring === 1 && m.boss!.clapperUp ? MONSTERS.battant.armorClass : RULES.carillonClapperGuard;
+  }
+
+  private carillonTurn(m: Actor): void {
     const st = m.boss!;
     const layout = this.current.boss!;
     if (!st.engaged) {
@@ -1036,6 +1045,20 @@ export class Game {
     // d'avant tombent, même quand il est sonné.
     this.carillonInkFall(m);
     if (this.over) return;
+    // L'ÉCHO de l'onde du tour d'avant revient depuis le mur d'en face : changer de côté de sa souche.
+    if (st.echoFrom) {
+      const from = st.echoFrom;
+      st.echoFrom = undefined;
+      this.carillonWave(m, from, true);
+      if (this.over) return;
+    }
+    // Le GLAS : sous 10 % de sa vie, une fois, trois ondes rapprochées.
+    if (!st.knelled && st.clapperUp && m.hp <= m.maxHp * RULES.carillonKnellAt) {
+      st.knelled = true;
+      st.knell = RULES.carillonKnellRings;
+      st.ring = 2;
+      this.events.push({ type: "carillon", what: "knell", actor: m });
+    }
     if ((st.fallen ?? 0) > 0) {
       st.fallen--;
       return;
@@ -1081,8 +1104,13 @@ export class Game {
     // Pas d'encre pendant l'avertissement ni au coup : un danger à la fois.
     if (inkNow && st.ring > 1 && st.inkTick % every === 0) this.carillonInkMark(m, this.carillonInkZone(m), "zone");
     if (st.ring > 0) return;
-    st.ring = RULES.carillonEvery;
     st.inked = true;
+    // Le décompte suivant : tous les 6 tours sous le tiers de sa vie ; pendant le glas, tous les 2 tours.
+    st.ring = m.hp * 3 <= m.maxHp ? RULES.carillonEveryLate : RULES.carillonEvery;
+    if ((st.knell ?? 0) > 0) {
+      st.knell!--;
+      st.ring = st.knell! > 0 ? 2 : RULES.carillonEvery;
+    }
     if (st.falseNote) {
       st.falseNote = false;
       st.fallen = RULES.carillonFalseTurns;
@@ -1093,20 +1121,51 @@ export class Game {
       this.events.push({ type: "carillon", what: "false", actor: m });
       return;
     }
-    // L'onde : elle part du battant (sous le chapeau).
+    // L'onde : elle part du battant (sous le chapeau) ; elle reviendra en écho depuis le mur d'en face.
     const from = layout.clapper ?? { x: m.x + 1, y: m.y + 2 };
+    this.carillonWave(m, from, false);
+    st.echoFrom = this.echoSource(from);
+    // Après le dernier coup du glas, il s'affaisse.
+    if (st.knelled && st.knell === 0) {
+      st.knell = undefined;
+      st.fallen = RULES.carillonKnellFallen;
+      if (!st.cracked) {
+        st.cracked = true;
+        m.armorClass -= 2;
+      }
+      this.events.push({ type: "carillon", what: "slump", actor: m });
+    }
+  }
+
+  /** Le point d'où revient l'écho : le bout de la grotte en face du battant (de l'autre côté du centre). */
+  private echoSource(from: Point): Point {
+    const lair = this.current.boss!.lair;
+    const cx = lair.x + (lair.w - 1) / 2;
+    const cy = lair.y + (lair.h - 1) / 2;
+    const x = Math.round(Math.min(lair.x + lair.w - 1, Math.max(lair.x, 2 * cx - from.x)));
+    const y = Math.round(Math.min(lair.y + lair.h - 1, Math.max(lair.y, 2 * cy - from.y)));
+    return { x, y };
+  }
+
+  /** Une onde (ou son écho) : jette à terre et blesse qui n'est pas à l'abri ; la souche qui arrête l'onde pour le
+   *  héros se fêle, et tombe au deuxième coup. */
+  private carillonWave(m: Actor, from: Point, echo: boolean): void {
+    const layout = this.current.boss!;
     const hit: Actor[] = [];
-    if (this.waveReaches(from, this.hero) && this.inLair(layout.lair, this.hero)) {
-      const close = gapBetween(m, this.hero) <= 1;
-      // Grandi par une potion de géant : l'onde frappe deux fois plus fort.
-      const dmg = rollDice(this.rng, RULES.carillonWaveDamage) * (close ? 2 : 1) * ((m.grown ?? 0) > 0 ? 2 : 1);
-      this.hero.prone = Math.max(this.hero.prone ?? 0, 1);
-      this.hurtHero(dmg, "l'onde du Carillon");
-      hit.push(this.hero);
+    if (this.inLair(layout.lair, this.hero)) {
+      if (this.waveReaches(from, this.hero)) {
+        const close = !echo && gapBetween(m, this.hero) <= 1;
+        // Grandi par une potion de géant : l'onde frappe deux fois plus fort. L'écho : la moitié.
+        let dmg = rollDice(this.rng, RULES.carillonWaveDamage) * (close ? 2 : 1) * ((m.grown ?? 0) > 0 ? 2 : 1);
+        if (echo) dmg = Math.max(1, Math.floor(dmg / 2));
+        this.hero.prone = Math.max(this.hero.prone ?? 0, 1);
+        this.hurtHero(dmg, "l'onde du Carillon");
+        hit.push(this.hero);
+      } else this.wearStump(from, this.hero);
     }
     for (const o of this.monsters) {
       if (o === m || o.boss || this.isInert(o)) continue;
-      if (o.asleep) {
+      if (!echo && o.asleep) {
         o.asleep = false;
         o.alerted = true;
       }
@@ -1115,7 +1174,30 @@ export class Game {
         hit.push(o);
       }
     }
-    this.events.push({ type: "carillon", what: "ring", actor: m, hit });
+    this.events.push({ type: "carillon", what: echo ? "echo" : "ring", actor: m, hit, cells: echo ? [from] : undefined });
+  }
+
+  /** La souche qui a arrêté l'onde pour le héros se fêle ; au deuxième coup, elle s'effondre (la place se libère). */
+  private wearStump(from: Point, to: Point): void {
+    for (const c of lineBetween(from, to)) {
+      if (c.x === to.x && c.y === to.y) return;
+      const f = this.current.furniture.find((o) => o.kind === "souche" && o.x === c.x && o.y === c.y);
+      if (!f) {
+        if (this.map.get(c.x, c.y) === Tile.Wall) return;
+        continue;
+      }
+      f.count = (f.count ?? 0) + 1;
+      if (f.count >= RULES.carillonStumpHits) {
+        this.current.furniture = this.current.furniture.filter((o) => o !== f);
+        this.map.set(f.x, f.y, Tile.Floor);
+        this.stain(f.x, f.y, "soot");
+        this.events.push({ type: "carillon", what: "stumpBreak", actor: this.bossActor()!, cells: [{ x: f.x, y: f.y }] });
+      } else {
+        this.map.touch(f.x, f.y);
+        this.events.push({ type: "carillon", what: "stumpCrack", actor: this.bossActor()!, cells: [{ x: f.x, y: f.y }] });
+      }
+      return;
+    }
   }
 
   /** Pluie d'encre : les cases marquées au tour d'avant reçoivent leur goutte (1d6 à qui s'y tient, monstres compris). */
@@ -1190,14 +1272,16 @@ export class Game {
     const cx = m.x + 1;
     const cy = m.y + 1;
     const near = (p: Point, r: number) => Math.max(Math.abs(p.x - hero.x), Math.abs(p.y - hero.y)) <= r;
+    // Phases : sous les deux tiers de sa vie, les zones s'élargissent.
+    const reach = m.hp * 3 <= m.maxHp * 2 ? RULES.carillonZoneReach[1] : RULES.carillonZoneReach[0];
     return this.lairCells(m).filter((p) => {
-      if (pattern === 0) return (p.x === hero.x || p.y === hero.y) && near(p, 3);
+      if (pattern === 0) return (p.x === hero.x || p.y === hero.y) && near(p, reach);
       if (pattern === 1) return (((p.y - hero.y) % 3) + 3) % 3 === 0;
       if (pattern === 2) {
         const gap = gapBetween(m, p as Actor);
         return gap >= 2 && gap <= 3;
       }
-      return Math.sign(p.x - cx) === Math.sign(hero.x - cx) && Math.sign(p.y - cy) === Math.sign(hero.y - cy) && near(p, 3);
+      return Math.sign(p.x - cx) === Math.sign(hero.x - cx) && Math.sign(p.y - cy) === Math.sign(hero.y - cy) && near(p, reach);
     });
   }
 
@@ -4089,9 +4173,8 @@ export class Game {
   }
 
   /** Pourquoi le héros ne peut pas se cacher maintenant (`null` : il le peut). */
-  hideRefusal(): "hidden" | "threatened" | "watched" | "no-cover" | "torch" | null {
+  hideRefusal(): "hidden" | "threatened" | "watched" | "no-cover" | null {
     if (this.hidden) return "hidden";
-    if (this.torchLit()) return "torch";
     if (this.isThreatened()) return "threatened";
     if (this.isWatched()) return "watched";
     if (!this.hasCover(this.hero)) return "no-cover";
@@ -4154,7 +4237,10 @@ export class Game {
     if (!this.hidden) return;
     this.hidden = false;
     this.events.push({ type: "revealed" });
+    this.relightHushed();
   }
+  /** La torche a été étouffée pour se cacher (elle se rallumera en sortant de l'ombre). */
+  private torchHushed = false;
 
   /** Ordre : se reposer sur place plusieurs tours. Tout autre ordre y renonce, un monstre en vue l'interrompt. */
   rest(): boolean {
@@ -4480,6 +4566,15 @@ export class Game {
 
   /** Jet pour se cacher. Réussi : les monstres perdent la trace du héros et redeviennent de simples promeneurs. */
   private resolveHide(): void {
+    // Torche allumée (Thomas, 2026-11-17 : « elle ne devrait pas empêcher de se cacher ; elle devrait s'éteindre toute
+    // seule et se rallumer après ») : on l'étouffe avant le jet ; elle se rallume si on reste visible, ou en sortant
+    // de l'ombre.
+    if (this.torchLit()) {
+      this.torchOff = true;
+      this.torchHushed = true;
+      this.refreshLight();
+      this.events.push({ type: "torchHush", lit: false });
+    }
     const bonus = this.stealthBonus();
     let d20 = this.rng.int(1, 20);
     let total = d20 + bonus;
@@ -4504,6 +4599,17 @@ export class Game {
       }
     }
     this.events.push({ type: "hide", d20, bonus, total, success });
+    if (!success) this.relightHushed();
+  }
+
+  /** La torche étouffée pour se cacher se rallume (raté, ou sortie de l'ombre). */
+  private relightHushed(): void {
+    if (!this.torchHushed) return;
+    this.torchHushed = false;
+    if (this.torchTurns <= 0 || !this.torchOff) return;
+    this.torchOff = false;
+    this.refreshLight();
+    this.events.push({ type: "torchHush", lit: true });
   }
 
   /**
@@ -4516,7 +4622,9 @@ export class Game {
     // Le battant du Carillon : une poussée réussie l'arrache (Thomas, 2026-11-16).
     if (this.isInert(m)) {
       const d20 = this.rng.int(1, 20);
-      const ok = d20 === 20 || (d20 !== 1 && d20 + this.pushBonus() >= RULES.pushDc);
+      // À l'abri sous le chapeau (hors de l'avertissement) : seul un 20 naturel l'arrache.
+      const guarded = m.armorClass >= RULES.carillonClapperGuard;
+      const ok = d20 === 20 || (!guarded && d20 !== 1 && d20 + this.pushBonus() >= RULES.pushDc);
       this.events.push({ type: "push", target: m, d20, bonus: this.pushBonus(), total: d20 + this.pushBonus(), success: ok, moved: false, slam: 0 });
       if (ok) {
         m.hp = 0;

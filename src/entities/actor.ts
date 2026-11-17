@@ -125,4 +125,9 @@ export interface BossState {
   inkPattern?: number;
   /** Sans battant : tours avant la prochaine coulée d'encre au pied du chapeau. */
   drip?: number;
+  /** L'onde reviendra en ÉCHO au tour suivant, depuis ce point (le mur d'en face). */
+  echoFrom?: { x: number; y: number };
+  /** Le GLAS final (sous 10 % de PV) : ondes rapprochées qui restent à sonner ; `knelled` : déjà sonné. */
+  knell?: number;
+  knelled?: boolean;
 }

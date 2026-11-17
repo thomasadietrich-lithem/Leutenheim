@@ -55,14 +55,17 @@ export function buildCarillonFloor(seed: number): BossFloor {
   for (const p of [{ x: 4, y: 2 }, { x: 14, y: 2 }, { x: 2, y: 5 }, { x: 16, y: 5 }, { x: 3, y: 11 }, { x: 15, y: 11 }, { x: 2, y: 9 }, { x: 16, y: 9 }]) {
     if (map.get(p.x, p.y) === Tile.Floor) furniture.push({ x: p.x, y: p.y, kind: glow[rng.int(0, glow.length - 1)] });
   }
-  const sleepers = [{ x: 6, y: 6 }, { x: 12, y: 6 }, { x: 9, y: 11 }];
+  // Pas d'envahi face au couloir d'arrivée (Thomas, 2026-11-17 : « ne fais pas apparaître un mob face à toi ») :
+  // les trois dorment sur les côtés de la grotte.
+  const sleepers = [{ x: 6, y: 6 }, { x: 12, y: 6 }, { x: 4, y: 10 }];
   const sprouts = [{ x: 4, y: 10 }, { x: 14, y: 10 }];
   const floor: BossFloor = {
     map,
     rooms: [ante, lair],
     start: { x: 9, y: 18 },
     stairs: seal,
-    torches: [{ x: 9, y: ante.y - 1, radius: 6, faceX: 0, faceY: 1 }],
+    // La torche de l'antichambre, sur son mur du haut (et non sur la case du couloir).
+    torches: [{ x: 8, y: ante.y - 1, radius: 6, faceX: 0, faceY: 1 }],
     specials: [],
     furniture,
     secrets: [],

@@ -482,6 +482,7 @@ export class Game {
     this.fires = [];
     this.gas = [];
     this.fog = [];
+    this.discordMist = [];
     this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
@@ -1200,6 +1201,11 @@ export class Game {
     const st = m.boss!;
     const cells = st.ink ?? [];
     if (cells.length === 0) return;
+    // Deux tours pour se mettre à l'abri (Thomas, 2026-11-17 : « on n'a pas forcément le temps »).
+    if ((st.inkWait ?? 1) > 1) {
+      st.inkWait = (st.inkWait ?? 1) - 1;
+      return;
+    }
     st.ink = [];
     const hit: Actor[] = [];
     for (const c of cells) {
@@ -1221,8 +1227,9 @@ export class Game {
   /** L'encre annoncée : ces cases recevront une goutte au tour suivant (une ombre au sol). Les monstres qui s'y
    *  tiennent s'en écartent aussitôt (Thomas, 2026-11-17 : « les mobs s'éloignent avant l'attaque »). */
   private carillonInkMark(m: Actor, cells: Point[], kind: "zone" | "drip"): void {
-    if (cells.length === 0) return;
+    if (cells.length === 0 || (m.boss!.ink ?? []).length > 0) return;
     m.boss!.ink = cells;
+    m.boss!.inkWait = RULES.carillonInkWarn;
     this.events.push({ type: "carillon", what: "inkMark", actor: m, cells, kind });
     const marked = (x: number, y: number) => cells.some((c) => c.x === x && c.y === y);
     for (const o of this.monsters) {
@@ -2212,6 +2219,9 @@ export class Game {
   gas: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Brouillard noir (potion de brouillard) : on ne voit ni à travers ni dedans ; personne ne s'y empoisonne. */
   fog: { x: number; y: number; turns: number; thin?: boolean }[] = [];
+  /** Potion de discorde (Thomas, 2026-11-17 : « nuage rose sur plusieurs mobs, croix foncée, zone plus petite que le
+   *  brouillard ») : un nuage rose foncé en croix, pour l'œil seulement (2 tours). */
+  discordMist: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
   /** Potion de pierre bue : tours où le héros est une statue (rien ne le blesse, il ne peut rien faire). */
@@ -2280,6 +2290,8 @@ export class Game {
     this.fogBlinds();
     for (const f of this.fog) f.turns--;
     this.fog = this.fog.filter((f) => f.turns > 0);
+    for (const f of this.discordMist) f.turns--;
+    this.discordMist = this.discordMist.filter((f) => f.turns > 0);
     for (const f of this.fog) if (f.turns === 1) f.thin = true;
   }
 
@@ -2592,6 +2604,9 @@ export class Game {
     // Escaliers toujours reliés (Thomas, 2026-11-17 : « un joueur est coincé ici, après être remonté ; corrige aussi la
     // sauvegarde existante ») : réparé à chaque arrivée et à chaque reprise.
     if (!state.boss) unblockStairs(state);
+    // Torches dans les couloirs (Thomas, 2026-11-17) : une torche posée sur le mur d'une salle, quand un couloir a été
+    // creusé ensuite à travers ce mur, restait accrochée… au sol du couloir. On ne garde que celles qui sont sur un mur.
+    if (state.torches.some((t) => state.map.get(t.x, t.y) !== Tile.Wall)) state.torches = state.torches.filter((t) => state.map.get(t.x, t.y) === Tile.Wall);
     // Anciennes parties : le coffre de l'alcôve de la nichée disparaît (il bloquait le retour par l'escalier).
     if (state.boss && (state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.Chest || state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.ChestOpen)) state.map.set(state.boss.chest.x, state.boss.chest.y, Tile.Floor);
     // Première arrivée au premier étage d'une nouvelle section : le texte d'arrivée (Thomas, 2026-11-15).
@@ -3608,6 +3623,7 @@ export class Game {
         rivals[0].asleep = false;
         this.startFeud(m, rivals[0], "discord");
       }
+      for (const c of cells) this.discordMist.push({ x: c.x, y: c.y, turns: 3 });
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
       return;
     }

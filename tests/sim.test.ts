@@ -5802,10 +5802,15 @@ test("Carillon : pluie d'encre et coup de chapeau", () => {
   assert.ok(marks.some((c) => c.x === game.hero.x && c.y === game.hero.y), "sa case est marquée");
   assert.ok(marks.every((c) => c.x === game.hero.x || c.y === game.hero.y), "une croix sur sa ligne et sa colonne");
   const before = game.hero.hp;
-  game.events.length = 0;
-  game.wait();
-  game.tick();
-  assert.ok(game.events.some((e) => e.type === "carillon" && e.what === "ink" && (e.hit ?? []).includes(game.hero)), "la goutte tombe");
+  // L'encre tombe deux tours après l'annonce (2026-11-17).
+  let fell = false;
+  for (let t = 0; t < 2 && !fell; t++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    fell = game.events.some((e) => e.type === "carillon" && e.what === "ink" && (e.hit ?? []).includes(game.hero));
+  }
+  assert.ok(fell, "la goutte tombe");
   assert.ok(game.hero.hp < before);
   // Collé à lui : le chapeau frappe.
   Object.assign(game.hero, { x: bell.x - 1, y: bell.y + 1 });

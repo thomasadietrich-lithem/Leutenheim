@@ -184,6 +184,7 @@ interface CloudTones {
   bubbles?: boolean;
 }
 const GAS_TONES: CloudTones = { shadow: "#2e5a1e", body: "#7ab84a", light: "#d0f088", shadowAlpha: 0.22, bodyAlpha: 0.3, lightAlpha: 0.3, bubbles: true };
+const DISCORD_TONES: CloudTones = { shadow: "#5a1438", body: "#b03a78", light: "#e88ab8", shadowAlpha: 0.4, bodyAlpha: 0.45, lightAlpha: 0.35 };
 const FOG_TONES: CloudTones = { shadow: "#000000", body: "#1c1924", light: "#4a4656", shadowAlpha: 0.72, bodyAlpha: 0.78, lightAlpha: 0.38 };
 /** Œil de chauve-souris : une ombre voûtée, pas le monstre lui-même. */
 const SHADOW_ROWS = [
@@ -483,7 +484,7 @@ export class Renderer {
     const F = look.frames;
     // À TERRE : retenu (fosse, toile, lacet, racines), il est couché et se débat ; libéré, il se relève un instant.
     // …et renversé par l'onde du Carillon (Thomas, 2026-11-17 : « implémente les sprites couchés à terre »).
-    const stuck = !this.heroDown && ((h.stuck ?? 0) > 0 || (h.prone ?? 0) > 0);
+    const stuck = !this.heroDown && ((h.stuck ?? 0) > 0 || ((h.prone ?? 0) > 0 && !this.proneHold));
     if (this.heroWasStuck && !stuck) this.getUpUntil = this.time + GET_UP_MS;
     this.heroWasStuck = stuck;
     let rows: readonly string[];
@@ -1224,7 +1225,7 @@ export class Renderer {
     if (champi) {
       const beat = (ms: number, n: number) => Math.floor((Math.abs(this.time) + m.id * 170) / ms) % n;
       const f = champi.frames;
-      const name = m.prone
+      const name = m.prone && !this.proneHold
         ? m.risen && m.defId === "envahi" ? `rise${beat(380, 2)}` : `prone${beat(200, 2)}`
         : m.asleep
           ? "sleep"
@@ -1247,7 +1248,7 @@ export class Renderer {
       // retournée quand elle va à gauche. Repos sur 4 images, marche sur 4 (au fil du pas), aux aguets quand elle
       // vous a vu (pattes de devant levées), morsure en deux temps, à terre : sur le dos, les pattes qui gigotent.
       const beat = (ms: number, n: number) => Math.floor((Math.abs(this.time) + m.id * 170) / ms) % n;
-      const name = m.prone
+      const name = m.prone && !this.proneHold
         ? `prone${beat(160, 2)}`
         : slash
           ? slash.age < SLASH_MS * 0.4 ? "bite0" : "bite1"
@@ -1266,7 +1267,7 @@ export class Renderer {
     }
     let rows: readonly string[];
     // À terre (planche art/a_terre_v1.png) : sur le dos, l'œil ouvert, les pattes qui pédalent (deux images).
-    if (m.prone) rows = A_TERRE[`prone${Math.floor((Math.abs(this.time) + m.id * 130) / 240) % 2}`];
+    if (m.prone && !this.proneHold) rows = A_TERRE[`prone${Math.floor((Math.abs(this.time) + m.id * 130) / 240) % 2}`];
     else if (m.asleep) rows = SCHRAT.sleep[0];
     else if (hurt) rows = SCHRAT.hurt[0];
     else if (slash) rows = SCHRAT[`stab${dir}`][slash.age < SLASH_MS * 0.45 ? 0 : 1];
@@ -1430,6 +1431,9 @@ export class Renderer {
   private static readonly GAINED_MS = 2800;
 
   /** Le Carillon vient de sonner : l'onde part de son battant (et le dessin vibre un instant). */
+  /** Une onde du Carillon reste à montrer : les renversés restent debout jusque-là. */
+  proneHold = false;
+
   /** L'encre du Carillon tombe (Thomas, 2026-11-17 : « une animation sur les cases attaquées ») : sur chaque case, une
    *  goutte noire violacée chute du haut, puis éclabousse (anneau qui s'élargit, gouttelettes). */
   inkFall(cells: readonly { x: number; y: number }[]): void {
@@ -2323,6 +2327,7 @@ export class Renderer {
     // qui roulent lentement ; des bulles montent du gaz ; la nappe rétrécit en se dissipant.
     this.drawClouds(game, game.gas, ox, oy, GAS_TONES, 5);
     this.drawClouds(game, game.fog, ox, oy, FOG_TONES, 7);
+    this.drawClouds(game, game.discordMist, ox, oy, DISCORD_TONES, 5);
     // Œil de chauve-souris (bibelot) : l'ombre des monstres qu'on ne voit pas.
     const shadows = game.batShadows();
     if (shadows.length > 0) {

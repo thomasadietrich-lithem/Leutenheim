@@ -191,7 +191,9 @@ export const RULES = {
   /** Encre en zones (Thomas, 2026-11-17 : « des zones plutôt que des cercles aléatoires ») : une zone tous les tant
    *  de tours (doux, dur) ; sans battant, une COULÉE au pied du chapeau tous les tant de tours, sur cette largeur. (C) */
   carillonInkEvery: 3,
-  carillonInkEveryHard: 2,
+  carillonInkEveryHard: 3,
+  /** L'encre tombe tant de tours après avoir été annoncée (2 : le temps de se mettre à l'abri ; Thomas, 2026-11-17). */
+  carillonInkWarn: 2,
   carillonDripEvery: 4,
   carillonDripReach: 2,
   /** Les monstres de la grotte s'écartent tant de tours avant l'onde (2 : le héros a le temps de se placer). (C) */

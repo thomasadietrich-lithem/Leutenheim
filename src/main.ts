@@ -107,7 +107,7 @@ const menu = $("menu");
 // ---------- Options (mémorisées sur l'appareil quand c'est possible) ----------
 
 /** Réglages (Thomas, 2026-11-12) : bruitages et musique séparés ; langue (français ou anglais). */
-const options = { sound: true, music: true, blood: true, lang: "fr" as "fr" | "en", soundLevel: 4, musicLevel: 4 };
+const options = { sound: true, music: true, blood: true, lang: "fr" as "fr" | "en", soundLevel: 4, musicLevel: 4, soundOn: true, musicOn: true };
 try {
   const saved = JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? "{}") as Partial<typeof options>;
   Object.assign(options, saved);
@@ -159,8 +159,8 @@ const sfx = new Sfx();
 // Musique « Crypte », en direct : elle suit le niveau d'alerte de l'étage (Thomas, 2026-11-12).
 const music = new Music(() => sfx.context());
 function applyAudio(): void {
-  options.sound = options.soundLevel > 0;
-  options.music = options.musicLevel > 0;
+  options.sound = options.soundOn && options.soundLevel > 0;
+  options.music = options.musicOn && options.musicLevel > 0;
   sfx.enabled = options.sound;
   sfx.setVolume(VOLUME_STEPS[options.soundLevel]);
   music.enabled = options.music;
@@ -934,6 +934,7 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(mid.x, mid.y - 1, "Il se balance…", "#ffd75e");
     } else if (e.what === "ring") {
       const from = b?.clapper ?? { x: mid.x, y: mid.y + 1 };
+      renderer.proneHold = false;
       renderer.carillonRing(from.x, from.y);
       sfx.play("bell");
       const heroHit = (e.hit ?? []).includes(game.hero);
@@ -1634,6 +1635,9 @@ function collectEvents(): void {
     if (e.type === "death" && e.actor.kind === "monster") ghosts.push(e.actor);
     // Glissade : le monstre reste à son point de départ jusqu'à ce que la glissade soit montrée (après le dé).
     if (e.type === "slide") renderer.slideActor(e.actor, { x: e.fromX, y: e.fromY }, e.path);
+    // Renversé par l'onde (Thomas, 2026-11-17 : « je suis couché avant l'onde de choc ») : couché seulement une fois
+    // l'onde montrée.
+    if (e.type === "carillon" && e.what === "ring") renderer.proneHold = true;
     queue.push(e);
   }
   // Le mur de succès (Thomas, 2026-11-14) : la première fois, l'animation ; ensuite, une ligne au journal.
@@ -2142,7 +2146,8 @@ $("aim").setAttribute("aria-label", tr("Tirer à l'arc"));
   $("open-bag").title = tr("Le héros");
 }
 // L'étage, en haut à droite : l'escalier du jeu et son numéro (demande de Thomas).
-$("floor-icon").replaceChildren(buildIcon(ESCALIERS[STAIRS_STYLE].down, ESCALIERS_PALETTE));
+// La dernière marche (le noir du fond) en gris foncé dans le picto du haut (Thomas, 2026-11-17 : « peu lisible »).
+$("floor-icon").replaceChildren(buildIcon(ESCALIERS[STAIRS_STYLE].down, { ...ESCALIERS_PALETTE, I: "#3a3846", F: "#2a2632" }));
 
 // ---------- Sac : grille de cases à la Diablo ----------
 
@@ -3924,12 +3929,19 @@ button("lang-fr", () => chooseLang("fr"));
 button("lang-en", () => chooseLang("en"));
 function setLevel(which: "soundLevel" | "musicLevel", level: number): void {
   options[which] = Math.max(0, Math.min(5, level));
+  // Toucher les barres d'une ligne coupée la rallume.
+  if (which === "soundLevel") options.soundOn = true;
+  else options.musicOn = true;
   applyAudio();
   saveOptions();
   sfx.play("click");
   renderMixer();
 }
 function renderMixer(): void {
+  for (const [key, on] of [["sound", options.soundOn], ["music", options.musicOn]] as const) {
+    $(`vol-${key}-on`).textContent = tr(on ? "Oui" : "Non");
+    $(`mix-${key}`).classList.toggle("muted", !on);
+  }
   for (const [id, which] of [["vol-sound", "soundLevel"], ["vol-music", "musicLevel"]] as const) {
     const level = options[which];
     $(id).replaceChildren(
@@ -3944,6 +3956,17 @@ function renderMixer(): void {
       }),
     );
   }
+}
+// Couper / rallumer une ligne sans perdre son niveau (Thomas, 2026-11-17).
+for (const key of ["sound", "music"] as const) {
+  button(`vol-${key}-on`, () => {
+    if (key === "sound") options.soundOn = !options.soundOn;
+    else options.musicOn = !options.musicOn;
+    applyAudio();
+    saveOptions();
+    sfx.play("click");
+    renderMixer();
+  });
 }
 button("vol-sound-minus", () => setLevel("soundLevel", options.soundLevel - 1));
 button("vol-sound-plus", () => setLevel("soundLevel", options.soundLevel + 1));

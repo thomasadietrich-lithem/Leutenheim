@@ -2043,4 +2043,6 @@ export const EN: Record<string, string> = {
   "Une tête d'acier carrée au bout d'un manche cerclé. Lent, mais chaque coup sonne, et assomme sur un 17 ou plus au dé.": "A square steel head on a banded haft. Slow, but every blow rings, and it stuns on a 17 or more on the die.",
   "Épée bâtarde": "Bastard sword",
   "Plus large que l'épée longue, et pourtant vive en main. Une lame de maître, forgée pour les profondeurs.": "Broader than the longsword, yet lively in the hand. A master's blade, forged for the depths.",
+  "Oui": "On",
+  "Non": "Off",
 };

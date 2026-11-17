@@ -125,6 +125,8 @@ export interface BossState {
   inkTick?: number;
   /** Encre en ZONES (Thomas, 2026-11-17) : le motif suivant (0 croix, 1 bandes, 2 anneau, 3 quart), dans l'ordre. */
   inkPattern?: number;
+  /** Tours avant que l'encre annoncée ne tombe. */
+  inkWait?: number;
   /** Sans battant : tours avant la prochaine coulée d'encre au pied du chapeau. */
   drip?: number;
   /** L'onde reviendra en ÉCHO au tour suivant, depuis ce point (le mur d'en face). */

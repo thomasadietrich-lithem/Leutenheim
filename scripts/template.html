@@ -447,7 +447,10 @@
   #pane-general, #pane-lang { align-items: center; }
   #pane-general button, #pane-lang button { width: min(250px, 80%); padding: 10px; font-size: 22px; }
   .mixer { display: flex; align-items: center; gap: 6px; }
-  .mixer-name { flex: 0 0 96px; font-size: 20px; text-transform: uppercase; }
+  .mixer-name { flex: 0 0 86px; font-size: 20px; text-transform: uppercase; }
+  /* Couper / rallumer chaque ligne (Thomas, 2026-11-17) ; le niveau choisi est gardé. */
+  .mixer > button.mixer-toggle { width: 50px; font-size: 16px; }
+  .mixer.muted .mixer-bars, .mixer.muted .mixer-name { opacity: 0.35; }
   .mixer > button { width: 38px; height: 38px; padding: 0; font-size: 22px; }
   .mixer-bars { flex: 1; display: flex; align-items: flex-end; gap: 5px; height: 38px; }
   .mixer-bars button { flex: 1; padding: 0; min-width: 0; background: #2a2016; border: 2px solid #4a3e2a; }
@@ -871,8 +874,8 @@
         <button id="lang-en" type="button">English</button>
       </div>
       <div id="pane-son" hidden>
-        <div class="mixer"><span class="mixer-name">Bruitages</span><button id="vol-sound-minus" type="button" aria-label="Moins fort">−</button><div id="vol-sound" class="mixer-bars"></div><button id="vol-sound-plus" type="button" aria-label="Plus fort">+</button></div>
-        <div class="mixer"><span class="mixer-name">Musique</span><button id="vol-music-minus" type="button" aria-label="Moins fort">−</button><div id="vol-music" class="mixer-bars"></div><button id="vol-music-plus" type="button" aria-label="Plus fort">+</button></div>
+        <div class="mixer" id="mix-sound"><button id="vol-sound-on" class="mixer-toggle" type="button"></button><span class="mixer-name">Bruitages</span><button id="vol-sound-minus" type="button" aria-label="Moins fort">−</button><div id="vol-sound" class="mixer-bars"></div><button id="vol-sound-plus" type="button" aria-label="Plus fort">+</button></div>
+        <div class="mixer" id="mix-music"><button id="vol-music-on" class="mixer-toggle" type="button"></button><span class="mixer-name">Musique</span><button id="vol-music-minus" type="button" aria-label="Moins fort">−</button><div id="vol-music" class="mixer-bars"></div><button id="vol-music-plus" type="button" aria-label="Plus fort">+</button></div>
       </div>
       <div id="settings-note"></div>
       <button id="settings-back" type="button" class="ghost back">Retour</button>

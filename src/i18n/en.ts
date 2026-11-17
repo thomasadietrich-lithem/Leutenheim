@@ -2028,4 +2028,5 @@ export const EN: Record<string, string> = {
   "Désarmer": "Disarm",
   "Boss 2 · niv 10": "Boss 2 · lvl 10",
   "Téléporté devant le Carillon : niveau 10, points et pouvoirs placés, équipement élevé.": "Teleported before the Carillon: level 10, points and powers placed, high-end gear.",
+  "Départ : cinq flèches de plus et huit flèches de recul ; un petit paquet de flèches de recul l'attend sur chaque étage.": "Start: five more arrows and eight recoil arrows; a small bundle of recoil arrows awaits on every floor.",
 };

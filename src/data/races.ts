@@ -48,6 +48,9 @@ export interface RaceDef {
   swapItems?: Partial<Record<ItemId, ItemId>>;
   /** Le Halfelin trouve de petits tas de pierres sur chaque étage, et un arc court dans la section 1. */
   stonePiles?: number;
+  /** L'Elfe (Thomas, 2026-11-17 : « augmente la distribution de flèches de recul, et donne-en de manière un peu plus
+   *  automatique ») : un petit paquet de flèches de recul posé sur chaque étage (le deuxième une fois sur trois). */
+  recoilPiles?: boolean;
 }
 
 const BASE = {
@@ -133,7 +136,7 @@ export const RACES = {
       "Tir au contact : pas de désavantage à l'arc quand un ennemi le touche.",
       "Beau parleur : Charisme +5.",
       "Faiblesse : Force −1.",
-      "Départ : cinq flèches de plus et cinq flèches de recul.",
+      "Départ : cinq flèches de plus et huit flèches de recul ; un petit paquet de flèches de recul l'attend sur chaque étage.",
     ],
     abilities: [
       { id: "archer", name: "Archer", text: "+2 à l'arc, et pas de désavantage vers une case qu'il ne voit pas." },
@@ -149,9 +152,10 @@ export const RACES = {
     blindShot: true,
     closeShot: true,
     lynxRange: 5,
+    recoilPiles: true,
     startingItems: [
       { item: "fleche", count: 5 },
-      { item: "fleche_recul", count: 5 },
+      { item: "fleche_recul", count: 8 },
     ],
   },
 } satisfies Record<string, RaceDef>;

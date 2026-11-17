@@ -324,10 +324,15 @@ export class Game {
    * étage, plusieurs fois, et un ARC COURT sur un étage de la section 1 (tiré au début de la partie).
    */
   private raceLoot(depth: number): { item: ItemId; count: number }[] {
-    const piles = this.race.stonePiles ?? 0;
-    if (!piles) return [];
-    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x57a11);
     const out: { item: ItemId; count: number }[] = [];
+    if (this.race.recoilPiles) {
+      const rr = new Rng(floorSeed(this.runSeed, depth) ^ 0x7ec011);
+      out.push({ item: "fleche_recul", count: rr.int(2, 3) });
+      if (rr.chance(1 / 3)) out.push({ item: "fleche_recul", count: rr.int(2, 3) });
+    }
+    const piles = this.race.stonePiles ?? 0;
+    if (!piles) return out;
+    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x57a11);
     for (let i = 0; i < piles; i++) out.push({ item: "pierre", count: rng.int(2, 3) });
     if (depth === new Rng(this.runSeed ^ 0xa4c).int(2, 4)) out.push({ item: "arc_court", count: 1 });
     return out;

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T13:22:59.359Z",
+ "commit": "b2e5849",
+ "note": "elfe : flèches de recul sur chaque étage",
+ "logic": {
+  "tickMs": 0.47,
+  "lightMs": 0.2,
+  "visionMs": 0.15
+ },
+ "scenes": {
+  "immobile": {
+   "n": 81,
+   "avg": 30.2,
+   "p95": 50,
+   "max": 50,
+   "fps": 33,
+   "js": 7
+  },
+  "marche": {
+   "n": 176,
+   "avg": 28.3,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 35,
+   "js": 4
+  },
+  "retour": {
+   "n": 184,
+   "avg": 27.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 37,
+   "js": 4
+  },
+  "zoom": {
+   "n": 105,
+   "avg": 26.7,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 38,
+   "js": 5
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 172,
+   "avg": 29.2,
+   "p95": 50,
+   "max": 200,
+   "fps": 34,
+   "js": 17
+  }
+ },
+ "errors": []
+}

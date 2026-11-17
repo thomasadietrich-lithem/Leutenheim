@@ -87,3 +87,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_11h29 | 6322ed1 | 29.7 | 27.2 | 26.3 | 26.4 | 16.7 | 25.4 | 0.75 | 0.28 | pièges de couloir, fouille de couloir, désamorcer |
 | 2026-11-17_12h51 | 21176b1 | 29.4 | 29.3 | 29.9 | 28.8 | 16.7 | 24.8 | 0.48 | 0.37 | moins de pièges, loupe près d'un piège |
 | 2026-11-17_13h10 | 99dea1c | 36.6 | 29.7 | 29.1 | 34.5 | 16.7 | 25.3 | 0.8 | 0.36 | encre animée, écho retiré, héros couché |
+| 2026-11-17_13h22 | b2e5849 | 30.2 | 28.3 | 27.2 | 26.7 | 16.7 | 29.2 | 0.47 | 0.2 | elfe : flèches de recul sur chaque étage |

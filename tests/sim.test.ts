@@ -5887,7 +5887,7 @@ test("races : Humain, Halfelin et Elfe jouables ; PV, caractéristiques et objet
   // Objets de départ : torche et cuisse de poulet ; deux pommes ; cinq flèches et cinq flèches de recul. Ni potion ni or.
   assert.deepEqual([humain.inventory.count("torche"), humain.inventory.count("cuisse_poulet")], [1, 1]);
   assert.equal(halfelin.inventory.count("pomme"), 2);
-  assert.deepEqual([humain.inventory.count("fleche"), elfe.inventory.count("fleche"), elfe.inventory.count("fleche_recul")], [10, 15, 5]);
+  assert.deepEqual([humain.inventory.count("fleche"), elfe.inventory.count("fleche"), elfe.inventory.count("fleche_recul")], [10, 15, 8]);
   for (const g of [humain, halfelin, elfe]) assert.equal(g.gold, 0);
   // Halfelin : Agilité +2 (donc +1 en classe d'armure), Discrétion +3.
   assert.equal(halfelin.agility(), 2);
@@ -6301,4 +6301,12 @@ test("pièges de couloir (2026-11-17) : seulement s'il y a un autre accès ; fou
     }
   }
   assert.ok(placed >= 4, `pièges de couloir posés : ${placed}`);
+});
+
+test("Elfe : un petit paquet de flèches de recul sur chaque étage (2026-11-17)", () => {
+  for (const seed of [3, 9, 21]) {
+    const game = new Game(seed, RACES.elfe);
+    const piles = game.ground.filter((g) => g.item === "fleche_recul");
+    assert.ok(piles.length >= 1 && piles.length <= 2, `graine ${seed} : ${piles.length} paquets`);
+  }
 });

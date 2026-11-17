@@ -2541,7 +2541,18 @@ export class Game {
    */
   private rescueHero(): void {
     const state = this.current;
-    if (!state || state.boss || this.sandbox || this.over) return;
+    if (!state || this.over) return;
+    // LA VRAIE CAUSE (Thomas, 2026-11-17 : « c'est pile quand il remonte à l'étage de la Tisseuse ») : en remontant,
+    // le héros arrivait SUR l'escalier scellé de la nichée, qui est un meuble (case non praticable) : aucun chemin ne
+    // partait de lui. Sur une case non praticable, il passe sur la case libre la plus proche (tous les étages).
+    if (!this.map.isWalkable(this.hero.x, this.hero.y)) {
+      const near = this.nearestFree(this.hero);
+      if (near) {
+        this.hero.x = this.hero.fromX = near.x;
+        this.hero.y = this.hero.fromY = near.y;
+      }
+    }
+    if (state.boss || this.sandbox) return;
     const hub = floorHub(state);
     if (linked(this.map, this.hero, hub)) return;
     if (clearPath(state, this.hero, hub) && linked(this.map, this.hero, hub)) return;
@@ -2557,6 +2568,22 @@ export class Game {
           this.hero.y = this.hero.fromY = y;
           return;
         }
+  }
+
+  /** La case praticable et libre la plus proche (d'abord les voisines, en anneaux), de préférence reliée au reste. */
+  private nearestFree(p: Point): Point | null {
+    for (let r = 1; r < 8; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = p.x + dx;
+          const y = p.y + dy;
+          if (!this.map.inBounds(x, y) || !this.map.isWalkable(x, y) || this.actorAt(x, y)) continue;
+          const t = this.map.get(x, y);
+          if (t === Tile.StairsDown || t === Tile.StairsUp) continue;
+          return { x, y };
+        }
+    return null;
   }
 
   private useFloor(state: FloorState, depth: number): void {

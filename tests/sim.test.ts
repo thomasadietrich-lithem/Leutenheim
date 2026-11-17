@@ -6352,3 +6352,26 @@ test("héros coincé (2026-11-17) : à la reprise, un éboulis qui l'enferme est
   const r0 = copy.rooms[0];
   assert.ok(copy.hero.x >= r0.x && copy.hero.x < r0.x + r0.w && copy.hero.y >= r0.y && copy.hero.y < r0.y + r0.h, "replacé dans la salle de départ");
 });
+
+test("remonter à l'étage de la Tisseuse (2026-11-17) : le héros n'arrive plus coincé sur l'escalier scellé, sauvegarde comprise", () => {
+  const game = new Game(3);
+  game.testRun = true;
+  game.teleport(5);
+  game.testRun = false;
+  const boss = game.bossActor()!;
+  boss.hp = 0;
+  (game as unknown as { removeIfDead(m: unknown): void }).removeIfDead(boss);
+  game.pendingStairs = "down";
+  assert.ok(game.takeStairs());
+  game.pendingStairs = "up";
+  assert.ok(game.takeStairs());
+  assert.equal(game.depth, 5);
+  assert.ok(game.map.isWalkable(game.hero.x, game.hero.y), "sur une case praticable");
+  const L = game.bossLayout()!;
+  assert.ok(game.setDestination(L.chest.x + 2, L.chest.y, true), "il peut repartir");
+  // Une ancienne sauvegarde où il est resté sur l'escalier scellé : la reprise le dégage.
+  const seal = L.seal;
+  Object.assign(game.hero, { x: seal.x, y: seal.y, fromX: seal.x, fromY: seal.y });
+  const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  assert.ok(copy.map.isWalkable(copy.hero.x, copy.hero.y));
+});

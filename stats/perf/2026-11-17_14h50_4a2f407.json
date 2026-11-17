@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T14:50:28.387Z",
+ "commit": "4a2f407",
+ "note": "remontée à la nichée corrigée",
+ "logic": {
+  "tickMs": 0.57,
+  "lightMs": 0.37,
+  "visionMs": 0.21
+ },
+ "scenes": {
+  "immobile": {
+   "n": 76,
+   "avg": 32,
+   "p95": 50,
+   "max": 66.8,
+   "fps": 31,
+   "js": 6
+  },
+  "marche": {
+   "n": 157,
+   "avg": 32,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 31,
+   "js": 7
+  },
+  "retour": {
+   "n": 159,
+   "avg": 31.4,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 32,
+   "js": 5
+  },
+  "zoom": {
+   "n": 96,
+   "avg": 30.9,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 32,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 168,
+   "avg": 29.4,
+   "p95": 50,
+   "max": 133.3,
+   "fps": 34,
+   "js": 19
+  }
+ },
+ "errors": []
+}

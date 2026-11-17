@@ -194,6 +194,8 @@ export const RULES = {
   carillonInkEveryHard: 3,
   /** L'encre tombe tant de tours après avoir été annoncée (2 : le temps de se mettre à l'abri ; Thomas, 2026-11-17). */
   carillonInkWarn: 2,
+  /** Fidèles du Carillon : tours à côté du battant tombé pour le remettre (C). */
+  carillonRepairTurns: 4,
   carillonDripEvery: 4,
   carillonDripReach: 2,
   /** Les monstres de la grotte s'écartent tant de tours avant l'onde (2 : le héros a le temps de se placer). (C) */

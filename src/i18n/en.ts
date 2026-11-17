@@ -2045,4 +2045,11 @@ export const EN: Record<string, string> = {
   "Plus large que l'épée longue, et pourtant vive en main. Une lame de maître, forgée pour les profondeurs.": "Broader than the longsword, yet lively in the hand. A master's blade, forged for the depths.",
   "Oui": "On",
   "Non": "Off",
+  "Fidèle du Carillon": "Carillon Faithful",
+  "Un moine-champignon en robe violette, la lune pâle brodée sur le cœur. Il sert le Carillon : si son battant tombe, il court le remettre en place. Arrêtez-le avant.": "A mushroom monk in a violet robe, the pale moon embroidered over his heart. He serves the Carillon: if its clapper falls, he rushes to put it back. Stop him first.",
+  "Toc toc": "Knock knock",
+  "Un fidèle s'affaire autour du battant tombé. Arrêtez-le !": "A faithful is fussing over the fallen clapper. Stop him!",
+  "Réparé !": "Repaired!",
+  "Les fidèles ont remis le battant : le Carillon sonnera de nouveau.": "The faithful have put the clapper back: the Carillon will ring again.",
+  "Le mycélium se soulève : un fidèle du Carillon en sort.": "The mycelium heaves: a Carillon faithful steps out.",
 };

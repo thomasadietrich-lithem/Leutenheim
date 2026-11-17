@@ -5660,7 +5660,7 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 8 tours, l'onde jette
   const layout = game.bossLayout()!;
   assert.equal(layout.kind, "carillon");
   assert.ok(game.monsters.some((m) => m.defId === "battant"), "le battant");
-  assert.equal(game.monsters.filter((m) => m.defId === "envahi" && m.asleep).length, 3, "trois envahis endormis");
+  assert.equal(game.monsters.filter((m) => m.defId === "fidele" && m.asleep).length, 3, "trois fidèles endormis");
   assert.equal(game.look(), "champi");
   // Le héros dans la grotte, à découvert, juste devant le battant (2 cases dessous).
   const clap = layout.clapper!;
@@ -5713,6 +5713,8 @@ test("le Carillon (Thomas, 2026-11-16) : il sonne tous les 8 tours, l'onde jette
   battant.hp = 0;
   (g4 as unknown as { removeIfDead(m: unknown): void }).removeIfDead(battant);
   assert.equal(b4.boss!.clapperUp, false);
+  // Sans fidèles pour le remettre (2026-11-17).
+  g4.monsters.splice(0, g4.monsters.length, ...g4.monsters.filter((m) => m.defId !== "fidele"));
   Object.assign(g4.hero, { x: clap.x, y: clap.y + 2, hp: 500, maxHp: 500 });
   let rang = false;
   for (let t = 0; t < 2 * RULES.carillonEvery; t++) {
@@ -5831,7 +5833,7 @@ test("Carillon doux : pas d'encre avant la première onde ; les monstres s'abrit
   const bell = game.bossActor()!;
   const layout = game.bossLayout()!;
   Object.assign(game.hero, { x: layout.lair.x + 3, y: layout.lair.y + layout.lair.h - 3, hp: 500, maxHp: 500 });
-  const envahi = game.monsters.find((m) => m.defId === "envahi")!;
+  const envahi = game.monsters.find((m) => m.defId === "fidele")!;
   let firstInk = -1;
   let ring = -1;
   let cowered = false;
@@ -6379,4 +6381,28 @@ test("remonter à l'étage de la Tisseuse (2026-11-17) : le héros n'arrive plus
   Object.assign(game.hero, { x: seal.x, y: seal.y, fromX: seal.x, fromY: seal.y });
   const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
   assert.ok(copy.map.isWalkable(copy.hero.x, copy.hero.y));
+});
+
+test("Carillon : les fidèles remettent le battant tombé (2026-11-17)", () => {
+  const game = new Game(31);
+  game.testRun = true;
+  game.teleport(10);
+  const bell = game.bossActor()!;
+  const layout = game.bossLayout()!;
+  Object.assign(game.hero, { x: layout.lair.x + 2, y: layout.lair.y + layout.lair.h - 2, hp: 900, maxHp: 900 });
+  const clap = game.monsters.find((m) => m.defId === "battant")!;
+  clap.hp = 0;
+  (game as unknown as { removeIfDead(m: unknown): void }).removeIfDead(clap);
+  assert.equal(bell.boss!.clapperUp, false);
+  for (const m of game.monsters) if (m.defId === "fidele") m.asleep = false;
+  game.carillonMode = "onde";
+  let repaired = false;
+  for (let t = 0; t < 40 && !repaired; t++) {
+    game.events.length = 0;
+    game.wait();
+    game.tick();
+    repaired = game.events.some((e) => e.type === "carillon" && e.what === "repaired");
+  }
+  assert.ok(repaired, "réparé");
+  assert.equal(bell.boss!.clapperUp, true);
 });

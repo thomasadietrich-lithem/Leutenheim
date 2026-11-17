@@ -127,6 +127,8 @@ export interface BossState {
   inkPattern?: number;
   /** Tours avant que l'encre annoncée ne tombe. */
   inkWait?: number;
+  /** Fidèles : tours de réparation du battant déjà faits. */
+  repair?: number;
   /** Sans battant : tours avant la prochaine coulée d'encre au pied du chapeau. */
   drip?: number;
   /** L'onde reviendra en ÉCHO au tour suivant, depuis ce point (le mur d'en face). */

@@ -975,6 +975,13 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(e.cells[0].x, e.cells[0].y, "Crac !", "#c9c2ae");
       sfx.play("break");
       logLines.push("La souche éclate : il faut trouver un autre abri.");
+    } else if (e.what === "repair") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "Toc toc", "#c8a0e8");
+      logLines.push("Un fidèle s'affaire autour du battant tombé. Arrêtez-le !");
+    } else if (e.what === "repaired") {
+      renderer.addFloatingText(e.actor.x, e.actor.y, "Réparé !", "#c8a0e8");
+      sfx.play("bell");
+      logLines.push("Les fidèles ont remis le battant : le Carillon sonnera de nouveau.");
     } else if (e.what === "cower") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "À l'abri !", "#b7a6d6");
     } else if (e.what === "inkMark") {
@@ -985,7 +992,7 @@ function reveal(e: GameEvent): void {
       }
     } else if (e.what === "sprout") {
       renderer.addFloatingText(e.actor.x, e.actor.y, "!", "#7f9a84");
-      logLines.push("Le mycélium se soulève : un Kobold envahi en sort.");
+      logLines.push("Le mycélium se soulève : un fidèle du Carillon en sort.");
     }
     renderLog();
   } else if (e.type === "sealed") {

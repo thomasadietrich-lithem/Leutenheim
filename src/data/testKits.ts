@@ -47,10 +47,12 @@ export const TEST_KITS: Record<KitTier, TestKit> = {
     potions: { count: 3, from: ["potion_feu", "potion_vitesse", "potion_brouillard", "potion_oursin", "potion_pierre", "potion_discorde", "potion_glissante"] },
   },
   eleve: {
-    melee: ["cimeterre", "epee_longue", "lance", "fourche"],
-    armor: ["harnois", "cotte_mailles"],
+    // Le meilleur de tout (Thomas, 2026-11-17 : « l'équipement au top, avec le meilleur stuff ») : les armes et l'arc de
+    // la section 2, le harnois.
+    melee: ["epee_batarde", "marteau_guerre"],
+    armor: ["harnois"],
     hat: ["casque_maille"],
-    ranged: ["arc_puissant"],
+    ranged: ["arc_corne"],
     amulet: ["amulette_vitalite_2", "amulette_force_2", "amulette_agilite_2", "amulette_precision_2"],
     artifact: ["d20_enchante", "oeil_chauve_souris", "outils_voleur", "flute_pan"],
     bag: "sac_voyage",

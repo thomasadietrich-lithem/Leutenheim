@@ -987,7 +987,7 @@ export class Game {
       clap.alerted = true;
       this.monsters.push(clap);
     }
-    for (const p of b.sleepers ?? []) this.monsters.push(this.newMonster(MONSTERS.envahi, p.x, p.y, true));
+    for (const p of b.sleepers ?? []) this.monsters.push(this.newMonster(MONSTERS.fidele, p.x, p.y, true));
     state.population = 0;
   }
 
@@ -1046,7 +1046,7 @@ export class Game {
       st.sprouted = true;
       for (const p of layout.sprouts ?? []) {
         if (this.actorAt(p.x, p.y) || !this.map.isWalkable(p.x, p.y)) continue;
-        const e = this.newMonster(MONSTERS.envahi, p.x, p.y, false);
+        const e = this.newMonster(MONSTERS.fidele, p.x, p.y, false);
         e.alerted = true;
         e.prone = 1;
         this.monsters.push(e);
@@ -1233,7 +1233,8 @@ export class Game {
     this.events.push({ type: "carillon", what: "inkMark", actor: m, cells, kind });
     const marked = (x: number, y: number) => cells.some((c) => c.x === x && c.y === y);
     for (const o of this.monsters) {
-      if (o === m || o.boss || this.isInert(o) || o.asleep || !marked(o.x, o.y)) continue;
+      // Les fidèles en train de réparer le battant tiennent bon sous l'encre.
+      if (o === m || o.boss || this.isInert(o) || o.asleep || !marked(o.x, o.y) || (o.defId === "fidele" && !m.boss?.clapperUp)) continue;
       let best: Point | null = null;
       for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
         const x = o.x + dx;
@@ -1328,6 +1329,36 @@ export class Game {
       o.cower = RULES.carillonCowerLead + 1;
       this.events.push({ type: "carillon", what: "cower", actor: o });
     }
+  }
+
+  /**
+   * FIDÈLES DU CARILLON (Thomas, 2026-11-17) : quand le battant est cassé, chaque fidèle marche jusqu'à lui ; trois tours
+   * côte à côte (cumulés entre fidèles) et le battant est remis : le Carillon sonne de nouveau. Rend vrai s'il s'en
+   * occupe ce tour-ci.
+   */
+  private fideleRepair(m: Actor): boolean {
+    const bell = this.bossActor();
+    const layout = this.current.boss;
+    if (!bell?.boss || bell.boss.clapperUp || !layout?.clapper || bell.hp <= 0) return false;
+    const c = layout.clapper;
+    if (Math.max(Math.abs(m.x - c.x), Math.abs(m.y - c.y)) > 1) {
+      const path = findPath(this.map, m, c, (x, y) => (x === c.x && y === c.y) || (x === m.x && y === m.y) || !this.actorAt(x, y));
+      const step = path?.[0];
+      if (!step || (step.x === c.x && step.y === c.y) || this.actorAt(step.x, step.y)) return false;
+      m.x = step.x;
+      m.y = step.y;
+      return true;
+    }
+    bell.boss.repair = (bell.boss.repair ?? 0) + 1;
+    this.events.push({ type: "carillon", what: "repair", actor: m });
+    if (bell.boss.repair < RULES.carillonRepairTurns || this.actorAt(c.x, c.y)) return true;
+    bell.boss.repair = 0;
+    bell.boss.clapperUp = true;
+    bell.boss.ring = RULES.carillonEvery;
+    const clap = this.newMonster(MONSTERS.battant, c.x, c.y, false);
+    this.monsters.push(clap);
+    this.events.push({ type: "carillon", what: "repaired", actor: m });
+    return true;
   }
 
   /** Un coup du héros a porté sur le Carillon : pendant son avertissement, il sonnera faux. */
@@ -9062,6 +9093,8 @@ export class Game {
         m.stunned--;
         continue;
       }
+      // Fidèle du Carillon : le battant est tombé, il va le remettre.
+      if (m.defId === "fidele" && this.fideleRepair(m)) continue;
       if (m.slowed) {
         // Ralenti (bousculade) : il ne joue qu'un tour sur deux.
         m.slowed--;

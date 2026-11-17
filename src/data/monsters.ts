@@ -201,6 +201,26 @@ export const MONSTERS = {
     blood: "green",
     risesOnce: true,
   },
+  // Les FIDÈLES DU CARILLON (Thomas, 2026-11-17 : « B c'est bien, essayons ») : moines-champignons du culte de la Lune
+  // pâle, à la place des Kobolds envahis dans sa grotte. Battant cassé : ils vont le réparer (3 tours à côté). (C)
+  fidele: {
+    id: "fidele",
+    name: "Fidèle du Carillon",
+    family: "champignons",
+    description: "Un moine-champignon en robe violette, la lune pâle brodée sur le cœur. Il sert le Carillon : si son battant tombe, il court le remettre en place. Arrêtez-le avant.",
+    hp: 16,
+    armorClass: 13,
+    attackBonus: 5,
+    damage: { count: 1, sides: 6, bonus: 1 },
+    vision: 6,
+    xpMin: 3,
+    xpMax: 5,
+    goldChance: 0.3,
+    goldMax: 5,
+    noticeChance: 0.3,
+    color: "#8a5ac0",
+    blood: "green",
+  },
   // BOSS DE LA SECTION 1 (étage 5 ; planche art/boss_v2.png, Thomas : « implémente », 2026-11-11). Valeurs (C).
   tisseuse: {
     id: "tisseuse",

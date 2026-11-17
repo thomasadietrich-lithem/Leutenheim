@@ -94,3 +94,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_14h02 | a108158 | 26.3 | 27.6 | 27.3 | 29.9 | 16.7 | 24.5 | 1.01 | 0.1 | héros coincé secouru à la reprise |
 | 2026-11-17_14h50 | 4a2f407 | 32 | 32 | 31.4 | 30.9 | 16.7 | 29.4 | 0.57 | 0.37 | remontée à la nichée corrigée |
 | 2026-11-17_15h45 | e6706db | 33.8 | 30.1 | 25.8 | 29.5 | 16.7 | 26.4 | 0.46 | 0.2 | son on/off, nuage de discorde, carillon : encre 2 tours |
+| 2026-11-17_15h57 | 20aec22 | 27.3 | 28.6 | 28.1 | 25.8 | 16.7 | 20.1 | 0.45 | 0.43 | fidèles du Carillon, stuff élevé au top |

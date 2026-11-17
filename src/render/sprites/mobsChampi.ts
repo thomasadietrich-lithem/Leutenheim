@@ -114,3 +114,10 @@ export const MOBS_CHAMPI: Record<string, { palette: Record<string, string>; fram
     rise1: ["................", "..OOOOOO........", ".ONSNNNNO.......", "ONSNNNNSNO......", "OnnnnnnnnOOO....", ".OOOFFOOOOAAO...", "........OAYLAO..", "........OAAATO..", ".........OcCO...", "........OcCcAO..", ".....OOOcCcCaAO.", "...OOaAAAcCcOaO.", "..OaAAAAAAAAOMO.", ".OaaAAaaaAFAaOO.", "..OOOOObMMMOOO..", ".......OOOO....."],
   } },
 };
+
+/** Fidèle du Carillon (Thomas, 2026-11-17 : « B c'est bien, essayons ») : le dessin de l'envahi en moine du culte de la
+ *  Lune pâle (robe violette, peau de cire, chapeau mauve). Premier jet. */
+MOBS_CHAMPI.fidele = {
+  palette: { ...MOBS_CHAMPI.envahi.palette, C: "#6a3c8c", c: "#3e2258", A: "#c8c0b0", a: "#8a8070", N: "#c8a0e8", n: "#7a4aa8", Y: "#f0e070", S: "#efe6ff", F: "#e8d8f8", L: "#e8e0d0", T: "#d8d0c0" },
+  frames: MOBS_CHAMPI.envahi.frames,
+};

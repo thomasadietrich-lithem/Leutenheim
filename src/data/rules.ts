@@ -208,6 +208,15 @@ export const RULES = {
   carillonKnellFallen: 3,
   /** Le battant, à l'abri sous le chapeau hors de l'avertissement : sa classe d'armure (seul un 20 naturel passe). */
   carillonClapperGuard: 40,
+  /** Désamorcer un piège (Thomas, 2026-11-17) : d20 + agilité (+ crochetage) contre tant ; raté de 5 ou plus, il part. (C) */
+  disarmDc: 12,
+  /** Fouiller dans un couloir (Thomas, 2026-11-17) : les cases de couloir à tant de cases du héros. (C) */
+  corridorSearchReach: 5,
+  /** Pièges de couloir (Thomas, 2026-11-17 : « à condition qu'il y ait un autre accès ») : dès l'étage 2, chance d'en
+   *  poser un par étage, puis un deuxième dès l'étage 4. (C) */
+  corridorTrapMinDepth: 2,
+  corridorTrapChance: 0.6,
+  corridorTrapSecondDepth: 4,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,

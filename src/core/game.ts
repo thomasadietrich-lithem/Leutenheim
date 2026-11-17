@@ -255,6 +255,8 @@ export class Game {
   private hideOrder = false;
   private jumpTarget: Point | null = null;
   private pushTargetId: number | null = null;
+  /** Ordre : désamorcer le piège de cette case (voisine du héros). */
+  private disarmAt: Point | null = null;
   /** Tours de fouille restant à passer sur place (0 : pas de fouille en cours). */
   private searching = 0;
   private lastGiverKey = "";
@@ -488,6 +490,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -495,6 +498,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -1436,6 +1440,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -2339,6 +2344,70 @@ export class Game {
   pushTargets(): Actor[] {
     // La Tisseuse est bien trop lourde pour être poussée.
     return this.visibleMonsters().filter((m) => !m.boss && this.inReach(this.hero, m));
+  }
+
+  /**
+   * DÉSAMORCER (Thomas, 2026-11-17 : « réfléchis à un moyen de les désamorcer ; je veux que des joueurs cliquent dessus
+   * par accident, donc ça ne peut pas être au clic ») : une action de la barre, qui n'apparaît qu'à côté d'un piège
+   * connu. Toucher le piège, lui, y marche toujours. d20 + agilité (+ crochetage de la classe) contre 12 ; outils de
+   * voleur : à coup sûr. Raté de 5 ou plus (ou un 1) : le piège part sur vous ; raté de peu : rien, on peut réessayer.
+   */
+  disarmTargets(): Point[] {
+    if (this.over) return [];
+    return this.current.traps
+      .filter((t) => !t.hidden && !t.sprung && Math.max(Math.abs(t.x - this.hero.x), Math.abs(t.y - this.hero.y)) === 1)
+      .map((t) => ({ x: t.x, y: t.y }));
+  }
+
+  disarmRefusal(): "none" | "threatened" | null {
+    if (this.disarmTargets().length === 0) return "none";
+    if (this.isThreatened()) return "threatened";
+    return null;
+  }
+
+  /** Ordre : désamorcer le piège de cette case (un tour, un jet). */
+  disarm(x: number, y: number): boolean {
+    if (this.disarmRefusal() !== null || !this.disarmTargets().some((t) => t.x === x && t.y === y)) return false;
+    this.wait();
+    this.waiting = false;
+    this.disarmAt = { x, y };
+    return true;
+  }
+
+  private resolveDisarm(at: Point): void {
+    const trap = this.current.traps.find((t) => t.x === at.x && t.y === at.y && !t.hidden && !t.sprung);
+    if (!trap || Math.max(Math.abs(trap.x - this.hero.x), Math.abs(trap.y - this.hero.y)) !== 1) return;
+    const kind = trap.kind ?? "spikes";
+    const bonus = this.heroClass.lockpickBonus + this.agility();
+    const tools = this.equipment.artifact?.defId === "outils_voleur";
+    let d20 = this.rng.int(1, 20);
+    let total = d20 + bonus;
+    let success = tools || d20 === 20 || (d20 !== 1 && total >= RULES.disarmDc);
+    if (!success && this.useStubborn()) {
+      d20 = this.rng.int(1, 20);
+      total = d20 + bonus;
+      success = d20 === 20 || (d20 !== 1 && total >= RULES.disarmDc);
+    }
+    if (success) {
+      this.current.traps = this.current.traps.filter((t) => t !== trap);
+      this.map.touch(trap.x, trap.y);
+      this.events.push({ type: "disarm", x: trap.x, y: trap.y, kind, d20, bonus, total, success: true, sprung: false });
+      return;
+    }
+    const sprung = d20 === 1 || total <= RULES.disarmDc - 5;
+    this.events.push({ type: "disarm", x: trap.x, y: trap.y, kind, d20, bonus, total, success: false, sprung });
+    if (!sprung) return;
+    // Le piège part sur la main qui y touchait : ses dégâts, son poison, ses liens, son gaz.
+    const def = TRAPS[kind];
+    if (kind === "pit") trap.sprung = true;
+    if (def.stuck) this.hero.stuck = Math.max(this.hero.stuck ?? 0, def.stuck);
+    if (def.poison) this.poisonActor(this.hero, def.poison);
+    if (def.gasTurns) this.puffGas(trap, def.gasTurns);
+    const damage = def.damage && kind !== "pit" ? rollDice(this.rng, def.damage) : 0;
+    if (damage > 0) {
+      this.bleed(this.hero, this.hero);
+      this.hurtHero(damage, "un piège mal désamorcé");
+    }
   }
 
   pushRefusal(): "none" | null {
@@ -3843,6 +3912,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -3929,6 +3999,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -3960,6 +4031,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -4032,6 +4104,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -4073,6 +4146,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -4148,7 +4222,9 @@ export class Game {
   /** Pourquoi le héros ne peut pas fouiller maintenant (`null` : il le peut). */
   searchRefusal(): "corridor" | "searched" | "danger" | null {
     const room = this.roomIndexAt(this.hero);
-    if (room < 0) return "corridor";
+    // Dans un couloir (Thomas, 2026-11-17 : « active la fouille dans les couloirs, portée de 5 ») : toujours permise,
+    // sauf un monstre en vue.
+    if (room < 0) return this.visibleMonsters().length > 0 ? "danger" : null;
     const secret = this.current.secretRoom;
     const zone = this.current.zone;
     const hollow = !!zone && zone.door === "barrel" && !zone.open && !zone.noticed && zone.host === room;
@@ -4261,6 +4337,7 @@ export class Game {
     this.hideOrder = false;
     this.jumpTarget = null;
     this.pushTargetId = null;
+    this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -4314,14 +4391,14 @@ export class Game {
     // À terre (l'onde du Carillon) : le héros passe ce tour à se relever ; tout ordre est oublié.
     if ((this.hero.prone ?? 0) > 0 && this.stoneTurns <= 0) {
       this.hero.prone!--;
-      Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
+      Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, disarmAt: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
       this.waiting = true;
       if (this.hero.prone === 0) this.events.push({ type: "getUp", actor: this.hero });
     }
     // Statue (potion de pierre) : le héros ne peut rien faire ; tout ordre est oublié, le tour passe.
     if (this.stoneTurns > 0) {
       this.stoneTurns--;
-      Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
+      Object.assign(this, { path: [], targetId: null, breakTarget: null, picking: false, resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, disarmAt: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
       this.waiting = true;
       if (this.stoneTurns === 0) this.events.push({ type: "stone", what: "heroBack", actor: this.hero });
     }
@@ -4360,6 +4437,7 @@ export class Game {
     } else if (this.pushTargetId !== null) {
       const target = this.monsters.find((m) => m.id === this.pushTargetId);
       this.pushTargetId = null;
+      this.disarmAt = null;
     this.useOrder = null;
     this.throwOrder = null;
     this.skillOrder = null;
@@ -4367,6 +4445,10 @@ export class Game {
     } else if (this.jumpTarget) {
       this.resolveJump(this.jumpTarget);
       this.jumpTarget = null;
+    } else if (this.disarmAt) {
+      const at = this.disarmAt;
+      this.disarmAt = null;
+      this.resolveDisarm(at);
     } else if (this.searching > 0) {
       this.searching--;
     } else if (this.resting > 0) {
@@ -4697,7 +4779,10 @@ export class Game {
     }
     if (this.searching > 0) return;
     const index = this.roomIndexAt(this.hero);
-    if (index < 0) return;
+    if (index < 0) {
+      this.searchCorridor();
+      return;
+    }
     this.current.searched.add(index);
     const secret = this.current.secretRoom;
     // Un creux du mur entrevu : on sait où chercher (+5).
@@ -4755,6 +4840,26 @@ export class Game {
     if (this.searchLuck) this.current.searched.delete(index);
     this.searchLuck = false;
     this.events.push({ type: "searched", d20, bonus, total, success, found, traps, room: this.rooms[index] });
+  }
+
+  /** Fouille dans un couloir : les pièges cachés des couloirs à 5 cases du héros (même jet que dans une salle). La
+   *  vague balaie le carré de 5 cases autour de lui. */
+  private searchCorridor(): void {
+    const reach = RULES.corridorSearchReach;
+    const bonus = this.heroClass.searchBonus;
+    const d20 = this.rng.int(1, 20);
+    const total = d20 + bonus;
+    const success = d20 === 20 || (d20 !== 1 && total >= RULES.searchDc);
+    const traps: Point[] = [];
+    if (success) {
+      for (const t of this.current.traps) {
+        if (!t.hidden || Math.max(Math.abs(t.x - this.hero.x), Math.abs(t.y - this.hero.y)) > reach || this.roomIndexAt(t) >= 0) continue;
+        t.hidden = false;
+        traps.push({ x: t.x, y: t.y });
+      }
+    }
+    const box = { x: this.hero.x - reach, y: this.hero.y - reach, w: reach * 2 + 1, h: reach * 2 + 1 } as Room;
+    this.events.push({ type: "searched", d20, bonus, total, success, found: [], traps, room: box, corridor: true });
   }
 
   /** La fouille n'a réussi que parce qu'un passage secret jouxte la salle (le reste de la salle n'est pas fouillé). */

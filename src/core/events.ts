@@ -108,6 +108,8 @@ export type GameEvent =
   | { type: "whistle"; actor: Actor }
   | { type: "lostTrack"; actor: Actor }
   | { type: "trapDodged"; x: number; y: number; kind: string; d20: number; bonus: number }
+  /** Désamorcer un piège voisin (Thomas, 2026-11-17) : réussi, il disparaît ; raté de beaucoup, il part sur vous. */
+  | { type: "disarm"; x: number; y: number; kind: string; d20: number; bonus: number; total: number; success: boolean; sprung: boolean }
   /** Nichée : une nappe de toile (ou la grande toile) ralentit le héros. */
   | { type: "webSlow"; hub: boolean }
   /** Nichée : un cocon ou un sac d'œufs crevé, une amarre tranchée (il en reste `left`). */
@@ -165,7 +167,7 @@ export type GameEvent =
   | { type: "search"; phase: "start" | "interrupted" }
   /** Le poulet dérangé : son trajet jusqu'au mur du fond (la porte défoncée en chemin), et si le héros voit la fin. */
   | { type: "chicken"; path: Point[]; door?: Point; crash: Point; seen: boolean }
-  | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; traps?: Point[]; room: Room }
+  | { type: "searched"; d20: number; bonus: number; total: number; success: boolean; found: Point[]; traps?: Point[]; room: Room ; corridor?: boolean }
   /** Repos : commencé, mené à son terme (avec les PV rendus) ou interrompu par un monstre. */
   | { type: "rest"; phase: "start" | "done" | "interrupted"; healed: number }
   | { type: "shop"; line: number }

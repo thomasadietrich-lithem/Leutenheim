@@ -213,6 +213,12 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Une toile d'araignée ! Force : ${roll(e.roll, e.bonus, e.roll + e.bonus)} — ${e.escaped ? "vous la déchirez en passant." : "raté, vous voilà englué un tour."}`;
     case "webbed":
       return `La morsure de ${e.by.name.toLowerCase() === "araignée" ? "l'araignée" : e.by.name} vous englue : votre prochain pas servira à vous dégager.`;
+    case "disarm":
+      return e.success
+        ? `Désamorcer : ${roll(e.d20, e.bonus, e.total)} — le piège ne fera plus de mal.`
+        : e.sprung
+          ? `Désamorcer : ${roll(e.d20, e.bonus, e.total)} — clac ! Le piège part sous vos doigts.`
+          : `Désamorcer : ${roll(e.d20, e.bonus, e.total)} — le mécanisme résiste. Vous pouvez réessayer.`;
     case "trapDodged":
       return `Un piège ! Agilité : ${roll(e.d20, e.bonus, e.d20 + e.bonus)} — vous l'évitez d'un bond.`;
     case "stuck":
@@ -342,7 +348,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             : traps > 0
               ? "vous repérez un piège caché !"
               : "rien n'est caché ici.";
-      return `Vous fouillez la salle : ${roll(e.d20, e.bonus, e.total)} — ${outcome}`;
+      return e.corridor ? `Vous fouillez les environs : ${roll(e.d20, e.bonus, e.total)} — ${outcome}` : `Vous fouillez la salle : ${roll(e.d20, e.bonus, e.total)} — ${outcome}`;
     }
     case "rest":
       return e.phase === "start"

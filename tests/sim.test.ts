@@ -6254,3 +6254,51 @@ test("Carillon sans battant : il attaque encore (coulée d'encre autour de lui, 
   }
   assert.ok(drip, "la coulée s'annonce");
 });
+
+test("pièges de couloir (2026-11-17) : seulement s'il y a un autre accès ; fouille de couloir ; désamorcer", () => {
+  let placed = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    game.teleport(4);
+    for (const t of (game as unknown as { current: { traps: { x: number; y: number; hidden?: boolean }[] } }).current.traps) {
+      if (game.rooms.some((r) => t.x >= r.x - 1 && t.y >= r.y - 1 && t.x <= r.x + r.w && t.y <= r.y + r.h)) continue;
+      placed++;
+      // Boucher la case du piège ne coupe pas l'étage : l'escalier reste accessible depuis l'arrivée.
+      const blocked = (x: number, y: number) => !(x === t.x && y === t.y) && game.map.isWalkable(x, y);
+      const stairs = (() => {
+        for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.StairsDown) return { x, y };
+        return null;
+      })();
+      if (stairs) {
+        const seen = new Set<string>([`${game.hero.x},${game.hero.y}`]);
+        const todo = [{ x: game.hero.x, y: game.hero.y }];
+        while (todo.length) {
+          const p = todo.pop()!;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const q = { x: p.x + dx, y: p.y + dy };
+            const k = `${q.x},${q.y}`;
+            if (seen.has(k) || !(blocked(q.x, q.y) || game.map.get(q.x, q.y) === Tile.DoorLocked)) continue;
+            seen.add(k);
+            todo.push(q);
+          }
+        }
+        assert.ok(seen.has(`${stairs.x},${stairs.y}`), `seed ${seed} : le piège de couloir coupe l'étage`);
+      }
+      // Fouille de couloir : à côté de lui, la fouille le montre (ou rate).
+      t.hidden = true;
+      Object.assign(game.hero, { x: t.x, y: t.y - 1 });
+      if (!game.map.isWalkable(t.x, t.y - 1)) Object.assign(game.hero, { x: t.x - 1, y: t.y });
+      game.monsters.length = 0;
+      assert.equal(game.searchRefusal(), null, "on fouille dans un couloir");
+      // Désamorcer : à côté d'un piège connu, l'action existe.
+      t.hidden = false;
+      assert.ok(game.disarmTargets().some((c) => c.x === t.x && c.y === t.y));
+      assert.ok(game.disarm(t.x, t.y));
+      game.events.length = 0;
+      game.tick();
+      assert.ok(game.events.some((e) => e.type === "disarm"));
+    }
+  }
+  assert.ok(placed >= 10, `pièges de couloir posés : ${placed}`);
+});

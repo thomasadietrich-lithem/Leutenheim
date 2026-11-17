@@ -2700,6 +2700,25 @@ const UI_ICONS = {
     "...........KBbbK",
     "............KKK.",
   ],
+  /** Désamorcer (Thomas, 2026-11-17) : une dalle à pointes, et une pince dorée qui en retire une. */
+  disarm: [
+    "................",
+    "..........KK....",
+    ".........KGGK...",
+    "........KGgK....",
+    ".......KGgK.KK..",
+    "......KGgKKKGK..",
+    ".....KDKKGGGgK..",
+    "....KSK.KggKK...",
+    "...KSK...KK.....",
+    "..K.K.K.K.K.K...",
+    ".KWKSKWKSKWKSK..",
+    "KDDDDDDDDDDDDDK.",
+    "KSSSSSSSSSSSSSK.",
+    "KDDDDDDDDDDDDDK.",
+    ".KKKKKKKKKKKKK..",
+    "................",
+  ],
   /** Se cacher : ninja simplifié. */
   hide: [
     "................",

@@ -84,3 +84,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_09h57 | f2da185 | 41 | 38.5 | 39.7 | 43.2 | 17 | 35.5 | 0.81 | 0.69 | Carillon revu, torche étouffée |
 | 2026-11-17_10h00 | f2da185 | 28.5 | 24.7 | 27.9 | 32.8 | 16.7 | 26.5 | 0.8 | 0.19 | tapisserie pendue dans la salle au trésor |
 | 2026-11-17_10h46 | 62fc04f | 29.3 | 29.2 | 28.2 | 24.4 | 16.7 | 27 | 0.6 | 0.34 | escalier du boss sans toile une fois le boss tombé |
+| 2026-11-17_11h29 | 6322ed1 | 29.7 | 27.2 | 26.3 | 26.4 | 16.7 | 25.4 | 0.75 | 0.28 | pièges de couloir, fouille de couloir, désamorcer |

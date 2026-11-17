@@ -364,6 +364,77 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
       return;
     }
   });
+  placeCorridorTraps(state, seed, depth, kinds, hiddenShare);
+}
+
+/**
+ * PIÈGES DE COULOIR (Thomas, 2026-11-17 : « mets des pièges dans certains couloirs, à condition qu'il y ait un autre
+ * accès ») : dès l'étage 2, un par étage 6 fois sur 10, un deuxième dès l'étage 4 (C). Sur une case de couloir droite
+ * (deux voisines en face l'une de l'autre), loin des portes et des escaliers, et seulement si l'on peut faire le tour :
+ * boucher la case laisse ses deux côtés reliés. Tirage à part : le reste de l'étage ne change pas.
+ */
+function placeCorridorTraps(state: FloorState, seed: number, depth: number, kinds: TrapKind[], hiddenShare: number): void {
+  if (depth < RULES.corridorTrapMinDepth || kinds.length === 0) return;
+  const rng = new Rng(seed ^ 0x6c0771d5);
+  const wanted = (rng.chance(RULES.corridorTrapChance) ? 1 : 0) + (depth >= RULES.corridorTrapSecondDepth && rng.chance(RULES.corridorTrapChance) ? 1 : 0);
+  if (wanted === 0) return;
+  const map = state.map;
+  const inRoom = (x: number, y: number) => state.rooms.some((r) => x >= r.x - 1 && y >= r.y - 1 && x <= r.x + r.w && y <= r.y + r.h);
+  const walk = (x: number, y: number) => map.isWalkable(x, y);
+  const near = (x: number, y: number, test: (t: Tile) => boolean) => {
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (test(map.get(x + dx, y + dy))) return true;
+    return false;
+  };
+  const candidates: Point[] = [];
+  for (let y = 1; y < map.height - 1; y++) {
+    for (let x = 1; x < map.width - 1; x++) {
+      if (map.get(x, y) !== Tile.Floor || inRoom(x, y)) continue;
+      const ns = walk(x, y - 1) && walk(x, y + 1) && !walk(x - 1, y) && !walk(x + 1, y);
+      const ew = walk(x - 1, y) && walk(x + 1, y) && !walk(x, y - 1) && !walk(x, y + 1);
+      if (!ns && !ew) continue;
+      if (near(x, y, (t) => t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked || t === Tile.StairsDown || t === Tile.StairsUp)) continue;
+      if (state.traps.some((t) => Math.abs(t.x - x) + Math.abs(t.y - y) < 6)) continue;
+      if (state.ground.some((g) => g.x === x && g.y === y) || state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
+      // Un autre accès : sans cette case, ses deux côtés restent reliés.
+      const a = ns ? { x, y: y - 1 } : { x: x - 1, y };
+      const b = ns ? { x, y: y + 1 } : { x: x + 1, y };
+      if (!connectedWithout(map, a, b, { x, y })) continue;
+      candidates.push({ x, y });
+    }
+  }
+  for (let i = 0; i < wanted && candidates.length > 0; i++) {
+    const at = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
+    if (state.traps.some((t) => Math.abs(t.x - at.x) + Math.abs(t.y - at.y) < 6)) {
+      i--;
+      continue;
+    }
+    let pick = rng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
+    const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? kinds[0];
+    const trap: Trap = { x: at.x, y: at.y, kind };
+    if (rng.chance(hiddenShare)) trap.hidden = true;
+    state.traps.push(trap);
+  }
+}
+
+/** Deux cases restent-elles reliées (pas droits) si l'on bouche celle-ci ? */
+function connectedWithout(map: GameMap, a: Point, b: Point, blocked: Point): boolean {
+  const seen = new Uint8Array(map.width * map.height);
+  const stack = [a];
+  seen[a.y * map.width + a.x] = 1;
+  while (stack.length > 0) {
+    const p = stack.pop()!;
+    if (p.x === b.x && p.y === b.y) return true;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = p.x + dx;
+      const y = p.y + dy;
+      if (x < 0 || y < 0 || x >= map.width || y >= map.height || (x === blocked.x && y === blocked.y)) continue;
+      const k = y * map.width + x;
+      if (seen[k] || !map.isWalkable(x, y)) continue;
+      seen[k] = 1;
+      stack.push({ x, y });
+    }
+  }
+  return false;
 }
 
 /**

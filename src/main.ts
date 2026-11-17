@@ -202,6 +202,8 @@ let quickNote = "";
 const LONG_PRESS_MS = 450;
 /** Pousser, avec plusieurs ennemis au contact : on attend que le joueur touche celui à pousser. */
 let pushMode = false;
+/** Désamorcer : on touche le piège voisin choisi (plusieurs pièges autour). */
+let disarmMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
 let seenItems = new Set<ItemId>();
 
@@ -585,8 +587,9 @@ function renderLog(): void {
 
 // ---------- Mise en scène des événements ----------
 
-const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "npcRoll" | "statue" }> =>
+const isRoll = (e: GameEvent): e is Extract<GameEvent, { type: "attack" | "door" | "hide" | "jump" | "searched" | "push" | "maiden" | "npcRoll" | "statue" | "disarm" }> =>
   e.type === "attack" ||
+  e.type === "disarm" ||
   e.type === "npcRoll" ||
   (e.type === "statue" && !e.look) ||
   e.type === "hide" ||
@@ -883,6 +886,11 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, "?", "#cfc3e0");
   } else if (e.type === "watered") {
     renderer.addFloatingText(e.x, e.y, "Arrosé", "#8fd0f0");
+  } else if (e.type === "disarm") {
+    landDie(e.d20, e.success ? "hit" : "miss", false);
+    renderer.addFloatingText(e.x, e.y, e.success ? "Désamorcé !" : e.sprung ? "Clac !" : "Raté", e.success ? "#9fe0a0" : "#ff6b7a");
+    sfx.play(e.success ? "unlock" : e.sprung ? "hurt" : "miss");
+    if (e.sprung) pulse(hpBar, "hit");
   } else if (e.type === "trapDodged") {
     renderer.addFloatingText(e.x, e.y, "Évité !", "#9fe0a0");
   } else if (e.type === "bout") {
@@ -1659,8 +1667,19 @@ bindInput(canvas, {
     }
     if (menuOpen || bagOpen || foundOpen || shopOpen || talkOpen) return;
     const t = renderer.screenToTile(px, py);
+    if (disarmMode) {
+      disarmMode = false;
+      renderer.jumpCells = [];
+      if (game.disarmTargets().some((c) => c.x === t.x && c.y === t.y) && game.disarm(t.x, t.y)) stepMs = COMBAT_STEP_MS;
+      else {
+        logLines.push("Vous renoncez à désamorcer.");
+        renderLog();
+      }
+      return;
+    }
     if (pushMode) {
       pushMode = false;
+  disarmMode = false;
       renderer.jumpCells = [];
       const target = game.pushTargets().find((m) => m.x === t.x && m.y === t.y);
       if (target && game.push(target.id)) stepMs = COMBAT_STEP_MS;
@@ -1751,6 +1770,7 @@ const WHEEL = [
   ["wheel-item", "item", "Utiliser un objet"],
   ["wheel-rest", "rest", "Se reposer"],
   ["wheel-hide", "hide", "Se cacher"],
+  ["wheel-disarm", "disarm", "Désamorcer un piège"],
   ["wheel-skill", "actions", "Compétence de voie"],
 ] as const;
 
@@ -1764,6 +1784,7 @@ function openWheel(): void {
   aimMode = false;
   jumpMode = false;
   pushMode = false;
+  disarmMode = false;
   renderer.jumpCells = [];
   // La caméra ne bouge plus à l'ouverture (Thomas, 2026-11-13 : « retire le centrage automatique ») ; la barre
   // d'actions monte en bas de la carte.
@@ -1771,7 +1792,9 @@ function openWheel(): void {
   const withSkill = false;
   $("wheel-skill").hidden = !withSkill;
   if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
-  const shown = WHEEL.filter(([id]) => id !== "wheel-skill" || withSkill);
+  // DÉSAMORCER : seulement à côté d'un piège connu (Thomas, 2026-11-17) ; toucher le piège y marche toujours.
+  $("wheel-disarm").hidden = game.disarmTargets().length === 0;
+  const shown = WHEEL.filter(([id]) => (id !== "wheel-skill" || withSkill) && (id !== "wheel-disarm" || !$("wheel-disarm").hidden));
   shown.forEach(([id]) => {
     const b = $(id);
     // Une action impossible reste visible, grisée ; « Objet » sert le raccourci choisi dans le sac.
@@ -1781,6 +1804,7 @@ function openWheel(): void {
       : id === "wheel-disengage" ? game.disengageRefusal() === null
       : id === "wheel-search" ? game.searchRefusal() === null
       : id === "wheel-push" ? game.pushRefusal() === null
+      : id === "wheel-disarm" ? game.disarmRefusal() === null
       : id === "wheel-skill" ? game.skillRefusal() === null
       : id === "wheel-item" ? game.quickStack() !== null
       : false;
@@ -1838,7 +1862,7 @@ function useQuickItem(): void {
 }
 
 // Noms courts sous les pictogrammes (barre d'actions, design C).
-const WHEEL_SHORT: Record<string, string> = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-skill": "Voie" };
+const WHEEL_SHORT: Record<string, string> = { "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
 for (const [id, icon, label] of WHEEL) {
   $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
   $(id).setAttribute("aria-label", tr(label));
@@ -1864,6 +1888,17 @@ for (const [id, icon, label] of WHEEL) {
         pushMode = true;
         renderer.jumpCells = targets.map((m) => ({ x: m.x, y: m.y }));
         logLines.push("Touchez l'ennemi à pousser.");
+      }
+    } else if (id === "wheel-disarm") {
+      const refusal = game.disarmRefusal();
+      const traps = game.disarmTargets();
+      if (refusal) logLines.push(refusal === "none" ? "Aucun piège connu à côté de vous." : "Pas avec un ennemi au contact.");
+      else if (traps.length === 1) {
+        if (game.disarm(traps[0].x, traps[0].y)) stepMs = COMBAT_STEP_MS;
+      } else {
+        disarmMode = true;
+        renderer.jumpCells = traps;
+        logLines.push("Touchez le piège à désamorcer.");
       }
     } else if (id === "wheel-search") {
       const refusal = game.searchRefusal();
@@ -1898,6 +1933,7 @@ diceBox.addEventListener("click", () => {
   sfx.unlock();
   jumpMode = false;
   pushMode = false;
+  disarmMode = false;
   renderer.jumpCells = [];
   aimMode = false;
   if (game.strike()) stepMs = COMBAT_STEP_MS;

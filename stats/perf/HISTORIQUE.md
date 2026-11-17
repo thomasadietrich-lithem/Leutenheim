@@ -79,3 +79,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-16_22h12 | 0ef7cc1 | 21 | 20.9 | 26.5 | 20.8 | 16.7 | 29.5 | 0.46 | 0.16 | torche plus lente, cases gagnées, moins d'or, elfe tir au contact |
 | 2026-11-17_09h21 | b849d01 | 29.2 | 28.6 | 29.8 | 30.6 | 16.7 | 28.1 | 0.51 | 0.27 | lance-pierre de l'Halfelin dessiné |
 | 2026-11-17_09h21 | b849d01 | 27.7 | 25.4 | 31.2 | 26.6 | 16.7 | 22.8 | 0.9 | 0.14 | lance-pierre, 2e mesure |
+| 2026-11-17_09h37 | 66a7f75 | 29.5 | 26.1 | 24.1 | 27 | 16.7 | 20.8 | 0.47 | 0.51 | logo du studio au démarrage, flèches spéciales en vol, serpe |

@@ -109,6 +109,13 @@
   /* Logo D2 et titre T6 (Thomas, 2026-11-13) : agrandis d'un facteur ENTIER, sans lissage (emblème 64 px ×2, titre
      100 × 41 px ×3) ; aucun arrondi. */
   #title-logo { width: 128px; height: 128px; image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+  /* LOGO DU STUDIO au démarrage (Thomas, 2026-11-17) : il apparaît, reste un instant, puis s'efface sur le menu ;
+     un toucher l'abrège. Dalle « LTH / STUDIO » de `art/studio_v3.py`, agrandie ×4 sans lissage. */
+  #studio { position: fixed; inset: 0; z-index: 9999; background: #0b0a0e; display: flex; align-items: center; justify-content: center; animation: studio-out 0.6s ease-in 2.3s forwards; }
+  #studio img { width: 320px; height: 256px; image-rendering: pixelated; opacity: 0; animation: studio-in 0.7s ease-out 0.2s forwards; }
+  #studio.skip { animation: studio-out 0.25s ease-in forwards; }
+  @keyframes studio-in { to { opacity: 1; } }
+  @keyframes studio-out { to { opacity: 0; visibility: hidden; } }
   #title-word { width: 300px; height: 123px; image-rendering: pixelated; display: block; margin: 0 auto; }
   .title-demo { text-shadow: none; display: block; font-size: 0.4em; letter-spacing: 0.3em; color: var(--dim); margin-top: 2px; text-transform: lowercase; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
@@ -634,6 +641,9 @@
 </style>
 </head>
 <body>
+  <div id="studio" onclick="this.classList.add('skip')"><img src="__STUDIO__" alt="LTH Studio"></div>
+  <!-- Navigateur piloté (mesures de performance, captures) : pas de logo, il cacherait les menus. -->
+  <script>if (navigator.webdriver) document.getElementById("studio").remove();</script>
 <div class="col">
   <div class="gauges">
     <div class="gauges-col">

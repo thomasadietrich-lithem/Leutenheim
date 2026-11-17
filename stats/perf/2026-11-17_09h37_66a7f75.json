@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T09:37:24.982Z",
+ "commit": "66a7f75",
+ "note": "logo du studio au démarrage, flèches spéciales en vol, serpe",
+ "logic": {
+  "tickMs": 0.47,
+  "lightMs": 0.51,
+  "visionMs": 0.41
+ },
+ "scenes": {
+  "immobile": {
+   "n": 83,
+   "avg": 29.5,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 34,
+   "js": 5
+  },
+  "marche": {
+   "n": 191,
+   "avg": 26.1,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 38,
+   "js": 3
+  },
+  "retour": {
+   "n": 207,
+   "avg": 24.1,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 42,
+   "js": 4
+  },
+  "zoom": {
+   "n": 103,
+   "avg": 27,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 37,
+   "js": 4
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 240,
+   "avg": 20.8,
+   "p95": 33.4,
+   "max": 116.6,
+   "fps": 48,
+   "js": 13
+  }
+ },
+ "errors": []
+}

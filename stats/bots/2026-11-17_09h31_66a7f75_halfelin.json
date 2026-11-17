@@ -1,0 +1,148 @@
+{
+ "date": "2026-11-17T09:31:47.790Z",
+ "commit": "66a7f75",
+ "runs": 150,
+ "race": "halfelin",
+ "note": "après or ×0,6 (partout, PNJ compris), javelines +3 et paquets de 4, flèches de recul, Elfe tir au contact, Halfelin lance-pierre",
+ "levels": {
+  "debutant": {
+   "floor": 2,
+   "deathFloor1": 37,
+   "reach": {
+    "2": 63,
+    "3": 27,
+    "4": 6,
+    "5": 1
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 1.2,
+   "turns": 100.7,
+   "gold": 2.7,
+   "kills": 3.5,
+   "questsStarted": 0.2,
+   "questsDone": 0,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 111,
+    "un Kobold frondeur": 20,
+    "une Araignée": 14,
+    "le poison": 1,
+    "un piège à pointes": 1,
+    "la Tisseuse": 2
+   }
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 14,
+   "reach": {
+    "2": 86,
+    "3": 66,
+    "4": 35,
+    "5": 15
+   },
+   "boss": 0,
+   "dead": 98,
+   "heroLevel": 2.4,
+   "turns": 360.1,
+   "gold": 26.7,
+   "kills": 14.6,
+   "questsStarted": 0.4,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "une Araignée": 33,
+    "un Kobold": 68,
+    "la Tisseuse": 18,
+    "un Kobold frondeur": 23,
+    "un piège à pointes": 1,
+    "le poison": 4
+   }
+  },
+  "maitrise": {
+   "floor": 4.1,
+   "deathFloor1": 2,
+   "reach": {
+    "2": 97,
+    "3": 92,
+    "4": 71,
+    "5": 50
+   },
+   "boss": 26,
+   "dead": 55,
+   "heroLevel": 4.3,
+   "turns": 1021.9,
+   "gold": 57.1,
+   "kills": 37.1,
+   "questsStarted": 0.7,
+   "questsDone": 0.5,
+   "questsFailed": 0.2,
+   "causes": {
+    "une Araignée": 24,
+    "la Tisseuse": 31,
+    "un Kobold": 11,
+    "un Kobold frondeur": 16
+   }
+  },
+  "expert": {
+   "floor": 7.6,
+   "deathFloor1": 8,
+   "reach": {
+    "2": 92,
+    "3": 89,
+    "4": 87,
+    "5": 85,
+    "6": 81,
+    "7": 66,
+    "8": 59,
+    "9": 55,
+    "10": 51
+   },
+   "boss": 81,
+   "dead": 53,
+   "heroLevel": 7.8,
+   "turns": 2283.1,
+   "gold": 284.4,
+   "kills": 98.1,
+   "questsStarted": 0.7,
+   "questsDone": 0.5,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold envahi": 8,
+    "le poison": 27,
+    "un Kobold cueilleur": 4,
+    "un Kobold": 16,
+    "un Sporelin": 6,
+    "la Tisseuse": 6,
+    "l'encre du Carillon": 3,
+    "un Kobold frondeur": 3,
+    "le Carillon": 2,
+    "une Araignée": 4,
+    "l'onde du Carillon": 1
+   },
+   "boss2": 47,
+   "stuck": 0,
+   "armorClass": 19.8,
+   "searches": 38.4,
+   "chests": 7.5,
+   "doors": 8.4,
+   "bought": 2.7,
+   "sold": 3.6,
+   "potions": 4.8,
+   "pushes": 5.5,
+   "shots": 82.6,
+   "deathFloors": {
+    "1": 8,
+    "2": 3,
+    "3": 2,
+    "4": 1,
+    "5": 5,
+    "6": 15,
+    "7": 7,
+    "8": 4,
+    "9": 3,
+    "10": 5
+   }
+  }
+ }
+}

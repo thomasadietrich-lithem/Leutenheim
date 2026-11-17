@@ -215,8 +215,8 @@ export const RULES = {
   /** Pièges de couloir (Thomas, 2026-11-17 : « à condition qu'il y ait un autre accès ») : dès l'étage 2, chance d'en
    *  poser un par étage, puis un deuxième dès l'étage 4. (C) */
   corridorTrapMinDepth: 2,
-  corridorTrapChance: 0.6,
-  corridorTrapSecondDepth: 4,
+  corridorTrapChance: 0.35,
+  corridorTrapSecondDepth: 6,
   carillonInkDamage: { count: 1, sides: 6, bonus: 0 },
   /** Elle recule après ce nombre de morsures, ou dès qu'elle a perdu tant de PV depuis qu'elle s'est avancée. */
   bossBitesBeforeRetreat: 2,
@@ -290,7 +290,7 @@ export const RULES = {
   /** …et s'il heurte un mur, une colonne ou une porte fermée, il encaisse en plus ces dégâts. */
   pushSlamDamage: { count: 1, sides: 6, bonus: 0 },
   /** Pièges : chance qu'une salle (hors départ et salles à thème) en ait un. Sortes et effets : `src/data/traps.ts`. */
-  trapRoomChance: 0.15,
+  trapRoomChance: 0.12,
   /** …et en plus à chaque étage au-delà du premier (crescendo, Thomas 2026-11-13), jusqu'à `trapRoomChanceMax` (C). */
   trapRoomChancePerDepth: 0.03,
   trapRoomChanceMax: 0.3,

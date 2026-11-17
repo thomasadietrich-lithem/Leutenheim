@@ -2340,6 +2340,19 @@ export class Renderer {
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(this.sprite(uiIconRows("search"), ICON_PALETTE), lx, ly, s, s);
       ctx.imageSmoothingEnabled = smooth;
+    } else if (!game.over && game.disarmTargets().length > 0) {
+      // À côté d'un piège connu (Thomas, 2026-11-17 : « mets une loupe au-dessus de ma tête ») : une petite loupe
+      // qui flotte doucement : on peut le désamorcer (touche « Désarmer » de la barre d'actions).
+      const s = Math.round(tile * 0.45);
+      const bob = Math.sin(this.time / 300) * tile * 0.05;
+      const lx = Math.round(ox + (hero.x + 0.5) * tile - s / 2);
+      const ly = Math.round(oy + hero.y * tile - tile * 0.45 - s + bob);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(this.sprite(uiIconRows("search"), ICON_PALETTE), lx, ly, s, s);
+      ctx.globalAlpha = 1;
+      ctx.imageSmoothingEnabled = smooth;
     }
     // Balayage de la fouille : chaque case s'illumine quand la vague l'atteint, puis s'éteint.
     if (this.scan) {

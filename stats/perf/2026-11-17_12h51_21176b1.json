@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T12:51:09.785Z",
+ "commit": "21176b1",
+ "note": "moins de pièges, loupe près d'un piège",
+ "logic": {
+  "tickMs": 0.48,
+  "lightMs": 0.37,
+  "visionMs": 0.23
+ },
+ "scenes": {
+  "immobile": {
+   "n": 84,
+   "avg": 29.4,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 34,
+   "js": 5
+  },
+  "marche": {
+   "n": 170,
+   "avg": 29.3,
+   "p95": 50,
+   "max": 66.8,
+   "fps": 34,
+   "js": 5
+  },
+  "retour": {
+   "n": 167,
+   "avg": 29.9,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 33,
+   "js": 5
+  },
+  "zoom": {
+   "n": 103,
+   "avg": 28.8,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 35,
+   "js": 6
+  },
+  "combat": {
+   "n": 235,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 33.3,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 200,
+   "avg": 24.8,
+   "p95": 33.4,
+   "max": 183.3,
+   "fps": 40,
+   "js": 18
+  }
+ },
+ "errors": []
+}

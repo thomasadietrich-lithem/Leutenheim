@@ -6300,5 +6300,5 @@ test("pièges de couloir (2026-11-17) : seulement s'il y a un autre accès ; fou
       assert.ok(game.events.some((e) => e.type === "disarm"));
     }
   }
-  assert.ok(placed >= 10, `pièges de couloir posés : ${placed}`);
+  assert.ok(placed >= 4, `pièges de couloir posés : ${placed}`);
 });

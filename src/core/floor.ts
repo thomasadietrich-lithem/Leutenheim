@@ -395,16 +395,16 @@ function placeCorridorTraps(state: FloorState, seed: number, depth: number, kind
       if (near(x, y, (t) => t === Tile.DoorClosed || t === Tile.DoorOpen || t === Tile.DoorLocked || t === Tile.StairsDown || t === Tile.StairsUp)) continue;
       if (state.traps.some((t) => Math.abs(t.x - x) + Math.abs(t.y - y) < 6)) continue;
       if (state.ground.some((g) => g.x === x && g.y === y) || state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
-      // Un autre accès : sans cette case, ses deux côtés restent reliés.
-      const a = ns ? { x, y: y - 1 } : { x: x - 1, y };
-      const b = ns ? { x, y: y + 1 } : { x: x + 1, y };
-      if (!connectedWithout(map, a, b, { x, y })) continue;
       candidates.push({ x, y });
     }
   }
   for (let i = 0; i < wanted && candidates.length > 0; i++) {
     const at = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
-    if (state.traps.some((t) => Math.abs(t.x - at.x) + Math.abs(t.y - at.y) < 6)) {
+    // Un autre accès : sans cette case (ni celles des autres pièges), ses deux côtés restent reliés.
+    const ns = map.isWalkable(at.x, at.y - 1) && map.isWalkable(at.x, at.y + 1);
+    const a = ns ? { x: at.x, y: at.y - 1 } : { x: at.x - 1, y: at.y };
+    const b = ns ? { x: at.x, y: at.y + 1 } : { x: at.x + 1, y: at.y };
+    if (state.traps.some((t) => Math.abs(t.x - at.x) + Math.abs(t.y - at.y) < 6) || !connectedWithout(map, a, b, [at, ...state.traps])) {
       i--;
       continue;
     }
@@ -417,7 +417,7 @@ function placeCorridorTraps(state: FloorState, seed: number, depth: number, kind
 }
 
 /** Deux cases restent-elles reliées (pas droits) si l'on bouche celle-ci ? */
-function connectedWithout(map: GameMap, a: Point, b: Point, blocked: Point): boolean {
+function connectedWithout(map: GameMap, a: Point, b: Point, blockedCells: Point[]): boolean {
   const seen = new Uint8Array(map.width * map.height);
   const stack = [a];
   seen[a.y * map.width + a.x] = 1;
@@ -427,7 +427,9 @@ function connectedWithout(map: GameMap, a: Point, b: Point, blocked: Point): boo
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const x = p.x + dx;
       const y = p.y + dy;
-      if (x < 0 || y < 0 || x >= map.width || y >= map.height || (x === blocked.x && y === blocked.y)) continue;
+      if (x < 0 || y < 0 || x >= map.width || y >= map.height || blockedCells.some((c) => c.x === x && c.y === y)) continue;
+      // Une porte verrouillée ne compte pas comme un passage.
+      if (map.get(x, y) === Tile.DoorLocked) continue;
       const k = y * map.width + x;
       if (seen[k] || !map.isWalkable(x, y)) continue;
       seen[k] = 1;

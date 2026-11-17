@@ -2724,7 +2724,8 @@ export class Game {
         secrets: f.secrets,
         traps: f.traps,
         searched: new Set(f.searched),
-        furniture: f.furniture ?? [],
+        // La draperie pliée des salles au trésor est retirée (Thomas, 2026-11-17) : les anciennes sauvegardes la perdent.
+        furniture: (f.furniture ?? []).filter((o) => o.kind !== "drapPlie"),
         themes: f.themes ?? [],
         motifs: f.motifs ?? [],
         boss: f.boss,

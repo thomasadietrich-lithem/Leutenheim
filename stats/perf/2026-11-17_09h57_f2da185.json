@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T09:57:05.775Z",
+ "commit": "f2da185",
+ "note": "Carillon revu, torche étouffée",
+ "logic": {
+  "tickMs": 0.81,
+  "lightMs": 0.69,
+  "visionMs": 0.38
+ },
+ "scenes": {
+  "immobile": {
+   "n": 59,
+   "avg": 41,
+   "p95": 66.7,
+   "max": 66.7,
+   "fps": 24,
+   "js": 11
+  },
+  "marche": {
+   "n": 130,
+   "avg": 38.5,
+   "p95": 50.1,
+   "max": 50.1,
+   "fps": 26,
+   "js": 10
+  },
+  "retour": {
+   "n": 126,
+   "avg": 39.7,
+   "p95": 50.1,
+   "max": 100,
+   "fps": 25,
+   "js": 10
+  },
+  "zoom": {
+   "n": 71,
+   "avg": 43.2,
+   "p95": 66.7,
+   "max": 66.7,
+   "fps": 23,
+   "js": 9
+  },
+  "combat": {
+   "n": 240,
+   "avg": 17,
+   "p95": 16.8,
+   "max": 50,
+   "fps": 59,
+   "js": 15
+  },
+  "donjon": {
+   "n": 141,
+   "avg": 35.5,
+   "p95": 66.7,
+   "max": 183.3,
+   "fps": 28,
+   "js": 26
+  }
+ },
+ "errors": []
+}

@@ -81,3 +81,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_09h21 | b849d01 | 27.7 | 25.4 | 31.2 | 26.6 | 16.7 | 22.8 | 0.9 | 0.14 | lance-pierre, 2e mesure |
 | 2026-11-17_09h37 | 66a7f75 | 29.5 | 26.1 | 24.1 | 27 | 16.7 | 20.8 | 0.47 | 0.51 | logo du studio au démarrage, flèches spéciales en vol, serpe |
 | 2026-11-17_09h46 | f557932 | 27.2 | 27.3 | 26.1 | 28 | 16.7 | 22.4 | 0.71 | 0.38 | Carillon en zones, poule du logo, astuces en bas |
+| 2026-11-17_09h57 | f2da185 | 41 | 38.5 | 39.7 | 43.2 | 17 | 35.5 | 0.81 | 0.69 | Carillon revu, torche étouffée |
+| 2026-11-17_10h00 | f2da185 | 28.5 | 24.7 | 27.9 | 32.8 | 16.7 | 26.5 | 0.8 | 0.19 | tapisserie pendue dans la salle au trésor |

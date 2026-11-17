@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T10:00:54.503Z",
+ "commit": "f2da185",
+ "note": "tapisserie pendue dans la salle au trésor",
+ "logic": {
+  "tickMs": 0.8,
+  "lightMs": 0.19,
+  "visionMs": 0.11
+ },
+ "scenes": {
+  "immobile": {
+   "n": 86,
+   "avg": 28.5,
+   "p95": 33.5,
+   "max": 66.7,
+   "fps": 35,
+   "js": 6
+  },
+  "marche": {
+   "n": 202,
+   "avg": 24.7,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 41,
+   "js": 5
+  },
+  "retour": {
+   "n": 179,
+   "avg": 27.9,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 36,
+   "js": 3
+  },
+  "zoom": {
+   "n": 91,
+   "avg": 32.8,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 31,
+   "js": 6
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 186,
+   "avg": 26.5,
+   "p95": 50,
+   "max": 116.6,
+   "fps": 38,
+   "js": 14
+  }
+ },
+ "errors": []
+}

@@ -287,18 +287,19 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
       }
     }
   }
-  // La même draperie, pliée, au pied du coffre d'une salle au trésor sur deux (Thomas, 2026-11-16).
+  // La même tapisserie, dans une salle au trésor sur deux : PENDUE AU MUR DU FOND comme dans la chapelle (Thomas,
+  // 2026-11-17 : « le rideau plié, on ne comprend pas ; affiche-le comme dans l'église »), au plus près du coffre.
   const drng = new Rng(seed ^ 0xd4a9);
   for (const sp of floor.specials ?? []) {
     if (sp.kind.id !== "tresor" || !drng.chance(0.5)) continue;
     const r = sp.room;
-    const cells: Point[] = [];
-    for (let y = r.y; y < r.y + r.h; y++)
-      for (let x = r.x; x < r.x + r.w; x++) {
-        const nearChest = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => floor.map.get(x + dx, y + dy) === Tile.Chest);
-        if (nearChest && floor.map.get(x, y) === Tile.Floor && !furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) cells.push({ x, y });
-      }
-    if (cells.length > 0) furniture.push({ ...cells[drng.int(0, cells.length - 1)], kind: "drapPlie" });
+    const wy = r.y - 1;
+    let chestX = r.x + Math.floor(r.w / 2);
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (floor.map.get(x, y) === Tile.Chest) chestX = x;
+    const fits = (x: number) =>
+      [x, x + 1, x + 2].every((cx) => cx >= r.x && cx < r.x + r.w && floor.map.get(cx, wy) === Tile.Wall && !floor.torches.some((t) => t.x === cx && t.y === wy) && !furniture.some((f) => f.x === cx && f.y === wy));
+    const starts = [...Array(r.w).keys()].map((i) => r.x + i).filter(fits).sort((a, b) => Math.abs(a + 1 - chestX) - Math.abs(b + 1 - chestX));
+    if (starts.length > 0) furniture.push({ x: starts[0], y: wy, kind: "tapisserieCulte" });
   }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);

@@ -6406,3 +6406,19 @@ test("Carillon : les fidèles remettent le battant tombé (2026-11-17)", () => {
   assert.ok(repaired, "réparé");
   assert.equal(bell.boss!.clapperUp, true);
 });
+
+test("figé dans un nuage (2026-11-17) : entouré de gaz, le héros peut encore partir", () => {
+  const game = new Game(5);
+  const r = game.rooms[0];
+  const at = { x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) };
+  Object.assign(game.hero, { x: at.x, y: at.y, fromX: at.x, fromY: at.y, hp: 500, maxHp: 500 });
+  game.monsters.length = 0;
+  // Une salle qu'on atteint sans gaz…
+  const target = game.rooms.slice(1).find((t) => game.setDestination(t.x + 2, t.y + 2, true))!;
+  (game as unknown as { path: unknown[] }).path = [];
+  // …puis tout autour de lui, du gaz.
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (game.map.isWalkable(at.x + dx, at.y + dy)) game.gas.push({ x: at.x + dx, y: at.y + dy, turns: 9 });
+  assert.ok(game.setDestination(target.x + 2, target.y + 2, true));
+  game.tick();
+  assert.ok(game.hero.x !== at.x || game.hero.y !== at.y, "il a bougé");
+});

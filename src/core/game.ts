@@ -2027,7 +2027,16 @@ export class Game {
       return (t === Tile.StairsDown || t === Tile.StairsUp) && !(x === to.x && y === to.y) && !(x === this.hero.x && y === this.hero.y);
     };
     const known = (x: number, y: number) => (!known0 || known0(x, y)) && !stairs(x, y);
-    const plain0 = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+    let plain0 = findPath(this.map, this.hero, to, this.avoidTraps(to, known));
+    // FIGÉ DANS UN NUAGE (Thomas, 2026-11-17 : « dans un couloir, nuage toxique : freeze » ; « dans la champignonnière,
+    // après avoir arrosé : freeze ») : au milieu d'un nuage (piège, spores d'un sporelin), toutes les cases voisines
+    // sont du gaz et le héros, qui contourne le gaz, n'avait plus aucun chemin : il ne bougeait plus. S'il n'y a pas
+    // d'autre chemin, il traverse le gaz (puis, au pire, le feu) ; les pièges connus restent évités.
+    if (!plain0) {
+      const through = (fire: boolean) => (x: number, y: number) =>
+        known(x, y) && ((x === to.x && y === to.y) || (x === this.hero.x && y === this.hero.y) || (!this.knownTrap(x, y) && (fire || !this.isBurning(x, y))));
+      plain0 = findPath(this.map, this.hero, to, through(false)) ?? findPath(this.map, this.hero, to, through(true));
+    }
     // Nichée : le héros suit les sentiers sans toile quand le détour reste court (chaque toile coûte un tour).
     let plain = plain0;
     if (plain0 && this.current.boss) {

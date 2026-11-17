@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T22:14:18.341Z",
+ "commit": "65a561f",
+ "note": "héros figé dans un nuage : il traverse le gaz s'il n'y a pas d'autre chemin",
+ "logic": {
+  "tickMs": 0.46,
+  "lightMs": 0.29,
+  "visionMs": 0.43
+ },
+ "scenes": {
+  "immobile": {
+   "n": 73,
+   "avg": 33.3,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 30,
+   "js": 7
+  },
+  "marche": {
+   "n": 157,
+   "avg": 31.8,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 31,
+   "js": 4
+  },
+  "retour": {
+   "n": 156,
+   "avg": 31.8,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 31,
+   "js": 5
+  },
+  "zoom": {
+   "n": 91,
+   "avg": 33.3,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 30,
+   "js": 5
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 9
+  },
+  "donjon": {
+   "n": 154,
+   "avg": 32.4,
+   "p95": 66.6,
+   "max": 150,
+   "fps": 31,
+   "js": 16
+  }
+ },
+ "errors": []
+}

@@ -109,16 +109,16 @@ export function allSprites(): Sprite[] {
 }
 
 /** Les objets : icône, nom, rareté, description (depuis src/data/items.ts). */
-export function allItems(): { id: ItemId; name: string; kind: string; rarity?: string; description: string; rows: readonly string[] }[] {
+export function allItems(): { id: ItemId; name: string; kind: string; rarity?: string; level?: number; description: string; rows: readonly string[] }[] {
   return (Object.keys(ITEMS) as ItemId[]).map((id) => {
-    const d = ITEMS[id] as { name: string; kind: string; rarity?: string; description: string };
+    const d = ITEMS[id] as { name: string; kind: string; rarity?: string; level?: number; description: string };
     let rows: readonly string[] = [];
     try {
       rows = itemIconRows(id);
     } catch {
       rows = [];
     }
-    return { id, name: d.name, kind: d.kind, rarity: d.rarity, description: d.description, rows };
+    return { id, name: d.name, kind: d.kind, rarity: d.rarity, level: d.level, description: d.description, rows };
   });
 }
 

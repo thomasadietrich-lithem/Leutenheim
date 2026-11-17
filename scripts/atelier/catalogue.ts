@@ -62,11 +62,12 @@ const SECTIONS: { id: string; label: string; cards: () => Card[] }[] = [
       allItems()
         .filter((i) => i.rows.length > 0)
         .map((i) => ({
-          title: i.name,
+          // Le niveau requis (Thomas, 2026-11-17 : « ajoute les niveaux »).
+          title: `${i.name} · Niv ${i.level ?? 1}`,
           group: KIND[i.kind] ?? i.kind,
           canvas: () => draw(i.rows, ICON_PALETTE, i.rows.length > 16 ? 2 : 3),
           big: () => draw(i.rows, ICON_PALETTE, i.rows.length > 16 ? 5 : 9),
-          text: i.description,
+          text: `Niveau requis : ${i.level ?? 1}. ${i.description}`,
           badge: i.rarity ? RARITY[i.rarity] : undefined,
         })),
   },

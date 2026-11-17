@@ -6310,3 +6310,32 @@ test("Elfe : un petit paquet de flèches de recul sur chaque étage (2026-11-17)
     assert.ok(piles.length >= 1 && piles.length <= 2, `graine ${seed} : ${piles.length} paquets`);
   }
 });
+
+test("escaliers jamais enfermés (2026-11-17) : de l'arrivée, on atteint les deux escaliers, section 2 comprise", () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    for (const depth of [2, 4, 6, 7, 8, 9]) {
+      game.teleport(depth);
+      const W = game.map.width;
+      const seen = new Uint8Array(W * game.map.height);
+      const todo = [{ x: game.rooms[0].x + Math.floor(game.rooms[0].w / 2), y: game.rooms[0].y + Math.floor(game.rooms[0].h / 2) }];
+      seen[todo[0].y * W + todo[0].x] = 1;
+      while (todo.length) {
+        const p = todo.pop()!;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const x = p.x + dx;
+          const y = p.y + dy;
+          if (!game.map.inBounds(x, y) || seen[y * W + x]) continue;
+          const t = game.map.get(x, y);
+          if (!(game.map.isWalkable(x, y) || t === Tile.DoorLocked)) continue;
+          seen[y * W + x] = 1;
+          todo.push({ x, y });
+        }
+      }
+      for (let y = 0; y < game.map.height; y++)
+        for (let x = 0; x < W; x++)
+          if (game.map.get(x, y) === Tile.StairsDown || game.map.get(x, y) === Tile.StairsUp) assert.ok(seen[y * W + x], `graine ${seed}, étage ${depth} : escalier enfermé en ${x},${y}`);
+    }
+  }
+});

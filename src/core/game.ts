@@ -2536,6 +2536,9 @@ export class Game {
   private useFloor(state: FloorState, depth: number): void {
     this.current = state;
     this.depth = depth;
+    // Escaliers toujours reliés (Thomas, 2026-11-17 : « un joueur est coincé ici, après être remonté ; corrige aussi la
+    // sauvegarde existante ») : réparé à chaque arrivée et à chaque reprise.
+    if (!state.boss) unblockStairs(state);
     // Anciennes parties : le coffre de l'alcôve de la nichée disparaît (il bloquait le retour par l'escalier).
     if (state.boss && (state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.Chest || state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.ChestOpen)) state.map.set(state.boss.chest.x, state.boss.chest.y, Tile.Floor);
     // Première arrivée au premier étage d'une nouvelle section : le texte d'arrivée (Thomas, 2026-11-15).
@@ -9639,6 +9642,63 @@ export class Game {
     this.events.push({ type: "stairs", direction, healed, unhurt });
     if (direction === "down") this.settleKrik();
     return true;
+  }
+}
+
+/**
+ * Un éboulis (ou un autre meuble) posé devant la niche d'un escalier pouvait enfermer le héros (Thomas, 2026-11-17).
+ * On cherche le chemin le moins encombré entre l'arrivée et l'escalier qui descend (et vers l'escalier qui monte) :
+ * s'il ne passe que par des meubles, ceux qui bouchent ce chemin sont retirés (la case redevient du sol).
+ */
+function unblockStairs(state: FloorState): void {
+  const map = state.map;
+  const find = (t: Tile): Point | null => {
+    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (map.get(x, y) === t) return { x, y };
+    return null;
+  };
+  const down = find(Tile.StairsDown);
+  const up = find(Tile.StairsUp);
+  const hub = state.rooms[0] ? { x: state.rooms[0].x + Math.floor(state.rooms[0].w / 2), y: state.rooms[0].y + Math.floor(state.rooms[0].h / 2) } : state.start;
+  for (const target of [down, up]) {
+    if (!target) continue;
+    // Chemin à coût 0-1 : une case libre coûte 0, une case de meuble 1 ; les murs, piliers et portes verrouillées : non
+    // (une porte verrouillée s'ouvre : on la compte comme libre).
+    const W = map.width;
+    const cost = new Int32Array(W * map.height).fill(1e9);
+    const prev = new Int32Array(W * map.height).fill(-1);
+    const start = hub.y * W + hub.x;
+    cost[start] = 0;
+    const dq: number[] = [start];
+    let head = 0;
+    const queue: number[] = [];
+    while (head < dq.length || queue.length > 0) {
+      const k = head < dq.length ? dq[head++] : queue.shift()!;
+      const x = k % W;
+      const y = Math.floor(k / W);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!map.inBounds(nx, ny)) continue;
+        const t = map.get(nx, ny);
+        if (t === Tile.Wall || t === Tile.Pillar) continue;
+        const step = t === Tile.Furniture ? 1 : 0;
+        const nk = ny * W + nx;
+        if (cost[k] + step >= cost[nk]) continue;
+        cost[nk] = cost[k] + step;
+        prev[nk] = k;
+        if (step === 0) dq.push(nk);
+        else queue.push(nk);
+      }
+    }
+    const end = target.y * W + target.x;
+    if (cost[end] === 0 || cost[end] >= 1e9) continue;
+    for (let k = end; k !== start && k >= 0; k = prev[k]) {
+      const x = k % W;
+      const y = Math.floor(k / W);
+      if (map.get(x, y) !== Tile.Furniture) continue;
+      state.furniture = state.furniture.filter((f) => !furnitureCells(f).some((c) => c.x === x && c.y === y));
+      map.set(x, y, Tile.Floor);
+    }
   }
 }
 

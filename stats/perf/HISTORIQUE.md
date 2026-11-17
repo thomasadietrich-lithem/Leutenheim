@@ -90,3 +90,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_13h22 | b2e5849 | 30.2 | 28.3 | 27.2 | 26.7 | 16.7 | 29.2 | 0.47 | 0.2 | elfe : flèches de recul sur chaque étage |
 | 2026-11-17_13h41 | a982f29 | 31.8 | 30.5 | 27.2 | 29.9 | 16.7 | 32.8 | 0.52 | 0.37 | armes de section 2, masse revue, moins de flèches, butin de sa section |
 | 2026-11-17_13h48 | 37e5267 | 27.4 | 28.7 | 27.8 | 23.6 | 16.7 | 32.5 | 0.57 | 0.28 | zones de quête qui brillent, marteau, épée bâtarde |
+| 2026-11-17_13h54 | 355ab1d | 23.3 | 24.8 | 24.5 | 27.7 | 16.7 | 22.3 | 0.72 | 0.2 | escaliers jamais enfermés (réparation à l'arrivée et à la reprise) |

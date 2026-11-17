@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T13:54:42.441Z",
+ "commit": "355ab1d",
+ "note": "escaliers jamais enfermés (réparation à l'arrivée et à la reprise)",
+ "logic": {
+  "tickMs": 0.72,
+  "lightMs": 0.2,
+  "visionMs": 0.25
+ },
+ "scenes": {
+  "immobile": {
+   "n": 105,
+   "avg": 23.3,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 43,
+   "js": 5
+  },
+  "marche": {
+   "n": 201,
+   "avg": 24.8,
+   "p95": 33.4,
+   "max": 49.9,
+   "fps": 40,
+   "js": 3
+  },
+  "retour": {
+   "n": 203,
+   "avg": 24.5,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 41,
+   "js": 3
+  },
+  "zoom": {
+   "n": 104,
+   "avg": 27.7,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 36,
+   "js": 4
+  },
+  "combat": {
+   "n": 235,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 222,
+   "avg": 22.3,
+   "p95": 33.4,
+   "max": 133.3,
+   "fps": 45,
+   "js": 13
+  }
+ },
+ "errors": []
+}

@@ -2026,4 +2026,6 @@ export const EN: Record<string, string> = {
   "un piège mal désamorcé": "a botched disarm",
   "Vous fouillez les environs : {0} — {1}": "You search the surroundings: {0} — {1}",
   "Désarmer": "Disarm",
+  "Boss 2 · niv 10": "Boss 2 · lvl 10",
+  "Téléporté devant le Carillon : niveau 10, points et pouvoirs placés, équipement élevé.": "Teleported before the Carillon: level 10, points and powers placed, high-end gear.",
 };

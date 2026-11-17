@@ -3848,6 +3848,18 @@ if (!PUBLIC_BUILD) {
     showScreen(null);
   });
   button("essai-back", () => showScreen("main"));
+  // Triche « Boss 2 » (Thomas, 2026-11-17) : depuis n'importe quel essai, une partie d'essai au Carillon, niveau 10.
+  button("boss2", () => {
+    if (!game.testRun) {
+      newRun(false, true);
+      started = true;
+      showScreen(null);
+    }
+    if (game.testBoss2()) logLines.push("Téléporté devant le Carillon : niveau 10, points et pouvoirs placés, équipement élevé.");
+    collectEvents();
+    renderLog();
+    renderHeroScreen();
+  });
   // Téléporteur d'étage (partie d'essai).
   for (const [id, step] of [["tp-up", -1], ["tp-down", 1]] as const) {
     button(id, () => {

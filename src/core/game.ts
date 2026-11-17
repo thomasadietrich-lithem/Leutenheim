@@ -8031,6 +8031,25 @@ export class Game {
     return true;
   }
 
+  /**
+   * Triche « Boss 2 » (Thomas, 2026-11-17 : « un mode qui me téléporte direct au boss 2, niveau cible 10, améliorations
+   * faites ») : partie d'essai seulement. Étage 10 (le Carillon), héros niveau 10, points placés (Force et Vie à tour de
+   * rôle), la voie rouge si aucune n'est prise, tous les rangs de pouvoir achetés, l'équipement « élevé », PV pleins.
+   */
+  testBoss2(): boolean {
+    if (!this.testRun || this.over) return false;
+    if (this.depth !== RULES.bossDepths[1]) this.teleport(RULES.bossDepths[1]);
+    for (let guard = 0; this.level < 10 && guard < 20; guard++) this.levelUpNow();
+    while (this.points > 0 && this.allocate(this.alloc.force <= this.alloc.vie ? "force" : "vie"));
+    if (this.canChoosePath()) this.choosePath("red");
+    const path = PATHS[this.voie!];
+    const powers = path ? ([path.main, ...path.secondaries].map((p) => p.id) as PowerId[]) : [];
+    for (let guard = 0; this.pathPoints() > 0 && guard < 40; guard++) if (!powers.some((id) => this.improve(id))) break;
+    this.testKit("eleve");
+    this.hero.hp = this.hero.maxHp;
+    return true;
+  }
+
   /** Quelle salle d'essai (section 1 ou 2), choisie au menu avant de créer la partie. */
   readonly sandboxSection: 1 | 2 = sandboxSection();
 

@@ -349,6 +349,7 @@ export class Game {
    */
   private enterFloor(depth: number, via: "down" | "up"): void {
     trackUniques(this.uniques);
+    this.pendingGlow = [];
     if (this.current) {
       // On range l'étage qu'on quitte.
       // Combats coupés : les monstres mis de côté restent sur leur étage.
@@ -6610,7 +6611,8 @@ export class Game {
       need = Math.min(def.count ?? 1, this.current.zone.sleepers.length);
       if (need <= 0) return false;
     }
-    this.quest = { id, depth: this.depth, got: 0, need };
+    this.quest = { id, depth: this.depth, got: 0, need, glow: this.pendingGlow.length > 0 ? this.pendingGlow : undefined };
+    this.pendingGlow = [];
     this.refreshLight();
     this.events.push({ type: "quest", what: "start", id });
     return true;
@@ -6645,7 +6647,24 @@ export class Game {
   private revealRoomAt(p: Point): void {
     const r = this.current.rooms.find((o) => p.x >= o.x && p.x < o.x + o.w && p.y >= o.y && p.y < o.y + o.h);
     const box = r ?? { x: p.x - 1, y: p.y - 1, w: 3, h: 3 };
+    this.markGlow(box);
     for (let y = box.y - 1; y <= box.y + box.h; y++) for (let x = box.x - 1; x <= box.x + box.w; x++) if (this.map.inBounds(x, y)) this.explored[this.map.index(x, y)] = 1;
+  }
+
+  /**
+   * ZONES QUI BRILLENT (Thomas, 2026-11-17 : « les quêtes ne font pas briller les zones indiquées ») : chaque salle que
+   * la quête montre sur la carte brille d'un cadre doré qui palpite, tant que la quête dure (sur son étage).
+   */
+  private pendingGlow: { x: number; y: number; w: number; h: number }[] = [];
+  private markGlow(box: { x: number; y: number; w: number; h: number }): void {
+    const b = { x: box.x, y: box.y, w: box.w, h: box.h };
+    if (this.quest) (this.quest.glow ??= []).push(b);
+    else this.pendingGlow.push(b);
+  }
+  /** Les zones à faire briller sur cet étage (vide sans quête, ou une fois l'objectif rempli). */
+  questGlow(): readonly { x: number; y: number; w: number; h: number }[] {
+    if (!this.quest || this.quest.depth !== this.depth || this.questDone()) return [];
+    return this.quest.glow ?? [];
   }
 
   /** Revenir voir le PNJ : il attend tant que ce n'est pas fait ; sinon on lui rend la tâche. */
@@ -6859,6 +6878,8 @@ export class Game {
           : door === "barrel" ? "barrelWall" : door === "hay" ? "hayWall" : null;
       if (doorKind) state.furniture.push({ x: entry.x, y: entry.y, kind: doorKind });
       const zone: QuestZone = { kind, door, room, entry, open: false, sleepers: [], host: this.rooms.indexOf(best.host) };
+      // La salle où chercher l'entrée brille (Thomas, 2026-11-17 : « les quêtes ne font pas briller les zones »).
+      this.markGlow(best.host);
       const sleeper = (p: Point, asleep: boolean) => {
         const k = this.newMonster(MONSTERS.schrat, p.x, p.y, asleep);
         k.fromX = p.x;

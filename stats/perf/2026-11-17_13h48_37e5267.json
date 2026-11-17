@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T13:48:25.137Z",
+ "commit": "37e5267",
+ "note": "zones de quête qui brillent, marteau, épée bâtarde",
+ "logic": {
+  "tickMs": 0.57,
+  "lightMs": 0.28,
+  "visionMs": 0.48
+ },
+ "scenes": {
+  "immobile": {
+   "n": 90,
+   "avg": 27.4,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 36,
+   "js": 5
+  },
+  "marche": {
+   "n": 173,
+   "avg": 28.7,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 35,
+   "js": 5
+  },
+  "retour": {
+   "n": 180,
+   "avg": 27.8,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 36,
+   "js": 4
+  },
+  "zoom": {
+   "n": 118,
+   "avg": 23.6,
+   "p95": 50,
+   "max": 66.6,
+   "fps": 42,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 154,
+   "avg": 32.5,
+   "p95": 83.3,
+   "max": 216.7,
+   "fps": 31,
+   "js": 23
+  }
+ },
+ "errors": []
+}

@@ -329,4 +329,6 @@ export interface QuestTask {
   charmed?: boolean;
   /** Rencontres 2 à 4 : le monstre visé (le concurrent de Gluck), ou la salle à libérer (son numéro). */
   target?: number;
+  /** Les zones que la quête montre sur la carte : elles brillent tant qu'elle dure (Thomas, 2026-11-17). */
+  glow?: { x: number; y: number; w: number; h: number }[];
 }

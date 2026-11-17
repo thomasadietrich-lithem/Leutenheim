@@ -475,7 +475,7 @@ function addArmory(
   // L'équipement du Halfelin (Thomas, 2026-11-16).
   zone(X(115), Y(34), 5, "Races", "#c8a060", [["serpe", 1], ["lance_pierre", 1], ["pierre", 10], ["pain_elfique", 2]]);
   // Les armes de la section 2 (Thomas, 2026-11-17).
-  zone(X(120), Y(34), 3, "S2", "#5cc8a8", [["pic_tailleur", 1], ["fauchard", 1], ["arc_corne", 1]]);
+  zone(X(120), Y(34), 3, "S2", "#5cc8a8", [["marteau_guerre", 1], ["epee_batarde", 1], ["arc_corne", 1]]);
 
 }
 

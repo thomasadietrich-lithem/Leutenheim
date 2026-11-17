@@ -39,8 +39,8 @@ const WEAPON_OF: Record<string, HeroWeapon> = {
   baton: "lance",
   fourche: "lance",
   serpe: "serpe",
-  pic_tailleur: "masse",
-  fauchard: "lance",
+  marteau_guerre: "masse",
+  epee_batarde: "epee_longue",
 };
 
 export function heroLook(race: string, gear: { armor?: string; hat?: string; melee?: string; ranged?: string } = {}): HeroLook {

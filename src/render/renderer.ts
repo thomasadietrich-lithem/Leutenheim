@@ -2362,6 +2362,24 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
+    // Les zones de la quête en cours brillent (Thomas, 2026-11-17) : un cadre doré qui palpite, un voile très léger.
+    const glow = game.questGlow();
+    if (glow.length > 0) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.time / 380);
+      ctx.save();
+      for (const b of glow) {
+        const x = Math.round(ox + b.x * tile);
+        const y = Math.round(oy + b.y * tile);
+        const w = Math.round(b.w * tile);
+        const h = Math.round(b.h * tile);
+        ctx.fillStyle = `rgba(255,215,110,${(0.05 + 0.05 * pulse).toFixed(3)})`;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = `rgba(255,215,110,${(0.45 + 0.4 * pulse).toFixed(2)})`;
+        ctx.lineWidth = Math.max(2, tile * 0.08);
+        ctx.strokeRect(x + ctx.lineWidth / 2, y + ctx.lineWidth / 2, w - ctx.lineWidth, h - ctx.lineWidth);
+      }
+      ctx.restore();
+    }
     // L'encre qui tombe : 220 ms de chute, puis 380 ms d'éclaboussure.
     if (this.inkDrops.length > 0) {
       for (const d of this.inkDrops) d.age += dt;

@@ -28,7 +28,7 @@ import { expectedDamagePerTurn } from "../src/core/combat";
 import { gapBetween, cellsOf } from "../src/core/boss";
 import { Tile, Point } from "../src/world/map";
 import { canStep } from "../src/world/pathfinding";
-import { hasLineOfSight } from "../src/world/fov";
+import { hasLineOfSight, lineBetween } from "../src/world/fov";
 import { QUEST_TASKS } from "../src/data/quests";
 import { RULES } from "../src/data/rules";
 import { RACES } from "../src/data/races";
@@ -286,6 +286,11 @@ function tryShoot(game: Game, target: Actor, mem: Memory): boolean {
   if (cells.length === 0) return false;
   const c = cells.reduce((a, b) => (cheb(b, game.hero) < cheb(a, game.hero) ? b : a));
   if (!hasLineOfSight(game.map, game.hero, c)) return false;
+  // La flèche s'arrête sur un meuble, un éboulis ou un autre monstre, même si l'on voit par-dessus : pas de tir perdu.
+  for (const q of lineBetween(game.hero, c)) {
+    if (q.x === c.x && q.y === c.y) break;
+    if (!game.map.isWalkable(q.x, q.y) || game.monsterAt(q.x, q.y)) return false;
+  }
   if (game.shoot(c.x, c.y) !== null) return false;
   mem.shots++;
   return true;
@@ -1043,7 +1048,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       if (!off.bow && tough && gapBetween(t, hero) >= 3 && tryShoot(game, t, mem)) return true;
       // Œil de lynx (Elfe) : de loin, l'arc a l'avantage ; on ouvre toujours à la flèche tant qu'il en reste assez.
       const lynx = (game.race as { lynxRange?: number }).lynxRange ?? 0;
-      if (!off.bow && lynx > 0 && gapBetween(t, hero) >= lynx && (game.inventory.count("fleche") >= 6 || game.endlessAmmo("fleche")) && tryShoot(game, t, mem)) return true;
+      if (!off.bow && lynx > 0 && gapBetween(t, hero) >= lynx && (game.inventory.count("fleche") >= 6 || game.endlessAmmo("fleche")) && aim(`lynx:${t.id}`, 12, () => tryShoot(game, t, mem))) return true;
       return aim(`prey:${t.id}`, 80, () => game.setDestination(t.x, t.y));
     });
     rule("quête", quests);

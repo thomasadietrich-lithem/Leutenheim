@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-17T14:02:15.666Z",
+ "commit": "a108158",
+ "note": "héros coincé secouru à la reprise",
+ "logic": {
+  "tickMs": 1.01,
+  "lightMs": 0.1,
+  "visionMs": 0.27
+ },
+ "scenes": {
+  "immobile": {
+   "n": 93,
+   "avg": 26.3,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 38,
+   "js": 5
+  },
+  "marche": {
+   "n": 181,
+   "avg": 27.6,
+   "p95": 49.9,
+   "max": 66.7,
+   "fps": 36,
+   "js": 4
+  },
+  "retour": {
+   "n": 183,
+   "avg": 27.3,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 37,
+   "js": 4
+  },
+  "zoom": {
+   "n": 96,
+   "avg": 29.9,
+   "p95": 50,
+   "max": 50,
+   "fps": 33,
+   "js": 5
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 203,
+   "avg": 24.5,
+   "p95": 49.9,
+   "max": 116.7,
+   "fps": 41,
+   "js": 15
+  }
+ },
+ "errors": []
+}

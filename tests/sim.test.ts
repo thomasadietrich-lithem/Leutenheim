@@ -6339,3 +6339,16 @@ test("escaliers jamais enfermés (2026-11-17) : de l'arrivée, on atteint les de
     }
   }
 });
+
+test("héros coincé (2026-11-17) : à la reprise, un éboulis qui l'enferme est retiré ; muré, il revient à la salle de départ", () => {
+  const game = new Game(12);
+  game.testRun = true;
+  game.teleport(7);
+  const room = game.rooms[2];
+  const at = { x: room.x + 1, y: room.y + 1 };
+  Object.assign(game.hero, { x: at.x, y: at.y, fromX: at.x, fromY: at.y });
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) game.map.set(at.x + dx, at.y + dy, Tile.Wall);
+  const copy = Game.restore(JSON.parse(JSON.stringify(game.snapshot())))!;
+  const r0 = copy.rooms[0];
+  assert.ok(copy.hero.x >= r0.x && copy.hero.x < r0.x + r0.w && copy.hero.y >= r0.y && copy.hero.y < r0.y + r0.h, "replacé dans la salle de départ");
+});

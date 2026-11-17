@@ -91,3 +91,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_13h41 | a982f29 | 31.8 | 30.5 | 27.2 | 29.9 | 16.7 | 32.8 | 0.52 | 0.37 | armes de section 2, masse revue, moins de flèches, butin de sa section |
 | 2026-11-17_13h48 | 37e5267 | 27.4 | 28.7 | 27.8 | 23.6 | 16.7 | 32.5 | 0.57 | 0.28 | zones de quête qui brillent, marteau, épée bâtarde |
 | 2026-11-17_13h54 | 355ab1d | 23.3 | 24.8 | 24.5 | 27.7 | 16.7 | 22.3 | 0.72 | 0.2 | escaliers jamais enfermés (réparation à l'arrivée et à la reprise) |
+| 2026-11-17_14h02 | a108158 | 26.3 | 27.6 | 27.3 | 29.9 | 16.7 | 24.5 | 1.01 | 0.1 | héros coincé secouru à la reprise |

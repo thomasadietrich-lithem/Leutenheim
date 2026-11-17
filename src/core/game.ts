@@ -487,6 +487,7 @@ export class Game {
     const arrival = via === "down" ? state.start : state.stairs;
     this.hero.x = this.hero.fromX = arrival.x;
     this.hero.y = this.hero.fromY = arrival.y;
+    this.rescueHero();
     this.path = [];
     this.targetId = null;
     this.waiting = false;
@@ -2533,6 +2534,31 @@ export class Game {
   }
 
   /** L'étage où se trouve désormais le héros : la partie travaille directement sur ses données. */
+  /**
+   * HÉROS COINCÉ (Thomas, 2026-11-17 : « mon ami est toujours bloqué après redémarrage ») : à l'arrivée et à la reprise,
+   * s'il ne peut pas rejoindre la salle de départ, on retire les meubles qui bouchent le chemin ; et si c'est un mur,
+   * on le replace au milieu de la salle de départ. Pas en salle d'essai ni à l'étage d'un boss.
+   */
+  private rescueHero(): void {
+    const state = this.current;
+    if (!state || state.boss || this.sandbox || this.over) return;
+    const hub = floorHub(state);
+    if (linked(this.map, this.hero, hub)) return;
+    if (clearPath(state, this.hero, hub) && linked(this.map, this.hero, hub)) return;
+    const room = state.rooms[0];
+    for (let r = 0; r < 6; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          const x = hub.x + dx;
+          const y = hub.y + dy;
+          if (!this.map.isWalkable(x, y) || this.actorAt(x, y) || this.map.get(x, y) === Tile.StairsDown || this.map.get(x, y) === Tile.StairsUp) continue;
+          if (room && (x < room.x || y < room.y || x >= room.x + room.w || y >= room.y + room.h)) continue;
+          this.hero.x = this.hero.fromX = x;
+          this.hero.y = this.hero.fromY = y;
+          return;
+        }
+  }
+
   private useFloor(state: FloorState, depth: number): void {
     this.current = state;
     this.depth = depth;
@@ -2824,6 +2850,7 @@ export class Game {
     // une partie reprise donnait l'avantage là où l'originale ne le donnait pas).
     // La vue est recalculée, mais les monstres « déjà vus » restent ceux de la sauvegarde : sinon un monstre entré dans
     // le champ pendant le dernier tour serait noté vu ici et pas dans la partie d'origine (la suite différait).
+    game.rescueHero();
     const seen = new Set(game.seenMonsters);
     game.updateVision();
     game.seenMonsters.clear();
@@ -9656,50 +9683,78 @@ function unblockStairs(state: FloorState): void {
     for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (map.get(x, y) === t) return { x, y };
     return null;
   };
-  const down = find(Tile.StairsDown);
-  const up = find(Tile.StairsUp);
-  const hub = state.rooms[0] ? { x: state.rooms[0].x + Math.floor(state.rooms[0].w / 2), y: state.rooms[0].y + Math.floor(state.rooms[0].h / 2) } : state.start;
-  for (const target of [down, up]) {
-    if (!target) continue;
-    // Chemin à coût 0-1 : une case libre coûte 0, une case de meuble 1 ; les murs, piliers et portes verrouillées : non
-    // (une porte verrouillée s'ouvre : on la compte comme libre).
-    const W = map.width;
-    const cost = new Int32Array(W * map.height).fill(1e9);
-    const prev = new Int32Array(W * map.height).fill(-1);
-    const start = hub.y * W + hub.x;
-    cost[start] = 0;
-    const dq: number[] = [start];
-    let head = 0;
-    const queue: number[] = [];
-    while (head < dq.length || queue.length > 0) {
-      const k = head < dq.length ? dq[head++] : queue.shift()!;
-      const x = k % W;
-      const y = Math.floor(k / W);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (!map.inBounds(nx, ny)) continue;
-        const t = map.get(nx, ny);
-        if (t === Tile.Wall || t === Tile.Pillar) continue;
-        const step = t === Tile.Furniture ? 1 : 0;
-        const nk = ny * W + nx;
-        if (cost[k] + step >= cost[nk]) continue;
-        cost[nk] = cost[k] + step;
-        prev[nk] = k;
-        if (step === 0) dq.push(nk);
-        else queue.push(nk);
-      }
-    }
-    const end = target.y * W + target.x;
-    if (cost[end] === 0 || cost[end] >= 1e9) continue;
-    for (let k = end; k !== start && k >= 0; k = prev[k]) {
-      const x = k % W;
-      const y = Math.floor(k / W);
-      if (map.get(x, y) !== Tile.Furniture) continue;
-      state.furniture = state.furniture.filter((f) => !furnitureCells(f).some((c) => c.x === x && c.y === y));
-      map.set(x, y, Tile.Floor);
+  const hub = floorHub(state);
+  for (const target of [find(Tile.StairsDown), find(Tile.StairsUp)]) if (target) clearPath(state, hub, target);
+}
+
+/** Le milieu de la salle de départ (le point qu'on doit toujours pouvoir rejoindre). */
+function floorHub(state: FloorState): Point {
+  const r = state.rooms[0];
+  return r ? { x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) } : state.start;
+}
+
+/** Peut-on aller de `a` à `b` (pas droits ; une porte verrouillée compte comme passage) ? */
+function linked(map: GameMap, a: Point, b: Point): boolean {
+  const W = map.width;
+  const seen = new Uint8Array(W * map.height);
+  const todo = [a];
+  seen[a.y * W + a.x] = 1;
+  while (todo.length > 0) {
+    const p = todo.pop()!;
+    if (p.x === b.x && p.y === b.y) return true;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = p.x + dx;
+      const y = p.y + dy;
+      if (!map.inBounds(x, y) || seen[y * W + x]) continue;
+      if (!(map.isWalkable(x, y) || map.get(x, y) === Tile.DoorLocked)) continue;
+      seen[y * W + x] = 1;
+      todo.push({ x, y });
     }
   }
+  return false;
+}
+
+/** Ouvre le chemin le moins encombré de `from` à `to` : les meubles qui le bouchent sont retirés. Rend vrai si relié. */
+function clearPath(state: FloorState, from: Point, to: Point): boolean {
+  const map = state.map;
+  const W = map.width;
+  const cost = new Int32Array(W * map.height).fill(1e9);
+  const prev = new Int32Array(W * map.height).fill(-1);
+  const start = from.y * W + from.x;
+  cost[start] = 0;
+  const zero: number[] = [start];
+  let head = 0;
+  const one: number[] = [];
+  while (head < zero.length || one.length > 0) {
+    const k = head < zero.length ? zero[head++] : one.shift()!;
+    const x = k % W;
+    const y = Math.floor(k / W);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (!map.inBounds(nx, ny)) continue;
+      const t = map.get(nx, ny);
+      if (t === Tile.Wall || t === Tile.Pillar) continue;
+      const step = t === Tile.Furniture ? 1 : 0;
+      const nk = ny * W + nx;
+      if (cost[k] + step >= cost[nk]) continue;
+      cost[nk] = cost[k] + step;
+      prev[nk] = k;
+      if (step === 0) zero.push(nk);
+      else one.push(nk);
+    }
+  }
+  const end = to.y * W + to.x;
+  if (cost[end] >= 1e9) return false;
+  if (cost[end] === 0) return true;
+  for (let k = end; k !== start && k >= 0; k = prev[k]) {
+    const x = k % W;
+    const y = Math.floor(k / W);
+    if (map.get(x, y) !== Tile.Furniture) continue;
+    state.furniture = state.furniture.filter((f) => !furnitureCells(f).some((c) => c.x === x && c.y === y));
+    map.set(x, y, Tile.Floor);
+  }
+  return true;
 }
 
 /** Un Kobold (ou un frondeur) : la famille que punit Sœur Osseuse et que fuit Krik. */

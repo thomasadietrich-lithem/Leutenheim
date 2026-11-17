@@ -38,6 +38,8 @@ export interface Actor {
   prevY?: number;
   /** À terre (renversé par une poussée, Thomas 2026-11-13) : il perd son tour à se relever ; on le frappe avec l'avantage. */
   prone?: number;
+  /** Le tour où il a été renversé : il ne se relève pas avant le tour suivant (couché au moins un tour). */
+  proneSince?: number;
   /** Abrité de l'onde du Carillon : il ne fait rien pendant tant de tours. */
   cower?: number;
   /** Agrandi (potion d'agrandissement, Thomas 2026-11-13) : tours restants ; dégâts doublés, il ne passe plus les portes. */

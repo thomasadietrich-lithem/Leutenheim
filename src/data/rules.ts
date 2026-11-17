@@ -198,7 +198,7 @@ export const RULES = {
   carillonCowerLead: 2,
   /** Carillon, suite (Thomas, 2026-11-17 : « go » sur les propositions) (C) : PHASES (sous 2/3 des PV, zones de 4 cases
    *  au lieu de 3 ; sous 1/3, une onde tous les 6 tours) ; SOUCHES qui se fêlent quand elles arrêtent l'onde et
-   *  tombent au 2e coup ; ÉCHO : l'onde revient au tour suivant depuis le mur d'en face (moitié des dégâts) ; GLAS : sous
+   *  tombent au 2e coup ; (l'ÉCHO a été retiré le 2026-11-17) ; GLAS : sous
    *  10 % des PV, trois ondes rapprochées (tous les 2 tours), puis il s'affaisse 3 tours (CA −2). */
   carillonZoneReach: [3, 4],
   carillonEveryLate: 6,

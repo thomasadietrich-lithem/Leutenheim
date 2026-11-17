@@ -482,7 +482,8 @@ export class Renderer {
     const look = heroSprites(heroLook(game.race.id, { armor: gear.armor?.defId, hat: gear.hat?.defId, melee: gear.melee?.defId, ranged: gear.ranged?.defId }));
     const F = look.frames;
     // À TERRE : retenu (fosse, toile, lacet, racines), il est couché et se débat ; libéré, il se relève un instant.
-    const stuck = !this.heroDown && (h.stuck ?? 0) > 0;
+    // …et renversé par l'onde du Carillon (Thomas, 2026-11-17 : « implémente les sprites couchés à terre »).
+    const stuck = !this.heroDown && ((h.stuck ?? 0) > 0 || (h.prone ?? 0) > 0);
     if (this.heroWasStuck && !stuck) this.getUpUntil = this.time + GET_UP_MS;
     this.heroWasStuck = stuck;
     let rows: readonly string[];
@@ -1429,6 +1430,13 @@ export class Renderer {
   private static readonly GAINED_MS = 2800;
 
   /** Le Carillon vient de sonner : l'onde part de son battant (et le dessin vibre un instant). */
+  /** L'encre du Carillon tombe (Thomas, 2026-11-17 : « une animation sur les cases attaquées ») : sur chaque case, une
+   *  goutte noire violacée chute du haut, puis éclabousse (anneau qui s'élargit, gouttelettes). */
+  inkFall(cells: readonly { x: number; y: number }[]): void {
+    cells.forEach((c, i) => this.inkDrops.push({ x: c.x, y: c.y, age: -((i * 37) % 160) }));
+  }
+  private inkDrops: { x: number; y: number; age: number }[] = [];
+
   carillonRing(x: number, y: number): void {
     this.carillonRingAt = this.time;
     this.waves.push({ x, y, age: 0 });
@@ -2353,6 +2361,45 @@ export class Renderer {
       ctx.drawImage(this.sprite(uiIconRows("search"), ICON_PALETTE), lx, ly, s, s);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
+    }
+    // L'encre qui tombe : 220 ms de chute, puis 380 ms d'éclaboussure.
+    if (this.inkDrops.length > 0) {
+      for (const d of this.inkDrops) d.age += dt;
+      this.inkDrops = this.inkDrops.filter((d) => d.age < 600);
+      for (const d of this.inkDrops) {
+        if (d.age < 0) continue;
+        const cx = ox + (d.x + 0.5) * tile;
+        const cy = oy + (d.y + 0.5) * tile;
+        if (d.age < 220) {
+          const f = d.age / 220;
+          const y = cy - tile * 1.6 * (1 - f * f);
+          ctx.fillStyle = "#2a1640";
+          ctx.strokeStyle = "#c79af0";
+          ctx.lineWidth = Math.max(1, tile * 0.04);
+          ctx.beginPath();
+          ctx.ellipse(cx, y, tile * 0.11, tile * 0.19, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          // L'ombre au sol grossit à l'approche.
+          ctx.fillStyle = `rgba(40,20,60,${(0.25 + 0.35 * f).toFixed(2)})`;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + tile * 0.1, tile * (0.12 + 0.18 * f), tile * (0.06 + 0.08 * f), 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const f = (d.age - 220) / 380;
+          ctx.strokeStyle = `rgba(190,130,240,${(0.95 * (1 - f)).toFixed(2)})`;
+          ctx.lineWidth = Math.max(1, tile * 0.06);
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + tile * 0.1, tile * (0.2 + 0.3 * f), tile * (0.1 + 0.15 * f), 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = `rgba(150,100,210,${(1 - f).toFixed(2)})`;
+          for (let k = 0; k < 4; k++) {
+            const a = (k / 4) * Math.PI * 2 + d.x;
+            const r = tile * 0.35 * f;
+            ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy - tile * 0.25 * Math.sin(Math.PI * f) + Math.sin(a) * r * 0.5), Math.max(2, Math.round(tile * 0.07)), Math.max(2, Math.round(tile * 0.07)));
+          }
+        }
+      }
     }
     // Balayage de la fouille : chaque case s'illumine quand la vague l'atteint, puis s'éteint.
     if (this.scan) {

@@ -1049,13 +1049,6 @@ export class Game {
     // d'avant tombent, même quand il est sonné.
     this.carillonInkFall(m);
     if (this.over) return;
-    // L'ÉCHO de l'onde du tour d'avant revient depuis le mur d'en face : changer de côté de sa souche.
-    if (st.echoFrom) {
-      const from = st.echoFrom;
-      st.echoFrom = undefined;
-      this.carillonWave(m, from, true);
-      if (this.over) return;
-    }
     // Le GLAS : sous 10 % de sa vie, une fois, trois ondes rapprochées.
     if (!st.knelled && st.clapperUp && m.hp <= m.maxHp * RULES.carillonKnellAt) {
       st.knelled = true;
@@ -1125,10 +1118,9 @@ export class Game {
       this.events.push({ type: "carillon", what: "false", actor: m });
       return;
     }
-    // L'onde : elle part du battant (sous le chapeau) ; elle reviendra en écho depuis le mur d'en face.
+    // L'onde : elle part du battant (sous le chapeau). (L'écho est RETIRÉ : Thomas, 2026-11-17.)
     const from = layout.clapper ?? { x: m.x + 1, y: m.y + 2 };
     this.carillonWave(m, from, false);
-    st.echoFrom = this.echoSource(from);
     // Après le dernier coup du glas, il s'affaisse.
     if (st.knelled && st.knell === 0) {
       st.knell = undefined;
@@ -1141,19 +1133,9 @@ export class Game {
     }
   }
 
-  /** Le point d'où revient l'écho : le bout de la grotte en face du battant (de l'autre côté du centre). */
-  private echoSource(from: Point): Point {
-    const lair = this.current.boss!.lair;
-    const cx = lair.x + (lair.w - 1) / 2;
-    const cy = lair.y + (lair.h - 1) / 2;
-    const x = Math.round(Math.min(lair.x + lair.w - 1, Math.max(lair.x, 2 * cx - from.x)));
-    const y = Math.round(Math.min(lair.y + lair.h - 1, Math.max(lair.y, 2 * cy - from.y)));
-    return { x, y };
-  }
-
   /** Une onde (ou son écho) : jette à terre et blesse qui n'est pas à l'abri ; la souche qui arrête l'onde pour le
    *  héros se fêle, et tombe au deuxième coup. */
-  private carillonWave(m: Actor, from: Point, echo: boolean): void {
+  private carillonWave(m: Actor, from: Point, echo = false): void {
     const layout = this.current.boss!;
     const hit: Actor[] = [];
     if (this.inLair(layout.lair, this.hero)) {
@@ -1174,11 +1156,13 @@ export class Game {
         o.alerted = true;
       }
       if (this.waveReaches(from, o)) {
+        // Couché AU MOINS UN TOUR (Thomas, 2026-11-17) : même s'il joue après le Carillon dans ce tour.
         o.prone = Math.max(o.prone ?? 0, 1);
+        o.proneSince = this.turn;
         hit.push(o);
       }
     }
-    this.events.push({ type: "carillon", what: echo ? "echo" : "ring", actor: m, hit, cells: echo ? [from] : undefined });
+    this.events.push({ type: "carillon", what: "ring", actor: m, hit });
   }
 
   /** La souche qui a arrêté l'onde pour le héros se fêle ; au deuxième coup, elle s'effondre (la place se libère). */
@@ -8967,7 +8951,8 @@ export class Game {
         continue;
       }
       if (m.prone) {
-        // Renversé : il passe son tour à se relever.
+        // Renversé : il passe son tour à se relever (pas dans le tour même où il est tombé).
+        if (m.proneSince === this.turn) continue;
         m.prone--;
         if (m.prone === 0) this.events.push(m.risen && m.defId === "envahi" && !m.riseShown ? { type: "rise", actor: m, what: "up" } : { type: "getUp", actor: m });
         if (m.prone === 0 && m.risen) m.riseShown = true;

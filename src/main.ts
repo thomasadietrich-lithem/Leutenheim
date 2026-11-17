@@ -202,6 +202,9 @@ let quickNote = "";
 const LONG_PRESS_MS = 450;
 /** Pousser, avec plusieurs ennemis au contact : on attend que le joueur touche celui à pousser. */
 let pushMode = false;
+/** Le héros à terre : combien de temps on l'a vu couché avant que son tour perdu ne passe. */
+let proneShown = 0;
+const PRONE_HOLD_MS = 900;
 /** Désamorcer : on touche le piège voisin choisi (plusieurs pièges autour). */
 let disarmMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
@@ -947,6 +950,7 @@ function reveal(e: GameEvent): void {
       logLines.push("Le battant se brise : le Carillon ne sonnera plus. Mais son chapeau se met à fondre…");
     } else if (e.what === "ink") {
       sfx.play("splash");
+      if (e.cells) renderer.inkFall(e.cells);
       for (const o of e.hit ?? []) renderer.addFloatingText(o.x, o.y, "Splotch !", o === game.hero ? "#ff6b7a" : "#b7a6d6");
       if ((e.hit ?? []).includes(game.hero)) logLines.push("Une goutte d'encre vous tombe dessus.");
     } else if (e.what === "echo") {
@@ -4199,7 +4203,12 @@ function frame(now: number): void {
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
   advanceStairs(dt);
-  if (!stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !talkOpen && !wheelOpen) {
+  // À TERRE (Thomas, 2026-11-17 : « fais durer au moins un tour le fait d'être couché ») : le tour perdu à se relever
+  // passe tout seul, mais pas avant qu'on ait vu le héros couché un moment.
+  if ((game.hero.prone ?? 0) > 0 && !stepping && !cue && queue.length === 0) proneShown += dt;
+  else if ((game.hero.prone ?? 0) === 0) proneShown = 0;
+  const proneWait = (game.hero.prone ?? 0) > 0 && proneShown < PRONE_HOLD_MS;
+  if (!proneWait && !stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !talkOpen && !wheelOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
     const before = { x: game.hero.x, y: game.hero.y };

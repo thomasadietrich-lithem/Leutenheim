@@ -28,6 +28,8 @@ export type GameEvent =
       javelin?: boolean;
       /** Une pierre de lance-pierre (le Halfelin). */
       stone?: boolean;
+      /** Flèche spéciale : son dessin en vol (Thomas, 2026-11-17 : la flèche de recul volait comme une ordinaire). */
+      arrowKind?: "poison" | "ricochet" | "recul";
       /** Le rebond d'une flèche ricochante, de la première cible vers la deuxième. */
       ricochet?: boolean;
     }

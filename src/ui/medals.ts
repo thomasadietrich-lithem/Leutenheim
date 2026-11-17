@@ -36,6 +36,26 @@ const ICONS: Record<string, (r: Rect) => void> = {
     r(3, 2, 10, 7, "S"); r(4, 9, 8, 2, "S"); r(5, 11, 6, 2, "s"); r(7, 13, 2, 1, "s"); r(8, 2, 1, 6, "K");
     r(5, 5, 2, 2, "R"); r(9, 5, 2, 2, "R"); r(5, 7, 6, 1, "R"); r(6, 8, 4, 1, "R"); r(7, 9, 2, 1, "r");
   },
+  doubleFrappe(r) {
+    // Deux épées parallèles qui frappent, deux traits d'impact.
+    for (let i = 0; i < 9; i++) { r(2 + i, 11 - i, 1, 1, "S"); r(5 + i, 13 - i, 1, 1, "S"); }
+    r(1, 11, 2, 2, "y"); r(4, 13, 2, 2, "y"); r(12, 1, 3, 1, "R"); r(14, 3, 1, 3, "R");
+  },
+  secondSouffle(r) {
+    // Un cœur bleu à croix et un souffle qui monte.
+    r(3, 6, 4, 4, "S"); r(9, 6, 4, 4, "S"); r(3, 9, 10, 2, "S"); r(5, 11, 6, 2, "s"); r(7, 13, 2, 1, "s");
+    r(7, 7, 2, 5, "W"); r(5, 9, 6, 2, "W"); r(3, 2, 3, 1, "w"); r(7, 1, 3, 1, "w"); r(11, 3, 3, 1, "w");
+  },
+  tank(r) {
+    // Un grand bouclier bosselé qui encaisse, des éclats autour.
+    r(3, 2, 10, 8, "S"); r(4, 10, 8, 2, "S"); r(6, 12, 4, 2, "s"); r(7, 5, 2, 2, "W"); r(3, 2, 10, 1, "W");
+    r(5, 8, 1, 1, "s"); r(10, 4, 1, 1, "s"); r(1, 5, 1, 1, "O"); r(14, 7, 1, 1, "O"); r(1, 10, 1, 1, "O");
+  },
+  charge(r) {
+    // Une botte qui pousse et un ennemi renversé.
+    r(1, 9, 5, 3, "B"); r(1, 12, 7, 2, "b"); r(6, 10, 2, 2, "b");
+    r(10, 6, 4, 4, "g"); r(9, 10, 6, 2, "G"); r(11, 7, 1, 1, "K"); r(12, 3, 1, 1, "Y"); r(14, 4, 1, 1, "Y"); r(9, 4, 1, 1, "Y");
+  },
   maitre(r) {
     // Une couronne de lauriers et une étoile.
     for (const [x, y] of [[2, 5], [2, 7], [3, 9], [4, 11], [6, 12], [13, 5], [13, 7], [12, 9], [11, 11], [9, 12]]) r(x, y, 2, 2, "G");

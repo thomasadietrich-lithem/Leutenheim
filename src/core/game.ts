@@ -41,6 +41,8 @@ export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
 import { KitTier, TEST_KITS } from "../data/testKits";
 import { lessGold } from "../data/loot";
+/** Le dessin en vol des flèches spéciales. */
+const ARROW_KIND: Partial<Record<ItemId, "poison" | "ricochet" | "recul">> = { fleche_poison: "poison", fleche_ricochet: "ricochet", fleche_recul: "recul" };
 import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
 import { buyBackPrice, MERCHANT, SANDBOX_WARES } from "../data/merchant";
 
@@ -3178,14 +3180,18 @@ export class Game {
     wear("melee", pick(kit.melee));
     wear("armor", pick(kit.armor));
     wear("hat", pick(kit.hat));
-    wear("ranged", pick(kit.ranged));
+    // Halfelin (Thomas, 2026-11-17) : son lance-pierre et ses pierres, jamais un arc ni des flèches.
+    const swap = this.race.swapItems;
+    const sling = swap?.arc_court;
+    wear("ranged", sling ?? pick(kit.ranged));
     this.equipment.amulet = null;
     this.equipment.artifact = null;
     if (kit.amulet) wear("amulet", pick(kit.amulet));
     if (kit.artifact) wear("artifact", pick(kit.artifact));
     for (const id of given) noteUnique(id);
     this.refreshStats();
-    const stock: [ItemId, number][] = [...pick(kit.ammo), ...pick(kit.food)];
+    const ammo = pick(kit.ammo).map(([id, n]): [ItemId, number] => (sling && (ITEMS[id] as ItemDef).ammoFamily === "fleche" ? [swap!.fleche ?? id, n] : [id, n]));
+    const stock: [ItemId, number][] = [...ammo, ...pick(kit.food)];
     for (let i = 0; i < kit.potions.count; i++) stock.push([pick(kit.potions.from), 1]);
     for (const [id, n] of stock) {
       const left = this.inventory.add(id, n);
@@ -5346,9 +5352,11 @@ export class Game {
     }
     g.items = [];
     if (g.gold) {
+      // L'or des PNJ aussi est réduit (Thomas, 2026-11-17 : « fonce sur tous ces points ») ; pas les paris ni les placements.
+      const gold = lessGold(g.gold);
       const at = this.landingCell(g, "or", g);
-      this.dropItem(at.x, at.y, "or", g.gold);
-      drops.push({ item: "or", x: at.x, y: at.y, count: g.gold });
+      this.dropItem(at.x, at.y, "or", gold);
+      drops.push({ item: "or", x: at.x, y: at.y, count: gold });
     }
     g.drops = 0;
     g.gold = 0;
@@ -6501,7 +6509,7 @@ export class Game {
     const def = QUEST_TASKS[q.id];
     let gold: number | undefined;
     if (def.kind === "fetch" && this.inventory.take(def.item!, 1) && q.id === "krik_magot") {
-      gold = KRIK.keptMagot;
+      gold = lessGold(KRIK.keptMagot);
       this.gold += gold;
     }
     const g = this.current[def.npc];
@@ -8557,11 +8565,11 @@ export class Game {
     if (ricochet) landing = { x: ricochet.target.x, y: ricochet.target.y };
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, stone ? undefined : angle);
     else if (!stone) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
-    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone });
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, arrowKind: ARROW_KIND[ammo] });
     if (ricochet) {
       // Le ricochet : la flèche file de la première cible à la deuxième, puis tombe là.
       const r = ricochet;
-      this.events.push({ type: "arrow", fromX: r.from.x, fromY: r.from.y, x: r.target.x, y: r.target.y, hit: r.result.hit, kept: false, ricochet: true });
+      this.events.push({ type: "arrow", fromX: r.from.x, fromY: r.from.y, x: r.target.x, y: r.target.y, hit: r.result.hit, kept: false, ricochet: true, arrowKind: "ricochet" });
       this.events.push({ type: "attack", attacker: this.hero, target: r.target, result: r.result, ranged: true });
       this.removeIfDead(r.target);
     }

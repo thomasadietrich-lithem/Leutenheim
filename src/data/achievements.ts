@@ -72,6 +72,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "assommeur", name: "Assommeur", group: "classe", cls: "guerrier", what: "Assommer des ennemis d'un coup (Guerrier).", tiers: [5, 25, 100], kind: "count" },
   { id: "net", name: "Net !", group: "classe", cls: "guerrier", what: "Vaincre un monstre intact d'un seul coup (Guerrier).", tiers: [10, 50, 200], kind: "count" },
   { id: "rempart", name: "Dernier rempart", group: "classe", cls: "guerrier", what: "Survivre à un coup mortel grâce au Dernier rempart (Guerrier).", tiers: [1, 5, 20], kind: "count" },
+  // Quatre de plus (Thomas, 2026-11-17 : « fonce sur tous ces points ») ; seuils (C).
+  { id: "doubleFrappe", name: "Double frappe", group: "classe", cls: "guerrier", what: "Utiliser la Double frappe (Guerrier).", tiers: [5, 25, 100], kind: "count" },
+  { id: "secondSouffle", name: "Second souffle", group: "classe", cls: "guerrier", what: "Se soigner avec le Second souffle (Guerrier).", tiers: [20, 100, 400], kind: "count" },
+  { id: "tank", name: "Tank", group: "classe", cls: "guerrier", what: "Encaisser des dégâts (Guerrier).", tiers: [200, 1000, 5000], kind: "count" },
+  { id: "charge", name: "Charge", group: "classe", cls: "guerrier", what: "Mettre des ennemis à terre d'une poussée (Guerrier).", tiers: [5, 25, 100], kind: "count" },
 ];
 
 /** Le succès des succès (Thomas, 2026-11-16) : des médailles de la page ; l'or, c'est la page entière. */

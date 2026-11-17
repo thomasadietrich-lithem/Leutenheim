@@ -8,7 +8,7 @@ import { HERO_BASE, HERO_PALETTE, HERO_RACE_PALETTE, HERO_WEAPON } from "./sprit
  */
 export type HeroArmor = "tunique" | "cuir" | "cloute" | "mailles" | "harnois";
 export type HeroHelmet = "aucun" | "cuir" | "mailles";
-export type HeroWeapon = "poings" | "couteau" | "epee" | "masse" | "cimeterre" | "epee_longue" | "lance";
+export type HeroWeapon = "poings" | "couteau" | "epee" | "masse" | "cimeterre" | "epee_longue" | "lance" | "serpe";
 export type HeroBow = "court" | "puissant" | "fronde";
 
 export interface HeroLook {
@@ -38,7 +38,7 @@ const WEAPON_OF: Record<string, HeroWeapon> = {
   lance: "lance",
   baton: "lance",
   fourche: "lance",
-  serpe: "couteau",
+  serpe: "serpe",
 };
 
 export function heroLook(race: string, gear: { armor?: string; hat?: string; melee?: string; ranged?: string } = {}): HeroLook {
@@ -61,6 +61,36 @@ function applyWeapon(g: string[][], packed: string | undefined): void {
     const y = parseInt(packed[i + 1], 16);
     g[y][x] = packed[i + 2];
   }
+}
+
+/**
+ * SERPE de l'Halfelin (Thomas, 2026-11-17) : le couteau, dont la lame se recourbe au bout en crochet. On part de ses
+ * pixels (manche « b », lame « M ») : la pointe s'allonge d'un pixel, puis tourne d'un quart de tour.
+ */
+function sickle(packed: string | undefined): string | undefined {
+  if (!packed) return packed;
+  const px: { x: number; y: number; c: string }[] = [];
+  for (let i = 0; i + 2 < packed.length; i += 3) px.push({ x: parseInt(packed[i], 16), y: parseInt(packed[i + 1], 16), c: packed[i + 2] });
+  const handle = px.find((p) => p.c === "b");
+  const blade = px.filter((p) => p.c === "M");
+  if (!handle || blade.length === 0) return packed;
+  const far = (p: { x: number; y: number }) => Math.max(Math.abs(p.x - handle.x), Math.abs(p.y - handle.y));
+  blade.sort((a, b) => far(a) - far(b));
+  const tip = blade[blade.length - 1];
+  const prev = blade.length > 1 ? blade[blade.length - 2] : handle;
+  const dx = Math.sign(tip.x - prev.x);
+  const dy = Math.sign(tip.y - prev.y);
+  // Le crochet tourne vers le bas de l'image quand c'est possible (lame tenue tranchant vers le sol).
+  let px2 = -dy;
+  let py2 = dx;
+  if (py2 < 0 || (py2 === 0 && px2 < 0)) [px2, py2] = [dy, -dx];
+  const add = [
+    { x: tip.x + dx, y: tip.y + dy },
+    { x: tip.x + dx + px2, y: tip.y + dy + py2 },
+  ];
+  let out = packed;
+  for (const p of add) if (p.x >= 0 && p.x < 16 && p.y >= 0 && p.y < 16) out += p.x.toString(16) + p.y.toString(16) + "M";
+  return out;
 }
 
 function applyArmor(g: string[][], armor: HeroArmor): void {
@@ -197,7 +227,7 @@ export function heroSprites(look: HeroLook): HeroSprites {
   for (const [name, list] of Object.entries(HERO_BASE[look.race])) {
     frames[name] = list.map((rows, i) => {
       const g = rows.map((r) => r.split(""));
-      applyWeapon(g, weapon?.[name]?.[i]);
+      applyWeapon(g, look.weapon === "serpe" ? sickle(HERO_WEAPON[look.race]?.couteau?.[name]?.[i]) : weapon?.[name]?.[i]);
       applyArmor(g, look.armor);
       applyHelmet(g, look.helmet, LYING.has(name));
       if (look.bow === "puissant" && name.startsWith("bow")) for (const row of g) for (let x = 0; x < 16; x++) if (row[x] === "d") row[x] = "A";

@@ -114,6 +114,14 @@ export function goalText(def: AchievementDef, t: number): string {
       return `${n} monstres vaincus d'un seul coup.`;
     case "rempart":
       return n === 1 ? "un coup mortel encaissé grâce au Dernier rempart." : `${n} coups mortels encaissés grâce au Dernier rempart.`;
+    case "doubleFrappe":
+      return `${n} doubles frappes.`;
+    case "secondSouffle":
+      return `${n} PV rendus par le Second souffle.`;
+    case "tank":
+      return `${n} points de dégâts encaissés.`;
+    case "charge":
+      return `${n} ennemis mis à terre d'une poussée.`;
     case "maitre":
       return t === 2 ? "toutes les médailles de la page." : `${n} médailles de la page.`;
     case "course":
@@ -186,6 +194,9 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     } else if (e.type === "heavyBlow" && warrior && e.kind === "stun") add("assommeur", 1);
     else if (e.type === "heavyBlow" && warrior && e.kind === "oneShot") add("net", 1);
     else if (e.type === "lastStand" && warrior) add("rempart", 1);
+    else if (e.type === "skill" && warrior && e.path === "red") add("doubleFrappe", 1);
+    else if (e.type === "skill" && warrior && e.path === "blue" && e.healed > 0) add("secondSouffle", e.healed);
+    else if (e.type === "attack" && warrior && e.target.kind === "hero" && e.result.hit && e.result.damage > 0) add("tank", e.result.damage);
     else if (e.type === "boss" && e.what === "dead" && game.bossLayout()?.kind === "carillon") add("carillon", 1);
     else if (e.type === "boss" && e.what === "dead") {
       const before = profile.tiers[key(page, "tisseuse")] ?? -1;
@@ -209,7 +220,10 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     } else if (e.type === "secret" && e.what === "found") add("fouineur", 1);
     else if (e.type === "chicken") add("poulet", 1);
     else if (e.type === "door" && e.success && e.action !== "peek") add("portier", 1);
-    else if (e.type === "push" && e.success) add("bousculeur", 1);
+    else if (e.type === "push" && e.success) {
+      add("bousculeur", 1);
+      if (warrior && e.prone) add("charge", 1);
+    }
     else if (e.type === "jump" && e.success) add("fuyard", 1);
     else if (e.type === "quest" && e.what === "complete") feat(page, QUEST_TASKS[e.id].npc, e.id, out);
     else if (e.type === "bout") {

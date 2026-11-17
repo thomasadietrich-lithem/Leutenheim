@@ -134,6 +134,8 @@ interface Slash {
 
 /** Une flèche en vol. */
 interface Projectile {
+  /** Flèche spéciale (empoisonnée, ricochante, de recul) : même dessin qu'au sol. */
+  kind?: "poison" | "ricochet" | "recul";
   fromX: number;
   fromY: number;
   x: number;
@@ -1632,8 +1634,8 @@ export class Renderer {
     }
   }
 
-  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false): void {
-    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin }); // un âge négatif : elle partira après ce délai
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false, kind?: "poison" | "ricochet" | "recul"): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin, kind }); // un âge négatif : elle partira après ce délai
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
@@ -2445,7 +2447,7 @@ export class Renderer {
         ctx.stroke();
       }
       if (p.javelin) this.drawJavelin(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 1.05);
-      else this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8);
+      else this.drawArrow(px, py, p.tumble ? heading + Math.PI + t * 7 : heading, tile * 0.8, "whole", p.kind ?? "plain");
     }
 
     for (const s of this.slashes) {

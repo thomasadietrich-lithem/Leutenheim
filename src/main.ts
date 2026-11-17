@@ -607,17 +607,17 @@ function launchArrow(e: GameEvent | undefined): void {
   const aim = e.via ?? e;
   if (e.ricochet) {
     // Le ricochet part de la première cible, un peu après le premier vol.
-    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 200, false, false, false);
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 200, false, false, false, "ricochet");
     renderer.addFloatingText(e.fromX, e.fromY, "Ricochet !", "#8fd0f0");
     return;
   }
   renderer.heroShoots(aim.x - e.fromX, aim.y - e.fromY);
   if (e.via) {
     // Elle heurte l'obstacle, puis retombe en tournoyant.
-    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y, 0, false, !!e.stone, !!e.javelin);
-    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true, !!e.stone, !!e.javelin);
+    renderer.addProjectile(e.fromX, e.fromY, e.via.x, e.via.y, 0, false, !!e.stone, !!e.javelin, e.arrowKind);
+    renderer.addProjectile(e.via.x, e.via.y, e.x, e.y, 170, true, !!e.stone, !!e.javelin, e.arrowKind);
   } else {
-    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 0, false, !!e.stone, !!e.javelin);
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 0, false, !!e.stone, !!e.javelin, e.arrowKind);
   }
 }
 

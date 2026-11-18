@@ -1,3 +1,4 @@
+import { EXPO } from "./sprites/expo";
 import { Game } from "../core/game";
 import { FERME } from "./sprites/ferme";
 import { Tile } from "../world/map";
@@ -90,7 +91,7 @@ export class TilePainter {
       }
       if (!f.kind.startsWith("rug")) continue;
       const def = FURNITURE_KINDS[f.kind];
-      const art = DORTOIR[f.kind];
+      const art = DORTOIR[f.kind] ?? EXPO[f.kind];
       const w = art.rows[0].length;
       const h = art.rows.length;
       const px = (f.x + def.w / 2) * 16 - w / 2;

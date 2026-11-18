@@ -143,7 +143,7 @@ export const RULES = {
   /** Salles à thème par étage : chance d'en avoir une, puis (si oui) une deuxième, d'un autre thème (C). */
   themedRoomChances: [0.7, 0.35] as number[],
   /** Section 2 : la champignonnière de morilles (chance), puis l'atelier de sculpture (C). */
-  themedRoomChancesS2: [0.85, 0.5] as number[],
+  themedRoomChancesS2: [0.85, 0.6, 0.35] as number[],
   /** Coffres du dortoir (0 à 2) et chance qu'une pomme soit dans l'assiette de la table. */
   dortoirChests: [0, 2] as [number, number],
   tableAppleChance: 0.5,
@@ -365,6 +365,11 @@ export const RULES = {
   secondWindHeal: [4, 7, 10, 13],
   /** Cri de guerre (voie rouge, Rang II) : portée, PV max d'un ennemi « faible », sa chance de fuir. */
   warCryRadius: 3,
+  /** Pinceau magique : tours que dure le faux mur ; diapason : portée en cases (2026-11-18, C). */
+  fakeWallTurns: 10,
+  /** Voler le canard du Kobold du bain (caché) : d20 + discrétion contre cette difficulté (C). */
+  duckStealDc: 10,
+  diapasonReach: 5,
   warCryWeakHp: 10,
   warCryFleeChance: 0.5,
   /** Potion de géant (Thomas, 2026-11-13) : durée en tours. */

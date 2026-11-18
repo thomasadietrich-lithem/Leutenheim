@@ -547,6 +547,15 @@ export const ITEMS = {
   amulette_precision_2: { id: "amulette_precision_2", name: "Amulette de précision II", kind: "amulet", description: "Le pendentif d'argent à la pierre bleue, deux éclats sur la chaîne. +2 au jet d'attaque, au contact et au tir.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusHit: 2 },
   noeud_papillon: { id: "noeud_papillon", name: "Nœud papillon de Kobold", kind: "amulet", description: "Rouge à pois blancs, un peu froissé. Très chic. +8 en Charisme.", w: 1, h: 1, maxStack: 1, rarity: "epic", charisma: 8 },
   // ---- Objets de quête (2026-11-12) : ils n'apparaissent qu'une fois la tâche donnée, et se rapportent au PNJ. ----
+  // Section 2 (Thomas, 2026-11-18) : les objets du hall d'exposition, de la salle de concert, et de la prison (Plumeau).
+  grand_poulet_or: { id: "grand_poulet_or", name: "Grand Poulet d'Or", kind: "quest", description: "Le chef-d'œuvre volé du hall d'exposition : un poulet d'or massif, l'air vexé. À rapporter à Vernis.", w: 1, h: 1, maxStack: 1 },
+  partition: { id: "partition", name: "Partition du Maestro", kind: "quest", description: "« Symphonie pour cloche et champignons ». Les notes sont un peu moisies. À rapporter au Maestro.", w: 1, h: 1, maxStack: 1 },
+  cle_geolier: { id: "cle_geolier", name: "Clef du geôlier", kind: "quest", description: "Une grosse clef rouillée. Elle ouvre les fers de Plumeau.", w: 1, h: 1, maxStack: 1 },
+  ticket_expo: { id: "ticket_expo", name: "Ticket d'exposition", kind: "artifact", description: "Un ticket doré signé par Vernis. Porté en artefact : chez le Colporteur, un article gratuit par étage.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
+  pinceau_magique: { id: "pinceau_magique", name: "Pinceau magique", kind: "artifact", description: "Ses poils ne sèchent jamais. Porté en artefact : une fois par étage, peignez un faux mur sur une case de couloir ; les monstres ne le passent pas et ne voient pas à travers pendant 10 tours.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
+  diapason: { id: "diapason", name: "Diapason", kind: "artifact", description: "Il chante un la parfait. Porté en artefact : une fois par étage, faites-le vibrer : les pièges cachés et les passages secrets à 5 cases se révèlent.", w: 1, h: 1, maxStack: 1, rarity: "rare" },
+  pomme_doree_expo: { id: "pomme_doree_expo", name: "Pomme dorée", kind: "gem", description: "Une pomme dorée de l'exposition, volée sous sa cloche.", w: 1, h: 1, maxStack: 99, rarity: "rare", value: 60 },
+  canard: { id: "canard", name: "Canard de bain", kind: "gem", description: "Le canard du Kobold du bain. Il couine. Un collectionneur en donnerait cher.", w: 1, h: 1, maxStack: 99, rarity: "rare", value: 40 },
   sac_pommes: { id: "sac_pommes", name: "Sac de pommes de Gluck", kind: "quest", description: "Un sac de toile plein de pommes. À rapporter à Gluck.", w: 1, h: 1, maxStack: 1 },
   magot_krik: { id: "magot_krik", name: "Magot de Krik", kind: "quest", description: "Un coffret lourd qui tinte. À rapporter à Krik… ou pas.", w: 1, h: 1, maxStack: 1 },
   // Quêtes v3 (2026-11-14) : la cloche de fortune de Sœur Osseuse, la poule de Grum, et leurs récompenses.

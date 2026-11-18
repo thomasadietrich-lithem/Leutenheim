@@ -57,7 +57,7 @@ export type GameEvent =
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
   /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
-  | { type: "npc"; who: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
+  | { type: "npc"; who: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
   /** Une statue : on la regarde (`look`), ou on frappe la statue creuse (jet de force ; réussi : elle s'effondre). */
   | { type: "statue"; x: number; y: number; look?: boolean; grille?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
@@ -187,6 +187,12 @@ export type GameEvent =
   /** Voie choisie, compétence de voie utilisée, Dernier rempart, potion (feu lancé, case qui brûle, statut posé). */
   | { type: "path"; path: PathId }
   | { type: "skill"; path: PathId; healed: number }
+  /** 2026-11-18 : vol d'une pomme dorée (hall d'exposition) ou du canard du bain ; d20 + discrétion. */
+  | { type: "theft"; what: "apple" | "duck"; d20: number; bonus: number; total: number; success: boolean; watched?: boolean }
+  /** Une mission réussie hors tâche (succès de quête) : Plumeau libéré par la force, registre lu ; pomme dorée volée. */
+  | { type: "feat"; npc: "plumeau" | "vernis"; id: string }
+  /** Artefacts qui s'utilisent : faux mur peint (puis effacé), diapason qui vibre. */
+  | { type: "artifact"; what: "paint" | "unpaint" | "fork"; x?: number; y?: number; traps?: number; secret?: boolean }
   /** Rang II des voies (2026-11-17) : riposte, tourbillon (ennemis touchés), charge, cri de guerre (ennemis touchés, fuyards). */
   | { type: "power"; power: "riposte" | "tourbillon" | "charge" | "cri_guerre"; count?: number; fled?: number }
   | { type: "lastStand" }

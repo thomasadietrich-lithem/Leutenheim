@@ -5211,6 +5211,8 @@ test("pièges : la section 2 a ses propres pièges (lacet, racines, vesse-de-lou
 test("section 2 : champignonnière de morilles (4 à 6 rangs, caillebotis, étagères orientées, engrais, arrosoirs) et atelier de sculpture", () => {
   let morilles = 0;
   let atelier = 0;
+  let expo = 0;
+  let concert = 0;
   for (let seed = 1; seed <= 40; seed++) {
     const game = new Game(seed);
     game.testRun = true;
@@ -5218,7 +5220,7 @@ test("section 2 : champignonnière de morilles (4 à 6 rangs, caillebotis, étag
       game.teleport(d);
       const st = (game as unknown as { current: { themes: { room: number; id: string }[] } }).current;
       for (const t of st.themes) {
-        assert.ok(["morilles", "sculpture", "bain"].includes(t.id), `salle de la section 1 en section 2 : ${t.id}`);
+        assert.ok(["morilles", "sculpture", "expo", "concert", "bain"].includes(t.id), `salle de la section 1 en section 2 : ${t.id}`);
         const r = game.rooms[t.room];
         const inside = game.furnitureList().filter((f) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
         if (t.id === "morilles") {
@@ -5242,6 +5244,20 @@ test("section 2 : champignonnière de morilles (4 à 6 rangs, caillebotis, étag
           assert.ok(inside.some((f) => f.kind.startsWith("toolShelfS")), "étagère de matériel");
           assert.equal(game.floorStyle(r.x, r.y), "sculpture");
         }
+        // Hall d'exposition et salle de concert (Thomas, 2026-11-18), avec leur PNJ la première fois.
+        if (t.id === "expo") {
+          expo++;
+          assert.ok(inside.some((f) => f.kind === "expoSocle"), "socle vide");
+          assert.ok(inside.filter((f) => /^expoP/.test(f.kind)).length >= 2, "sculptures");
+          assert.ok(inside.some((f) => f.kind === "pommeCloche"), "pomme sous cloche");
+        }
+        if (t.id === "concert") {
+          concert++;
+          assert.ok(inside.some((f) => f.kind === "estrade"), "estrade");
+          assert.ok(inside.some((f) => f.kind === "harpe"), "harpe");
+          const chairs = inside.filter((f) => f.kind === "chaiseDos").length;
+          assert.ok(chairs >= 4 && chairs <= 8, `${chairs} chaises`);
+        }
         // Tout reste accessible : chaque case de sol de la salle se rejoint depuis le héros.
         const dist = distanceField(game.map, game.hero);
         for (let y = r.y; y < r.y + r.h; y++) {
@@ -5252,7 +5268,7 @@ test("section 2 : champignonnière de morilles (4 à 6 rangs, caillebotis, étag
       }
     }
   }
-  assert.ok(morilles >= 30 && atelier >= 10, `${morilles} champignonnières, ${atelier} ateliers`);
+  assert.ok(morilles >= 30 && atelier >= 5 && expo >= 5 && concert >= 5, `${morilles} champignonnières, ${atelier} ateliers, ${expo} halls, ${concert} salles de concert`);
 });
 
 test("section 2 : la quête de Morillon — arroser tous les rangs, revenir, recevoir des morilles", () => {
@@ -6525,4 +6541,43 @@ test("2026-11-18 : pas d'XP pour un monstre que le héros n'a pas touché ; ento
   assert.equal(g2.hero.stuck, 0);
   g2.tick();
   assert.deepEqual({ x: g2.hero.x, y: g2.hero.y }, step, "le trajet reprend ensuite");
+});
+
+test("2026-11-18 : Vernis, le Maestro, Plumeau ; pomme dorée, ticket, pinceau, diapason", () => {
+  setSandboxSection(2);
+  try {
+    const game = new Game(3, undefined, undefined, undefined, true);
+    const v = game.npc("vernis");
+    const m = game.npc("maestro");
+    assert.ok(v, "Vernis dans son hall");
+    assert.ok(m, "le Maestro dans sa salle");
+    // Le Maestro : la partition à rapporter, puis le diapason.
+    const near = (p: { x: number; y: number }) => {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (game.map.isWalkable(p.x + dx, p.y + dy) && !game.monsterAt(p.x + dx, p.y + dy)) return { x: p.x + dx, y: p.y + dy };
+      return null;
+    };
+    const at = near(m!)!;
+    game.hero.x = at.x;
+    game.hero.y = at.y;
+    game.monsters.length = 0;
+    game.maestroChoose("partition");
+    assert.equal(game.quest?.id, "maestro_partition");
+    assert.ok(game.ground.some((g) => g.item === "partition"), "la partition est sur l'étage");
+    game.inventory.add("partition", 1);
+    const r = game.npcChoose("maestro", "turnin");
+    assert.ok(r.done);
+    // Le diapason, porté : il révèle un piège caché à côté.
+    game.inventory.add("diapason", 1);
+    game.equipment.artifact = game.inventory.items.find((i) => i.defId === "diapason")!;
+    const spot = near(game.hero)!;
+    (game as unknown as { current: { traps: { x: number; y: number; kind: string; hidden?: boolean }[] } }).current.traps.push({ x: spot.x, y: spot.y, kind: "snare", hidden: true });
+    assert.ok(game.useDiapason());
+    assert.ok(game.traps().some((t) => t.x === spot.x && t.y === spot.y && !t.hidden), "piège révélé");
+    assert.equal(game.artifactRefusal(), "used", "une fois par étage");
+    // Le ticket : un article gratuit chez le Colporteur, une fois.
+    game.equipment.artifact = { uid: 999, defId: "ticket_expo", count: 1, x: 0, y: 0 } as never;
+    assert.equal(game.buyPrice(25), 0);
+  } finally {
+    setSandboxSection(1);
+  }
 });

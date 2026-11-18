@@ -12,6 +12,8 @@ import {
   furnishMorilles,
   furnishPrison,
   furnishSculpture,
+  furnishExpo,
+  furnishConcert,
   furnishTorture,
   Furniture,
   RoomTheme,
@@ -100,7 +102,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 41;
+export const SANDBOX_LAYOUT = 42;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -476,6 +478,8 @@ function addArmory(
   zone(X(115), Y(34), 5, "Races", "#c8a060", [["serpe", 1], ["lance_pierre", 1], ["pierre", 10], ["pain_elfique", 2]]);
   // Les armes de la section 2 (Thomas, 2026-11-17).
   zone(X(120), Y(34), 3, "S2", "#5cc8a8", [["marteau_guerre", 1], ["epee_batarde", 1], ["arc_corne", 1]]);
+  // Hall d'exposition, salle de concert, Plumeau, canard (Thomas, 2026-11-18).
+  zone(X(97), Y(29), 9, "Nouveautés", "#e0b4ff", [["ticket_expo", 1], ["pinceau_magique", 1], ["diapason", 1], ["pomme_doree_expo", 1], ["canard", 1], ["grand_poulet_or", 1], ["partition", 1], ["cle_geolier", 1]]);
 
 }
 
@@ -624,9 +628,19 @@ export function buildSandbox2(): SandboxFloor {
   map.set(84, 21, Tile.DoorClosed);
   const atelier: Room = { x: 85, y: 17, w: 9, h: 8 };
   const atelierIndex = addRoom(atelier, "Atelier de sculpture");
+  // Le hall d'exposition (Vernis) à droite de l'atelier, la salle de concert (le Maestro) au-dessus de la champignonnière
+  // (Thomas, 2026-11-18).
+  line(94, 21, 95, 21);
+  map.set(96, 21, Tile.DoorClosed);
+  const expo: Room = { x: 97, y: 17, w: 9, h: 8 };
+  const expoIndex = addRoom(expo, "Hall d'exposition");
+  line(77, 14, 77, 15);
+  map.set(77, 16, Tile.DoorClosed);
+  const concert: Room = { x: 73, y: 6, w: 9, h: 8 };
+  const concertIndex = addRoom(concert, "Salle de concert");
   {
     const plan: Floor = { map, rooms, start, stairs: { x: 21, y: 52 }, torches, specials: [] };
-    for (const [room, index, id, furnish] of [[morilles, morillesIndex, "morilles", furnishMorilles], [atelier, atelierIndex, "sculpture", furnishSculpture]] as const) {
+    for (const [room, index, id, furnish] of [[morilles, morillesIndex, "morilles", furnishMorilles], [atelier, atelierIndex, "sculpture", furnishSculpture], [expo, expoIndex, "expo", furnishExpo], [concert, concertIndex, "concert", furnishConcert]] as const) {
       for (let s = 1; s < 40; s++) {
         if (furnish(plan, room, new Rng(s * 7919), furniture)) {
           themes.push({ room: index, id });

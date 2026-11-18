@@ -33,7 +33,7 @@ export interface AchievementDef {
   /** « count » : un total qui monte ; « best » : le meilleur résultat d'une partie ; « low » : le plus petit (tours). */
   kind: "count" | "best" | "low";
   /** Un succès de quête : le PNJ (les missions différentes réussies comptent). */
-  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon";
+  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau";
   /** Un succès de classe : seule cette classe le fait avancer. */
   cls?: "guerrier" | "assassin" | "magicien";
 }
@@ -60,6 +60,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "soeur", name: "Sœur Osseuse", group: "quetes", what: "Réussir les missions de Sœur Osseuse.", tiers: [1, 2, 4], kind: "count", npc: "soeur" },
   { id: "krik", name: "Krik", group: "quetes", what: "Réussir les missions de Krik.", tiers: [1, 4, 8], kind: "count", npc: "krik" },
   { id: "grum", name: "Grum", group: "quetes", what: "Réussir les missions de Grum.", tiers: [1, 2, 3], kind: "count", npc: "grum" },
+  // 2026-11-18 (Thomas : « pense aux succès associés ») : Vernis, Plumeau, le Maestro, et le chapardage.
+  { id: "vernis", name: "Vernis", group: "quetes", what: "Réussir les missions de Vernis : retrouver le Grand Poulet d'Or, poser sur le socle, voler une pomme dorée.", tiers: [1, 2, 3], kind: "count", npc: "vernis" },
+  { id: "plumeau", name: "Plumeau", group: "quetes", what: "Aider Plumeau : la clef du geôlier, briser sa chaîne, lui lire le registre.", tiers: [1, 2, 3], kind: "count", npc: "plumeau" },
+  { id: "maestro", name: "Mélomane", group: "quetes", what: "Rendre sa partition au Maestro, puis faire chanter le diapason.", tiers: [1, 5, 15], kind: "count" },
+  { id: "chapardeur", name: "Chapardeur", group: "quetes", what: "Voler sans être pris : pommes dorées de l'exposition, canard du bain.", tiers: [1, 5, 15], kind: "count" },
   { id: "fifrelin", name: "Fifrelin", group: "quetes", what: "Gagner au tripot de Fifrelin : sur le champion, sur le petit, en trichant, en duel.", tiers: [1, 2, 4], kind: "count", npc: "fifrelin" },
   { id: "fouineur", name: "Fouineur", group: "exploration", what: "Trouver des salles secrètes.", tiers: [1, 5, 15], kind: "count" },
   { id: "portier", name: "Portier", group: "exploration", what: "Ouvrir des portes verrouillées : crochetées, enfoncées ou à la clef.", tiers: [25, 100, 400], kind: "count" },

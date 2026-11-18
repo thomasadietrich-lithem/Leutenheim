@@ -243,11 +243,12 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
   // Section 2 (Thomas, 2026-11-14) : ses propres salles à thème, la champignonnière de morilles et l'atelier de sculpture.
-  const pool = section >= 1 ? ["morilles", "sculpture"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
+  const pool = section >= 1 ? ["morilles", "sculpture", "expo", "concert"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
   for (const chance of section >= 1 ? RULES.themedRoomChancesS2 : RULES.themedRoomChances) {
     if (!rng.chance(chance) || pool.length === 0) break;
-    // Section 2 : la champignonnière d'abord (c'est la salle de la quête), puis l'atelier.
-    const id = section >= 1 ? pool.shift()! : pool.splice(rng.int(0, pool.length - 1), 1)[0];
+    // Section 2 : la champignonnière d'abord (salle de la quête de Morillon), puis au hasard l'atelier, le hall
+    // d'exposition (Vernis) ou la salle de concert (le Maestro) (Thomas, 2026-11-18).
+    const id = section >= 1 && pool[0] === "morilles" ? pool.shift()! : pool.splice(rng.int(0, pool.length - 1), 1)[0];
     const candidates = floor.rooms
       .map((room, index) => ({ room, index }))
       .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && fits(id, room));
@@ -327,7 +328,7 @@ export function singleDoor(floor: Floor, room: Room): boolean {
 }
 
 /** Taille minimale de chaque salle à thème. */
-const MIN_SIZE: Record<string, [number, number]> = { morilles: [7, 6], sculpture: [6, 6], dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
+const MIN_SIZE: Record<string, [number, number]> = { expo: [7, 6], concert: [7, 6], morilles: [7, 6], sculpture: [6, 6], dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
 function fits(id: string, room: Room): boolean {
   return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
 }
@@ -344,6 +345,8 @@ const FURNISHERS: Record<string, Furnisher> = {
   prison: furnishPrison,
   morilles: furnishMorilles,
   sculpture: furnishSculpture,
+  expo: furnishExpo,
+  concert: furnishConcert,
 };
 
 /**
@@ -1241,6 +1244,131 @@ export function furnishSculpture(floor: Floor, room: Room, rng: Rng, out: Furnit
   scatter(P, rng, ["planChampi"], 1, () => ({ x: rng.int(room.x, room.x + room.w - 2), y: rng.chance(0.5) ? room.y : room.y + room.h - 1 }));
   edgeChests(P, floor, room, rng, 1);
   scatter(P, rng, ["lueursP2", "lueursB1"], 2, edge);
+  out.push(...P.placed);
+  themedTorches(floor, room, rng, out, 2);
+  return true;
+}
+
+/** Décor accroché au mur du haut d'une salle (tableaux) : `w` cases de mur libres, sans torche ni autre décor. */
+function wallHang(floor: Floor, room: Room, rng: Rng, out: Furniture[], placed: Furniture[], kind: string): boolean {
+  const w = FURNITURE_KINDS[kind].w;
+  const wy = room.y - 1;
+  const xs: number[] = [];
+  for (let x = room.x; x + w <= room.x + room.w; x++) xs.push(x);
+  for (const x of shuffle(rng, xs)) {
+    const cells = [...Array(w).keys()].map((i) => x + i);
+    if (!cells.every((cx) => floor.map.get(cx, wy) === Tile.Wall && !floor.torches.some((t) => Math.abs(t.x - cx) <= 1 && t.y === wy))) continue;
+    if ([...out, ...placed].some((f) => f.y === wy && furnitureCells(f).some((c) => c.y === wy && c.x >= x - 1 && c.x <= x + w))) continue;
+    placed.push({ x, y: wy, kind });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * HALL D'EXPOSITION (section 2 ; Thomas, 2026-11-17 : proposition validée, planche art/expo_v1.png validée le 2026-11-18) :
+ * dalles claires, 1 à 2 tapis bleus, 2 à 6 sculptures de poulets et de pommes sur socle (poses différentes), le SOCLE VIDE
+ * du Grand Poulet d'Or (quête de Vernis), des tabourets, 1 à 2 chandeliers, des tableaux de poulets et de pommes au mur,
+ * 1 à 4 pommes dorées sous cloche avec leur écriteau.
+ */
+export function furnishExpo(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  // Pas besoin d'une salle nue : les colonnes restent, les meubles se placent autour.
+  const P = roomPlacer(floor, room);
+  const edge = (): Point => {
+    const side = rng.int(0, 3);
+    return side === 0
+      ? { x: rng.int(room.x, room.x + room.w - 1), y: room.y }
+      : side === 1
+        ? { x: rng.int(room.x, room.x + room.w - 1), y: room.y + room.h - 1 }
+        : { x: side === 2 ? room.x : room.x + room.w - 1, y: rng.int(room.y, room.y + room.h - 1) };
+  };
+  // Le tapis bleu au milieu (1 à 2), puis le socle vide en son centre.
+  const rugs = rng.int(1, 2);
+  for (let k = 0, put = 0; k < 20 && put < rugs; k++) {
+    if (P.tryPlace({ x: rng.int(room.x + 1, room.x + room.w - 4), y: rng.int(room.y + 1, room.y + room.h - 3), kind: "rugBleu" })) put++;
+  }
+  // Le socle vide du Grand Poulet d'Or, bien en vue, une case libre tout autour.
+  const cx = room.x + Math.floor(room.w / 2);
+  const cy = room.y + Math.floor(room.h / 2);
+  let socle = false;
+  for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) if (!socle && P.tryPlace({ x: cx + dx, y: cy + dy, kind: "expoSocle" })) {
+    socle = true;
+    for (let y = cy + dy - 1; y <= cy + dy + 1; y++) for (let x = cx + dx - 1; x <= cx + dx + 1; x++) P.reserve(x, y);
+  }
+  if (!socle) return false;
+  const statues = scatter(P, rng, ["expoPoulet0", "expoPoulet1", "expoPoulet2", "expoPomme0", "expoPomme1"], rng.int(2, 6), edge);
+  if (statues < 2) {
+    P.undo();
+    return false;
+  }
+  // Pommes dorées sous cloche, chacune avec son écriteau à côté (à droite, sinon à gauche).
+  const apples = rng.int(1, 4);
+  for (let a = 0, tries = 0; a < apples && tries < 120; tries++) {
+    const p = tries < 60 ? edge() : { x: rng.int(room.x, room.x + room.w - 1), y: rng.int(room.y, room.y + room.h - 1) };
+    if (!P.tryPlace({ ...p, kind: "pommeCloche" })) continue;
+    if (!P.tryPlace({ x: p.x + 1, y: p.y, kind: "ecriteauExpo" })) P.tryPlace({ x: p.x - 1, y: p.y, kind: "ecriteauExpo" });
+    a++;
+  }
+  scatter(P, rng, ["tabouret"], rng.int(1, 3), () => ({ x: rng.int(room.x + 1, room.x + room.w - 2), y: rng.int(room.y + 1, room.y + room.h - 2) }));
+  scatter(P, rng, ["chandelierExpo"], rng.int(1, 2), () => ({ x: rng.chance(0.5) ? room.x : room.x + room.w - 1, y: rng.chance(0.5) ? room.y : room.y + room.h - 1 }));
+  const hung: Furniture[] = [];
+  const frames = rng.int(1, 3);
+  for (let k = 0; k < frames; k++) wallHang(floor, room, rng, out, hung, rng.chance(0.5) ? "tableauPoulet" : "tableauPomme");
+  out.push(...P.placed, ...hung);
+  themedTorches(floor, room, rng, out, 1);
+  return true;
+}
+
+/**
+ * SALLE DE CONCERT (section 2 ; Thomas, 2026-11-18 : « chaises 4 à 8 orientées vers une estrade avec deux rideaux rouges ;
+ * 0 à 1 piano, une harpe, un tambour ») : l'estrade contre le mur du haut, le pupitre du chef devant, les chaises du public
+ * en rangées (une allée au milieu), la harpe et le tambour de part et d'autre de la scène, le piano contre un mur de côté.
+ */
+export function furnishConcert(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  // Une salle de concert est dégagée : ses colonnes sont retirées (remises si la salle ne convient pas).
+  const pillars: Point[] = [];
+  for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (floor.map.get(x, y) === Tile.Pillar) pillars.push({ x, y });
+  for (const c of pillars) floor.map.set(c.x, c.y, Tile.Floor);
+  if (placeConcert(floor, room, rng, out)) return true;
+  for (const c of pillars) floor.map.set(c.x, c.y, Tile.Pillar);
+  return false;
+}
+
+function placeConcert(floor: Floor, room: Room, rng: Rng, out: Furniture[]): boolean {
+  const P = roomPlacer(floor, room);
+  // L'estrade au milieu du mur du haut ; sinon collée à un coin (un passage d'une case à côté ferait un goulet).
+  const mid0 = room.x + Math.floor((room.w - 4) / 2);
+  const xs = [...Array(Math.max(0, room.w - 3)).keys()].map((i) => room.x + i).sort((a, b) => Math.abs(a - mid0) - Math.abs(b - mid0));
+  const sx = xs.find((x) => P.tryPlace({ x, y: room.y, kind: "estrade" }));
+  if (sx === undefined) return false;
+  // La rangée devant la scène reste libre, sauf le pupitre du chef au milieu.
+  P.tryPlace({ x: sx + 1 + rng.int(0, 1), y: room.y + 2, kind: "pupitreChef" });
+  for (let x = room.x; x < room.x + room.w; x++) P.reserve(x, room.y + 2);
+  const harp = P.tryPlace({ x: sx - 1, y: room.y, kind: "harpe" }) || P.tryPlace({ x: sx + 4, y: room.y, kind: "harpe" }) || P.tryPlace({ x: sx - 1, y: room.y + 1, kind: "harpe" }) || P.tryPlace({ x: sx + 4, y: room.y + 1, kind: "harpe" });
+  if (!harp) {
+    P.undo();
+    return false;
+  }
+  P.tryPlace({ x: sx + 4, y: room.y, kind: "tambour" }) || P.tryPlace({ x: sx - 1, y: room.y + 1, kind: "tambour" }) || P.tryPlace({ x: sx + 4, y: room.y + 1, kind: "tambour" });
+  // Le public : 4 à 8 chaises, en rangées sous la scène, une allée au milieu.
+  const want = rng.int(4, 8);
+  const mid = room.x + Math.floor(room.w / 2);
+  let chairs = 0;
+  for (let y = room.y + 3; y < room.y + room.h - 1 && chairs < want; y++) {
+    for (let x = room.x + 1; x < room.x + room.w - 1 && chairs < want; x++) {
+      if (x === mid) continue;
+      if (P.tryPlace({ x, y, kind: "chaiseDos" })) chairs++;
+    }
+    y++;
+  }
+  if (chairs < 4) {
+    P.undo();
+    return false;
+  }
+  if (rng.chance(0.6)) {
+    const side = rng.chance(0.5) ? room.x : room.x + room.w - 2;
+    for (let y = room.y + 3; y < room.y + room.h; y++) if (P.tryPlace({ x: side, y, kind: "piano" })) break;
+  }
   out.push(...P.placed);
   themedTorches(floor, room, rng, out, 2);
   return true;

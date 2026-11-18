@@ -86,6 +86,8 @@ export interface FloorState {
   zone?: QuestZone;
   /** La pièce secrète de l'étage (Thomas, 2026-11-14), s'il y en a une. */
   secretRoom?: import("../world/secretRoom").SecretRoom;
+  /** Faux murs du pinceau magique (2026-11-18) : la case, les tours avant qu'il s'efface. */
+  fakeWalls?: { x: number; y: number; turns: number }[];
   /** Bombes arcaniques posées : leur case et les tours avant l'explosion. */
   bombs?: { x: number; y: number; turns: number }[];
   /** Quêtes v3, Sœur Osseuse : les cierges à rallumer (les cases) ; les grilles d'où monte le son (la bonne, indiquée ou non). */
@@ -97,6 +99,10 @@ export interface FloorState {
   grum?: GluckSpot;
   /** Section 2 : Morillon, le Kobold cueilleur, dans sa champignonnière. */
   morillon?: GluckSpot;
+  /** Section 2 : Vernis (hall d'exposition), le Maestro (salle de concert) ; section 1 : Plumeau (prison). */
+  vernis?: GluckSpot;
+  maestro?: GluckSpot;
+  plumeau?: GluckSpot;
   /** Fifrelin, le Kobold aux gobelets (quête 04), s'il est sur cet étage. */
   fifrelin?: GluckSpot;
   /** Le coursier de Krik (rencontre 3), à escorter jusqu'à l'escalier. */
@@ -157,6 +163,8 @@ export interface BathState {
   out: boolean;
   music: boolean;
   beaten: boolean;
+  /** Son canard volé (Thomas, 2026-11-18 : « voler le canard sans le réveiller »). */
+  duckTaken?: boolean;
 }
 
 /** Gluck sur un étage : sa case, s'il est parti, et où en est la conversation. */

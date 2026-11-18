@@ -43,6 +43,8 @@ export const KRIK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#9a
 const GOLD_HEN_PALETTE: Record<string, string> = { ...POULET_PALETTE, W: "#f0c850", S: "#c89a14" };
 /** Fifrelin (quête 04) : écailles rouges, œil doré, gilet rouge. */
 export const FIFRELIN_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#d8664e", a: "#8e2e22", Y: "#ffd84a", L: "#f2c8a8", C: "#c84a3a", c: "#7a1e1a", M: "#e0c070", m: "#a07830" };
+/** Le Maestro (salle de concert) : un Kobold en queue-de-pie noire, la dague devenue baguette blanche. */
+export const MAESTRO_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#a8b48a", a: "#6e7a54", C: "#2a2630", c: "#141018", M: "#f4f0e6", m: "#c8c2b6", L: "#e8e4c8" };
 export const GLUCK_PALETTE: Record<string, string> = { ...SCHRAT_PALETTE, A: "#c8d48a", a: "#8e9a54", Y: "#ffe27a", L: "#f2ecc0", C: "#8a6a44", c: "#5a4228", M: "#a07848", m: "#c49a64" };
 /** Morillon (section 2) : le Kobold cueilleur, masque et hotte, en blouse bleu-gris (les cueilleurs hostiles sont en brun). */
 export const MORILLON_PALETTE: Record<string, string> = { ...MOBS_CHAMPI.cueilleur.palette, C: "#6a8698", c: "#3e5666" };
@@ -61,6 +63,8 @@ import { CHAMPI_SALLES } from "./sprites/champiSalles";
 import { ALAMBIC } from "./sprites/alambic";
 import { NEIGE } from "./sprites/neige";
 import { CULTE } from "./sprites/culte";
+import { CONCERT } from "./sprites/concert";
+import { EXPO } from "./sprites/expo";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
@@ -1092,6 +1096,67 @@ export class Renderer {
     if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("morille"), ICON_PALETTE);
   }
 
+  /** Bulbe pulsant et spores d'un piège de la section 2 (dessin en pixels de 1/16 de case, pour rester dans le style). */
+  private drawTrapBulb(x: number, y: number, ox: number, oy: number, kind: string): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const t = this.time / 1000 + ((x * 7 + y * 13) % 10);
+    const beat = 0.5 + 0.5 * Math.sin(t * 2.6);
+    const r = 3 + Math.round(beat * 1.6);
+    const bx = ox + (x * 16 + 8) * u;
+    const by = oy + (y * 16 + 9) * u;
+    const colors = kind === "spores" ? ["#3c5a1e", "#7aa63a", "#c8f07a"] : kind === "hooks" ? ["#4a2a1a", "#9a6a3a", "#e6b47a"] : ["#3a1e4a", "#8a52b0", "#e0b4ff"];
+    const px = (dx: number, dy: number, c: string) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(Math.round(bx + dx * u), Math.round(by + dy * u), Math.ceil(u), Math.ceil(u));
+    };
+    // Le bulbe : contour sombre, corps, reflet qui luit plus fort quand il gonfle.
+    for (let dy = -r - 1; dy <= r + 1; dy++) {
+      for (let dx = -r - 1; dx <= r + 1; dx++) {
+        const d = Math.hypot(dx, dy * 1.25);
+        if (d <= r) px(dx, dy, colors[1]);
+        else if (d <= r + 1) px(dx, dy, colors[0]);
+      }
+    }
+    ctx.globalAlpha = 0.55 + 0.45 * beat;
+    px(-1, -2, colors[2]);
+    px(0, -2, colors[2]);
+    px(-1, -1, colors[2]);
+    ctx.globalAlpha = 1;
+    // Quelques spores qui montent et s'éteignent.
+    for (let k = 0; k < 3; k++) {
+      const life = (t * 0.6 + k / 3) % 1;
+      ctx.globalAlpha = 0.9 * (1 - life);
+      px(-4 + k * 4 + Math.round(Math.sin(t * 2 + k) * 1.5), -r - 2 - Math.round(life * 8), colors[2]);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Vernis (hall d'exposition), le Maestro (salle de concert), Plumeau (prison) : un PNJ simple, son dessin, et une bulle
+   * quand le héros approche (Thomas, 2026-11-18).
+   */
+  private drawSimpleNpc(game: Game, id: "vernis" | "maestro" | "plumeau", ox: number, oy: number): void {
+    const g = game.npc(id);
+    if (!g || !game.isVisible(g.x, g.y)) return;
+    const { tile } = this;
+    const at = this.npcGlide(id, g.x, g.y);
+    const cx = Math.round(ox + (at.x + 0.5) * tile);
+    const cy = Math.round(oy + (at.y + 0.5) * tile);
+    const hero = game.hero;
+    const flip = hero.x < g.x;
+    if (id === "vernis") this.drawMonsterSprite(EXPO.vernis.rows, cx, cy, flip, true, EXPO.vernis.palette);
+    else if (id === "maestro") {
+      const frames = SCHRAT.idleDown;
+      this.drawMonsterSprite(frames[Math.floor(Math.abs(this.time) / 380) % frames.length], cx, cy, flip, false, MAESTRO_PALETTE);
+    } else {
+      const art = SECRET[`plumeau${Math.floor(Math.abs(this.time) / 700) % 2}`];
+      this.drawMonsterSprite(art.rows, cx, cy, false, true, art.palette);
+    }
+    const icon = id === "vernis" ? "grand_poulet_or" : id === "maestro" ? "partition" : "cle_geolier";
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows(icon), ICON_PALETTE);
+  }
+
   /** Grum, le Kobold fermier (quête 05) : chapeau de paille et salopette ; un œuf d'or dans sa bulle quand on approche. */
   private drawGrum(game: Game, ox: number, oy: number): void {
     const g = game.grum();
@@ -2097,6 +2162,9 @@ export class Renderer {
       const rx = this.snap(ox + p.x * tile - u);
       const ry = this.snap(oy + (p.y + 1) * tile + u - h * u);
       ctx.drawImage(this.sprite(art.rows, art.palette), rx, ry, this.snap(rx + w * u) - rx, this.snap(ry + h * u) - ry);
+      // Pièges de la section 2 (Thomas, 2026-11-18 : « plus visibles, pulsants, globuleux » ; choix « A + un peu de B ») :
+      // un BULBE de mycélium violacé qui gonfle et dégonfle au milieu de la dalle, et quelques SPORES lumineuses au-dessus.
+      if ((kind === "snare" || kind === "hooks" || kind === "spores") && !flash) this.drawTrapBulb(p.x, p.y, ox, oy, kind);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
@@ -2319,6 +2387,9 @@ export class Renderer {
     this.drawKrik(game, ox, oy);
     this.drawGrum(game, ox, oy);
     this.drawMorillon(game, ox, oy);
+    this.drawSimpleNpc(game, "vernis", ox, oy);
+    this.drawSimpleNpc(game, "maestro", ox, oy);
+    this.drawSimpleNpc(game, "plumeau", ox, oy);
     this.drawFifrelin(game, ox, oy);
     this.drawCourier(game, ox, oy, progress);
     this.drawGoldHen(game, ox, oy, progress);
@@ -2948,7 +3019,9 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
+      const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
       const w = art.rows[0].length;
       const h = art.rows.length;

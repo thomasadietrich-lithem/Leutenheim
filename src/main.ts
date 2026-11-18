@@ -21,7 +21,9 @@ import { RULES } from "./data/rules";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
-import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE, Renderer } from "./render/renderer";
+import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, MAESTRO_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE, Renderer } from "./render/renderer";
+import { EXPO } from "./render/sprites/expo";
+import { SECRET } from "./render/sprites/secret";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
 import { StairsScene, StairsVariant } from "./render/stairsScene";
@@ -194,6 +196,8 @@ let wheelOpen = false;
 let jumpMode = false;
 /** Potion de feu sortie du sac : on attend la case où la lancer. */
 let throwUid: number | null = null;
+/** Pinceau magique : on choisit la case du faux mur. */
+let paintMode = false;
 /** Une fiole lancée touche le sol au bout de ce temps (les ¾ de son vol). */
 const THROW_LAND_MS = 420;
 /** Message d'un appui long dans le sac (raccourci choisi ou retiré), montré une fois sur la fiche. */
@@ -1069,6 +1073,11 @@ function reveal(e: GameEvent): void {
       shownHp = game.hero.hp;
       sfx.play("heal");
     }
+  } else if (e.type === "theft") {
+    renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? (e.what === "apple" ? "Chipée !" : "Coin !") : "Au voleur !", e.success ? "#ffd75e" : "#ff6b7a");
+  } else if (e.type === "artifact") {
+    if (e.what === "paint" && e.x !== undefined) renderer.addFloatingText(e.x, e.y!, "Faux mur", "#d8c8a0");
+    if (e.what === "fork") renderer.addFloatingText(game.hero.x, game.hero.y, "♪ La !", "#bedcf0");
   } else if (e.type === "power") {
     const words = { riposte: "Riposte !", tourbillon: "Tourbillon !", charge: "Charge !", cri_guerre: "Cri de guerre !" };
     renderer.addFloatingText(game.hero.x, game.hero.y, words[e.power], e.power === "riposte" ? "#9fd0f4" : "#ff8a7a");
@@ -1708,6 +1717,16 @@ bindInput(canvas, {
       }
       return;
     }
+    if (paintMode) {
+      paintMode = false;
+      renderer.jumpCells = [];
+      if (game.paintWall(t.x, t.y)) stepMs = COMBAT_STEP_MS;
+      else {
+        logLines.push("Vous rangez le pinceau.");
+        renderLog();
+      }
+      return;
+    }
     if (throwUid !== null) {
       // Potion à lancer : toucher une case proposée la lance ; toucher ailleurs renonce.
       const uid = throwUid;
@@ -2233,7 +2252,7 @@ function renderShop(): void {
       card.type = "button";
       const icon = el("div", "shop-icon");
       icon.append(itemIcon(w.item));
-      card.append(icon, namedWithRarity("shop-name", ITEMS[w.item] as ItemDef, `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", `${game.buyPrice(w.price)} or`));
+      card.append(icon, namedWithRarity("shop-name", ITEMS[w.item] as ItemDef, `${ITEMS[w.item].name}${w.count > 1 ? ` ×${w.count}` : ""}`), el("div", "shop-price", game.buyPrice(w.price) === 0 ? "Gratuit (ticket)" : `${game.buyPrice(w.price)} or`));
       card.addEventListener("click", () => {
         sfx.play("click");
         shopPick = shopPick === i ? null : i;
@@ -2244,7 +2263,7 @@ function renderShop(): void {
     });
     const w = shopPick !== null ? m.wares[shopPick] : undefined;
     if (w) {
-      const buy = el("button", "shop-act", `Acheter (${game.buyPrice(w.price)} or)`) as HTMLButtonElement;
+      const buy = el("button", "shop-act", game.buyPrice(w.price) === 0 ? "Prendre (ticket)" : `Acheter (${game.buyPrice(w.price)} or)`) as HTMLButtonElement;
       buy.type = "button";
       buy.disabled = game.gold < game.buyPrice(w.price);
       buy.addEventListener("click", () => {
@@ -2331,7 +2350,7 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : "Krik");
+  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : who === "vernis" ? "Vernis" : who === "maestro" ? "Le Maestro" : who === "plumeau" ? "Plumeau" : "Krik");
   $("talk-face").replaceChildren(
     who === "gluck"
       ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE)
@@ -2343,7 +2362,13 @@ function openTalk(who: NpcId): void {
             ? buildIcon(SCHRAT.idleDown[0], FIFRELIN_PALETTE)
             : who === "morillon"
               ? buildIcon(MORILLON_FRAMES.idleDown0, MORILLON_PALETTE)
-              : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
+              : who === "vernis"
+                ? buildIcon(EXPO.vernis.rows, EXPO.vernis.palette)
+                : who === "maestro"
+                  ? buildIcon(SCHRAT.idleDown[0], MAESTRO_PALETTE)
+                  : who === "plumeau"
+                    ? buildIcon(SECRET.plumeau0.rows, SECRET.plumeau0.palette)
+                    : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
   );
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.
   document.body.classList.add("talk-open");
@@ -2665,6 +2690,7 @@ function renderBag(): void {
     action.hidden = true;
     $("bag-drop").hidden = true;
     $("bag-throw").hidden = true;
+    $("bag-art").hidden = true;
     return;
   }
   const def: ItemDef = ITEMS[item.defId];
@@ -2701,7 +2727,35 @@ function renderBag(): void {
   $("bag-throw").hidden = selectedSlot !== null || def.bomb || ((!def.potion || ["fire", "smoke", "fog", "discord", "slip"].includes(def.potion)) && def.id !== "torche");
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
+  // Pinceau magique et diapason, portés en artefact (Thomas, 2026-11-18) : « Peindre », « Faire vibrer ».
+  const art = $("bag-art") as HTMLButtonElement;
+  art.hidden = selectedSlot !== "artifact" || (def.id !== "pinceau_magique" && def.id !== "diapason");
+  art.textContent = tr(def.id === "diapason" ? "Faire vibrer" : "Peindre");
+  art.disabled = game.artifactRefusal() !== null;
 }
+button("bag-art", () => {
+  const refusal = game.artifactRefusal();
+  if (refusal) {
+    logLines.push(refusal === "used" ? "Déjà servi sur cet étage." : "Il faut le porter en artefact.");
+    renderLog();
+    return;
+  }
+  bagOpen = false;
+  $("bag").hidden = true;
+  selected = null;
+  if (game.equipment.artifact?.defId === "diapason") {
+    if (game.useDiapason()) stepMs = COMBAT_STEP_MS;
+  } else {
+    const cells = game.paintCells();
+    if (cells.length === 0) logLines.push("Aucune case de couloir libre en vue, à 4 cases.");
+    else {
+      paintMode = true;
+      renderer.jumpCells = cells;
+      logLines.push("Touchez la case de couloir où peindre le faux mur.");
+    }
+  }
+  renderLog();
+});
 
 // Appui long sur un objet du sac : il devient le raccourci « Objet » de la barre d'actions (Thomas, 2026-11-12).
 // Rechoisir le même retire le raccourci. Ne prend pas de tour.
@@ -4320,7 +4374,7 @@ function frame(now: number): void {
     sfx.fireplace(fire, dt);
   }
   // Les cases de saut ne s'affichent que pendant le choix.
-  if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode && throwUid === null) {
+  if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode && throwUid === null && !paintMode) {
     jumpMode = false;
     renderer.jumpCells = [];
   }

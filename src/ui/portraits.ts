@@ -10,7 +10,9 @@ import { MOBS_CHAMPI } from "../render/sprites/mobsChampi";
 import { CARILLON, CARILLON_PALETTE } from "../render/sprites/carillon";
 import { MARCHAND, MARCHAND_PALETTE } from "../render/sprites/marchand";
 import { POULET, POULET_PALETTE } from "../render/sprites/poulet";
-import { FIFRELIN_PALETTE, FRONDEUR_PALETTE, GLUCK_PALETTE, KRIK_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE } from "../render/renderer";
+import { FIFRELIN_PALETTE, FRONDEUR_PALETTE, GLUCK_PALETTE, KRIK_PALETTE, MAESTRO_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE } from "../render/renderer";
+import { EXPO } from "../render/sprites/expo";
+import { SECRET } from "../render/sprites/secret";
 
 type Pic = { rows: readonly string[]; palette: Record<string, string> };
 const kobold = (palette: Record<string, string>): Pic => ({ rows: SCHRAT.idleDown[0], palette });
@@ -32,6 +34,9 @@ const PORTRAITS: Record<string, Pic> = {
   "n:soeur": { rows: SOEUR_SPRITE[0], palette: SOEUR_PALETTE },
   "n:grum": { rows: FERMIER.rows, palette: FERMIER.palette },
   "n:morillon": { rows: MORILLON_FRAMES.idleDown0, palette: MORILLON_PALETTE },
+  "n:vernis": { rows: EXPO.vernis.rows, palette: EXPO.vernis.palette },
+  "n:maestro": { rows: SCHRAT.idleDown[0], palette: MAESTRO_PALETTE },
+  "n:plumeau": { rows: SECRET.plumeau0.rows, palette: SECRET.plumeau0.palette },
   "n:colporteur": { rows: MARCHAND.front, palette: MARCHAND_PALETTE },
   "n:poulet": { rows: POULET.idle, palette: POULET_PALETTE },
   "n:bain": BAIN.tub0,

@@ -103,7 +103,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "npc": {
       if (e.what !== "leave") return null;
       // Le bon nom pour chaque PNJ (Thomas, 2026-11-17 : « Krik » s'affichait quand Morillon partait, en section 2).
-      const name = ({ gluck: "Gluck", soeur: "Sœur Osseuse", krik: "Krik", grum: "Grum", fifrelin: "Fifrelin", morillon: "Morillon" } as Record<string, string>)[e.who] ?? "Krik";
+      const name = ({ gluck: "Gluck", soeur: "Sœur Osseuse", krik: "Krik", grum: "Grum", fifrelin: "Fifrelin", morillon: "Morillon", vernis: "Vernis", maestro: "Le Maestro", plumeau: "Plumeau" } as Record<string, string>)[e.who] ?? "Krik";
       const apples = (e.drops ?? []).some((d) => d.item === "pomme");
       const gold = (e.drops ?? []).some((d) => d.item === "or");
       const why = e.fled === "fire"
@@ -392,6 +392,22 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous suivez désormais la voie : ${PATHS[e.path].name}.`;
     case "skill":
       return e.path === "blue" ? `Second souffle : +${e.healed} PV.` : "Double frappe !";
+    case "theft":
+      return e.what === "apple"
+        ? e.success
+          ? `Discrétion : ${roll(e.d20, e.bonus, e.total)} — la pomme dorée glisse hors de sa cloche. Personne n'a rien vu.`
+          : `Discrétion : ${roll(e.d20, e.bonus, e.total)} — la cloche tinte. « AU VOLEUR ! »${e.watched ? " (Vernis vous regardait.)" : ""}`
+        : e.success
+          ? `Discrétion : ${roll(e.d20, e.bonus, e.total)} — le canard est à vous. Le Kobold ronfle toujours.`
+          : `Discrétion : ${roll(e.d20, e.bonus, e.total)} — le canard couine. Le Kobold ouvre un œil…`;
+    case "artifact":
+      return e.what === "paint"
+        ? "Trois coups de pinceau : un mur se dresse là où il n'y en avait pas."
+        : e.what === "unpaint"
+          ? "La peinture du faux mur s'écaille et disparaît."
+          : e.traps || e.secret
+            ? `Le diapason chante : ${e.traps ? `pièges révélés : ${e.traps}` : "aucun piège"}${e.secret ? ", un passage secret s'ouvre" : ""}.`
+            : "Le diapason chante : rien de caché alentour.";
     case "power":
       return e.power === "riposte"
         ? "Riposte !"

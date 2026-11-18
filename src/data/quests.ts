@@ -35,10 +35,14 @@ export type QuestTaskId =
   | "grum_poule"
   | "grum_foin"
   | "grum_chapeau"
-  | "morillon_arrosage";
+  | "morillon_arrosage"
+  | "vernis_poulet"
+  | "vernis_socle"
+  | "maestro_partition"
+  | "plumeau_clef";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon";
+  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau";
   /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
    * compteur tenu par la partie (cierges, tours sur la grille, chapeau) ; collect : rapporter plusieurs objets. */
   kind: "kill" | "fetch" | "statue" | "smoke" | "enter" | "count" | "collect";
@@ -239,6 +243,49 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
       "(Il laisse 3 morilles.)",
     ],
     failed: "Les rangs de Morillon ont toujours soif.",
+  },
+  // Section 2 (Thomas, 2026-11-17/18) : Vernis, le Kobold conservateur du hall d'exposition. « Le chef-d'œuvre volé ».
+  vernis_poulet: {
+    npc: "vernis",
+    kind: "fetch",
+    item: "grand_poulet_or",
+    goal: "Retrouver le Grand Poulet d'Or",
+    back: "Rendre le Poulet à Vernis",
+    waiting: "« Il brille. Il est lourd. Il a l'air vexé. Vous ne pouvez pas le rater. »",
+    thanks: ["« Mon poulet ! Remis sur son socle, enfin. »", "« Voici un ticket d'exposition. Le Colporteur le respecte. Enfin, il le craint. »", "(Il laisse un ticket d'exposition.)"],
+    failed: "Le socle du Grand Poulet d'Or reste vide.",
+  },
+  vernis_socle: {
+    npc: "vernis",
+    kind: "count",
+    count: 3,
+    goal: "Poser sur le socle vide {0}/{1}",
+    back: "Revoir Vernis",
+    waiting: "« Immobile. Digne. Comme un poulet de marbre. Trois tours sur le socle, sans bouger. »",
+    thanks: ["« Magnifique ! Le public a cru à un chef-d'œuvre. »", "« Prenez ce pinceau. Il peint des choses qui n'existent pas. Comme vous. »", "(Il laisse un pinceau magique.)"],
+    failed: "Le socle vide attend toujours sa statue.",
+  },
+  // Section 2 (Thomas, 2026-11-18) : le Maestro, chef d'orchestre de la salle de concert. « Retrouver la partition ».
+  maestro_partition: {
+    npc: "maestro",
+    kind: "fetch",
+    item: "partition",
+    goal: "Retrouver la partition du Maestro",
+    back: "Rendre la partition au Maestro",
+    waiting: "« Sans partition, l'orchestre joue faux. Enfin, plus faux. »",
+    thanks: ["« Ma symphonie ! Pour cloche et champignons ! »", "« Tenez, mon diapason. Il chante juste, lui. »", "(Il laisse un diapason.)"],
+    failed: "Le Maestro dirige un orchestre qui joue sans partition.",
+  },
+  // Section 1, prison (quête 06, Thomas, 2026-11-18 : « oui ») : Plumeau, le greffier enchaîné.
+  plumeau_clef: {
+    npc: "plumeau",
+    kind: "fetch",
+    item: "cle_geolier",
+    goal: "Trouver la clef du geôlier",
+    back: "Libérer Plumeau",
+    waiting: "« Le geôlier l'a laissée traîner. Il laisse tout traîner. Même moi. »",
+    thanks: ["(La clef tourne. Les fers tombent.)", "« Libre ! Tenez, j'ai recopié le plan de l'étage. Les greffiers recopient tout. »", "(Il vous montre le plan de l'étage, et laisse un peu d'or.)"],
+    failed: "Plumeau reste enchaîné à son mur.",
   },
   soeur_kobolds: {
     npc: "soeur",

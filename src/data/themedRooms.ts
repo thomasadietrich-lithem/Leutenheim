@@ -102,6 +102,22 @@ export const THEMED_ROOMS: ThemedRoomDef[] = [
     ],
   },
   {
+    id: "expo",
+    name: "Hall d'exposition",
+    loot: [
+      { item: "or", min: 14, max: 24, weight: 3 },
+      { item: "amethyste", min: 1, max: 1, weight: 1 },
+    ],
+  },
+  {
+    id: "concert",
+    name: "Salle de concert",
+    loot: [
+      { item: "or", min: 12, max: 22, weight: 3 },
+      { item: "pomme", min: 1, max: 2, weight: 1 },
+    ],
+  },
+  {
     id: "sculpture",
     name: "Atelier de sculpture",
     loot: [
@@ -247,6 +263,31 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   // Atelier de sculpture : l'immense champignon de pierre dans ses échafaudages (3 × 3), la grue, les gravats (1 à 3),
   // les étagères de matériel (mêmes orientations que les étagères à pots), les pioches rouillées, le plan sur son tréteau.
   champiPierre: { blocks: true, w: 3, h: 3, burns: false },
+  // HALL D'EXPOSITION (section 2, planche art/expo_v1.png validée le 2026-11-18) : sculptures sur socle (poulets,
+  // pommes), le socle vide du Grand Poulet d'Or (on y monte pour la quête), tabourets, chandeliers, tableaux au mur, pommes
+  // dorées sous cloche et leur écriteau, tapis bleu.
+  expoPoulet0: { blocks: true, w: 1, h: 1, burns: false },
+  expoPoulet1: { blocks: true, w: 1, h: 1, burns: false },
+  expoPoulet2: { blocks: true, w: 1, h: 1, burns: false },
+  expoPomme0: { blocks: true, w: 1, h: 1, burns: false },
+  expoPomme1: { blocks: true, w: 1, h: 1, burns: false },
+  expoSocle: { blocks: false, w: 1, h: 1, burns: false },
+  tabouret: { blocks: false, w: 1, h: 1, burns: true },
+  chandelierExpo: { blocks: true, w: 1, h: 1, burns: false },
+  tableauPoulet: { blocks: false, w: 2, h: 1, burns: true, wall: true },
+  tableauPomme: { blocks: false, w: 2, h: 1, burns: true, wall: true },
+  pommeCloche: { blocks: true, w: 1, h: 1, burns: false },
+  clocheVide: { blocks: true, w: 1, h: 1, burns: false },
+  ecriteauExpo: { blocks: true, w: 1, h: 1, burns: true },
+  rugBleu: { blocks: false, w: 3, h: 2, burns: true, flat: true },
+  // SALLE DE CONCERT (section 2, planche art/concert_v1.png) : l'estrade et ses rideaux rouges (4 × 2), le pupitre du chef,
+  // le piano droit, la harpe, le tambour, les chaises du public (vues de dos, tournées vers la scène).
+  estrade: { blocks: true, w: 4, h: 2, burns: true },
+  pupitreChef: { blocks: true, w: 1, h: 1, burns: true },
+  piano: { blocks: true, w: 2, h: 1, burns: true },
+  harpe: { blocks: true, w: 1, h: 1, burns: true },
+  tambour: { blocks: true, w: 1, h: 1, burns: true },
+  chaiseDos: { blocks: false, w: 1, h: 1, burns: true },
   grue: { blocks: true, w: 2, h: 1, burns: true },
   gravats1: { blocks: true, w: 1, h: 1, burns: false },
   gravats2: { blocks: true, w: 1, h: 1, burns: false },

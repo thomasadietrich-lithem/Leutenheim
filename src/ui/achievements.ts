@@ -225,7 +225,13 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
       if (warrior && e.prone) add("charge", 1);
     }
     else if (e.type === "jump" && e.success) add("fuyard", 1);
-    else if (e.type === "quest" && e.what === "complete") feat(page, QUEST_TASKS[e.id].npc, e.id, out);
+    else if (e.type === "quest" && e.what === "complete") {
+      if (e.id === "maestro_partition") add("maestro", 1);
+      else feat(page, QUEST_TASKS[e.id].npc, e.id, out);
+    }
+    else if (e.type === "feat") feat(page, e.npc, e.id, out);
+    else if (e.type === "theft" && e.success) add("chapardeur", 1);
+    else if (e.type === "artifact" && e.what === "fork") add("maestro", 1);
     else if (e.type === "bout") {
       const f = e.what === "duelWin" ? "fifre_duel" : e.what === "win" ? (e.rigged ? "fifre_truque" : e.winner === "small" ? "fifre_petit" : "fifre_champ") : null;
       if (f && (FIFRELIN_FEATS as readonly string[]).includes(f)) feat(page, "fifrelin", f, out);

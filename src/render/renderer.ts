@@ -140,6 +140,8 @@ interface Slash {
 
 /** Une flèche en vol. */
 interface Projectile {
+  /** Crachat d'encre du Carillon. */
+  ink?: boolean;
   /** Flèche spéciale (empoisonnée, ricochante, de recul) : même dessin qu'au sol. */
   kind?: "poison" | "ricochet" | "recul";
   fromX: number;
@@ -1716,8 +1718,8 @@ export class Renderer {
     }
   }
 
-  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false, kind?: "poison" | "ricochet" | "recul"): void {
-    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin, kind }); // un âge négatif : elle partira après ce délai
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false, kind?: "poison" | "ricochet" | "recul", ink = false): void {
+    this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin, kind, ink }); // un âge négatif : elle partira après ce délai
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
@@ -2648,6 +2650,24 @@ export class Renderer {
       const px = ox + (p.fromX + (p.x - p.fromX) * t + 0.5) * tile;
       const py = oy + (p.fromY + (p.y - p.fromY) * t + 0.5) * tile;
       const heading = Math.atan2(p.y - p.fromY, p.x - p.fromX);
+      if (p.ink) {
+        // Crachat d'encre du Carillon (2026-11-18) : une boule violette qui file en arc, avec deux gouttes derrière.
+        const lift = Math.sin(t * Math.PI) * tile * 0.6;
+        const r = Math.max(3, tile * 0.16);
+        for (const [k, s] of [[0.12, 0.45], [0.06, 0.7]] as const) {
+          const bx = ox + (p.fromX + (p.x - p.fromX) * Math.max(0, t - k) + 0.5) * tile;
+          const by = oy + (p.fromY + (p.y - p.fromY) * Math.max(0, t - k) + 0.5) * tile - Math.sin(Math.max(0, t - k) * Math.PI) * tile * 0.6;
+          ctx.fillStyle = "#5a2a7a";
+          ctx.fillRect(Math.round(bx - r * s), Math.round(by - r * s), Math.round(r * s * 2), Math.round(r * s * 2));
+        }
+        ctx.fillStyle = "#120d08";
+        ctx.fillRect(Math.round(px - r - 1), Math.round(py - lift - r - 1), Math.round(r * 2 + 2), Math.round(r * 2 + 2));
+        ctx.fillStyle = "#3a1650";
+        ctx.fillRect(Math.round(px - r), Math.round(py - lift - r), Math.round(r * 2), Math.round(r * 2));
+        ctx.fillStyle = "#c79af0";
+        ctx.fillRect(Math.round(px - r * 0.5), Math.round(py - lift - r * 0.6), Math.max(1, Math.round(r * 0.6)), Math.max(1, Math.round(r * 0.6)));
+        continue;
+      }
       if (p.stone) {
         // Pierre de fronde : un petit caillou gris qui file, en arc léger.
         const lift = Math.sin(t * Math.PI) * tile * 0.35;

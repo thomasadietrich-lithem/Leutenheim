@@ -210,6 +210,10 @@ export const RULES = {
   carillonKnellAt: 0.1,
   carillonKnellRings: 3,
   carillonKnellFallen: 3,
+  /** Crachat d'encre (2026-11-18, remplace le coup de chapeau) : tous les tant de tours, jet, dégâts (C). */
+  carillonSpitEvery: 2,
+  carillonSpitBonus: 5,
+  carillonSpitDamage: { count: 1, sides: 8, bonus: 0 },
   /** Le battant, à l'abri sous le chapeau hors de l'avertissement : sa classe d'armure (seul un 20 naturel passe). */
   carillonClapperGuard: 40,
   /** Désamorcer un piège (Thomas, 2026-11-17) : d20 + agilité (+ crochetage) contre tant ; raté de 5 ou plus, il part. (C) */

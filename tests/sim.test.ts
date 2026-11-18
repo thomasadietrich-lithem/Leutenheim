@@ -6631,3 +6631,26 @@ test("2026-11-18 : niche secrète — la dalle à pression fait coulisser un pan
   }
   assert.ok(found >= 3, "des niches dans le donjon");
 });
+
+test("2026-11-18 : le Carillon crache de l'encre à distance (un tour sur deux) ; une souche arrête le crachat ; taché, le tir suivant a le désavantage", () => {
+  const game = new Game(4);
+  game.testRun = true;
+  game.teleport(10);
+  const bell = game.bossActor()!;
+  const lair = game.bossLayout()!.lair;
+  // Le héros dans la grotte, à quelques cases devant lui, sans rien entre eux.
+  const hero = game.hero;
+  hero.x = bell.x + 1;
+  hero.y = bell.y + 5;
+  if (!game.map.isWalkable(hero.x, hero.y) || hero.y >= lair.y + lair.h) return;
+  game.monsters.splice(0, game.monsters.length, ...game.monsters.filter((m) => m === bell || m.defId === "battant"));
+  const act = (game as unknown as { carillonAct(m: unknown): void }).carillonAct.bind(game);
+  let spat = 0;
+  for (let k = 0; k < 6; k++) {
+    game.events.length = 0;
+    hero.hp = hero.maxHp;
+    act(bell);
+    if (game.events.some((e) => e.type === "attack" && "ink" in e && e.ink)) spat++;
+  }
+  assert.ok(spat >= 2, `crachats : ${spat}`);
+});

@@ -251,7 +251,7 @@ export const MONSTERS = {
     id: "carillon",
     name: "le Carillon",
     family: "champignons",
-    description: "Un coprin géant qui pousse de la voûte, tête en bas, le chapeau en forme de cloche. C'est lui qui sonnait. Tous les huit tours, son battant de spores frappe : l'onde jette à terre qui n'est pas à l'abri. Entre deux, il fait pleuvoir de l'encre sur des cases marquées d'une ombre, et son chapeau frappe qui se colle à lui.",
+    description: "Un coprin géant qui pousse de la voûte, tête en bas, le chapeau en forme de cloche. C'est lui qui sonnait. Tous les huit tours, son battant de spores frappe : l'onde jette à terre qui n'est pas à l'abri. Entre deux, il fait pleuvoir de l'encre sur des cases marquées d'une ombre, et il crache de l'encre sur qui il voit, de près comme de loin : derrière une souche, on est à l'abri de tout.",
     hp: 120,
     armorClass: 12,
     attackBonus: 5,

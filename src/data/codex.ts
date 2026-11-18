@@ -52,7 +52,8 @@ export const CODEX_TRAPS: Record<TrapKind, string> = {
 export const CODEX_STATES: { id: string; name: string; description: string }[] = [
   { id: "poison", name: "Empoisonné", description: "On perd des PV à chaque tour, pendant quelques tours." },
   { id: "feu", name: "En feu", description: "1d4 dégâts par tour. Sortir des flammes, ou marcher dans l'eau." },
-  { id: "ralenti", name: "Englué ou ralenti", description: "Le prochain pas sert à se dégager ; un monstre ralenti ne joue qu'un tour sur deux." },
+  { id: "ralenti", name: "Englué ou ralenti", description: "Englué, entoilé ou ligoté : le prochain tour est perdu à se dégager (ni frapper, ni bouger, ni manger) ; un monstre ralenti ne joue qu'un tour sur deux." },
+  { id: "tache", name: "Taché", description: "Le crachat d'encre du Carillon dans les yeux : votre prochain tir (arc, lance-pierre, javeline) a le désavantage." },
   { id: "sonne", name: "Sonné", description: "Le monstre perd son prochain tour." },
   { id: "cache", name: "Caché", description: "Les monstres ne vous remarquent qu'au contact. Première attaque avec l'avantage." },
   { id: "torche", name: "Torche allumée", description: "Vous éclairez autour de vous, mais on vous voit venir." },

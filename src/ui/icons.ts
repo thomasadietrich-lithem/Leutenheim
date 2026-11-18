@@ -2459,6 +2459,25 @@ export const BLOOD = {
 
 /** Pictogrammes des statuts (sous les jauges, et en bulle au-dessus des monstres). */
 export const STATUS_ICONS = {
+  /** Taché (crachat d'encre du Carillon, 2026-11-18) : une goutte d'encre violette et ses éclaboussures. */
+  tache: [
+    "................",
+    "................",
+    "..K.....K.......",
+    ".KPK...KQK......",
+    "..K...KPPK......",
+    "......KPPPK..K..",
+    ".....KPQPPPKKPK.",
+    ".....KPPPPpK.K..",
+    "....KPPPPPppK...",
+    "....KPPPPpppK...",
+    "....KpPPpppK....",
+    ".....KpppppK....",
+    "..K...KKKKK.....",
+    ".KPK.......K....",
+    "..K.......KpK...",
+    "...........K....",
+  ],
   poison: [
     "................",
     "................",

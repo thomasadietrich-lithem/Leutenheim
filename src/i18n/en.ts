@@ -2239,4 +2239,10 @@ export const EN: Record<string, string> = {
   "Bientôt : une page pour suivre le jeu et soutenir son développement.": "Coming soon: a page to follow the game and support its development.",
   "Clac ! La dalle s'enfonce. Un grondement : un pan de mur coulisse et découvre une niche.": "Click! The flagstone sinks. A rumble: a section of wall slides away, revealing a niche.",
   "Grrrrr…": "Rrrrumble…",
+  "le crachat du Carillon": "the Carillon's ink spit",
+  "Taché": "Inked",
+  "Le crachat d'encre du Carillon dans les yeux : votre prochain tir (arc, lance-pierre, javeline) a le désavantage.": "The Carillon's ink spit in your eyes: your next shot (bow, sling, javelin) has disadvantage.",
+  "Un coprin géant qui pousse de la voûte, tête en bas, le chapeau en forme de cloche. C'est lui qui sonnait. Tous les huit tours, son battant de spores frappe : l'onde jette à terre qui n'est pas à l'abri. Entre deux, il fait pleuvoir de l'encre sur des cases marquées d'une ombre, et il crache de l'encre sur qui il voit, de près comme de loin : derrière une souche, on est à l'abri de tout.": "A giant inky cap growing from the vault, upside down, its cap shaped like a bell. It was the one ringing. Every eight turns its spore clapper strikes: the wave knocks down anyone not under cover. In between, it rains ink on cells marked by a shadow, and spits ink at anyone it can see, near or far: behind a stump, you are safe from everything.",
+  "De l'encre dans les yeux : votre prochain tir aura le désavantage.": "Ink in your eyes: your next shot will have disadvantage.",
+  "Englué, entoilé ou ligoté : le prochain tour est perdu à se dégager (ni frapper, ni bouger, ni manger) ; un monstre ralenti ne joue qu'un tour sur deux.": "Stuck, webbed or tied up: the next turn is lost struggling free (no striking, moving or eating); a slowed monster only acts every other turn.",
 };

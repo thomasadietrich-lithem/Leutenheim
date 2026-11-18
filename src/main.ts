@@ -647,7 +647,9 @@ function startRoll(e: GameEvent): void {
   if (e.type === "npcRoll") dieWho.textContent = tr(e.stat);
   sfx.play("dice");
   if (mode !== "normal") sfx.play(mode);
-  if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
+  // Le crachat d'encre du Carillon part du milieu de son chapeau (3 × 3).
+  if (e.type === "attack" && e.ranged && foe && e.ink) renderer.addProjectile(e.attacker.x + 1, e.attacker.y + 1, e.target.x, e.target.y, 0, false, false, false, undefined, true);
+  else if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
   else if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
   // Corps à corps : l'élan et la lame partent tout de suite, pendant que le dé roule.
   if (e.type === "attack" && !e.ranged) {
@@ -3078,6 +3080,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.hidden) list.push({ id: "cache", name: "Caché", detail: "Les monstres ne vous remarquent qu'au contact. Votre première attaque a l'avantage." });
   if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 dégâts par tour. Sortez des flammes !" });
   if (game.hero.poison) list.push({ id: "poison", name: "Empoisonné", detail: `Vous perdez ${game.hero.poison.damage} PV par tour. Encore ${game.hero.poison.turns} tours.` });
+  if (game.inkBlind > 0) list.push({ id: "tache", name: "Taché", detail: "De l'encre dans les yeux : votre prochain tir aura le désavantage." });
   if (game.hero.stuck) list.push({ id: "ralenti", name: "Englué", detail: "Vous perdez votre prochain tour à vous dégager : ni frapper, ni bouger, ni manger." });
   if (game.torchLit()) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });

@@ -1095,12 +1095,23 @@ export class Game {
       m.stunned--;
       return;
     }
-    // Coup de chapeau : collé à lui, son bord retombe sur vous (pas en mode « onde seule »).
-    if (this.carillonMode !== "onde" && gapBetween(m, this.hero) <= 1 && this.inLair(layout.lair, this.hero)) {
-      const result = rollAttack(this.rng, m, this.hero);
-      this.events.push({ type: "attack", attacker: m, target: this.hero, result });
-      this.hurtHero(result.damage, this.killerName(m));
-      if (this.over) return;
+    // CRACHAT D'ENCRE (Thomas, 2026-11-18 : remplace le coup de chapeau, « transformer l'attaque au contact en attaque à
+    // distance ») : un tour sur deux, s'il voit le héros, à toute distance ; une souche entre eux l'arrête, comme l'onde.
+    // Touché : « Taché », le prochain tir du héros a le désavantage (pas en mode « onde seule »).
+    st.spitTick = (st.spitTick ?? 0) + 1;
+    if (this.carillonMode !== "onde" && st.spitTick % RULES.carillonSpitEvery === 0 && this.inLair(layout.lair, this.hero)) {
+      const mouth = { x: m.x + 1, y: m.y + 1 };
+      if (this.waveReaches(mouth, this.hero)) {
+        const result = rollAttack(this.rng, { attackBonus: RULES.carillonSpitBonus, damage: RULES.carillonSpitDamage }, this.hero);
+        result.damage = this.absorb(result.damage);
+        this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true, ink: true });
+        if (result.hit) {
+          this.inkBlind = 1;
+          this.stain(this.hero.x, this.hero.y, "black");
+        }
+        this.hurtHero(result.damage, "le crachat du Carillon");
+        if (this.over) return;
+      }
     }
     // L'ENCRE EN ZONES (Thomas, 2026-11-17) : en mode « douce », après la première onde, une zone tous les 3 tours ;
     // « dure » : dès l'arrivée, tous les 2 tours. Les motifs se suivent dans l'ordre (croix, bandes, anneau, quart) :
@@ -2318,6 +2329,8 @@ export class Game {
   private restHidden = 0;
   /** Coup de serviette reçu : le prochain coup du héros a le désavantage. */
   towelBlind = 0;
+  /** Taché par le crachat d'encre du Carillon : le prochain tir du héros a le désavantage. */
+  inkBlind = 0;
 
   isGassed(x: number, y: number): boolean {
     return this.gas.some((g) => g.x === x && g.y === y);
@@ -9627,6 +9640,9 @@ export class Game {
     const endless = this.endlessAmmo(ammo);
     if (!profile || !ammo || (!endless && !this.inventory.take(ammo, 1))) return;
     const poison = (ITEMS[ammo] as ItemDef).poison;
+    // Taché (crachat du Carillon) : ce tir-ci a le désavantage, puis c'est fini.
+    const inked = this.inkBlind > 0;
+    this.inkBlind = 0;
     this.reveal();
     const origin = { x: this.hero.x, y: this.hero.y };
     const trail: Point[] = [origin];
@@ -9666,7 +9682,7 @@ export class Game {
       const bowShot = !profile.thrown;
       const favoured = !blind && (this.hasEdge(this.hero, victim) || (bowShot && this.lynxShot(victim)));
       // TIR AU CONTACT (Elfe, Thomas 2026-11-16) : à l'arc, un ennemi au contact ne gêne pas.
-      const threatened = (blind && !(bowShot && this.race.blindShot)) || (!(bowShot && this.race.closeShot) && this.monsters.some((m) => m.alerted && this.inReach(m, this.hero)));
+      const threatened = inked || (blind && !(bowShot && this.race.blindShot)) || (!(bowShot && this.race.closeShot) && this.monsters.some((m) => m.alerted && this.inReach(m, this.hero)));
       const mode = favoured && !threatened ? "advantage" : threatened && !favoured ? "disadvantage" : "normal";
       // Dans un couloir d'une case de large, la flèche n'a guère où passer à côté : bonus au jet.
       const open = (dx: number, dy: number) => this.map.isWalkable(victim!.x + dx, victim!.y + dy);

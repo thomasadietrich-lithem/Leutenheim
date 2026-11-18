@@ -12,7 +12,7 @@ import { PathId } from "../data/skills";
 export type DoorAction = "pick" | "break" | "key" | "peek";
 
 export type GameEvent =
-  | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult; opportunity?: boolean; ranged?: boolean }
+  | { type: "attack"; attacker: Actor; target: Actor; result: AttackResult; opportunity?: boolean; ranged?: boolean; ink?: boolean }
   | {
       type: "arrow";
       fromX: number;

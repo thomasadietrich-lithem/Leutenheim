@@ -26,6 +26,8 @@ export type GameEvent =
       kept: boolean;
       /** Une javeline plutôt qu'une flèche (dessin en vol et morceaux brisés). */
       javelin?: boolean;
+      /** Le projectile (son nom au journal : `ItemDef.single`). */
+      ammo?: ItemId;
       /** Une pierre de lance-pierre (le Halfelin). */
       stone?: boolean;
       /** Flèche spéciale : son dessin en vol (Thomas, 2026-11-17 : la flèche de recul volait comme une ordinaire). */

@@ -200,8 +200,8 @@
   #quest-banner { position: absolute; top: 6px; left: 6px; right: 44px; z-index: 2; padding: 3px 8px; text-align: left; font-size: 17px; line-height: 1.1; color: var(--gold); background: rgba(12, 9, 6, 0.86); border: 1px solid var(--panel-hi); box-shadow: inset 0 0 0 1px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #quest-banner::before { content: "◆ "; color: var(--dim); }
   /* Vie sous 15 % en combat : le bord de la carte rougeoie, tout doucement (Thomas, 2026-11-17). */
-  #low-hp { position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 46px 10px rgba(200, 30, 36, 0.6); animation: low-hp 1.7s ease-in-out infinite alternate; }
-  @keyframes low-hp { from { opacity: 0.12; } to { opacity: 0.6; } }
+  #low-hp { position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 60px 16px rgba(210, 26, 32, 0.75); animation: low-hp 0.9s ease-in-out infinite alternate; }
+  @keyframes low-hp { from { opacity: 0.25; } to { opacity: 0.95; } }
   /* L'astuce de l'escalier reste quelques secondes sur la carte, puis s'efface (Thomas, 2026-11-17). */
   #tip-toast { position: absolute; left: 8px; right: 8px; bottom: 44px; z-index: 1; padding: 5px 8px; pointer-events: none; text-align: center; font-size: 17px; line-height: 1.1; color: #cdbf9c; background: rgba(12, 9, 6, 0.86); border: 1px solid var(--panel-hi); box-shadow: inset 0 0 0 1px #000; opacity: 1; transition: opacity 0.9s linear; }
   #tip-toast.out { opacity: 0; }

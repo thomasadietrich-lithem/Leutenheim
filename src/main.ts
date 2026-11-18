@@ -205,6 +205,7 @@ let pushMode = false;
 /** Le héros à terre : combien de temps on l'a vu couché avant que son tour perdu ne passe. */
 let proneShown = 0;
 const PRONE_HOLD_MS = 900;
+const STUCK_HOLD_MS = 600;
 /** Désamorcer : on touche le piège voisin choisi (plusieurs pièges autour). */
 let disarmMode = false;
 /** Genres d'objets déjà rencontrés dans cette partie : leur fiche ne s'affiche qu'à la première trouvaille. */
@@ -2074,6 +2075,12 @@ function cycleAmmo(): void {
   for (const name of ["pointerup", "pointerleave", "pointercancel"]) $("aim").addEventListener(name, stop);
   $("aim").addEventListener("contextmenu", (e) => e.preventDefault());
 }
+/** Au contact, on peut quand même lancer une javeline (pas d'arc à bander ; avec le désavantage), et l'Elfe tire
+ *  (Thomas, 2026-11-18 : « pas le temps de bander l'arc avec les javelines »). */
+function closeThrowOk(): boolean {
+  const profile = game.shotProfile();
+  return !!profile && (profile.thrown || !!game.race.closeShot);
+}
 button("aim", () => {
   // Le toucher qui termine un appui long ne tire pas.
   if (aimHeld) {
@@ -2084,7 +2091,7 @@ button("aim", () => {
     const target = aimTarget();
     if (target) fireAt(target.x, target.y);
     else aimMode = false; // personne à viser : le second appui range l'arc
-  } else if (game.isThreatened()) {
+  } else if (game.isThreatened() && !closeThrowOk()) {
     logLines.push("Un ennemi est au contact : pas le temps de bander l'arc.");
   } else if (game.arrows() < 1) {
     logLines.push("Plus de flèches.");
@@ -2766,7 +2773,8 @@ $("bag-grid").addEventListener("click", (e) => {
   const selectedUid = selected && "uid" in selected ? selected.uid : null;
   // Double toucher sur un équipement du sac (Thomas, 2026-11-16 : « double clic équipement ») : il est porté ; sur un
   // consommable (pomme, potion…), il est consommé (ou lancé, ou « Êtes-vous sûr ? », comme le bouton).
-  if (hit && isDoubleTap(`bag-${hit.uid}`) && (WEARABLE_KINDS.has(ITEMS[hit.defId].kind) || ITEMS[hit.defId].kind === "use")) {
+  // Munitions (flèches, javelines, pierres ; Thomas, 2026-11-18) : le double toucher les met au carquois.
+  if (hit && isDoubleTap(`bag-${hit.uid}`) && (WEARABLE_KINDS.has(ITEMS[hit.defId].kind) || ITEMS[hit.defId].kind === "use" || ITEMS[hit.defId].kind === "ammo")) {
     selected = { uid: hit.uid };
     ($("bag-equip") as HTMLButtonElement).click();
     return;
@@ -2999,7 +3007,7 @@ function heroStatuses(): { id: keyof typeof STATUS_ICONS; name: string; detail: 
   if (game.hidden) list.push({ id: "cache", name: "Caché", detail: "Les monstres ne vous remarquent qu'au contact. Votre première attaque a l'avantage." });
   if (game.hero.burning || game.isBurning(game.hero.x, game.hero.y)) list.push({ id: "feu", name: "En feu", detail: "1d4 dégâts par tour. Sortez des flammes !" });
   if (game.hero.poison) list.push({ id: "poison", name: "Empoisonné", detail: `Vous perdez ${game.hero.poison.damage} PV par tour. Encore ${game.hero.poison.turns} tours.` });
-  if (game.hero.stuck) list.push({ id: "ralenti", name: "Englué", detail: "Votre prochain pas servira à vous dégager. Vous pouvez encore frapper." });
+  if (game.hero.stuck) list.push({ id: "ralenti", name: "Englué", detail: "Vous perdez votre prochain tour à vous dégager : ni frapper, ni bouger, ni manger." });
   if (game.torchLit()) list.push({ id: "torche", name: "Torche allumée", detail: `Vous éclairez autour de vous, mais on vous voit venir. Encore ${game.torchTurns} tours.` });
   if (game.weaponPoison > 0) list.push({ id: "arme_poison", name: "Arme empoisonnée", detail: `Vos coups qui portent empoisonnent. Encore ${game.weaponPoison} coups.` });
   if (game.blessTurns > 0) list.push({ id: "beni", name: "Béni", detail: `La pomme dorée de l'autel : +1 à l'attaque et +1 classe d'armure. Encore ${game.blessTurns} tours.` });
@@ -4279,9 +4287,11 @@ function frame(now: number): void {
   advanceStairs(dt);
   // À TERRE (Thomas, 2026-11-17 : « fais durer au moins un tour le fait d'être couché ») : le tour perdu à se relever
   // passe tout seul, mais pas avant qu'on ait vu le héros couché un moment.
-  if ((game.hero.prone ?? 0) > 0 && !stepping && !cue && queue.length === 0) proneShown += dt;
-  else if ((game.hero.prone ?? 0) === 0) proneShown = 0;
-  const proneWait = (game.hero.prone ?? 0) > 0 && proneShown < PRONE_HOLD_MS;
+  // Entoilé (Thomas, 2026-11-18) : pareil, le tour perdu passe tout seul après un court instant.
+  const held = (game.hero.prone ?? 0) > 0 || ((game.hero.stuck ?? 0) > 0 && game.stoneTurns <= 0);
+  if (held && !stepping && !cue && queue.length === 0) proneShown += dt;
+  else if (!held) proneShown = 0;
+  const proneWait = held && proneShown < ((game.hero.prone ?? 0) > 0 ? PRONE_HOLD_MS : STUCK_HOLD_MS);
   if (!proneWait && !stairsScene && !stepping && !cue && queue.length === 0 && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !talkOpen && !wheelOpen) {
     shownHp = game.hero.hp;
     if (game.visibleMonsters().length > 0) stepMs = Math.max(stepMs, COMBAT_STEP_MS);
@@ -4335,8 +4345,9 @@ function frame(now: number): void {
   const floorText = String(game.depth);
   if ($("floor-num").textContent !== floorText) $("floor-num").textContent = tr(floorText);
   setWidth(hpFill, `${(100 * shownHp) / game.hero.maxHp}%`);
-  // Vie sous 15 % en plein combat : le bord de la carte rougeoie doucement.
-  setHidden($("low-hp"), !(game.hero.hp > 0 && !game.over && game.hero.hp < game.hero.maxHp * 0.15 && game.inCombat()));
+  // Vie à 20 % ou moins (Thomas, 2026-11-18 : « l'écran qui pulse rouge quand j'arrive à 20 % ») : le bord de la carte
+  // rougeoie et palpite, en combat ou non.
+  setHidden($("low-hp"), !(game.hero.hp > 0 && !game.over && game.hero.hp <= game.hero.maxHp * 0.2));
   hpOrbs();
   renderHere();
   setText($("hp-label"), tr(`PV ${shownHp}/${game.hero.maxHp}`));
@@ -4379,7 +4390,7 @@ function frame(now: number): void {
   aim.hidden = !canShoot;
   if (!canShoot) aimMode = false;
   // Dès qu'un ennemi arrive au contact, on repasse à l'arme de corps à corps.
-  if (aimMode && game.isThreatened()) {
+  if (aimMode && game.isThreatened() && !closeThrowOk()) {
     aimMode = false;
     logLines.push("Ennemi au contact : vous reprenez votre arme de corps à corps.");
     renderLog();

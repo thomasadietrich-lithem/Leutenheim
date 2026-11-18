@@ -3716,13 +3716,15 @@ export class Game {
     if (!range) return "far";
     if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > range) return "far";
     if (!this.isVisible(x, y)) return "unseen";
-    if (!this.map.isWalkable(x, y)) return "wall";
+    // Une porte verrouillée se vise aussi (Thomas, 2026-11-18) : le feu la consume.
+    if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.DoorLocked) return "wall";
     return null;
   }
 
   /** La torche lancée : sa case prend feu (dans l'eau, elle s'éteint). Les monstres de la case se réveillent. */
   private resolveTorchThrow(order: { x: number; y: number }): void {
     this.reveal();
+    this.markHeroHurt(order, 1);
     const doused = this.map.get(order.x, order.y) === Tile.Water;
     if (!doused) {
       const old = this.fires.find((f) => f.x === order.x && f.y === order.y);
@@ -3756,6 +3758,7 @@ export class Game {
     }
     const potion = (ITEMS[item.defId] as ItemDef).potion ?? "fire";
     this.reveal();
+    this.markHeroHurt(order, 2);
     // La croix, plus une éclaboussure au hasard sur une case voisine de la croix (Thomas).
     const cross = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
     const splash = [[2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -3895,7 +3898,9 @@ export class Game {
    */
   private burnWoodTiles(): void {
     let changed = false;
-    for (const fire of [...this.fires]) {
+    // Les flammes au sol, et aussi les meubles qui brûlent (Thomas, 2026-11-18 : « les portes doivent pouvoir brûler »).
+    const sources = [...this.fires, ...[...this.furnitureFire.keys()].flatMap((f) => furnitureCells(f))];
+    for (const fire of sources) {
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const x = fire.x + dx;
@@ -4674,6 +4679,17 @@ export class Game {
       this.waiting = true;
       if (this.hero.prone === 0) this.events.push({ type: "getUp", actor: this.hero });
     }
+    // ENTOILÉ, englué, ligoté (Thomas, 2026-11-18 : « entoilé un tour, tu ne peux rien faire ») : le tour passe entier à
+    // se dépêtrer ; ni frapper, ni marcher, ni manger.
+    let held = false;
+    if ((this.hero.prone ?? 0) <= 0 && (this.hero.stuck ?? 0) > 0 && this.stoneTurns <= 0) {
+      held = true;
+      this.hero.stuck!--;
+      // Le trajet reste (il reprend au tour suivant) ; les autres ordres sont oubliés.
+      Object.assign(this, { resting: 0, searching: 0, hideOrder: false, jumpTarget: null, pushTargetId: null, disarmAt: null, useOrder: null, throwOrder: null, skillOrder: null, shotTarget: null, doorAction: null });
+      this.waiting = true;
+      this.events.push({ type: "stuck" });
+    }
     // Statue (potion de pierre) : le héros ne peut rien faire ; tout ordre est oublié, le tour passe.
     if (this.stoneTurns > 0) {
       this.stoneTurns--;
@@ -4690,6 +4706,8 @@ export class Game {
     } else if (this.doorAction && this.pendingDoor) {
       this.resolveDoor(this.doorAction, this.pendingDoor);
       this.doorAction = null;
+    } else if (held) {
+      this.waiting = false;
     } else if (this.breakTarget && this.path.length === 0) {
       const at = this.breakTarget;
       this.breakTarget = null;
@@ -4785,10 +4803,6 @@ export class Game {
         this.heroAttacks(blocker);
         this.path = [];
         this.targetId = null; // un toucher = une attaque
-      } else if (this.hero.stuck) {
-        // Englué : ce déplacement passe à se dépêtrer (on peut toujours frapper).
-        this.hero.stuck--;
-        this.events.push({ type: "stuck" });
       } else {
         // Les monstres alertés au contact avant le pas : s'en éloigner leur offre une attaque d'opportunité.
         const threats = this.monsters.filter((m) => m.alerted && this.inReach(m, this.hero));
@@ -4979,6 +4993,7 @@ export class Game {
    * S'il recule sur un piège, le piège se déclenche.
    */
   private resolvePush(m: Actor): void {
+    m.heroHurt = true;
     this.reveal();
     // Le battant du Carillon : une poussée réussie l'arrache (Thomas, 2026-11-16).
     if (this.isInert(m)) {
@@ -6950,6 +6965,22 @@ export class Game {
     return this.quest.glow ?? [];
   }
 
+  /**
+   * Les donneurs de quête de l'étage (Thomas, 2026-11-18 : « les donneurs de quêtes doivent briller ; retourner voir X,
+   * on doit le voir sur la carte ») : `ret` = celui à qui rendre la quête en cours, objectif rempli ; `active` = celui
+   * qui l'a donnée. Les deux se voient sur la carte même hors de vue.
+   */
+  questBeacons(): { id: NpcId; x: number; y: number; active: boolean; ret: boolean }[] {
+    const giver = this.quest && this.quest.depth === this.depth ? QUEST_TASKS[this.quest.id].npc : null;
+    const out: { id: NpcId; x: number; y: number; active: boolean; ret: boolean }[] = [];
+    for (const id of NPC_IDS) {
+      const g = this.npc(id);
+      if (!g) continue;
+      out.push({ id, x: g.x, y: g.y, active: id === giver, ret: id === giver && this.questDone() });
+    }
+    return out;
+  }
+
   /** Revenir voir le PNJ : il attend tant que ce n'est pas fait ; sinon on lui rend la tâche. */
   private questScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     const def = QUEST_TASKS[this.quest!.id];
@@ -7344,6 +7375,7 @@ export class Game {
       if (!cells.some((c) => occupies(m, c.x, c.y))) continue;
       const dmg = rollDice(this.rng, RULES.bombDamage);
       m.hp -= dmg;
+      m.heroHurt = true;
       m.alerted = true;
       m.asleep = false;
       hit.push(m);
@@ -8827,6 +8859,7 @@ export class Game {
     monster.asleep = false;
     const intact = monster.hp >= monster.maxHp;
     monster.hp -= result.damage;
+    monster.heroHurt = true;
     this.noteBossHit(monster, result.damage);
     this.events.push({ type: "attack", attacker: this.hero, target: monster, result });
     // Arme lourde (épée longue) : un grand d20 assomme la cible, qui perd son prochain tour.
@@ -8952,6 +8985,11 @@ export class Game {
   }
 
   /** `byHero` faux : tué par un autre monstre (querelle) ; pas d'expérience pour le héros. */
+  /** Les monstres à `reach` cases de ce point (potion, torche lancées) : touchés par le héros. */
+  private markHeroHurt(at: Point, reach: number): void {
+    for (const m of this.monsters) if (Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) <= reach + (m.size ?? 1) - 1) m.heroHurt = true;
+  }
+
   private removeIfDead(monster: Actor, byHero = true): void {
     if (monster.hp > 0) return;
     const sdef = MONSTERS[monster.defId as keyof typeof MONSTERS] as MonsterDef | undefined;
@@ -8978,6 +9016,8 @@ export class Game {
       if (bell?.boss) bell.boss.clapperUp = false;
       this.events.push({ type: "carillon", what: "clapper", actor: monster });
     }
+    // Pas d'XP ni de victoire pour un monstre que le héros n'a jamais touché (piège, encre, spores, querelle…).
+    if (!monster.heroHurt) byHero = false;
     if (byHero) this.perks().kills = (this.perks().kills ?? 0) + 1;
     // Sporelin : il éclate en un nuage de spores (empoisonné) sur sa case et ses 4 voisines.
     if (sdef?.burstGas) {
@@ -9090,6 +9130,7 @@ export class Game {
       victim.alerted = true;
       victim.asleep = false;
       victim.hp -= result.damage;
+      victim.heroHurt = true;
       this.noteBossHit(victim, result.damage);
       this.events.push({ type: "attack", attacker: this.hero, target: victim, result, ranged: true });
       if (result.damage > 0) this.bleed(victim, origin);
@@ -9117,6 +9158,7 @@ export class Game {
             next.alerted = true;
             next.asleep = false;
             next.hp -= second.damage;
+            next.heroHurt = true;
             ricochet = { from, target: next, result: second };
             if (second.damage > 0) this.bleed(next, from);
           }
@@ -9156,7 +9198,7 @@ export class Game {
     if (ricochet) landing = { x: ricochet.target.x, y: ricochet.target.y };
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, stone ? undefined : angle);
     else if (!stone) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
-    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, arrowKind: ARROW_KIND[ammo] });
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, ammo, arrowKind: ARROW_KIND[ammo] });
     if (ricochet) {
       // Le ricochet : la flèche file de la première cible à la deuxième, puis tombe là.
       const r = ricochet;
@@ -9440,6 +9482,7 @@ export class Game {
         if (this.urchinTurns > 0 && result.damage > 0 && !this.over) {
           const back = Math.max(1, Math.round(result.damage * RULES.urchinReflect));
           m.hp -= back;
+          m.heroHurt = true;
           this.events.push({ type: "thorns", actor: m, damage: back });
           this.removeIfDead(m);
         }

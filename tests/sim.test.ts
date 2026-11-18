@@ -4313,6 +4313,7 @@ test("tâches de quête : Sœur Osseuse compte les Kobolds punis ; descendre san
   const remove = game as unknown as { removeIfDead(m: unknown, byHero?: boolean): void };
   for (const m of kobolds().slice(0, q.need)) {
     m.hp = 0;
+    m.heroHurt = true;
     remove.removeIfDead(m);
   }
   assert.equal(q.got, q.need);
@@ -5928,6 +5929,7 @@ test("étage ouvert après la Tisseuse (Thomas, 2026-11-16) : l'escalier mène �
   (game as unknown as { enterFloor(d: number, v: string): void }).enterFloor(5, "down");
   const queen = game.bossActor()!;
   queen.hp = 0;
+  queen.heroHurt = true;
   (game as unknown as { removeIfDead(m: unknown): void }).removeIfDead(queen);
   game.over = false;
   const seal = game.bossLayout()!.seal;
@@ -6500,4 +6502,27 @@ test("Elfe : flèches simples sans fin, et elles ne restent pas au sol (Thomas, 
   human.shoot(human.hero.x + 2, human.hero.y);
   human.tick();
   assert.equal(human.inventory.count("fleche"), n - 1);
+});
+
+test("2026-11-18 : pas d'XP pour un monstre que le héros n'a pas touché ; entoilé, le tour passe entier", () => {
+  const { game, m } = foeAt(3);
+  const xp = game.xp;
+  const lvl = game.level;
+  m.hp = 0;
+  (game as unknown as { removeIfDead(a: unknown): void }).removeIfDead(m);
+  assert.equal(game.xp, xp, "mort sans le héros : pas d'XP");
+  assert.equal(game.level, lvl);
+  // Entoilé : le tour passe, sans bouger, même avec un trajet.
+  const g2 = foeAt(4).game;
+  g2.monsters.length = 0;
+  g2.hero.stuck = 1;
+  const at = { x: g2.hero.x, y: g2.hero.y };
+  const step = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: at.x + dx, y: at.y + dy })).find((c) => g2.map.isWalkable(c.x, c.y));
+  if (!step) return;
+  g2.path = [step];
+  assert.ok(g2.tick());
+  assert.deepEqual({ x: g2.hero.x, y: g2.hero.y }, at, "entoilé : il ne bouge pas");
+  assert.equal(g2.hero.stuck, 0);
+  g2.tick();
+  assert.deepEqual({ x: g2.hero.x, y: g2.hero.y }, step, "le trajet reprend ensuite");
 });

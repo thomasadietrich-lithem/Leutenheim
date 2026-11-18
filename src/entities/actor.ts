@@ -23,6 +23,9 @@ export interface Actor {
   alerted: boolean;
   /** Le dernier coup du héros l'a pris par surprise (succès « Ombre »). */
   struckUnaware?: boolean;
+  /** Le héros l'a frappé, touché d'un tir, poussé, brûlé ou fait sauter : sa mort rapporte de l'XP (Thomas, 2026-11-18 :
+   *  « quand des mobs meurent sans y avoir touché, ils ne devraient pas amener d'XP »). */
+  heroHurt?: boolean;
   /** Monstre endormi : immobile, remarque mal le héros. Un monstre ni alerté ni endormi se promène. */
   asleep: boolean;
   /** Le héros vient de lui échapper en passant une porte : il ne se laisse plus surprendre tant qu'il ne l'a pas rattrapé. */

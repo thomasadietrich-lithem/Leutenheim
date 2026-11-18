@@ -2079,6 +2079,19 @@ export class Renderer {
               : kind;
       const art = PIEGES[name] ?? PIEGES_CHAMPI[name];
       const u = tile / 16;
+      // Un piège connu se repère (Thomas, 2026-11-18 : « quand on fouille une salle avec un piège, il doit apparaître en
+      // orange ou rouge ») : une lueur rouge orangé qui palpite sous la dalle, cadre rouge.
+      if (!(kind === "pit" && p.sprung)) {
+        const pulse = 0.5 + 0.5 * Math.sin(this.time / 300 + p.x + p.y);
+        const tx = this.snap(ox + p.x * tile);
+        const ty = this.snap(oy + p.y * tile);
+        const ts = this.snap(ox + (p.x + 1) * tile) - tx;
+        ctx.fillStyle = `rgba(235,80,30,${(0.18 + 0.14 * pulse).toFixed(3)})`;
+        ctx.fillRect(tx, ty, ts, ts);
+        ctx.strokeStyle = `rgba(255,96,40,${(0.55 + 0.35 * pulse).toFixed(2)})`;
+        ctx.lineWidth = Math.max(1.5, tile * 0.06);
+        ctx.strokeRect(tx + ctx.lineWidth / 2, ty + ctx.lineWidth / 2, ts - ctx.lineWidth, ts - ctx.lineWidth);
+      }
       const w = art.rows[0].length;
       const h = art.rows.length;
       const rx = this.snap(ox + p.x * tile - u);
@@ -2286,6 +2299,20 @@ export class Renderer {
       }
     }
 
+    // Donneurs de quête (Thomas, 2026-11-18 : « ils doivent briller ») : un halo doré qui palpite à leurs pieds.
+    for (const b of game.questBeacons()) {
+      if (!game.isVisible(b.x, b.y)) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(this.time / (b.ret ? 220 : 420));
+      const cx = ox + (b.x + 0.5) * tile;
+      const cy = oy + (b.y + 0.82) * tile;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, tile * 0.75);
+      g.addColorStop(0, `rgba(255,220,110,${(0.45 + 0.3 * pulse).toFixed(2)})`);
+      g.addColorStop(1, "rgba(255,220,110,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, tile * 0.75, tile * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     this.drawMerchant(game, ox, oy, progress);
     this.drawGluck(game, ox, oy);
     this.drawSoeur(game, ox, oy);
@@ -2369,6 +2396,46 @@ export class Renderer {
       ctx.drawImage(this.sprite(uiIconRows("search"), ICON_PALETTE), lx, ly, s, s);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
+    }
+    // Le PNJ de la quête en cours se voit sur la carte, même hors de vue (Thomas, 2026-11-18 : « retourner voir X, on
+    // doit le voir sur la carte ») : une balise dorée (« ? » quand l'objectif est rempli, « ! » sinon) et un rayon.
+    for (const b of game.questBeacons()) {
+      if (!b.active || !game.isExplored(b.x, b.y) && !b.ret) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(this.time / (b.ret ? 200 : 380));
+      const cx = ox + (b.x + 0.5) * tile;
+      const top = oy + (b.y - 1.05) * tile - pulse * tile * 0.08;
+      const seen = game.isVisible(b.x, b.y);
+      ctx.save();
+      if (!seen) {
+        const beam = ctx.createLinearGradient(cx, oy + (b.y + 1) * tile, cx, oy + (b.y - 1.6) * tile);
+        beam.addColorStop(0, `rgba(255,215,110,${(0.35 + 0.25 * pulse).toFixed(2)})`);
+        beam.addColorStop(1, "rgba(255,215,110,0)");
+        ctx.fillStyle = beam;
+        ctx.fillRect(cx - tile * 0.18, oy + (b.y - 1.6) * tile, tile * 0.36, tile * 2.6);
+        ctx.fillStyle = `rgba(255,215,110,${(0.55 + 0.3 * pulse).toFixed(2)})`;
+        ctx.beginPath();
+        ctx.ellipse(cx, oy + (b.y + 0.6) * tile, tile * 0.42, tile * 0.24, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // La balise : un losange doré, un « ? » ou un « ! » dedans.
+      const r = tile * 0.3;
+      ctx.fillStyle = b.ret ? "#ffd75e" : "#c89a14";
+      ctx.strokeStyle = "#120d08";
+      ctx.lineWidth = Math.max(2, tile * 0.07);
+      ctx.beginPath();
+      ctx.moveTo(cx, top - r);
+      ctx.lineTo(cx + r, top);
+      ctx.lineTo(cx, top + r);
+      ctx.lineTo(cx - r, top);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.font = `${Math.round(tile * 0.5)}px "VT323", "Courier New", monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#120d08";
+      ctx.fillText(b.ret ? "?" : "!", cx, top + tile * 0.03);
+      ctx.restore();
     }
     // Les zones de la quête en cours brillent (Thomas, 2026-11-17) : un cadre doré qui palpite, un voile très léger.
     const glow = game.questGlow();
@@ -2817,7 +2884,10 @@ export class Renderer {
       if ((phase === "late") !== behind) continue;
       const cells = furnitureCells(f);
       if (!cells.some((c) => game.isExplored(c.x, c.y))) continue;
-      const visible = cells.some((c) => game.isVisible(c.x, c.y));
+      // Décor accroché au mur du fond (tapisserie du culte, vitraux) : il ne se voit que depuis la salle, pas depuis
+      // l'autre côté du mur (Thomas, 2026-11-18 : « je vois la toile violette de la secte en dehors de la pièce »).
+      if (def.wall && !cells.some((c) => game.isExplored(c.x, c.y + 1) && game.map.get(c.x, c.y + 1) !== Tile.Wall)) continue;
+      const visible = def.wall ? cells.some((c) => game.isVisible(c.x, c.y + 1)) : cells.some((c) => game.isVisible(c.x, c.y));
       if (f.kind === "heroV9") {
         // Salle d'essai : le héros proposé n° 2, à la même taille que le héros (1,3 case), avec son étiquette.
         const cx = ox + (f.x + 0.5) * tile;

@@ -1,6 +1,6 @@
 import { QUEST_TASKS } from "../data/quests";
 import { GameEvent } from "../core/game";
-import { ITEMS } from "../data/items";
+import { ItemDef, ITEMS } from "../data/items";
 import { PATHS } from "../data/skills";
 
 /**
@@ -82,10 +82,13 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.seen
         ? "Le poulet prend peur, file à travers le donjon, défonce la porte et s'écrase contre le mur du fond dans un nuage de plumes."
         : "Le poulet prend peur et détale… Au loin, un fracas. Un poulet semble s'être viandé contre un mur ; il faudrait peut-être investiguer.";
-    case "arrow":
-      if (!e.kept) return "La flèche se brise.";
-      if (!e.hit) return e.via ? "La flèche rebondit et retombe au sol." : "La flèche se plante au sol.";
+    case "arrow": {
+      // Le nom du projectile vient de l'objet (règle : chaque arme de jet donne `single`).
+      const what = (e.ammo && (ITEMS[e.ammo] as ItemDef).single) || "La flèche";
+      if (!e.kept) return `${what} se brise.`;
+      if (!e.hit) return e.via ? `${what} rebondit et retombe au sol.` : `${what} se plante au sol.`;
       return null;
+    }
     case "pickup": {
       const found = ITEMS[e.item];
       if (found.kind === "gold") return `Bourse : or ×${e.count}`;

@@ -77,6 +77,9 @@ export interface ItemDef {
   drinkWarning?: string;
   /** Munitions : famille d'arme qui les tire (« fleche » pour l'arc ; « jet » : se lance à la main, sans arc). */
   ammoFamily?: string;
+  /** Le projectile au singulier, pour le journal (« La javeline se brise. »). RÈGLE (Thomas, 2026-11-18) : toute
+   *  nouvelle munition ou arme de jet donne ici son nom ; sans lui, le journal dit « La flèche ». */
+  single?: string;
   /** Armes lourdes : un d20 naturel à partir de ce nombre SONNE la cible (elle perd son prochain tour). */
   stunOn?: number;
 }
@@ -135,6 +138,7 @@ export const ITEMS = {
   },
   pierre: {
     id: "pierre",
+    single: "La pierre",
     name: "Pierres",
     kind: "ammo",
     description: "Des galets bien ronds, pour le lance-pierre.",
@@ -211,6 +215,7 @@ export const ITEMS = {
   },
   fleche: {
     id: "fleche",
+    single: "La flèche",
     name: "Flèches",
     kind: "ammo",
     description: "Munitions pour l'arc.",
@@ -223,6 +228,7 @@ export const ITEMS = {
   },
   javeline: {
     id: "javeline",
+    single: "La javeline",
     name: "Javelines",
     kind: "ammo",
     description: "Se lance à la main, sans arc. Aussi précise qu'une flèche, et frappe plus fort ; se ramasse.",
@@ -239,6 +245,7 @@ export const ITEMS = {
   },
   fleche_poison: {
     id: "fleche_poison",
+    single: "La flèche empoisonnée",
     name: "Flèches empoisonnées",
     kind: "ammo",
     description: "La pointe luit d'un enduit verdâtre. La plaie brûle encore plusieurs tours.",
@@ -255,6 +262,7 @@ export const ITEMS = {
   // cinq au départ. Rareté, niveau et butin : C.
   fleche_recul: {
     id: "fleche_recul",
+    single: "La flèche de recul",
     name: "Flèches de recul",
     kind: "ammo",
     description: "Une flèche bleue à la pointe ronde et lourde. Quand elle touche, la cible recule de trois cases.",
@@ -270,6 +278,7 @@ export const ITEMS = {
   // monstre en vue à 4 cases ou moins de la cible (nouveau jet, mêmes dégâts) (C).
   fleche_ricochet: {
     id: "fleche_ricochet",
+    single: "La flèche ricochante",
     name: "Flèches ricochantes",
     kind: "ammo",
     description: "Une pointe d'acier bleuté, lourde et coupante des deux côtés. Quand elle touche, elle rebondit sur un autre ennemi proche.",

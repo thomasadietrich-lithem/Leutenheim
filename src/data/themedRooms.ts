@@ -351,10 +351,6 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   curtainOpen: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   hayWall: { blocks: false, w: 1, h: 1, burns: false, wall: true },
   cierge: { blocks: true, w: 1, h: 1, burns: false },
-  // Ossuaire (section 3, planche art/ossuaire_salles_v1.png) : niche à crânes dans le mur, sarcophage de pierre, gisant.
-  nicheCranes: { blocks: false, w: 1, h: 1, burns: false, wall: true },
-  sarcophage: { blocks: true, w: 1, h: 1, burns: false },
-  gisant: { blocks: true, w: 1, h: 1, burns: false },
   ciergeLit: { blocks: true, w: 1, h: 1, burns: false },
   grate: { blocks: false, w: 1, h: 1, burns: false },
   grateGlint: { blocks: false, w: 1, h: 1, burns: false },

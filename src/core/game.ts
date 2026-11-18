@@ -42,7 +42,6 @@ export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
 import { KitTier, TEST_KITS } from "../data/testKits";
 import { lessGold, sectionOf } from "../data/loot";
-import { OSSUAIRE_PLANS } from "../data/ossuaire";
 /** Le dessin en vol des flèches spéciales. */
 const ARROW_KIND: Partial<Record<ItemId, "poison" | "ricochet" | "recul">> = { fleche_poison: "poison", fleche_ricochet: "ricochet", fleche_recul: "recul" };
 import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
@@ -386,9 +385,7 @@ export class Game {
       if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan(this.sandboxSection);
       // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
       const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : buildBossFloor(seed)) : null;
-      // Section 3, l'Ossuaire (Thomas, 2026-11-18) : des salles à plan bâti parmi les salles ordinaires.
-      const plans = Math.floor((depth - 1) / RULES.floorsPerSection) >= 2 ? { plans: OSSUAIRE_PLANS.map((p) => p.rows), planCount: RULES.ossuairePlans } : {};
-      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, { ...this.floorConfig, ...plans });
+      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
       // Escaliers enchâssés dans un « U » de mur, sur tous les étages tirés au hasard (Thomas, 2026-11-14).
@@ -1408,11 +1405,6 @@ export class Game {
     return this.sandbox ? depth === 2 && this.sandboxSection === 2 : depth === RULES.bossDepths[1];
   }
 
-  /** Le dernier étage jouable : la fin de la démo (10), ou l'aperçu de l'Ossuaire en partie d'essai (14). */
-  lastDepth(): number {
-    return this.testRun ? RULES.previewLastDepth : RULES.demoLastDepth;
-  }
-
   isBossDepth(depth: number): boolean {
     return this.sandbox ? depth === 2 : (RULES.bossDepths as readonly number[]).includes(depth);
   }
@@ -1578,7 +1570,7 @@ export class Game {
     }
     // Étage ouvert après le boss (Thomas, 2026-11-16 : « ouvre l'étage post Fileuse ») : l'escalier mène à l'étage
     // suivant, dans toutes les parties ; seul celui du dernier boss de la démo (le Carillon) termine la partie.
-    if (this.sealedStairsAt(at.x, at.y) && this.depth < this.lastDepth()) {
+    if (this.sealedStairsAt(at.x, at.y) && this.depth < RULES.demoLastDepth) {
       this.pendingStairs = "down";
       return;
     }
@@ -8920,7 +8912,7 @@ export class Game {
 
   /** Téléporteur d'étage (partie d'essai) : on arrive en haut de l'étage demandé (1 à la fin de la démo). */
   teleport(depth: number): boolean {
-    if (!this.testRun || this.over || depth < 1 || depth > this.lastDepth() || depth === this.depth) return false;
+    if (!this.testRun || this.over || depth < 1 || depth > RULES.demoLastDepth || depth === this.depth) return false;
     const down = depth > this.depth;
     // Le téléporteur n'est qu'en partie d'essai : jamais d'étage scellé là (Thomas, 2026-11-16).
     this.enterFloor(depth, "down");
@@ -10553,7 +10545,7 @@ export class Game {
     if (target < 1) return false;
     const healed = 0;
     // Fin de la démo (Thomas, 2026-11-14) : au bas de la section 2, l'escalier de l'étage 10 termine la partie.
-    if (direction === "down" && !this.sandbox && this.depth >= this.lastDepth()) {
+    if (direction === "down" && !this.sandbox && this.depth >= RULES.demoLastDepth) {
       this.over = true;
       this.won = true;
       this.events.push({ type: "demoEnd" });

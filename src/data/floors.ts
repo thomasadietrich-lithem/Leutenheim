@@ -30,9 +30,6 @@ export interface FloorConfig {
   hearthChance: number;
   hearthLitChance: number;
   hearthRadius: number;
-  /** Plans de salles bâties (section 3, l'Ossuaire : `src/data/ossuaire.ts`) et combien en poser par étage. */
-  plans?: string[][];
-  planCount?: [number, number];
 }
 
 export const DEFAULT_FLOOR: FloorConfig = {

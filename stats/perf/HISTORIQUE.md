@@ -99,4 +99,3 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-17_22h15 | a53130c | 32.9 | 31.8 | 28.6 | 32.4 | 16.7 | 29 | 0.66 | 0.29 | 2e mesure après le correctif du gaz |
 | 2026-11-18_19h09 | d5558d3 | 29.3 | 32.4 | 32 | 31.5 | 16.7 | 31.9 | 0.65 | 0.25 | lot du 18/11 : balises de quête, pièges en rouge, voile 20 % |
 | 2026-11-18_20h49 | e5413d6 | 32.7 | 33.8 | 31.9 | 37.8 | 16.7 | 30.3 | 0.77 | 0.36 | lot du 18/11 soir : hall, concert, vesses, squelettes |
-| 2026-11-18_22h51 | d1fd9de | 28.5 | 29.2 | 29 | 31 | 16.7 | 25.8 | 0.51 | 0.28 | Ossuaire : salles à plan bâti (aperçu étages 11-14 en partie d'essai) |

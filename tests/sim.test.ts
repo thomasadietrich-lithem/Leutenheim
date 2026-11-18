@@ -8,8 +8,7 @@ import { Rng } from "../src/core/rng";
 import { DEFAULT_FLOOR } from "../src/data/floors";
 import { spawnsForDepth } from "../src/data/monsters";
 import { Inventory } from "../src/items/inventory";
-import { connected, generateFloor, Room } from "../src/world/generator";
-import { OSSUAIRE_PLANS } from "../src/data/ossuaire";
+import { generateFloor } from "../src/world/generator";
 import { GameMap, Tile } from "../src/world/map";
 import { computeFov, computeLight, hasClearSight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath, isChokepoint } from "../src/world/pathfinding";
@@ -3853,58 +3852,10 @@ test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticab
   const game = new Game(21);
   game.testRun = true;
   game.teleport(10);
-  // Une vraie partie (la partie d'essai, elle, continue vers l'aperçu de l'Ossuaire).
-  game.testRun = false;
   const g = game as unknown as { pendingStairs: "down" | "up" | null };
   g.pendingStairs = "down";
   assert.ok(game.takeStairs());
   assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"));
-});
-
-test("Ossuaire (section 3) : salles à plan bâti parmi des salles ordinaires, étage d'un seul tenant, niches seulement aux murs vus de face ; aperçu en partie d'essai jusqu'à l'étage 14 (Thomas, 2026-11-18)", () => {
-  const cfg = { ...DEFAULT_FLOOR, plans: OSSUAIRE_PLANS.map((p) => p.rows), planCount: RULES.ossuairePlans };
-  const seen = new Set<string>();
-  for (let s = 1; s <= 200; s++) {
-    const f = generateFloor(s * 7919, cfg);
-    const shaped = f.rooms.filter((r) => r.shape);
-    assert.ok(shaped.length >= 1, `graine ${s} : au moins une salle bâtie`);
-    assert.ok(f.rooms.some((r) => !r.shape), "des salles ordinaires");
-    assert.ok(!f.rooms[0].shape, "départ dans une salle ordinaire");
-    assert.ok(connected(f), `graine ${s} : tout l'étage se rejoint`);
-    for (const r of shaped) {
-      seen.add(r.shape!.join("/"));
-      assert.ok(!(f.stairs.x >= r.x && f.stairs.x < r.x + r.w && f.stairs.y >= r.y && f.stairs.y < r.y + r.h), "l'escalier reste hors des salles bâties");
-      // Le plan est respecté : murs et colonnes à leur place.
-      r.shape!.forEach((row, py) =>
-        [...row].forEach((ch, px) => {
-          const t = f.map.get(r.x - 1 + px, r.y - 1 + py);
-          if (ch === "#" || ch === "n") assert.equal(t, Tile.Wall);
-          if (ch === "o") assert.equal(t, Tile.Pillar);
-        }),
-      );
-    }
-  }
-  assert.equal(seen.size, OSSUAIRE_PLANS.length, "les sept plans sortent");
-  // En jeu : l'étage 11 en partie d'essai.
-  const game = new Game(5);
-  game.testRun = true;
-  assert.ok(game.teleport(11));
-  const cur = (game as unknown as { current: { rooms: Room[]; furniture: { x: number; y: number; kind: string }[] } }).current;
-  const rooms = cur.rooms;
-  assert.ok(rooms.some((r) => r.shape));
-  const niches = cur.furniture.filter((x) => x.kind === "nicheCranes");
-  for (const n of niches) assert.ok(game.map.get(n.x, n.y) === Tile.Wall && game.map.isWalkable(n.x, n.y + 1));
-  assert.ok(cur.furniture.some((x) => ["sarcophage", "gisant", "ciergeLit", "altar"].includes(x.kind)), "du mobilier bâti");
-  assert.ok(game.teleport(14));
-  assert.ok(!game.teleport(15), "pas plus bas que l'aperçu");
-  const g = game as unknown as { pendingStairs: "down" | "up" | null };
-  g.pendingStairs = "down";
-  assert.ok(game.takeStairs());
-  assert.ok(game.over && game.events.some((e) => e.type === "demoEnd"));
-  // Hors partie d'essai, la démo s'arrête toujours à 10.
-  const real = new Game(5);
-  real.testRun = false;
-  assert.ok(!real.teleport(11));
 });
 
 test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèche dans la toile l'attire, les œufs éclosent", () => {

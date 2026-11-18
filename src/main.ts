@@ -1081,6 +1081,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "puffball") {
     renderer.addFloatingText(e.x, e.y, e.what === "sleep" ? "Pfff… Zzz" : "Pfff !", e.what === "sleep" ? "#9fc4f0" : "#f0a0c8");
     sfx.play("puff");
+  } else if (e.type === "niche") {
+    renderer.addFloatingText(e.x, e.y, "Grrrrr…", "#c8c0d4");
+    sfx.play("thud");
   } else if (e.type === "skeleton") {
     sfx.play("pickup");
   } else if (e.type === "theft") {

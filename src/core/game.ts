@@ -485,6 +485,9 @@ export class Game {
           if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: lessGold((srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2) * (1 + sectionOf(depth))) });
         }
         placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
+        // Niche secrète (planche art/murs_v2.png validée le 2026-11-18) : une dalle à pression qui fait coulisser un pan de mur.
+        const nrng = new Rng(seed ^ 0x11c4e);
+        if (nrng.chance(RULES.nicheChance)) state.niche = this.placeNiche(state, nrng) ?? undefined;
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
         if (champi) {
           state.furniture = (state.furniture ?? []).filter((f) => !/^wall(Gap|Hole)/.test(f.kind));
@@ -2769,6 +2772,7 @@ export class Game {
         vernis: f.vernis,
         fakeWalls: f.fakeWalls,
         hush: f.hush,
+        niche: f.niche,
         maestro: f.maestro,
         plumeau: f.plumeau,
         courier: f.courier,
@@ -2902,6 +2906,7 @@ export class Game {
         vernis: f.vernis,
         fakeWalls: f.fakeWalls,
         hush: f.hush,
+        niche: f.niche,
         maestro: f.maestro,
         plumeau: f.plumeau,
         courier: f.courier,
@@ -4871,6 +4876,7 @@ export class Game {
         if (this.over) return true;
         this.enterWeb();
         this.crunch();
+        this.openNiche();
         const puff = this.puffballAt(this.hero.x, this.hero.y);
         if (puff) this.burstPuffball(puff);
         // Caché, on peut longer les murs ; s'écarter de tout abri fait sortir de l'ombre.
@@ -8406,6 +8412,63 @@ export class Game {
     this.raiseAlarm(VERNIS.stealAlarm, f);
     this.callFoes(f, this.look() === "champi" ? "cueilleur" : "schrat", 2);
     if (v && !v.gone) this.npcLeaves("vernis", v, 1);
+  }
+
+  /**
+   * NICHE SECRÈTE (Thomas, 2026-11-12 ; planche art/murs_v2.png validée le 2026-11-18) : dans une salle ordinaire, une
+   * DALLE À PRESSION à deux cases d'un mur ; derrière ce mur, de la roche pleine. Marcher sur la dalle fait coulisser le pan
+   * de mur : une niche d'une case, son butin dedans (+2 d'alerte, grondement).
+   */
+  private placeNiche(state: FloorState, rng: Rng): { wall: Point; cell: Point; plate: Point; open?: boolean } | null {
+    const map = state.map;
+    const themed = new Set((state.themes ?? []).map((t) => t.room));
+    const solid = (x: number, y: number) => map.inBounds(x, y) && map.get(x, y) === Tile.Wall;
+    const candidates: { wall: Point; cell: Point; plate: Point }[] = [];
+    state.rooms.forEach((r, index) => {
+      if (index === 0 || themed.has(index) || r.w * r.h < 20) return;
+      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+        const cells: Point[] = [];
+        if (dy !== 0) for (let x = r.x + 1; x < r.x + r.w - 1; x++) cells.push({ x, y: dy < 0 ? r.y - 1 : r.y + r.h });
+        else for (let y = r.y + 1; y < r.y + r.h - 1; y++) cells.push({ x: dx < 0 ? r.x - 1 : r.x + r.w, y });
+        for (const w of cells) {
+          const b = { x: w.x + dx, y: w.y + dy };
+          const p = { x: w.x - dx * 2, y: w.y - dy * 2 };
+          if (!solid(w.x, w.y) || !solid(b.x, b.y)) continue;
+          let rock = true;
+          for (let oy = -1; oy <= 1 && rock; oy++) for (let ox = -1; ox <= 1; ox++) if (!(b.x + ox === w.x && b.y + oy === w.y) && !solid(b.x + ox, b.y + oy)) rock = false;
+          if (!rock || map.get(p.x, p.y) !== Tile.Floor) continue;
+          if (state.torches.some((t) => Math.abs(t.x - w.x) + Math.abs(t.y - w.y) <= 1)) continue;
+          if ((state.furniture ?? []).some((f) => furnitureCells(f).some((c) => (c.x === w.x && c.y === w.y) || (c.x === p.x && c.y === p.y)))) continue;
+          if (state.traps.some((t) => t.x === p.x && t.y === p.y) || state.ground.some((g) => g.x === p.x && g.y === p.y)) continue;
+          if ((p.x === state.start.x && p.y === state.start.y) || (p.x === state.stairs.x && p.y === state.stairs.y)) continue;
+          candidates.push({ wall: w, cell: b, plate: p });
+        }
+      }
+    });
+    if (candidates.length === 0) return null;
+    const n = candidates[rng.int(0, candidates.length - 1)];
+    (state.furniture ??= []).push({ x: n.plate.x, y: n.plate.y, kind: "pressurePlate" });
+    return n;
+  }
+
+  /** Le héros marche sur la dalle de la niche secrète : le pan de mur coulisse, le butin est là. */
+  private openNiche(): void {
+    const n = this.current.niche;
+    if (!n || n.open || this.hero.x !== n.plate.x || this.hero.y !== n.plate.y) return;
+    n.open = true;
+    this.map.set(n.wall.x, n.wall.y, Tile.Floor);
+    this.map.set(n.cell.x, n.cell.y, Tile.Floor);
+    const f = this.current.furniture.find((o) => o.x === n.plate.x && o.y === n.plate.y && o.kind === "pressurePlate");
+    if (f) f.kind = "pressurePlateDown";
+    this.dropItem(n.cell.x, n.cell.y, "or", lessGold((this.rng.int(10, 20) + this.depth * 2) * (1 + sectionOf(this.depth))));
+    if (this.rng.chance(0.6)) {
+      const l = this.floorLoot();
+      this.dropItem(n.cell.x, n.cell.y, l.item, l.count);
+    }
+    this.raiseAlarm(RULES.nicheAlarm, n.wall);
+    this.events.push({ type: "niche", x: n.wall.x, y: n.wall.y });
+    this.refreshLight();
+    this.updateVision();
   }
 
   /** Le Grand Poulet d'Or, ou le public : sur le socle vide du hall (la quête « poser » de Vernis compte ses tours). */

@@ -399,6 +399,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return "Le nuage de spores touche les flammes et EXPLOSE !";
     case "puffball":
       return e.what === "sleep" ? "Une vesse-de-loup bleue crève : un nuage qui endort." : "Une vesse-de-loup rose crève : un nuage qui rend hargneux.";
+    case "niche":
+      return "Clac ! La dalle s'enfonce. Un grondement : un pan de mur coulisse et découvre une niche.";
     case "skeleton":
       return e.item ? `Vous fouillez le squelette : ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}.` : `Vous fouillez le squelette : ${e.gold} pièces d'or. Rien d'autre.`;
     case "theft":

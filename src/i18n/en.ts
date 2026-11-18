@@ -2237,4 +2237,6 @@ export const EN: Record<string, string> = {
   "En savoir plus": "Learn more",
   "Cave Roller est un jeu de LTH Studio, fait à la main, case par case.": "Cave Roller is a game by LTH Studio, handmade, tile by tile.",
   "Bientôt : une page pour suivre le jeu et soutenir son développement.": "Coming soon: a page to follow the game and support its development.",
+  "Clac ! La dalle s'enfonce. Un grondement : un pan de mur coulisse et découvre une niche.": "Click! The flagstone sinks. A rumble: a section of wall slides away, revealing a niche.",
+  "Grrrrr…": "Rrrrumble…",
 };

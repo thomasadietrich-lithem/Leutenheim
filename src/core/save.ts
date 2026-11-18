@@ -75,6 +75,7 @@ export interface SavedFloor {
   vernis?: import("./floor").GluckSpot;
   fakeWalls?: { x: number; y: number; turns: number }[];
   hush?: { room: number; until: number }[];
+  niche?: { wall: import("../world/map").Point; cell: import("../world/map").Point; plate: import("../world/map").Point; open?: boolean };
   maestro?: import("./floor").GluckSpot;
   plumeau?: import("./floor").GluckSpot;
   fifrelin?: import("./floor").GluckSpot;

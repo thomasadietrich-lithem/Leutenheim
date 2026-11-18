@@ -284,6 +284,9 @@ export const RULES = {
   /** Section 2 (2026-11-18, C) : champignons refermés après un bruit (tours) ; explosion de spores (dégâts, alerte) ;
    *  vesses-de-loup par étage. */
   mushHushTurns: 3,
+  /** Niche secrète derrière une dalle à pression : un étage sur trois ; alerte du grondement (C). */
+  nicheChance: 0.33,
+  nicheAlarm: 2,
   sporeBlastDamage: { count: 1, sides: 6, bonus: 0 },
   sporeBlastAlarm: 5,
   puffballsPerFloor: [2, 4] as [number, number],

@@ -194,6 +194,8 @@ export type GameEvent =
   | { type: "mushHush"; x: number; y: number; dark: boolean }
   | { type: "sporeBlast"; cells: Point[] }
   | { type: "puffball"; x: number; y: number; what: "sleep" | "feud"; cells: Point[] }
+  /** La dalle à pression : un pan de mur coulisse, une niche s'ouvre. */
+  | { type: "niche"; x: number; y: number }
   /** Le squelette à butin, fouillé : l'or, et parfois un objet. */
   | { type: "skeleton"; x: number; y: number; gold: number; item?: ItemId }
   /** Une mission réussie hors tâche (succès de quête) : Plumeau libéré par la force, registre lu ; pomme dorée volée. */

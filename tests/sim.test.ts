@@ -6613,3 +6613,21 @@ test("2026-11-18 : section 2 — vesse-de-loup, spores qui explosent, champignon
   (game as unknown as { lootSkeleton(f: unknown): void }).lootSkeleton(st.furniture[st.furniture.length - 1]);
   assert.equal(game.skeletonAt(spot.x, spot.y), null);
 });
+
+test("2026-11-18 : niche secrète — la dalle à pression fait coulisser un pan de mur, le butin est derrière", () => {
+  let found = 0;
+  for (let seed = 1; seed <= 30 && found < 3; seed++) {
+    const game = new Game(seed);
+    const n = (game as unknown as { current: { niche?: { wall: { x: number; y: number }; cell: { x: number; y: number }; plate: { x: number; y: number } } } }).current.niche;
+    if (!n) continue;
+    found++;
+    assert.equal(game.map.get(n.wall.x, n.wall.y), Tile.Wall);
+    game.monsters.length = 0;
+    game.hero.x = n.plate.x;
+    game.hero.y = n.plate.y;
+    (game as unknown as { openNiche(): void }).openNiche();
+    assert.notEqual(game.map.get(n.wall.x, n.wall.y), Tile.Wall, "le pan a coulissé");
+    assert.ok(game.ground.some((g) => g.x === n.cell.x && g.y === n.cell.y && g.item === "or"), "de l'or dans la niche");
+  }
+  assert.ok(found >= 3, "des niches dans le donjon");
+});

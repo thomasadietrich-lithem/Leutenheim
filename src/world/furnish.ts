@@ -243,7 +243,9 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
   // Section 2 (Thomas, 2026-11-14) : ses propres salles à thème, la champignonnière de morilles et l'atelier de sculpture.
-  const pool = section >= 1 ? ["morilles", "sculpture", "expo", "concert"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
+ // Section 3 (l'Ossuaire, Thomas 2026-11-18) : pas encore de salles à thème ; ses salles bâties ont leur mobilier.
+  if (section >= 2) furnishPlans(floor, furniture);
+  const pool = section >= 2 ? [] : section >= 1 ? ["morilles", "sculpture", "expo", "concert"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
   for (const chance of section >= 1 ? RULES.themedRoomChancesS2 : RULES.themedRoomChances) {
     if (!rng.chance(chance) || pool.length === 0) break;
     // Section 2 : la champignonnière d'abord (salle de la quête de Morillon), puis au hasard l'atelier, le hall
@@ -251,7 +253,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
     const id = section >= 1 && pool[0] === "morilles" ? pool.shift()! : pool.splice(rng.int(0, pool.length - 1), 1)[0];
     const candidates = floor.rooms
       .map((room, index) => ({ room, index }))
-      .filter(({ room, index }) => index > 0 && !themes.some((t) => t.room === index) && fits(id, room));
+      .filter(({ room, index }) => index > 0 && !room.shape && !themes.some((t) => t.room === index) && fits(id, room));
     while (candidates.length > 0) {
       const { room, index } = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
       if (FURNISHERS[id](floor, room, rng, furniture)) {
@@ -305,7 +307,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
   placeStrays(floor, new Rng(seed ^ 0x5ce1e7), furniture, special);
-  if (section >= 1) placePuffballs(floor, new Rng(seed ^ 0x7e55e), furniture, special);
+  if (section === 1) placePuffballs(floor, new Rng(seed ^ 0x7e55e), furniture, special);
   // Pas de salle qui convienne au bain : la cloche prend sa place (il y a toujours un truc fun dans la section).
   if (bath && !themes.some((t) => t.id === "bain")) bell = true;
   if (bell) placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
@@ -831,6 +833,37 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
  * art/trainards_v2.png et v3 validées ; codé le 2026-11-18) : 0 à 1 SQUELETTE abîmé (on le fouille : or et parfois un
  * objet), 0 à 2 GRILLES RONDES au sol (décor), dans les salles ordinaires, jamais devant une ouverture.
  */
+/**
+ * Le mobilier des SALLES BÂTIES de l'Ossuaire (section 3, `src/data/ossuaire.ts`) : sarcophages, gisants, cierges allumés,
+ * autel, et les NICHES À CRÂNES du plan, seulement dans les murs qu'on voit de face (sol juste dessous) : les os restent
+ * rares (Thomas, 2026-11-18 : « il faut pas que les os soient trop denses »).
+ */
+export function furnishPlans(floor: Floor, furniture: Furniture[]): void {
+  const { map } = floor;
+  for (const r of floor.rooms) {
+    if (!r.shape) continue;
+    r.shape.forEach((row, py) =>
+      [...row].forEach((ch, px) => {
+        const x = r.x - 1 + px;
+        const y = r.y - 1 + py;
+        if (ch === "n") {
+          if (map.get(x, y) === Tile.Wall && map.isWalkable(x, y + 1)) furniture.push({ x, y, kind: "nicheCranes" });
+          return;
+        }
+        const kind = ch === "s" ? "sarcophage" : ch === "g" ? "gisant" : ch === "c" ? "ciergeLit" : ch === "a" ? "altar" : null;
+        if (!kind) return;
+        const at = { x: kind === "altar" ? x - 1 : x, y, kind };
+        const def = FURNITURE_KINDS[kind];
+        const cells: Point[] = [];
+        for (let dx = 0; dx < def.w; dx++) cells.push({ x: at.x + dx, y });
+        if (!cells.every((c) => map.get(c.x, c.y) === Tile.Floor)) return;
+        furniture.push(at);
+        if (def.blocks) for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
+      }),
+    );
+  }
+}
+
 export function placeStrays(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
   const want: string[] = [];
   if (rng.chance(RULES.skeletonChance)) want.push("skeleton");

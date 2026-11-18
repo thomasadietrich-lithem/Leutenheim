@@ -10,6 +10,8 @@ export interface Room {
   y: number;
   w: number;
   h: number;
+  /** Salle à plan bâti (section 3) : le plan complet, son bord compris (le bord est le mur de la salle). */
+  shape?: string[];
 }
 
 export interface Floor {
@@ -74,7 +76,7 @@ function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point, wideChance: n
  */
 export function generateFloor(seed: number, cfg: FloorConfig): Floor {
   let floor = buildFloor(seed, cfg);
-  for (let retry = 1; floor.specials.length === 0 && retry <= 30; retry++) {
+  for (let retry = 1; (floor.specials.length === 0 || (cfg.plans !== undefined && !connected(floor))) && retry <= 30; retry++) {
     floor = buildFloor((seed + Math.imul(retry, 0x9e3779b1)) >>> 0, cfg);
   }
   return floor;
@@ -83,6 +85,23 @@ export function generateFloor(seed: number, cfg: FloorConfig): Floor {
 function buildFloor(seed: number, cfg: FloorConfig): Floor {
   const rng = new Rng(seed);
   const map = new GameMap(cfg.width, cfg.height);
+
+  // 0. Salles à plan bâti (section 3) : posées d'abord, elles sont grandes. La salle de départ reste ordinaire.
+  const shaped: Room[] = [];
+  if (cfg.plans && cfg.plans.length > 0) {
+    const wantedPlans = rng.int(cfg.planCount?.[0] ?? 1, cfg.planCount?.[1] ?? 1);
+    const pool = cfg.plans.slice();
+    for (let attempt = 0; attempt < 200 && shaped.length < wantedPlans && pool.length > 0; attempt++) {
+      const plan = pool[rng.int(0, pool.length - 1)];
+      const w = plan[0].length - 2;
+      const h = plan.length - 2;
+      if (w + 4 > cfg.width || h + 4 > cfg.height) continue;
+      const room: Room = { x: rng.int(2, cfg.width - w - 2), y: rng.int(2, cfg.height - h - 2), w, h, shape: plan };
+      if (shaped.some((r) => tooClose(r, room))) continue;
+      shaped.push(room);
+      pool.splice(pool.indexOf(plan), 1);
+    }
+  }
 
   // 1. Placer des salles qui ne se touchent pas.
   const rooms: Room[] = [];
@@ -95,14 +114,26 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       w,
       h,
     };
-    if (rooms.some((r) => tooClose(r, room))) continue;
+    if (rooms.some((r) => tooClose(r, room)) || shaped.some((r) => tooClose(r, room))) continue;
     rooms.push(room);
   }
+  if (shaped.length > 0) rooms.splice(1, 0, ...shaped);
   for (const r of rooms) {
     for (let y = r.y; y < r.y + r.h; y++) {
-      for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, Tile.Floor);
+      for (let x = r.x; x < r.x + r.w; x++) map.set(x, y, r.shape ? planTile(r.shape[y - r.y + 1][x - r.x + 1]) : Tile.Floor);
     }
   }
+  // Un couloir part d'une salle bâtie par une de ses entrées (+), la plus proche de l'autre salle.
+  const anchor = (r: Room, toward: Point): Point => {
+    if (!r.shape) return center(r);
+    const best = shapeDoors(r).reduce((a, b) =>
+      Math.abs(b.x - toward.x) + Math.abs(b.y - toward.y) < Math.abs(a.x - toward.x) + Math.abs(a.y - toward.y) ? b : a,
+    );
+    map.set(best.x, best.y, Tile.Floor);
+    map.set(best.ox, best.oy, Tile.Floor);
+    return { x: best.ox, y: best.oy };
+  };
+  const link = (a: Room, b: Room, wide: number) => carveCorridor(map, rng, anchor(a, center(b)), anchor(b, center(a)), wide);
 
   // 2. Relier chaque salle à la salle déjà reliée la plus proche : tout l'étage est accessible.
   const linked: Room[] = [rooms[0]];
@@ -118,7 +149,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       });
     });
     const room = pending.splice(best.p, 1)[0];
-    carveCorridor(map, rng, center(room), center(linked[best.l]), cfg.wideCorridorChance);
+    link(room, linked[best.l], cfg.wideCorridorChance);
     linked.push(room);
   }
 
@@ -126,7 +157,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
   for (let i = 0; i < cfg.extraLinks && rooms.length > 2; i++) {
     const a = rooms[rng.int(0, rooms.length - 1)];
     const b = rooms[rng.int(0, rooms.length - 1)];
-    if (a !== b) carveCorridor(map, rng, center(a), center(b), cfg.wideCorridorChance);
+    if (a !== b) link(a, b, cfg.wideCorridorChance);
   }
 
   // 4. Départ dans la première salle, escalier dans la salle la plus éloignée.
@@ -135,6 +166,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
   let stairs = start;
   let far = 0;
   for (const r of rooms.slice(1)) {
+    if (r.shape) continue; // l'escalier reste dans une salle ordinaire
     const c = center(r);
     const d = dist[map.index(c.x, c.y)];
     if (d > far) {
@@ -175,7 +207,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       const db = Math.abs(center(b).x - c.x) + Math.abs(center(b).y - c.y);
       return db < da ? b : a;
     });
-    carveCorridor(map, rng, c, center(nearest), 0);
+    carveCorridor(map, rng, c, anchor(nearest, c), 0);
     // La salle ne doit avoir qu'une seule entrée, étroite, loin de toute autre porte.
     const openings = ringCells(room).filter((r) => map.get(r.x, r.y) !== Tile.Wall);
     const door = openings[0];
@@ -197,6 +229,10 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
     map.set(c.x, c.y, kind.feature);
     specials.push({ room, kind });
   }
+
+  // Les couloirs ont pu percer une salle bâtie : son plan est remis (murs, colonnes) ; seules ses entrées restent ouvertes.
+  // Si cela coupe l'étage, `generateFloor` en tire un autre.
+  for (const r of rooms) if (r.shape) restamp(map, r);
 
   // 6. Portes et torches des salles ordinaires.
   const torches: LightSource[] = [];
@@ -232,7 +268,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       }
     }
     // Colonnes : aux quatre « coins intérieurs » d'une grande salle, parfois seulement une partie d'entre elles.
-    if (room.w >= 5 && room.h >= 5 && rng.chance(cfg.pillarChance)) {
+    if (!room.shape && room.w >= 5 && room.h >= 5 && rng.chance(cfg.pillarChance)) {
       const spots = [
         { x: room.x + 1, y: room.y + 1 },
         { x: room.x + room.w - 2, y: room.y + 1 },
@@ -253,7 +289,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       }
     }
     // Cheminée : encastrée dans un mur plein du pourtour (mur de chaque côté, sol devant), allumée ou éteinte.
-    if (rng.chance(cfg.hearthChance)) {
+    if (!room.shape && rng.chance(cfg.hearthChance)) {
       const spots = ring.filter(
         (c) =>
           map.get(c.x, c.y) === Tile.Wall &&
@@ -280,6 +316,73 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
   }
 
   return { map, rooms, start, stairs, torches, specials };
+}
+
+/** La case d'un plan de salle bâtie (meubles posés plus tard : `ossuaireFurniture`). */
+function planTile(ch: string): Tile {
+  return ch === "#" || ch === "n" ? Tile.Wall : ch === "o" ? Tile.Pillar : Tile.Floor;
+}
+
+/** Les entrées (+) d'une salle bâtie, avec la case juste dehors. */
+function shapeDoors(r: Room): { x: number; y: number; ox: number; oy: number }[] {
+  const plan = r.shape!;
+  const out: { x: number; y: number; ox: number; oy: number }[] = [];
+  plan.forEach((row, py) =>
+    [...row].forEach((ch, px) => {
+      if (ch !== "+") return;
+      const dx = px === 0 ? -1 : px === row.length - 1 ? 1 : 0;
+      const dy = dx !== 0 ? 0 : py === 0 ? -1 : 1;
+      const x = r.x - 1 + px;
+      const y = r.y - 1 + py;
+      out.push({ x, y, ox: x + dx, oy: y + dy });
+    }),
+  );
+  return out;
+}
+
+/** Remet le plan d'une salle bâtie, bord compris (hors entrées). */
+function restamp(map: GameMap, r: Room): void {
+  r.shape!.forEach((row, py) =>
+    [...row].forEach((ch, px) => {
+      const x = r.x - 1 + px;
+      const y = r.y - 1 + py;
+      if (ch === "+") return;
+      const inner = px > 0 && py > 0 && px < row.length - 1 && py < r.shape!.length - 1;
+      if (!inner) {
+        if (map.get(x, y) !== Tile.Wall) map.set(x, y, Tile.Wall);
+        return;
+      }
+      const t = planTile(ch);
+      if (map.get(x, y) !== t) map.set(x, y, t);
+    }),
+  );
+}
+
+/** Tout le sol de l'étage se rejoint depuis le départ (les portes, même fermées à clé, comptent comme passages). */
+export function connected(floor: Floor): boolean {
+  const { map } = floor;
+  const open = (x: number, y: number) => {
+    const t = map.get(x, y);
+    return t !== Tile.Wall && t !== Tile.Pillar;
+  };
+  const seen = new Uint8Array(map.width * map.height);
+  const queue = [map.index(floor.start.x, floor.start.y)];
+  seen[queue[0]] = 1;
+  for (let head = 0; head < queue.length; head++) {
+    const x = queue[head] % map.width;
+    const y = (queue[head] - x) / map.width;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height || !open(nx, ny)) continue;
+      const i = map.index(nx, ny);
+      if (seen[i]) continue;
+      seen[i] = 1;
+      queue.push(i);
+    }
+  }
+  for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (open(x, y) && !seen[map.index(x, y)]) return false;
+  return true;
 }
 
 /** Vrai s'il existe déjà une porte à moins de `spacing` cases (distance en pas droits). */

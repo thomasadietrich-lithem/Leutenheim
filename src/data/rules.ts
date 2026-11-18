@@ -164,6 +164,11 @@ export const RULES = {
   /** Dernier étage de la démo (Thomas, 2026-11-14) : descendre son escalier termine la partie (la section 2 n'a pas
    *  encore de boss). */
   demoLastDepth: 10,
+  /** APERÇU DE LA SECTION 3 (Thomas, 2026-11-18) : en partie d'essai seulement, l'escalier de l'étage 10 et le téléporteur
+   *  mènent jusqu'ici (l'Ossuaire en construction : ses plans de salles, pas encore ses monstres ni son décor). */
+  previewLastDepth: 14,
+  /** Ossuaire (section 3) : nombre de salles à plan bâti par étage (`src/data/ossuaire.ts`), parmi des salles ordinaires. */
+  ossuairePlans: [1, 2] as [number, number],
   /** Coffre doré de la fin du boss (Thomas, 2026-11-14) : or (C). */
   goldChestGold: [80, 140] as [number, number],
   /** Étages des boss (un par section, le dernier de la section). */

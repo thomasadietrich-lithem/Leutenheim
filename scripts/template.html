@@ -125,6 +125,7 @@
   @keyframes studio-out { to { opacity: 0; visibility: hidden; } }
   #title-word { width: 300px; height: 123px; image-rendering: pixelated; display: block; margin: 0 auto; }
   .title-demo { text-shadow: none; display: block; font-size: 0.4em; letter-spacing: 0.3em; color: var(--dim); margin-top: 2px; text-transform: lowercase; }
+  .more-text { color: #cdbf9c; font-size: 19px; line-height: 1.2; text-align: center; margin: 6px 12px; }
   .xp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #9fd0f4; box-shadow: 0 0 6px 2px rgba(110,180,255,0.8), inset -1px -1px 0 #4a8fd0; pointer-events: none; z-index: 50; }
   .alarm-orb { position: fixed; width: 6px; height: 6px; margin: -3px 0 0 -3px; box-shadow: 0 0 5px 1px currentColor, inset -1px -1px 0 rgba(0,0,0,0.45); pointer-events: none; z-index: 50; }
   .hp-orb { position: fixed; width: 7px; height: 7px; margin: -3px 0 0 -3px; background: #ff5a5a; box-shadow: 0 0 5px 1px rgba(255,60,60,0.7), inset -1px -1px 0 #8a1420; pointer-events: none; z-index: 50; }
@@ -834,7 +835,14 @@
       <button id="menu-codex" type="button">Encyclopédie</button>
       <button id="menu-succes" type="button">Succès</button>
       <button id="menu-settings" type="button">Paramètres</button>
+      <button id="menu-more" type="button">En savoir plus</button>
       <span id="seed"></span>
+    </section>
+    <section id="screen-more" hidden>
+      <h2>En savoir plus</h2>
+      <p class="more-text">Cave Roller est un jeu de LTH Studio, fait à la main, case par case.</p>
+      <p class="more-text">Bientôt : une page pour suivre le jeu et soutenir son développement.</p>
+      <button id="more-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-essai" hidden>
       <h2>Salle d'essai</h2>

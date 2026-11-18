@@ -231,6 +231,7 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     }
     else if (e.type === "feat") feat(page, e.npc, e.id, out);
     else if (e.type === "theft" && e.success) add("chapardeur", 1);
+    else if (e.type === "skeleton") add("pilleur", 1);
     else if (e.type === "artifact" && e.what === "fork") add("maestro", 1);
     else if (e.type === "bout") {
       const f = e.what === "duelWin" ? "fifre_duel" : e.what === "win" ? (e.rigged ? "fifre_truque" : e.winner === "small" ? "fifre_petit" : "fifre_champ") : null;

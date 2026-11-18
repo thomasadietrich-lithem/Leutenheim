@@ -3466,8 +3466,11 @@ test("butin garanti de la section 1 : une pomme à l'étage 1, deux équipements
     assert.ok(all.some((i) => ITEMS[i].kind === "gem"));
     assert.ok(all.some((i) => i.startsWith("potion_")));
     assert.ok(!all.includes("sac_cuir"));
-    // Section 2 : rien de garanti, sauf la torche de la section (Thomas, 2026-11-17).
-    assert.ok(guaranteedLoot(seed, 6).every((l) => l.item === "torche"));
+    // Section 2 (2026-11-18) : un équipement, deux potions, une gemme entre les étages 6 et 9, et sa torche.
+    const s2 = [6, 7, 8, 9].flatMap((d) => guaranteedLoot(seed, d)).map((l) => l.item);
+    assert.ok(s2.filter((i) => ["melee", "ranged", "armor"].includes(ITEMS[i].kind)).length >= 1, "équipement S2");
+    assert.ok(s2.filter((i) => i.startsWith("potion_")).length >= 2, "potions S2");
+    assert.ok(s2.some((i) => ITEMS[i].kind === "gem"), "gemme S2");
     for (const floors of [[1, 2, 3, 4], [6, 7, 8, 9]]) {
       const torches = floors.flatMap((d) => guaranteedLoot(seed, d)).filter((l) => l.item === "torche");
       assert.equal(torches.length, 1, "une torche garantie par section, sur un de ses quatre premiers étages");
@@ -6580,4 +6583,33 @@ test("2026-11-18 : Vernis, le Maestro, Plumeau ; pomme dorée, ticket, pinceau, 
   } finally {
     setSandboxSection(1);
   }
+});
+
+test("2026-11-18 : section 2 — vesse-de-loup, spores qui explosent, champignons qui se referment ; squelette à butin", () => {
+  const game = new Game(5);
+  game.testRun = true;
+  game.teleport(7);
+  game.monsters.length = 0;
+  const st = (game as unknown as { current: { furniture: { x: number; y: number; kind: string; drained?: boolean }[]; hush?: unknown[] } }).current;
+  // Une vesse-de-loup bleue sous les pieds d'un monstre : il s'endort.
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: game.hero.x + dx, y: game.hero.y + dy })).find((c) => game.map.isWalkable(c.x, c.y))!;
+  st.furniture.push({ x: spot.x, y: spot.y, kind: "vesseSommeil" });
+  (game as unknown as { burstPuffball(f: unknown): void }).burstPuffball(st.furniture[st.furniture.length - 1]);
+  assert.ok(game.events.some((e) => e.type === "puffball" && e.what === "sleep"));
+  // Un bruit dans une salle : ses champignons se referment.
+  (game as unknown as { hushMushrooms(p: unknown): void }).hushMushrooms(game.hero);
+  const inRoom = game.rooms.some((r) => game.hero.x >= r.x && game.hero.x < r.x + r.w && game.hero.y >= r.y && game.hero.y < r.y + r.h);
+  if (inRoom) assert.ok(game.mushHushed(game.hero.x, game.hero.y));
+  // Spores + feu : explosion.
+  const g2 = game as unknown as { gas: { x: number; y: number; turns: number }[]; fires: { x: number; y: number; turns: number }[]; sporeBlast(): void };
+  g2.gas.push({ x: spot.x, y: spot.y, turns: 3 });
+  g2.fires.push({ x: spot.x, y: spot.y, turns: 3 });
+  g2.sporeBlast();
+  assert.ok(game.events.some((e) => e.type === "sporeBlast"));
+  assert.ok(!g2.gas.some((c) => c.x === spot.x && c.y === spot.y), "le nuage a explosé");
+  // Squelette : on le fouille une fois.
+  st.furniture.push({ x: spot.x, y: spot.y, kind: "skeleton" });
+  assert.ok(game.skeletonAt(spot.x, spot.y));
+  (game as unknown as { lootSkeleton(f: unknown): void }).lootSkeleton(st.furniture[st.furniture.length - 1]);
+  assert.equal(game.skeletonAt(spot.x, spot.y), null);
 });

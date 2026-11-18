@@ -41,6 +41,10 @@ export class Music {
   stage = 0;
   /** Combat de boss en cours : sa phase (0 intact, 1 sous les deux tiers, 2 sous le tiers), sinon null. */
   boss: 0 | 1 | 2 | null = null;
+  /** Le CŒUR DU HÉROS (proposé le 2026-11-16, codé le 2026-11-18 : « implémente tout ») : sous le quart de ses PV, un
+   *  battement « poum-poum » par-dessus la musique, partout (pas pendant un combat de boss, qui a déjà le sien). */
+  heroHeart = false;
+  private nextHeart = 0;
   /** Le boss vient de mourir : la mesure suivante joue sa fin (le cœur s'arrête, puis l'accord majeur et la cloche). */
   private deathPending = false;
   bossDied(): void {
@@ -86,6 +90,14 @@ export class Music {
       out.gain.cancelScheduledValues(now);
       out.gain.setTargetAtTime(VOLUME * this.level, now, 1.2);
       this.nextBar = Math.max(this.nextBar, now + 0.1);
+    }
+    if (this.heroHeart && this.boss === null) {
+      if (this.nextHeart < now) this.nextHeart = now + 0.05;
+      while (this.nextHeart < now + 0.4) {
+        this.heart(ctx, this.nextHeart, 0.5);
+        this.heart(ctx, this.nextHeart + 0.28, 0.3);
+        this.nextHeart += 0.82;
+      }
     }
     // Une mesure à la fois, préparée au plus 0,4 s avant qu'elle ne commence.
     while (this.nextBar < now + 0.4) {

@@ -264,6 +264,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       }
       return null;
     case "gravel":
+      if (e.monster) return null;
       if (e.water) return e.alerted > 0 ? "Plic, ploc : l'eau clapote sous vos pas… on vous a entendu !" : null;
       return e.alerted > 0 ? "Le gravier crisse sous vos pas : on vous a entendu !" : "Le gravier crisse sous vos pas.";
     case "jump":
@@ -392,6 +393,14 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return `Vous suivez désormais la voie : ${PATHS[e.path].name}.`;
     case "skill":
       return e.path === "blue" ? `Second souffle : +${e.healed} PV.` : "Double frappe !";
+    case "mushHush":
+      return e.dark ? "Le bruit fait se refermer les champignons lumineux : la salle plonge dans le noir." : "Les champignons lumineux se rouvrent doucement.";
+    case "sporeBlast":
+      return "Le nuage de spores touche les flammes et EXPLOSE !";
+    case "puffball":
+      return e.what === "sleep" ? "Une vesse-de-loup bleue crève : un nuage qui endort." : "Une vesse-de-loup rose crève : un nuage qui rend hargneux.";
+    case "skeleton":
+      return e.item ? `Vous fouillez le squelette : ${e.gold} pièces d'or et ${ITEMS[e.item].name.toLowerCase()}.` : `Vous fouillez le squelette : ${e.gold} pièces d'or. Rien d'autre.`;
     case "theft":
       return e.what === "apple"
         ? e.success

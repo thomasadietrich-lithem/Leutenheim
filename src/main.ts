@@ -1073,6 +1073,16 @@ function reveal(e: GameEvent): void {
       shownHp = game.hero.hp;
       sfx.play("heal");
     }
+  } else if (e.type === "mushHush") {
+    if (e.dark) renderer.addFloatingText(e.x, e.y, "Les lueurs s'éteignent…", "#7fb8a8");
+  } else if (e.type === "sporeBlast") {
+    for (const c of e.cells) renderer.addFloatingText(c.x, c.y, "Boum !", "#ffb04a");
+    sfx.play("break");
+  } else if (e.type === "puffball") {
+    renderer.addFloatingText(e.x, e.y, e.what === "sleep" ? "Pfff… Zzz" : "Pfff !", e.what === "sleep" ? "#9fc4f0" : "#f0a0c8");
+    sfx.play("puff");
+  } else if (e.type === "skeleton") {
+    sfx.play("pickup");
   } else if (e.type === "theft") {
     renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? (e.what === "apple" ? "Chipée !" : "Coin !") : "Au voleur !", e.success ? "#ffd75e" : "#ff6b7a");
   } else if (e.type === "artifact") {
@@ -1185,6 +1195,10 @@ function reveal(e: GameEvent): void {
     landDie(e.d20, e.success ? "hit" : "miss", false);
     renderer.addFloatingText(game.hero.x, game.hero.y, e.success ? "Caché" : "Visible", e.success ? "#c8c8c8" : "#ff6b7a");
     if (!e.success) sfx.play("miss");
+  } else if (e.type === "gravel" && e.monster) {
+    // Un monstre sur le gravier : plus bas et plus pâle, même hors de vue (on l'entend venir).
+    if (!game.isVisible(e.x, e.y)) renderer.addFloatingText(e.x, e.y, e.water ? "Plic" : "Crik", e.water ? "#6f93b4" : "#8e8698");
+    sfx.play(e.water ? "splash" : "gravel");
   } else if (e.type === "gravel") {
     sfx.play(e.water ? "splash" : "gravel");
     // « Crik », puis « Crak » sur le gravier ; « Plic », puis « Ploc » dans l'eau (Thomas, 2026-11-12).
@@ -3536,14 +3550,14 @@ function discoverSurroundings(): void {
   discover(found);
 }
 
-type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes" | "pause" | "essai";
+type Screen = "main" | "new" | "settings" | "codex" | "saves" | "succes" | "pause" | "essai" | "more";
 
 function showScreen(screen: Screen | null): void {
   menuOpen = screen !== null;
   menu.hidden = !menuOpen;
   // Chaque écran du menu s'ouvre en haut (le mur de succès défile).
   menu.scrollTop = 0;
-  for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause", "essai"] as const) $(`screen-${name}`).hidden = screen !== name;
+  for (const name of ["main", "new", "settings", "codex", "saves", "succes", "pause", "essai", "more"] as const) $(`screen-${name}`).hidden = screen !== name;
   $("detail").hidden = true;
   // « Reprendre » : la partie en cours, ou, après avoir rouvert le jeu, la dernière partie sauvegardée.
   // Toujours là (Thomas, 2026-11-15) ; grisé seulement s'il n'y a aucune partie à reprendre.
@@ -3849,6 +3863,9 @@ button("menu-settings", () => {
   showScreen("settings");
 });
 button("menu-codex", () => showScreen("codex"));
+// « En savoir plus » (Thomas, 2026-11-13 ; la page de soutien n'a pas encore d'adresse : 2026-11-18).
+button("menu-more", () => showScreen("more"));
+button("more-back", () => showScreen("main"));
 // Succès et records fusionnés (Thomas, 2026-11-14) : un écran « Succès », deux onglets.
 let succesTab: "succes" | "records" = "succes";
 function showSuccesTab(tab: "succes" | "records"): void {
@@ -4289,6 +4306,7 @@ function frame(now: number): void {
   // Étage du boss : pas d'alerte ; la musique y reste tendue (palier « alerte »), puis « le cœur du boss » pendant le
   // combat (Thomas, 2026-11-16) : son tempo suit la vie du boss.
   music.stage = game.alarmOff() ? 2 : game.alarm().stage;
+  music.heroHeart = !game.over && game.hero.hp > 0 && game.hero.hp < game.hero.maxHp * 0.25;
   const fighting = started && !game.over ? game.bossActor() : undefined;
   if (fighting?.boss?.engaged) {
     const left = fighting.hp / fighting.maxHp;

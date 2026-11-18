@@ -277,6 +277,16 @@ export const RULES = {
   spiderInWebRoomChance: 0.6,
   /** Trainards (tonneaux, caisses) : nombre par étage, dans les salles ordinaires, contre un mur. */
   clutterPerFloor: [1, 4] as [number, number],
+  /** Un squelette à butin sur cet étage (C). */
+  skeletonChance: 0.5,
+  /** On entend un monstre sur le gravier ou dans l'eau jusqu'à cette distance (C). */
+  gravelHearing: 8,
+  /** Section 2 (2026-11-18, C) : champignons refermés après un bruit (tours) ; explosion de spores (dégâts, alerte) ;
+   *  vesses-de-loup par étage. */
+  mushHushTurns: 3,
+  sporeBlastDamage: { count: 1, sides: 6, bonus: 0 },
+  sporeBlastAlarm: 5,
+  puffballsPerFloor: [2, 4] as [number, number],
   /** UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur un des étages 1 à `funMaxFloor` de chaque section, tiré au
    *  début de la partie, la cloche d'alarme OU la porte du Kobold qui compte (une chance sur deux). */
   funMaxFloor: 3,

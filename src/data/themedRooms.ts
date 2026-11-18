@@ -266,6 +266,14 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   // HALL D'EXPOSITION (section 2, planche art/expo_v1.png validée le 2026-11-18) : sculptures sur socle (poulets,
   // pommes), le socle vide du Grand Poulet d'Or (on y monte pour la quête), tabourets, chandeliers, tableaux au mur, pommes
   // dorées sous cloche et leur écriteau, tapis bleu.
+  // Trainards, suite (2026-11-18) : le squelette à butin (couché, 2 cases, on marche dessus), la botte de paille, la grille
+  // ronde au sol (plate, décor).
+  skeleton: { blocks: false, w: 2, h: 1, burns: false },
+  // Section 2 : vesses-de-loup (sommeil, querelle) ; on marche dessus ou on tire dessus : elles crèvent.
+  vesseSommeil: { blocks: false, w: 1, h: 1, burns: true },
+  vesseQuerelle: { blocks: false, w: 1, h: 1, burns: true },
+  hayBaleT: { blocks: true, w: 1, h: 1, burns: true },
+  floorGrate: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   expoPoulet0: { blocks: true, w: 1, h: 1, burns: false },
   expoPoulet1: { blocks: true, w: 1, h: 1, burns: false },
   expoPoulet2: { blocks: true, w: 1, h: 1, burns: false },

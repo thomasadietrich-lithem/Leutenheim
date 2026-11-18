@@ -81,4 +81,8 @@ export const SECTION_GUARANTEES: { what: "pomme" | "equipment" | "gem" | "potion
   { what: "equipment", count: 2, floors: [1, 4] },
   { what: "gem", count: 1, floors: [1, 4] },
   { what: "potion", count: 1, floors: [1, 4] },
+  // Section 2 (2026-11-18, C : « garanties de butin en section 2 ») : un équipement, deux potions, une gemme (étages 6 à 9).
+  { what: "equipment", count: 1, floors: [6, 9] },
+  { what: "potion", count: 2, floors: [6, 9] },
+  { what: "gem", count: 1, floors: [6, 9] },
 ];

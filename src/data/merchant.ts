@@ -18,6 +18,8 @@ export const MERCHANT = {
   buyBack: 0.4,
   /** Prix « louches » : chaque article vaut de −20 % à +20 % de son prix normal. */
   priceSwing: 0.2,
+  /** Les prix montent à chaque section (×1,5 en section 2) ; le rachat suit le prix de base (2026-11-18, C). */
+  pricePerSection: 0.5,
   /** Ce qu'il dit en ouvrant la boutique (une phrase au hasard). */
   lines: [
     "Pas d'questions, pas d'soucis…",

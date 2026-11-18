@@ -144,7 +144,7 @@ export type GameEvent =
     }
   /** Le héros marche sur du gravier : ça crisse ; `alerted` monstres l'ont entendu. */
   /** Un pas bruyant : sur le gravier, ou dans l'eau (`water`). */
-  | { type: "gravel"; x: number; y: number; alerted: number; water?: boolean }
+  | { type: "gravel"; x: number; y: number; alerted: number; water?: boolean; monster?: boolean }
   /** Se dégager : le jet, et s'il a réussi le saut sans attaque d'opportunité. */
   | { type: "jump"; fromX: number; fromY: number; x: number; y: number; d20: number; bonus: number; total: number; success: boolean }
   /** Pousser : le jet ; réussi, le monstre a reculé d'une case, ou heurté un obstacle (dégâts en plus). */
@@ -189,6 +189,13 @@ export type GameEvent =
   | { type: "skill"; path: PathId; healed: number }
   /** 2026-11-18 : vol d'une pomme dorée (hall d'exposition) ou du canard du bain ; d20 + discrétion. */
   | { type: "theft"; what: "apple" | "duck"; d20: number; bonus: number; total: number; success: boolean; watched?: boolean }
+  /** Section 2 : les champignons d'une salle se referment (bruit) ou se rouvrent ; un nuage de spores explose ; une
+   *  vesse-de-loup crache son nuage (sommeil ou querelle). */
+  | { type: "mushHush"; x: number; y: number; dark: boolean }
+  | { type: "sporeBlast"; cells: Point[] }
+  | { type: "puffball"; x: number; y: number; what: "sleep" | "feud"; cells: Point[] }
+  /** Le squelette à butin, fouillé : l'or, et parfois un objet. */
+  | { type: "skeleton"; x: number; y: number; gold: number; item?: ItemId }
   /** Une mission réussie hors tâche (succès de quête) : Plumeau libéré par la force, registre lu ; pomme dorée volée. */
   | { type: "feat"; npc: "plumeau" | "vernis"; id: string }
   /** Artefacts qui s'utilisent : faux mur peint (puis effacé), diapason qui vibre. */

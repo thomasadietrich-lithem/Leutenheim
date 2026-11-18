@@ -74,6 +74,7 @@ export interface SavedFloor {
   morillon?: import("./floor").GluckSpot;
   vernis?: import("./floor").GluckSpot;
   fakeWalls?: { x: number; y: number; turns: number }[];
+  hush?: { room: number; until: number }[];
   maestro?: import("./floor").GluckSpot;
   plumeau?: import("./floor").GluckSpot;
   fifrelin?: import("./floor").GluckSpot;

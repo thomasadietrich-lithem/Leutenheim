@@ -41,7 +41,7 @@ export type { DoorAction, GameEvent, ShootRefusal } from "./events";
 export type { Debris, GroundItem, Secret } from "./floor";
 import { floorSeed, Rng } from "./rng";
 import { KitTier, TEST_KITS } from "../data/testKits";
-import { lessGold } from "../data/loot";
+import { lessGold, sectionOf } from "../data/loot";
 /** Le dessin en vol des flèches spéciales. */
 const ARROW_KIND: Partial<Record<ItemId, "poison" | "ricochet" | "recul">> = { fleche_poison: "poison", fleche_ricochet: "ricochet", fleche_recul: "recul" };
 import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
@@ -482,7 +482,7 @@ export class Game {
         if (srng.chance(RULES.secretRoomChance)) {
           const hosts = new Set((state.themes ?? []).map((t) => t.room));
           state.secretRoom = placeSecretRoom(floor, state.furniture, srng, hosts) ?? undefined;
-          if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: lessGold(srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2) });
+          if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: lessGold((srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2) * (1 + sectionOf(depth))) });
         }
         placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
@@ -1598,6 +1598,11 @@ export class Game {
       this.drawAlembic(alembic);
       return;
     }
+    const bones = this.skeletonAt(at.x, at.y);
+    if (bones) {
+      this.lootSkeleton(bones);
+      return;
+    }
     const dome = this.appleDomeAt(at.x, at.y);
     if (dome) {
       this.stealApple(dome);
@@ -1976,6 +1981,7 @@ export class Game {
     if (points <= 0 || this.over || state.boss) return;
     // Un bruit localisé se voit à l'écran (des ondes qui partent de l'endroit).
     if (at) this.events.push({ type: "noise", x: at.x, y: at.y, points });
+    if (at) this.hushMushrooms(at);
     state.alarm = Math.min(100, state.alarm + points);
     while (state.alarmStage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[state.alarmStage]) {
       state.alarmStage++;
@@ -2762,6 +2768,7 @@ export class Game {
         morillon: f.morillon,
         vernis: f.vernis,
         fakeWalls: f.fakeWalls,
+        hush: f.hush,
         maestro: f.maestro,
         plumeau: f.plumeau,
         courier: f.courier,
@@ -2894,6 +2901,7 @@ export class Game {
         morillon: f.morillon,
         vernis: f.vernis,
         fakeWalls: f.fakeWalls,
+        hush: f.hush,
         maestro: f.maestro,
         plumeau: f.plumeau,
         courier: f.courier,
@@ -3173,7 +3181,9 @@ export class Game {
     // Toutes les bougies du décor éclairent un peu leur salle (Thomas, 2026-11-14) : la table du dortoir, la table basse
     // du bain, les candélabres de la chapelle (selon leurs bougies), le grimoire de l'alchimiste.
     for (const f of this.current?.furniture ?? []) {
-      const radius = f.kind === "alambic" ? (f.drained ? 0 : 2) : CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : f.kind.startsWith("lueurs") ? 2 : 0);
+      const radius0 = f.kind === "alambic" ? (f.drained ? 0 : 2) : CANDLE_LIGHT[f.kind] ?? (f.kind.startsWith("table") ? CANDLE_LIGHT.table : f.kind.startsWith("lueurs") ? 2 : 0);
+      // Section 2 : les champignons lumineux d'une salle bruyante se referment quelques tours.
+      const radius = radius0 > 0 && /^(lueurs|champiG|champiC)/.test(f.kind) && this.mushHushed(f.x, f.y) ? 0 : radius0;
       if (!radius) continue;
       const cx = f.x + ((FURNITURE_KINDS[f.kind]?.w ?? 1) > 1 ? 1 : 0);
       const area = this.rooms.find((r) => cx >= r.x && cx < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
@@ -4294,7 +4304,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -4861,6 +4871,8 @@ export class Game {
         if (this.over) return true;
         this.enterWeb();
         this.crunch();
+        const puff = this.puffballAt(this.hero.x, this.hero.y);
+        if (puff) this.burstPuffball(puff);
         // Caché, on peut longer les murs ; s'écarter de tout abri fait sortir de l'ombre.
         if (this.hidden && !this.hasCover(this.hero)) this.reveal();
         // Marcher sur un escalier, c'est le prendre (à la fin du pas). Y arriver par l'autre étage ne compte pas.
@@ -4947,6 +4959,8 @@ export class Game {
     this.gasTick();
     this.fogTick();
     this.fakeWallTick();
+    this.sporeBlast();
+    this.hushTick();
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
@@ -8342,6 +8356,27 @@ export class Game {
     }
   }
 
+  /** Un squelette à butin (pas encore fouillé) sur cette case. */
+  skeletonAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind === "skeleton" && !f.drained && f.y === y && (f.x === x || f.x + 1 === x)) ?? null;
+  }
+
+  /** Fouiller le squelette (Thomas, 2026-11-11 : « avec du loot ») : quelques pièces, et une fois sur deux un objet. */
+  private lootSkeleton(f: Furniture): void {
+    f.drained = true;
+    const gold = lessGold(this.rng.int(4, 12) + this.depth);
+    const at = this.landingCell(f, "or", f);
+    this.dropItem(at.x, at.y, "or", gold);
+    let item: ItemId | undefined;
+    if (this.rng.chance(0.5)) {
+      const l = this.floorLoot();
+      item = l.item;
+      const at2 = this.landingCell(f, l.item, f);
+      this.dropItem(at2.x, at2.y, l.item, l.count);
+    }
+    this.events.push({ type: "skeleton", x: f.x, y: f.y, gold, item });
+  }
+
   /** Une pomme dorée sous cloche (hall d'exposition), sur cette case. */
   appleDomeAt(x: number, y: number): Furniture | null {
     return this.current.furniture.find((f) => f.kind === "pommeCloche" && f.x === x && f.y === y) ?? null;
@@ -8421,6 +8456,104 @@ export class Game {
     this.events.push({ type: "artifact", what: "paint", x, y });
     this.wait();
     return true;
+  }
+
+  // ---------- Règles de la section 2 (Thomas, 2026-11-18 : « lumière qui a peur du bruit, vesses-de-loup, spores qui
+  // explosent au feu ») ----------
+
+  /** LA LUMIÈRE A PEUR DU BRUIT : un bruit dans une salle de la section 2 y referme les champignons lumineux 3 tours. */
+  private hushMushrooms(at: Point): void {
+    if (this.look() !== "champi") return;
+    const room = this.roomIndexAt(at);
+    if (room < 0) return;
+    const hush = (this.current.hush ??= []);
+    const old = hush.find((h) => h.room === room);
+    const until = this.turn + RULES.mushHushTurns;
+    if (old) {
+      old.until = Math.max(old.until, until);
+      return;
+    }
+    hush.push({ room, until });
+    this.events.push({ type: "mushHush", x: at.x, y: at.y, dark: true });
+    this.refreshLight();
+  }
+
+  /** Les champignons de cette case sont-ils refermés ? */
+  mushHushed(x: number, y: number): boolean {
+    const hush = this.current?.hush;
+    if (!hush || hush.length === 0) return false;
+    const room = this.roomIndexAt({ x, y });
+    return room >= 0 && hush.some((h) => h.room === room && h.until > this.turn);
+  }
+
+  private hushTick(): void {
+    const hush = this.current.hush;
+    if (!hush || hush.length === 0) return;
+    const over = hush.filter((h) => h.until <= this.turn);
+    if (over.length === 0) return;
+    this.current.hush = hush.filter((h) => h.until > this.turn);
+    for (const h of over) {
+      const r = this.rooms[h.room];
+      if (r) this.events.push({ type: "mushHush", x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2), dark: false });
+    }
+    this.refreshLight();
+  }
+
+  /** SPORES ET FEU : en section 2, un nuage de spores que touche une flamme explose (1d6 à qui s'y tient), puis se dissipe. */
+  private sporeBlast(): void {
+    if (this.look() !== "champi" || this.gas.length === 0 || this.fires.length === 0) return;
+    const hit = this.gas.filter((g) => !g.thin && this.fires.some((f) => Math.max(Math.abs(f.x - g.x), Math.abs(f.y - g.y)) <= 1));
+    if (hit.length === 0) return;
+    const cells = hit.map((g) => ({ x: g.x, y: g.y }));
+    this.gas = this.gas.filter((g) => !hit.includes(g));
+    this.events.push({ type: "sporeBlast", cells });
+    this.raiseAlarm(RULES.sporeBlastAlarm, cells[0]);
+    for (const c of cells) {
+      if (this.hero.x === c.x && this.hero.y === c.y) this.hurtHero(rollDice(this.rng, RULES.sporeBlastDamage), "une explosion de spores");
+      const m = this.monsterAt(c.x, c.y);
+      if (m && !m.boss) {
+        m.hp -= rollDice(this.rng, RULES.sporeBlastDamage);
+        m.alerted = true;
+        m.asleep = false;
+        this.removeIfDead(m);
+      }
+    }
+  }
+
+  /** Une vesse-de-loup sur cette case (pas encore crevée). */
+  puffballAt(x: number, y: number): Furniture | null {
+    return this.current.furniture.find((f) => f.kind.startsWith("vesse") && !f.drained && f.x === x && f.y === y) ?? null;
+  }
+
+  /**
+   * VESSES-DE-LOUP (section 2) : on marche dessus, ou une flèche la touche : elle crache son nuage en croix. Bleue :
+   * SOMMEIL (les monstres s'endorment ; le héros perd son prochain tour). Rose : QUERELLE (les monstres touchés se
+   * battent, comme la potion de discorde).
+   */
+  private burstPuffball(f: Furniture): void {
+    f.drained = true;
+    this.map.touch(f.x, f.y);
+    const sleep = f.kind === "vesseSommeil";
+    const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: f.x + dx, y: f.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+    this.events.push({ type: "puffball", x: f.x, y: f.y, what: sleep ? "sleep" : "feud", cells });
+    if (sleep) {
+      for (const c of cells) {
+        const m = this.monsterAt(c.x, c.y);
+        if (m && !m.boss) {
+          m.asleep = true;
+          m.alerted = false;
+          m.feud = undefined;
+        }
+        if (this.hero.x === c.x && this.hero.y === c.y) this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+      }
+    } else {
+      this.discordMist = cells.map((c) => ({ ...c, turns: 2 }));
+      const hit = this.monsters.filter((m) => !m.boss && cells.some((c) => c.x === m.x && c.y === m.y));
+      for (const m of hit) {
+        const rival = hit.find((o) => o !== m) ?? this.monsters.filter((o) => o !== m && !o.boss && gapBetween(o, m) <= 4).sort((a, b) => gapBetween(a, m) - gapBetween(b, m))[0];
+        if (rival && m.feud === undefined) this.startFeud(m, rival, "discord");
+      }
+    }
   }
 
   /** Les faux murs s'effacent au bout de quelques tours (rien dessus, la case redevient du sol). */
@@ -8599,7 +8732,7 @@ export class Game {
     const at = cells[Math.floor(mix(seed, depth, 6) * cells.length)];
     const wares = rollWares(depth, seed);
     for (const w of wares) noteUnique(w.item);
-    return makeMerchant(at, room, wares, seed);
+    return makeMerchant(at, room, wares, seed, sectionOf(depth));
   }
 
   inCombat(): boolean {
@@ -9386,7 +9519,8 @@ export class Game {
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
     if (monster.purse) this.dropItem(monster.x, monster.y, "or", monster.purse);
-    else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", lessGold(this.rng.int(1, def.goldMax)));
+    // L'or des monstres monte avec la section (2026-11-18, C : « or fixe à faire monter »).
+    else if (def && this.rng.chance(def.goldChance)) this.dropItem(monster.x, monster.y, "or", lessGold(this.rng.int(1, def.goldMax) * (1 + sectionOf(this.depth))));
     // Le boss vaincu relève d'abord le niveau maximal : son XP compte.
     if (monster.boss) this.bossDefeated({ x: monster.x, y: monster.y });
     // Le Kobold du bain vaincu : sa dague tombe du porte-serviettes.
@@ -9555,6 +9689,9 @@ export class Game {
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, stone ? undefined : angle);
     else if (!stone) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, ammo, arrowKind: ARROW_KIND[ammo] });
+    // Une flèche qui tombe sur une vesse-de-loup la crève (on peut les faire éclater de loin).
+    const puffHit = this.puffballAt(landing.x, landing.y) ?? (via ? this.puffballAt(via.x, via.y) : null);
+    if (puffHit) this.burstPuffball(puffHit);
     if (ricochet) {
       // Le ricochet : la flèche file de la première cible à la deuxième, puis tombe là.
       const r = ricochet;
@@ -9637,6 +9774,14 @@ export class Game {
     for (const [m, at] of before) {
       if (this.over || !this.monsters.includes(m) || m.boss || at === m.x * 100000 + m.y) continue;
       if (this.isTrap(m.x, m.y)) this.springTrap(m);
+      const puff = this.puffballAt(m.x, m.y);
+      if (puff) this.burstPuffball(puff);
+      // Un monstre qui marche sur le gravier ou dans l'eau fait du bruit aussi (Thomas, 2026-11-11 : « pas encore ») : on
+      // l'entend s'approcher, même hors de vue (« Crik », « Plic » au-dessus de sa case).
+      const t = this.map.get(m.x, m.y);
+      if ((t === Tile.Gravel || t === Tile.Water) && gapBetween(m, this.hero) <= RULES.gravelHearing) {
+        this.events.push({ type: "gravel", x: m.x, y: m.y, alerted: 0, water: t === Tile.Water, monster: true });
+      }
     }
   }
 

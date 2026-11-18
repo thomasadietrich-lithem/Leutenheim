@@ -304,6 +304,8 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
+  placeStrays(floor, new Rng(seed ^ 0x5ce1e7), furniture, special);
+  if (section >= 1) placePuffballs(floor, new Rng(seed ^ 0x7e55e), furniture, special);
   // Pas de salle qui convienne au bain : la cloche prend sa place (il y a toujours un truc fun dans la section).
   if (bath && !themes.some((t) => t.id === "bain")) bell = true;
   if (bell) placeBell(floor, new Rng(seed ^ 0x5b311e7d), furniture, special);
@@ -808,7 +810,8 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
     if (!room || special.has(index)) continue;
     const x = rng.int(room.x, room.x + room.w - 1);
     const y = rng.int(room.y, room.y + room.h - 1);
-    const kind = (["barrel", "crate", "crateStack"] as const)[rng.int(0, 2)];
+    // Thomas (2026-11-11, validé, codé le 2026-11-18) : aussi la botte de paille et le sac de céréales hors de la cuisine.
+    const kind = (["barrel", "crate", "crateStack", "barrel", "crate", "hayBaleT", "grainSack"] as const)[rng.int(0, 6)];
     const againstWall = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
     if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y) || nearHearth(floor, x, y)) continue;
     map.set(x, y, Tile.Furniture);
@@ -820,6 +823,46 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
     before = after;
     furniture.push({ x, y, kind });
     placed++;
+  }
+}
+
+/**
+ * Ce qui traîne au sol (Thomas, 2026-11-11 : « 0 à 1 squelette par étage qui traîne avec du loot », grilles rondes ; planches
+ * art/trainards_v2.png et v3 validées ; codé le 2026-11-18) : 0 à 1 SQUELETTE abîmé (on le fouille : or et parfois un
+ * objet), 0 à 2 GRILLES RONDES au sol (décor), dans les salles ordinaires, jamais devant une ouverture.
+ */
+export function placeStrays(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
+  const want: string[] = [];
+  if (rng.chance(RULES.skeletonChance)) want.push("skeleton");
+  for (let k = rng.int(0, 2); k > 0; k--) want.push("floorGrate");
+  for (const kind of want) {
+    const w = FURNITURE_KINDS[kind].w;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const index = rng.int(1, Math.max(1, floor.rooms.length - 1));
+      const room = floor.rooms[index];
+      if (!room || special.has(index) || room.w < w + 2 || room.h < 3) continue;
+      const x = rng.int(room.x + 1, room.x + room.w - 1 - w);
+      const y = rng.int(room.y + 1, room.y + room.h - 2);
+      const cells = [...Array(w).keys()].map((i) => ({ x: x + i, y }));
+      if (!cells.every((c) => freeCell(floor, furniture, c.x, c.y) && !besideOpening(floor, room, c.x, c.y))) continue;
+      furniture.push({ x, y, kind });
+      break;
+    }
+  }
+}
+
+/** Section 2 : 2 à 4 vesses-de-loup au milieu des salles ordinaires (une sur trois endort, les autres font se quereller). */
+function placePuffballs(floor: Floor, rng: Rng, furniture: Furniture[], special: Set<number>): void {
+  const want = rng.int(RULES.puffballsPerFloor[0], RULES.puffballsPerFloor[1]);
+  for (let k = 0, attempt = 0; k < want && attempt < want * 30; attempt++) {
+    const index = rng.int(1, Math.max(1, floor.rooms.length - 1));
+    const room = floor.rooms[index];
+    if (!room || special.has(index)) continue;
+    const x = rng.int(room.x + 1, room.x + room.w - 2);
+    const y = rng.int(room.y + 1, room.y + room.h - 2);
+    if (!freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y)) continue;
+    furniture.push({ x, y, kind: rng.chance(0.4) ? "vesseSommeil" : "vesseQuerelle" });
+    k++;
   }
 }
 

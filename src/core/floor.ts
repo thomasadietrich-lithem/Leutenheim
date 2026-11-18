@@ -88,6 +88,8 @@ export interface FloorState {
   secretRoom?: import("../world/secretRoom").SecretRoom;
   /** Faux murs du pinceau magique (2026-11-18) : la case, les tours avant qu'il s'efface. */
   fakeWalls?: { x: number; y: number; turns: number }[];
+  /** Section 2 : salles où les champignons se sont refermés après un bruit, jusqu'à ce tour. */
+  hush?: { room: number; until: number }[];
   /** Bombes arcaniques posées : leur case et les tours avant l'explosion. */
   bombs?: { x: number; y: number; turns: number }[];
   /** Quêtes v3, Sœur Osseuse : les cierges à rallumer (les cases) ; les grilles d'où monte le son (la bonne, indiquée ou non). */

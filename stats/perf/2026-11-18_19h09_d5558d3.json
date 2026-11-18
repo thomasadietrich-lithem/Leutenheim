@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-18T19:09:03.470Z",
+ "commit": "d5558d3",
+ "note": "lot du 18/11 : balises de quête, pièges en rouge, voile 20 %",
+ "logic": {
+  "tickMs": 0.65,
+  "lightMs": 0.25,
+  "visionMs": 0.17
+ },
+ "scenes": {
+  "immobile": {
+   "n": 83,
+   "avg": 29.3,
+   "p95": 50,
+   "max": 50,
+   "fps": 34,
+   "js": 6
+  },
+  "marche": {
+   "n": 154,
+   "avg": 32.4,
+   "p95": 50,
+   "max": 66.6,
+   "fps": 31,
+   "js": 5
+  },
+  "retour": {
+   "n": 156,
+   "avg": 32,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 31,
+   "js": 5
+  },
+  "zoom": {
+   "n": 93,
+   "avg": 31.5,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 32,
+   "js": 5
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 8
+  },
+  "donjon": {
+   "n": 156,
+   "avg": 31.9,
+   "p95": 50.1,
+   "max": 150,
+   "fps": 31,
+   "js": 19
+  }
+ },
+ "errors": []
+}

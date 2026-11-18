@@ -98,3 +98,15 @@
 | 2026-11-18 21:33 | 29a5d9c | Moyen (elfe) | 2 | 42 % | 1 % | 0 % | 1.6 | 6.8 | 0.4 / 0.2 / 0.1 | lot du 18/11 (elfe) |
 | 2026-11-18 21:33 | 29a5d9c | Maîtrise (elfe) | 3.2 | 1 % | 21 % | 15 % | 3.5 | 30.7 | 1 / 0.6 / 0.3 | lot du 18/11 (elfe) |
 | 2026-11-18 21:33 | 29a5d9c | Expert (elfe) | 7.7 | 11 % | 83 % | 74 % | 7.7 | 94 | 1.4 / 1.1 / 0.3 | [section 2 : étage 8 60 %, étage 10 60 %, bat le Carillon 47 %] lot du 18/11 (elfe) |
+| 2026-11-18 22:37 | ef839f4 | Débutant | 2.7 | 17 % | 7 % | 0 % | 1.6 | 6.5 | 0.5 / 0 / 0.5 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:37 | ef839f4 | Moyen | 3.1 | 11 % | 17 % | 0 % | 2.5 | 15.2 | 0.7 / 0.4 / 0.2 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:37 | ef839f4 | Maîtrise | 3.7 | 6 % | 34 % | 9 % | 3.8 | 31.1 | 1.1 / 0.6 / 0.4 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:37 | ef839f4 | Expert | 7.9 | 3 % | 88 % | 83 % | 8 | 102.5 | 1.4 / 1.1 / 0.3 | [section 2 : étage 8 59 %, étage 10 58 %, bat le Carillon 55 %] nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Débutant (elfe) | 2.1 | 33 % | 1 % | 0 % | 1.1 | 3.6 | 0.4 / 0 / 0.3 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Moyen (elfe) | 2 | 42 % | 1 % | 0 % | 1.6 | 6.8 | 0.4 / 0.2 / 0.1 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Maîtrise (elfe) | 3.2 | 1 % | 21 % | 15 % | 3.5 | 30.7 | 1 / 0.6 / 0.3 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Expert (elfe) | 7.7 | 11 % | 83 % | 74 % | 7.7 | 94.4 | 1.4 / 1.1 / 0.3 | [section 2 : étage 8 60 %, étage 10 60 %, bat le Carillon 59 %] nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Débutant (halfelin) | 1.9 | 39 % | 1 % | 0 % | 1.1 | 3.2 | 0.3 / 0 / 0.2 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Moyen (halfelin) | 3 | 15 % | 15 % | 0 % | 2.4 | 14.7 | 0.7 / 0.4 / 0.1 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Maîtrise (halfelin) | 3.9 | 2 % | 40 % | 12 % | 4.1 | 35.3 | 1.3 / 0.8 / 0.4 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-18 22:38 | ef839f4 | Expert (halfelin) | 8 | 11 % | 86 % | 82 % | 8.1 | 108.8 | 1.4 / 1.1 / 0.3 | [section 2 : étage 8 67 %, étage 10 65 %, bat le Carillon 65 %] nouveau passage du 18/11 au soir, sur la dernière version du jeu |

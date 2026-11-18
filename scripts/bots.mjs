@@ -51,6 +51,9 @@ for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
     questsDone: avg((r) => r.questsDone),
     questsFailed: avg((r) => r.questsFailed),
     causes,
+    // Parties bloquées (ni mort, ni victoire) : combien, et la liste (graine, étage, tour, cause) pour le diagnostic.
+    blocked: pct((r) => r.end === "bloqué" || r.end === "limite de tours"),
+    blockedRuns: runs.filter((r) => r.stuck).map((r) => ({ seed: r.seed, end: r.end, ...r.stuck })),
   };
   // L'expert : la section 2, et ce qu'il fait de son équipement (par partie).
   if (level === "expert") {
@@ -91,6 +94,11 @@ for (const [level, s] of Object.entries(result.levels)) {
     console.log(`section 2 : étage 6 ${s.reach[6]} %${diff(s.reach[6], o?.reach?.[6])} ; étage 8 ${s.reach[8]} %${diff(s.reach[8], o?.reach?.[8])} ; étage 10 ${s.reach[10]} %${diff(s.reach[10], o?.reach?.[10])} ; bat le Carillon ${s.boss2} %${diff(s.boss2, o?.boss2)} ; bloqué ${s.stuck} %`);
     console.log(`par partie : CA finale ${s.armorClass}, ${s.searches} fouilles, ${s.chests} coffres, ${s.doors} portes ou sarcophages, ${s.bought} achats, ${s.sold} ventes, ${s.potions} potions, ${s.pushes} poussées, ${s.shots} tirs`);
     console.log("meurt à l'étage : " + Object.entries(s.deathFloors).map(([d, v]) => `${d}: ${v} %`).join(", "));
+  }
+  if (s.blockedRuns.length > 0) {
+    const by = {};
+    for (const b of s.blockedRuns) by[`étage ${b.floor} : ${b.cause}`] = (by[`étage ${b.floor} : ${b.cause}`] ?? 0) + 1;
+    console.log(`bloqué ${s.blocked} % (${s.blockedRuns.length} parties) : ` + Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ×${v}`).join(" ; "));
   }
   console.log("tué par : " + Object.entries(s.causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", "));
 }

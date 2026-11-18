@@ -35,6 +35,7 @@ import { RACES } from "../src/data/races";
 import type { Actor } from "../src/entities/actor";
 import type { StatId } from "../src/data/skills";
 import { lcg, stairsSeen, type RunStats } from "./bots";
+import { endInfo } from "./botDiag";
 
 const DIRS8: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 const cheb = (a: Point, b: Point) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -366,6 +367,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
   let lastKey = "";
   let weaverDown = false;
   let stalls = 0;
+  let lastWhy = "";
 
   const hero = game.hero;
   const hp = () => hero.hp / hero.maxHp;
@@ -1088,7 +1090,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       for (const k of [...mem.tries.keys()]) if (k.startsWith(`${game.depth}:`) && !k.includes(":search:")) mem.tries.delete(k);
       continue;
     }
-    opts.trace?.(why || "attendre", game);
+    lastWhy = why || "attendre";
+    opts.trace?.(lastWhy, game);
     if (!acted) game.wait();
     const turnBefore = game.turn;
     const depthBefore = game.depth;
@@ -1126,6 +1129,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
   void spent;
   const melee = game.weapon("melee");
   return {
+    ...endInfo(game, maxTurns, lastWhy),
     level: "expert" as never,
     seed,
     deepest: game.deepest,

@@ -20,6 +20,7 @@ import { Tile } from "../src/world/map";
 import { NPC_IDS, type NpcId } from "../src/core/game";
 import { QUEST_TASKS } from "../src/data/quests";
 import { RACES } from "../src/data/races";
+import { endInfo, type EndInfo } from "./botDiag";
 
 export type Level = "debutant" | "moyen" | "maitrise";
 
@@ -92,7 +93,7 @@ function equipBest(game: Game, weapons: boolean): void {
   }
 }
 
-export interface RunStats {
+export interface RunStats extends EndInfo {
   level: Level;
   seed: number;
   deepest: number;
@@ -285,6 +286,7 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
     if (idle > 200) break;
   }
   return {
+    ...endInfo(game, maxTurns),
     level,
     seed,
     deepest: game.deepest,

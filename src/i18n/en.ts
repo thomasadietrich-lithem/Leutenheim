@@ -2089,4 +2089,6 @@ export const EN: Record<string, string> = {
   "Rang II": "Rank II",
   "Carquois sans fond : ses flèches simples ne s'épuisent jamais (et ne se ramassent plus).": "Bottomless quiver: his plain arrows never run out (and are no longer picked up).",
   "Le Colporteur se cache quand un monstre approche : chassez-le, il ressort.": "The Peddler hides when a monster comes near: drive it off and he comes back out.",
+  "Un ennemi au contact vous rate : vous frappez aussitôt (une fois tous les deux tours)": "An enemy next to you misses: you strike back at once (once every two turns)",
+  "-1 dégât sur les coups de 3 dégâts ou plus": "-1 damage on hits of 3 damage or more",
 };

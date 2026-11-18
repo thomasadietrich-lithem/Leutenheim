@@ -237,7 +237,7 @@ export class Game {
   /** Bonus du prochain coup du héros (charge, riposte) : toucher et dégâts. */
   private strikeBonus = { hit: 0, damage: 0 };
   /** Tour de la dernière riposte (une par tour). */
-  private ripostedOn = -1;
+  private ripostedOn = -9;
   private useOrder: number | null = null;
   /** Un objet du sac attend d'être consommé (ou lancé) au prochain tour. */
   usePending(): boolean {
@@ -3445,14 +3445,18 @@ export class Game {
 
   /** Encaisseur (voie bleue, Rang II) : moins de dégâts à chaque coup reçu, jamais moins de 1. */
   private absorb(damage: number): number {
+    // Affaibli (Thomas, 2026-11-18 : la voie bleue battait le Carillon deux fois plus souvent que la rouge) : -1 aux
+    // deux rangs ; au rang 1 seulement sur les coups de 3 dégâts ou plus, au rang 2 sur tous (jamais moins de 1).
     const r = this.rank("encaisseur");
-    return r > 0 && damage > 0 ? Math.max(1, damage - r) : damage;
+    if (r === 0 || damage <= 0) return damage;
+    return r === 1 ? (damage >= 3 ? damage - 1 : damage) : Math.max(1, damage - 1);
   }
 
   /** Riposte (voie bleue, Rang II) : un ennemi au contact rate le héros, il frappe aussitôt (une fois par tour). */
   private riposte(m: Actor): void {
     const r = this.rank("riposte");
-    if (r === 0 || this.over || this.ripostedOn === this.turn || !this.monsters.includes(m) || !this.inReach(this.hero, m)) return;
+    // Une riposte tous les deux tours (Thomas, 2026-11-18 ; une par tour avant).
+    if (r === 0 || this.over || this.turn - this.ripostedOn < 2 || !this.monsters.includes(m) || !this.inReach(this.hero, m)) return;
     this.ripostedOn = this.turn;
     this.events.push({ type: "power", power: "riposte" });
     this.strikeBonus = r >= 2 ? { hit: 2, damage: 2 } : { hit: 0, damage: 0 };

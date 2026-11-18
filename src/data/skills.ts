@@ -66,9 +66,9 @@ export const PATHS: Record<PathId, PathDef> = {
       { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse à 1 PV (1 fois par étage)", "Un coup mortel vous laisse à 5 PV (1 fois par étage)"] },
     ],
     tier2: [
-      { id: "riposte", name: "Riposte", ranks: ["Un ennemi au contact vous rate : vous frappez aussitôt (une fois par tour)", "Riposte à +2 pour toucher et +2 dégâts"] },
+      { id: "riposte", name: "Riposte", ranks: ["Un ennemi au contact vous rate : vous frappez aussitôt (une fois tous les deux tours)", "Riposte à +2 pour toucher et +2 dégâts"] },
       { id: "garde", name: "Garde", ranks: ["+2 à la classe d'armure quand deux ennemis ou plus vous touchent", "+3 à la classe d'armure quand deux ennemis ou plus vous touchent"] },
-      { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât à chaque coup reçu (au moins 1)", "-2 dégâts à chaque coup reçu (au moins 1)"] },
+      { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât sur les coups de 3 dégâts ou plus", "-1 dégât à chaque coup reçu (au moins 1)"] },
     ],
   },
   red: {

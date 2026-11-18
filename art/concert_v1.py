@@ -54,38 +54,75 @@ class Grid:
 
 
 def estrade():
-    """4 × 2 cases (64 × 32) et 12 pixels de lambrequin au-dessus : 64 × 44."""
-    g = Grid(64, 44)
-    # Fond de scène sombre entre les rideaux.
-    g.box(0, 0, 63, 33, "O")
-    for x in range(14, 50, 6):
-        g.rect(x, 6, x, 31, "o")
-    # Lambrequin rouge à franges dorées.
-    g.rect(0, 0, 63, 0, "K")
+    """4 × 2 cases (64 × 32) et 16 pixels au-dessus (lambrequin, fond de scène) : 64 × 48. v2 (Thomas, 2026-11-18 : « la
+    profondeur de la scène n'est pas très bien représentée ») : le plancher en perspective (le bord du fond plus étroit, les
+    lattes qui fuient vers le fond), un rideau de fond rouge sombre, les grands rideaux d'avant-scène drapés et noués,
+    la rampe de lumières au bord, et la face avant de l'estrade."""
+    g = Grid(64, 48)
+    top, back, front, base = 0, 16, 37, 47
+    # Rideau de fond, rouge sombre, plis serrés (le fond de la scène).
+    g.rect(1, 1, 62, back + 2, "r")
+    for x in range(3, 62, 3):
+        g.rect(x, 6, x, back + 2, "o")
+    # Les coulisses, dans l'ombre, de chaque côté du plancher.
+    g.rect(1, back, 62, front, "O")
+    # Plancher en perspective : du bord du fond (x 12 à 51) au bord avant (x 1 à 62).
+    for y in range(back, front + 1):
+        f = (y - back) / (front - back)
+        x0 = round(12 - 11 * f)
+        x1 = round(51 + 11 * f)
+        g.rect(x0, y, x1, y, "T")
+        # Les joints des lattes fuient vers le fond de la scène.
+        for k in range(-3, 4):
+            xb = 31.5 + k * 5.5
+            xf = 31.5 + k * 9
+            g.px(round(xb + (xf - xb) * f), y, "B")
+    for y in range(back + 5, front, 6):
+        f = (y - back) / (front - back)
+        g.rect(round(12 - 11 * f), y, round(51 + 11 * f), y, "B")
+    # Bord du fond (une ombre) ; rampe de lumières dorées au bord avant.
+    g.rect(12, back, 51, back, "b")
+    g.rect(1, front, 62, front, "b")
+    for x in range(5, 60, 6):
+        g.rect(x, front - 1, x + 1, front - 1, "Y")
+        g.px(x, front - 2, "G")
+    # Face avant de l'estrade : planches, deux montants.
+    g.rect(0, front + 1, 63, base, "B")
+    for y in (front + 4, front + 7):
+        g.rect(1, y, 62, y, "b")
+    for x in (10, 31, 53):
+        g.rect(x, front + 1, x + 1, base - 1, "b")
+    # Grands rideaux d'avant-scène, drapés : larges en haut, noués par une embrasse dorée, évasés en bas.
+    def drape(side):
+        for y in range(1, front + 1):
+            if y < 22:
+                w = 12 - (y - 1) * 5 // 21
+            elif y < 25:
+                w = 6
+            else:
+                w = 6 + (y - 25) * 6 // 12
+            for i in range(w):
+                x = i if side == 0 else 63 - i
+                g.px(x, y, "q" if i % 3 == 1 else "R" if i % 3 == 0 else "r")
+        for i in range(7):
+            x = i if side == 0 else 63 - i
+            g.px(x, 22, "G")
+            g.px(x, 23, "g")
+    drape(0)
+    drape(1)
+    # Lambrequin rouge à franges dorées, devant tout.
     g.rect(1, 1, 62, 4, "R")
     for x in range(1, 63, 4):
         g.rect(x, 1, x, 4, "r")
     g.rect(1, 5, 62, 5, "G")
     for x in range(2, 62, 3):
         g.px(x, 6, "g")
-    # Rideaux, à gauche et à droite, plis, embrasses dorées.
-    for (x0, x1) in ((1, 12), (51, 62)):
-        g.rect(x0, 6, x1, 33, "R")
-        for x in range(x0 + 1, x1, 3):
-            g.rect(x, 6, x, 33, "r")
-            g.rect(x + 1, 6, x + 1, 33, "q")
-        g.rect(x0, 20, x1, 21, "G")
-        g.rect(x0, 22, x1, 22, "g")
-    # Le plancher de la scène (dessus), puis sa face avant.
-    g.box(0, 30, 63, 36, "T")
-    for x in range(8, 63, 10):
-        g.rect(x, 31, x, 35, "B")
-    g.box(0, 36, 63, 43, "B")
-    for y in (38, 41):
-        g.rect(1, y, 62, y, "b")
-    for x in range(6, 63, 12):
-        g.rect(x, 37, x, 42, "b")
-    return g.rows()
+    # Contour.
+    g.rect(0, 0, 63, 0, "K")
+    g.rect(0, 0, 0, base, "K")
+    g.rect(63, 0, 63, base, "K")
+    g.rect(0, base, 63, base, "K")
+    return g.rows(outline=False)
 
 
 def piano():

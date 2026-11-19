@@ -34,18 +34,7 @@ BONE, BONE_D, BONE_S = (226, 214, 184), (176, 162, 132), (70, 60, 50)
 BRASS, BRASS_D, BRASS_L = (196, 150, 62), (130, 94, 34), (240, 200, 110)
 RED, RED_D, RED_L = (176, 30, 40), (110, 16, 24), (220, 70, 70)
 
-PLAN = [
-    "##############",
-    "#............#",
-    "#............#",
-    "#............#",
-    "#............#",
-    "#............#",
-    "#............#",
-    "#............#",
-    "#............#",
-    "######..######",
-]
+PLAN = ["#" * 18] + ["#" + "." * 16 + "#" for _ in range(10)] + ["#" * 8 + ".." + "#" * 8]
 
 
 def pale_floor(a, xs, ys, wall):
@@ -69,88 +58,139 @@ def pale_floor(a, xs, ys, wall):
 
 
 def estrade():
-    """Estrade de pierre à deux marches, 7 × 3 cases (112 × 52), vue en 3/4."""
-    s = Sprite(114, 54)
-    s.r(1, 6, 112, 34, (176, 172, 162)).r(1, 6, 112, 1, (214, 210, 198))  # dessus
-    s.r(1, 40, 112, 6, (140, 136, 128)).r(1, 40, 112, 1, (160, 156, 148))  # contremarche haute
-    s.r(1, 46, 112, 2, (198, 194, 184))  # marche
-    s.r(1, 48, 112, 5, (122, 118, 112))  # contremarche basse
-    for x in range(8, 110, 16):
+    """Estrade de pierre à deux marches, 10 × 3 cases (160 × 52), vue en 3/4."""
+    s = Sprite(162, 54)
+    s.r(1, 6, 160, 34, (176, 172, 162)).r(1, 6, 160, 1, (214, 210, 198))  # dessus
+    s.r(1, 40, 160, 6, (140, 136, 128)).r(1, 40, 160, 1, (160, 156, 148))  # contremarche haute
+    s.r(1, 46, 160, 2, (198, 194, 184))  # marche
+    s.r(1, 48, 160, 5, (122, 118, 112))  # contremarche basse
+    for x in range(8, 158, 16):
         s.r(x, 41, 1, 5, (116, 112, 106)).r(x + 6, 49, 1, 4, (100, 96, 92))
     # plinthe dorée et plaque au milieu de la marche
-    s.r(1, 39, 112, 1, BRASS_D)
-    s.r(49, 41, 16, 4, BRASS).r(49, 41, 16, 1, BRASS_L).r(51, 43, 12, 1, BRASS_D)
+    s.r(1, 39, 160, 1, BRASS_D)
+    s.r(73, 41, 16, 4, BRASS).r(73, 41, 16, 1, BRASS_L).r(75, 43, 12, 1, BRASS_D)
     return s.done()
+
+
+# ---- le tricératops v2 (Thomas, 2026-11-19, 10 h 49 : « tu peux faire mieux pour le design du tricératops ») : dessiné
+# en formes (collerette PLEINE au bord festonné et rainurée, bec crochu, deux longues cornes de front et une courte sur le
+# nez, orbite et fenêtre de la joue, mâchoire dentée ; cou en vertèbres, dos qui monte jusqu'aux hanches, côtes proches et
+# lointaines, omoplate, bassin, pattes avant au coude sorti, pattes arrière en colonnes, queue à chevrons ; côté lointain
+# plus sombre ; monture de fer et socle), puis ombré (arête claire en haut, sombre en bas) et détouré.
+W, H = 190, 100
+NEAR, FAR, HOLE, IRON, DARKB = 1, 2, 3, 4, 5
+
+def _tri_labels():
+    lab = Image.new("L", (W, H), 0)
+    d = ImageDraw.Draw(lab)
+    P = lambda pts, v: d.polygon([(x, y) for x, y in pts], fill=v)
+    L = lambda pts, v, w=2: d.line(pts, fill=v, width=w, joint="curve")
+    E = lambda box, v: d.ellipse(box, fill=v)
+    o = 12  # le corps, décalé vers l'arrière : la tête fait un tiers de la bête
+    # --- monture de fer (derrière)
+    L([(98 + o, 96), (98 + o, 72)], IRON, 2); L([(136 + o, 96), (136 + o, 44)], IRON, 2); L([(56, 96), (56, 66)], IRON, 2)
+    # --- pattes du côté lointain (plus sombres)
+    L([(104 + o, 64), (98 + o, 76), (102 + o, 90)], FAR, 3); P([(96 + o, 89), (108 + o, 89), (109 + o, 94), (95 + o, 94)], FAR)
+    L([(134 + o, 44), (142 + o, 66), (134 + o, 86)], FAR, 4); P([(128 + o, 86), (142 + o, 86), (143 + o, 94), (127 + o, 94)], FAR)
+    # --- côtes du côté lointain
+    for k, x in enumerate(range(86 + o, 128 + o, 4)):
+        L([(x + 3, 42 - min(k, 4)), (x + 1, 58), (x + 4, 72 - abs(k - 5))], FAR, 1)
+    # --- queue
+    tail = [(140 + o, 37), (150 + o, 40), (160 + o, 45), (168 + o, 51), (174 + o, 57)]
+    for i, (a, b) in enumerate(zip(tail, tail[1:])):
+        L([a, b], NEAR, 4 - i)
+    for (x, y) in tail[1:4]:
+        L([(x, y + 2), (x - 2, y + 7)], NEAR, 1)
+        L([(x, y - 2), (x + 1, y - 5)], NEAR, 1)
+    # --- cou et colonne, le dos qui monte jusqu'aux hanches
+    spine = [(68, 52), (80, 47), (92 + o, 41), (104 + o, 37), (118 + o, 34), (130 + o, 33), (140 + o, 36)]
+    L(spine, NEAR, 3)
+    for (x, y) in spine[2:]:
+        L([(x, y - 1), (x + 1, y - 6)], NEAR, 2)
+    for (x, y) in ((76, 49), (82, 47), (88, 45), (94, 44)):
+        E((x - 2.5, y - 2.5, x + 2.5, y + 2.5), NEAR)  # vertèbres du cou
+        d.point((x + 3, y), fill=HOLE)
+    # --- côtes proches et sternum
+    for k, x in enumerate(range(86 + o, 128 + o, 4)):
+        top = 42 - min(k, 5)
+        bot = 74 - abs(k - 5) * 1.2
+        L([(x, top), (x - 2, (top + bot) / 2), (x + 1, bot)], NEAR, 2)
+    L([(84 + o, 72), (104 + o, 76), (124 + o, 72)], NEAR, 2)
+    # --- omoplate
+    P([(86 + o, 42), (95 + o, 40), (101 + o, 62), (95 + o, 66), (90 + o, 63)], NEAR)
+    # --- bassin
+    P([(118 + o, 33), (144 + o, 32), (146 + o, 37), (120 + o, 40)], NEAR)
+    P([(132 + o, 38), (136 + o, 38), (142 + o, 52), (138 + o, 53)], NEAR)
+    P([(124 + o, 39), (128 + o, 39), (120 + o, 50), (117 + o, 49)], NEAR)
+    E((129 + o, 36, 136 + o, 43), HOLE)
+    # --- pattes proches : devant, coude un peu sorti ; derrière, fémur, genou, tibia
+    L([(98 + o, 63), (91 + o, 76), (95 + o, 90)], NEAR, 4)
+    P([(88 + o, 89), (101 + o, 89), (102 + o, 94), (87 + o, 94)], NEAR)
+    L([(132 + o, 41), (139 + o, 64), (131 + o, 86)], NEAR, 5)
+    P([(124 + o, 86), (139 + o, 86), (140 + o, 94), (123 + o, 94)], NEAR)
+    for (x, y, r) in ((91 + o, 76, 3), (139 + o, 64, 3), (131 + o, 86, 2)):
+        E((x - r, y - r, x + r, y + r), NEAR)
+    # --- COLLERETTE pleine, bord festonné, rainures
+    frill = [(46, 54), (45, 38), (50, 24), (58, 14), (69, 11), (78, 16), (82, 27), (79, 40), (70, 52), (58, 60)]
+    P(frill, NEAR)
+    for i in range(1, len(frill) - 1):
+        (x0, y0), (x1, y1) = frill[i], frill[i + 1]
+        for t in (0.0, 0.5):
+            x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+            E((x - 2.2, y - 2.2, x + 2.2, y + 2.2), NEAR)
+    for (x, y) in ((54, 22), (63, 15), (73, 17), (79, 29)):
+        L([(52, 48), (x, y)], DARKB, 1)
+    # --- CRÂNE
+    face = [(12, 54), (18, 48), (29, 44), (42, 42), (51, 48), (53, 56), (47, 61), (34, 63), (20, 63), (14, 60)]
+    P(face, NEAR)
+    P([(6, 52), (14, 48), (16, 58), (10, 62), (7, 58)], NEAR)
+    P([(6, 54), (8, 54), (9, 60), (7, 60)], DARKB)
+    jaw = [(14, 62), (46, 61), (51, 65), (40, 70), (24, 70), (16, 67)]
+    P(jaw, NEAR)
+    L([(18, 64), (44, 64)], DARKB, 1)
+    for x in range(20, 44, 3):
+        d.point((x, 63), fill=HOLE)
+    E((34, 46, 40, 52), HOLE)
+    E((16, 51, 20, 55), HOLE)
+    E((44, 55, 49, 59), HOLE)
+    P([(46, 59), (52, 61), (50, 67)], NEAR)
+    # --- CORNES
+    P([(36, 44), (40, 42), (21, 16), (18, 17)], FAR)
+    P([(32, 46), (37, 43), (14, 19), (11, 21)], NEAR)
+    P([(16, 50), (20, 48), (15, 38), (13, 39)], NEAR)
+    # --- socle
+    d.rectangle((48, 95, 160, 99), fill=IRON)
+    return np.array(lab)
+
+def _tri_colors(lab):
+    out = np.zeros(lab.shape + (4,), np.uint8)
+    B, BL, BD, BS = (228, 216, 186), (246, 238, 214), (182, 168, 136), (140, 126, 100)
+    FARC, FARL = (150, 138, 112), (170, 158, 130)
+    near = lab == NEAR
+    up = np.roll(lab, 1, 0) != NEAR
+    dn = np.roll(lab, -1, 0) != NEAR
+    out[near] = B + (255,)
+    out[near & dn] = BD + (255,)
+    out[near & up] = BL + (255,)
+    far = lab == FAR
+    out[far] = FARC + (255,)
+    out[far & (np.roll(lab, 1, 0) != FAR)] = FARL + (255,)
+    out[lab == HOLE] = (52, 42, 34, 255)
+    out[lab == DARKB] = BS + (255,)
+    out[lab == IRON] = (74, 76, 90, 255)
+    # contour sombre
+    m = out[..., 3] > 0
+    o = np.zeros_like(m)
+    o[1:] |= m[:-1]; o[:-1] |= m[1:]; o[:, 1:] |= m[:, :-1]; o[:, :-1] |= m[:, 1:]
+    out[o & ~m] = (24, 18, 16, 255)
+    return out
+
 
 
 def triceratops():
-    """Squelette de tricératops monté, de profil vers la gauche, ~150 × 84 (il déborde de l'estrade : énorme)."""
-    W_, H_ = 150, 86
-    s = Sprite(W_, H_)
-    B, D, S_ = BONE, BONE_D, BONE_S
-
-    def thick(x0, y0, x1, y1, w, c=B, edge=D):
-        n = max(abs(x1 - x0), abs(y1 - y0), 1)
-        for i in range(n + 1):
-            x = x0 + (x1 - x0) * i / n
-            y = y0 + (y1 - y0) * i / n
-            for k in range(w):
-                s.p(round(x), round(y) + k, c if k < w - 1 else edge)
-
-    # COLLERETTE : grand bouclier en éventail derrière la tête, bord festonné, deux fenêtres
-    cx, cy, r = 40, 26, 23
-    for y in range(H_):
-        for x in range(W_):
-            d = math.hypot(x - cx, (y - cy) * 1.1)
-            if d < r and x >= cx - 12 and y < cy + 16:
-                s.p(x, y, D if d > r - 3 else B)
-    for (hx, hy, hw, hh) in ((42, 12, 7, 6), (50, 22, 6, 7)):
-        s.r(hx, hy, hw, hh, S_).r(hx + 1, hy + 1, hw - 2, hh - 2, (40, 34, 30))
-    for k in range(11):
-        a = math.radians(-105 + k * 19)
-        s.r(int(cx + (r + 1) * math.cos(a)), int(cy + (r + 1) * math.sin(a) / 1.1), 2, 2, B)
-    # CRÂNE : face, bec crochu, orbite, narine, mâchoire et dents
-    s.r(9, 30, 36, 15, B).r(5, 34, 6, 10, B).r(2, 37, 4, 7, D).r(1, 41, 3, 4, D)
-    s.r(9, 44, 34, 3, D)
-    for x in range(12, 40, 4):
-        s.r(x, 45, 2, 2, S_)
-    s.r(28, 32, 6, 5, S_).r(29, 33, 4, 3, (30, 26, 22))  # orbite
-    s.r(13, 35, 4, 3, S_)  # narine
-    s.r(9, 30, 36, 1, (240, 232, 210))
-    # cornes : deux grandes au-dessus des yeux, une sur le nez
-    thick(30, 31, 6, 12, 3), thick(34, 30, 12, 9, 2)
-    s.r(4, 11, 3, 2, B)
-    thick(9, 32, 4, 24, 3), s.r(3, 23, 2, 2, B)
-    # COU et COLONNE (deux pixels d'épaisseur), épines dorsales
-    spine = [(48, 40), (58, 34), (70, 29), (84, 27), (98, 28), (110, 31), (120, 37), (129, 45), (137, 53), (143, 61), (148, 68)]
-    for (x0, y0), (x1, y1) in zip(spine, spine[1:]):
-        thick(x0, y0, x1, y1, 3)
-    for (x, y) in spine[1:7]:
-        s.r(x, y - 5, 2, 5, B)
-    for (x, y) in spine[7:]:
-        s.r(x, y - 3, 1, 3, D)
-    # CÔTES : arcs sous la colonne, de plus en plus courtes vers l'arrière
-    for k, x in enumerate(range(62, 104, 4)):
-        top = 32 - min(k, 4)
-        ln = 20 - abs(k - 4) * 1.4
-        thick(x, top, x - 2, int(top + ln), 2)
-        s.r(x - 3, int(top + ln), 3, 2, D)
-    thick(60, 54, 100, 54, 2, D, S_)  # sternum
-    # BASSIN
-    s.r(104, 28, 16, 10, B).r(107, 31, 7, 4, S_).r(104, 37, 16, 2, D)
-    # PATTES : épaisses, genou marqué, pieds à griffes
-    for (x, top, back) in ((62, 52, False), (74, 52, False), (106, 38, True), (116, 38, True)):
-        mid = top + (14 if not back else 20)
-        s.r(x, top, 5, mid - top, B).r(x + 4, top, 1, mid - top, D)
-        s.r(x - 1, mid, 6, 3, D)
-        s.r(x + 1, mid + 3, 4, 78 - mid - 3, B).r(x + 4, mid + 3, 1, 78 - mid - 3, D)
-        s.r(x - 2, 78, 9, 3, B).r(x - 2, 80, 9, 1, D)
-    # socle et tiges de fer du montage
-    s.r(54, 82, 76, 3, (110, 104, 96))
-    for x in (90, 126):
-        s.r(x, 40 if x < 100 else 60, 1, 82 - (40 if x < 100 else 60), C["iL"])
-    return s.done()
-
+    s = Sprite(W, H)
+    s.a = _tri_colors(_tri_labels())
+    return s
 
 def post():
     """Potelet de laiton du cordon."""
@@ -202,10 +242,10 @@ def room(lit=True):
         ob2.paste(img, sp, x, y, shadow)
 
     # cordon rouge sur potelets tout autour (le rang du fond passe DERRIÈRE le squelette), une ouverture devant l'écriteau
-    posts = [(2 * T + 2, 1 * T + 4), (6 * T + 6, 1 * T + 4), (11 * T + 2, 1 * T + 4), (11 * T + 2, 7 * T + 2), (8 * T, 7 * T + 8), (5 * T, 7 * T + 8), (2 * T + 2, 7 * T + 2)]
+    posts = [(2 * T + 4, 1 * T + 6), (9 * T, 1 * T + 6), (15 * T + 6, 1 * T + 6), (15 * T + 6, 9 * T), (10 * T + 2, 9 * T + 6), (7 * T + 2, 9 * T + 6), (2 * T + 4, 9 * T)]
     loop = list(zip(posts + [posts[0]], (posts + [posts[0]])[1:]))
     back = [seg for seg in loop if seg[0][1] < 2 * T and seg[1][1] < 2 * T]
-    front = [seg for seg in loop if seg not in back and seg[0] != (8 * T, 7 * T + 8)]
+    front = [seg for seg in loop if seg not in back and seg[0] != (10 * T + 2, 9 * T + 6)]
 
     def ropes(segs, with_posts):
         nonlocal img
@@ -218,14 +258,14 @@ def room(lit=True):
 
     ropes(back, posts[:3])
     # estrade au milieu, le tricératops dessus (il la déborde : il est énorme)
-    ex, ey = 3 * T + 8, 4 * T - 4
+    ex, ey = 4 * T, 5 * T + 4
     put(estrade(), ex, ey, False)
-    put(triceratops(), ex - 16, ey + 40 - 86, False)
+    put(triceratops(), ex - 14, ey + 42 - 100, False)
     ropes(front, posts[3:])
     # supports à bougie aux quatre coins, écriteau devant
-    for (x, y) in ((1 * T + 3, 1 * T + 2), (12 * T + 3, 1 * T + 2), (1 * T + 3, 7 * T), (12 * T + 3, 7 * T)):
+    for (x, y) in ((1 * T + 3, 1 * T + 2), (16 * T + 3, 1 * T + 2), (1 * T + 3, 9 * T), (16 * T + 3, 9 * T)):
         ob2.paste(img, candle_stand(), x, y, True)
-    ob2.paste(img, sign(), 6 * T + 8, 8 * T - 2, True)
+    ob2.paste(img, sign(), 8 * T + 8, 10 * T - 2, True)
     if not lit:
         return img
     # lumière : les bougies (chaudes) et la lune qui tombe sur l'estrade ; le reste dans la pénombre
@@ -234,12 +274,12 @@ def room(lit=True):
     gx, gy = grid(W, H)
     L = np.full((H, W), 0.38)
     warm = np.zeros((H, W))
-    for (x, y) in ((1 * T + 8, 1 * T + 2), (12 * T + 8, 1 * T + 2), (1 * T + 8, 7 * T), (12 * T + 8, 7 * T)):
+    for (x, y) in ((1 * T + 8, 1 * T + 2), (16 * T + 8, 1 * T + 2), (1 * T + 8, 9 * T), (16 * T + 8, 9 * T)):
         d = np.hypot(gx - x, gy - y) / T
         g = np.clip(1 - d / 3.5, 0, 1)
         L = np.maximum(L, 0.38 + g * 0.7)
         warm = np.maximum(warm, g)
-    d = np.hypot(gx - 7 * T, (gy - 4.6 * T) / 0.75) / T
+    d = np.hypot(gx - 9 * T, (gy - 5.6 * T) / 0.75) / T
     moon = np.clip(1.2 - d / 2.6, 0, 1)
     L = np.maximum(L, 0.38 + moon * 0.75)
     tint = np.ones((H, W, 3))
@@ -255,12 +295,12 @@ def main():
     parts = [("Tricératops (×3)", up(triceratops().img(), 3)), ("Estrade (×3)", up(estrade().img(), 3)),
              ("Potelet, cordon (×5)", up(post().img(), 5)), ("Support à bougie (×5)", up(candle_stand().img(), 5)), ("Écriteau (×5)", up(sign().img(), 5))]
     pad = 24
-    Wb = max(big.width + 2 * pad, sum(max(p.width, 150) for _, p in parts) + pad * (len(parts) + 1))
+    Wb = max(big.width + 2 * pad, sum(max(p.width, 200) for _, p in parts) + pad * (len(parts) + 1))
     ph = max(p.height for _, p in parts)
     Hb = 80 + big.height + 60 + ph + 40
     sheet = Image.new("RGB", (Wb, Hb), (14, 12, 18))
     d = ImageDraw.Draw(sheet)
-    d.text((Wb // 2, 26), "SECTION 3 · SALLE SPÉCIALE · LE MUSÉE (v1)", fill=(255, 243, 200), font=font(22), anchor="mm")
+    d.text((Wb // 2, 26), "SECTION 3 · SALLE SPÉCIALE · LE MUSÉE (v1, tricératops v2)", fill=(255, 243, 200), font=font(22), anchor="mm")
     d.text((Wb // 2, 54), "Dalles claires · squelette de tricératops sur estrade · cordon rouge sur potelets · supports à bougie · écriteau", fill=(190, 180, 160), font=font(14, False), anchor="mm")
     sheet.paste(big, ((Wb - big.width) // 2, 80))
     x, y = pad, 80 + big.height + 50
@@ -269,7 +309,7 @@ def main():
         bg = Image.new("RGB", im.size, (40, 36, 44))
         bg.paste(im, (0, 0), im)
         sheet.paste(bg, (x, y))
-        x += max(im.width, 150) + pad
+        x += max(im.width, 200) + pad
     sheet.save(os.path.join(HERE, "ossuaire_musee_v1.png"))
     print("art/ossuaire_musee_v1.png", sheet.size)
 

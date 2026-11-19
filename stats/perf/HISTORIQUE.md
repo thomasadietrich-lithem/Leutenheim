@@ -106,3 +106,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-19_14h30 | a231242 | 24.9 | 24 | 24.3 | 27.1 | 16.7 | 26.1 | 0.56 | 0.14 | Grenade sainte |
 | 2026-11-19_14h30 | 5c2f910 | 25.6 | 29.7 | 25.3 | 26.3 | 16.7 | 24.8 | 0.48 | 0.32 | Grenade sainte (re-mesure) |
 | 2026-11-19_14h38 | 5c2f910 | 25.4 | 24.8 | 20.7 | 22.8 | 16.7 | 21.1 | 0.4 | 0.46 | Boss section 3 : la Grande Prêtresse et son Colosse |
+| 2026-11-19_14h39 | ace9ac3 | 28.5 | 27.5 | 20.4 | 23.4 | 16.7 | 23.6 | 0.44 | 0.23 | Boss S3 (re-mesure) |
+| 2026-11-19_14h45 | ace9ac3 | 24.6 | 25.6 | 24.5 | 28.6 | 16.7 | 21.4 | 0.56 | 0.3 | Musée et Maître Osselet |

@@ -3872,7 +3872,11 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       assert.equal(cur.look, "ossuaire");
       assert.ok(game.monsters.every((m) => ["rat", "squelette", "squeletteArcher", "craneLunaire", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
       if (depth === 11) assert.ok(game.monsters.every((m) => m.defId === "rat" || m.defId === "squelette"), "étage 11 : rats et squelettes");
-      assert.ok((cur.themes as { id: string }[]).every((t) => t.id === "chapelle"), "aucune salle à thème des sections du dessus (la chapelle des os seulement)");
+      assert.ok((cur.themes as { id: string }[]).every((t) => t.id === "chapelle" || t.id === "musee"), "aucune salle à thème des sections du dessus (la chapelle des os et le musée seulement)");
+      if ((cur.themes as { id: string }[]).some((t) => t.id === "musee")) {
+        assert.ok(cur.furniture.some((f) => f.kind === "expoTrike"), "le tricératops du musée");
+        assert.ok((cur as unknown as { osselet?: unknown }).osselet, "Maître Osselet au musée");
+      }
       assert.ok((cur.traps as { kind?: string }[]).every((t) => ["tombSlab", "boneHands", "censer", "moonMirror", "pendulum"].includes(t.kind ?? "")), "seulement les pièges de l'ossuaire");
       for (const t of cur.traps as { x: number; y: number; kind?: string; hidden?: boolean }[]) {
         const inRoom = (game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] }).rooms.some((r) => t.x >= r.x && t.y >= r.y && t.x < r.x + r.w && t.y < r.y + r.h);

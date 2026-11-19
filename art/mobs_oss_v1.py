@@ -621,6 +621,16 @@ def export():
     full = full_set(base["idleDown0"], base["idleSide0"], base["walkSide1"], [r.replace("R", ".").replace("r", ".") for r in SK_UP], base["attackSide1"], SK_LIE, SK_DEAD, SK_PILE,
                     {"rise0": SK_RISE, "rise1": shift(SK_RISE, 0, -1)})
     sets["squeletteArcher"] = (full, {**SKEL, "s": "#d8d0b8"})
+    # Le Conservateur du musée (Thomas, 2026-11-19 : « fonce sur quête ») : un squelette sans épée, monocle et nœud papillon.
+    cons = [list(r.replace("R", ".").replace("r", ".")) for r in SK_DOWN]
+    cons[3][9] = "M"
+    cons[4][10] = "m"
+    for x in (7, 8):
+        cons[7][x] = "R"
+    cons[7][6] = "R"
+    cons[7][9] = "R"
+    cons = ["".join(r) for r in cons]
+    sets["conservateur"] = ({"idleDown0": g(cons), "idleDown1": g(shift(cons, 0, 1))}, {**SKEL, "R": "#b02838"})
     sets["craneLunaire"] = (full_set(CR_DOWN, CR_SIDE, shift(CR_SIDE, 0, -1), CR_UP, shift(CR_SIDE, 1, 0), CR_DOWN, CR_DEAD, CR_DEAD,
                                      {"charge0": CR_CHARGE, "charge1": CR_CHARGE2}), CRANE)
     for key, (frames, pal) in sets.items():

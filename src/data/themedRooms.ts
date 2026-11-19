@@ -442,6 +442,10 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   sealedStairs: { blocks: true, w: 1, h: 1, burns: false },
   // Boss de la section 3 (planche art/ossuaire_boss_v1.png) : le socle vide, les cierges violets (allumés, éteints).
   socle: { blocks: true, w: 3, h: 1, burns: false },
+  // Le musée de l'ossuaire (planche art/ossuaire_musee_v1.png).
+  expoTrike: { blocks: true, w: 7, h: 2, burns: false },
+  chandelierMusee: { blocks: true, w: 1, h: 1, burns: false },
+  ecriteauMusee: { blocks: true, w: 1, h: 1, burns: false },
   ciergeViolet: { blocks: true, w: 1, h: 1, burns: false },
   ciergeVioletOff: { blocks: true, w: 1, h: 1, burns: false },
   bonesA: { blocks: false, w: 1, h: 1, burns: false, flat: true },

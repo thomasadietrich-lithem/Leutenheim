@@ -41,10 +41,11 @@ export type QuestTaskId =
   | "maestro_partition"
   | "plumeau_clef"
   | "clavicule_cranes"
+  | "osselet_corne"
   | "clavicule_cierges";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule";
+  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet";
   /** Quête « kill » : ce qui compte (les Kobolds par défaut ; les squelettes brisés pour Sœur Clavicule). */
   targets?: "squelettes";
   /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
@@ -292,6 +293,16 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     failed: "Plumeau reste enchaîné à son mur.",
   },
   // Section 3, la chapelle des os (Thomas, 2026-11-19 : « Ok ») : Sœur Clavicule.
+  osselet_corne: {
+    npc: "osselet",
+    kind: "fetch",
+    item: "corne_triceratops",
+    goal: "Retrouver la corne du tricératops",
+    back: "Rendre la corne à Maître Osselet",
+    waiting: "« Un culte qui vole des cornes. On aura tout vu. Cherchez une salle qui brille. »",
+    thanks: ["« Ma corne ! Tricératops, de nouveau. »", "« Tenez : un fémur de la réserve, monté en massue. Les morts n'aiment pas les os plus gros qu'eux. »", "(Il vous donne une massue de tricératops.)"],
+    failed: "Le tricératops du musée reste un bicératops.",
+  },
   clavicule_cranes: {
     npc: "clavicule",
     kind: "kill",

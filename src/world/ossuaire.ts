@@ -131,7 +131,64 @@ function furnishChapel(floor: Floor, furniture: Furniture[], rng: Rng, room: Roo
   return true;
 }
 
-export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = []): number | undefined {
+/**
+ * Le MUSÉE de l'ossuaire (Thomas, 2026-11-19 : « en mode musée, un énorme squelette de tricératops sur une estrade ;
+ * dalles claires ; cordon rouge ; supports à bougie ; écriteau » ; planche art/ossuaire_musee_v1.png) : le tricératops
+ * sur son estrade (7 × 2 cases) au milieu de la salle, un support à bougie de chaque côté, l'écriteau devant.
+ */
+function furnishMuseum(floor: Floor, furniture: Furniture[], room: Room): boolean {
+  const { map } = floor;
+  const x0 = room.x + Math.floor((room.w - 7) / 2);
+  const y0 = room.y + 1;
+  const cells: Point[] = [];
+  for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 7; dx++) cells.push({ x: x0 + dx, y: y0 + dy });
+  if (!cells.every((c) => map.get(c.x, c.y) === Tile.Floor && freeCell(floor, furniture, c.x, c.y) && !besideOpening(floor, room, c.x, c.y))) return false;
+  if (blocksPassage(map, cells)) return false;
+  furniture.push({ x: x0, y: y0, kind: "expoTrike" });
+  for (const c of cells) map.set(c.x, c.y, Tile.Furniture);
+  for (const [x, y, kind] of [[x0 - 1, y0 + 1, "chandelierMusee"], [x0 + 7, y0 + 1, "chandelierMusee"], [x0 + 3, y0 + 3, "ecriteauMusee"]] as const) {
+    if (map.get(x, y) !== Tile.Floor || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || blocksPassage(map, [{ x, y }])) continue;
+    furniture.push({ x, y, kind });
+    map.set(x, y, Tile.Furniture);
+    // Toute la salle doit rester d'un seul tenant (pas de rangée coupée derrière l'estrade).
+    if (!roomOneBlock(floor, room)) {
+      furniture.pop();
+      map.set(x, y, Tile.Floor);
+    }
+  }
+  if (!roomOneBlock(floor, room)) {
+    furniture.splice(furniture.findIndex((f) => f.kind === "expoTrike" && f.x === x0 && f.y === y0), 1);
+    for (const c of cells) map.set(c.x, c.y, Tile.Floor);
+    return false;
+  }
+  return true;
+}
+
+/** Le sol libre d'une salle (et ses ouvertures) forme-t-il un seul bloc, en pas droits ? */
+function roomOneBlock(floor: Floor, room: Room): boolean {
+  const { map } = floor;
+  const inside = (x: number, y: number) => x >= room.x - 1 && y >= room.y - 1 && x <= room.x + room.w && y <= room.y + room.h;
+  const free = (x: number, y: number) => inside(x, y) && map.isWalkable(x, y);
+  const cells: Point[] = [];
+  for (let y = room.y - 1; y <= room.y + room.h; y++) for (let x = room.x - 1; x <= room.x + room.w; x++) if (free(x, y)) cells.push({ x, y });
+  if (cells.length === 0) return true;
+  const seen = new Set<string>([`${cells[0].x},${cells[0].y}`]);
+  const stack = [cells[0]];
+  while (stack.length) {
+    const p = stack.pop()!;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const q = { x: p.x + dx, y: p.y + dy };
+      const k = `${q.x},${q.y}`;
+      if (!seen.has(k) && free(q.x, q.y)) {
+        seen.add(k);
+        stack.push(q);
+      }
+    }
+  }
+  return seen.size === cells.length;
+}
+
+export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = []): { chapel?: number; museum?: number } {
   const { map, rooms, start } = floor;
   // Plus de torche ni de cheminée : la lune seule éclaire.
   floor.torches.splice(0, floor.torches.length);
@@ -198,7 +255,7 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
   let chapel: number | undefined;
   const stairsRoom = rooms.findIndex((r) => floor.stairs.x >= r.x - 1 && floor.stairs.x <= r.x + r.w && floor.stairs.y >= r.y - 1 && floor.stairs.y <= r.y + r.h);
   if (rng.chance(RULES.chapelChance)) {
-    const fits = rooms.map((r, i) => i).filter((i) => i !== startRoom && i !== stairsRoom && !avoidRooms.includes(i) && rooms[i].w >= 7 && rooms[i].h >= 5);
+    const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && !avoidRooms.includes(i) && rooms[i].w >= 7 && rooms[i].h >= 5);
     for (const i of fits.sort(() => rng.next() - 0.5)) {
       if (furnishChapel(floor, furniture, rng, rooms[i])) {
         chapel = i;
@@ -207,10 +264,22 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
     }
   }
 
+  // ---------- Le musée : une grande salle (9 × 5 au moins), un étage sur trois environ ----------
+  let museum: number | undefined;
+  if (rng.chance(RULES.museumChance)) {
+    const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && i !== chapel && rooms[i].w >= 9 && rooms[i].h >= 5);
+    for (const i of fits.sort(() => rng.next() - 0.5)) {
+      if (furnishMuseum(floor, furniture, rooms[i])) {
+        museum = i;
+        break;
+      }
+    }
+  }
+
   // ---------- Mobilier ----------
   const count = new Map<string, number>();
   rooms.forEach((room, index) => {
-    if (index === startRoom || index === chapel || room.w < 4 || room.h < 3) return;
+    if (index === startRoom || index === chapel || index === museum || room.w < 4 || room.h < 3) return;
     for (let k = rng.int(1, room.w * room.h >= 30 ? 3 : 2); k > 0; k--) {
       const choices = PIECES.filter((p) => (count.get(p.kind) ?? 0) < (p.max ?? 99));
       let pick = rng.next() * choices.reduce((s, p) => s + p.weight, 0);
@@ -218,7 +287,7 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
       if (placePiece(floor, furniture, rng, room, piece.kind, piece.wall)) count.set(piece.kind, (count.get(piece.kind) ?? 0) + 1);
     }
   });
-  return chapel;
+  return { chapel, museum };
 }
 
 function placePiece(floor: Floor, furniture: Furniture[], rng: Rng, room: Room, kind: string, wall: boolean): boolean {

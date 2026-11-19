@@ -409,6 +409,22 @@ export const ITEMS = {
     damage: { count: 1, sides: 8, bonus: 2 },
     stunOn: 17,
   },
+  // Récompense du Conservateur (musée de l'ossuaire, Thomas 2026-11-19) (C).
+  massue_os: {
+    id: "massue_os",
+    name: "Massue de tricératops",
+    kind: "melee",
+    description: "Un fémur de tricératops, lourd comme une poutre, que le Conservateur a fait monter en massue. Elle assomme sur un 16 ou plus au dé, et brise le crâne des morts.",
+    w: 1,
+    h: 2,
+    maxStack: 1,
+    rarity: "rare",
+    level: 10,
+    attackBonus: 6,
+    damage: { count: 1, sides: 10, bonus: 5 },
+    stunOn: 16,
+  },
+  corne_triceratops: { id: "corne_triceratops", name: "Corne de tricératops", kind: "quest", description: "La corne du nez du tricératops du musée, volée par le culte. Le Conservateur la cherche partout.", w: 1, h: 1, maxStack: 1 },
   // Section 2 (Thomas, 2026-11-17 : « propose deux armes cohérentes, niveaux 7 et 8 ») (C).
   marteau_guerre: {
     id: "marteau_guerre",

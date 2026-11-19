@@ -13,7 +13,7 @@ import { KRIK, KRIK_OPENING } from "../data/krik";
 import { GRUM, GRUM_OPENING } from "../data/grum";
 import { MORILLON, MORILLON_OPENING } from "../data/morillon";
 import { MAESTRO, PLUMEAU, VERNIS } from "../data/npcsS2";
-import { CLAVICULE } from "../data/npcsS3";
+import { CLAVICULE, OSSELET } from "../data/npcsS3";
 import { FIFRELIN, FIFRELIN_OPENING } from "../data/fifrelin";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
@@ -95,10 +95,10 @@ export interface GluckMemory {
 /** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
 /** Les meubles à bougies et le rayon de leur lueur (Thomas, 2026-11-14 : « toutes les bougies doivent éclairer » ; C). */
 // Section 2 (Thomas, 2026-11-14) : les champignons lumineux éclairent leur salle (C).
-const CANDLE_LIGHT: Record<string, number> = { chandelierArgent: 3, chandelierExpo: 3, table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
+const CANDLE_LIGHT: Record<string, number> = { chandelierArgent: 3, chandelierMusee: 3, chandelierExpo: 3, table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
 
-export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule";
-export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule"];
+export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
 const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo"]);
@@ -225,6 +225,7 @@ export class Game {
   plumeauMemory: { met: number } = { met: 0 };
   /** Section 3 : Sœur Clavicule (chapelle des os). */
   claviculeMemory: { met: number } = { met: 0 };
+  osseletMemory: { met: number } = { met: 0 };
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -394,7 +395,7 @@ export class Game {
       const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : this.isPriestessDepth(depth) ? buildPriestessFloor(seed) : buildBossFloor(seed)) : null;
       // Section 3, l'Ossuaire (Thomas, 2026-11-19) : pas de salle spéciale des sections du dessus.
       const oss = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) >= 2;
-      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, oss ? { ...this.floorConfig, specialRoomCounts: [{ count: 0, weight: 1 }] } : this.floorConfig);
+      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, oss ? { ...this.floorConfig, specialRoomCounts: [{ count: 0, weight: 1 }], roomMaxSize: 10 } : this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
       // Escaliers enchâssés dans un « U » de mur, sur tous les étages tirés au hasard (Thomas, 2026-11-14).
@@ -512,9 +513,11 @@ export class Game {
             state.furniture.push(srng.chance(0.5) ? { x: sr.entry.x, y: sr.entry.y, kind: "ossTablet", side, variant: "texte" } : { x: sr.entry.x, y: sr.entry.y, kind: "ossAlcove", side, len: 1 });
             for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocked.add(`${sr.entry.x + dx},${sr.entry.y + dy}`);
           }
-          const chapel = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked);
-          // La chapelle des os : une « salle à thème » pour le reste du jeu (pas de piège, pas de monstre, Sœur Clavicule).
-          if (chapel !== undefined) state.themes = [...(state.themes ?? []), { room: chapel, id: "chapelle" } as (typeof state.themes)[number]];
+          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked);
+          // La chapelle des os et le musée : des « salles à thème » pour le reste du jeu (ni piège ni monstre ; Sœur
+          // Clavicule, le Conservateur).
+          if (special.chapel !== undefined) state.themes = [...(state.themes ?? []), { room: special.chapel, id: "chapelle" } as (typeof state.themes)[number]];
+          if (special.museum !== undefined) state.themes = [...(state.themes ?? []), { room: special.museum, id: "musee" } as (typeof state.themes)[number]];
           state.torches = floor.torches;
         }
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
@@ -620,7 +623,7 @@ export class Game {
   private spawnMonsters(rooms: Room[]): void {
     const spawns = spawnsForDepth(this.depth);
     const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
-    const quiet = new Set((this.current.themes ?? []).filter((t) => t.id === "chapelle").map((t) => rooms[t.room]));
+    const quiet = new Set((this.current.themes ?? []).filter((t) => t.id === "chapelle" || t.id === "musee").map((t) => rooms[t.room]));
     rooms.slice(1).forEach((room) => {
       // La chapelle des os : personne n'y entre.
       if (quiet.has(room)) return;
@@ -3239,6 +3242,8 @@ export class Game {
     const sr = this.current?.secretRoom;
     if (sr?.layout === "neige" && !sr.melted && x >= sr.room.x && y >= sr.room.y && x < sr.room.x + sr.room.w && y < sr.room.y + sr.room.h) return "snow";
     const id = this.themeAt(x, y);
+    // Le musée de l'ossuaire : des dalles claires.
+    if (id === "musee") return "kitchen";
     if (this.look() === "ossuaire") return "ossuaire";
     return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" || id === "concert" ? "sculpture" : id === "expo" ? "kitchen" : id === "chaud" ? "champiWarm" : this.look() === "champi" ? "champi" : undefined;
   }
@@ -3443,6 +3448,7 @@ export class Game {
         maestro: f.maestro,
         plumeau: f.plumeau,
         clavicule: f.clavicule,
+        osselet: f.osselet,
         restful: f.restful,
         nights: f.nights,
         moonFlashes: f.moonFlashes,
@@ -3492,6 +3498,7 @@ export class Game {
       maestro: this.maestroMemory,
       plumeau: this.plumeauMemory,
       clavicule: this.claviculeMemory,
+      osselet: this.osseletMemory,
       quest: this.quest,
       xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
@@ -3582,6 +3589,7 @@ export class Game {
         maestro: f.maestro,
         plumeau: f.plumeau,
         clavicule: f.clavicule,
+        osselet: f.osselet,
         restful: f.restful,
         nights: f.nights,
         moonFlashes: f.moonFlashes,
@@ -3639,6 +3647,7 @@ export class Game {
     game.maestroMemory = saved.maestro ?? { met: 0 };
     game.plumeauMemory = saved.plumeau ?? { met: 0 };
     game.claviculeMemory = saved.clavicule ?? { met: 0 };
+    game.osseletMemory = saved.osselet ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
@@ -5679,7 +5688,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule, this.current.osselet]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -6333,6 +6342,9 @@ export class Game {
       if ((state.themes ?? []).some((t) => t.id === "chapelle") && this.claviculeMemory.met < CLAVICULE.maxEncounters) {
         state.clavicule = this.placeInTheme(state, "chapelle", new Rng(floorSeed(this.runSeed, depth) ^ 0xc1a7)) ?? undefined;
       }
+      if ((state.themes ?? []).some((t) => t.id === "musee") && this.osseletMemory.met < 1) {
+        state.osselet = this.placeInTheme(state, "musee", new Rng(floorSeed(this.runSeed, depth) ^ 0x05e1)) ?? undefined;
+      }
       return;
     }
     // Section 2 : Morillon vit dans sa champignonnière de morilles (les PNJ de la section 1 n'y descendent pas).
@@ -6387,7 +6399,7 @@ export class Game {
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
   npcMax(id: NpcId): number {
-    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : id === "clavicule" ? CLAVICULE.maxEncounters : id === "vernis" || id === "maestro" || id === "plumeau" ? 1 : KRIK.maxEncounters;
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : id === "clavicule" ? CLAVICULE.maxEncounters : id === "osselet" ? 1 : id === "vernis" || id === "maestro" || id === "plumeau" ? 1 : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -6398,7 +6410,7 @@ export class Game {
     // Ni sur un PNJ ni juste à côté (il ne doit pas se retrouver coincé dans un goulet), ni sur un objet, un monstre, un
     // motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -6453,9 +6465,10 @@ export class Game {
     this.maestroMemory = { met: 0 };
     this.plumeauMemory = { met: 0 };
     this.claviculeMemory = { met: 0 };
+    this.osseletMemory = { met: 0 };
     this.fifrelinMemory = { met: 0 };
     this.quest = null;
-    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule]) {
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule, this.current.osselet]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -6484,7 +6497,7 @@ export class Game {
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
       !(state.grum && state.grum.x === x && state.grum.y === y) &&
       !(state.morillon && state.morillon.x === x && state.morillon.y === y) &&
-      ![state.vernis, state.maestro, state.plumeau, state.clavicule].some((p) => p && p.x === x && p.y === y) &&
+      ![state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet].some((p) => p && p.x === x && p.y === y) &&
       !(state.fifrelin && state.fifrelin.x === x && state.fifrelin.y === y) &&
       ![state.chicken, state.farmChicken].some((c) => c && !c.done && c.x === x && c.y === y)
     );
@@ -6667,7 +6680,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : id === "vernis" ? this.vernisMemory : id === "maestro" ? this.maestroMemory : id === "plumeau" ? this.plumeauMemory : id === "clavicule" ? this.claviculeMemory : this.krikMemory;
+    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : id === "vernis" ? this.vernisMemory : id === "maestro" ? this.maestroMemory : id === "plumeau" ? this.plumeauMemory : id === "clavicule" ? this.claviculeMemory : id === "osselet" ? this.osseletMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -6701,12 +6714,12 @@ export class Game {
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     if (this.questWith(id)) return this.questScene(id);
-    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : id === "vernis" ? this.vernisScene() : id === "maestro" ? this.maestroScene() : id === "plumeau" ? this.plumeauScene() : id === "clavicule" ? this.claviculeScene() : this.krikScene();
+    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : id === "vernis" ? this.vernisScene() : id === "maestro" ? this.maestroScene() : id === "plumeau" ? this.plumeauScene() : id === "clavicule" ? this.claviculeScene() : id === "osselet" ? this.osseletScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
     if (this.questWith(id)) return this.questChoose(id, choice);
-    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : id === "vernis" ? this.vernisChoose(choice) : id === "maestro" ? this.maestroChoose(choice) : id === "plumeau" ? this.plumeauChoose(choice) : id === "clavicule" ? this.claviculeChoose(choice) : this.krikChoose(choice);
+    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : id === "vernis" ? this.vernisChoose(choice) : id === "maestro" ? this.maestroChoose(choice) : id === "plumeau" ? this.plumeauChoose(choice) : id === "clavicule" ? this.claviculeChoose(choice) : id === "osselet" ? this.osseletChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -7832,6 +7845,9 @@ export class Game {
       case "clavicule_cranes":
         this.current.restful = true;
         break;
+      case "osselet_corne":
+        leaves("massue_os", 1);
+        break;
       case "clavicule_cierges":
         leaves("potion_nuit", 1);
         break;
@@ -8835,7 +8851,7 @@ export class Game {
       state.traps.some((t) => t.x === x && t.y === y) ||
       state.ground.some((o) => o.x === x && o.y === y) ||
       state.monsters.some((m) => m.x === x && m.y === y) ||
-      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.merchant].some((p) => p && p.x === x && p.y === y));
+      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.merchant].some((p) => p && p.x === x && p.y === y));
     const before = reachable(map, state.start);
     const spots: Point[] = [];
     for (let ry = room.y + 1; ry + 5 <= room.y + room.h - 1; ry++) for (let rx = room.x + 1; rx + 4 <= room.x + room.w - 2; rx++) spots.push({ x: rx, y: ry });
@@ -9065,6 +9081,47 @@ export class Game {
       return { lines: ["« Bravo ! Elle doit traîner dans une salle de l'étage. Les champignons adorent la musique. »", "(La salle où elle se trouve brille sur la carte.)"], done: true };
     }
     return { lines: [], done: false };
+  }
+
+  // ---------- Section 3 (2026-11-19) : Maître Osselet, le conservateur du musée ----------
+
+  osseletScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.npc("osselet");
+    if (!g) return { lines: [], choices: [] };
+    if (this.quest && QUEST_TASKS[this.quest.id].npc === "osselet") return this.questScene("osselet");
+    g.opened = true;
+    return {
+      lines: OSSELET.opening,
+      choices: [
+        { id: "corne", label: "« Je vous retrouve votre corne »", off: this.quest ? "Une autre tâche en cours" : undefined },
+        { id: "ecriteau", label: "Lire l'écriteau", stat: "intelligence", dc: "easy", off: g.drumDone ? "Déjà lu" : undefined },
+        { id: "leave", label: "Visiter en silence" },
+      ],
+    };
+  }
+
+  osseletChoose(id: string): GluckResult {
+    const g = this.npc("osselet");
+    if (!g || !this.canTalk("osselet")) return { lines: [], done: true };
+    if (this.quest && QUEST_TASKS[this.quest.id].npc === "osselet") return this.questChoose("osselet", id);
+    const choice = this.osseletScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Le musée ferme à l'aube. Il n'y a jamais d'aube, ici. »"], done: true };
+      case "corne":
+        if (this.giveTask("osselet_corne")) return { lines: ["« Le culte l'a cachée dans une salle de l'étage. Elle brille sur votre carte, maintenant. Ne me demandez pas comment. »"], done: true };
+        return { lines: [], done: false };
+      case "ecriteau": {
+        const roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!]);
+        g.drumDone = true;
+        if (!roll.success) return { lines: ["(L'écriteau est en vieux latin d'os. Vous reconnaissez le mot « tricératops ».)"], roll, done: false };
+        this.revealFloorPlan();
+        return { lines: ["(« Plan du musée et de ses galeries ». Vous le mémorisez.)", "« Un visiteur qui lit ! Je vais pleurer. Je n'ai plus de larmes, mais l'intention y est. »"], roll, done: false };
+      }
+      default:
+        return { lines: [], done: false };
+    }
   }
 
   // ---------- Section 3 (2026-11-19) : Sœur Clavicule, dans la chapelle des os ----------

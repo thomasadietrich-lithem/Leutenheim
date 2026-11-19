@@ -79,6 +79,7 @@ export interface SavedFloor {
   maestro?: import("./floor").GluckSpot;
   plumeau?: import("./floor").GluckSpot;
   clavicule?: import("./floor").GluckSpot;
+  osselet?: import("./floor").GluckSpot;
   restful?: boolean;
   nights?: { x: number; y: number; turns: number; hero?: boolean }[];
   moonFlashes?: { x: number; y: number; turns: number }[];
@@ -130,6 +131,7 @@ export interface SaveData {
   maestro?: { met: number };
   plumeau?: { met: number };
   clavicule?: { met: number };
+  osselet?: { met: number };
   fifrelin?: { met: number };
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;

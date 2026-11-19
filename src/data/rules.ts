@@ -175,6 +175,8 @@ export const RULES = {
   effigyRestTurns: 3,
   /** La chapelle des os (salle spéciale de la section 3) : chance par étage (C). */
   chapelChance: 0.6,
+  /** Le musée (salle spéciale de la section 3) : chance par étage (C). */
+  museumChance: 0.9,
   /** Potion de gel (Thomas, 2026-11-19, C) : tours de gel, et le givre au sol. */
   freezeTurns: 3,
   /** Grenade sainte (C) : rayon, dégâts (doublés contre les morts), bénédiction et soin du héros. */

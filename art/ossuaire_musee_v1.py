@@ -314,5 +314,56 @@ def main():
     print("art/ossuaire_musee_v1.png", sheet.size)
 
 
-if __name__ == "__main__":
+def game_trike():
+    """Le tricératops v3 réduit de moitié pour le jeu (6 cases de large), sur son estrade, le cordon rouge devant."""
+    spec = importlib.util.spec_from_file_location("t3", os.path.join(HERE, "ossuaire_triceratops_v3.py"))
+    t3 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(t3)
+    big = Image.fromarray(t3.build(), "RGBA").crop((0, 4, 204, 106))
+    w, h = big.width // 2, big.height // 2
+    a = np.array(big.resize((w, h), Image.BOX)).astype(float)
+    alpha = a[..., 3] > 110
+    rgb = a[..., :3] / np.maximum(a[..., 3:4] / 255, 1e-3)
+    pal = np.array([t3.TONES[k] for k in ("hi", "base", "mid", "dark")] + [t3.OUT, (78, 80, 96), (56, 44, 36)], float)
+    q = pal[((rgb[..., None, :] - pal[None, None]) ** 2).sum(-1).argmin(-1)]
+    W2, H2 = w + 4, h + 16
+    out = np.zeros((H2, W2, 4), np.uint8)
+    # l'estrade de pierre (deux marches) sous ses pieds
+    out[h - 2:h + 6, 1:W2 - 1] = (*C["s"], 255)
+    out[h - 2, 1:W2 - 1] = (*C["sL"], 255)
+    out[h + 4:h + 6, 1:W2 - 1] = (*C["sD"], 255)
+    out[h + 6:h + 10, 0:W2] = (*C["sD"], 255)
+    out[h + 6, 0:W2] = (*C["s"], 255)
+    out[h + 9, 0:W2] = (*C["sDD"], 255)
+    out[h + 1:h + 3, W2 // 2 - 6:W2 // 2 + 6] = (*BRASS, 255)  # plaque de laiton
+    m = np.zeros((H2, W2), bool)
+    m[:h, 2:2 + w] = alpha
+    out[:h, 2:2 + w][alpha] = np.concatenate([q[alpha], np.full((alpha.sum(), 1), 255)], 1).astype(np.uint8)
+    # contour de l'animal
+    ring = ~m & (np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1))
+    ring[h - 2:] = False
+    out[ring] = (*t3.OUT, 255)
+    # le cordon rouge devant, sur trois potelets de laiton
+    for x in (1, W2 // 2, W2 - 3):
+        out[h + 8:H2, x:x + 2] = (*BRASS, 255)
+        out[h + 8, x:x + 2] = (*BRASS_L, 255)
+    for x in range(1, W2 - 2):
+        t = (x - 1) % (W2 // 2 - 1) / (W2 // 2 - 1)
+        y = h + 10 + round(3 * math.sin(math.pi * t))
+        out[y, x] = (*RED, 255)
+        out[min(H2 - 1, y + 1), x] = (*RED_D, 255)
+    return Image.fromarray(out, "RGBA")
+
+
+def export():
+    """python3 art/ossuaire_musee_v1.py export → src/render/sprites/musee.ts (Thomas, 2026-11-19 : « fonce sur quête »)."""
+    from export_jeu_v4 import write
+    write("src/render/sprites/musee.ts", "MUSEE",
+          "Le musée de l'ossuaire (art/ossuaire_musee_v1.png) : le tricératops sur son estrade avec le cordon, les supports à bougie, l'écriteau.",
+          {"expoTrike": game_trike(), "chandelierMusee": candle_stand().img(), "ecriteauMusee": sign().img()})
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+elif __name__ == "__main__":
     main()

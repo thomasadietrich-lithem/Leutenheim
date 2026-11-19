@@ -111,6 +111,8 @@ export interface FloorState {
   plumeau?: GluckSpot;
   /** Section 3 : Sœur Clavicule (chapelle des os). */
   clavicule?: GluckSpot;
+  /** Section 3 : Maître Osselet, le conservateur du musée. */
+  osselet?: GluckSpot;
   /** Section 3 : bénédiction du repos (les squelettes abattus ne se relèvent plus sur l'étage) ; nuits (potion de nuit). */
   restful?: boolean;
   nights?: { x: number; y: number; turns: number; hero?: boolean }[];

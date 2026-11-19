@@ -40,6 +40,7 @@ const PORTRAITS: Record<string, Pic> = {
   "n:vernis": { rows: EXPO.vernis.rows, palette: EXPO.vernis.palette },
   "n:maestro": { rows: SCHRAT.idleDown[0], palette: MAESTRO_PALETTE },
   "n:plumeau": { rows: SECRET.plumeau0.rows, palette: SECRET.plumeau0.palette },
+  "n:osselet": { rows: MOBS_OSS.conservateur.frames.idleDown0, palette: MOBS_OSS.conservateur.palette },
   "n:clavicule": { rows: CHAPELLE.clavicule0.rows, palette: CHAPELLE.clavicule0.palette },
   "n:colporteur": { rows: MARCHAND.front, palette: MARCHAND_PALETTE },
   "n:poulet": { rows: POULET.idle, palette: POULET_PALETTE },

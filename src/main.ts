@@ -24,6 +24,7 @@ import { bindInput } from "./input/pointer";
 import { GLUCK_PALETTE, KRIK_PALETTE, FIFRELIN_PALETTE, MAESTRO_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE, Renderer } from "./render/renderer";
 import { EXPO } from "./render/sprites/expo";
 import { CHAPELLE } from "./render/sprites/chapelle";
+import { MOBS_OSS } from "./render/sprites/mobsOss";
 import { SECRET } from "./render/sprites/secret";
 import { SCHRAT } from "./render/sprites/schrat";
 import { STAT_NAMES } from "./data/gluck";
@@ -2420,7 +2421,7 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : who === "vernis" ? "Vernis" : who === "maestro" ? "Le Maestro" : who === "plumeau" ? "Plumeau" : who === "clavicule" ? "Sœur Clavicule" : "Krik");
+  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : who === "vernis" ? "Vernis" : who === "maestro" ? "Le Maestro" : who === "plumeau" ? "Plumeau" : who === "clavicule" ? "Sœur Clavicule" : who === "osselet" ? "Maître Osselet" : "Krik");
   $("talk-face").replaceChildren(
     who === "gluck"
       ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE)
@@ -2440,6 +2441,8 @@ function openTalk(who: NpcId): void {
                     ? buildIcon(SECRET.plumeau0.rows, SECRET.plumeau0.palette)
                     : who === "clavicule"
                     ? buildIcon(CHAPELLE.clavicule0.rows, CHAPELLE.clavicule0.palette)
+                    : who === "osselet"
+                    ? buildIcon(MOBS_OSS.conservateur.frames.idleDown0, MOBS_OSS.conservateur.palette)
                     : buildIcon(SCHRAT.idleDown[0], KRIK_PALETTE),
   );
   // Le dé et le journal restent visibles sous la conversation (Thomas) : seule la barre du bas s'efface.

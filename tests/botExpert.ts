@@ -338,6 +338,7 @@ const CHOICES: Record<NpcId, string[]> = {
   maestro: ["turnin", "partition", "leave"],
   plumeau: ["turnin", "clef", "registre", "leave"],
   clavicule: ["turnin", "cranes", "soeur", "leave"],
+  osselet: ["turnin", "corne", "leave"],
 };
 
 function talkX(game: Game, id: NpcId): void {

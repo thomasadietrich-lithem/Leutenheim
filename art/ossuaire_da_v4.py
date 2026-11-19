@@ -1,4 +1,4 @@
-"""Section 3, l'OSSUAIRE DE LA LUNE PÂLE : direction artistique v4 (Thomas, 2026-11-19, 8 h 35 : « ok fonce, je valide
+"""Section 3, l'OSSUAIRE DE LA LUNE PÂLE : direction artistique v4 (Thomas, 2026-11-19, 8 h 35 ; puis 8 h 43 : « diversifie l'orientation des pierres tombales à 360 degrés ; insère-en dans les murs » : « ok fonce, je valide
 tout sauf le 2 [bordure de dalles droites] ; diversifie les pierres tombales dans le sol ; revois la fine rangée de
 pierre au bas des alcôves, elle semble terminer au mauvais endroit ; ajoute de l'usure au sol aussi »). PROPOSITION,
 rien n'est en jeu.
@@ -49,7 +49,7 @@ ALCOVES = [("S", (2, 0), (5, 0)), ("S", (10, 0), (16, 0)), ("S", (13, 6), (18, 6
            ("W", (19, 1), (19, 4)), ("E", (0, 7), (0, 11)), ("N", (11, 12), (16, 12))]
 SARCOS = [(2, 9), (14, 9)]
 # Pierres tombales encastrées dans le sol : (case x, case y, sorte)
-TOMBS = [(11, 2, "ins"), (5, 2, "crane"), (17, 4, "brisee"), (6, 4, "anneau"), (10, 8, "double"), (3, 11, "os"),
+TOMBS = [(11, 2, "ins"), (5, 2, "crane"), (17, 4, "brisee"), (6, 4, "anneau"), (9, 8, "double"), (3, 11, "os"),
          (17, 10, "petite"), (1, 1, "petite"), (12, 4, "ins"), (6, 10, "brisee"), (16, 7, "crane")]
 
 
@@ -358,6 +358,62 @@ def tomb(a, cx, cy, kind):
         r[3:5, 3:5] = CARVE
 
 
+def tomb_turned(a, cx, cy, kind, k):
+    """La pierre tombale tournée d'un quart de tour k fois (0 à 3) ; la lumière reste en haut à gauche."""
+    buf = np.full((T, 2 * T, 3), -1.0)
+    tomb(buf, 0, 0, kind)
+    m = buf[..., 0] >= 0
+    if kind != "double":
+        buf, m = buf[:, :T], m[:, :T]
+    buf, m = np.rot90(buf, k), np.rot90(m, k)
+    # relief : arête claire en haut et à gauche, sombre en bas et à droite, quelle que soit l'orientation
+    up_ = m & ~np.roll(m, 1, 0)
+    lf = m & ~np.roll(m, 1, 1)
+    dn = m & ~np.roll(m, -1, 0)
+    rt = m & ~np.roll(m, -1, 1)
+    buf[dn | rt] = STONE_D
+    buf[up_ | lf] = STONE_HI
+    hh, ww = m.shape
+    region = a[cy * T:cy * T + hh, cx * T:cx * T + ww]
+    region[m] = buf[m]
+
+
+TABLET, TABLET_HI, TABLET_D, TABLET_C = np.array((92, 94, 110)), np.array((122, 124, 140)), np.array((40, 40, 52)), np.array((58, 60, 76))
+
+
+def wall_tablet(a, side, cx, cy, variant):
+    """Plaque funéraire scellée dans un mur, tournée vers la salle (les lignes du texte suivent le mur)."""
+    buf = np.full((T, T, 3), -1.0)
+    x0, y0, w, h = 3, 2, 10, 12
+    buf[y0:y0 + h, x0:x0 + w] = TABLET
+    buf[y0, x0:x0 + w] = TABLET_HI
+    buf[y0:y0 + h, x0] = TABLET_HI
+    buf[y0 + h - 1, x0:x0 + w] = TABLET_D
+    buf[y0:y0 + h, x0 + w - 1] = TABLET_D
+    if variant == 0:
+        for yy in (5, 8, 11):
+            buf[yy, x0 + 2:x0 + w - 2] = TABLET_C
+    else:
+        g = np.array([list(q) for q in SKULL])
+        for dy in range(5):
+            for dx in range(5):
+                if g[dy, dx] != ".":
+                    buf[y0 + 2 + dy, x0 + 3 + dx] = TABLET_C if g[dy, dx] in "onj" else TABLET_HI
+        buf[y0 + 9, x0 + 2:x0 + w - 2] = TABLET_C
+    k = {"S": 0, "N": 2, "W": 3, "E": 1}[side]
+    buf = np.rot90(buf, k)
+    m = buf[..., 0] >= 0
+    region = a[cy * T:(cy + 1) * T, cx * T:(cx + 1) * T]
+    region[m] = buf[m]
+    # liseré de scellement autour de la plaque
+    ring = ~m & (np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1))
+    region[ring] = region[ring] * 0.55
+
+
+WALL_TABLETS = [("S", 7, 0, 0), ("S", 18, 0, 1), ("S", 10, 6, 0), ("N", 9, 12, 1), ("N", 18, 12, 0), ("W", 19, 8, 0),
+                ("W", 19, 10, 1), ("E", 0, 2, 1), ("E", 0, 4, 0)]
+
+
 def light_map(xs, ys):
     """La lune seule : chaque puits éclaire autour de lui, jusqu'aux murs (pas à travers)."""
     cell_lit = np.zeros((PH, PW))
@@ -404,7 +460,9 @@ def main_room(flat=False):
     for s in SARCOS:
         sarcophagus(a, *s)
     for (cx, cy, k) in TOMBS:
-        tomb(a, cx, cy, k)
+        tomb_turned(a, cx, cy, k, int(hash2(cx, cy, 93) * 4))
+    for (side, cx, cy, v) in WALL_TABLETS:
+        wall_tablet(a, side, cx, cy, v)
     # lumière
     I = np.zeros((H, W))
     pools = np.zeros((H, W))
@@ -469,7 +527,7 @@ def main():
     sheet = Image.new("RGB", (Wb, Hb), (14, 12, 18))
     d = ImageDraw.Draw(sheet)
     d.text((Wb // 2, 26), "SECTION 3 · L'OSSUAIRE · direction artistique v4", fill=(255, 243, 200), font=font(22), anchor="mm")
-    d.text((Wb // 2, 54), "Crânes tournés vers la salle · alcôves encadrées · usure des murs et du sol · pierres tombales · colonnes de lune", fill=(190, 180, 160), font=font(14, False), anchor="mm")
+    d.text((Wb // 2, 54), "Crânes tournés vers la salle · alcôves encadrées · usure · pierres tombales dans tous les sens et dans les murs · colonnes de lune", fill=(190, 180, 160), font=font(14, False), anchor="mm")
     sheet.paste(room, ((Wb - room.width) // 2, 80))
     x = pad
     y = 80 + room.height + 34

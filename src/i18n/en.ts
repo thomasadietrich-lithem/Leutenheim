@@ -2246,4 +2246,6 @@ export const EN: Record<string, string> = {
   "De l'encre dans les yeux : votre prochain tir aura le désavantage.": "Ink in your eyes: your next shot will have disadvantage.",
   "Englué, entoilé ou ligoté : le prochain tour est perdu à se dégager (ni frapper, ni bouger, ni manger) ; un monstre ralenti ne joue qu'un tour sur deux.": "Stuck, webbed or tied up: the next turn is lost struggling free (no striking, moving or eating); a slowed monster only acts every other turn.",
   "Un grand champignon qui marche, aveugle. Il sent vos pas à travers la pierre : qui s'arrête, il le perd. Lent, mais il frappe fort, et le feu le dévore. Blessé, il ne lâche plus sa proie, et il s'emballe quand il est à moitié mort.": "A tall walking mushroom, blind. It feels your steps through the stone: stand still and it loses you. Slow, but it hits hard, and fire devours it. Once wounded it never loses its prey, and it speeds up when half dead.",
+  "Téléporté à l'étage 11 : l'Ossuaire de la Lune pâle (aperçu : le décor, pas encore les monstres).": "Teleported to floor 11: the Ossuary of the Pale Moon (preview: the setting, no monsters yet).",
+  "Section 3 (aperçu)": "Section 3 (preview)",
 };

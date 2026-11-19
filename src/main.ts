@@ -3975,6 +3975,15 @@ if (!PUBLIC_BUILD) {
     started = true;
     showScreen(null);
   });
+  // Section 3, l'Ossuaire (Thomas, 2026-11-19) : une partie d'essai qui commence à l'étage 11 (décor seul, pas encore de monstres).
+  button("essai-s3", () => {
+    newRun(false, true);
+    started = true;
+    showScreen(null);
+    if (game.teleport(11)) logLines.push("Téléporté à l'étage 11 : l'Ossuaire de la Lune pâle (aperçu : le décor, pas encore les monstres).");
+    collectEvents();
+    renderLog();
+  });
   button("essai-back", () => showScreen("main"));
   // Triche « Boss 2 » (Thomas, 2026-11-17) : depuis n'importe quel essai, une partie d'essai au Carillon, niveau 10.
   button("boss2", () => {

@@ -3852,10 +3852,60 @@ test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticab
   const game = new Game(21);
   game.testRun = true;
   game.teleport(10);
+  // Une vraie partie (la partie d'essai, elle, continue vers l'aperçu de l'Ossuaire).
+  game.testRun = false;
   const g = game as unknown as { pendingStairs: "down" | "up" | null };
   g.pendingStairs = "down";
   assert.ok(game.takeStairs());
   assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"));
+});
+
+test("Ossuaire (section 3) : décor seul, sans monstre, PNJ, piège, salle spéciale ni salle à thème des sections du dessus ; la lune seule éclaire ; étage d'un seul tenant (Thomas, 2026-11-19)", () => {
+  for (const seed of [5, 17, 29, 41]) {
+    const game = new Game(seed);
+    game.testRun = true;
+    for (const depth of [11, 12, 13, 14, 15]) {
+      assert.ok(game.teleport(depth), `étage ${depth}`);
+      const cur = (game as unknown as { current: { look?: string; furniture: { x: number; y: number; kind: string; side?: string; len?: number }[]; themes: unknown[]; traps: unknown[]; torches: unknown[]; gluck?: unknown; soeur?: unknown; krik?: unknown; morillon?: unknown; vernis?: unknown; maestro?: unknown; counter?: unknown; chicken?: unknown; niche?: unknown } }).current;
+      assert.equal(cur.look, "ossuaire");
+      assert.equal(game.monsters.length, 0, "aucun monstre des sections du dessus");
+      assert.equal(cur.themes.length, 0, "aucune salle à thème");
+      assert.equal(cur.traps.length, 0, "aucun piège des sections du dessus");
+      assert.equal(cur.torches.length, 0, "ni torche ni cheminée");
+      assert.ok(!cur.gluck && !cur.soeur && !cur.krik && !cur.morillon && !cur.vernis && !cur.maestro && !cur.counter && !cur.chicken && !cur.niche);
+      // pas de salle spéciale : ni autel à la pomme, ni coffre verrouillé
+      for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) {
+        const t = game.map.get(x, y);
+        assert.ok(t !== Tile.DoorLocked && t !== Tile.Fountain, `case ${x},${y}`);
+      }
+      assert.ok(cur.furniture.some((f) => f.kind === "moonWell"), "au moins un puits de lune");
+      assert.ok(game.light.some((v) => v > 0), "la lune éclaire");
+      // les alcôves sont dans des murs, devant du sol
+      for (const f of cur.furniture.filter((f) => f.kind === "ossAlcove")) {
+        const horiz = f.side === "S" || f.side === "N";
+        for (let k = 0; k < (f.len ?? 1); k++) assert.equal(game.map.get(f.x + (horiz ? k : 0), f.y + (horiz ? 0 : k)), Tile.Wall);
+      }
+      // tout le sol se rejoint depuis l'arrivée (portes comprises)
+      const seen = new Set<number>();
+      const stack = [{ x: game.hero.x, y: game.hero.y }];
+      while (stack.length) {
+        const p = stack.pop()!;
+        const i = game.map.index(p.x, p.y);
+        if (seen.has(i)) continue;
+        seen.add(i);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const q = { x: p.x + dx, y: p.y + dy };
+          if (game.map.inBounds(q.x, q.y) && (game.map.isWalkable(q.x, q.y) || game.map.isDoor(q.x, q.y) || game.map.get(q.x, q.y) === Tile.StairsDown || game.map.get(q.x, q.y) === Tile.StairsUp)) stack.push(q);
+        }
+      }
+      const stairs = (game as unknown as { current: { stairs: { x: number; y: number } } }).current.stairs;
+      assert.ok(seen.has(game.map.index(stairs.x, stairs.y)), `étage ${depth} : l'escalier s'atteint`);
+    }
+    assert.ok(!game.teleport(16));
+  }
+  // Une vraie partie s'arrête toujours à l'étage 10.
+  const real = new Game(5);
+  assert.ok(!real.teleport(11));
 });
 
 test("la Tisseuse : la toile ralentit, le feu court de toile en toile, une flèche dans la toile l'attire, les œufs éclosent", () => {

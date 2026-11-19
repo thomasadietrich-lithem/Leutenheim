@@ -31,7 +31,7 @@ export interface FloorState {
    *  sont noircies. */
   mossBurnt?: number[];
   /** Le décor de l'étage : « champi » pour la section 2 (la champignonnière). */
-  look?: "champi";
+  look?: "champi" | "ossuaire";
   /** Le coffre doré, apparu à la mort du boss (Thomas, 2026-11-14) : argent, artefact, arme, armure. */
   goldChest?: Point;
   /** Taches de sang : sur le sol (forme 0 ou 1) ou sur un mur (forme 2) ; rouge (héros) ou vert (Schrats). */

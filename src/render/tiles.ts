@@ -16,6 +16,8 @@ const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", 
 const GOLD_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#e0b040", b: "#a87818", T: "#ffe08a", t: "#c89a2a", S: "#6a4a10" };
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./sprites/escaliers";
 import { groundImage } from "./ground";
+import { ossGroundImage, ossWallImage } from "./ossuaire";
+import { OSSUAIRE } from "./sprites/ossuaire";
 import { wallImage } from "./walls";
 import { DORTOIR } from "./sprites/dortoir";
 import { TRAINARDS } from "./sprites/trainards";
@@ -51,6 +53,9 @@ export function noise(a: number, b: number, c: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Ossuaire : objets posés à plat sur plusieurs cases, peints avec le sol comme les tapis. */
+const OSS_FLAT = new Set(["skelCouche", "skelRampant", "skelMorceaux", "fosseGrille", "urneBrisee"]);
+
 export class TilePainter {
   constructor(
     private readonly ctx: CanvasRenderingContext2D,
@@ -79,7 +84,7 @@ export class TilePainter {
     const { ctx, tile } = this;
     const u = tile / 16;
     for (const f of game.furnitureList()) {
-      if (isFlat(f.kind) && !f.kind.startsWith("rug")) {
+      if (isFlat(f.kind) && !f.kind.startsWith("rug") && !OSS_FLAT.has(f.kind)) {
         // Une case : toile d'araignée, rigole, évacuation, morceau de tapis de velours.
         if (f.x !== x || f.y !== y) continue;
         const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind] ?? FERME[f.kind] ?? SECRET[f.kind] ?? CHAMPI_SALLES[f.kind] ?? TRAINARDS2[f.kind];
@@ -90,9 +95,9 @@ export class TilePainter {
         ctx.imageSmoothingEnabled = smooth;
         continue;
       }
-      if (!f.kind.startsWith("rug")) continue;
+      if (!f.kind.startsWith("rug") && !OSS_FLAT.has(f.kind)) continue;
       const def = FURNITURE_KINDS[f.kind];
-      const art = DORTOIR[f.kind] ?? EXPO[f.kind];
+      const art = DORTOIR[f.kind] ?? EXPO[f.kind] ?? OSSUAIRE[f.kind];
       const w = art.rows[0].length;
       const h = art.rows.length;
       const px = (f.x + def.w / 2) * 16 - w / 2;
@@ -113,7 +118,10 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(groundImage(game.map, x, y, game.motifs(), game.floorStyle(x, y), (cx, cy) => game.earthAt(cx, cy), game.mossBurntAt(x, y)), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+    const style = game.floorStyle(x, y);
+    // Section 3, l'Ossuaire : dalles en losange, pierres tombales, brume (`render/ossuaire.ts`).
+    const ground = style === "ossuaire" ? ossGroundImage(game.map, x, y, game.ossTombsNear(x, y)) : groundImage(game.map, x, y, game.motifs(), style, (cx, cy) => game.earthAt(cx, cy), game.mossBurntAt(x, y));
+    ctx.drawImage(ground, Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
     // Pièce secrète (Thomas, 2026-11-14 : « assombris les cases, ajoute un dégradé ») : plus sombre à mesure qu'on
     // s'enfonce depuis l'entrée ; le dégradé court d'une case à l'autre sans marche.
@@ -136,7 +144,10 @@ export class TilePainter {
     const { ctx, tile } = this;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(wallImage(game.map, mx, my, game.wallLookAt(mx, my), (cx, cy) => game.earthAt(cx, cy) === "E" || game.earthAt(cx, cy) === "B", (cx, cy) => game.breachAt(cx, cy)), Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
+    const look = game.wallLookAt(mx, my);
+    // Section 3, l'Ossuaire : murs de craie, alcôves d'ossuaire et plaques funéraires (`render/ossuaire.ts`).
+    const img = look === "ossuaire" ? ossWallImage(game.map, mx, my, (cx, cy) => game.ossWallDecor(cx, cy)) : wallImage(game.map, mx, my, look, (cx, cy) => game.earthAt(cx, cy) === "E" || game.earthAt(cx, cy) === "B", (cx, cy) => game.breachAt(cx, cy));
+    ctx.drawImage(img, Math.round(screenX), Math.round(screenY), Math.round(tile), Math.round(tile));
     ctx.imageSmoothingEnabled = smooth;
   }
 
@@ -149,6 +160,17 @@ export class TilePainter {
     const { ctx, tile } = this;
     // Murs au-dessus et en dessous : la porte est dans un pan de mur vertical.
     const vertical = !game.map.isWalkable(x, y - 1) && !game.map.isWalkable(x, y + 1);
+    // Section 3, l'Ossuaire (planche art/ossuaire_objets_v2.png) : grille de fer noir, le sol se voit au travers ; dans un
+    // mur vertical, vue du dessus ; dans le mur du bas d'une salle, vue de l'autre côté (la traverse en bas).
+    if (game.look() === "ossuaire") {
+      const base = vertical ? "grilleOssCote" : game.doorBelowRoom(x, y) ? "grilleOssBas" : "grilleOss";
+      const art = OSSUAIRE[base + (t === Tile.DoorOpen ? "Open" : t === Tile.DoorLocked ? "Locked" : "")];
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(art.rows, art.palette), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
+      ctx.imageSmoothingEnabled = smooth;
+      return;
+    }
     ctx.save();
     ctx.translate(sx + tile / 2, sy + tile / 2);
     if (vertical) ctx.rotate(Math.PI / 2);
@@ -243,6 +265,22 @@ export class TilePainter {
     const { ctx, tile } = this;
     // Escaliers et coffres : dessins en pixels validés par Thomas (`src/render/sprites/decor.ts`).
     // Escaliers droits v3 (Thomas, 2026-11-14 : « implémente l'escalier 3, garde les autres »).
+    if ((t === Tile.StairsDown || t === Tile.StairsUp) && game.look() === "ossuaire") {
+      // Section 3 : marches de craie ; le dessin s'entre par le BAS (côté salle), on le tourne vers l'ouverture.
+      const open = this.stairsOpening(game, x, y);
+      const angle = open.y > 0 ? 0 : open.y < 0 ? Math.PI : open.x > 0 ? -Math.PI / 2 : Math.PI / 2;
+      const art = OSSUAIRE[t === Tile.StairsDown ? "stairsOssDown" : "stairsOssUp"];
+      const size = Math.round(tile);
+      const smooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.translate(Math.round(sx) + size / 2, Math.round(sy) + size / 2);
+      ctx.rotate(angle);
+      ctx.drawImage(this.sprite(art.rows, art.palette), -size / 2, -size / 2, size, size);
+      ctx.restore();
+      ctx.imageSmoothingEnabled = smooth;
+      return;
+    }
     if (t === Tile.StairsDown || t === Tile.StairsUp) {
       // Section 2 (Thomas, 2026-11-15 : « refais les escaliers de la section deux ») : terre, planches, champignons.
       const champi = game.look() === "champi";

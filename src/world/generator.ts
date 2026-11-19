@@ -74,7 +74,9 @@ function carveCorridor(map: GameMap, rng: Rng, a: Point, b: Point, wideChance: n
  */
 export function generateFloor(seed: number, cfg: FloorConfig): Floor {
   let floor = buildFloor(seed, cfg);
-  for (let retry = 1; floor.specials.length === 0 && retry <= 30; retry++) {
+  // Sans salle spéciale voulue (section 3, l'Ossuaire : pas de salle spéciale des sections du dessus), on ne retire pas.
+  const wantsSpecial = cfg.specialRoomCounts.some((c) => c.count > 0);
+  for (let retry = 1; wantsSpecial && floor.specials.length === 0 && retry <= 30; retry++) {
     floor = buildFloor((seed + Math.imul(retry, 0x9e3779b1)) >>> 0, cfg);
   }
   return floor;

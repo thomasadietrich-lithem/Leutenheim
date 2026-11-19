@@ -150,7 +150,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow";
+export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | "ossuaire";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;

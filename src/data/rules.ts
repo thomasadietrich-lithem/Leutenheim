@@ -164,6 +164,13 @@ export const RULES = {
   /** Dernier étage de la démo (Thomas, 2026-11-14) : descendre son escalier termine la partie (la section 2 n'a pas
    *  encore de boss). */
   demoLastDepth: 10,
+  /** APERÇU DE LA SECTION 3, L'OSSUAIRE (Thomas, 2026-11-19 : « ok implémente tout ») : en partie d'essai seulement,
+   *  l'escalier de l'étage 10 et le téléporteur mènent jusqu'ici ; la vraie démo finit toujours à l'étage 10. */
+  previewLastDepth: 15,
+  /** Ossuaire : puits de lune par étage (la seule lumière), leur portée ; alcôves d'ossuaire au plus par salle. */
+  moonWells: [2, 4] as [number, number],
+  moonRadius: 5,
+  ossAlcovesPerRoom: 2,
   /** Coffre doré de la fin du boss (Thomas, 2026-11-14) : or (C). */
   goldChestGold: [80, 140] as [number, number],
   /** Étages des boss (un par section, le dernier de la section). */

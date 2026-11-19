@@ -67,6 +67,7 @@ import { CONCERT } from "./sprites/concert";
 import { EXPO } from "./sprites/expo";
 import { TRAINARDS2 } from "./sprites/trainards2";
 import { VESSES } from "./sprites/vesses";
+import { OSSUAIRE } from "./sprites/ossuaire";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
@@ -96,7 +97,7 @@ import { A_TERRE } from "./sprites/aterre";
 import { HEROS_V9_TWO } from "./sprites/heros_v9";
 import { furnitureCells, type Furniture } from "../world/furnish";
 import { cellsOf } from "../core/boss";
-import { COLORS, TilePainter } from "./tiles";
+import { COLORS, noise, TilePainter } from "./tiles";
 import { ESCALIERS_CHAMPI, ESCALIERS_CHAMPI_PALETTE } from "./sprites/escaliersChampi";
 import { CARILLON, CARILLON_PALETTE } from "./sprites/carillon";
 
@@ -1499,6 +1500,42 @@ export class Renderer {
   }
   private torchFlareAt = -1e9;
   /** Plus longue (Thomas, 2026-11-16 : « rallonge un peu l'animation ») ; les cases gagnées restent soulignées un moment. */
+  /** Ossuaire : la lumière de lune par paliers nets (plein, lune, pénombre, noir), on voit où commence l'ombre. */
+  static moonStep(lit: number): number {
+    return lit > 0.62 ? 1 : lit > 0.36 ? 0.78 : lit > 0.1 ? 0.42 : 0;
+  }
+
+  /** Ossuaire : au-dessus de chaque puits de lune vu, une colonne de lumière froide et de la poussière qui flotte. */
+  private drawMoonBeams(game: Game, ox: number, oy: number): void {
+    const { ctx, tile } = this;
+    for (const f of game.furnitureList()) {
+      if (f.kind !== "moonWell" || !game.isVisible(f.x, f.y)) continue;
+      const cx = ox + (f.x + 0.5) * tile;
+      const bottom = oy + (f.y + 0.6) * tile;
+      const top = bottom - tile * 2.8;
+      const g = ctx.createLinearGradient(0, top, 0, bottom);
+      g.addColorStop(0, "rgba(210,226,255,0)");
+      g.addColorStop(1, "rgba(210,226,255,0.22)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(cx - tile * 0.7, top);
+      ctx.lineTo(cx + tile * 0.7, top);
+      ctx.lineTo(cx + tile * 1.05, bottom);
+      ctx.lineTo(cx - tile * 1.05, bottom);
+      ctx.closePath();
+      ctx.fill();
+      // poussière : quelques grains qui descendent lentement dans la colonne
+      ctx.fillStyle = "rgba(235,240,255,0.85)";
+      const u = Math.max(1, Math.round(tile / 16));
+      for (let k = 0; k < 7; k++) {
+        const t = ((this.time / 9000 + k / 7 + noise(f.x, f.y, k) * 0.5) % 1 + 1) % 1;
+        const px = cx + (noise(f.x, k, f.y) - 0.5) * tile * 1.4 + Math.sin(this.time / 1300 + k) * u * 2;
+        const py = top + t * (bottom - top);
+        ctx.fillRect(Math.round(px), Math.round(py), u, u);
+      }
+    }
+  }
+
   private static readonly FLARE_MS = 1600;
   private static readonly GAINED_MS = 2800;
 
@@ -1929,7 +1966,9 @@ export class Renderer {
     // Vacillement des torches : deux ondes lentes superposées.
     // Section 2 (Thomas, 2026-11-14 : « une lumière plus lente et plus statique, là tout clignote ») : les champignons
     // respirent doucement (une lente onde de 6 secondes, ±3 %) au lieu de vaciller comme des flammes.
-    const flicker = game.look() === "champi" ? 0.92 + 0.03 * Math.sin(this.time / 950) : 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
+    const flicker = game.look() === "ossuaire" ? 1 : game.look() === "champi" ? 0.92 + 0.03 * Math.sin(this.time / 950) : 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
+    // Section 3, l'Ossuaire (Thomas, 2026-11-19) : la lune seule, en paliers nets ; l'ombre presque noire ailleurs.
+    const oss = game.look() === "ossuaire";
 
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, this.width, this.height);
@@ -2001,12 +2040,13 @@ export class Renderer {
           // Luminosité : la lueur du héros, qui décroît avec la distance, ou l'éclairage d'une torche.
           // Un mur ne montre que la lumière qui tombe sur la face qu'on regarde : celle des cases dégagées
           // en vue qui le touchent. Le feu d'une salle qu'on ne voit pas ne colore pas l'autre côté du mur.
-          const lit = wall ? this.wallLight(game, x, y) : game.light[game.map.index(x, y)];
+          const lit0 = wall ? this.wallLight(game, x, y) : game.light[game.map.index(x, y)];
+          const lit = oss ? Renderer.moonStep(lit0) : lit0;
           const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
-          const dark = (1 - brightness) * 0.55 * shade;
+          const dark = (1 - brightness) * (oss ? 0.82 : 0.55) * shade;
           if (dark > 0.004) veil(`rgba(12,11,18,${q(dark)})`, rx, ry, rw, rh);
-          if (lit > 0) veil(champi ? `rgba(60,220,190,${q(lit * flicker * 0.1)})` : `rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
+          if (lit > 0) veil(oss ? `rgba(150,185,255,${q(lit * 0.12)})` : champi ? `rgba(60,220,190,${q(lit * flicker * 0.1)})` : `rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
@@ -2019,6 +2059,8 @@ export class Renderer {
       ctx.fillStyle = style;
       ctx.fill(path);
     }
+    // Ossuaire : la COLONNE DE LUNE qui tombe du plafond sur chaque puits, et la poussière qui y flotte.
+    if (oss) this.drawMoonBeams(game, ox, oy);
     // La torche qu'on allume : un anneau de lumière chaude qui s'élargit jusqu'au bout de son rayon.
     if (flareR !== null) {
       const fade = 1 - flareAge / Renderer.FLARE_MS;
@@ -3008,7 +3050,9 @@ export class Renderer {
         const brightness = Math.min(1, Math.max(lit * flicker, glow));
         dark = (1 - brightness) * 0.55;
         // Section 2 : pas de reflet orange sur les meubles (la lumière y est bleu-vert).
-        warm = game.look() === "champi" ? 0 : lit * flicker * 0.2;
+        warm = game.look() === "champi" || game.look() === "ossuaire" ? 0 : lit * flicker * 0.2;
+        // Section 3 : la lune seule, par paliers ; hors d'elle, presque le noir.
+        if (game.look() === "ossuaire") dark = (1 - Math.min(1, Math.max(Renderer.moonStep(lit), glow))) * 0.8;
       }
       // Le rideau de mycélium luit de lui-même (Thomas, 2026-11-15 : « contraste davantage les passages secrets ») :
       // presque pas d'ombre sur lui, même dans le noir d'une salle vue.
@@ -3041,7 +3085,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3062,7 +3106,7 @@ export class Renderer {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || name === "scarecrowHat") {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

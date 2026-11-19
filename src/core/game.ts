@@ -26,6 +26,7 @@ import { BossFloor, BossLayout, buildBossFloor } from "../world/bossFloor";
 import { buildCarillonFloor } from "../world/carillonFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
+import { decorateOssuaire, moonArea, sideOf } from "../world/ossuaire";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
@@ -385,7 +386,9 @@ export class Game {
       if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan(this.sandboxSection);
       // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
       const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : buildBossFloor(seed)) : null;
-      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, this.floorConfig);
+      // Section 3, l'Ossuaire (Thomas, 2026-11-19) : pas de salle spéciale des sections du dessus.
+      const oss = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) >= 2;
+      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, oss ? { ...this.floorConfig, specialRoomCounts: [{ count: 0, weight: 1 }] } : this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
       // Escaliers enchâssés dans un « U » de mur, sur tous les étages tirés au hasard (Thomas, 2026-11-14).
@@ -398,6 +401,8 @@ export class Game {
         ? { furniture: sandboxFloor.furniture, themes: sandboxFloor.themes }
         : bossFloor
           ? { furniture: bossFloor.furniture, themes: [] }
+          : oss
+          ? { furniture: [] as Furniture[], themes: [] }
           : RULES.themedRoomsInDungeon
           ? furnishFloor(floor, seed, depth, this.funOf(depth) === "bell", this.funOf(depth) === "bath", Math.floor((depth - 1) / RULES.floorsPerSection))
           : { furniture: [], themes: [] };
@@ -411,16 +416,16 @@ export class Game {
       // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
       // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
       // (Section 2 : ni statues, ni gravier, ni eau, ni PNJ de la section 1 ; Thomas, 2026-11-14.)
-      if (!sandboxFloor && !bossFloor && !champi && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
+      if (!sandboxFloor && !bossFloor && !champi && !oss && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
         placeBell(floor, new Rng(seed ^ 0x57a7f), furnished.furniture, new Set(furnished.themes.map((t) => t.room)), "statue");
       }
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
-      if (!sandboxFloor && !bossFloor && !champi && RULES.groundsInDungeon) {
+      if (!sandboxFloor && !bossFloor && !champi && !oss && RULES.groundsInDungeon) {
         const quiet = furnished.themes.filter((t) => t.id === "bain" || t.id === "ferme").map((t) => floor.rooms[t.room]);
         placeGrounds(floor, seed, depth, quiet);
       }
       // Section 2 : pas de dalles gravées (Thomas, 2026-11-15 : « retire les designs gravure au sol »).
-      const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor || champi ? [] : placeMotifs(floor, seed);
+      const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor || champi || oss ? [] : placeMotifs(floor, seed);
       state = {
         map: floor.map,
         start: floor.start,
@@ -474,20 +479,36 @@ export class Game {
       }
       // La ferme (Thomas, 2026-11-13) : 1 à 3 poules dans le pré, et un poulet échappé dehors (s'il n'y a pas déjà le
       // poulet du truc fun).
-      this.placeFarm(state, seed);
+      if (!oss) this.placeFarm(state, seed);
       // Pièce secrète (0 à 1 par étage) et marques dans les murs (Thomas, 2026-11-14).
       if (sandboxFloor?.secretRoom) state.secretRoom = JSON.parse(JSON.stringify(sandboxFloor.secretRoom));
       if (!sandboxFloor && !bossFloor) {
         const srng = new Rng(seed ^ 0x5ec7e7);
         if (srng.chance(RULES.secretRoomChance)) {
           const hosts = new Set((state.themes ?? []).map((t) => t.room));
-          state.secretRoom = placeSecretRoom(floor, state.furniture, srng, hosts) ?? undefined;
+          // Ossuaire : seulement les pièces de toujours (trésor, armurerie, reliquaire, cache), pas celles des sections du dessus.
+          state.secretRoom = (oss ? placeSecretRoom(floor, state.furniture, srng, hosts, (["tresor", "reliquaire", "armurerie", "contrebandier"] as const)[srng.int(0, 3)]) : placeSecretRoom(floor, state.furniture, srng, hosts)) ?? undefined;
           if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: lessGold((srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2) * (1 + sectionOf(depth))) });
         }
-        placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
+        if (!oss) placeWallMarks(floor, state.furniture, srng, srng.int(RULES.wallMarks[0], RULES.wallMarks[1]));
         // Niche secrète (planche art/murs_v2.png validée le 2026-11-18) : une dalle à pression qui fait coulisser un pan de mur.
         const nrng = new Rng(seed ^ 0x11c4e);
-        if (nrng.chance(RULES.nicheChance)) state.niche = this.placeNiche(state, nrng) ?? undefined;
+        if (!oss && nrng.chance(RULES.nicheChance)) state.niche = this.placeNiche(state, nrng) ?? undefined;
+        // Ossuaire : l'entrée de la pièce secrète est une PLAQUE FUNÉRAIRE (ou une alcôve de crânes) parmi les autres ;
+        // puis tout le décor de la section (lune, alcôves, plaques, pierres tombales, mobilier).
+        if (oss) {
+          // pas de creux ni de briques manquantes de la section 1
+          state.furniture = state.furniture.filter((f) => !/^wall(Gap|Hole)/.test(f.kind));
+          const blocked = new Set<string>();
+          const sr = state.secretRoom;
+          if (sr) {
+            const side = sideOf(sr.dir);
+            state.furniture.push(srng.chance(0.5) ? { x: sr.entry.x, y: sr.entry.y, kind: "ossTablet", side, variant: "texte" } : { x: sr.entry.x, y: sr.entry.y, kind: "ossAlcove", side, len: 1 });
+            for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocked.add(`${sr.entry.x + dx},${sr.entry.y + dy}`);
+          }
+          decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked);
+          state.torches = floor.torches;
+        }
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
         if (champi) {
           state.furniture = (state.furniture ?? []).filter((f) => !/^wall(Gap|Hole)/.test(f.kind));
@@ -498,6 +519,7 @@ export class Game {
         }
       }
       if (champi || bossFloor?.boss.kind === "carillon") state.look = "champi";
+      if (oss) state.look = "ossuaire";
       this.floors.set(depth, state);
     }
     this.useFloor(state, depth);
@@ -548,6 +570,13 @@ export class Game {
       queen.boss = { phase: "lurk", bites: 0, hpMark: queen.hp, lurk: 0, fallen: 0, hatched: false, hubUp: true, engaged: false };
       this.monsters.push(queen);
       state.population = 0;
+    } else if (fresh && state.look === "ossuaire") {
+      // Ossuaire (Thomas, 2026-11-19 : « pas de PNJ ni de mob de l'étage inférieur ») : ses monstres ne sont pas encore
+      // faits ; ni clef (pas de porte verrouillée), ni piège des sections du dessus. Le butin reste.
+      state.population = 0;
+      placeSecrets(state, depth, floorSeed(this.runSeed, depth));
+      if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
+      placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth)], floorSeed(this.runSeed, depth));
     } else if (fresh) {
       this.spawnMonsters(state.rooms);
       state.population = Math.max(1, this.monsters.length);
@@ -941,6 +970,8 @@ export class Game {
     // Thomas, 2026-11-13 : la salle de bain du Kobold, puis le poulet, rejoignent la cloche et la porte du compteur
     // (un quart chacun).
     // Section 2 : pas de Kobold de la section 1 (Thomas, 2026-11-15) : ni porte du compteur, ni salle de bain.
+    // Section 3, l'Ossuaire : rien des sections du dessus (Thomas, 2026-11-19).
+    if (section >= 2) return null;
     if (section >= 1) return rng.int(0, 1) === 0 ? "bell" : "chicken";
     const pick = rng.int(0, 3);
     return pick === 0 ? "bell" : pick === 1 ? "counter" : pick === 2 ? "bath" : "chicken";
@@ -1408,6 +1439,50 @@ export class Game {
     return this.sandbox ? depth === 2 && this.sandboxSection === 2 : depth === RULES.bossDepths[1];
   }
 
+  /** Le dernier étage jouable : la fin de la démo (10), ou l'aperçu de l'Ossuaire en partie d'essai (15). */
+  lastDepth(): number {
+    return this.testRun ? RULES.previewLastDepth : RULES.demoLastDepth;
+  }
+
+  /** Ossuaire : le décor peint dans une case de mur (alcôve d'ossuaire ou plaque funéraire), d'après le mobilier. */
+  ossWallDecor(x: number, y: number): { kind: "alcove"; side: string; x0: number; y0: number; len: number } | { kind: "tablet"; side: string; variant: string } | null {
+    const list = this.current?.furniture;
+    if (!list) return null;
+    if (this.ossDecorList !== list || this.ossDecorCount !== list.length) {
+      this.ossDecorList = list;
+      this.ossDecorCount = list.length;
+      this.ossDecorIndex = new Map();
+      for (const f of list) {
+        if (f.kind === "ossTablet") this.ossDecorIndex.set(`${f.x},${f.y}`, { kind: "tablet", side: f.side ?? "S", variant: f.variant ?? "texte" });
+        if (f.kind === "ossAlcove") {
+          const horiz = f.side === "S" || f.side === "N";
+          for (let k = 0; k < (f.len ?? 1); k++) this.ossDecorIndex.set(`${f.x + (horiz ? k : 0)},${f.y + (horiz ? 0 : k)}`, { kind: "alcove", side: f.side ?? "S", x0: f.x, y0: f.y, len: f.len ?? 1 });
+        }
+      }
+    }
+    return this.ossDecorIndex.get(`${x},${y}`) ?? null;
+  }
+  private ossDecorList: Furniture[] | null = null;
+  private ossDecorCount = 0;
+  private ossDecorIndex = new Map<string, { kind: "alcove"; side: string; x0: number; y0: number; len: number } | { kind: "tablet"; side: string; variant: string }>();
+
+  /** Ossuaire : les pierres tombales dont le dessin peut toucher la case (elles débordent sur les voisines). */
+  ossTombsNear(x: number, y: number): { cx: number; cy: number; angle: number; variant: string }[] {
+    if (this.look() !== "ossuaire") return [];
+    const out: { cx: number; cy: number; angle: number; variant: string }[] = [];
+    for (const f of this.current.furniture) {
+      if (f.kind !== "ossTomb" || Math.abs(f.x - x) > 2 || Math.abs(f.y - y) > 2) continue;
+      out.push({ cx: f.x * 16 + 8, cy: f.y * 16 + 8, angle: f.angle ?? 0, variant: f.variant ?? "ins" });
+    }
+    return out;
+  }
+
+  /** Ossuaire : une porte dans le mur du BAS d'une salle (la salle est au-dessus) : la grille est vue de l'autre côté. */
+  doorBelowRoom(x: number, y: number): boolean {
+    const inRoom = (p: Point) => this.rooms.some((r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+    return inRoom({ x, y: y - 1 }) && !inRoom({ x, y: y + 1 });
+  }
+
   isBossDepth(depth: number): boolean {
     return this.sandbox ? depth === 2 : (RULES.bossDepths as readonly number[]).includes(depth);
   }
@@ -1573,7 +1648,7 @@ export class Game {
     }
     // Étage ouvert après le boss (Thomas, 2026-11-16 : « ouvre l'étage post Fileuse ») : l'escalier mène à l'étage
     // suivant, dans toutes les parties ; seul celui du dernier boss de la démo (le Carillon) termine la partie.
-    if (this.sealedStairsAt(at.x, at.y) && this.depth < RULES.demoLastDepth) {
+    if (this.sealedStairsAt(at.x, at.y) && this.depth < this.lastDepth()) {
       this.pendingStairs = "down";
       return;
     }
@@ -1954,7 +2029,7 @@ export class Game {
    */
   private respawn(): void {
     const state = this.current;
-    if (this.turn < state.nextRespawn || this.peaceful || state.boss) return;
+    if (this.turn < state.nextRespawn || this.peaceful || state.boss || state.look === "ossuaire") return;
     // Salle d'essai avec arène : pas de renforts (on en ajoute à la main, par les boutons de l'arène).
     if (this.depth === 1 && this.sandboxFloor()?.arena !== undefined) return;
     // Agité, puis alerte : les promeneurs arrivent un peu plus vite, et un peu plus nombreux (en douceur, Thomas 2026-11-11).
@@ -2585,17 +2660,18 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | undefined {
+  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | "ossuaire" | undefined {
     if (this.champiPatch(x, y)) return "champi";
     // La chambre de neige : de la neige partout dans la pièce.
     const sr = this.current?.secretRoom;
     if (sr?.layout === "neige" && !sr.melted && x >= sr.room.x && y >= sr.room.y && x < sr.room.x + sr.room.w && y < sr.room.y + sr.room.h) return "snow";
     const id = this.themeAt(x, y);
+    if (this.look() === "ossuaire") return "ossuaire";
     return id === "cuisine" ? "kitchen" : id === "torture" ? "torture" : id === "forge" ? "forge" : id === "bain" ? "bath" : id === "prison" ? "prison" : id === "feutre" ? "champiFelt" : id === "morilles" ? "morilles" : id === "sculpture" || id === "concert" ? "sculpture" : id === "expo" ? "kitchen" : id === "chaud" ? "champiWarm" : this.look() === "champi" ? "champi" : undefined;
   }
 
   /** Le décor d'une case de mur : celui de l'étage, ou « chaud, terreux » au bord d'une salle de ce thème (salle d'essai). */
-  wallLookAt(x: number, y: number): "s1" | "champi" | "champiWarm" {
+  wallLookAt(x: number, y: number): "s1" | "champi" | "champiWarm" | "ossuaire" {
     if (this.champiPatch(x, y)) return "champi";
     const look = this.look();
     if (look !== "champi" || !this.current.themes.some((t) => t.id === "chaud")) return look;
@@ -3221,6 +3297,8 @@ export class Game {
     if (giver) candle.push({ x: giver.x, y: giver.y, faceX: 0, faceY: 0, radius: RULES.questNpcLight, area: this.rooms.find((r) => giver.x >= r.x && giver.x < r.x + r.w && giver.y >= r.y && giver.y < r.y + r.h) ?? { x: giver.x - 1, y: giver.y - 1, w: 3, h: 3 } });
     // Le Carillon luit (ses taches et son battant) : sa grotte se voit, on voit venir le coup.
     const bell = this.monsters.find((m) => m.defId === "carillon");
+    // Ossuaire : les puits de lune, seule lumière de la section (Thomas, 2026-11-19).
+    for (const f of this.current?.furniture ?? []) if (f.kind === "moonWell") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: RULES.moonRadius, area: moonArea(this, f) });
     const lair = this.current?.boss?.lair;
     if (bell && lair) candle.push({ x: bell.x + 1, y: bell.y + 3, faceX: 0, faceY: 0, radius: 8, area: lair });
     this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
@@ -5194,8 +5272,7 @@ export class Game {
         secret.found = true;
         this.map.set(secret.entry.x, secret.entry.y, Tile.Floor);
         this.current.rooms.push(secret.room);
-        const mark = this.current.furniture.findIndex((f) => f.x === secret.entry.x && f.y === secret.entry.y && /^(wall(Gap|Hole)|mycCurtain)/.test(f.kind));
-        if (mark >= 0) this.current.furniture.splice(mark, 1);
+        this.openSecretMark(secret.entry);
         found.push({ ...secret.entry });
         this.events.push({ type: "secret", what: "found", x: secret.entry.x, y: secret.entry.y });
         this.refreshLight();
@@ -5638,6 +5715,8 @@ export class Game {
    * Salle d'essai : les deux, toujours (Gluck dans la salle des colonnes, Sœur Osseuse dans la salle de prière).
    */
   private placeQuestNpc(state: FloorState, depth: number): void {
+    // Ossuaire : aucun PNJ des sections du dessus (Thomas, 2026-11-19) ; les siens viendront.
+    if (state.look === "ossuaire") return;
     // Section 2 : Morillon vit dans sa champignonnière de morilles (les PNJ de la section 1 n'y descendent pas).
     if (state.look === "champi" || (this.sandbox && this.sandboxFloor()?.look === "champi")) {
       if (this.morillonMemory.met < MORILLON.maxEncounters || this.sandbox) state.morillon = this.placeMorillon(state, new Rng(floorSeed(this.runSeed, depth) ^ 0x30b1)) ?? undefined;
@@ -8677,6 +8756,26 @@ export class Game {
     return true;
   }
 
+  /**
+   * La marque de l'entrée d'une pièce secrète disparaît quand elle s'ouvre (creux, rideau de mycélium) ; dans l'Ossuaire,
+   * la plaque funéraire GLISSE sur la case de mur voisine, et l'alcôve de crânes s'écarte (Thomas, 2026-11-19).
+   */
+  private openSecretMark(entry: Point): void {
+    const list = this.current.furniture;
+    const mark = list.findIndex((f) => f.x === entry.x && f.y === entry.y && /^(wall(Gap|Hole)|mycCurtain|ossTablet|ossAlcove)/.test(f.kind));
+    if (mark < 0) return;
+    const [m] = list.splice(mark, 1);
+    if (m.kind !== "ossTablet" || !m.side) return;
+    const along = m.side === "S" || m.side === "N" ? [{ x: 1, y: 0 }, { x: -1, y: 0 }] : [{ x: 0, y: 1 }, { x: 0, y: -1 }];
+    for (const d of along) {
+      const p = { x: entry.x + d.x, y: entry.y + d.y };
+      if (this.map.get(p.x, p.y) !== Tile.Wall || list.some((f) => f.x === p.x && f.y === p.y && /^oss(Tablet|Alcove)/.test(f.kind))) continue;
+      list.push({ ...m, x: p.x, y: p.y, variant: "glissee" });
+      this.map.touch(p.x, p.y);
+      break;
+    }
+  }
+
   /** Diapason : la pièce secrète et le tonneau creux dont l'entrée est à portée s'ouvrent (comme une fouille réussie). */
   private revealSecretsNear(near: (p: Point) => boolean): boolean {
     let any = false;
@@ -8685,8 +8784,7 @@ export class Game {
       secret.found = true;
       this.map.set(secret.entry.x, secret.entry.y, Tile.Floor);
       this.current.rooms.push(secret.room);
-      const mark = this.current.furniture.findIndex((f) => f.x === secret.entry.x && f.y === secret.entry.y && /^(wall(Gap|Hole)|mycCurtain)/.test(f.kind));
-      if (mark >= 0) this.current.furniture.splice(mark, 1);
+      this.openSecretMark(secret.entry);
       this.events.push({ type: "secret", what: "found", x: secret.entry.x, y: secret.entry.y });
       this.refreshLight();
       this.updateVision();
@@ -8925,7 +9023,7 @@ export class Game {
 
   /** Téléporteur d'étage (partie d'essai) : on arrive en haut de l'étage demandé (1 à la fin de la démo). */
   teleport(depth: number): boolean {
-    if (!this.testRun || this.over || depth < 1 || depth > RULES.demoLastDepth || depth === this.depth) return false;
+    if (!this.testRun || this.over || depth < 1 || depth > this.lastDepth() || depth === this.depth) return false;
     const down = depth > this.depth;
     // Le téléporteur n'est qu'en partie d'essai : jamais d'étage scellé là (Thomas, 2026-11-16).
     this.enterFloor(depth, "down");
@@ -8960,8 +9058,9 @@ export class Game {
   readonly sandboxSection: 1 | 2 = sandboxSection();
 
   /** Le décor de l'étage : « champi » (section 2, la champignonnière) ou celui de la section 1. */
-  look(): "s1" | "champi" {
+  look(): "s1" | "champi" | "ossuaire" {
     if (this.current?.look === "champi") return "champi";
+    if (this.current?.look === "ossuaire") return "ossuaire";
     return this.sandbox && this.depth === 1 && this.sandboxFloor()?.look === "champi" ? "champi" : "s1";
   }
   private resetting = false;
@@ -10560,7 +10659,7 @@ export class Game {
     if (target < 1) return false;
     const healed = 0;
     // Fin de la démo (Thomas, 2026-11-14) : au bas de la section 2, l'escalier de l'étage 10 termine la partie.
-    if (direction === "down" && !this.sandbox && this.depth >= RULES.demoLastDepth) {
+    if (direction === "down" && !this.sandbox && this.depth >= this.lastDepth()) {
       this.over = true;
       this.won = true;
       this.events.push({ type: "demoEnd" });

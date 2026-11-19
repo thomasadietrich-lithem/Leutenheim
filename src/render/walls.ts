@@ -248,7 +248,7 @@ const DISC_GLOW: RGB[] = [[190, 255, 240], [90, 220, 200], [30, 120, 120]];
 const EARTH_BEHIND: RGB = [112, 84, 70];
 const JOINT: RGB = [22, 16, 20];
 
-export type WallLook = "s1" | "champi" | "champiWarm";
+export type WallLook = "s1" | "champi" | "champiWarm" | "ossuaire";
 
 /** Le dessin 16 × 16 de la case de mur (x, y). `earthAt` : les éboulis (section 2), qui éventrent les murs voisins. */
 export function wallImage(

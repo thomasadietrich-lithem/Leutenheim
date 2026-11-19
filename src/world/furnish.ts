@@ -26,6 +26,12 @@ export interface Furniture {
   /** Alambic (pièces secrètes, Thomas 2026-11-15) : la potion qu'il distille ; `drained` : la fiole a été tirée. */
   potion?: string;
   drained?: boolean;
+  /** Ossuaire (section 3) : côté ouvert d'une alcôve ou d'une plaque de mur, longueur d'une alcôve (cases). */
+  side?: "S" | "N" | "W" | "E";
+  len?: number;
+  /** Ossuaire : sorte d'une pierre tombale ou d'une plaque, et angle d'une pierre tombale (degrés). */
+  variant?: string;
+  angle?: number;
 }
 
 /** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */
@@ -47,7 +53,7 @@ function bareChokepoint(map: GameMap, x: number, y: number): boolean {
   });
 }
 
-function blocksPassage(map: GameMap, cells: Point[]): boolean {
+export function blocksPassage(map: GameMap, cells: Point[]): boolean {
   return cells.some((c) => bareChokepoint(map, c.x, c.y));
 }
 
@@ -775,14 +781,14 @@ export function furnishPrison(floor: Floor, room: Room, rng: Rng, out: Furniture
 }
 
 /** Case de sol libre (ni meuble, ni départ, ni escalier) ? */
-function freeCell(floor: Floor, furniture: Furniture[], x: number, y: number): boolean {
+export function freeCell(floor: Floor, furniture: Furniture[], x: number, y: number): boolean {
   if (floor.map.get(x, y) !== Tile.Floor) return false;
   if ((x === floor.start.x && y === floor.start.y) || (x === floor.stairs.x && y === floor.stairs.y)) return false;
   return !furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y));
 }
 
 /** Une voisine (8 directions) hors de la salle qui n'est pas du mur : porte ou couloir. */
-function besideOpening(floor: Floor, room: Room, x: number, y: number): boolean {
+export function besideOpening(floor: Floor, room: Room, x: number, y: number): boolean {
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       const nx = x + dx;

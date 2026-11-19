@@ -19,7 +19,17 @@ export type SkillId =
   | "encaisseur"
   | "tourbillon"
   | "charge"
-  | "cri_guerre";
+  | "cri_guerre"
+  // RANG III (Thomas, 2026-11-19 : « Posture. Implémente dans la démo »), dès le niveau 11 : bleue, puis rouge.
+  | "bastion"
+  | "sang_froid"
+  | "posture"
+  | "execution"
+  | "frenesie"
+  | "soif_sang";
+
+/** Les capacités qui s'utilisent (un bouton dans la barre Capacités), en dehors du pouvoir principal. */
+export type ActivePower = "tourbillon" | "charge" | "cri_guerre" | "bastion" | "execution";
 
 /** Un pouvoir de voie : le principal (celui du bouton) ou un des trois autres. */
 export type PowerId = "second_souffle" | "double_frappe" | SkillId;
@@ -45,6 +55,8 @@ export interface PathDef {
   secondaries: PowerDef[];
   /** Rang II : trois pouvoirs nouveaux, ouverts au niveau 6 (le principal y continue, rangs 3 et 4). */
   tier2: PowerDef[];
+  /** Rang III : trois pouvoirs nouveaux, ouverts au niveau 11 (le principal y continue, rangs 5 et 6). */
+  tier3: PowerDef[];
 }
 
 /**
@@ -58,7 +70,7 @@ export const PATHS: Record<PathId, PathDef> = {
     name: "Second souffle",
     color: "#4a8fd0",
     description: "Une fois par étage, en un tour : +4 PV. Se renforce.",
-    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage", "+10 PV, une fois par étage", "+13 PV, une fois par étage"] },
+    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage", "+10 PV, une fois par étage", "+13 PV, une fois par étage", "+16 PV, une fois par étage", "+19 PV, une fois par étage"] },
     secondaries: [
       { id: "peau_dure", name: "Peau dure", ranks: ["+1 à la classe d'armure", "+2 à la classe d'armure"] },
       // Thomas (2026-11-13) : remplace Récupération (« deux sources de soin direct, c'est trop »).
@@ -70,13 +82,18 @@ export const PATHS: Record<PathId, PathDef> = {
       { id: "garde", name: "Garde", ranks: ["+2 à la classe d'armure quand deux ennemis ou plus vous touchent", "+3 à la classe d'armure quand deux ennemis ou plus vous touchent"] },
       { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât sur les coups de 3 dégâts ou plus", "-1 dégât à chaque coup reçu (au moins 1)"] },
     ],
+    tier3: [
+      { id: "bastion", name: "Bastion", ranks: ["Une fois par étage, 3 tours : dégâts reçus divisés par deux, et qui vous touche au contact recule d'une case", "Dure 4 tours"] },
+      { id: "sang_froid", name: "Sang-froid", ranks: ["+3 à la classe d'armure sous le quart de vos PV", "+4 à la classe d'armure sous le quart de vos PV"] },
+      { id: "posture", name: "Posture", ranks: ["+1 à la classe d'armure quand vous ne vous déplacez pas de votre tour", "+2 à la classe d'armure quand vous ne vous déplacez pas de votre tour"] },
+    ],
   },
   red: {
     id: "red",
     name: "Double frappe",
     color: "#d03a44",
     description: "Deux fois par étage : deux coups d'épée en un seul tour. Se renforce.",
-    main: { id: "double_frappe", name: "Double frappe", ranks: ["Deux fois par étage", "Trois fois par étage", "Quatre fois par étage", "Cinq fois par étage"] },
+    main: { id: "double_frappe", name: "Double frappe", ranks: ["Deux fois par étage", "Trois fois par étage", "Quatre fois par étage", "Cinq fois par étage", "Six fois par étage", "Sept fois par étage"] },
     secondaries: [
       { id: "coup_puissant", name: "Coup puissant", ranks: ["Critique sur 18 à 20 ; un critique assomme", "Critique sur 17 à 20 ; un critique assomme"] },
       // Thomas (2026-11-13) : remplace Soif de combat, pour faire vivre l'action « Pousser ».
@@ -88,14 +105,21 @@ export const PATHS: Record<PathId, PathDef> = {
       { id: "charge", name: "Charge", ranks: ["Fond sur un ennemi à 2 cases en ligne droite et frappe à +2 (2 fois par étage)", "Jusqu'à 3 cases, frappe à +3 (3 fois par étage)"] },
       { id: "cri_guerre", name: "Cri de guerre", ranks: ["Une fois par étage : les ennemis à 3 cases ont le désavantage 2 tours ; les plus faibles peuvent fuir", "Le désavantage dure 3 tours"] },
     ],
+    tier3: [
+      { id: "execution", name: "Exécution", ranks: ["Deux fois par étage : achève net un ennemi au contact sous le quart de ses PV (pas un boss)", "Trois fois par étage, sous 30 % de ses PV"] },
+      { id: "frenesie", name: "Frénésie", ranks: ["+1 dégât par coup qui porte d'affilée, jusqu'à +3 ; retombe au premier tour sans toucher", "Jusqu'à +4"] },
+      { id: "soif_sang", name: "Soif de sang", ranks: ["Chaque ennemi que vous tuez rend 2 PV (une fois par tour)", "Rend 3 PV"] },
+    ],
   },
 };
 
 /** Rang le plus haut d'un pouvoir. */
 /** Deux rangs par pouvoir (Thomas, 2026-11-13 : « garder de la marge pour après le boss et les niveaux suivants »). */
 export const MAX_RANK = 2;
-/** Le pouvoir principal monte jusqu'au rang 4 (rangs 3 et 4 au Rang II). */
-export const MAIN_MAX_RANK = 4;
+/** Le pouvoir principal monte jusqu'au rang 6 (rangs 3 et 4 au Rang II, 5 et 6 au Rang III). */
+export const MAIN_MAX_RANK = 6;
+/** Niveau où s'ouvre le Rang III ; le Rang II ne reçoit plus de point ensuite (Thomas, 2026-11-19). */
+export const TIER3_LEVEL = 11;
 /** Niveau où s'ouvre le Rang II ; le Rang I ne reçoit plus de point ensuite (Thomas, 2026-11-17). */
 export const TIER2_LEVEL = 6;
 

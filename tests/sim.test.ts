@@ -6940,3 +6940,52 @@ test("provisions par étage : tirées à part, jamais à l'étage d'un boss, env
   }
   assert.ok(n / 200 > 0.55 && n / 200 < 0.85, `moyenne ${n / 200}`);
 });
+
+test("Rang III (2026-11-19) : ouvert au niveau 11, Rang II gelé ; Posture, Sang-froid, Bastion, Exécution, Soif de sang", () => {
+  const game = new Game(1, undefined, undefined, undefined, true);
+  const g = game as unknown as { newMonster: (d: unknown, x: number, y: number, a: boolean) => Actor; absorb: (d: number) => number; resolvePower: (id: string) => void; removeIfDead: (m: Actor) => void };
+  game.monsters.splice(0);
+  game.testRun = true;
+  for (let i = 0; game.level < 10 && i < 20; i++) game.levelUpNow();
+  game.choosePath("blue");
+  assert.equal(game.improveRefusal("posture"), "locked");
+  game.levelUpNow();
+  assert.equal(game.level, 11);
+  assert.equal(game.improveRefusal("posture"), null);
+  assert.equal(game.improveRefusal("riposte"), "frozen");
+  // Posture : immobile ce tour, +1 CA ; Sang-froid sous le quart des PV, +3.
+  (game.ranks as Record<string, number>).posture = 1;
+  (game.ranks as Record<string, number>).sang_froid = 1;
+  game.hero.fromX = game.hero.x;
+  game.hero.fromY = game.hero.y;
+  assert.equal(game.stanceBonus(), 1);
+  game.hero.hp = Math.floor(game.hero.maxHp / 4);
+  assert.equal(game.stanceBonus(), 4);
+  game.hero.fromX = game.hero.x + 1;
+  assert.equal(game.stanceBonus(), 3);
+  // Bastion : dégâts divisés par deux pendant 3 tours.
+  (game.ranks as Record<string, number>).bastion = 1;
+  assert.equal(game.powerRefusal("bastion"), null);
+  g.resolvePower("bastion");
+  assert.ok(game.bastionActive());
+  assert.equal(g.absorb(9), 5);
+  assert.equal(game.powerUsesLeft("bastion"), 0);
+  // Voie rouge : Exécution d'un ennemi entamé au contact, Soif de sang.
+  const red = new Game(2, undefined, undefined, undefined, true);
+  const r = red as unknown as typeof g;
+  red.monsters.splice(0);
+  for (let i = 0; red.level < 11 && i < 30; i++) red.levelUpNow();
+  red.choosePath("red");
+  Object.assign(red.ranks, { execution: 1, soif_sang: 1 });
+  const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: red.hero.x + dx, y: red.hero.y + dy })).find((p) => red.map.isWalkable(p.x, p.y) && !red.furnitureAt(p.x, p.y))!;
+  const k = r.newMonster(MONSTERS.schrat, spot.x, spot.y, false);
+  red.monsters.push(k);
+  k.hp = k.maxHp;
+  assert.equal(red.powerRefusal("execution"), "no-target");
+  k.hp = 1;
+  red.hero.hp = red.hero.maxHp - 5;
+  assert.equal(red.powerRefusal("execution"), null);
+  r.resolvePower("execution");
+  assert.ok(!red.monsters.includes(k), "achevé");
+  assert.equal(red.hero.hp, red.hero.maxHp - 3, "soif de sang : +2 PV");
+});

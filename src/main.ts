@@ -41,7 +41,7 @@ import { TELEMETRY } from "./data/telemetry";
 import { detectPlatform, Telemetry } from "./telemetry/telemetry";
 import { PICTOS } from "./ui/pictos";
 import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, SKILL_ICONS, type SkillIconId, STATUS_ICONS, uiIcon } from "./ui/icons";
-import { PATH_LEVEL, PATHS, PathId, PowerDef, StatId, TIER2_LEVEL } from "./data/skills";
+import { PATH_LEVEL, PATHS, PathId, PowerDef, StatId, TIER2_LEVEL, TIER3_LEVEL } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
 /** Durée d'un tour à l'écran (ms) : posé sur les trajets courts, rapide sur les longs. */
@@ -1146,8 +1146,9 @@ function reveal(e: GameEvent): void {
     if (e.what === "paint" && e.x !== undefined) renderer.addFloatingText(e.x, e.y!, "Faux mur", "#d8c8a0");
     if (e.what === "fork") renderer.addFloatingText(game.hero.x, game.hero.y, "♪ La !", "#bedcf0");
   } else if (e.type === "power") {
-    const words = { riposte: "Riposte !", tourbillon: "Tourbillon !", charge: "Charge !", cri_guerre: "Cri de guerre !" };
-    renderer.addFloatingText(game.hero.x, game.hero.y, words[e.power], e.power === "riposte" ? "#9fd0f4" : "#ff8a7a");
+    const words = { riposte: "Riposte !", tourbillon: "Tourbillon !", charge: "Charge !", cri_guerre: "Cri de guerre !", bastion: "Bastion !", execution: "Exécution !", soif_sang: `+${e.healed ?? 0} PV` };
+    renderer.addFloatingText(game.hero.x, game.hero.y, words[e.power], e.power === "riposte" || e.power === "bastion" ? "#9fd0f4" : e.power === "soif_sang" ? "#7ee08a" : "#ff8a7a");
+    if (e.power === "soif_sang") sfx.play("heal");
   } else if (e.type === "lastStand") {
     renderer.addFloatingText(game.hero.x, game.hero.y, "Dernier rempart !", "#9fd0f4");
     shownHp = game.hero.hp;
@@ -1884,8 +1885,10 @@ const WHEEL = [
   ["wheel-tourbillon", "whirl", "Tourbillon"],
   ["wheel-charge", "charge", "Charge"],
   ["wheel-cri", "cry", "Cri de guerre"],
+  ["wheel-bastion", "actions", "Bastion"],
+  ["wheel-execution", "actions", "Exécution"],
 ] as const;
-const WHEEL_POWERS = { "wheel-tourbillon": "tourbillon", "wheel-charge": "charge", "wheel-cri": "cri_guerre" } as const;
+const WHEEL_POWERS = { "wheel-tourbillon": "tourbillon", "wheel-charge": "charge", "wheel-cri": "cri_guerre", "wheel-bastion": "bastion", "wheel-execution": "execution" } as const;
 const ACTION_IDS = ["wheel-search", "wheel-hide", "wheel-push", "wheel-disengage", "wheel-rest", "wheel-disarm"];
 let wheelMode: "actions" | "skills" | "ammo" = "actions";
 
@@ -2007,7 +2010,7 @@ function useQuickItem(): void {
 }
 
 // Noms courts sous les pictogrammes (barre d'actions, design C).
-const WHEEL_SHORT: Record<string, string> = { "wheel-tourbillon": "Tourbillon", "wheel-charge": "Charge", "wheel-cri": "Cri", "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
+const WHEEL_SHORT: Record<string, string> = { "wheel-tourbillon": "Tourbillon", "wheel-charge": "Charge", "wheel-cri": "Cri", "wheel-bastion": "Bastion", "wheel-execution": "Exécuter", "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
 for (const [id, icon, label] of WHEEL) {
   $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
   $(id).setAttribute("aria-label", tr(label));
@@ -3202,7 +3205,7 @@ button("bag-equip", () => {
 });
 // ---------- Bouton du pouvoir (voie bleue ou rouge) : picto de la voie et charges restantes, grisé sinon ----------
 let powerShown = "";
-const POWER_BUTTONS = { tourbillon: 1, charge: 1, cri_guerre: 1 } as const;
+const POWER_BUTTONS = { tourbillon: 1, charge: 1, cri_guerre: 1, bastion: 1, execution: 1 } as const;
 function powerCharges(): number {
   if (game.voie === "blue") return Math.max(0, game.secondWindUses() - game.perks().secondWind);
   if (game.voie === "red") return game.perks().doubleStrikes;
@@ -3523,6 +3526,7 @@ function renderCharacter(): void {
   const pathCards: HTMLElement[] = [];
   const powerCards: HTMLElement[] = [];
   let tier2Cards: HTMLElement[] = [];
+  let tier3Cards: HTMLElement[] = [];
   const confirm = $("char-confirm") as HTMLButtonElement;
   let note = "";
   if (!game.voie) {
@@ -3555,8 +3559,8 @@ function renderCharacter(): void {
       // Rang I gelé dès le niveau 6, Rang II ouvert au niveau 6 (Thomas, 2026-11-17).
       const next =
         r >= top ? "Rang maximal"
-        : why === "frozen" ? "Rang I terminé"
-        : why === "locked" ? `Au niveau ${TIER2_LEVEL} : ${pw.ranks[r]}`
+        : why === "frozen" ? (game.voie && PATHS[game.voie].tier2.some((t) => t.id === pw.id) ? "Rang II terminé" : "Rang I terminé")
+        : why === "locked" ? `Au niveau ${game.voie && (PATHS[game.voie].tier3.some((t) => t.id === pw.id) || (main && r >= 4)) ? TIER3_LEVEL : TIER2_LEVEL} : ${pw.ranks[r]}`
         : `Rang ${r + 1} : ${pw.ranks[r]}`;
       // Nom, puis une rangée : les billes de rang (pleines jusqu'au rang atteint) et, à droite, le petit « + ».
       const pips = el("div", "rank-pips");
@@ -3598,6 +3602,8 @@ function renderCharacter(): void {
     $("char-powers-title").hidden = false;
     path.secondaries.forEach((pw) => powerCards.push(powerCard(pw, false)));
     tier2Cards = path.tier2.map((pw) => powerCard(pw, false));
+    // Rang III (niveau 11) : montré dès que le Rang II est ouvert.
+    tier3Cards = game.tier2Open() ? path.tier3.map((pw) => powerCard(pw, false)) : [];
     if (points > 0) note = `${points} point${points > 1 ? "s" : ""} de voie à placer${game.inCombat() ? " (pas en combat)" : ""}`;
   }
   $("char-path").replaceChildren(...pathCards);
@@ -3605,6 +3611,8 @@ function renderCharacter(): void {
   $("char-skills").replaceChildren(...powerCards);
   $("char-tier2").replaceChildren(...tier2Cards);
   $("char-tier2").hidden = $("char-tier2-title").hidden = tier2Cards.length === 0;
+  $("char-tier3").replaceChildren(...tier3Cards);
+  $("char-tier3").hidden = $("char-tier3-title").hidden = tier3Cards.length === 0;
   $("char-note").textContent = tr(note);
   confirm.hidden = pickedChoice === null;
   confirm.textContent = tr("Choisir cette voie (définitif)");

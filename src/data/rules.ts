@@ -421,7 +421,7 @@ export const RULES = {
   /** Un point en Vie : PV max en plus. */
   hpPerVie: 4,
   /** Second souffle (voie bleue) : PV rendus aux rangs 1, 2, 3. Double frappe : autant de fois par étage que son rang. */
-  secondWindHeal: [4, 7, 10, 13],
+  secondWindHeal: [4, 7, 10, 13, 16, 19],
   /** Cri de guerre (voie rouge, Rang II) : portée, PV max d'un ennemi « faible », sa chance de fuir. */
   warCryRadius: 3,
   /** Pinceau magique : tours que dure le faux mur ; diapason : portée en cases (2026-11-18, C). */

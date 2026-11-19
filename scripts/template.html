@@ -255,7 +255,7 @@
   #wheel-stack { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   #wheel-pow[hidden] { display: none; }
   #wheel-pow { justify-content: center; }
-  #wheel-pow button { flex: 0 1 24%; }
+  #wheel-pow button { flex: 1 1 0; max-width: 24%; }
   #wheel-ammo[hidden] { display: none; }
   #wheel-ammo { justify-content: center; box-shadow: inset 0 0 0 2px #8a9ab0, 0 0 0 2px #120d08; }
   #wheel-ammo button { flex: 0 1 24%; position: relative; }
@@ -596,8 +596,8 @@
   .char-stat b { color: #fff3c8; font-weight: normal; min-width: 64px; text-align: right; }
   .char-plus { width: 34px; height: 30px; padding: 0; font-size: 24px; line-height: 1; }
   .char-sep { border-top: 2px solid #3a2e1e; margin: 6px 0; }
-  #char-tier2[hidden], #char-tier2-title[hidden] { display: none; }
-  #char-skills, #char-tier2 { width: min(100%, 318px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #char-tier2[hidden], #char-tier2-title[hidden], #char-tier3[hidden], #char-tier3-title[hidden] { display: none; }
+  #char-skills, #char-tier2, #char-tier3 { width: min(100%, 318px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .skill-card { padding: 6px 4px; background: #241c14; box-shadow: inset 2px 2px 0 #4a3e2a, inset -2px -2px 0 #0c0906; text-align: center; font-size: 15px; color: var(--dim); line-height: 1.1; cursor: pointer; }
   .skill-card svg { width: 40px; height: 40px; display: block; margin: 0 auto 4px; }
   .skill-card b { display: block; font-size: 17px; color: #fff3c8; font-weight: normal; text-transform: uppercase; }
@@ -727,6 +727,8 @@
       <button id="wheel-tourbillon" type="button" hidden></button>
       <button id="wheel-charge" type="button" hidden></button>
       <button id="wheel-cri" type="button" hidden></button>
+      <button id="wheel-bastion" type="button" hidden></button>
+      <button id="wheel-execution" type="button" hidden></button>
     </div><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
       <button id="wheel-hide" type="button"></button>
@@ -854,6 +856,8 @@
       <div id="char-skills"></div>
       <div class="char-sec" id="char-tier2-title" hidden>Rang II</div>
       <div id="char-tier2" hidden></div>
+      <div class="char-sec" id="char-tier3-title" hidden>Rang III</div>
+      <div id="char-tier3" hidden></div>
       <div id="char-note"></div>
       <button id="char-confirm" type="button" hidden></button>
     </section>

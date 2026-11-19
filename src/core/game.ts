@@ -2,7 +2,7 @@ import { QUEST_TASKS, type QuestTask, type QuestTaskId } from "../data/quests";
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
-import { MAIN_MAX_RANK, MAX_RANK, PATH_LEVEL, PathId, PATHS, PowerId, StatId, TIER2_LEVEL } from "../data/skills";
+import { ActivePower, MAIN_MAX_RANK, MAX_RANK, PATH_LEVEL, PathId, PATHS, PowerId, StatId, TIER2_LEVEL, TIER3_LEVEL } from "../data/skills";
 import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
 import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
@@ -60,6 +60,9 @@ export interface FloorPerks {
   chainRefunds: number;
   /** Rang II (2026-11-17) : tourbillons, charges, cris de guerre déjà faits sur l'étage. */
   whirls?: number;
+  /** Rang III (2026-11-19) : bastions et exécutions déjà faits sur l'étage. */
+  bastions?: number;
+  executions?: number;
   /** 2026-11-18 : ticket d'exposition déjà servi, pinceau, diapason. */
   ticket?: number;
   brush?: number;
@@ -250,11 +253,18 @@ export class Game {
   private throwOrder: { uid: number; x: number; y: number } | null = null;
   private skillOrder: number | null = null;
   /** Le pouvoir que `skillOrder` déclenche (null : celui du bouton, second souffle ou double frappe). */
-  private skillPower: "tourbillon" | "charge" | "cri_guerre" | null = null;
+  private skillPower: ActivePower | null = null;
   /** Bonus du prochain coup du héros (charge, riposte) : toucher et dégâts. */
   private strikeBonus = { hit: 0, damage: 0 };
   /** Tour de la dernière riposte (une par tour). */
   private ripostedOn = -9;
+  /** Bastion (voie bleue, Rang III) : actif jusqu'à ce tour compris. */
+  bastionUntil = -1;
+  /** Frénésie (voie rouge, Rang III) : coups qui portent d'affilée, et le tour du dernier. */
+  private frenzy = 0;
+  private frenzyTurn = -9;
+  /** Soif de sang : le tour où elle a déjà soigné. */
+  private thirstTurn = -9;
   private useOrder: number | null = null;
   /** Un objet du sac attend d'être consommé (ou lancé) au prochain tour. */
   usePending(): boolean {
@@ -1353,6 +1363,7 @@ export class Game {
     this.events.push({ type: "attack", attacker: m, target: this.hero, result });
     if (result.damage > 0) this.bleed(this.hero, m);
     this.hurtHero(result.damage, this.killerName(m));
+    if (result.damage > 0 && this.bastionActive() && !m.boss && (m.size ?? 1) === 1 && this.hero.hp > 0) this.knockBack(m);
   }
 
   /**
@@ -4180,6 +4191,10 @@ export class Game {
   tier2Open(): boolean {
     return this.level >= TIER2_LEVEL;
   }
+  /** Rang III ouvert (niveau 11) : le Rang II ne reçoit plus de point (Thomas, 2026-11-19). */
+  tier3Open(): boolean {
+    return this.level >= TIER3_LEVEL;
+  }
 
   /** Pourquoi on ne peut pas monter ce pouvoir maintenant (hors points et combat) : rang I gelé, rang II fermé, max. */
   improveRefusal(id: PowerId): "unknown" | "max" | "frozen" | "locked" | null {
@@ -4188,24 +4203,54 @@ export class Game {
     const r = this.rank(id);
     if (id === path.main.id) {
       if (r >= MAIN_MAX_RANK) return "max";
-      // Rangs 1-2 quand on veut, 3-4 avec le Rang II (niveau 6).
+      // Rangs 1-2 quand on veut, 3-4 avec le Rang II (niveau 6), 5-6 avec le Rang III (niveau 11).
+      if (r >= 4 && !this.tier3Open()) return "locked";
       return r >= MAX_RANK && !this.tier2Open() ? "locked" : null;
     }
     if (path.secondaries.some((pw) => pw.id === id)) return r >= MAX_RANK ? "max" : this.tier2Open() ? "frozen" : null;
-    if (path.tier2.some((pw) => pw.id === id)) return r >= MAX_RANK ? "max" : this.tier2Open() ? null : "locked";
+    if (path.tier2.some((pw) => pw.id === id)) return r >= MAX_RANK ? "max" : !this.tier2Open() ? "locked" : this.tier3Open() ? "frozen" : null;
+    if (path.tier3.some((pw) => pw.id === id)) return r >= MAX_RANK ? "max" : this.tier3Open() ? null : "locked";
     return "unknown";
   }
 
   /** Garde (voie bleue, Rang II) : la classe d'armure monte quand deux ennemis ou plus touchent le héros. */
   guardBonus(): number {
     const r = this.rank("garde");
-    if (r === 0 || !this.hero) return 0;
+    if (!this.hero) return 0;
+    if (r === 0) return this.stanceBonus();
     const near = this.monsters.filter((m) => m.alerted && m.hp > 0 && this.inReach(m, this.hero)).length;
-    return near >= 2 ? r + 1 : 0;
+    return (near >= 2 ? r + 1 : 0) + this.stanceBonus();
+  }
+
+  /** Rang III bleu : Sang-froid (sous le quart des PV) et Posture (le héros ne s'est pas déplacé ce tour-ci). */
+  stanceBonus(): number {
+    if (!this.hero) return 0;
+    let ac = 0;
+    const cold = this.rank("sang_froid");
+    if (cold > 0 && this.hero.hp * 4 <= this.hero.maxHp) ac += cold + 2;
+    const post = this.rank("posture");
+    if (post > 0 && this.hero.x === this.hero.fromX && this.hero.y === this.hero.fromY) ac += post;
+    return ac;
+  }
+
+  /** Bastion actif (voie bleue, Rang III). */
+  bastionActive(): boolean {
+    return this.turn <= this.bastionUntil;
+  }
+
+  /** Exécution (voie rouge, Rang III) : l'ennemi au contact le plus entamé sous le seuil (pas un boss ni un morceau). */
+  executeTarget(): Actor | null {
+    const limit = this.rank("execution") >= 2 ? 0.3 : 0.25;
+    const ok = this.visibleMonsters().filter(
+      (m) => (this.inReach(this.hero, m) || this.inWeaponReach(m)) && !m.boss && !m.part && m.defId !== "colosse" && m.defId !== "battant" && !this.isInert(m) && m.hp <= m.maxHp * limit,
+    );
+    return ok.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] ?? null;
   }
 
   /** Encaisseur (voie bleue, Rang II) : moins de dégâts à chaque coup reçu, jamais moins de 1. */
   private absorb(damage: number): number {
+    // Bastion (voie bleue, Rang III) : les dégâts reçus sont divisés par deux.
+    if (damage > 0 && this.bastionActive()) damage = Math.ceil(damage / 2);
     // Affaibli (Thomas, 2026-11-18 : la voie bleue battait le Carillon deux fois plus souvent que la rouge) : -1 aux
     // deux rangs ; au rang 1 seulement sur les coups de 3 dégâts ou plus, au rang 2 sur tous (jamais moins de 1).
     const r = this.rank("encaisseur");
@@ -4226,12 +4271,14 @@ export class Game {
   }
 
   /** Pouvoirs du Rang II qui s'utilisent (voie rouge) : combien il en reste sur l'étage. */
-  powerUsesLeft(id: "tourbillon" | "charge" | "cri_guerre"): number {
+  powerUsesLeft(id: ActivePower): number {
     const r = this.rank(id);
     if (r === 0) return 0;
     const p = this.perks();
     if (id === "tourbillon") return r - (p.whirls ?? 0);
     if (id === "charge") return r + 1 - (p.charges ?? 0);
+    if (id === "bastion") return 1 - (p.bastions ?? 0);
+    if (id === "execution") return r + 1 - (p.executions ?? 0);
     return 1 - (p.cries ?? 0);
   }
 
@@ -4267,17 +4314,19 @@ export class Game {
   }
 
   /** Pourquoi ce pouvoir du Rang II ne peut pas servir maintenant, ou null. */
-  powerRefusal(id: "tourbillon" | "charge" | "cri_guerre"): "none" | "used" | "no-target" | null {
+  powerRefusal(id: ActivePower): "none" | "used" | "no-target" | null {
     if (this.over || this.rank(id) === 0) return "none";
     if (this.powerUsesLeft(id) <= 0) return "used";
     if (id === "tourbillon" && this.whirlTargets().length === 0) return "no-target";
     if (id === "charge" && !this.chargeTarget()) return "no-target";
     if (id === "cri_guerre" && !this.visibleMonsters().some((m) => gapBetween(m, this.hero) <= RULES.warCryRadius)) return "no-target";
+    if (id === "execution" && !this.executeTarget()) return "no-target";
+    if (id === "bastion" && this.bastionActive()) return "used";
     return null;
   }
 
   /** Ordre : utiliser un pouvoir du Rang II (un tour). */
-  usePower(id: "tourbillon" | "charge" | "cri_guerre"): boolean {
+  usePower(id: ActivePower): boolean {
     if (this.powerRefusal(id) !== null) return false;
     this.wait();
     this.waiting = false;
@@ -4286,7 +4335,7 @@ export class Game {
     return true;
   }
 
-  private resolvePower(id: "tourbillon" | "charge" | "cri_guerre"): void {
+  private resolvePower(id: ActivePower): void {
     if (this.powerRefusal(id) !== null) return;
     const p = this.perks();
     if (id === "tourbillon") {
@@ -4294,6 +4343,23 @@ export class Game {
       p.whirls = (p.whirls ?? 0) + 1;
       this.events.push({ type: "power", power: "tourbillon", count: targets.length });
       targets.forEach((m, i) => { if (this.monsters.includes(m) && !this.over) this.heroAttacks(m, i > 0); });
+    } else if (id === "bastion") {
+      p.bastions = (p.bastions ?? 0) + 1;
+      this.bastionUntil = this.turn + (this.rank("bastion") >= 2 ? 4 : 3);
+      this.events.push({ type: "power", power: "bastion" });
+    } else if (id === "execution") {
+      const m = this.executeTarget();
+      if (!m) return;
+      p.executions = (p.executions ?? 0) + 1;
+      this.faceToward(this.hero, m);
+      this.events.push({ type: "power", power: "execution" });
+      m.crush = true;
+      m.heroHurt = true;
+      m.hp = 0;
+      this.events.push({ type: "heavyBlow", actor: m, kind: "oneShot" });
+      this.bleed(m, this.hero);
+      this.raiseAlarm(RULES.alarmCombat, m);
+      this.removeIfDead(m);
     } else if (id === "charge") {
       const c = this.chargeTarget();
       if (!c) return;
@@ -9833,6 +9899,12 @@ export class Game {
     if (!this.testRun || this.over) return false;
     if (!this.teleport(11)) return false;
     this.testBoss2(false);
+    // Niveau 11 (Thomas, 2026-11-19) : le Rang III s'ouvre, son point de voie reste à placer (le « ! » du héros).
+    if (this.level < 11) {
+      this.levelUpNow();
+      while (this.points > 0 && this.allocate(this.alloc.force <= this.alloc.vie ? "force" : "vie"));
+      this.hero.hp = this.hero.maxHp;
+    }
     this.inventory.add("fleche_obsidienne", 20);
     this.inventory.add("potion_gel", 2);
     this.inventory.add("grenade_sainte", 2);
@@ -10323,6 +10395,12 @@ export class Game {
     if (this.rank("rage") > 0 && this.hero.hp * 2 < this.hero.maxHp) damageBonus += this.rank("rage");
     damageBonus += this.curseBonusOn(monster);
     damageBonus += this.strikeBonus.damage;
+    // Frénésie (voie rouge, Rang III) : +1 dégât par coup qui a porté d'affilée (les tours qui se suivent), plafonné.
+    const frenzyRank = this.rank("frenesie");
+    if (frenzyRank > 0) {
+      if (this.frenzyTurn < this.turn - 1) this.frenzy = 0;
+      damageBonus += Math.min(this.frenzy, frenzyRank >= 2 ? 4 : 3);
+    }
     const attacker = { attackBonus: this.hero.attackBonus + this.streakBonus() + this.strikeBonus.hit, damage: { ...this.hero.damage, bonus: this.hero.damage.bonus + damageBonus }, grown: this.hero.grown };
     const critFrom = this.rank("coup_puissant") > 0 ? 19 - this.rank("coup_puissant") : 20;
     const advantaged = opportunity || this.heroHasAdvantageOn(monster);
@@ -10334,6 +10412,12 @@ export class Game {
     // Têtu : le premier coup raté de l'étage est relancé.
     if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
     this.noteHeroAttack(result.hit);
+    if (frenzyRank > 0) {
+      if (result.hit) {
+        if (this.frenzyTurn !== this.turn || this.frenzy === 0) this.frenzy++;
+        this.frenzyTurn = this.turn;
+      } else this.frenzy = 0;
+    }
     if (!extra) {
       // Vitesse de l'arme : une attaque lente laisse plus de temps aux monstres, une rapide moins.
       const speed = this.weapon("melee")?.speed;
@@ -10526,6 +10610,14 @@ export class Game {
     // Pas d'XP ni de victoire pour un monstre que le héros n'a jamais touché (piège, encre, spores, querelle…).
     if (!monster.heroHurt) byHero = false;
     if (byHero) this.perks().kills = (this.perks().kills ?? 0) + 1;
+    // Soif de sang (voie rouge, Rang III) : un ennemi tué rend des PV, une fois par tour.
+    const thirst = this.rank("soif_sang");
+    if (byHero && thirst > 0 && this.thirstTurn !== this.turn && this.hero.hp > 0 && this.hero.hp < this.hero.maxHp) {
+      this.thirstTurn = this.turn;
+      const before = this.hero.hp;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + (thirst >= 2 ? 3 : 2));
+      this.events.push({ type: "power", power: "soif_sang", healed: this.hero.hp - before });
+    }
     // Sporelin : il éclate en un nuage de spores (empoisonné) sur sa case et ses 4 voisines.
     if (sdef?.burstGas) {
       this.puffGas(monster, sdef.burstGas);
@@ -11057,6 +11149,8 @@ export class Game {
         m.wary = false;
         this.events.push({ type: "attack", attacker: m, target: this.hero, result });
         if (result.damage > 0) this.bleed(this.hero, m);
+        // Bastion (voie bleue, Rang III) : qui touche le héros au contact recule d'une case.
+        if (result.damage > 0 && this.bastionActive() && !m.boss && (m.size ?? 1) === 1) this.knockBack(m);
         this.raiseAlarm(RULES.alarmCombat, this.hero);
         this.wakeNear(this.hero);
         this.hurtHero(result.damage, this.killerName(m));
@@ -11137,7 +11231,7 @@ export class Game {
     // Le héros caché derrière une colonne ou un meuble, ou dans le noir : la pierre a du mal à l'atteindre.
     const covered = this.hasCover(hero) && !this.inReach(m, hero);
     const cowed = (m.cowed ?? 0) > 0;
-    const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, { armorClass: hero.armorClass + this.undeadWard(m) }, covered || cowed ? "disadvantage" : "normal");
+    const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, { armorClass: hero.armorClass + this.stanceBonus() + this.undeadWard(m) }, covered || cowed ? "disadvantage" : "normal");
     result.damage = this.absorb(result.damage);
     this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
     if (result.damage > 0) this.bleed(hero, m);

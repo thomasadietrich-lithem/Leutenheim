@@ -218,7 +218,7 @@ export type GameEvent =
   /** Artefacts qui s'utilisent : faux mur peint (puis effacé), diapason qui vibre. */
   | { type: "artifact"; what: "paint" | "unpaint" | "fork"; x?: number; y?: number; traps?: number; secret?: boolean }
   /** Rang II des voies (2026-11-17) : riposte, tourbillon (ennemis touchés), charge, cri de guerre (ennemis touchés, fuyards). */
-  | { type: "power"; power: "riposte" | "tourbillon" | "charge" | "cri_guerre"; count?: number; fled?: number }
+  | { type: "power"; power: "riposte" | "tourbillon" | "charge" | "cri_guerre" | "bastion" | "execution" | "soif_sang"; count?: number; fled?: number; healed?: number }
   | { type: "lastStand" }
   | { type: "fire"; fromX: number; fromY: number; x: number; y: number; cells: Point[] }
   /** Une torche lancée (Thomas, 2026-11-14) : elle vole et met le feu à sa case (ou s'éteint dans l'eau). */

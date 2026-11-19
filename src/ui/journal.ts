@@ -479,6 +479,9 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             ? `Le diapason chante : ${e.traps ? `pièges révélés : ${e.traps}` : "aucun piège"}${e.secret ? ", un passage secret s'ouvre" : ""}.`
             : "Le diapason chante : rien de caché alentour.";
     case "power":
+      if (e.power === "bastion") return "Bastion ! Les coups reçus sont divisés par deux, et qui vous frappe recule.";
+      if (e.power === "execution") return "Exécution ! L'ennemi tombe d'un coup.";
+      if (e.power === "soif_sang") return `Soif de sang : +${e.healed ?? 0} PV.`;
       return e.power === "riposte"
         ? "Riposte !"
         : e.power === "tourbillon"

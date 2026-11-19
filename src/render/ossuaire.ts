@@ -222,11 +222,23 @@ function face(map: GameMap, x: number, y: number): boolean {
   return false;
 }
 
-/** H : le mur court de gauche à droite ; V : de haut en bas ; J : jonction (angle, T, X). */
+/**
+ * H : le mur court de gauche à droite ; V : de haut en bas ; J : jonction (angle, T, X).
+ * On lit le sens du mur d'après le côté où l'on voit du sol (Thomas, 2026-11-19 : « quand deux murs sont collés, il n'y a
+ * que des X ») : du sol au-dessus ou au-dessous = un mur couché ; à gauche ou à droite = un mur debout ; sol seulement en
+ * diagonale (un angle) ou des deux côtés = jonction.
+ */
 function kindOf(map: GameMap, x: number, y: number): "H" | "V" | "J" {
-  const h = face(map, x - 1, y) || face(map, x + 1, y);
-  const v = face(map, x, y - 1) || face(map, x, y + 1);
-  return h && v ? "J" : v ? "V" : "H";
+  const openUD = !wallish(map, x, y - 1) || !wallish(map, x, y + 1);
+  const openLR = !wallish(map, x - 1, y) || !wallish(map, x + 1, y);
+  if (openUD && !openLR) return "H";
+  if (openLR && !openUD) return "V";
+  if (openUD && openLR) return "J";
+  // sol seulement en diagonale : un angle, ou le croisement de deux murs (X) ; un mur épais qui continue tout droit
+  // garde son sens.
+  const h = face(map, x - 1, y) && face(map, x + 1, y);
+  const v = face(map, x, y - 1) && face(map, x, y + 1);
+  return h && !v ? "H" : v && !h ? "V" : "J";
 }
 
 function chalkAt(X: number, Y: number, k: "H" | "V" | "J", ly: number): RGB {

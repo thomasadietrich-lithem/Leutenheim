@@ -336,6 +336,10 @@ export const RULES = {
   restTurns: 20,
   /** Part des points de vie manquants rendue par un repos mené à son terme. */
   restHealShare: 0.5,
+  /** Repos à partir de la section 2 : part de la vie manquante rendue, étage par étage (6, 7, 8, 9, 10). */
+  restHealShareDeep: [0.5, 0.42, 0.36, 0.3, 0.3],
+  /** Poussées réussies qu'il faut pour arracher le battant du Carillon. */
+  carillonClapperPushes: 3,
   /** Nombre d'étages d'une section (région à thème). */
   floorsPerSection: 5,
   /** Chance qu'une clef traîne quelque part sur l'étage. Elle ouvre une porte verrouillée, sans jet ni bruit. */

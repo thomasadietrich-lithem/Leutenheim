@@ -1063,9 +1063,12 @@ export class Game {
       st.ring = RULES.carillonEvery;
       this.events.push({ type: "carillon", what: "wake", actor: m });
     }
-    // À mi-vie, deux envahis sortent du mycélium.
-    if (!st.sprouted && m.hp * 2 <= m.maxHp) {
-      st.sprouted = true;
+    // Aux deux tiers puis au tiers de sa vie (Thomas, 2026-11-19 ; une seule fois à mi-vie avant), deux fidèles sortent
+    // du mycélium.
+    const wave = !st.sprouted && m.hp * 3 <= m.maxHp * 2 ? 1 : st.sprouted && !st.sprouted2 && m.hp * 3 <= m.maxHp ? 2 : 0;
+    if (wave > 0) {
+      if (wave === 1) st.sprouted = true;
+      else st.sprouted2 = true;
       for (const p of layout.sprouts ?? []) {
         if (this.actorAt(p.x, p.y) || !this.map.isWalkable(p.x, p.y)) continue;
         const e = this.newMonster(MONSTERS.fidele, p.x, p.y, false);
@@ -2283,7 +2286,9 @@ export class Game {
       m.quiet = 0;
       return false; // au contact : il frappe (tour ordinaire)
     }
-    if (moved && near) {
+    // Blessé, il ne lâche plus sa proie : il remonte le coup jusqu'à elle, même immobile, même de loin (sinon un archer
+    // qui ne bouge pas le tuait sans jamais être approché).
+    if ((moved && near) || m.hp < m.maxHp) {
       m.quiet = 0;
       m.goal = { x: this.hero.x, y: this.hero.y };
     } else if ((m.quiet = (m.quiet ?? 0) + 1) >= 2) {
@@ -5079,9 +5084,14 @@ export class Game {
       const guarded = m.armorClass >= RULES.carillonClapperGuard;
       const ok = d20 === 20 || (!guarded && d20 !== 1 && d20 + this.pushBonus() >= RULES.pushDc);
       this.events.push({ type: "push", target: m, d20, bonus: this.pushBonus(), total: d20 + this.pushBonus(), success: ok, moved: false, slam: 0 });
+      // Trois poussées réussies pour l'arracher (Thomas, 2026-11-19 ; une seule suffisait : le boss ne filtrait plus
+      // rien). Chaque poussée l'ébranle d'un tiers.
       if (ok) {
-        m.hp = 0;
-        this.removeIfDead(m);
+        m.hp -= Math.ceil(m.maxHp / RULES.carillonClapperPushes);
+        if (m.hp <= 0) {
+          m.hp = 0;
+          this.removeIfDead(m);
+        }
       }
       return;
     }
@@ -5269,7 +5279,10 @@ export class Game {
       this.resting = 0;
       this.events.push({ type: "rest", phase: "interrupted", healed: 0 });
     } else if (this.resting === 0) {
-      const share = RULES.restHealShare;
+      // Moins de soins gratuits en bas (Thomas, 2026-11-19 : « la difficulté doit augmenter au fur et à mesure ») : le
+      // repos rend la moitié de la vie manquante en section 1 ; en section 2, de moins en moins à chaque étage.
+      const deep = RULES.restHealShareDeep;
+      const share = this.depth > RULES.floorsPerSection ? deep[Math.min(deep.length - 1, (this.depth - 1) % RULES.floorsPerSection)] : RULES.restHealShare;
       const healed = Math.ceil((this.hero.maxHp - this.hero.hp) * share);
       this.hero.hp += healed;
       this.current.rested = true;
@@ -9918,7 +9931,9 @@ export class Game {
       if (m.cowed) m.cowed--;
       const sdef = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;
       // Myconide : lent, il ne joue qu'un tour sur deux.
-      if (sdef.slow && (this.turn + m.id) % 2 === 0) continue;
+      // Lent, sauf blessé à mort (Thomas, 2026-11-19 : « augmenter la difficulté du champignon ») : sous la moitié de sa
+      // vie, le myconide s'emballe et joue à chaque tour.
+      if (sdef.slow && m.hp * 2 > m.maxHp && (this.turn + m.id) % 2 === 0) continue;
       // Myconide : aveugle, il sent les pas (à travers les murs) ; un héros immobile 2 tours, il le perd.
       if (sdef.tremorSense && !this.peaceful && this.tremorAct(m, sdef.tremorSense)) continue;
       // Le héros est une statue : on perd sa trace, on erre.

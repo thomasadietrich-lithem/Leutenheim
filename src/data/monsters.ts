@@ -124,11 +124,11 @@ export const MONSTERS = {
     id: "myconide",
     name: "Myconide",
     family: "champignons",
-    description: "Un grand champignon qui marche, aveugle. Il sent vos pas à travers la pierre : qui s'arrête, il le perd. Lent, mais il frappe fort, et le feu le dévore.",
+    description: "Un grand champignon qui marche, aveugle. Il sent vos pas à travers la pierre : qui s'arrête, il le perd. Lent, mais il frappe fort, et le feu le dévore. Blessé, il ne lâche plus sa proie, et il s'emballe quand il est à moitié mort.",
     hp: 24,
-    armorClass: 13,
-    attackBonus: 6,
-    damage: { count: 1, sides: 8, bonus: 2 },
+    armorClass: 14,
+    attackBonus: 8,
+    damage: { count: 2, sides: 6, bonus: 2 },
     vision: 0,
     xpMin: 5,
     xpMax: 7,
@@ -317,14 +317,18 @@ export function spawnsForDepth(depth: number): FloorSpawns {
     // CRESCENDO (Thomas, 2026-11-15 : « les mobs faciles au début ; à la fin, les faciles et les difficiles », comme en
     // section 1) : étage 6 sporelins et envahis seuls ; 7 + cueilleur ; 8 + myconide ; 9 et 10 meutes plus grosses (C).
     const d = depth - 5;
+    // PENTE RÉGULIÈRE (Thomas, 2026-11-19 : « plus on avance dans une section, plus on rencontre ses mobs difficiles » ;
+    // l'étage 6 tuait plus que les étages 7, 8 et 9 réunis) : l'étage 6 s'adoucit (peu d'envahis), puis les faciles se
+    // raréfient et les difficiles prennent la place ; plus de salles peuplées aux étages 8 et 9. Aucun PV n'est changé.
+    const k = Math.min(d, 4) - 1;
     return {
-      roomChance: Math.min(0.35 + d * 0.06, 0.7),
-      sleepChance: Math.max(0.2, 0.6 - (d - 1) * 0.1),
+      roomChance: [0.36, 0.47, 0.64, 0.78][k],
+      sleepChance: [0.7, 0.5, 0.35, 0.2][k],
       entries: [
-        { monster: "sporelin", weight: 1, packMin: 1, packMax: Math.min(1 + d, 4) },
-        { monster: "envahi", weight: 0.8, packMin: 1, packMax: d >= 4 ? 3 : d >= 2 ? 2 : 1 },
-        ...(d >= 2 ? [{ monster: "cueilleur" as const, weight: 0.45, packMin: 1, packMax: 1 }] : []),
-        ...(d >= 3 ? [{ monster: "myconide" as const, weight: 0.35, packMin: 1, packMax: d >= 4 ? 2 : 1 }] : []),
+        { monster: "sporelin", weight: [1, 0.9, 0.7, 0.5][k], packMin: 1, packMax: Math.min(1 + d, 4) },
+        { monster: "envahi", weight: [0.4, 0.8, 0.9, 1][k], packMin: d >= 4 ? 2 : 1, packMax: d >= 3 ? 3 : d >= 2 ? 2 : 1 },
+        ...(d >= 2 ? [{ monster: "cueilleur" as const, weight: [0, 0.45, 0.6, 0.7][k], packMin: 1, packMax: d >= 4 ? 2 : 1 }] : []),
+        ...(d >= 3 ? [{ monster: "myconide" as const, weight: [0, 0, 0.6, 1.1][k], packMin: 1, packMax: d >= 4 ? 3 : 2 }] : []),
       ],
     };
   }

@@ -123,6 +123,7 @@ export interface BossState {
   cracked?: boolean;
   falseNote?: boolean;
   sprouted?: boolean;
+  sprouted2?: boolean;
   /** Pluie d'encre : les cases marquées, où une goutte tombera au tour suivant. */
   ink?: { x: number; y: number }[];
   /** L'encre a commencé (après la première onde) ; compteur de tours pour l'encre un tour sur deux. */

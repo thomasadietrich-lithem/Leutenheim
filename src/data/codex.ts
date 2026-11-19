@@ -46,6 +46,11 @@ export const CODEX_TRAPS: Record<TrapKind, string> = {
   snare: "Un anneau de fils pâles entre les pavés. Qui marche dessus est ligoté par le mycélium : deux tours pour s'en défaire.",
   hooks: "Une fente de terre d'où pointent des crocs de racine. Ils jaillissent, blessent et retiennent un tour.",
   spores: "Des vesses-de-loup à demi enterrées. Écrasées, elles crèvent en un nuage de spores qui empoisonne la case et ses voisines.",
+  tombSlab: "Une dalle de tombe fêlée, marquée d'une croix. Elle bascule : on tombe dans le caveau, on se blesse, et il faut un tour pour remonter.",
+  boneHands: "Des doigts d'os dépassent entre les dalles. Qui marche dessus se fait agripper les chevilles : une blessure, et deux tours pour se dégager.",
+  censer: "Un brûle-parfum de fer au ras du sol. Il lâche un nuage d'encens violet : qui s'y tient est engourdi et perd un tour sur deux.",
+  moonMirror: "Une dalle ronde d'argent poli. Elle renvoie la lune : la lumière tombe autour d'elle quelques tours, les morts proches se relèvent, et tout le monde vous voit.",
+  pendulum: "Dans les couloirs de l'ossuaire, une lame qui passe un tour sur deux. On la voit venir : attendez qu'elle soit remontée pour passer.",
 };
 
 /** États (pictos en haut à gauche, bulles au-dessus des monstres) : chaque picto d'état a sa fiche. */

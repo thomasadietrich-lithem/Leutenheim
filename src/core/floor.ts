@@ -19,6 +19,8 @@ import { TRAPS, TrapKind } from "../data/traps";
  */
 /** Tout ce qu'il faut garder d'un étage pour le retrouver tel quel en y revenant. */
 export interface FloorState {
+  /** Section 3 : la lune renvoyée par un miroir (piège), quelques tours autour de lui. */
+  moonFlashes?: { x: number; y: number; turns: number }[];
   map: GameMap;
   start: Point;
   stairs: Point;
@@ -354,8 +356,11 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
   const bonus = RULES.trapRoomChancePerSection * section;
   const chance = Math.min(RULES.trapRoomChanceMax + bonus, RULES.trapRoomChance + RULES.trapRoomChancePerDepth * (depth - 1) + bonus);
   const kinds = (Object.keys(TRAPS) as TrapKind[]).filter(
-    (k) => TRAPS[k].minDepth <= depth && (!TRAPS[k].sections || TRAPS[k].sections!.includes(Math.min(section, 1))),
+    (k) => TRAPS[k].minDepth <= depth && (!TRAPS[k].sections || TRAPS[k].sections!.includes(Math.min(section, 2))),
   );
+  // Section 3 : la lame pendule ne se pose que dans les couloirs (et n'y a qu'elle).
+  const roomKinds = kinds.filter((k) => !TRAPS[k].corridorOnly);
+  const corridorKinds = kinds.some((k) => TRAPS[k].corridorOnly) ? kinds.filter((k) => TRAPS[k].corridorOnly) : kinds;
   state.rooms.forEach((room, index) => {
     if (index === 0 || !rng.chance(chance)) return;
     // Pas de piège dans une salle à thème (Thomas, 2026-11-11). Le tirage a eu lieu : le hasard des autres salles ne change pas.
@@ -368,15 +373,15 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (state.map.get(x + dx, y + dy) !== Tile.Floor) open = false;
       if (!open || state.ground.some((g) => g.x === x && g.y === y)) continue;
       if (state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
-      let pick = kindRng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
-      const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? kinds[0];
+      let pick = kindRng.next() * roomKinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
+      const kind = roomKinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? roomKinds[0];
       const trap: Trap = { x, y, kind };
       if (hideRng.chance(hiddenShare)) trap.hidden = true;
       state.traps.push(trap);
       return;
     }
   });
-  placeCorridorTraps(state, seed, depth, kinds, hiddenShare);
+  placeCorridorTraps(state, seed, depth, corridorKinds, hiddenShare);
 }
 
 /**
@@ -423,7 +428,8 @@ function placeCorridorTraps(state: FloorState, seed: number, depth: number, kind
     let pick = rng.next() * kinds.reduce((sum, k) => sum + TRAPS[k].weight, 0);
     const kind = kinds.find((k) => (pick -= TRAPS[k].weight) < 0) ?? kinds[0];
     const trap: Trap = { x: at.x, y: at.y, kind };
-    if (rng.chance(hiddenShare)) trap.hidden = true;
+    // La lame pendule se voit toujours (on la regarde passer, on attend le bon moment).
+    if (rng.chance(hiddenShare) && !TRAPS[kind].swings) trap.hidden = true;
     state.traps.push(trap);
   }
 }

@@ -3872,7 +3872,12 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       assert.ok(game.monsters.every((m) => ["rat", "squelette", "squeletteArcher", "craneLunaire", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
       if (depth === 11) assert.ok(game.monsters.every((m) => m.defId === "rat" || m.defId === "squelette"), "étage 11 : rats et squelettes");
       assert.equal(cur.themes.length, 0, "aucune salle à thème");
-      assert.equal(cur.traps.length, 0, "aucun piège des sections du dessus");
+      assert.ok((cur.traps as { kind?: string }[]).every((t) => ["tombSlab", "boneHands", "censer", "moonMirror", "pendulum"].includes(t.kind ?? "")), "seulement les pièges de l'ossuaire");
+      for (const t of cur.traps as { x: number; y: number; kind?: string; hidden?: boolean }[]) {
+        const inRoom = (game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] }).rooms.some((r) => t.x >= r.x && t.y >= r.y && t.x < r.x + r.w && t.y < r.y + r.h);
+        if (t.kind === "pendulum") assert.ok(!inRoom && !t.hidden, "la lame pendule : dans un couloir, visible");
+        else assert.ok(inRoom, "les autres pièges : dans les salles");
+      }
       assert.equal(cur.torches.length, 0, "ni torche ni cheminée");
       assert.ok(!cur.gluck && !cur.soeur && !cur.krik && !cur.morillon && !cur.vernis && !cur.maestro && !cur.counter && !cur.chicken && !cur.niche);
       // pas de salle spéciale : ni autel à la pomme, ni coffre verrouillé
@@ -6802,6 +6807,27 @@ test("Ossuaire : squelette en tas d'os relevé par la lune, crâne brisé ; chan
       assert.equal(cr.beam, undefined);
     }
   }
+  // pièges : miroir de lune (la lune tombe autour), encens (engourdi), dalle effondrée qui ne fait plus rien
+  const gm = game as unknown as { current: { traps: { x: number; y: number; kind?: string; sprung?: boolean }[]; moonFlashes?: unknown[] }; springTrap: (a: Actor) => void; ossuaryTick: () => void; incense: unknown[]; turn: number };
+  game.monsters.splice(0);
+  const rat3 = g.newMonster(MONSTERS.rat, dark!.x, dark!.y, false);
+  game.monsters.push(rat3);
+  gm.current.traps.push({ x: dark!.x, y: dark!.y, kind: "moonMirror" });
+  gm.springTrap(rat3);
+  assert.ok(g.moonlit(dark!), "le miroir renvoie la lune");
+  gm.current.traps.splice(gm.current.traps.length - 1, 1, { x: dark!.x, y: dark!.y, kind: "censer" });
+  gm.current.moonFlashes = [];
+  gm.springTrap(rat3);
+  assert.ok(gm.incense.length > 0, "nuage d'encens");
+  gm.turn = 1;
+  gm.ossuaryTick();
+  assert.ok((rat3.stuck ?? 0) > 0, "engourdi");
+  gm.current.traps.splice(gm.current.traps.length - 1, 1, { x: dark!.x, y: dark!.y, kind: "tombSlab", sprung: true });
+  const hp3 = rat3.hp;
+  rat3.stuck = 0;
+  gm.springTrap(rat3);
+  assert.equal(rat3.hp, hp3, "dalle déjà effondrée : rien");
+  gm.current.traps.pop();
   // potion de gel : figé, puis dégelé
   const rat2 = g.newMonster(MONSTERS.rat, dark!.x, dark!.y, false);
   game.monsters.splice(0, game.monsters.length, rat2);

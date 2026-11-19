@@ -132,7 +132,28 @@ def mirror(state="armed"):
     return s
 
 
-if __name__ == "__main__":
+def pendulum_slot():
+    """Lame pendule (couloirs) : une rainure en travers de la case, marquée d'entailles ; la lame se dessine en jeu."""
+    s = S()
+    s.r(1, 8, 16, 3, "hole").r(1, 7, 16, 1, "tomb_d").r(1, 11, 16, 1, "tomb_l")
+    for x in (3, 7, 11, 15):
+        s.p(x, 6, "crack").p(x, 12, "crack")
+    return s
+
+
+def export():
+    """python3 art/pieges_oss_v1.py export → src/render/sprites/piegesOss.ts"""
+    from export_jeu_v4 import write
+    write("src/render/sprites/piegesOss.ts", "PIEGES_OSS",
+          "Pièges de la section 3 (art/pieges_oss_v1.png, Thomas 2026-11-19 : « Ok ») : armé / déclenché ; rainure de la lame pendule.",
+          {"tombSlab": slab().img(), "tombSlabSprung": slab("sprung").img(), "boneHands": hands().img(), "boneHandsSprung": hands("sprung").img(),
+           "censer": censer().img(), "censerSprung": censer("sprung").img(), "moonMirror": mirror().img(), "moonMirrorSprung": mirror("sprung").img(),
+           "pendulum": pendulum_slot().img(), "pendulumSprung": pendulum_slot().img()})
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+elif __name__ == "__main__":
     ob2 = load("ossuaire_objets_v2")
     from PIL import Image
     plan = ["#" * 11] + ["#" + "." * 9 + "#" for _ in range(4)] + ["#" * 11]

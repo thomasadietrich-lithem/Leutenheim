@@ -279,6 +279,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.what === "charge"
         ? "Le crâne lunaire se charge : une ligne de lumière s'allume… Sortez-en !"
         : `Le rayon de lune part sur toute la ligne (${e.damage ?? 0} dégâts à qui s'y trouve).`;
+    case "numb":
+      return "Engourdi par l'encens, vous perdez ce tour.";
     case "frost":
       return e.what === "freeze" ? `${capFirst(e.actor.name)} gèle sur place.` : `La glace craque : ${e.actor.name} dégèle.`;
     case "undead":
@@ -365,6 +367,11 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       if (e.kind === "snare") return hero ? "Des fils pâles se dressent et vous ligotent : deux tours pour vous en défaire." : `${who} se fait ligoter par le mycélium.`;
       if (e.kind === "hooks") return hero ? `Des racines-crochets jaillissent du sol (${e.damage} dégâts) et vous retiennent.` : `${who} se fait harponner par des racines : ${e.damage} dégâts.`;
       if (e.kind === "spores") return hero ? "Pouf ! Les vesses-de-loup crèvent en un nuage de spores." : `${who} écrase des vesses-de-loup : un nuage de spores.`;
+      if (e.kind === "tombSlab") return hero ? `La dalle bascule : vous tombez dans un caveau (${e.damage} dégâts) et devez en remonter.` : `${who} tombe dans un caveau : ${e.damage} dégâts.`;
+      if (e.kind === "boneHands") return hero ? `Des mains d'os jaillissent du sol et vous agrippent les chevilles (${e.damage} dégâts) : deux tours pour vous dégager.` : `${who} se fait agripper par des mains d'os.`;
+      if (e.kind === "censer") return hero ? "L'encensoir crache un nuage violet : l'encens engourdit." : `${who} renverse un encensoir : un nuage violet.`;
+      if (e.kind === "moonMirror") return hero ? "Le miroir renvoie la lune : un éclair froid ! Tout l'ossuaire vous a vu, et les morts autour s'agitent." : `${who} marche sur un miroir de lune : la lumière jaillit.`;
+      if (e.kind === "pendulum") return hero ? `La lame pendule vous fauche au passage : ${e.damage} dégâts.` : `${who} se fait faucher par la lame pendule : ${e.damage} dégâts.`;
       if (e.kind === "gas") return hero ? "Pschhh… un gaz vert s'échappe de la grille !" : `${who} libère un nuage de gaz vert.`;
       return hero ? `Vous marchez sur un piège à pointes : ${e.damage} dégâts.` : `${who} tombe sur un piège à pointes : ${e.damage} dégâts.`;
     }

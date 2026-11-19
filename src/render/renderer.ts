@@ -59,6 +59,7 @@ import { TRAINARDS } from "./sprites/trainards";
 import { ARAIGNEE } from "./sprites/araignee";
 import { PIEGES } from "./sprites/pieges";
 import { PIEGES_CHAMPI } from "./sprites/piegesChampi";
+import { PIEGES_OSS } from "./sprites/piegesOss";
 import { CHAMPI_SALLES } from "./sprites/champiSalles";
 import { ALAMBIC } from "./sprites/alambic";
 import { NEIGE } from "./sprites/neige";
@@ -198,6 +199,7 @@ interface CloudTones {
 }
 const GAS_TONES: CloudTones = { shadow: "#2e5a1e", body: "#7ab84a", light: "#d0f088", shadowAlpha: 0.22, bodyAlpha: 0.3, lightAlpha: 0.3, bubbles: true };
 const DISCORD_TONES: CloudTones = { shadow: "#5a1438", body: "#b03a78", light: "#e88ab8", shadowAlpha: 0.4, bodyAlpha: 0.45, lightAlpha: 0.35 };
+const INCENSE_TONES: CloudTones = { shadow: "#3a2050", body: "#8a5ab8", light: "#c8a6ec", shadowAlpha: 0.35, bodyAlpha: 0.42, lightAlpha: 0.3 };
 const FROST_TONES: CloudTones = { shadow: "#4a7aa8", body: "#bfe6ff", light: "#ffffff", shadowAlpha: 0.35, bodyAlpha: 0.45, lightAlpha: 0.5 };
 const FOG_TONES: CloudTones = { shadow: "#000000", body: "#1c1924", light: "#4a4656", shadowAlpha: 0.72, bodyAlpha: 0.78, lightAlpha: 0.38 };
 /** Œil de chauve-souris : une ombre voûtée, pas le monstre lui-même. */
@@ -1578,6 +1580,32 @@ export class Renderer {
   }
   private inkDrops: { x: number; y: number; age: number }[] = [];
 
+  /** La lame pendule : elle se balance dans l'axe du couloir ; basse et cerclée de rouge les tours où elle frappe. */
+  private drawPendulum(x: number, y: number, ox: number, oy: number, down: boolean, horizontal: boolean): void {
+    const { ctx, tile } = this;
+    const cx = ox + (x + 0.5) * tile;
+    const cy = oy + (y + 0.5) * tile;
+    const swing = Math.sin(this.time / 260) * (down ? 0.35 : 0.9);
+    const len = tile * (down ? 0.55 : 0.8);
+    ctx.save();
+    ctx.translate(cx, cy - tile * (down ? 0.2 : 0.9));
+    ctx.rotate(horizontal ? swing : swing + Math.PI / 2);
+    ctx.strokeStyle = "#5a5a6a";
+    ctx.lineWidth = Math.max(1, tile * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(0, -tile * 0.8);
+    ctx.lineTo(0, len - tile * 0.15);
+    ctx.stroke();
+    ctx.fillStyle = down ? "#e8ecf4" : "rgba(200,206,220,0.55)";
+    ctx.strokeStyle = down ? "#ff6040" : "#202028";
+    ctx.beginPath();
+    ctx.ellipse(0, len, tile * 0.42, tile * 0.16, 0, 0, Math.PI);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /** Rayon du crâne lunaire : un trait de lumière froide de sa case au bout de la ligne (0,45 s). */
   beamFlash(fromX: number, fromY: number, cells: readonly { x: number; y: number }[]): void {
     const end = cells[cells.length - 1] ?? { x: fromX, y: fromY };
@@ -2216,18 +2244,18 @@ export class Renderer {
           ? flash
             ? "gasSprung"
             : `gas${Math.floor(this.time / 260 + p.x) % 3}`
-          : kind === "pit"
+          : kind === "pit" || kind === "tombSlab"
             ? p.sprung
-              ? "pitSprung"
-              : "pit"
+              ? `${kind}Sprung`
+              : kind
             : flash
               ? `${kind}Sprung`
               : kind;
-      const art = PIEGES[name] ?? PIEGES_CHAMPI[name];
+      const art = PIEGES[name] ?? PIEGES_CHAMPI[name] ?? PIEGES_OSS[name];
       const u = tile / 16;
       // Un piège connu se repère (Thomas, 2026-11-18 : « quand on fouille une salle avec un piège, il doit apparaître en
       // orange ou rouge ») : une lueur rouge orangé qui palpite sous la dalle, cadre rouge.
-      if (!(kind === "pit" && p.sprung)) {
+      if (!((kind === "pit" || kind === "tombSlab") && p.sprung) && kind !== "pendulum") {
         const pulse = 0.5 + 0.5 * Math.sin(this.time / 300 + p.x + p.y);
         const tx = this.snap(ox + p.x * tile);
         const ty = this.snap(oy + p.y * tile);
@@ -2246,6 +2274,9 @@ export class Renderer {
       // Pièges de la section 2 (Thomas, 2026-11-18 : « plus visibles, pulsants, globuleux » ; choix « A + un peu de B ») :
       // un BULBE de mycélium violacé qui gonfle et dégonfle au milieu de la dalle, et quelques SPORES lumineuses au-dessus.
       if ((kind === "snare" || kind === "hooks" || kind === "spores") && !flash) this.drawTrapBulb(p.x, p.y, ox, oy, kind);
+      // Lame pendule (section 3) : une lame en croissant qui se balance au-dessus de la rainure ; elle passe un tour sur
+      // deux : en bas (rouge, elle frappe) ou remontée (pâle, on passe).
+      if (kind === "pendulum") this.drawPendulum(p.x, p.y, ox, oy, game.bladeDown(), game.map.isWalkable(p.x - 1, p.y) && game.map.isWalkable(p.x + 1, p.y));
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
@@ -2512,6 +2543,7 @@ export class Renderer {
     this.drawClouds(game, game.fog, ox, oy, FOG_TONES, 7);
     this.drawClouds(game, game.discordMist, ox, oy, DISCORD_TONES, 5);
     this.drawClouds(game, game.frost, ox, oy, FROST_TONES, 4);
+    this.drawClouds(game, game.incense, ox, oy, INCENSE_TONES, 5);
     // Œil de chauve-souris (bibelot) : l'ombre des monstres qu'on ne voit pas.
     const shadows = game.batShadows();
     if (shadows.length > 0) {

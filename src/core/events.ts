@@ -110,6 +110,8 @@ export type GameEvent =
    *  se lève ou se recouche ; rat qui dévore la nourriture au sol. */
   /** Crâne lunaire : il se charge (la ligne s'allume), puis le rayon part. */
   | { type: "beam"; actor: Actor; what: "charge" | "fire"; cells: { x: number; y: number }[]; damage?: number }
+  /** Encens : le héros, engourdi, perd ce tour. */
+  | { type: "numb"; actor: Actor }
   /** Potion de gel : un monstre gelé, puis dégelé. */
   | { type: "frost"; actor: Actor; what: "freeze" | "thaw" }
   | { type: "undead"; actor: Actor; what: "pile" | "crush" | "rise" | "chant0" | "chant" | "daze" | "wake" | "rest" | "eat"; item?: string }

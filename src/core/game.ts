@@ -530,6 +530,7 @@ export class Game {
     this.fog = [];
     this.discordMist = [];
     this.frost = [];
+    this.incense = [];
     this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
@@ -582,6 +583,8 @@ export class Game {
       state.population = Math.max(1, this.monsters.length);
       state.nextRespawn = this.turn + RULES.respawnTurns;
       placeSecrets(state, depth, floorSeed(this.runSeed, depth));
+      // Ses pièges à elle (Thomas, 2026-11-19 : « Maintenant piège », planche art/pieges_oss_v1.png).
+      placeTraps(state, floorSeed(this.runSeed, depth), depth);
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
       placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth)], floorSeed(this.runSeed, depth));
     } else if (fresh) {
@@ -841,6 +844,8 @@ export class Game {
       if (p.x < r.x || p.x >= r.x + r.w || p.y < r.y || p.y >= r.y + r.h) continue;
       if (Math.hypot(p.x - f.x, p.y - f.y) <= RULES.moonRadius - 0.5) return true;
     }
+    // Miroir de lune (piège) : la lumière tombe autour de lui quelques tours.
+    for (const f of this.current.moonFlashes ?? []) if (Math.max(Math.abs(p.x - f.x), Math.abs(p.y - f.y)) <= 2 && hasLineOfSight(this.map, f, p)) return true;
     return false;
   }
 
@@ -2470,28 +2475,48 @@ export class Game {
     if (trap.hidden && (actor.kind === "hero" || this.isVisible(trap.x, trap.y))) trap.hidden = false;
     const kind = trap.kind ?? "spikes";
     const def = TRAPS[kind];
+    // La lame pendule ne passe qu'un tour sur deux : entre deux passages, on traverse sans rien.
+    if (def.swings && !this.bladeDown()) return;
+    // Une dalle déjà effondrée ne fait plus rien.
+    if (def.sinks && trap.sprung) return;
     // Agilité (Thomas, 2026-11-11) : le héros qui marche sur un piège peut l'éviter d'un bond (d20 + agilité).
     if (actor.kind === "hero") {
       const d20 = this.rng.int(1, 20);
       const bonus = this.agility();
       if (d20 !== 1 && (d20 === 20 || d20 + bonus >= RULES.trapDodgeDc)) {
-        if (kind === "pit") trap.sprung = true;
+        if (kind === "pit" || def.sinks) trap.sprung = true;
         this.events.push({ type: "trapDodged", x: actor.x, y: actor.y, kind, d20, bonus });
         return;
       }
     }
     const damage = def.damage ? rollDice(this.rng, def.damage) : 0;
     this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage, kind });
-    if (kind === "pit") trap.sprung = true;
+    if (kind === "pit" || def.sinks) trap.sprung = true;
     if (def.stuck) actor.stuck = Math.max(actor.stuck ?? 0, def.stuck);
     if (def.poison && kind === "needle") this.poisonActor(actor, def.poison);
-    if (def.gasTurns) {
+    if (def.gasTurns && def.numb) {
+      // Encensoir : un nuage d'encens violet qui engourdit (un tour sur deux perdu), pas de poison.
+      const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: trap.x + dx, y: trap.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      this.cloud(this.incense, cells, def.gasTurns);
+    } else if (def.gasTurns) {
       this.puffGas(trap, def.gasTurns);
+    }
+    if (def.moonFlash) {
+      // Miroir de lune : la lumière tombe autour du miroir quelques tours ; tout l'étage proche voit le héros.
+      this.current.moonFlashes = [...(this.current.moonFlashes ?? []).filter((f) => !(f.x === trap.x && f.y === trap.y)), { x: trap.x, y: trap.y, turns: def.moonFlash }];
+      for (const m of this.monsters) {
+        if (m.boss || m.effigy || m.pile !== undefined || Math.max(Math.abs(m.x - trap.x), Math.abs(m.y - trap.y)) > 8) continue;
+        if (actor.kind === "hero") {
+          m.alerted = true;
+          m.asleep = false;
+        }
+      }
+      this.refreshLight();
     }
     if (damage > 0) {
       this.bleed(actor, actor);
       if (actor.kind === "hero") {
-        this.hurtHero(damage, { spikes: "un piège à pointes", pit: "une chute dans une fosse", needle: "une aiguille empoisonnée", gas: "le gaz", snare: "un lacet de mycélium", hooks: "des racines-crochets", spores: "des spores" }[kind]);
+        this.hurtHero(damage, { spikes: "un piège à pointes", pit: "une chute dans une fosse", needle: "une aiguille empoisonnée", gas: "le gaz", snare: "un lacet de mycélium", hooks: "des racines-crochets", spores: "des spores", tombSlab: "une chute dans un caveau", boneHands: "des mains d'os", censer: "l'encens", moonMirror: "un miroir de lune", pendulum: "une lame pendule" }[kind]);
       } else {
         actor.hp = Math.max(0, actor.hp - damage);
         this.removeIfDead(actor);
@@ -2616,6 +2641,8 @@ export class Game {
   /** Potion de discorde (Thomas, 2026-11-17 : « nuage rose sur plusieurs mobs, croix foncée, zone plus petite que le
    *  brouillard ») : un nuage rose foncé en croix, pour l'œil seulement (2 tours). */
   discordMist: { x: number; y: number; turns: number; thin?: boolean }[] = [];
+  /** Nuage d'encens (encensoir, section 3) : engourdit. */
+  incense: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Givre de la potion de gel (pour l'œil). */
   frost: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
@@ -2682,16 +2709,56 @@ export class Game {
     }
   }
 
+  /** Section 3 : la lame pendule est en bas ce tour-ci (un tour sur deux). */
+  bladeDown(): boolean {
+    return this.turn % 2 === 0;
+  }
+
+  /** Dans l'encens (encensoir) : engourdi. */
+  incenseAt(x: number, y: number): boolean {
+    return this.incense.some((f) => f.x === x && f.y === y && !f.thin);
+  }
+
+  /**
+   * Fin de tour, section 3 : l'encens se dissipe ; qui s'y tient perd un tour sur deux (engourdi) ; la lune du miroir
+   * s'éteint ; la lame pendule passe : qui se tient dessus quand elle descend est frappé.
+   */
+  private ossuaryTick(): void {
+    if (this.incense.length > 0) {
+      for (const a of [this.hero, ...this.monsters]) {
+        if (a.boss || !this.incenseAt(a.x, a.y) || this.turn % 2 === 0) continue;
+        a.stuck = Math.max(a.stuck ?? 0, 1);
+        if (a === this.hero) this.events.push({ type: "numb", actor: a });
+      }
+      for (const f of this.incense) f.turns--;
+      this.incense = this.incense.filter((f) => f.turns > 0);
+      for (const f of this.incense) if (f.turns === 1) f.thin = true;
+    }
+    const flashes = this.current?.moonFlashes;
+    if (flashes && flashes.length > 0) {
+      for (const f of flashes) f.turns--;
+      this.current.moonFlashes = flashes.filter((f) => f.turns > 0);
+      if (this.current.moonFlashes.length !== flashes.length) this.refreshLight();
+    }
+    if (this.bladeDown()) {
+      for (const a of [this.hero, ...this.monsters]) {
+        if (this.over) return;
+        const t = this.current.traps.find((p) => p.x === a.x && p.y === a.y && p.kind === "pendulum");
+        if (t && (a.x !== a.fromX || a.y !== a.fromY ? false : true)) this.springTrap(a);
+      }
+    }
+  }
+
   /** Fin de tour : le brouillard aveugle, puis se dissipe. */
   private fogTick(): void {
-    if (this.fog.length === 0) return;
-    this.fogBlinds();
-    for (const f of this.fog) f.turns--;
-    this.fog = this.fog.filter((f) => f.turns > 0);
     for (const f of this.discordMist) f.turns--;
     this.discordMist = this.discordMist.filter((f) => f.turns > 0);
     for (const f of this.frost) f.turns--;
     this.frost = this.frost.filter((f) => f.turns > 0);
+    if (this.fog.length === 0) return;
+    this.fogBlinds();
+    for (const f of this.fog) f.turns--;
+    this.fog = this.fog.filter((f) => f.turns > 0);
     for (const f of this.fog) if (f.turns === 1) f.thin = true;
   }
 
@@ -3518,6 +3585,7 @@ export class Game {
     const bell = this.monsters.find((m) => m.defId === "carillon");
     // Ossuaire : les puits de lune, seule lumière de la section (Thomas, 2026-11-19).
     for (const f of this.current?.furniture ?? []) if (f.kind === "moonWell") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: RULES.moonRadius, area: moonArea(this, f) });
+    for (const f of this.current?.moonFlashes ?? []) candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: 3, area: { x: f.x - 2, y: f.y - 2, w: 5, h: 5 } });
     const lair = this.current?.boss?.lair;
     if (bell && lair) candle.push({ x: bell.x + 1, y: bell.y + 3, faceX: 0, faceY: 0, radius: 8, area: lair });
     this.light = computeLight(this.map, [...fixed, ...carried, ...dropped, ...candle]);
@@ -5294,6 +5362,7 @@ export class Game {
     this.meltSnow();
     this.gasTick();
     this.fogTick();
+    this.ossuaryTick();
     this.fakeWallTick();
     this.sporeBlast();
     this.hushTick();

@@ -2475,4 +2475,6 @@ export const EN: Record<string, string> = {
   "Exécution ! L'ennemi tombe d'un coup.": "Execution! The enemy falls in one blow.",
   "Soif de sang : +{0} PV.": "Bloodthirst: +{0} HP.",
   "Rang III": "Tier III",
+  "plus vite": "faster",
+  "plus lent": "slower",
 };

@@ -265,6 +265,8 @@ export class Game {
   private frenzyTurn = -9;
   /** Soif de sang : le tour où elle a déjà soigné. */
   private thirstTurn = -9;
+  /** Aperçu de la section 3 (salle d'essai) : chapelle et musée garantis à l'étage 11. */
+  private previewS3 = false;
   private useOrder: number | null = null;
   /** Un objet du sac attend d'être consommé (ou lancé) au prochain tour. */
   usePending(): boolean {
@@ -523,7 +525,7 @@ export class Game {
             state.furniture.push(srng.chance(0.5) ? { x: sr.entry.x, y: sr.entry.y, kind: "ossTablet", side, variant: "texte" } : { x: sr.entry.x, y: sr.entry.y, kind: "ossAlcove", side, len: 1 });
             for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocked.add(`${sr.entry.x + dx},${sr.entry.y + dy}`);
           }
-          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked);
+          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked, [], this.previewS3 && depth === 11);
           // La chapelle des os et le musée : des « salles à thème » pour le reste du jeu (ni piège ni monstre ; Sœur
           // Clavicule, le Conservateur).
           if (special.chapel !== undefined) state.themes = [...(state.themes ?? []), { room: special.chapel, id: "chapelle" } as (typeof state.themes)[number]];
@@ -1413,6 +1415,18 @@ export class Game {
         if (o.pile !== undefined) this.raisePile(o);
         else o.hp = Math.min(o.maxHp, o.hp + RULES.priestessChantHeal);
       }
+      // Plus dure (Thomas, 2026-11-19) : le chant relève aussi un squelette au pied du socle, tant que la salle
+      // compte moins de `priestessRaiseMax` morts debout.
+      const standing = this.monsters.filter((o) => o !== m && o.pile === undefined && !o.effigy && (MONSTERS[o.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.undead && this.inLair(lair, o)).length;
+      if (standing < RULES.priestessRaiseMax) {
+        const at = this.nearFree({ x: lair.x + Math.floor(lair.w / 2), y: lair.y + 1 });
+        if (at) {
+          const sk = this.newMonster(MONSTERS.squelette, at.x, at.y, false);
+          sk.alerted = true;
+          this.monsters.push(sk);
+          this.events.push({ type: "undead", actor: sk, what: "rise" });
+        }
+      }
       this.events.push({ type: "undead", actor: m, what: "chant" });
       return;
     }
@@ -1435,7 +1449,17 @@ export class Game {
       this.events.push({ type: "undead", actor: m, what: "chant0" });
       return;
     }
-    if (m.aloft) return;
+    if (m.aloft) {
+      // Dans le puits (Thomas, 2026-11-19 : « beaucoup trop simple ») : un éclair de lune sur le héros, s'il est en vue.
+      if (!lost && (this.turn + m.id) % RULES.priestessBoltEvery === 0 && hasLineOfSight(this.map, m, this.hero)) {
+        const result = rollAttack(this.rng, { attackBonus: 8, damage: { count: 2, sides: 6, bonus: 2 } }, { armorClass: this.hero.armorClass + this.stanceBonus() });
+        result.damage = this.absorb(result.damage);
+        this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true });
+        if (result.damage > 0) this.bleed(this.hero, m);
+        this.hurtHero(result.damage, this.killerName(m));
+      }
+      return;
+    }
     // Phase 1 : au contact, un coup de bâton ; sinon un pas vers le héros (un tour sur deux).
     if (gapBetween(m, this.hero) <= 1) {
       this.monsterStrikes(m);
@@ -9897,7 +9921,17 @@ export class Game {
    */
   testSection3(): boolean {
     if (!this.testRun || this.over) return false;
+    this.previewS3 = true;
     if (!this.teleport(11)) return false;
+    // Chapelle (Sœur Clavicule) et musée (Maître Osselet) sur cet étage : on retire au besoin un autre étage 11
+    // (Thomas, 2026-11-19 : « la nouvelle quête n'a pas de test ? »).
+    const base = this.runSeed;
+    for (let i = 1; i < 60 && !(this.npc("clavicule") && this.npc("osselet")); i++) {
+      (this as unknown as { runSeed: number }).runSeed = (base ^ Math.imul(i, 0x9e3779b1)) >>> 0;
+      this.floors.delete(11);
+      this.monsters = [];
+      this.enterFloor(11, "down");
+    }
     this.testBoss2(false);
     // Niveau 11 (Thomas, 2026-11-19) : le Rang III s'ouvre, son point de voie reste à placer (le « ! » du héros).
     if (this.level < 11) {
@@ -10817,8 +10851,8 @@ export class Game {
       }
     }
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, stone ? undefined : angle);
-    else if (!stone) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
-    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, ammo, arrowKind: ARROW_KIND[ammo] });
+    else if (!stone && !endless) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
+    this.events.push({ type: "arrow", endless: endless || undefined, fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, ammo, arrowKind: ARROW_KIND[ammo] });
     // Une flèche qui tombe sur une vesse-de-loup la crève (on peut les faire éclater de loin).
     const puffHit = this.puffballAt(landing.x, landing.y) ?? (via ? this.puffballAt(via.x, via.y) : null);
     if (puffHit) this.burstPuffball(puffHit);

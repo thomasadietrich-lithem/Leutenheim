@@ -27,6 +27,8 @@ export interface TrapDef {
   numb?: boolean;
   moonFlash?: number;
   corridorOnly?: boolean;
+  /** Retiré du jeu (n'est plus posé), le code reste (Thomas, 2026-11-19 : la lame pendule, « nulle »). */
+  retired?: boolean;
   swings?: boolean;
 }
 
@@ -46,5 +48,5 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
   boneHands: { name: "mains d'os", minDepth: 1, weight: 3, sections: [2], damage: { count: 1, sides: 4, bonus: 0 }, stuck: 2 },
   censer: { name: "encensoir", minDepth: 1, weight: 2, sections: [2], gasTurns: 3, numb: true },
   moonMirror: { name: "miroir de lune", minDepth: 1, weight: 2, sections: [2], moonFlash: 6 },
-  pendulum: { name: "lame pendule", minDepth: 1, weight: 1, sections: [2], damage: { count: 2, sides: 6, bonus: 2 }, corridorOnly: true, swings: true },
+  pendulum: { name: "lame pendule", minDepth: 1, weight: 1, sections: [2], damage: { count: 2, sides: 6, bonus: 2 }, corridorOnly: true, swings: true, retired: true },
 };

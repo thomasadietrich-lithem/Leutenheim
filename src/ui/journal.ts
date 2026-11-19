@@ -85,7 +85,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "arrow": {
       // Le nom du projectile vient de l'objet (règle : chaque arme de jet donne `single`).
       const what = (e.ammo && (ITEMS[e.ammo] as ItemDef).single) || "La flèche";
-      if (!e.kept) return `${what} se brise.`;
+      if (!e.kept) return e.endless ? null : `${what} se brise.`;
       if (!e.hit) return e.via ? `${what} rebondit et retombe au sol.` : `${what} se plante au sol.`;
       return null;
     }

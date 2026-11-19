@@ -94,6 +94,10 @@
   .hp.xp.capped #xp-fill { background: repeating-linear-gradient(to right, #6a7fa0 0 6px, #4a5a76 6px 8px); }
   .hp.xp span { font-size: 14px; line-height: 8px; color: #cfe6ff; }
   #xp-fill { height: 100%; width: 0; background: repeating-linear-gradient(to right, #3a7bd0 0 6px, #24508e 6px 8px); }
+  /* Vie et expérience aussi dans l'écran du héros (Thomas, 2026-11-19). */
+  .hero-gauges { width: min(100%, 318px); display: flex; flex-direction: column; gap: 4px; }
+  #menu-hp-fill { height: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
+  #menu-xp-fill { height: 100%; background: repeating-linear-gradient(to right, #3a7bd0 0 6px, #24508e 6px 8px); }
   #hp-fill { height: 100%; width: 100%; background: repeating-linear-gradient(to right, #c8323c 0 6px, #8e1f28 6px 8px); }
   /* La carte prend toute la hauteur qui reste entre les jauges et le panneau du dé. */
   .frame { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; background: #070605; }
@@ -172,7 +176,10 @@
   .shop-ware.dear .shop-price { color: #ff8a7a; }
   .shop-icon svg { width: 44px; height: 44px; display: block; }
   .shop-row .shop-icon svg { width: 32px; height: 32px; }
-  .shop-name { font-size: 14px; text-align: center; line-height: 1.1; }
+  /* Les noms longs passent à la ligne sans déborder (Thomas, 2026-11-19). */
+  .shop-name { font-size: 14px; text-align: center; line-height: 1.1; white-space: normal; overflow-wrap: anywhere; hyphens: auto; max-width: 100%; min-width: 0; }
+  .shop-ware { min-width: 0; overflow: hidden; }
+  .shop-row { min-width: 0; } .shop-row .shop-name { min-width: 0; }
   .shop-price { color: #ffd75e; font-size: 16px; }
   .shop-sell { display: flex; flex-direction: column; gap: 4px; width: min(100%, 318px); overflow-y: auto; max-height: 52vh; }
   .shop-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; background: #241c14; }
@@ -557,7 +564,11 @@
   #bag-grid { max-height: 30vh; }
   #bag-info { min-height: 0; }
   .item-mini { position: relative; width: min(100%, 318px); padding: 6px 34px 6px 8px; background: #2a2014; box-shadow: inset 0 0 0 2px #6a5a3a; font-size: 16px; color: var(--dim); display: flex; gap: 8px; align-items: center; text-align: left; }
-  .item-compare { font-size: 16px; line-height: 1.05; margin: 2px 0; }
+  .item-compare { font-size: 16px; line-height: 1.05; margin: 3px 0; display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: center; }
+  .cmp-chip { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .cmp-chip svg { width: 14px; height: 14px; flex: none; }
+  .cmp-chip.up { color: #7ee07a; } .cmp-chip.down { color: #ff7a7a; } .cmp-chip.same { color: #b8b0a0; }
+  .cmp-vs { color: var(--dim); font-size: 14px; }
   .item-compare.up { color: #7ee07a; }
   .item-compare.down { color: #ff7a7a; }
   .item-compare.same { color: #b8b0a0; }
@@ -820,6 +831,7 @@
       <button id="tab-inv" class="hero-tab on" type="button">Inventaire</button>
       <button id="tab-char" class="hero-tab" type="button">Personnage<span id="tab-char-bang" class="bang" hidden>!</span></button>
     </div>
+    <div class="hero-gauges"><div class="hp"><div id="menu-hp-fill"></div><span id="menu-hp-label"></span></div><div class="hp xp"><div id="menu-xp-fill"></div><span id="menu-xp-label"></span></div></div>
     <section id="pane-inv">
       <div class="bag-top"><span>Équipement</span><span id="bag-gold"></span></div>
       <div id="doll"></div>

@@ -3879,9 +3879,8 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       }
       assert.ok((cur.traps as { kind?: string }[]).every((t) => ["tombSlab", "boneHands", "censer", "moonMirror", "pendulum"].includes(t.kind ?? "")), "seulement les pièges de l'ossuaire");
       for (const t of cur.traps as { x: number; y: number; kind?: string; hidden?: boolean }[]) {
-        const inRoom = (game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] }).rooms.some((r) => t.x >= r.x && t.y >= r.y && t.x < r.x + r.w && t.y < r.y + r.h);
-        if (t.kind === "pendulum") assert.ok(!inRoom && !t.hidden, "la lame pendule : dans un couloir, visible");
-        else assert.ok(inRoom, "les autres pièges : dans les salles");
+        // La lame pendule est retirée (Thomas, 2026-11-19) : les couloirs reçoivent les pièges ordinaires de la section.
+        assert.notEqual(t.kind, "pendulum", "plus de lame pendule");
       }
       assert.equal(cur.torches.length, 0, "ni torche ni cheminée");
       assert.ok(!cur.gluck && !cur.soeur && !cur.krik && !cur.morillon && !cur.vernis && !cur.maestro && !cur.counter && !cur.chicken && !cur.niche);
@@ -6988,4 +6987,29 @@ test("Rang III (2026-11-19) : ouvert au niveau 11, Rang II gelé ; Posture, Sang
   r.resolvePower("execution");
   assert.ok(!red.monsters.includes(k), "achevé");
   assert.equal(red.hero.hp, red.hero.maxHp - 3, "soif de sang : +2 PV");
+});
+
+test("Sœur Clavicule (section 3) : ses trois choix donnent leur tâche ou leur cadeau", () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed);
+    game.testRun = true;
+    let depth = 0;
+    for (const d of [11, 12, 13, 14]) {
+      game.teleport(d);
+      if (game.npc("clavicule")) { depth = d; break; }
+    }
+    if (!depth) continue;
+    const k = game.npc("clavicule")!;
+    const spot = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: k.x + dx, y: k.y + dy })).find((p) => game.map.isWalkable(p.x, p.y) && !game.npcAt(p.x, p.y) && !game.furnitureAt(p.x, p.y))!;
+    game.hero.x = game.hero.fromX = spot.x;
+    game.hero.y = game.hero.fromY = spot.y;
+    for (const m of game.monsters) m.alerted = false;
+    const scene = game.npcScene("clavicule");
+    assert.ok(scene.choices.some((c) => c.id === "cierges"), "le choix des cierges");
+    const r = game.npcChoose("clavicule", "cierges");
+    assert.equal(game.quest?.id, "clavicule_cierges", r.lines.join(" "));
+    assert.ok(game.questGlow().length > 0, "les salles des cierges brillent");
+    return;
+  }
+  assert.fail("aucune Sœur Clavicule sur 60 parties");
 });

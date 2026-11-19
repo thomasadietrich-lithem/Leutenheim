@@ -201,11 +201,16 @@ export const RULES = {
   ],
   /** Boss de la section 3 (C) : la Prêtresse appelle la lune tous les N tours (annoncé), chante tous les N tours ;
    *  rayon du puits selon les cierges encore allumés ; le Colosse : tours dans la lune pour qu'un morceau se ressoude. */
-  priestessCallEvery: 5,
+  // Plus dure (Thomas, 2026-11-19 : « le boss 3 est beaucoup beaucoup trop simple »).
+  priestessCallEvery: 4,
   priestessChantEvery: 4,
   priestessChantHeal: 5,
   priestessWellRadius: [1, 2, 2, 3, 3, 4, 4],
-  colossusRegrowTurns: 4,
+  colossusRegrowTurns: 3,
+  /** Chaque chant relève un squelette au pied du socle, tant que la salle en compte moins que ça. */
+  priestessRaiseMax: 5,
+  /** Dans le puits : un éclair de lune sur le héros tous les N tours (jet +8, 2d6+2). */
+  priestessBoltEvery: 2,
   /** Le Carillon (boss de la section 2, Thomas, 2026-11-16) : il sonne tous les tant de tours ; l'onde fait tant de
    *  dégâts (le double au contact de sa lèvre) ; sonné faux, il reste sonné tant de tours. (C) */
   carillonEvery: 8,

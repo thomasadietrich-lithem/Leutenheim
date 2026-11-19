@@ -2621,32 +2621,57 @@ button("shop-tab-sell", () => {
  * ▲ vert si l'objet est meilleur, ▼ rouge s'il est moins bon, « = » sinon. Armes : dégâts moyens par tour contre
  * un monstre ordinaire (CA 13) ; armures et casques : classe d'armure ; arcs : bonus au jet et portée.
  */
+/** Petits pictos de la comparaison (Thomas, 2026-11-19 : « plus court, avec un picto flèche rouge / vert ; et des
+ *  pictos pour la vitesse et la portée »). */
+const CMP_ICONS = {
+  up: ["....K....", "...KEK...", "..KEEEK..", ".KEEEEEK.", "KKKEEEKKK", "..KEEEK..", "..KEEEK..", "..KKKKK.."],
+  down: ["..KKKKK..", "..KRRRK..", "..KRRRK..", "KKKRRRKKK", ".KRRRRRK.", "..KRRRK..", "...KRK...", "....K...."],
+  same: [".......", ".......", "KKKKKKK", "KSSSSSK", "KKKKKKK", "KSSSSSK", "KKKKKKK"],
+  damage: ["......KK", ".....KWK", "....KWK.", ".K.KWK..", "..KWK...", "..KGK...", ".KGKK...", "KK......"],
+  speed: ["...KKK..", "..KYYK..", "..KYK...", ".KYYYYK.", "...KYK..", "..KYK...", "..KK....", "........"],
+  range: ["..KKKK..", ".KRWWRK.", "KRWRRWRK", "KWRYYRWK", "KWRYYRWK", "KRWRRWRK", ".KRWWRK.", "..KKKK.."],
+  armor: ["KKKKKKKK", "KSSSSSDK", "KSSUUSDK", "KSUUUUDK", ".KSUUDK.", ".KSSSDK.", "..KSDK..", "...KK..."],
+  hit: ["..KKKK..", ".KWWWWK.", "KWKKKKWK", "KWK..KWK", "KWKKKKWK", ".KWWWWK.", "..KKKK..", "........"],
+} as const;
+
+/**
+ * Comparaison avec ce que le héros porte (Thomas, 2026-11-12 : « que le joueur sente vraiment la différence ») : une
+ * pastille par chiffre, son picto (dégâts, vitesse, portée, armure, jet), une flèche verte (mieux), rouge (moins bien)
+ * ou « = », et l'écart. Armes : dégâts moyens par tour contre un monstre ordinaire (CA 13).
+ */
 function compareNode(def: ItemDef): HTMLElement | null {
   const slot = def.kind === "melee" ? "melee" : def.kind === "armor" ? "armor" : def.kind === "hat" ? "hat" : def.kind === "ranged" ? "ranged" : null;
   if (!slot) return null;
   const worn = game.equipment[slot];
   if (worn && worn.defId === def.id) return null;
   const other = worn ? (ITEMS[worn.defId] as ItemDef) : undefined;
-  let delta = 0;
-  let text = "";
   const fmt = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1).replace(".", ",").replace(",0", "")}`;
+  const chips: { icon: keyof typeof CMP_ICONS; delta: number; text: string }[] = [];
   if (slot === "melee") {
     const dpt = (d?: ItemDef) => (d?.damage ? expectedDamagePerTurn(d.attackBonus ?? 0, d.damage, d.speed, 13, RULES.slowAttackTurns, RULES.fastAttackTurns) : 0.6);
-    delta = Math.round((dpt(def) - dpt(other)) * 10) / 10;
-    text = `${fmt(delta)} dégâts par tour`;
-  } else if (slot === "armor") {
-    delta = (def.armorClass ?? UNARMORED_AC) - (other?.armorClass ?? UNARMORED_AC);
-    text = delta === 0 ? "même CA" : `${fmt(delta)} CA (${Math.abs(delta) * 5} % de coups ${delta > 0 ? "évités" : "reçus"} en plus)`;
-  } else if (slot === "hat") {
-    delta = (def.acBonus ?? 0) - (other?.acBonus ?? 0);
-    text = `${fmt(delta)} CA`;
+    const delta = Math.round((dpt(def) - dpt(other)) * 10) / 10;
+    chips.push({ icon: "damage", delta, text: `${fmt(delta)} /tour` });
+    const pace = (d?: ItemDef) => (d?.speed === "fast" ? 1 : d?.speed === "slow" ? -1 : 0);
+    const dp = pace(def) - pace(other);
+    if (dp !== 0) chips.push({ icon: "speed", delta: dp, text: dp > 0 ? "plus vite" : "plus lent" });
+    const reach = (def.reach ?? 1) - (other?.reach ?? 1);
+    if (reach !== 0) chips.push({ icon: "range", delta: reach, text: `${fmt(reach)} case${Math.abs(reach) > 1 ? "s" : ""}` });
+  } else if (slot === "armor" || slot === "hat") {
+    const delta = slot === "armor" ? (def.armorClass ?? UNARMORED_AC) - (other?.armorClass ?? UNARMORED_AC) : (def.acBonus ?? 0) - (other?.acBonus ?? 0);
+    chips.push({ icon: "armor", delta, text: delta === 0 ? "même CA" : `${fmt(delta)} CA` });
   } else {
-    delta = (def.attackBonus ?? 0) - (other?.attackBonus ?? 0);
+    const delta = (def.attackBonus ?? 0) - (other?.attackBonus ?? 0);
     const range = (def.range ?? 0) - (other?.range ?? 0);
-    text = `${fmt(delta)} au jet, ${fmt(range)} de portée`;
-    if (delta === 0) delta = range;
+    chips.push({ icon: "hit", delta, text: `${fmt(delta)} jet` });
+    chips.push({ icon: "range", delta: range, text: `${fmt(range)} cases` });
   }
-  const node = el("div", `item-compare ${delta > 0 ? "up" : delta < 0 ? "down" : "same"}`, `${delta > 0 ? "▲" : delta < 0 ? "▼" : "="} ${text}${other ? ` que ${other.name.toLowerCase()}` : ""}`);
+  const node = el("div", "item-compare");
+  for (const c of chips) {
+    const chip = el("span", `cmp-chip ${c.delta > 0 ? "up" : c.delta < 0 ? "down" : "same"}`);
+    chip.append(buildIcon(CMP_ICONS[c.icon]), buildIcon(CMP_ICONS[c.delta > 0 ? "up" : c.delta < 0 ? "down" : "same"]), el("span", "", c.text));
+    node.append(chip);
+  }
+  if (other) node.append(el("span", "cmp-vs", `vs ${other.name.toLowerCase()}`));
   return node;
 }
 
@@ -3464,6 +3489,13 @@ function renderHeroScreen(): void {
   $("tab-char-bang").hidden = !game.hasPendingChoice();
   $("pane-inv").hidden = heroTab !== "inv";
   $("pane-char").hidden = heroTab !== "char";
+  // Vie et expérience en haut de l'écran du héros (Thomas, 2026-11-19).
+  $("menu-hp-fill").style.width = `${(100 * Math.max(0, game.hero.hp)) / game.hero.maxHp}%`;
+  $("menu-hp-label").textContent = tr(`PV ${game.hero.hp}/${game.hero.maxHp}`);
+  const xpNeed = game.xpToNext();
+  const top = game.xpBlocked();
+  $("menu-xp-fill").style.width = top ? "100%" : `${(100 * game.xp) / Math.max(1, xpNeed)}%`;
+  $("menu-xp-label").textContent = tr(top ? `Niv ${game.level} · MAX` : `Niv ${game.level} · XP ${game.xp}/${xpNeed}`);
   if (heroTab === "inv") renderBag();
   else renderCharacter();
 }

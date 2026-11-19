@@ -363,7 +363,7 @@ export function placeTraps(state: FloorState, seed: number, depth = 1): void {
   const bonus = RULES.trapRoomChancePerSection * section;
   const chance = Math.min(RULES.trapRoomChanceMax + bonus, RULES.trapRoomChance + RULES.trapRoomChancePerDepth * (depth - 1) + bonus);
   const kinds = (Object.keys(TRAPS) as TrapKind[]).filter(
-    (k) => TRAPS[k].minDepth <= depth && (!TRAPS[k].sections || TRAPS[k].sections!.includes(Math.min(section, 2))),
+    (k) => !TRAPS[k].retired && TRAPS[k].minDepth <= depth && (!TRAPS[k].sections || TRAPS[k].sections!.includes(Math.min(section, 2))),
   );
   // Section 3 : la lame pendule ne se pose que dans les couloirs (et n'y a qu'elle).
   const roomKinds = kinds.filter((k) => !TRAPS[k].corridorOnly);

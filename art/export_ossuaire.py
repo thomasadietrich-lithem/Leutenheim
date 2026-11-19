@@ -21,6 +21,7 @@ def load(name):
 
 ob1 = load("ossuaire_objets_v1")
 ob2 = load("ossuaire_objets_v2")
+soc = load("ossuaire_socles_v1")
 Sprite, C = ob1.Sprite, ob1.C
 
 
@@ -56,6 +57,8 @@ SPRITES = {
     "skelCouche": ob2.skel_lying(), "skelAssis": ob2.skel_sitting(), "skelRampant": ob2.skel_crawling(), "skelMorceaux": ob2.skel_pieces(),
     "lustreOs": ob2.bone_chandelier(), "pilierCranes": ob2.skull_pillar(), "cercueils": ob2.coffins(), "statueVoilee": ob2.veiled_statue(),
     "fosseGrille": ob2.grate_pit(), "brouetteOss": ob2.barrow(),
+    # Socle au crâne énorme (Thomas, 2026-11-19 : remplace le squelette assis).
+    **soc.SPRITES,
     "stairsOssDown": ob2.stairs_tile(True), "stairsOssUp": ob2.stairs_tile(False),
     "grilleOss": grille("haut", False), "grilleOssOpen": grille("haut", True), "grilleOssLocked": grille("haut", False, True),
     "grilleOssBas": grille("bas", False), "grilleOssBasOpen": grille("bas", True), "grilleOssBasLocked": grille("bas", False, True),

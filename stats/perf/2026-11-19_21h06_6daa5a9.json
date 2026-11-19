@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-19T21:06:13.449Z",
+ "commit": "6daa5a9",
+ "note": "retours du soir : lumière S3, socles, comparaisons, boss 3",
+ "logic": {
+  "tickMs": 0.44,
+  "lightMs": 0.25,
+  "visionMs": 0.21
+ },
+ "scenes": {
+  "immobile": {
+   "n": 113,
+   "avg": 21.8,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 46,
+   "js": 5
+  },
+  "marche": {
+   "n": 211,
+   "avg": 23.7,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 42,
+   "js": 4
+  },
+  "retour": {
+   "n": 206,
+   "avg": 24.3,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 41,
+   "js": 4
+  },
+  "zoom": {
+   "n": 119,
+   "avg": 22.3,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 45,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 196,
+   "avg": 25.5,
+   "p95": 33.4,
+   "max": 133.4,
+   "fps": 39,
+   "js": 15
+  }
+ },
+ "errors": []
+}

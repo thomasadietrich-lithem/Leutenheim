@@ -604,12 +604,12 @@ const ICONS: Record<ItemId, string[]> = {
   // Planche art/objets_v1.png, validée par Thomas le 2026-11-11.
   // Flèche d'obsidienne (Thomas, 2026-11-19, section 3) : pointe de verre noir taillé, reflets violets.
   fleche_obsidienne: [
-    "...........KKKK.",
-    "..........K9QkkK",
-    "...........K0Q9K",
-    "...........K909K",
-    "..........KTK0kK",
-    ".........KBK.K..",
+    "...........WWWW.",
+    "..........W9QkkW",
+    "...........W0Q9W",
+    "...........W909W",
+    "..........KTK0kW",
+    ".........KBK.W..",
     "........KTK.....",
     ".......KBK......",
     "...KKKKTK.......",

@@ -30,6 +30,8 @@ export type GameEvent =
       ammo?: ItemId;
       /** Une pierre de lance-pierre (le Halfelin). */
       stone?: boolean;
+      /** Flèche sans fin de l'Elfe : elle disparaît sans se briser (Thomas, 2026-11-19). */
+      endless?: boolean;
       /** Flèche spéciale : son dessin en vol (Thomas, 2026-11-17 : la flèche de recul volait comme une ordinaire). */
       arrowKind?: "poison" | "ricochet" | "recul" | "obsidienne" | "feu";
       /** Le rebond d'une flèche ricochante, de la première cible vers la deuxième. */

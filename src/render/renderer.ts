@@ -1570,7 +1570,7 @@ export class Renderer {
       const top = bottom - tile * 2.8;
       const g = ctx.createLinearGradient(0, top, 0, bottom);
       g.addColorStop(0, "rgba(210,226,255,0)");
-      g.addColorStop(1, "rgba(210,226,255,0.22)");
+      g.addColorStop(1, "rgba(210,226,255,0.36)");
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(cx - tile * 0.7, top);
@@ -1892,6 +1892,8 @@ export class Renderer {
       ctx.fillRect(rx - w * 1.1, -w / 2, w * 2.2, w);
     }
     if (part !== "back") {
+      // Obsidienne (Thomas, 2026-11-19) : un liseré blanc autour de la pointe noire, pour qu'elle se lise.
+      if (kind === "obsidienne") shape("#f4f7ff", [[L * 0.6, 0], [L * 0.18, -w * 2.1], [L * 0.18, w * 2.1]]);
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
       // Pointe affinée (Thomas, 2026-11-12) : plus longue, plus étroite.
       shape(poisoned ? "#b8e05a" : kind === "ricochet" ? "#9fcfff" : kind === "recul" ? "#6ad0ff" : kind === "obsidienne" ? "#2a2236" : kind === "feu" ? "#ff9a3a" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
@@ -2136,11 +2138,13 @@ export class Renderer {
           // en vue qui le touchent. Le feu d'une salle qu'on ne voit pas ne colore pas l'autre côté du mur.
           const lit0 = wall ? this.wallLight(game, x, y) : game.light[game.map.index(x, y)];
           const lit = oss ? Renderer.moonStep(lit0) : lit0;
-          const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5));
+          // Ossuaire (Thomas, 2026-11-19 : « les jeux de lumière ne sont pas du tout lisibles ») : la lueur du héros y
+          // est faible, pour que la lune tranche nettement sur la pénombre ; la lune est franchement bleutée.
+          const glow = Math.max(0, 1 - Math.hypot(x - hero.x, y - hero.y) / (game.race.darkVision + 1.5)) * (oss ? 0.5 : 1);
           const brightness = Math.min(1, Math.max(lit * flicker, glow));
-          const dark = (1 - brightness) * (oss ? 0.82 : 0.55) * shade;
+          const dark = (1 - brightness) * (oss ? 0.86 : 0.55) * shade;
           if (dark > 0.004) veil(`rgba(12,11,18,${q(dark)})`, rx, ry, rw, rh);
-          if (lit > 0) veil(oss ? `rgba(150,185,255,${q(lit * 0.12)})` : champi ? `rgba(60,220,190,${q(lit * flicker * 0.1)})` : `rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
+          if (lit > 0) veil(oss ? `rgba(150,190,255,${q(lit * 0.26)})` : champi ? `rgba(60,220,190,${q(lit * flicker * 0.1)})` : `rgba(255,150,60,${q(lit * flicker * 0.2)})`, rx, ry, rw, rh);
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
@@ -2727,7 +2731,7 @@ export class Renderer {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#120d08";
-      ctx.fillText(b.ret ? "?" : "!", cx, top + tile * 0.03);
+      ctx.fillText("!", cx, top + tile * 0.03);
       ctx.restore();
     }
     // Les zones de la quête en cours brillent (Thomas, 2026-11-17) : un cadre doré qui palpite, un voile très léger.

@@ -85,7 +85,10 @@ const PIECES: { kind: string; weight: number; wall: boolean; max?: number }[] = 
   { kind: "urnes", weight: 2.5, wall: true },
   { kind: "urneBrisee", weight: 1.2, wall: false },
   { kind: "skelCouche", weight: 1.5, wall: false },
-  { kind: "skelAssis", weight: 1.5, wall: true },
+  // Le squelette assis contre le mur (« déstabilisant », Thomas 2026-11-19) est remplacé par le socle au crâne énorme.
+  { kind: "socleCrane", weight: 0.8, wall: false },
+  { kind: "socleCraneFendu", weight: 0.6, wall: false },
+  { kind: "socleCraneBougie", weight: 0.6, wall: false },
   { kind: "skelRampant", weight: 1.2, wall: false },
   { kind: "skelMorceaux", weight: 1.2, wall: false },
   { kind: "lustreOs", weight: 1, wall: false, max: 1 },
@@ -188,7 +191,7 @@ function roomOneBlock(floor: Floor, room: Room): boolean {
   return seen.size === cells.length;
 }
 
-export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = []): { chapel?: number; museum?: number } {
+export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = [], forceSpecial = false): { chapel?: number; museum?: number } {
   const { map, rooms, start } = floor;
   // Plus de torche ni de cheminée : la lune seule éclaire.
   floor.torches.splice(0, floor.torches.length);
@@ -254,7 +257,8 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
   // ---------- La chapelle des os : une salle sur deux étages environ, assez grande, ni départ ni escalier ----------
   let chapel: number | undefined;
   const stairsRoom = rooms.findIndex((r) => floor.stairs.x >= r.x - 1 && floor.stairs.x <= r.x + r.w && floor.stairs.y >= r.y - 1 && floor.stairs.y <= r.y + r.h);
-  if (rng.chance(RULES.chapelChance)) {
+  // L'aperçu de la section 3 (salle d'essai) : chapelle et musée à coup sûr à l'étage 11, pour essayer leurs quêtes.
+  if (rng.chance(RULES.chapelChance) || forceSpecial) {
     const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && !avoidRooms.includes(i) && rooms[i].w >= 7 && rooms[i].h >= 5);
     for (const i of fits.sort(() => rng.next() - 0.5)) {
       if (furnishChapel(floor, furniture, rng, rooms[i])) {
@@ -266,7 +270,7 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
 
   // ---------- Le musée : une grande salle (9 × 5 au moins), un étage sur trois environ ----------
   let museum: number | undefined;
-  if (rng.chance(RULES.museumChance)) {
+  if (rng.chance(RULES.museumChance) || forceSpecial) {
     const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && i !== chapel && rooms[i].w >= 9 && rooms[i].h >= 5);
     for (const i of fits.sort(() => rng.next() - 0.5)) {
       if (furnishMuseum(floor, furniture, rooms[i])) {

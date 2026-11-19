@@ -222,6 +222,8 @@
   #quest-banner.flash { animation: quest-flash 0.9s ease-out 2; }
   @keyframes quest-flash { 0% { background: #8a6a26; } 100% { background: rgba(12, 9, 6, 0.86); } }
   #quest-banner:not([hidden]) ~ #hero-status { top: 34px; }
+  /* Barre de vie d'un boss en haut de la carte : les statuts du héros passent dessous (Thomas, 2026-11-19). */
+  body.boss-on #hero-status { top: 44px; }
   #hero-status { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; z-index: 1; }
   #hero-status button { width: 30px; height: 30px; padding: 2px; display: flex; background: #1a140e; box-shadow: inset 0 0 0 2px #4a3e2a; }
   #hero-status svg { width: 100%; height: 100%; }
@@ -254,7 +256,11 @@
   #wheel-pow[hidden] { display: none; }
   #wheel-pow { justify-content: center; }
   #wheel-pow button { flex: 0 1 24%; }
-  #wheel-bar, #wheel-pow { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94); }
+  #wheel-ammo[hidden] { display: none; }
+  #wheel-ammo { justify-content: center; box-shadow: inset 0 0 0 2px #8a9ab0, 0 0 0 2px #120d08; }
+  #wheel-ammo button { flex: 0 1 24%; position: relative; }
+  #wheel-ammo button.chosen { box-shadow: inset 0 0 0 2px var(--gold); }
+  #wheel-bar, #wheel-pow, #wheel-ammo { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94); }
   #wheel button { flex: 1 1 0; min-width: 0; height: 74px; padding: 6px 0 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   #wheel button svg { width: 40px; height: 40px; flex: none; }
   #wheel button .wheel-label { font-size: 16px; text-transform: none; letter-spacing: 0; line-height: 1; color: #f0e6c8; white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
@@ -442,6 +448,16 @@
   #bag { gap: 6px; justify-content: flex-start; padding-top: 10px; }
   .bag-head { width: min(100%, 318px); display: flex; justify-content: space-between; align-items: flex-end; }
   #bag-tidy { padding: 2px 10px; font-size: 16px; min-height: 0; }
+  /* Filtres du sac (Thomas, 2026-11-19 : dès le 2e sac) : mêmes boutons que « Ranger », sous un petit filet. Un filtre
+     ne montre que les objets d'une sorte, en grandes cases (6 de large) ; le sac et ses cases ne changent pas. */
+  #bag-filters { width: min(100%, 318px); display: flex; gap: 3px; padding-top: 4px; border-top: 1px solid #4a3e2a; }
+  #bag-filters[hidden] { display: none; }
+  #bag-filters button { flex: 1 1 auto; padding: 2px 3px; font-size: 15px; min-height: 0; }
+  #bag-filters button.on { box-shadow: inset 0 0 0 2px var(--gold); color: #fff3c8; background: #3a2c14; }
+  #bag-grid.filtered { display: grid; grid-auto-flow: row dense; grid-template-columns: repeat(6, 1fr); grid-auto-rows: calc((min(100vw, 318px) - 6px) / 6); align-content: start;
+    aspect-ratio: auto; height: auto; min-height: calc((min(100vw, 318px) - 6px) / 6 * 2); background-image: none; }
+  #bag-grid.filtered .bag-item { position: relative; left: auto; top: auto; width: auto; height: auto; }
+  .bag-empty { grid-column: 1 / -1; align-self: center; text-align: center; color: var(--dim); font-size: 16px; }
   #bag h3 { margin: 2px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
   #doll { display: grid; grid-template-columns: repeat(3, 76px); grid-template-areas: "amulet hat artifact" "melee armor ranged"; gap: 4px 10px; }
   .slot { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
@@ -706,7 +722,7 @@
     <div id="status-pop" hidden></div>
     <div id="test-tools" class="folded" hidden><button id="cheat-toggle" type="button">Triche</button><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="spawn-open" type="button">Objets</button><button id="kit-faible" type="button">Stuff faible</button><button id="kit-moyen" type="button">Stuff moyen</button><button id="kit-eleve" type="button">Stuff élevé</button><button id="carillon-mode" type="button">Carillon : doux</button><button id="boss2" type="button">Boss 2 · niv 10</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
     <div id="arena-tools" hidden><button id="arena-reset" type="button">Arène : remettre</button><button id="arena-schrat" type="button">+ Kobold</button><button id="arena-frondeur" type="button">+ Frondeur</button><button id="arena-araignee" type="button">+ Araignée</button></div>
-    <div id="wheel" hidden><div id="wheel-stack"><div id="wheel-pow" hidden>
+    <div id="wheel" hidden><div id="wheel-stack"><div id="wheel-ammo" hidden></div><div id="wheel-pow" hidden>
       <button id="wheel-skill" type="button"></button>
       <button id="wheel-tourbillon" type="button" hidden></button>
       <button id="wheel-charge" type="button" hidden></button>
@@ -806,6 +822,7 @@
       <div class="bag-top"><span>Équipement</span><span id="bag-gold"></span></div>
       <div id="doll"></div>
       <div class="bag-head"><h3>Sac</h3><button id="bag-tidy" type="button">Ranger</button></div>
+      <div id="bag-filters" hidden></div>
       <div id="bag-grid"></div>
       <div id="bag-info"></div>
       <div id="bag-buttons" class="bag-buttons">

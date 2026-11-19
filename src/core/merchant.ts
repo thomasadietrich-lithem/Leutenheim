@@ -54,7 +54,8 @@ export function makeMerchant(at: Point, home: Room, list: { item: ItemId; count:
  * équipement ; puis des munitions, un objet plus rare, et un sixième au hasard ; tirés parmi ce que l'étage peut offrir.
  */
 export function rollWares(depth: number, seed: number): { item: ItemId; count: number }[] {
-  const out: { item: ItemId; count: number }[] = [{ item: "cuisse_poulet", count: 1 }];
+  // Section 3 : la tourte du fossoyeur remplace la cuisse (Thomas, 2026-11-19).
+  const out: { item: ItemId; count: number }[] = [{ item: depth > 10 ? "tourte_fossoyeur" : "cuisse_poulet", count: 1 }];
   const pick = (pool: ItemId[], k: number): ItemId | null => {
     const free = pool.filter((id) => !out.some((w) => w.item === id));
     return free.length > 0 ? free[Math.floor(mix(seed, depth, k) * free.length)] : null;

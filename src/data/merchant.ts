@@ -41,6 +41,7 @@ const SPECIAL: Partial<Record<ItemId, number>> = {
   fleche_feu: 6,
   javeline: 8,
   pomme: 4,
+  tourte_fossoyeur: 7,
   torche: 5,
   potion_jouvence: 80,
   sac_cuir: 40,

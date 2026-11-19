@@ -331,6 +331,8 @@ export const ITEMS = {
   // Thomas (2026-11-13) : un Kobold mort dans les flammes laisse une escalope.
   escalope: { id: "escalope", name: "Escalope de Kobold", kind: "use", description: "Bien grillée, un peu écailleuse. Rend 5 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 5 },
   cuisse_poulet: { id: "cuisse_poulet", name: "Cuisse de poulet", kind: "use", description: "Encore tiède. Rend 8 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 8 },
+  // Section 3 (Thomas, 2026-11-19 : « un nouvel aliment pour 11 PV ») : la tourte du fossoyeur, commune dès l'étage 11.
+  tourte_fossoyeur: { id: "tourte_fossoyeur", name: "Tourte du fossoyeur", kind: "use", description: "Une tourte épaisse, marquée d'une croix sur la croûte. Les fossoyeurs en emportent pour les longues nuits. Rend 11 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 11 },
   // Section 2 : les morilles de Morillon (sa quête). Elles soignent (C).
   carotte_magique: { id: "carotte_magique", name: "Carotte magique", kind: "use", description: "Le nez d'un bonhomme de neige, dans une pièce secrète. Froide, croquante, elle brille un peu. Rend 12 PV.", w: 1, h: 1, maxStack: 1, rarity: "rare", heal: 12 },
   morille: { id: "morille", name: "Morille", kind: "use", description: "Une morille de Morillon, alvéolée et parfumée. Rend 9 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 9 },
@@ -425,6 +427,44 @@ export const ITEMS = {
     stunOn: 16,
   },
   corne_triceratops: { id: "corne_triceratops", name: "Corne de tricératops", kind: "quest", description: "La corne du nez du tricératops du musée, volée par le culte. Le Conservateur la cherche partout.", w: 1, h: 1, maxStack: 1 },
+  // Section 3 : l'obsidienne (Thomas, 2026-11-19 : « implémente armure, hache et casque d'obsidienne ») (C).
+  hache_obsidienne: {
+    id: "hache_obsidienne",
+    name: "Hache d'obsidienne",
+    kind: "melee",
+    description: "Une lame de verre noir taillée en croissant, ligaturée sur un manche de frêne. Elle tranche net, os compris.",
+    w: 1,
+    h: 2,
+    maxStack: 1,
+    rarity: "uncommon",
+    level: 11,
+    attackBonus: 6,
+    damage: { count: 2, sides: 6, bonus: 5 },
+  },
+  armure_obsidienne: {
+    id: "armure_obsidienne",
+    name: "Armure d'obsidienne",
+    kind: "armor",
+    description: "Des plaques de verre noir serties dans du fer, aux reflets violets. Plus dure que l'acier, et pourtant plus légère.",
+    w: 2,
+    h: 2,
+    maxStack: 1,
+    rarity: "rare",
+    level: 11,
+    armorClass: 18,
+  },
+  casque_obsidienne: {
+    id: "casque_obsidienne",
+    name: "Casque d'obsidienne",
+    kind: "hat",
+    description: "Une coiffe d'écailles de verre noir, cousues serré. Elle couvre toute la tête sauf le visage.",
+    w: 1,
+    h: 1,
+    maxStack: 1,
+    rarity: "uncommon",
+    level: 11,
+    acBonus: 3,
+  },
   // Section 2 (Thomas, 2026-11-17 : « propose deux armes cohérentes, niveaux 7 et 8 ») (C).
   marteau_guerre: {
     id: "marteau_guerre",
@@ -563,7 +603,7 @@ export const ITEMS = {
   // ---- Sacs (emplacement « sac ») : la toile au départ, puis plus grand. ----
   sac_toile: { id: "sac_toile", name: "Sac en toile", kind: "bag", description: "Un sac de toile grossière. 6 × 4 cases.", w: 2, h: 2, maxStack: 1, level: 1, bagCols: 6, bagRows: 4 },
   sac_cuir: { id: "sac_cuir", name: "Sac de cuir", kind: "bag", description: "Un sac à rabat, solide. 7 × 5 cases.", w: 2, h: 2, maxStack: 1, rarity: "uncommon", level: 3, bagCols: 7, bagRows: 5 },
-  sac_voyage: { id: "sac_voyage", name: "Sac d'aventurier", kind: "bag", description: "Un grand sac à dos, couverture roulée dessus. 8 × 6 cases.", w: 2, h: 2, maxStack: 1, rarity: "rare", level: 6, bagCols: 8, bagRows: 6 },
+  sac_voyage: { id: "sac_voyage", name: "Sac d'aventurier", kind: "bag", description: "Un grand sac à dos, couverture roulée dessus. 8 × 5 cases.", w: 2, h: 2, maxStack: 1, rarity: "rare", level: 6, bagCols: 8, bagRows: 5 },
   // ---- Potions ----
   potion_jouvence: { id: "potion_jouvence", name: "Potion de jouvence", kind: "use", description: "Jaune et pétillante. Rend tous vos points à répartir, plus un. La voie choisie, elle, ne change pas.", w: 1, h: 1, maxStack: 3, rarity: "rare", potion: "youth" },
   potion_poison: { id: "potion_poison", name: "Potion de poison", kind: "use", description: "Enduire : vos 15 prochains coups qui portent empoisonnent. Lancer : un nuage empoisonné en croix.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "poison", throwRange: 5 },

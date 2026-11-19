@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-19T16:46:58.262Z",
+ "commit": "0bb9ca3",
+ "note": "filtres du sac, menu Tir, obsidienne, tourte",
+ "logic": {
+  "tickMs": 0.53,
+  "lightMs": 0.24,
+  "visionMs": 0.21
+ },
+ "scenes": {
+  "immobile": {
+   "n": 103,
+   "avg": 23.8,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 42,
+   "js": 7
+  },
+  "marche": {
+   "n": 183,
+   "avg": 27.3,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 37,
+   "js": 7
+  },
+  "retour": {
+   "n": 480,
+   "avg": 20.8,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 48,
+   "js": 4
+  },
+  "zoom": {
+   "n": 113,
+   "avg": 23.7,
+   "p95": 33.4,
+   "max": 66.7,
+   "fps": 42,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 7
+  },
+  "donjon": {
+   "n": 180,
+   "avg": 27.7,
+   "p95": 50,
+   "max": 133.3,
+   "fps": 36,
+   "js": 17
+  }
+ },
+ "errors": []
+}

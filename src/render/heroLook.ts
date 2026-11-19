@@ -6,8 +6,8 @@ import { HERO_BASE, HERO_PALETTE, HERO_RACE_PALETTE, HERO_WEAPON } from "./sprit
  * l'arme, l'armure, le casque et la poignée de l'arc, puis le contour sombre. Mêmes règles que le script Python : toute
  * retouche se fait des deux côtés.
  */
-export type HeroArmor = "tunique" | "cuir" | "cloute" | "mailles" | "harnois";
-export type HeroHelmet = "aucun" | "cuir" | "mailles";
+export type HeroArmor = "tunique" | "cuir" | "cloute" | "mailles" | "harnois" | "obsidienne";
+export type HeroHelmet = "aucun" | "cuir" | "mailles" | "obsidienne";
 export type HeroWeapon = "poings" | "couteau" | "epee" | "masse" | "cimeterre" | "epee_longue" | "lance" | "serpe";
 export type HeroBow = "court" | "puissant" | "fronde";
 
@@ -26,8 +26,8 @@ export interface HeroSprites {
 }
 
 /** Ce que porte le héros (identifiants de `src/data/items.ts`) → les calques à dessiner. */
-const ARMOR_OF: Record<string, HeroArmor> = { armure_cuir: "cuir", armure_cloutee: "cloute", cotte_mailles: "mailles", harnois: "harnois" };
-const HELMET_OF: Record<string, HeroHelmet> = { casque_cuir: "cuir", casque_poulet: "cuir", casque_maille: "mailles" };
+const ARMOR_OF: Record<string, HeroArmor> = { armure_cuir: "cuir", armure_cloutee: "cloute", cotte_mailles: "mailles", harnois: "harnois", armure_obsidienne: "obsidienne" };
+const HELMET_OF: Record<string, HeroHelmet> = { casque_cuir: "cuir", casque_poulet: "cuir", casque_maille: "mailles", casque_obsidienne: "obsidienne" };
 const WEAPON_OF: Record<string, HeroWeapon> = {
   epee: "epee",
   dague: "couteau",
@@ -41,6 +41,7 @@ const WEAPON_OF: Record<string, HeroWeapon> = {
   serpe: "serpe",
   marteau_guerre: "masse",
   epee_batarde: "epee_longue",
+  hache_obsidienne: "masse",
 };
 
 export function heroLook(race: string, gear: { armor?: string; hat?: string; melee?: string; ranged?: string } = {}): HeroLook {
@@ -54,7 +55,9 @@ export function heroLook(race: string, gear: { armor?: string; hat?: string; mel
 }
 
 const LYING = new Set(["dead", "prone0", "prone1"]);
-const ARMOR_TONES: Record<Exclude<HeroArmor, "tunique">, string> = { cuir: "123", cloute: "123", mailles: "456", harnois: "789" };
+const ARMOR_TONES: Record<Exclude<HeroArmor, "tunique">, string> = { cuir: "123", cloute: "123", mailles: "456", harnois: "789", obsidienne: "IJL" };
+/** Le verre noir de l'obsidienne, aux reflets violets (Thomas, 2026-11-19). */
+const OBSIDIAN_PALETTE: Record<string, string> = { I: "#5a4a7a", J: "#2e2640", L: "#1a1524", N: "#b48ce0" };
 
 function applyWeapon(g: string[][], packed: string | undefined): void {
   if (!packed) return;
@@ -105,12 +108,18 @@ function applyArmor(g: string[][], armor: HeroArmor): void {
         if (armor === "mailles" && c === "W" && (x + y) % 2) n = "5"; // mailles : un damier
         if (armor === "cloute" && c === "W" && x % 2 === 0 && y % 2 === 0) n = "M"; // clous d'acier
         g[y][x] = n;
-      } else if (armor === "harnois") {
-        if (c === "B" || c === "b") g[y][x] = "9";
-        else if (c === "P") g[y][x] = "8"; // jambières
-        else if (c === "q") g[y][x] = "9";
+      } else if (armor === "harnois" || armor === "obsidienne") {
+        const o = armor === "obsidienne";
+        if (c === "B" || c === "b") g[y][x] = o ? "L" : "9";
+        else if (c === "P") g[y][x] = o ? "J" : "8"; // jambières
+        else if (c === "q") g[y][x] = o ? "L" : "9";
       }
     }
+  }
+  if (armor === "obsidienne") {
+    // Un reflet violet en diagonale sur les plaques ; la boucle de ceinture devient un éclat.
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (g[y][x] === "J" && (x - y + 32) % 5 === 0) g[y][x] = "I";
+    for (let y = 0; y < 16; y++) for (let x = 1; x < 15; x++) if (g[y][x] === "M" && "IJL".includes(g[y][x - 1])) g[y][x] = "N";
   }
   if (armor === "harnois") {
     // La boucle de ceinture devient un rivet d'or.
@@ -139,7 +148,7 @@ function applyHelmet(g: string[][], helmet: HeroHelmet, lying: boolean): void {
     }
   }
   if (x1 < 0) return;
-  if (helmet === "mailles") {
+  if (helmet === "mailles" || helmet === "obsidienne") {
     if (lying) {
       x1 = Math.min(15, x0 + 5);
       y0 = Math.max(0, y0 - 1);
@@ -154,7 +163,7 @@ function applyHelmet(g: string[][], helmet: HeroHelmet, lying: boolean): void {
       for (let x = x0; x <= x1; x++) {
         // La septième rangée (longs cheveux de l'Elfe) : seulement les mèches claires, pas la lettre « h », qui est
         // aussi la hampe de la flèche encochée.
-        if ((!lying && y === y0 + 6 ? "HG" : "HGh").includes(g[y][x])) g[y][x] = (lying ? x : y) === start ? "7" : (x + y) % 2 === 0 ? "4" : "5";
+        if ((!lying && y === y0 + 6 ? "HG" : "HGh").includes(g[y][x])) g[y][x] = helmet === "obsidienne" ? ((lying ? x : y) === start ? "N" : (x + y) % 2 === 0 ? "I" : "J") : (lying ? x : y) === start ? "7" : (x + y) % 2 === 0 ? "4" : "5";
       }
     }
     return;
@@ -219,7 +228,7 @@ export function heroSprites(look: HeroLook): HeroSprites {
   if (s) return s;
   let palette = palettes.get(look.race);
   if (!palette) {
-    palette = { ...HERO_PALETTE, ...HERO_RACE_PALETTE[look.race] };
+    palette = { ...HERO_PALETTE, ...HERO_RACE_PALETTE[look.race], ...OBSIDIAN_PALETTE };
     palettes.set(look.race, palette);
   }
   const weapon = HERO_WEAPON[look.race]?.[look.weapon];

@@ -4102,7 +4102,8 @@ test("Colporteur (salle d'essai) : on va à côté, la boutique s'ouvre ; achete
   // Un monstre à 4 cases : il se cache, et on ne peut plus lui parler.
   game.setPeaceful(false);
   const foe = game.monsters[0];
-  Object.assign(foe, { x: m.x + 3, y: m.y, fromX: m.x + 3, fromY: m.y, asleep: true, alerted: false });
+  // Un monstre éveillé (un dormeur ne le fait plus se cacher : Thomas, 2026-11-19).
+  Object.assign(foe, { x: m.x + 3, y: m.y, fromX: m.x + 3, fromY: m.y, asleep: false, alerted: false });
   game.wait();
   game.tick();
   if (game.monsters.some((mo) => Math.max(Math.abs(mo.x - m.x), Math.abs(mo.y - m.y)) <= 4)) {
@@ -6913,4 +6914,19 @@ test("Boss de la section 3 : la Grande Prêtresse appelle la lune, chante, lève
   pr.heroHurt = true;
   g.removeIfDead(pr);
   assert.ok(g.current.goldChest, "coffre doré");
+});
+
+test("2026-11-19 : l'Elfe ne ramasse plus les flèches ordinaires ; Plumeau toujours joignable à pied", () => {
+  const elfe = new Game(3, RACES.elfe);
+  elfe.ground.push({ x: elfe.hero.x, y: elfe.hero.y, item: "fleche", count: 3 }, { x: elfe.hero.x, y: elfe.hero.y, item: "fleche_recul", count: 2 });
+  assert.deepEqual(elfe.itemsHere().map((g) => g.item), ["fleche_recul"]);
+  const humain = new Game(3);
+  humain.ground.push({ x: humain.hero.x, y: humain.hero.y, item: "fleche", count: 3 });
+  assert.equal(humain.itemsHere().length, 1);
+  // Plumeau (prison) : jamais derrière une grille fermée (graine 35, étage 3 le montrait).
+  const g = new Game(35);
+  g.testRun = true;
+  g.teleport(3);
+  const k = g.npc("plumeau");
+  if (k) assert.ok([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].some(([dx, dy]) => g.map.isWalkable(k.x + dx, k.y + dy)), "une case libre à côté de lui");
 });

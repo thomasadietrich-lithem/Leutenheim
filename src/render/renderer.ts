@@ -234,6 +234,16 @@ const CHUNK_BUDGET = 6;
 /** Les taches qui sont du sang (le réglage « Sang : non » les cache ; suie et flaques de potion restent). */
 const BLOOD_COLORS = new Set<StainColor>(["red", "green", "yellow", "black"]);
 
+/** De quel côté se voit un décor accroché au mur : mur du haut (salle dessous), du bas, de gauche, de droite ; les
+ *  décors qui vont sur tous les murs (chaînes, alcôves, tonneau creux…) se voient de n'importe quel côté. */
+function wallFaces(kind: string): readonly (readonly [number, number])[] {
+  if (/Low/.test(kind)) return [[0, -1]];
+  if (/SideL/.test(kind)) return [[1, 0]];
+  if (/SideR/.test(kind)) return [[-1, 0]];
+  if (/^(tapestry|curtain|tapisserieCulte|vitrail|tableau)/.test(kind)) return [[0, 1]];
+  return [[0, 1], [0, -1], [1, 0], [-1, 0]];
+}
+
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   /**
@@ -3235,8 +3245,11 @@ export class Renderer {
       if (!cells.some((c) => game.isExplored(c.x, c.y))) continue;
       // Décor accroché au mur du fond (tapisserie du culte, vitraux) : il ne se voit que depuis la salle, pas depuis
       // l'autre côté du mur (Thomas, 2026-11-18 : « je vois la toile violette de la secte en dehors de la pièce »).
-      if (def.wall && !cells.some((c) => game.isExplored(c.x, c.y + 1) && game.map.get(c.x, c.y + 1) !== Tile.Wall)) continue;
-      const visible = def.wall ? cells.some((c) => game.isVisible(c.x, c.y + 1)) : cells.some((c) => game.isVisible(c.x, c.y));
+      // Le côté d'où il se voit dépend du mur (Thomas, 2026-11-19 : « une tapisserie n'est pas apparue » : celles du
+      // mur du bas et des murs de côté ne se montraient jamais).
+      const faces = def.wall ? wallFaces(f.kind) : [];
+      if (def.wall && !cells.some((c) => faces.some(([dx, dy]) => game.isExplored(c.x + dx, c.y + dy) && game.map.get(c.x + dx, c.y + dy) !== Tile.Wall))) continue;
+      const visible = def.wall ? cells.some((c) => faces.some(([dx, dy]) => game.isVisible(c.x + dx, c.y + dy))) : cells.some((c) => game.isVisible(c.x, c.y));
       if (f.kind === "heroV9") {
         // Salle d'essai : le héros proposé n° 2, à la même taille que le héros (1,3 case), avec son étiquette.
         const cx = ox + (f.x + 0.5) * tile;

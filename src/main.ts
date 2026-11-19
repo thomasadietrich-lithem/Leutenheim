@@ -1887,7 +1887,7 @@ const WHEEL = [
 ] as const;
 const WHEEL_POWERS = { "wheel-tourbillon": "tourbillon", "wheel-charge": "charge", "wheel-cri": "cri_guerre" } as const;
 const ACTION_IDS = ["wheel-search", "wheel-hide", "wheel-push", "wheel-disengage", "wheel-rest", "wheel-disarm"];
-let wheelMode: "actions" | "skills" = "actions";
+let wheelMode: "actions" | "skills" | "ammo" = "actions";
 
 function closeWheel(): void {
   wheelOpen = false;
@@ -1913,7 +1913,7 @@ function ownedPowers(): (keyof typeof WHEEL_POWERS)[] {
   return (Object.keys(WHEEL_POWERS) as (keyof typeof WHEEL_POWERS)[]).filter((id) => game.rank(WHEEL_POWERS[id]) > 0);
 }
 
-function openWheel(mode: "actions" | "skills" = "actions"): void {
+function openWheel(mode: "actions" | "skills" | "ammo" = "actions"): void {
   if (game.over) return;
   aimMode = false;
   jumpMode = false;
@@ -1923,7 +1923,9 @@ function openWheel(mode: "actions" | "skills" = "actions"): void {
   wheelMode = mode;
   $("wheel-bar").hidden = mode !== "actions";
   $("wheel-pow").hidden = mode !== "skills";
-  if (mode === "actions") {
+  $("wheel-ammo").hidden = mode !== "ammo";
+  if (mode === "ammo") renderAmmoBar();
+  else if (mode === "actions") {
     // DÉSAMORCER : seulement à côté d'un piège connu (Thomas, 2026-11-17) ; toucher le piège y marche toujours.
     $("wheel-disarm").hidden = game.disarmTargets().length === 0;
     for (const id of ACTION_IDS) {
@@ -2071,6 +2073,50 @@ for (const [id, icon, label] of WHEEL) {
   });
 }
 wheel.addEventListener("click", closeWheel);
+
+/** Le menu du bouton Tir (Thomas, 2026-11-19 : « la flèche devrait avoir son menu aussi ») : toutes les munitions du
+ *  sac ; celles qui ne partent pas avec ce qu'on porte (flèches sans arc, pierres sans lance-pierre) ou dont le niveau
+ *  manque sont grisées. En choisir une la met au carquois et bande l'arc. */
+function renderAmmoBar(): void {
+  const family = game.weapon("ranged")?.ammo;
+  const ids = (Object.keys(ITEMS) as ItemId[]).filter((id) => (ITEMS[id] as ItemDef).kind === "ammo" && (game.inventory.count(id) > 0 || game.endlessAmmo(id)));
+  const current = game.currentAmmo();
+  const bar = $("wheel-ammo");
+  if (ids.length === 0) {
+    bar.replaceChildren(el("span", "wheel-label", "Aucune munition dans le sac."));
+    return;
+  }
+  bar.replaceChildren(
+    ...ids.map((id) => {
+      const def = ITEMS[id] as ItemDef;
+      const fits = def.ammoFamily === "jet" || (!!family && def.ammoFamily === family);
+      const why = !fits ? (def.ammoFamily === "pierre" ? "Il faut un lance-pierre." : "Il faut un arc.") : game.tooLow(def) ? `Il faut être niveau ${def.level}.` : null;
+      const b = el("button", `${why ? "off" : ""}${id === current ? " chosen" : ""}`) as HTMLButtonElement;
+      b.type = "button";
+      const n = game.endlessAmmo(id) ? "∞" : `×${game.inventory.count(id)}`;
+      b.append(itemIcon(id), el("span", "wheel-label", tr(n)));
+      b.setAttribute("aria-label", tr(def.name));
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        sfx.unlock();
+        sfx.play("click");
+        closeWheel();
+        if (why) logLines.push(`${tr(def.name)} : ${tr(why)}`);
+        else {
+          game.chooseAmmo(id);
+          aimShown = "";
+          if (game.isThreatened() && !closeThrowOk()) logLines.push(`Munition choisie : ${tr(def.name)}. Un ennemi est au contact : pas le temps de bander l'arc.`);
+          else {
+            aimMode = true;
+            logLines.push(aimTarget() ? `${tr(def.name)} : touchez encore la flèche pour tirer, ou une autre case.` : `${tr(def.name)} : touchez une case pour tirer.`);
+          }
+        }
+        renderLog();
+      });
+      return b;
+    }),
+  );
+}
 button("actions", () => (wheelOpen && wheelMode === "actions" ? closeWheel() : openWheel("actions")));
 // CAPACITÉS : sans pouvoir du Rang II, un toucher lance directement le pouvoir principal (comme l'ancien bouton) ;
 // sinon la barre des capacités s'ouvre.
@@ -2177,20 +2223,6 @@ function aimTarget(): Actor | null {
 // Bouton de tir : un premier appui vise le monstre le plus proche, un second tire sur lui.
 // Appui long sur le bouton de tir : passer à la munition suivante (Thomas, 2026-11-16), comme en touchant le carquois.
 let aimHeld = false;
-function cycleAmmo(): void {
-  const usable = game.ammoKinds().filter((id) => !game.tooLow(ITEMS[id] as ItemDef));
-  const current = game.currentAmmo();
-  if (usable.length < 2 || !current) {
-    logLines.push("Une seule sorte de munition dans le sac.");
-  } else {
-    const next = usable[(usable.indexOf(current) + 1) % usable.length];
-    game.chooseAmmo(next);
-    aimShown = "";
-    sfx.play("click");
-    logLines.push(`Munition choisie : ${tr(ITEMS[next].name)}.`);
-  }
-  renderLog();
-}
 {
   let timer = 0;
   const stop = () => window.clearTimeout(timer);
@@ -2199,7 +2231,8 @@ function cycleAmmo(): void {
     stop();
     timer = window.setTimeout(() => {
       aimHeld = true;
-      cycleAmmo();
+      // Appui long : le menu des munitions (il remplace le simple défilement).
+      openWheel("ammo");
     }, LONG_PRESS_MS);
   });
   for (const name of ["pointerup", "pointerleave", "pointercancel"]) $("aim").addEventListener(name, stop);
@@ -2779,7 +2812,44 @@ function renderBag(): void {
   const grid = $("bag-grid");
   grid.style.setProperty("--cols", String(bag.cols));
   grid.style.setProperty("--rows", String(bag.rows));
-  grid.replaceChildren(
+  // Filtres par sorte, dès le deuxième sac (Thomas, 2026-11-19).
+  const withFilters = bag.cols * bag.rows > 24;
+  if (!withFilters) bagFilter = "all";
+  $("bag-filters").hidden = !withFilters;
+  if (withFilters) {
+    $("bag-filters").replaceChildren(
+      ...BAG_FILTERS.map(([id, label]) => {
+        const b = el("button", id === bagFilter ? "on" : "") as HTMLButtonElement;
+        b.type = "button";
+        b.textContent = tr(label);
+        b.addEventListener("click", () => {
+          sfx.play("click");
+          bagFilter = bagFilter === id ? "all" : id;
+          renderHeroScreen();
+        });
+        return b;
+      }),
+    );
+  }
+  grid.classList.toggle("filtered", bagFilter !== "all");
+  if (bagFilter !== "all") {
+    const shown = bag.items.filter((item) => bagSort(item.defId) === bagFilter);
+    const cells = shown.reduce((n, item) => n + bag.def(item).w * bag.def(item).h, 0);
+    grid.style.setProperty("--frows", String(Math.max(2, Math.ceil(cells / 6) + 1)));
+    grid.replaceChildren(
+      ...shown.map((item) => {
+        const def = bag.def(item);
+        const node = itemNode(item, `bag-item${item.uid === selectedUid ? " selected" : ""}${item.defId === game.quickItem ? " quick" : ""}`);
+        if (game.tooLow(def)) node.append(el("span", "item-level", `Lv${def.level}`));
+        node.dataset.uid = String(item.uid);
+        // Chaque objet garde sa forme (une épée prend deux ou trois cases de haut), en grandes cases.
+        node.style.gridColumn = `span ${Math.min(6, def.w)}`;
+        node.style.gridRow = `span ${def.h}`;
+        return node;
+      }),
+    );
+    if (shown.length === 0) grid.append(el("div", "bag-empty", "Rien de cette sorte dans le sac."));
+  } else grid.replaceChildren(
     ...bag.items.map((item) => {
       const def = bag.def(item);
       // Une clef d'un autre étage ne sert plus ici : elle reste dans le sac, grisée.
@@ -2877,6 +2947,33 @@ button("bag-art", () => {
 let pressTimer: number | null = null;
 let pressStart: { x: number; y: number } | null = null;
 let pressDone = false;
+/** Filtres du sac : une sorte d'objet par bouton. */
+const BAG_FILTERS = [
+  ["all", "Tout"],
+  ["arms", "Armes"],
+  ["gear", "Tenue"],
+  ["potions", "Potions"],
+  ["food", "Vivres"],
+  ["misc", "Divers"],
+] as const;
+type BagFilter = (typeof BAG_FILTERS)[number][0];
+let bagFilter: BagFilter = "all";
+function bagSort(id: ItemId): BagFilter {
+  const def = ITEMS[id] as ItemDef;
+  if (def.kind === "melee" || def.kind === "ranged" || def.kind === "ammo") return "arms";
+  if (def.kind === "armor" || def.kind === "hat" || def.kind === "amulet" || def.kind === "artifact" || def.kind === "bag") return "gear";
+  if (def.kind === "use") return def.potion || def.bomb || def.holy ? "potions" : "food";
+  return "misc";
+}
+/** L'objet du sac sous le doigt (en vue filtrée : la case touchée). */
+function bagHit(e: { clientX: number; clientY: number; target: EventTarget | null }) {
+  if (bagFilter !== "all") {
+    const node = (e.target as HTMLElement | null)?.closest<HTMLElement>("[data-uid]");
+    return node ? game.inventory.get(Number(node.dataset.uid)) ?? null : null;
+  }
+  const cell = bagCellAt(e.clientX, e.clientY);
+  return game.inventory.at(cell.x, cell.y);
+}
 function bagCellAt(clientX: number, clientY: number): { x: number; y: number } {
   const rect = $("bag-grid").getBoundingClientRect();
   const bag = game.inventory;
@@ -2889,8 +2986,7 @@ function cancelPress(): void {
 $("bag-grid").addEventListener("pointerdown", (e) => {
   pressDone = false;
   cancelPress();
-  const cell = bagCellAt(e.clientX, e.clientY);
-  const hit = game.inventory.at(cell.x, cell.y);
+  const hit = bagHit(e);
   if (!hit) return;
   pressStart = { x: e.clientX, y: e.clientY };
   pressTimer = window.setTimeout(() => {
@@ -2938,7 +3034,7 @@ $("bag-grid").addEventListener("click", (e) => {
   const bag = game.inventory;
   const x = Math.floor(((e.clientX - rect.left) / rect.width) * bag.cols);
   const y = Math.floor(((e.clientY - rect.top) / rect.height) * bag.rows);
-  const hit = bag.at(x, y);
+  const hit = bagHit(e);
   const selectedUid = selected && "uid" in selected ? selected.uid : null;
   // Double toucher sur un équipement du sac (Thomas, 2026-11-16 : « double clic équipement ») : il est porté ; sur un
   // consommable (pomme, potion…), il est consommé (ou lancé, ou « Êtes-vous sûr ? », comme le bouton).
@@ -2949,7 +3045,7 @@ $("bag-grid").addEventListener("click", (e) => {
     return;
   }
   if (hit) selected = hit.uid === selectedUid ? null : { uid: hit.uid };
-  else if (selectedUid !== null) bag.moveTo(selectedUid, x, y);
+  else if (selectedUid !== null && bagFilter === "all") bag.moveTo(selectedUid, x, y);
   sfx.play("click");
   renderHeroScreen();
 });
@@ -4596,6 +4692,8 @@ function frame(now: number): void {
   aim.classList.toggle("active", aimMode);
   renderPower();
   renderQuickButton();
+  const bossOn = !!game.bossActor()?.boss?.engaged;
+  if (bossOn !== document.body.classList.contains("boss-on")) document.body.classList.toggle("boss-on", bossOn);
   requestAnimationFrame(frame);
 }
 

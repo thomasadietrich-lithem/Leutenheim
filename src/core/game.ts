@@ -101,7 +101,7 @@ export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
-const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo"]);
+const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur"]);
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
 /** Ce que Krik sait du héros, le temps d'une partie. */
@@ -790,7 +790,7 @@ export class Game {
     const dy = this.hero.y - m.y;
     const d = Math.max(Math.abs(dx), Math.abs(dy));
     if (d < 2 || d > beam.range || !(dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy))) return false;
-    if (!hasLineOfSight(this.map, m, this.hero) || !this.isVisible(m.x, m.y)) return false;
+    if (!hasLineOfSight(this.map, m, this.hero) || !this.isVisible(m.x, m.y) || this.fogBetween(m, this.hero)) return false;
     const sx = Math.sign(dx);
     const sy = Math.sign(dy);
     const cells: Point[] = [];
@@ -1407,6 +1407,9 @@ export class Game {
     }
     st.chantIn = (st.chantIn ?? RULES.priestessChantEvery) - 1;
     st.callIn = (st.callIn ?? RULES.priestessCallEvery) - 1;
+    // Le héros dans le brouillard : elle ne le voit pas, ne l'appelle pas et ne marche pas sur lui.
+    const lost = gapBetween(m, this.hero) > 1 && this.fogBetween(m, this.hero);
+    if (lost && st.callIn <= 0) st.callIn = 1;
     if (st.callIn <= 0 && well) {
       st.callIn = RULES.priestessCallEvery;
       // Elle appelle la lune sous les pieds du héros (sur une case de la salle).
@@ -1427,7 +1430,7 @@ export class Game {
       this.monsterStrikes(m);
       return;
     }
-    if ((this.turn + m.id) % 2 === 0) this.stepToward(m, this.hero);
+    if (!lost && (this.turn + m.id) % 2 === 0) this.stepToward(m, this.hero);
   }
 
   /** Mi-vie : la Prêtresse monte dans le puits ; le Colosse (3 × 3) se lève au plus près du milieu de la salle. */
@@ -1631,7 +1634,7 @@ export class Game {
     st.spitTick = (st.spitTick ?? 0) + 1;
     if (this.carillonMode !== "onde" && st.spitTick % RULES.carillonSpitEvery === 0 && this.inLair(layout.lair, this.hero)) {
       const mouth = { x: m.x + 1, y: m.y + 1 };
-      if (this.waveReaches(mouth, this.hero)) {
+      if (this.waveReaches(mouth, this.hero) && !this.fogBetween(mouth, this.hero)) {
         const result = rollAttack(this.rng, { attackBonus: RULES.carillonSpitBonus, damage: RULES.carillonSpitDamage }, this.hero);
         result.damage = this.absorb(result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true, ink: true });
@@ -2417,7 +2420,7 @@ export class Game {
     }
     const hero = this.hero;
     // Dans le brouillard (Thomas, 2026-11-13) : elle ne sent plus que ce qui la touche ; elle attend.
-    if (cellsOf(m).some((c) => this.fogAt(c.x, c.y)) && gapBetween(m, hero) > 1) {
+    if ((cellsOf(m).some((c) => this.fogAt(c.x, c.y)) || this.fogBetween(m, hero)) && gapBetween(m, hero) > 1) {
       st.target = undefined;
       return;
     }
@@ -2981,7 +2984,8 @@ export class Game {
   /** Le brouillard cache-t-il `b` aux yeux de `a` (b dedans, ou une nappe sur la ligne) ? */
   private fogBetween(a: Point, b: Point): boolean {
     if (this.fog.length === 0) return false;
-    return this.fogAt(b.x, b.y) || this.lineCells(a, b).some((c) => this.fogAt(c.x, c.y));
+    // Dans un nuage, même léger, personne ne vous voit (Thomas, 2026-11-19 : « boss compris »).
+    return this.fog.some((f) => f.x === b.x && f.y === b.y) || this.lineCells(a, b).some((c) => this.fogAt(c.x, c.y));
   }
 
   /** Les monstres qui ne voient plus le héros à cause du brouillard perdent sa trace et vont voir là où il était. */
@@ -5189,7 +5193,9 @@ export class Game {
   /** Passer un tour sur place. */
   /** Ce qui traîne sur la case du héros, dans l'ordre où on le ramassera. */
   itemsHere(): GroundItem[] {
-    return this.ground.filter((g) => g.x === this.hero.x && g.y === this.hero.y);
+    // L'Elfe a des flèches sans fin : il ne ramasse plus les flèches ordinaires (Thomas, 2026-11-19).
+    const elf = !!this.race.endlessArrows;
+    return this.ground.filter((g) => g.x === this.hero.x && g.y === this.hero.y && !(elf && g.item === "fleche"));
   }
 
   /** Ordre : ramasser le premier objet de la case (un seul à la fois ; cela prend un tour). */
@@ -6286,7 +6292,13 @@ export class Game {
     // (Thomas, 2026-11-12 : « le colpo n'est pas devenu invisible » : à 4 cases, il restait visible pendant les combats).
     const r0 = m.home;
     const inRoom = (p: Point) => p.x >= r0.x - 1 && p.x <= r0.x + r0.w && p.y >= r0.y - 1 && p.y <= r0.y + r0.h;
-    const hide = this.monsters.some((mo) => mo.hp > 0 && (near(mo, MERCHANT.hideRadius) || (!mo.asleep && inRoom(mo))));
+    // Seulement une vraie menace (Thomas, 2026-11-19 : « le commerçant disparaît avec un mob de quête ») : ni un
+    // dormeur, ni un monstre de quête (combattants de Fifrelin, dormeurs d'une zone de quête, Kobold du bain), ni un
+    // gisant couché, un tas d'os, un monstre pétrifié ou gelé.
+    const zoneIds = this.current.zone && !this.current.zone.open ? this.current.zone.sleepers : [];
+    const threat = (mo: Actor) =>
+      mo.hp > 0 && !mo.asleep && !mo.effigy && mo.pile === undefined && !(mo.petrified ?? 0) && !mo.frozen && !mo.bather && !(mo.arena && mo.arena !== "duel") && !zoneIds.includes(mo.id);
+    const hide = this.monsters.some((mo) => threat(mo) && (near(mo, MERCHANT.hideRadius) || inRoom(mo)));
     if (hide !== m.hidden) {
       m.hidden = hide;
       if (this.isVisible(m.x, m.y)) this.events.push({ type: hide ? "merchantHides" : "merchantShows" });
@@ -6630,7 +6642,15 @@ export class Game {
     if (!t) return null;
     const r = state.rooms[t.room];
     const cells: Point[] = [];
-    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (this.npcFree(state, x, y)) cells.push({ x, y });
+    // Seulement une case qu'on peut rejoindre à pied (Thomas, 2026-11-19 : Plumeau se trouvait derrière une grille
+    // fermée de la prison, on ne pouvait pas lui parler).
+    const r0 = state.rooms[0];
+    const pass = (x: number, y: number) => state.map.isWalkable(x, y) && !state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y) && FURNITURE_KINDS[f.kind]?.blocks);
+    let start: Point | null = null;
+    for (let y = r0.y; !start && y < r0.y + r0.h; y++) for (let x = r0.x; !start && x < r0.x + r0.w; x++) if (pass(x, y)) start = { x, y };
+    const reach = start ? distanceField(state.map, start, pass) : null;
+    for (let y = r.y; y < r.y + r.h; y++)
+      for (let x = r.x; x < r.x + r.w; x++) if (this.npcFree(state, x, y) && (!reach || reach[state.map.index(x, y)] >= 0)) cells.push({ x, y });
     if (cells.length === 0) return null;
     // Plumeau est enchaîné au mur : la case libre la plus proche d'un mur.
     if (theme === "prison") cells.sort((a, b) => Math.min(a.x - r.x, r.x + r.w - 1 - a.x, a.y - r.y) - Math.min(b.x - r.x, r.x + r.w - 1 - b.x, b.y - r.y));
@@ -11243,8 +11263,31 @@ export class Game {
 
   /** Avance un monstre d'une case vers une destination, en ouvrant les portes. Renvoie faux s'il n'y a pas de chemin. */
   private stepToward(m: Actor, target: Point): boolean {
-    const step = findPath(this.map, m, target, this.avoidTraps(target, undefined, m))?.[0];
+    const allowed = this.avoidTraps(target, undefined, m);
+    let step = findPath(this.map, m, target, allowed)?.[0];
     if (!step) return false;
+    // Un autre devant lui (couloir de deux de large, Thomas 2026-11-19 : « les mobs restent l'un derrière l'autre ») :
+    // il prend une case libre à côté qui le rapproche autant (de préférence plus) de sa destination, pour se mettre
+    // de front au lieu d'attendre en file.
+    if ((this.actorAt(step.x, step.y) || this.npcAt(step.x, step.y)) && m.size === undefined) {
+      const field = distanceField(this.map, target, allowed, m);
+      const here = field[this.map.index(m.x, m.y)];
+      let best: Point | null = null;
+      let bestD = here;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const x = m.x + dx;
+          const y = m.y + dy;
+          if ((!dx && !dy) || !canStep(this.map, m.x, m.y, dx, dy) || !this.map.isWalkable(x, y) || this.actorAt(x, y) || this.npcAt(x, y) || this.map.isDoor(x, y)) continue;
+          const d = field[this.map.index(x, y)];
+          if (d >= 0 && d < bestD) {
+            best = { x, y };
+            bestD = d;
+          }
+        }
+      }
+      if (best) step = best;
+    }
     const blocker = this.monsterAt(step.x, step.y);
     if (blocker && blocker !== m) this.noteBlocked(m, blocker);
     else {

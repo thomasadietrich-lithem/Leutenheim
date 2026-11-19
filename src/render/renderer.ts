@@ -148,7 +148,7 @@ interface Projectile {
   /** Crachat d'encre du Carillon. */
   ink?: boolean;
   /** Flèche spéciale (empoisonnée, ricochante, de recul) : même dessin qu'au sol. */
-  kind?: "poison" | "ricochet" | "recul";
+  kind?: "poison" | "ricochet" | "recul" | "obsidienne" | "feu";
   fromX: number;
   fromY: number;
   x: number;
@@ -198,6 +198,7 @@ interface CloudTones {
 }
 const GAS_TONES: CloudTones = { shadow: "#2e5a1e", body: "#7ab84a", light: "#d0f088", shadowAlpha: 0.22, bodyAlpha: 0.3, lightAlpha: 0.3, bubbles: true };
 const DISCORD_TONES: CloudTones = { shadow: "#5a1438", body: "#b03a78", light: "#e88ab8", shadowAlpha: 0.4, bodyAlpha: 0.45, lightAlpha: 0.35 };
+const FROST_TONES: CloudTones = { shadow: "#4a7aa8", body: "#bfe6ff", light: "#ffffff", shadowAlpha: 0.35, bodyAlpha: 0.45, lightAlpha: 0.5 };
 const FOG_TONES: CloudTones = { shadow: "#000000", body: "#1c1924", light: "#4a4656", shadowAlpha: 0.72, bodyAlpha: 0.78, lightAlpha: 0.38 };
 /** Œil de chauve-souris : une ombre voûtée, pas le monstre lui-même. */
 const SHADOW_ROWS = [
@@ -1303,7 +1304,9 @@ export class Renderer {
       const beat = (ms: number, n: number) => Math.floor((Math.abs(this.time) + m.id * 170) / ms) % n;
       const f = champi.frames;
       // Ossuaire : le tas d'os (palpite dans la lune), le gisant couché comme le décor, l'acolyte qui chante.
-      const name = m.pile !== undefined
+      const name = m.beam
+        ? `charge${beat(120, 2)}`
+        : m.pile !== undefined
         ? "prone0"
         : m.effigy
           ? "sleep"
@@ -1323,6 +1326,20 @@ export class Renderer {
                   ? `listen${beat(350, 2)}`
                   : `idle${dir}${beat(560, 2)}`;
       // Le myconide est aveugle : pas d'éventail de regard.
+      // Crâne lunaire qui se charge : la ligne du rayon s'allume et palpite (on a un tour pour en sortir).
+      if (m.beam) {
+        const { ctx, tile } = this;
+        const a = 0.22 + 0.16 * Math.sin(this.time / 90);
+        for (const c of m.beam) {
+          const x = cx + (c.x - m.x) * tile;
+          const y = cy + (c.y - m.y) * tile;
+          ctx.fillStyle = `rgba(191,224,255,${a.toFixed(2)})`;
+          ctx.fillRect(x - tile / 2, y - tile / 2, tile, tile);
+          ctx.strokeStyle = `rgba(255,255,255,${(a + 0.3).toFixed(2)})`;
+          ctx.lineWidth = Math.max(1, tile * 0.05);
+          ctx.strokeRect(x - tile * 0.42, y - tile * 0.42, tile * 0.84, tile * 0.84);
+        }
+      }
       if (!m.asleep && !m.prone && !m.effigy && m.defId !== "myconide") this.drawGaze(cx, cy, facing, m.alerted, m.vision);
       this.drawMonsterSprite(f[name] ?? f[`idle${dir}0`], cx, cy, facing === "left", !m.prone && !m.asleep, champi.palette, m.grown ? 1.5 : 1);
       return;
@@ -1561,6 +1578,13 @@ export class Renderer {
   }
   private inkDrops: { x: number; y: number; age: number }[] = [];
 
+  /** Rayon du crâne lunaire : un trait de lumière froide de sa case au bout de la ligne (0,45 s). */
+  beamFlash(fromX: number, fromY: number, cells: readonly { x: number; y: number }[]): void {
+    const end = cells[cells.length - 1] ?? { x: fromX, y: fromY };
+    this.beams.push({ x0: fromX, y0: fromY, x1: end.x, y1: end.y, age: 0 });
+  }
+  private beams: { x0: number; y0: number; x1: number; y1: number; age: number }[] = [];
+
   carillonRing(x: number, y: number): void {
     this.carillonRingAt = this.time;
     this.waves.push({ x, y, age: 0 });
@@ -1766,12 +1790,12 @@ export class Renderer {
     }
   }
 
-  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false, kind?: "poison" | "ricochet" | "recul", ink = false): void {
+  addProjectile(fromX: number, fromY: number, x: number, y: number, delay = 0, tumble = false, stone = false, javelin = false, kind?: "poison" | "ricochet" | "recul" | "obsidienne" | "feu", ink = false): void {
     this.projectiles.push({ fromX, fromY, x, y, age: -delay, tumble, stone, javelin, kind, ink }); // un âge négatif : elle partira après ce délai
   }
 
   /** Dessine une flèche centrée en (cx, cy), pointe vers `angle`. */
-  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", kind: "plain" | "poison" | "ricochet" | "recul" = "plain"): void {
+  private drawArrow(cx: number, cy: number, angle: number, length: number, part: "whole" | "front" | "back" = "whole", kind: "plain" | "poison" | "ricochet" | "recul" | "obsidienne" | "feu" = "plain"): void {
     const poisoned = kind === "poison";
     const { ctx } = this;
     ctx.save();
@@ -1802,7 +1826,7 @@ export class Renderer {
     shape(kind === "recul" ? "#4a8fd0" : "#b9824a", [[x0, -w / 2], [x1, -w / 2], [x1, w / 2], [x0, w / 2]]);
     // Un ruban noué autour de la tige (Thomas, 2026-11-15) : vert pour la flèche empoisonnée, noir pour la ricochante.
     if (kind !== "plain" && kind !== "recul" && part === "whole") {
-      const rib = kind === "poison" ? "#4fae3c" : "#1a1620";
+      const rib = kind === "poison" ? "#4fae3c" : kind === "obsidienne" ? "#b48ce0" : kind === "feu" ? "#e8502a" : "#1a1620";
       // Quelques pixels au milieu de la tige (Thomas, 2026-11-15), sans déborder.
       const rx = -L * 0.12;
       ctx.fillStyle = rib;
@@ -1811,7 +1835,7 @@ export class Renderer {
     if (part !== "back") {
       // Petite pointe d'acier compacte : c'est elle qui dit où va la flèche.
       // Pointe affinée (Thomas, 2026-11-12) : plus longue, plus étroite.
-      shape(poisoned ? "#b8e05a" : kind === "ricochet" ? "#9fcfff" : kind === "recul" ? "#6ad0ff" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
+      shape(poisoned ? "#b8e05a" : kind === "ricochet" ? "#9fcfff" : kind === "recul" ? "#6ad0ff" : kind === "obsidienne" ? "#2a2236" : kind === "feu" ? "#ff9a3a" : "#eef2ff", [[L * 0.54, 0], [L * 0.22, -w * 1.5], [L * 0.22, w * 1.5]]);
     }
     ctx.restore();
   }
@@ -2267,11 +2291,11 @@ export class Renderer {
         // Or : un tas, petit, moyen ou gros selon la somme comparée à ce qu'on trouve à cet étage.
         const size = g.count >= goldRange(game.depth, "large")[0] ? "large" : g.count >= goldRange(game.depth, "medium")[0] ? "medium" : "small";
         this.drawGroundIcon(GOLD_PILES[size], gx, gy);
-      } else if (g.item !== "fleche" && g.item !== "fleche_poison" && g.item !== "fleche_ricochet" && g.item !== "fleche_recul") {
+      } else if (g.item !== "fleche" && g.item !== "fleche_poison" && g.item !== "fleche_ricochet" && g.item !== "fleche_recul" && g.item !== "fleche_obsidienne" && g.item !== "fleche_feu") {
         this.drawGroundIcon(itemIconRows(g.item), gx, gy);
       } else {
         // Flèche au sol, tournée dans le sens où elle est tombée ou s'est plantée.
-        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison" ? "poison" : g.item === "fleche_ricochet" ? "ricochet" : g.item === "fleche_recul" ? "recul" : "plain");
+        this.drawArrow(gx + tile / 2, gy + tile / 2, g.angle ?? -Math.PI / 4, tile * 0.8, "whole", g.item === "fleche_poison" ? "poison" : g.item === "fleche_ricochet" ? "ricochet" : g.item === "fleche_recul" ? "recul" : g.item === "fleche_obsidienne" ? "obsidienne" : g.item === "fleche_feu" ? "feu" : "plain");
       }
     }
 
@@ -2348,7 +2372,8 @@ export class Renderer {
         // Pétrifié : gris, et figé (l'horloge de son animation s'arrête).
         const now = this.time;
         if (m.petrified) {
-          this.ctx.filter = "grayscale(1) brightness(1.1)";
+          // Gelé (potion de gel) : bleu glacé ; pétrifié : gris.
+          this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
           if (!this.stoneAt.has(m.id)) this.stoneAt.set(m.id, now);
           this.time = this.stoneAt.get(m.id)!;
         } else this.stoneAt.delete(m.id);
@@ -2486,6 +2511,7 @@ export class Renderer {
     this.drawClouds(game, game.gas, ox, oy, GAS_TONES, 5);
     this.drawClouds(game, game.fog, ox, oy, FOG_TONES, 7);
     this.drawClouds(game, game.discordMist, ox, oy, DISCORD_TONES, 5);
+    this.drawClouds(game, game.frost, ox, oy, FROST_TONES, 4);
     // Œil de chauve-souris (bibelot) : l'ombre des monstres qu'on ne voit pas.
     const shadows = game.batShadows();
     if (shadows.length > 0) {
@@ -2584,6 +2610,28 @@ export class Renderer {
       ctx.restore();
     }
     // L'encre qui tombe : 220 ms de chute, puis 380 ms d'éclaboussure.
+    if (this.beams.length > 0) {
+      for (const b of this.beams) b.age += dt;
+      this.beams = this.beams.filter((b) => b.age < 450);
+      for (const b of this.beams) {
+        const f = 1 - b.age / 450;
+        const x0 = ox + (b.x0 + 0.5) * tile;
+        const y0 = oy + (b.y0 + 0.5) * tile;
+        const x1 = ox + (b.x1 + 0.5) * tile;
+        const y1 = oy + (b.y1 + 0.5) * tile;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = `rgba(111,143,184,${(0.5 * f).toFixed(2)})`;
+        ctx.lineWidth = tile * 0.7 * f;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(220,240,255,${(0.9 * f).toFixed(2)})`;
+        ctx.lineWidth = tile * 0.28 * f;
+        ctx.stroke();
+        ctx.lineCap = "butt";
+      }
+    }
     if (this.inkDrops.length > 0) {
       for (const d of this.inkDrops) d.age += dt;
       this.inkDrops = this.inkDrops.filter((d) => d.age < 600);

@@ -484,7 +484,7 @@ export function rollLoot(rng: Rng, depth: number): { item: ItemId; count: number
     }
     roll -= odds[r];
   }
-  const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth && available(l.item));
+  const pool = LOOT[rarity].filter((l) => (l.minDepth ?? 1) <= depth && (l.maxDepth ?? Infinity) >= depth && available(l.item));
   // LE BUTIN DE SA SECTION D'ABORD (Thomas, 2026-11-17 : règle pour la suite) : un équipement d'une section passée
   // (son étage minimal y est) sort quatre fois moins souvent ; une section future est déjà exclue par `minDepth`.
   const section = sectionOf(depth);
@@ -564,7 +564,7 @@ export function lootPool(depth: number, keep: (kind: string, id: string) => bool
   for (const rarity of ["common", "uncommon", "rare"] as Rarity[]) {
     if (only && rarity !== only) continue;
     for (const l of LOOT[rarity]) {
-      if (l.item === "gold" || (l.minDepth ?? 1) > depth || ids.includes(l.item) || !available(l.item)) continue;
+      if (l.item === "gold" || (l.minDepth ?? 1) > depth || (l.maxDepth ?? Infinity) < depth || ids.includes(l.item) || !available(l.item)) continue;
       if (keep(ITEMS[l.item].kind, l.item)) ids.push(l.item);
     }
   }

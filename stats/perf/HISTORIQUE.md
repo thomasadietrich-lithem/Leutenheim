@@ -101,3 +101,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-18_20h49 | e5413d6 | 32.7 | 33.8 | 31.9 | 37.8 | 16.7 | 30.3 | 0.77 | 0.36 | lot du 18/11 soir : hall, concert, vesses, squelettes |
 | 2026-11-19_09h37 | ff28ed1 | 26.2 | 20.4 | 19.6 | 23.1 | 16.7 | 24.7 | 0.34 | 0.26 | Ossuaire en jeu (section 3, aperçu 11-15) |
 | 2026-11-19_10h08 | dfbc042 | 19.4 | 25.5 | 19.2 | 20.7 | 16.7 | 21.3 | 0.42 | 0.23 | Section 3 : monstres de l'ossuaire (rat, squelette, acolyte, gisant) |
+| 2026-11-19_10h56 | 2e9c8be | 26.2 | 24.2 | 24.4 | 21.5 | 16.7 | 21 | 0.49 | 0.11 | Section 3 : archer, crâne lunaire, flèches d'obsidienne et enflammées, potion de gel |

@@ -430,6 +430,11 @@ def tile(rows, pal, S, bgc):
 
 
 def sheet():
+    if not any(t.startswith("SQUELETTE ARCHER") for t, _, _ in MOBS):
+        MOBS.insert(2, ("SQUELETTE ARCHER — 14 PV, tire de loin, garde ses distances", {**SKEL, "s": "#d8d0b8"}, [
+            ("face", with_bow(SK_DOWN, "Down")), ("profil", with_bow(SK_SIDE, "Side")), ("marche", with_bow(SK_SIDE_B, "Side")), ("tir", with_bow(SK_SIDE, "Atk")), ("tas d'os", SK_PILE)]))
+        MOBS.insert(3, ("CRÂNE LUNAIRE — 12 PV, se charge puis tire un rayon sur toute la ligne", CRANE, [
+            ("face", CR_DOWN), ("profil", CR_SIDE), ("dos", CR_UP), ("se charge", CR_CHARGE), ("rayon !", CR_CHARGE2), ("mort", CR_DEAD)]))
     S = 5
     cell = 16 * S + 6 + 8
     n = max(len(f) for _, _, f in MOBS)
@@ -538,12 +543,87 @@ def game_sets():
     }
 
 
+# Crâne lunaire (Thomas, 2026-11-19 : « un mob qui charge et tire un rayon ») : un crâne dans une flamme pâle, qui flotte.
+CRANE = {"O": OUT, "W": "#e8e0c8", "w": "#b4a888", "d": "#786c56", "E": "#0c0a10", "M": "#bfe0ff", "m": "#6f8fb8", "L": "#ffffff"}
+CR_DOWN = [
+    E16,
+    "......m..m......",
+    ".....mMm.Mm.....",
+    "....mMMmmMMm....",
+    "....mWWWWWWm....",
+    "...mWWWWWWWWm...",
+    "...mWEEWWEEWm...",
+    "...mWEMWWEMWm...",
+    "....WWWddWWw....",
+    "....wWWddWWw....",
+    ".....wdWdWd.....",
+    ".....mwdwdm.....",
+    "......mMMm......",
+    ".......mm.......",
+    E16,
+    E16]
+CR_SIDE = [
+    E16,
+    ".....m..m.......",
+    "....mMm.Mm......",
+    "...mMMmmMMm.....",
+    "...mWWWWWWWm....",
+    "..mWWWWWWWWWm...",
+    "..mWWWWWWEEWm...",
+    "..mWWWWWWEMWWm..",
+    "...wWWWWWWWdWm..",
+    "...wWWWWWWWWw...",
+    "....wwWWdWdW....",
+    ".....mwwdwd.....",
+    "......mMMm......",
+    ".......mm.......",
+    E16,
+    E16]
+CR_UP = [r.replace("E", "W").replace("d", "W") for r in CR_DOWN]
+CR_CHARGE = [r.replace("E", "M").replace("m", "M") for r in CR_DOWN]
+CR_CHARGE2 = [r.replace("E", "L").replace("M", "L") for r in CR_DOWN]
+CR_DEAD = [E16] * 11 + [
+    "................",
+    "....wWWWWWw.....",
+    "...wWEWWEWWd....",
+    "...dwWWddWwdd...",
+    E16]
+
+
+def with_bow(rows, view):
+    """Squelette archer : l'épée retirée, un arc de bois (et sa corde) à la place."""
+    a = [list(r.replace("R", ".").replace("r", ".")) for r in rows]
+    pts = {"Down": [(3, 7, "R"), (2, 8, "R"), (2, 9, "R"), (2, 10, "R"), (2, 11, "R"), (3, 12, "R"), (3, 8, "s"), (3, 9, "s"), (3, 10, "s"), (3, 11, "s")],
+           "Side": [(12, 7, "R"), (13, 8, "R"), (13, 9, "R"), (13, 10, "R"), (13, 11, "R"), (12, 12, "R"), (12, 8, "s"), (12, 9, "s"), (12, 10, "s"), (12, 11, "s")],
+           "Atk": [(12, 6, "R"), (13, 7, "R"), (14, 8, "R"), (14, 9, "R"), (13, 10, "R"), (12, 11, "R"), (11, 8, "s"), (10, 8, "r"), (11, 9, "r"), (12, 9, "r"), (13, 9, "r"), (15, 9, "W")]}[view]
+    for x, y, c in pts:
+        a[y][x] = c
+    return ["".join(r) for r in a]
+
+
+def archer_set():
+    sk = game_sets()["squelette"][0]
+    return {
+        "idleDown0": with_bow(SK_DOWN, "Down"), "idleSide0": with_bow(SK_SIDE, "Side"), "idleUp0": SK_UP,
+        "walkSide1": with_bow(SK_SIDE_B, "Side"), "attackSide1": with_bow(SK_SIDE, "Atk"), "attackDown1": with_bow(SK_DOWN, "Down"),
+    }, sk
+
+
 def export():
     import json
     out = ["// FICHIER GÉNÉRÉ par art/mobs_oss_v1.py export : ne pas modifier à la main.",
            "/** Monstres de la section 3 (planche art/mobs_oss_v1.png) : rat d'ossuaire, squelette, acolyte, gisant éveillé. */",
            "export const MOBS_OSS: Record<string, { palette: Record<string, string>; frames: Record<string, readonly string[]> }> = {"]
-    for key, (frames, pal) in game_sets().items():
+    sets = game_sets()
+    arch, sk = archer_set()
+    # L'archer : les états du squelette (tas d'os, couché, mort…), ses poses à l'arc par-dessus.
+    base = {"idleDown0": arch["idleDown0"], "idleSide0": arch["idleSide0"], "idleUp0": SK_UP, "walkSide1": arch["walkSide1"], "attackSide1": arch["attackSide1"]}
+    full = full_set(base["idleDown0"], base["idleSide0"], base["walkSide1"], [r.replace("R", ".").replace("r", ".") for r in SK_UP], base["attackSide1"], SK_LIE, SK_DEAD, SK_PILE,
+                    {"rise0": SK_RISE, "rise1": shift(SK_RISE, 0, -1)})
+    sets["squeletteArcher"] = (full, {**SKEL, "s": "#d8d0b8"})
+    sets["craneLunaire"] = (full_set(CR_DOWN, CR_SIDE, shift(CR_SIDE, 0, -1), CR_UP, shift(CR_SIDE, 1, 0), CR_DOWN, CR_DEAD, CR_DEAD,
+                                     {"charge0": CR_CHARGE, "charge1": CR_CHARGE2}), CRANE)
+    for key, (frames, pal) in sets.items():
         out.append(f"  {key}: {{ palette: {json.dumps(pal)}, frames: {{")
         for n, rows in frames.items():
             out.append(f"    {n}: {json.dumps(rows)},")

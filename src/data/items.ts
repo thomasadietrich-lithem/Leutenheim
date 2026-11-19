@@ -59,6 +59,8 @@ export interface ItemDef {
   ricochet?: boolean;
   /** Flèche de recul : quand elle touche, la cible recule de tant de cases. */
   knockback?: number;
+  /** Flèche enflammée : le feu prend sur la case où elle touche ou tombe. */
+  ignites?: boolean;
   /** Objets à utiliser : PV rendus, ou tours de lumière (torche). */
   heal?: number;
   lightTurns?: number;
@@ -68,7 +70,7 @@ export interface ItemDef {
   bagCols?: number;
   bagRows?: number;
   /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
-  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip";
+  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip" | "frost";
   /** Bombe arcanique (Thomas, 2026-11-16) : elle se lance, puis explose quelques tours plus tard. */
   bomb?: boolean;
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
@@ -273,6 +275,36 @@ export const ITEMS = {
     ammoFamily: "fleche",
     damage: { count: 1, sides: 6, bonus: 0 },
     knockback: 3,
+  },
+  // SECTION 3 (Thomas, 2026-11-19 : « flèches d'obsidienne 1d8, commune et fréquente ; on ne doit plus trop se balader en
+  // section 3 avec des flèches de base » ; « et des flèches enflammées »).
+  fleche_obsidienne: {
+    id: "fleche_obsidienne",
+    single: "La flèche d'obsidienne",
+    name: "Flèches d'obsidienne",
+    kind: "ammo",
+    description: "Une pointe de verre noir taillé, plus lourde et plus coupante que l'acier. On en trouve partout dans l'ossuaire.",
+    w: 1,
+    h: 1,
+    maxStack: 20,
+    rarity: "common",
+    ammoFamily: "fleche",
+    damage: { count: 1, sides: 8, bonus: 0 },
+  },
+  fleche_feu: {
+    id: "fleche_feu",
+    single: "La flèche enflammée",
+    name: "Flèches enflammées",
+    kind: "ammo",
+    description: "Un chiffon huilé noué sous la pointe, qui s'allume au tir. Là où elle touche (ou tombe), le feu prend.",
+    w: 1,
+    h: 1,
+    maxStack: 20,
+    rarity: "uncommon",
+    level: 10,
+    ammoFamily: "fleche",
+    damage: { count: 1, sides: 6, bonus: 0 },
+    ignites: true,
   },
   // Flèche ricochante (Thomas, 2026-11-15 : « niveau 6, rare ») : après un coup qui porte, elle repart vers un autre
   // monstre en vue à 4 cases ou moins de la cible (nouveau jet, mêmes dégâts) (C).
@@ -529,6 +561,7 @@ export const ITEMS = {
   flute_pan: { id: "flute_pan", name: "Flûte de pan", kind: "artifact", description: "Quelques roseaux liés. En combat, de temps en temps, un air doux endort l'ennemi le plus proche.", w: 1, h: 1, maxStack: 1, rarity: "uncommon" },
   // Thomas, 2026-11-13 : potions de pierre et de discorde.
   potion_pierre: { id: "potion_pierre", name: "Potion de pierre", kind: "use", description: "Grise et lourde. Bue : vous devenez statue 10 tours ; les monstres perdent votre trace et ne vous blessent plus, mais vous ne pouvez rien faire. Lancée : le monstre touché est pétrifié 10 tours, et sert d'abri pour se cacher.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "stone", throwRange: 5, drinkWarning: "Vous serez une statue pendant 10 tours, sans pouvoir rien faire." },
+  potion_gel: { id: "potion_gel", name: "Potion de gel", kind: "use", description: "Bleu pâle, froide à travers le verre. Lancée, elle gèle une croix de cinq cases : les monstres pris restent figés 3 tours et le feu s'éteint. Bue, un souffle glacé gèle tout ce qui vous touche.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "frost", throwRange: 5 },
   potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et pétillante. À lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
   // Thomas, 2026-11-13 : potion d'agrandissement (« comme dans BG3 ») et potion glissante.
   potion_geant: { id: "potion_geant", name: "Potion de géant", kind: "use", description: "Violette et bouillonnante. Bue : vous doublez de taille 8 tours, vos coups font deux fois plus mal, mais vous ne passez plus les portes. Lancée : c'est le monstre touché qui grandit (le boss aussi).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "grow", throwRange: 5, drinkWarning: "Pendant 8 tours, vous ne passerez plus les portes." },

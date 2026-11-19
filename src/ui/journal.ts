@@ -275,6 +275,12 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.what === "down"
         ? "Le Kobold envahi s'effondre… mais le champignon sur son crâne palpite encore. Achevez-le, ou brûlez-le !"
         : "Le Kobold envahi se relève, tiré par son champignon.";
+    case "beam":
+      return e.what === "charge"
+        ? "Le crâne lunaire se charge : une ligne de lumière s'allume… Sortez-en !"
+        : `Le rayon de lune part sur toute la ligne (${e.damage ?? 0} dégâts à qui s'y trouve).`;
+    case "frost":
+      return e.what === "freeze" ? `${capFirst(e.actor.name)} gèle sur place.` : `La glace craque : ${e.actor.name} dégèle.`;
     case "undead":
       switch (e.what) {
         case "pile":
@@ -466,6 +472,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             ? "Votre peau se fige… vous voilà statue. Les monstres ne vous voient plus."
           : e.potion === "urchin"
             ? "Des piquants vous hérissent la peau : qui vous frappe s'y pique."
+          : e.potion === "frost"
+            ? "Un souffle glacé jaillit de vous : tout ce qui vous touche gèle."
           : e.potion === "grow"
             ? "Vous grandissez d'un coup ! Vos coups font deux fois plus mal… mais les portes sont trop étroites."
             : "Vous vous sentez vif : une attaque de plus pendant 4 tours.";
@@ -544,6 +552,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       if (e.note === "healed") return "La fiole éclate : la jouvence éclabousse la créature… qui reprend toutes ses forces. Oups.";
       if (e.note === "angry") return "La fiole éclate : la créature, aspergée de vitesse, s'agite dans tous les sens.";
       if (e.potion === "youth" || e.potion === "haste" || e.potion === "urchin") return "La fiole éclate : la potion se répand sur les dalles, parmi les éclats de verre.";
+      if (e.potion === "frost") return "La fiole éclate : le givre se répand en croix, tout gèle.";
       return e.potion === "poison" ? "La fiole éclate : un nuage vert empoisonné se répand." : null;
     case "shatter":
       return e.potion === "fire"

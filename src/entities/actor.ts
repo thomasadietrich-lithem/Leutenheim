@@ -65,6 +65,11 @@ export interface Actor {
   pile?: number;
   crush?: boolean;
   chanting?: boolean;
+  /** Crâne lunaire : la ligne qu'il a chargée (il tire au tour suivant), et ses tours de refroidissement. */
+  beam?: { x: number; y: number }[];
+  beamCd?: number;
+  /** Gelé par la potion de gel (il est figé par `petrified`, dessiné bleu). */
+  frozen?: boolean;
   effigy?: boolean;
   moonless?: number;
   /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */

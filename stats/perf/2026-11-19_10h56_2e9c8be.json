@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-19T10:56:00.870Z",
+ "commit": "2e9c8be",
+ "note": "Section 3 : archer, crâne lunaire, flèches d'obsidienne et enflammées, potion de gel",
+ "logic": {
+  "tickMs": 0.49,
+  "lightMs": 0.11,
+  "visionMs": 0.34
+ },
+ "scenes": {
+  "immobile": {
+   "n": 94,
+   "avg": 26.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 38,
+   "js": 4
+  },
+  "marche": {
+   "n": 207,
+   "avg": 24.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 41,
+   "js": 4
+  },
+  "retour": {
+   "n": 204,
+   "avg": 24.4,
+   "p95": 33.4,
+   "max": 33.5,
+   "fps": 41,
+   "js": 3
+  },
+  "zoom": {
+   "n": 123,
+   "avg": 21.5,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 46,
+   "js": 4
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 237,
+   "avg": 21,
+   "p95": 33.4,
+   "max": 166.6,
+   "fps": 48,
+   "js": 11
+  }
+ },
+ "errors": []
+}

@@ -44,7 +44,7 @@ import { floorSeed, Rng } from "./rng";
 import { KitTier, TEST_KITS } from "../data/testKits";
 import { lessGold, sectionOf } from "../data/loot";
 /** Le dessin en vol des flèches spéciales. */
-const ARROW_KIND: Partial<Record<ItemId, "poison" | "ricochet" | "recul">> = { fleche_poison: "poison", fleche_ricochet: "ricochet", fleche_recul: "recul" };
+const ARROW_KIND: Partial<Record<ItemId, "poison" | "ricochet" | "recul" | "obsidienne" | "feu">> = { fleche_poison: "poison", fleche_ricochet: "ricochet", fleche_recul: "recul", fleche_obsidienne: "obsidienne", fleche_feu: "feu" };
 import { makeMerchant, Merchant, mix, rollWares } from "./merchant";
 import { buyBackPrice, MERCHANT, SANDBOX_WARES } from "../data/merchant";
 
@@ -113,7 +113,7 @@ export interface KrikMemory {
 }
 
 /** La flaque qu'une potion laisse en éclatant : sa couleur. */
-const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pUrchin", stone: "pStone", discord: "pDiscord", grow: "pGrow", slip: "pSlip" };
+const POTION_STAIN: Record<string, StainColor> = { youth: "pYouth", poison: "pPoison", haste: "pHaste", fire: "pFire", smoke: "soot", fog: "soot", urchin: "pUrchin", stone: "pStone", discord: "pDiscord", grow: "pGrow", slip: "pSlip", frost: "pHaste" };
 
 /** Ce que Sœur Osseuse sait du héros, le temps d'une partie. */
 export interface SoeurMemory {
@@ -529,6 +529,7 @@ export class Game {
     this.gas = [];
     this.fog = [];
     this.discordMist = [];
+    this.frost = [];
     this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
     const arrival = via === "down" ? state.start : state.stairs;
@@ -753,6 +754,77 @@ export class Game {
       m.stunned = Math.max(m.stunned ?? 0, 1);
       this.events.push({ type: "undead", actor: m, what: "daze" });
     }
+  }
+
+  /**
+   * Crâne lunaire (Thomas, 2026-11-19 : « un mob qui charge et tire un rayon ») : en vue, aligné avec le héros (ligne,
+   * colonne ou diagonale) entre 2 et `range` cases, il se charge : la ligne s'allume jusqu'au premier mur. Au tour
+   * suivant, le rayon part sur cette ligne : tout ce qui s'y trouve est touché (monstres compris). On l'évite en sortant
+   * de la ligne. Puis il refroidit 2 tours.
+   */
+  private chargeBeam(m: Actor, beam: NonNullable<MonsterDef["beam"]>): boolean {
+    if (m.beamCd) {
+      m.beamCd--;
+      return false;
+    }
+    const dx = this.hero.x - m.x;
+    const dy = this.hero.y - m.y;
+    const d = Math.max(Math.abs(dx), Math.abs(dy));
+    if (d < 2 || d > beam.range || !(dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy))) return false;
+    if (!hasLineOfSight(this.map, m, this.hero) || !this.isVisible(m.x, m.y)) return false;
+    const sx = Math.sign(dx);
+    const sy = Math.sign(dy);
+    const cells: Point[] = [];
+    for (let k = 1; k <= beam.range + 2; k++) {
+      const x = m.x + sx * k;
+      const y = m.y + sy * k;
+      if (this.map.blocksSight(x, y) || !this.map.inBounds(x, y)) break;
+      cells.push({ x, y });
+    }
+    m.beam = cells;
+    this.faceToward(m, this.hero);
+    this.events.push({ type: "beam", actor: m, what: "charge", cells });
+    return true;
+  }
+
+  private fireBeam(m: Actor, beam: NonNullable<MonsterDef["beam"]>): void {
+    const cells = m.beam ?? [];
+    m.beam = undefined;
+    m.beamCd = 2;
+    const damage = rollDice(this.rng, beam.damage);
+    this.events.push({ type: "beam", actor: m, what: "fire", cells, damage });
+    for (const c of cells) {
+      if (this.hero.x === c.x && this.hero.y === c.y && !this.over) this.hurtHero(damage, this.killerName(m));
+      const o = this.monsterAt(c.x, c.y);
+      if (o && o !== m && !this.isInert(o)) {
+        o.hp -= damage;
+        this.removeIfDead(o, false);
+      }
+    }
+  }
+
+  /** Gel : les monstres sur ces cases sont figés (`RULES.freezeTurns`, le boss un tour) ; le feu y meurt ; givre au sol. */
+  private freezeCells(cells: readonly Point[]): void {
+    this.fires = this.fires.filter((f) => !cells.some((c) => c.x === f.x && c.y === f.y));
+    for (const c of cells) this.frost.push({ x: c.x, y: c.y, turns: RULES.freezeTurns });
+    for (const m of this.monsters) {
+      if (this.isInert(m) || !cells.some((c) => occupies(m, c.x, c.y))) continue;
+      m.petrified = m.boss ? 1 : RULES.freezeTurns;
+      m.frozen = true;
+      m.burning = 0;
+      m.chanting = false;
+      m.beam = undefined;
+      m.feud = undefined;
+      this.events.push({ type: "frost", actor: m, what: "freeze" });
+    }
+  }
+
+  /** Fin d'un gel ou d'une pétrification. */
+  private thaw(m: Actor): void {
+    if (m.frozen) {
+      m.frozen = false;
+      this.events.push({ type: "frost", actor: m, what: "thaw" });
+    } else this.events.push({ type: "stone", what: "monsterBack", actor: m });
   }
 
   /** Os creux ou pierre : les projectiles ne font que la moitié des dégâts. */
@@ -2544,6 +2616,8 @@ export class Game {
   /** Potion de discorde (Thomas, 2026-11-17 : « nuage rose sur plusieurs mobs, croix foncée, zone plus petite que le
    *  brouillard ») : un nuage rose foncé en croix, pour l'œil seulement (2 tours). */
   discordMist: { x: number; y: number; turns: number; thin?: boolean }[] = [];
+  /** Givre de la potion de gel (pour l'œil). */
+  frost: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
   /** Potion de pierre bue : tours où le héros est une statue (rien ne le blesse, il ne peut rien faire). */
@@ -2616,6 +2690,8 @@ export class Game {
     this.fog = this.fog.filter((f) => f.turns > 0);
     for (const f of this.discordMist) f.turns--;
     this.discordMist = this.discordMist.filter((f) => f.turns > 0);
+    for (const f of this.frost) f.turns--;
+    this.frost = this.frost.filter((f) => f.turns > 0);
     for (const f of this.fog) if (f.turns === 1) f.thin = true;
   }
 
@@ -3512,6 +3588,12 @@ export class Game {
       this.stoneTurns = RULES.stoneTurns;
       for (const m of this.monsters) if (!m.boss) { m.alerted = false; m.wary = false; }
       this.events.push({ type: "potion", potion: "stone" });
+    } else if (def.potion === "frost") {
+      // Bue (Thomas, 2026-11-19) : un souffle glacé part du héros ; tout ce qui le touche (8 cases voisines) gèle.
+      const cells: Point[] = [];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && this.map.isWalkable(this.hero.x + dx, this.hero.y + dy)) cells.push({ x: this.hero.x + dx, y: this.hero.y + dy });
+      this.events.push({ type: "potion", potion: "frost" });
+      this.freezeCells(cells);
     } else if (def.potion === "grow") {
       // +1 : le tour où on la boit ne compte pas.
       this.hero.grown = RULES.growTurns + 1;
@@ -3558,6 +3640,7 @@ export class Game {
         this.gasPoison();
       }
       if (potion === "smoke") this.smokeBurst(at, 1);
+      if (potion === "frost") this.freezeCells([at]);
       if (potion === "fog") this.spreadFog(at, 1);
       // Une flaque de sa couleur reste au sol (Thomas, 2026-11-12).
       if (this.map.get(at.x, at.y) !== Tile.Water) this.stain(at.x, at.y, POTION_STAIN[potion] ?? "pYouth");
@@ -4062,6 +4145,14 @@ export class Game {
     const extra = splash[this.rng.int(0, splash.length - 1)];
     // La flaque de sa couleur, là où la fiole éclate (Thomas, 2026-11-12).
     if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+    if (potion === "frost") {
+      // Potion de gel (Thomas, 2026-11-19) : lancée, la croix de 5 cases gèle ; les monstres pris sont figés (le boss un
+      // tour), le feu s'éteint.
+      const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      this.freezeCells(cells);
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
+      return;
+    }
     if (potion === "stone") {
       // Lancée : le monstre de la case est pétrifié 3 tours, et sert d'abri (Thomas, 2026-11-13). Pas le boss.
       const m = this.monsterAt(order.x, order.y);
@@ -9180,9 +9271,23 @@ export class Game {
    * faites ») : partie d'essai seulement. Étage 10 (le Carillon), héros niveau 10, points placés (Force et Vie à tour de
    * rôle), la voie rouge si aucune n'est prise, tous les rangs de pouvoir achetés, l'équipement « élevé », PV pleins.
    */
-  testBoss2(): boolean {
+  /**
+   * Aperçu de la section 3 (Thomas, 2026-11-19 : « les statues me one shot » : l'aperçu partait au niveau 1) : l'étage 11
+   * avec un héros de niveau 10 monté comme pour le Carillon, plus 20 flèches d'obsidienne et 2 potions de gel.
+   */
+  testSection3(): boolean {
     if (!this.testRun || this.over) return false;
-    if (this.depth !== RULES.bossDepths[1]) this.teleport(RULES.bossDepths[1]);
+    if (!this.teleport(11)) return false;
+    this.testBoss2(false);
+    this.inventory.add("fleche_obsidienne", 20);
+    this.inventory.add("potion_gel", 2);
+    this.chooseAmmo("fleche_obsidienne");
+    return true;
+  }
+
+  testBoss2(move = true): boolean {
+    if (!this.testRun || this.over) return false;
+    if (move && this.depth !== RULES.bossDepths[1]) this.teleport(RULES.bossDepths[1]);
     // Niveau par niveau : le Rang I se remplit avant le niveau 6, le Rang II ensuite (Rang I gelé).
     for (let guard = 0; this.level < 10 && guard < 20; guard++) {
       this.levelUpNow();
@@ -10027,7 +10132,8 @@ export class Game {
     }
 
     // Flèche sans fin : elle ne se ramasse pas (le tirage a lieu quand même : le hasard des combats ne change pas).
-    const kept = this.rng.chance(keepChance) && !endless;
+    // La flèche enflammée se consume : elle ne se ramasse jamais.
+    const kept = this.rng.chance(keepChance) && !endless && !(ITEMS[ammo] as ItemDef).ignites;
     // Ratée ET brisée (Thomas, 2026-11-16 : « remets certaines flèches manquées qui rebondissent derrière l'ennemi, mais
     // seulement celles qui se brisent ») : elle file plus loin derrière lui, et peut rebondir sur un mur. Celle qui
     // reste entière tombe juste derrière (on n'a pas à courir après).
@@ -10045,6 +10151,17 @@ export class Game {
     // brise pas en morceaux (perdue, elle disparaît) et retombe à plat, sans orientation.
     const stone = (ITEMS[ammo] as ItemDef).ammoFamily === "pierre" || undefined;
     if (ricochet) landing = { x: ricochet.target.x, y: ricochet.target.y };
+    // Flèche enflammée (Thomas, 2026-11-19) : le feu prend là où elle touche, ou là où elle tombe.
+    if ((ITEMS[ammo] as ItemDef).ignites) {
+      const at = hit && victim ? { x: victim.x, y: victim.y } : landing;
+      if (this.map.get(at.x, at.y) !== Tile.Water && this.map.isWalkable(at.x, at.y)) {
+        const old = this.fires.find((f) => f.x === at.x && f.y === at.y);
+        if (old) old.turns = RULES.fireTurns;
+        else this.fires.push({ x: at.x, y: at.y, turns: RULES.fireTurns });
+        if (hit && victim) victim.burning = Math.max(victim.burning ?? 0, 2);
+        this.igniteFurniture();
+      }
+    }
     if (kept) this.dropItem(landing.x, landing.y, ammo, 1, stone ? undefined : angle);
     else if (!stone) this.debris.push({ x: landing.x, y: landing.y, angle, until: this.turn + RULES.brokenArrowTurns, javelin });
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: ricochet ? ricochet.from.x : landing.x, y: ricochet ? ricochet.from.y : landing.y, via, hit, kept: kept && !ricochet, javelin, stone, ammo, arrowKind: ARROW_KIND[ammo] });
@@ -10153,7 +10270,7 @@ export class Game {
         // Potion de pierre lancée sur la Tisseuse : sa carapace se fige un court instant.
         if (m.petrified) {
           m.petrified--;
-          if (m.petrified === 0) this.events.push({ type: "stone", what: "monsterBack", actor: m });
+          if (m.petrified === 0) this.thaw(m);
           continue;
         }
         if (m.defId === "carillon") this.carillonAct(m);
@@ -10196,6 +10313,10 @@ export class Game {
       if (odef.effigy && this.effigyRests(m)) continue;
       if (odef.eatsFood && this.ratEats(m)) continue;
       if (odef.chanter && this.chantAct(m)) continue;
+      if (odef.beam && m.beam) {
+        this.fireBeam(m, odef.beam);
+        continue;
+      }
       if (m.slowed) {
         // Ralenti (bousculade) : il ne joue qu'un tour sur deux.
         m.slowed--;
@@ -10204,7 +10325,7 @@ export class Game {
       // Pétrifié (potion de pierre lancée) : il ne fait rien, puis redevient lui-même.
       if (m.petrified) {
         m.petrified--;
-        if (m.petrified === 0) this.events.push({ type: "stone", what: "monsterBack", actor: m });
+        if (m.petrified === 0) this.thaw(m);
         continue;
       }
       if (m.feud !== undefined && this.feudAct(m)) continue;
@@ -10323,6 +10444,9 @@ export class Game {
       // Kobold frondeur : il tire de loin et garde ses distances (recule, de préférence près d'une colonne ou d'un meuble).
       const slinger = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).sling;
       if (slinger && this.slingerAct(m, slinger, distance)) continue;
+      // Crâne lunaire : aligné avec le héros, il se charge (la ligne s'allume), et tire au tour suivant.
+      const beamer = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).beam;
+      if (beamer && this.chargeBeam(m, beamer)) continue;
 
       if (this.inReach(m, this.hero)) {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.

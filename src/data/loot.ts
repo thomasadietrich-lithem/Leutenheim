@@ -20,17 +20,18 @@ export const GOLD_PILES: Record<"small" | "medium" | "large", [number, number]>[
 ];
 
 /** Ce qu'on peut trouver, par rareté. `count` : nombre d'exemplaires (min, max). */
-export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number]; minDepth?: number; odds?: number; orElse?: ItemId; weight?: number }[]> = {
+export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, number]; minDepth?: number; maxDepth?: number; odds?: number; orElse?: ItemId; weight?: number }[]> = {
   // Cuisse de poulet (Thomas, 2026-11-13 : « commune, un peu moins que les pommes mais fréquente ») : 8 fois sur 10 quand
   // elle sort, sinon une pomme.
   // Moins de flèches (Thomas, 2026-11-17 : « réduis la probabilité pour les flèches ») : une fois sur deux quand elles
   // sortent (sinon un petit tas d'or), et 2 à 4 au lieu de 2 à 5.
-  common: [{ item: "fleche", count: [2, 4], odds: 0.5 }, { item: "torche", weight: 1.5 }, { item: "pomme" }, { item: "cuisse_poulet", odds: 0.8, orElse: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }, { item: "armure_cuir", minDepth: 2 }],
+  // Section 3 (Thomas, 2026-11-19) : les flèches de base laissent la place aux flèches d'obsidienne, fréquentes.
+  common: [{ item: "fleche", count: [2, 4], odds: 0.5, maxDepth: 10 }, { item: "fleche_obsidienne", count: [3, 6], minDepth: 11, weight: 2.5 }, { item: "torche", weight: 1.5 }, { item: "pomme" }, { item: "cuisse_poulet", odds: 0.8, orElse: "pomme" }, { item: "gold" }, { item: "couteau_boucher", minDepth: 2 }, { item: "casque_cuir" }, { item: "armure_cuir", minDepth: 2 }],
   uncommon: [
     { item: "fleche_poison", count: [2, 4], odds: 0.6 }, { item: "gold" }, { item: "epee_longue" }, { item: "lance" },
     { item: "amethyste" }, { item: "masse", minDepth: 3 }, { item: "marteau_guerre", minDepth: 7 }, { item: "sac_cuir", minDepth: 5 }, { item: "casque_maille", minDepth: 6 }, { item: "armure_cloutee", minDepth: 2 }, { item: "cotte_mailles", minDepth: 6 },
-    { item: "javeline", count: [4, 4], minDepth: 3 }, { item: "fleche_recul", count: [3, 5], minDepth: 2 }, { item: "arc_puissant", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
-    { item: "potion_brouillard" }, { item: "potion_oursin" }, { item: "potion_pierre", minDepth: 2 }, { item: "potion_discorde", minDepth: 2 }, { item: "potion_geant", minDepth: 2 }, { item: "potion_glissante", minDepth: 2 }, { item: "flute_pan", minDepth: 2 },
+    { item: "javeline", count: [4, 4], minDepth: 3 }, { item: "fleche_recul", count: [3, 5], minDepth: 2 }, { item: "fleche_feu", count: [3, 5], minDepth: 11, weight: 1.5 }, { item: "arc_puissant", minDepth: 5 }, { item: "potion_poison" }, { item: "potion_vitesse" }, { item: "potion_feu" },
+    { item: "potion_brouillard" }, { item: "potion_oursin" }, { item: "potion_pierre", minDepth: 2 }, { item: "potion_discorde", minDepth: 2 }, { item: "potion_gel", minDepth: 2 }, { item: "potion_geant", minDepth: 2 }, { item: "potion_glissante", minDepth: 2 }, { item: "flute_pan", minDepth: 2 },
     // Amulettes (Thomas, 2026-11-15).
     { item: "amulette_vitalite" }, { item: "amulette_force", minDepth: 2 }, { item: "amulette_agilite", minDepth: 2 },
   ],

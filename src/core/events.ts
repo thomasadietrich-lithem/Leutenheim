@@ -31,7 +31,7 @@ export type GameEvent =
       /** Une pierre de lance-pierre (le Halfelin). */
       stone?: boolean;
       /** Flèche spéciale : son dessin en vol (Thomas, 2026-11-17 : la flèche de recul volait comme une ordinaire). */
-      arrowKind?: "poison" | "ricochet" | "recul";
+      arrowKind?: "poison" | "ricochet" | "recul" | "obsidienne" | "feu";
       /** Le rebond d'une flèche ricochante, de la première cible vers la deuxième. */
       ricochet?: boolean;
     }
@@ -108,6 +108,10 @@ export type GameEvent =
   | { type: "rise"; actor: Actor; what: "down" | "up" }
   /** Section 3 : tas d'os, crâne brisé, relevé par la lune ; chant de l'acolyte (annonce, chant, sonné) ; gisant qui
    *  se lève ou se recouche ; rat qui dévore la nourriture au sol. */
+  /** Crâne lunaire : il se charge (la ligne s'allume), puis le rayon part. */
+  | { type: "beam"; actor: Actor; what: "charge" | "fire"; cells: { x: number; y: number }[]; damage?: number }
+  /** Potion de gel : un monstre gelé, puis dégelé. */
+  | { type: "frost"; actor: Actor; what: "freeze" | "thaw" }
   | { type: "undead"; actor: Actor; what: "pile" | "crush" | "rise" | "chant0" | "chant" | "daze" | "wake" | "rest" | "eat"; item?: string }
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }
@@ -214,7 +218,7 @@ export type GameEvent =
   /** Une potion lancée vole jusqu'à sa case et y éclate (feu ou poison). */
   | { type: "potionThrown"; item: ItemId; potion: string; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[]; note?: "healed" | "angry" }
   | { type: "burn"; actor: Actor; damage: number }
-  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin" | "stone" | "grow"; points?: number }
+  | { type: "potion"; potion: "youth" | "poison" | "haste" | "urchin" | "stone" | "grow" | "frost"; points?: number }
   /** Potion d'agrandissement : un personnage grandit, ou revient à sa taille. Potion glissante : il devient glissant. */
   | { type: "grow"; actor: Actor; back?: boolean }
   | { type: "slippery"; actor: Actor }

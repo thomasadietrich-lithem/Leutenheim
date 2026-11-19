@@ -3869,7 +3869,7 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       assert.ok(game.teleport(depth), `étage ${depth}`);
       const cur = (game as unknown as { current: { look?: string; furniture: { x: number; y: number; kind: string; side?: string; len?: number }[]; themes: unknown[]; traps: unknown[]; torches: unknown[]; gluck?: unknown; soeur?: unknown; krik?: unknown; morillon?: unknown; vernis?: unknown; maestro?: unknown; counter?: unknown; chicken?: unknown; niche?: unknown } }).current;
       assert.equal(cur.look, "ossuaire");
-      assert.ok(game.monsters.every((m) => ["rat", "squelette", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
+      assert.ok(game.monsters.every((m) => ["rat", "squelette", "squeletteArcher", "craneLunaire", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
       if (depth === 11) assert.ok(game.monsters.every((m) => m.defId === "rat" || m.defId === "squelette"), "étage 11 : rats et squelettes");
       assert.equal(cur.themes.length, 0, "aucune salle à thème");
       assert.equal(cur.traps.length, 0, "aucun piège des sections du dessus");
@@ -6778,6 +6778,35 @@ test("Ossuaire : squelette en tas d'os relevé par la lune, crâne brisé ; chan
   game.monsters.push(aco);
   assert.ok((game as unknown as { chantAct: (m: Actor) => boolean }).chantAct(aco));
   assert.equal(sk4.pile, undefined, "le chant relève le tas d'os, même dans l'ombre");
+  // crâne lunaire : aligné, il se charge, puis le rayon touche le héros resté sur la ligne
+  game.monsters.splice(0);
+  game.hero.maxHp = game.hero.hp = 200;
+  let spot: { x: number; y: number } | undefined;
+  for (const [dx, dy] of [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 3], [-3, -3], [3, -3], [-3, 3]]) {
+    const p = { x: game.hero.x + dx, y: game.hero.y + dy };
+    if (!free(p)) continue;
+    const mid = [1, 2].map((k) => ({ x: game.hero.x + (dx / 3) * k, y: game.hero.y + (dy / 3) * k }));
+    if (mid.every((q) => game.map.isWalkable(q.x, q.y) && !game.map.blocksSight(q.x, q.y))) { spot = p; break; }
+  }
+  if (spot) {
+    const cr = g.newMonster(MONSTERS.craneLunaire, spot.x, spot.y, false);
+    cr.alerted = true;
+    game.monsters.push(cr);
+    const gg = game as unknown as { chargeBeam: (m: Actor, b: unknown) => boolean; fireBeam: (m: Actor, b: unknown) => void; isVisible: (x: number, y: number) => boolean };
+    if (gg.isVisible(cr.x, cr.y)) {
+      assert.ok(gg.chargeBeam(cr, MONSTERS.craneLunaire.beam), "il se charge");
+      assert.ok(cr.beam!.some((c) => c.x === game.hero.x && c.y === game.hero.y), "la ligne passe par le héros");
+      const before = game.hero.hp;
+      gg.fireBeam(cr, MONSTERS.craneLunaire.beam);
+      assert.ok(game.hero.hp < before, "le rayon touche");
+      assert.equal(cr.beam, undefined);
+    }
+  }
+  // potion de gel : figé, puis dégelé
+  const rat2 = g.newMonster(MONSTERS.rat, dark!.x, dark!.y, false);
+  game.monsters.splice(0, game.monsters.length, rat2);
+  (game as unknown as { freezeCells: (c: { x: number; y: number }[]) => void }).freezeCells([dark!]);
+  assert.ok(rat2.frozen && rat2.petrified === RULES.freezeTurns, "gelé");
   // des tours joués aux étages 11 à 14 avec leurs monstres : rien ne casse
   for (const seed of [3, 8]) {
     const run = new Game(seed);

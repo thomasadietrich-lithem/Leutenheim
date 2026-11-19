@@ -649,7 +649,7 @@ function startRoll(e: GameEvent): void {
   if (mode !== "normal") sfx.play(mode);
   // Le crachat d'encre du Carillon part du milieu de son chapeau (3 × 3).
   if (e.type === "attack" && e.ranged && foe && e.ink) renderer.addProjectile(e.attacker.x + 1, e.attacker.y + 1, e.target.x, e.target.y, 0, false, false, false, undefined, true);
-  else if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, true);
+  else if (e.type === "attack" && e.ranged && foe) renderer.addProjectile(e.attacker.x, e.attacker.y, e.target.x, e.target.y, 0, false, e.attacker.defId !== "squeletteArcher");
   else if (e.type === "attack" && e.ranged) launchArrow(queue.find((q) => q.type === "arrow"));
   // Corps à corps : l'élan et la lame partent tout de suite, pendant que le dé roule.
   if (e.type === "attack" && !e.ranged) {
@@ -872,6 +872,15 @@ function reveal(e: GameEvent): void {
     shownHp = game.hero.hp;
     renderer.levelUp();
     sfx.play("heal");
+  } else if (e.type === "beam") {
+    if (e.what === "charge") {
+      if (game.isVisible(e.actor.x, e.actor.y)) renderer.addFloatingText(e.actor.x, e.actor.y, "Il se charge…", "#bfe0ff");
+    } else {
+      renderer.beamFlash(e.actor.x, e.actor.y, e.cells);
+      sfx.play("whoosh");
+    }
+  } else if (e.type === "frost") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "freeze" ? "Gelé !" : "Crac…", "#bfe6ff");
   } else if (e.type === "undead") {
     const words: Record<string, [string, string]> = {
       pile: ["Il s'effondre…", "#e8e0c8"], crush: ["Crac !", "#e8e0c8"], rise: ["Debout !", "#bfe0ff"], chant0: ["Il entonne…", "#bfe0ff"],
@@ -3987,7 +3996,7 @@ if (!PUBLIC_BUILD) {
     newRun(false, true);
     started = true;
     showScreen(null);
-    if (game.teleport(11)) logLines.push("Téléporté à l'étage 11 : l'Ossuaire de la Lune pâle (aperçu : rats, squelettes, acolytes et gisants).");
+    if (game.testSection3()) logLines.push("Téléporté à l'étage 11 : l'Ossuaire de la Lune pâle (aperçu : niveau 10, équipement élevé, flèches d'obsidienne et potions de gel).");
     collectEvents();
     renderLog();
   });

@@ -69,6 +69,8 @@ export interface MonsterDef {
   blunt?: number | "double";
   /** Il chante pour les morts, un tour sur trois, annoncé le tour d'avant (l'acolyte). */
   chanter?: boolean;
+  /** Rayon (le crâne lunaire) : il se charge un tour, aligné avec le héros, puis tire sur toute la ligne. */
+  beam?: { range: number; damage: Dice };
   /** Gisant du décor : couché, il ne se lève que quand la lune le touche ; 3 tours hors de la lune, il se recouche. */
   effigy?: boolean;
 }
@@ -263,6 +265,52 @@ export const MONSTERS = {
     arrowResist: true,
     blunt: 2,
   },
+  // Le tireur de la section (Thomas, 2026-11-19 : « on a quelque chose qui tire dans cette section ? ») : comme le
+  // frondeur, il garde ses distances et tire ; c'est un squelette (tas d'os, lune, crâne brisé).
+  squeletteArcher: {
+    id: "squeletteArcher",
+    name: "Squelette archer",
+    family: "morts",
+    description: "Un squelette à l'arc, qui garde ses distances et tire de loin. Comme les autres, il tombe en tas d'os et la lune le relève ; les flèches passent entre ses côtes, la masse le brise.",
+    hp: 14,
+    armorClass: 13,
+    attackBonus: 5,
+    damage: { count: 1, sides: 4, bonus: 2 },
+    vision: 8,
+    xpMin: 4,
+    xpMax: 5,
+    goldChance: 0.25,
+    goldMax: 6,
+    noticeChance: 0.45,
+    color: "#d8d0b8",
+    blood: "black",
+    undead: true,
+    bonePile: 3,
+    arrowResist: true,
+    blunt: 2,
+    sling: { range: 7, attackBonus: 7, damage: { count: 1, sides: 8, bonus: 2 }, keep: 3 },
+  },
+  // Thomas, 2026-11-19 : « un mob qui charge et tire un rayon de quelque chose » : un crâne qui flotte dans une flamme pâle.
+  craneLunaire: {
+    id: "craneLunaire",
+    name: "Crâne lunaire",
+    family: "morts",
+    description: "Un crâne qui flotte dans une flamme pâle. Quand il vous voit en ligne droite, il se charge : la ligne s'allume. Au tour suivant, un rayon de lune part sur toute la ligne et brûle ce qui s'y trouve. Sortez de la ligne !",
+    hp: 12,
+    armorClass: 13,
+    attackBonus: 4,
+    damage: { count: 1, sides: 4, bonus: 1 },
+    vision: 8,
+    xpMin: 4,
+    xpMax: 6,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 0.5,
+    color: "#bfe0ff",
+    blood: "black",
+    undead: true,
+    beam: { range: 6, damage: { count: 2, sides: 6, bonus: 3 } },
+  },
   acolyte: {
     id: "acolyte",
     name: "Acolyte de la Lune pâle",
@@ -289,8 +337,9 @@ export const MONSTERS = {
     description: "Un chevalier de pierre couché sur sa dalle, comme les autres gisants… jusqu'à ce que la lune le touche. Il se lève alors, lent et lourd. La pierre ne craint ni le poison ni les flèches, mais la masse la fend. Trois tours hors de la lune, il se recouche.",
     hp: 40,
     armorClass: 17,
-    attackBonus: 8,
-    damage: { count: 2, sides: 6, bonus: 4 },
+    // Thomas, 2026-11-19 : « les statues me one shot » : +8 et 2d6+4 → +7 et 2d6+2 (C).
+    attackBonus: 7,
+    damage: { count: 2, sides: 6, bonus: 2 },
     vision: 6,
     xpMin: 9,
     xpMax: 11,
@@ -420,11 +469,15 @@ export function spawnsForDepth(depth: number): FloorSpawns {
   if (depth > 10) {
     const k = Math.min(depth - 10, 4) - 1;
     return {
-      roomChance: [0.6, 0.65, 0.7, 0.75][k],
-      sleepChance: [0.4, 0.35, 0.3, 0.25][k],
+      // Thomas, 2026-11-19 : « étages 11 / 12, je passe à travers » : plus de salles peuplées, des meutes plus grosses,
+      // moins de dormeurs, et des archers dès l'étage 12 (C).
+      roomChance: [0.72, 0.76, 0.78, 0.82][k],
+      sleepChance: [0.3, 0.25, 0.25, 0.2][k],
       entries: [
-        { monster: "rat", weight: [1, 0.9, 0.8, 0.7][k], packMin: k >= 3 ? 3 : 1, packMax: [3, 4, 4, 5][k] },
-        { monster: "squelette", weight: [0.8, 0.9, 1, 1][k], packMin: 1, packMax: k >= 3 ? 3 : k >= 1 ? 2 : 1 },
+        { monster: "rat", weight: [1, 0.9, 0.8, 0.7][k], packMin: k >= 3 ? 3 : 2, packMax: [4, 4, 5, 5][k] },
+        { monster: "squelette", weight: [0.9, 1, 1, 1][k], packMin: k >= 1 ? 2 : 1, packMax: k >= 1 ? 3 : 2 },
+        ...(k >= 1 ? [{ monster: "craneLunaire" as const, weight: [0, 0.4, 0.5, 0.6][k], packMin: 1, packMax: k >= 3 ? 2 : 1 }] : []),
+        ...(k >= 1 ? [{ monster: "squeletteArcher" as const, weight: [0, 0.5, 0.6, 0.7][k], packMin: 1, packMax: k >= 3 ? 2 : 1 }] : []),
         ...(k >= 1 ? [{ monster: "acolyte" as const, weight: [0, 0.4, 0.5, 0.6][k], packMin: 1, packMax: 1 }] : []),
         ...(k >= 3 ? [{ monster: "gisantEveille" as const, weight: 0.3, packMin: 1, packMax: 2 }] : []),
       ],

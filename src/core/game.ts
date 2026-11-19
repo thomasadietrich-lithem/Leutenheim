@@ -25,6 +25,7 @@ import { decorateChampi } from "../world/champi";
 import { ARENA_MONSTERS, SANDBOX_LAYOUT, SandboxArea, SandboxFloor, SandboxMonsterKind, SandboxSign, sandboxPlan, sandboxSection, setSandboxSection } from "../world/sandbox";
 import { BossFloor, BossLayout, buildBossFloor } from "../world/bossFloor";
 import { buildCarillonFloor } from "../world/carillonFloor";
+import { buildPriestessFloor } from "../world/priestessFloor";
 import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
 import { decorateOssuaire, moonArea, sideOf } from "../world/ossuaire";
@@ -390,7 +391,7 @@ export class Game {
       const seed = floorSeed(this.runSeed, depth);
       if (this.sandbox && depth === 1) sandboxFloor = this.plan = sandboxPlan(this.sandboxSection);
       // Étage du boss (le dernier de la section ; en salle d'essai, l'escalier y mène directement).
-      const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : buildBossFloor(seed)) : null;
+      const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : this.isPriestessDepth(depth) ? buildPriestessFloor(seed) : buildBossFloor(seed)) : null;
       // Section 3, l'Ossuaire (Thomas, 2026-11-19) : pas de salle spéciale des sections du dessus.
       const oss = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) >= 2;
       const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, oss ? { ...this.floorConfig, specialRoomCounts: [{ count: 0, weight: 1 }] } : this.floorConfig);
@@ -526,6 +527,7 @@ export class Game {
         }
       }
       if (champi || bossFloor?.boss.kind === "carillon") state.look = "champi";
+      if (bossFloor?.boss.kind === "pretresse") state.look = "ossuaire";
       if (oss) state.look = "ossuaire";
       this.floors.set(depth, state);
     }
@@ -573,6 +575,8 @@ export class Game {
       this.populateSandbox(state, sandboxFloor, this.resetting);
     } else if (fresh && state.boss?.kind === "carillon") {
       this.spawnCarillon(state);
+    } else if (fresh && state.boss?.kind === "pretresse") {
+      this.spawnPriestess(state);
     } else if (fresh && state.boss) {
       // La nichée : la Tisseuse seule, au centre de sa grande toile ; ni renforts, ni clef, ni pièges, ni butin au sol.
       const queen = this.newMonster(MONSTERS.tisseuse, state.boss.spawn.x, state.boss.spawn.y, false);
@@ -689,7 +693,8 @@ export class Game {
   /** Gisant couché : il se lève quand la lune le touche et que le héros est près, ou que le héros entre dans la lune près de lui. */
   private effigyWakes(m: Actor): void {
     const near = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
-    const wake = (this.moonlit(m) && near <= 5 && hasLineOfSight(this.map, m, this.hero)) || (this.moonlit(this.hero) && near <= 3);
+    const arena = this.current.boss?.kind === "pretresse" && !!this.bossActor()?.boss?.engaged;
+    const wake = (this.moonlit(m) && (arena || (near <= 5 && hasLineOfSight(this.map, m, this.hero)))) || (this.moonlit(this.hero) && near <= 3);
     if (!wake || this.peaceful) return;
     m.effigy = false;
     m.asleep = false;
@@ -861,7 +866,7 @@ export class Game {
       if (f.kind !== "moonWell") continue;
       const r = moonArea(this, f);
       if (p.x < r.x || p.x >= r.x + r.w || p.y < r.y || p.y >= r.y + r.h) continue;
-      if (Math.hypot(p.x - f.x, p.y - f.y) <= RULES.moonRadius - 0.5) return true;
+      if (Math.hypot(p.x - f.x, p.y - f.y) <= (f.variant === "boss" ? this.bossWellRadius() + 0.5 : RULES.moonRadius - 0.5)) return true;
     }
     // Miroir de lune (piège) : la lumière tombe autour de lui quelques tours.
     for (const f of this.current.moonFlashes ?? []) if (Math.max(Math.abs(p.x - f.x), Math.abs(p.y - f.y)) <= 2 && hasLineOfSight(this.map, f, p)) return true;
@@ -1295,6 +1300,255 @@ export class Game {
     return true;
   }
 
+  // ---------- Boss de la section 3 : la Grande Prêtresse et son Colosse (planche art/ossuaire_boss_v1.png) ----------
+
+  private spawnPriestess(state: FloorState): void {
+    const b = state.boss!;
+    const pr = this.newMonster(MONSTERS.pretresse, b.spawn.x, b.spawn.y, false);
+    pr.boss = { phase: "lurk", bites: 0, hpMark: pr.hp, lurk: 0, fallen: 0, hatched: false, hubUp: false, engaged: false, callIn: RULES.priestessCallEvery, chantIn: RULES.priestessChantEvery };
+    pr.alerted = true;
+    pr.facing = "down";
+    this.monsters.push(pr);
+    // Les gisants : couchés comme le décor, la lune les relève.
+    for (const p of b.sleepers ?? []) {
+      const g = this.newMonster(MONSTERS.gisantEveille, p.x, p.y, true);
+      g.effigy = true;
+      this.monsters.push(g);
+    }
+    state.population = 0;
+  }
+
+  /** Le puits de lune de la salle de la Prêtresse. */
+  private bossWell(): Furniture | undefined {
+    return this.current.furniture.find((f) => f.kind === "moonWell" && f.variant === "boss");
+  }
+
+  /** Rayon du puits de la Prêtresse : il rétrécit à chaque cierge violet éteint. */
+  bossWellRadius(): number {
+    const lit = this.current.furniture.filter((f) => f.kind === "ciergeViolet").length;
+    return RULES.priestessWellRadius[Math.min(lit, RULES.priestessWellRadius.length - 1)];
+  }
+
+  /** La case où le puits va glisser (annoncée), s'il y en a une. */
+  bossWellTarget(): Point | undefined {
+    return this.bossActor()?.boss?.wellTo;
+  }
+
+  /** Éteindre un cierge violet (le héros à côté, un tour). */
+  private snuffCandle(f: Furniture): void {
+    f.kind = "ciergeVioletOff";
+    this.map.touch(f.x, f.y);
+    this.events.push({ type: "priestess", what: "snuff", x: f.x, y: f.y, left: this.current.furniture.filter((o) => o.kind === "ciergeViolet").length });
+    this.refreshLight();
+  }
+
+  /** Une attaque ordinaire d'un monstre au contact du héros (bras du Colosse). */
+  private monsterStrikes(m: Actor): void {
+    this.faceToward(m, this.hero);
+    const result = rollAttack(this.rng, m, { armorClass: this.hero.armorClass + this.guardBonus() + this.undeadWard(m) });
+    result.damage = this.absorb(result.damage);
+    this.events.push({ type: "attack", attacker: m, target: this.hero, result });
+    if (result.damage > 0) this.bleed(this.hero, m);
+    this.hurtHero(result.damage, this.killerName(m));
+  }
+
+  /**
+   * La Grande Prêtresse. Phase 1 : elle s'approche et frappe de son bâton ; tous les `priestessCallEvery` tours elle
+   * APPELLE LA LUNE (un cercle s'allume sous le héros) et le puits y glisse au tour suivant ; tous les
+   * `priestessChantEvery` tours elle ENTONNE (annoncé) puis CHANTE : les morts de la salle reprennent des PV, les tas d'os
+   * se relèvent ; frappée pendant l'annonce, elle est sonnée. À mi-vie : elle monte chanter dans le puits (hors d'atteinte
+   * du corps à corps) et les os de la salle se lèvent en COLOSSE. Le Colosse tombé, elle redescend, épuisée.
+   */
+  private priestessAct(m: Actor): void {
+    const st = m.boss!;
+    const lair = this.current.boss!.lair;
+    if (!st.engaged) {
+      if (!this.inLair(lair, this.hero)) return;
+      st.engaged = true;
+      this.events.push({ type: "priestess", what: "awake", x: m.x, y: m.y });
+    }
+    if (m.stunned) {
+      m.stunned--;
+      return;
+    }
+    const well = this.bossWell();
+    // Le puits glisse là où elle l'a appelé.
+    if (st.wellTo && well) {
+      well.x = st.wellTo.x;
+      well.y = st.wellTo.y;
+      st.wellTo = undefined;
+      if (m.aloft) {
+        m.x = well.x;
+        m.y = well.y;
+      }
+      this.events.push({ type: "priestess", what: "moved", x: well.x, y: well.y });
+      this.refreshLight();
+      return;
+    }
+    // Mi-vie : le Colosse se lève.
+    if (!st.colossus && m.hp * 2 <= m.maxHp && well) {
+      st.colossus = true;
+      this.raiseColossus(m, well);
+      return;
+    }
+    // Le chant (annoncé le tour d'avant).
+    if (m.chanting) {
+      m.chanting = false;
+      for (const o of this.monsters) {
+        if (o === m || !(MONSTERS[o.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.undead || !this.inLair(lair, o)) continue;
+        if (o.pile !== undefined) this.raisePile(o);
+        else o.hp = Math.min(o.maxHp, o.hp + RULES.priestessChantHeal);
+      }
+      this.events.push({ type: "undead", actor: m, what: "chant" });
+      return;
+    }
+    st.chantIn = (st.chantIn ?? RULES.priestessChantEvery) - 1;
+    st.callIn = (st.callIn ?? RULES.priestessCallEvery) - 1;
+    if (st.callIn <= 0 && well) {
+      st.callIn = RULES.priestessCallEvery;
+      // Elle appelle la lune sous les pieds du héros (sur une case de la salle).
+      const to = { x: Math.max(lair.x, Math.min(lair.x + lair.w - 1, this.hero.x)), y: Math.max(lair.y + 1, Math.min(lair.y + lair.h - 1, this.hero.y)) };
+      st.wellTo = to;
+      this.events.push({ type: "priestess", what: "call", x: to.x, y: to.y });
+      return;
+    }
+    if (st.chantIn <= 0) {
+      st.chantIn = RULES.priestessChantEvery;
+      m.chanting = true;
+      this.events.push({ type: "undead", actor: m, what: "chant0" });
+      return;
+    }
+    if (m.aloft) return;
+    // Phase 1 : au contact, un coup de bâton ; sinon un pas vers le héros (un tour sur deux).
+    if (gapBetween(m, this.hero) <= 1) {
+      this.monsterStrikes(m);
+      return;
+    }
+    if ((this.turn + m.id) % 2 === 0) this.stepToward(m, this.hero);
+  }
+
+  /** Mi-vie : la Prêtresse monte dans le puits ; le Colosse (3 × 3) se lève au plus près du milieu de la salle. */
+  private raiseColossus(pr: Actor, well: Furniture): void {
+    const lair = this.current.boss!.lair;
+    pr.aloft = true;
+    pr.x = well.x;
+    pr.y = well.y;
+    pr.chanting = false;
+    const cx = lair.x + Math.floor(lair.w / 2) - 1;
+    const cy = lair.y + Math.floor(lair.h / 2) - 1;
+    const free = (x: number, y: number) => this.map.get(x, y) === Tile.Floor && !(x === this.hero.x && y === this.hero.y) && !this.monsters.some((o) => o !== pr && occupies(o, x, y));
+    const fits = (x: number, y: number) => {
+      for (let dy = -1; dy <= 3; dy++) for (let dx = -1; dx <= 3; dx++) {
+        const inBody = dx >= 0 && dx < 3 && dy >= 0 && dy < 3;
+        const part = (dy === 1 && (dx === -1 || dx === 3)) || (dy === -1 && dx === 1);
+        if ((inBody || part) && !free(x + dx, y + dy)) return false;
+      }
+      return !(pr.x >= x && pr.x < x + 3 && pr.y >= y && pr.y < y + 3);
+    };
+    let at: Point | null = null;
+    for (let r = 0; r < 8 && !at; r++) {
+      for (let dy = -r; dy <= r && !at; dy++) for (let dx = -r; dx <= r && !at; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && fits(cx + dx, cy + dy)) at = { x: cx + dx, y: cy + dy };
+    }
+    if (!at) at = { x: cx, y: cy };
+    const body = this.newMonster(MONSTERS.colosse, at.x, at.y, false);
+    body.alerted = true;
+    body.regrow = {};
+    this.monsters.push(body);
+    this.spawnColossusPart(body, "armL");
+    this.spawnColossusPart(body, "armR");
+    this.spawnColossusPart(body, "head");
+    this.guardColossus(body);
+    this.events.push({ type: "priestess", what: "colossus", x: at.x, y: at.y });
+  }
+
+  private colossusPartAt(body: Actor, part: "armL" | "armR" | "head"): Point {
+    return part === "armL" ? { x: body.x - 1, y: body.y + 1 } : part === "armR" ? { x: body.x + 3, y: body.y + 1 } : { x: body.x + 1, y: body.y - 1 };
+  }
+
+  private spawnColossusPart(body: Actor, part: "armL" | "armR" | "head"): void {
+    const at = this.colossusPartAt(body, part);
+    const def = part === "head" ? MONSTERS.craneColosse : MONSTERS.brasColosse;
+    const m = this.newMonster(def, at.x, at.y, false);
+    m.alerted = true;
+    m.goal = undefined;
+    m.part = part;
+    this.monsters.push(m);
+  }
+
+  /** Les morceaux encore debout du Colosse. */
+  colossusParts(body: Actor): { armL: boolean; armR: boolean; head: boolean } {
+    const has = (part: string) => this.monsters.some((o) => o.part === part && (o.defId === "brasColosse" || o.defId === "craneColosse"));
+    return { armL: has("armL"), armR: has("armR"), head: has("head") };
+  }
+
+  /** Le cœur est à nu quand les deux bras, ou le crâne, sont cassés : sinon on ne l'atteint qu'avec un coup parfait. */
+  private guardColossus(body: Actor): void {
+    const p = this.colossusParts(body);
+    const open = (!p.armL && !p.armR) || !p.head;
+    body.armorClass = open ? MONSTERS.colosse.armorClass : 40;
+  }
+
+  private colossusAct(body: Actor): void {
+    const p = this.colossusParts(body);
+    const reg = (body.regrow ??= {});
+    const lit = cellsOf(body).some((c) => this.moonlit(c));
+    for (const part of ["armL", "armR", "head"] as const) {
+      if (p[part]) {
+        reg[part] = undefined;
+        continue;
+      }
+      if (!lit) continue;
+      reg[part] = (reg[part] ?? 0) + 1;
+      if (reg[part]! >= RULES.colossusRegrowTurns) {
+        const at = this.colossusPartAt(body, part);
+        if (this.monsterAt(at.x, at.y) || (at.x === this.hero.x && at.y === this.hero.y) || !this.map.isWalkable(at.x, at.y)) continue;
+        reg[part] = undefined;
+        this.spawnColossusPart(body, part);
+        this.events.push({ type: "priestess", what: "regrow", x: at.x, y: at.y });
+      }
+    }
+    this.guardColossus(body);
+  }
+
+  /** Un morceau du Colosse cassé, ou le Colosse tombé (la Prêtresse redescend, épuisée). */
+  private colossusLoss(m: Actor): void {
+    const body = this.monsters.find((o) => o.defId === "colosse");
+    if (m.defId === "colosse") {
+      for (const o of [...this.monsters]) if (o.defId === "brasColosse" || o.defId === "craneColosse") this.monsters.splice(this.monsters.indexOf(o), 1);
+      const pr = this.bossActor();
+      if (pr?.defId === "pretresse") {
+        pr.aloft = false;
+        pr.stunned = 3;
+        pr.armorClass = MONSTERS.pretresse.armorClass - 2;
+        const well = this.bossWell();
+        const spot = well ? this.nearFree(well) : null;
+        if (spot) {
+          pr.x = spot.x;
+          pr.y = spot.y;
+        }
+      }
+      this.events.push({ type: "priestess", what: "colossusDown", x: m.x + 1, y: m.y + 1 });
+      return;
+    }
+    if (body) {
+      this.guardColossus(body);
+      this.events.push({ type: "priestess", what: "partDown", x: m.x, y: m.y });
+    }
+  }
+
+  /** Une case libre près d'un point (pour poser la Prêtresse qui redescend). */
+  private nearFree(p: Point): Point | null {
+    for (let r = 0; r <= 3; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const q = { x: p.x + dx, y: p.y + dy };
+          if (this.map.get(q.x, q.y) === Tile.Floor && !this.monsterAt(q.x, q.y) && !(q.x === this.hero.x && q.y === this.hero.y)) return q;
+        }
+      }
+    }
+    return null;
+  }
+
   /** Pour les essais : le héros (ou un point) est-il dans la grotte du boss ? */
   inLairPublic(p: Point): boolean {
     const b = this.current.boss;
@@ -1673,6 +1927,11 @@ export class Game {
     if (m.boss.ring === 1 && m.boss.clapperUp) m.boss.falseNote = true;
   }
 
+  /** L'étage de la Grande Prêtresse : le 15 (boss de la section 3). */
+  isPriestessDepth(depth: number): boolean {
+    return !this.sandbox && depth === RULES.bossDepths[2];
+  }
+
   /** L'étage du Carillon : le 10 (boss de la section 2) ; en salle d'essai section 2, l'escalier du terrier y mène. */
   isCarillonDepth(depth: number): boolean {
     return this.sandbox ? depth === 2 && this.sandboxSection === 2 : depth === RULES.bossDepths[1];
@@ -1906,6 +2165,11 @@ export class Game {
       this.lightCierge(at);
       return;
     }
+    const violet = this.current.furniture.find((f) => f.kind === "ciergeViolet" && f.x === at.x && f.y === at.y);
+    if (violet) {
+      this.snuffCandle(violet);
+      return;
+    }
     const grille = this.grilleAt(at.x, at.y);
     if (grille) {
       this.forceGrille(grille);
@@ -2065,7 +2329,7 @@ export class Game {
       taken.add(`${at.x},${at.y}`);
       fled.push({ id: m.id, path });
     }
-    this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y, fled });
+    this.events.push({ type: "boss", what: "dead", x: layout.seal.x, y: layout.seal.y, fled, kind: layout.kind });
   }
 
   /** Cases où la Tisseuse peut poser une patte : pas de mur, de meuble, d'autre personnage ni de flammes. */
@@ -3617,7 +3881,7 @@ export class Game {
     // Le Carillon luit (ses taches et son battant) : sa grotte se voit, on voit venir le coup.
     const bell = this.monsters.find((m) => m.defId === "carillon");
     // Ossuaire : les puits de lune, seule lumière de la section (Thomas, 2026-11-19).
-    for (const f of this.current?.furniture ?? []) if (f.kind === "moonWell") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: RULES.moonRadius, area: moonArea(this, f) });
+    for (const f of this.current?.furniture ?? []) if (f.kind === "moonWell") candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: f.variant === "boss" ? this.bossWellRadius() + 1 : RULES.moonRadius, area: moonArea(this, f) });
     for (const f of this.current?.moonFlashes ?? []) candle.push({ x: f.x, y: f.y, faceX: 0, faceY: 0, radius: 3, area: { x: f.x - 2, y: f.y - 2, w: 5, h: 5 } });
     const lair = this.current?.boss?.lair;
     if (bell && lair) candle.push({ x: bell.x + 1, y: bell.y + 3, faceX: 0, faceY: 0, radius: 8, area: lair });
@@ -4753,7 +5017,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -9969,6 +10233,11 @@ export class Game {
   /** Une attaque au corps à corps du héros. `extra` : un coup en plus du même tour (double frappe, vitesse). */
   private heroAttacks(monster: Actor, extra = false, opportunity = false): void {
     this.reveal();
+    // La Prêtresse chante dans le puits : hors d'atteinte du corps à corps (les tirs la touchent).
+    if (monster.aloft) {
+      this.events.push({ type: "priestess", what: "aloft", x: monster.x, y: monster.y });
+      return;
+    }
     this.lastFoeId = monster.id;
     // Un monstre qui n'a rien remarqué est attaqué avec avantage (deux d20, on garde le meilleur).
     // De même contre un monstre pris dans l'encadrement d'une porte : celui qui attend derrière a l'avantage.
@@ -10169,6 +10438,8 @@ export class Game {
     }
     this.monsters.splice(this.monsters.indexOf(monster), 1);
     this.closeDoorAt(monster.x, monster.y);
+    // Le Colosse et ses morceaux (boss de la section 3).
+    if (monster.defId === "colosse" || monster.defId === "brasColosse" || monster.defId === "craneColosse") this.colossusLoss(monster);
     // Le battant cassé : le Carillon ne sonne plus.
     if (monster.defId === "battant") {
       const bell = this.bossActor();
@@ -10488,7 +10759,28 @@ export class Game {
           continue;
         }
         if (m.defId === "carillon") this.carillonAct(m);
+        else if (m.defId === "pretresse") this.priestessAct(m);
         else this.bossAct(m);
+        continue;
+      }
+      // Le Colosse ne bouge pas : ses bras frappent, son crâne tire ; ses morceaux cassés se ressoudent dans la lune.
+      if (m.defId === "colosse") {
+        this.colossusAct(m);
+        continue;
+      }
+      if (m.defId === "craneColosse") {
+        const beam = MONSTERS.craneColosse.beam;
+        if (m.stunned) m.stunned--;
+        else if (m.petrified) {
+          if (--m.petrified === 0) this.thaw(m);
+        } else if (m.beam) this.fireBeam(m, beam);
+        else this.chargeBeam(m, beam);
+        continue;
+      }
+      if (m.defId === "brasColosse") {
+        if (!m.stunned && !m.petrified && gapBetween(m, this.hero) <= 1 && !this.over) this.monsterStrikes(m);
+        else if (m.stunned) m.stunned--;
+        else if (m.petrified && --m.petrified === 0) this.thaw(m);
         continue;
       }
       // Le battant du Carillon ne fait rien.

@@ -68,6 +68,11 @@ export interface Actor {
   /** Crâne lunaire : la ligne qu'il a chargée (il tire au tour suivant), et ses tours de refroidissement. */
   beam?: { x: number; y: number }[];
   beamCd?: number;
+  /** Boss de la section 3 : la Prêtresse chante dans le puits, hors d'atteinte du corps à corps (les tirs la touchent). */
+  aloft?: boolean;
+  /** Le Colosse : tours passés dans la lune par chaque morceau cassé ; un morceau du Colosse (bras gauche, droit, crâne). */
+  regrow?: { armL?: number; armR?: number; head?: number };
+  part?: "armL" | "armR" | "head";
   /** Gelé par la potion de gel (il est figé par `petrified`, dessiné bleu). */
   frozen?: boolean;
   effigy?: boolean;
@@ -147,6 +152,13 @@ export interface BossState {
   inkPattern?: number;
   /** Tours avant que l'encre annoncée ne tombe. */
   inkWait?: number;
+  /** La Grande Prêtresse (section 3) : tours avant l'appel de la lune et le chant ; la case où le puits va glisser ;
+   *  phase 2 (le Colosse est levé) ; le Colosse : tours passés dans la lune par chaque morceau cassé. */
+  callIn?: number;
+  chantIn?: number;
+  wellTo?: { x: number; y: number };
+  colossus?: boolean;
+  regrow?: { armL?: number; armR?: number; head?: number };
   /** Fidèles : tours de réparation du battant déjà faits. */
   repair?: number;
   /** Sans battant : tours avant la prochaine coulée d'encre au pied du chapeau. */

@@ -3866,7 +3866,7 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
   for (const seed of [5, 17, 29, 41]) {
     const game = new Game(seed);
     game.testRun = true;
-    for (const depth of [11, 12, 13, 14, 15]) {
+    for (const depth of [11, 12, 13, 14]) {
       assert.ok(game.teleport(depth), `étage ${depth}`);
       const cur = (game as unknown as { current: { look?: string; furniture: { x: number; y: number; kind: string; side?: string; len?: number }[]; themes: unknown[]; traps: unknown[]; torches: unknown[]; gluck?: unknown; soeur?: unknown; krik?: unknown; morillon?: unknown; vernis?: unknown; maestro?: unknown; counter?: unknown; chicken?: unknown; niche?: unknown } }).current;
       assert.equal(cur.look, "ossuaire");
@@ -6865,4 +6865,48 @@ test("Ossuaire : squelette en tas d'os relevé par la lune, crâne brisé ; chan
       for (let i = 0; i < 80 && !run.over; i++) run.wait();
     }
   }
+});
+
+test("Boss de la section 3 : la Grande Prêtresse appelle la lune, chante, lève le Colosse à mi-vie ; le Colosse tombé, elle retombe ; vaincue, coffre doré (Thomas, 2026-11-19)", () => {
+  const game = new Game(7);
+  game.testRun = true;
+  game.testBoss2(false);
+  game.hero.maxHp = game.hero.hp = 999;
+  assert.ok(game.teleport(15));
+  const g = game as unknown as { current: { boss?: { kind?: string; lair: { x: number; y: number; w: number; h: number } }; furniture: { kind: string; x: number; y: number; variant?: string }[]; goldChest?: unknown }; priestessAct: (m: Actor) => void; removeIfDead: (m: Actor) => void; colossusParts: (m: Actor) => { armL: boolean; armR: boolean; head: boolean } };
+  assert.equal(g.current.boss?.kind, "pretresse");
+  const pr = game.bossActor()!;
+  assert.equal(pr.defId, "pretresse");
+  assert.equal(game.monsters.filter((m) => m.defId === "gisantEveille" && m.effigy).length, 6, "six gisants couchés");
+  assert.equal(g.current.furniture.filter((f) => f.kind === "ciergeViolet").length, 6);
+  // le héros entre dans la salle : elle s'éveille ; elle finit par appeler la lune, et le puits glisse
+  const lair = g.current.boss!.lair;
+  game.hero.x = lair.x + 3;
+  game.hero.y = lair.y + lair.h - 2;
+  const well = g.current.furniture.find((f) => f.kind === "moonWell")!;
+  const w0 = { x: well.x, y: well.y };
+  for (let i = 0; i < 12; i++) g.priestessAct(pr);
+  assert.ok(pr.boss!.engaged);
+  assert.ok(well.x !== w0.x || well.y !== w0.y, "le puits a glissé");
+  // mi-vie : le Colosse et ses trois morceaux
+  pr.hp = Math.floor(pr.maxHp / 2);
+  pr.chanting = false;
+  pr.boss!.wellTo = undefined;
+  g.priestessAct(pr);
+  const body = game.monsters.find((m) => m.defId === "colosse")!;
+  assert.ok(body && pr.aloft, "le Colosse se lève, elle monte dans le puits");
+  assert.deepEqual(g.colossusParts(body), { armL: true, armR: true, head: true });
+  assert.equal(body.armorClass, 40, "cœur protégé");
+  const head = game.monsters.find((m) => m.defId === "craneColosse")!;
+  head.hp = 0;
+  g.removeIfDead(head);
+  assert.equal(body.armorClass, 12, "crâne cassé : le cœur à nu");
+  body.hp = 0;
+  g.removeIfDead(body);
+  assert.ok(!game.monsters.some((m) => m.defId === "brasColosse"), "les bras tombent avec lui");
+  assert.ok(!pr.aloft && (pr.stunned ?? 0) > 0, "elle retombe, épuisée");
+  pr.hp = 0;
+  pr.heroHurt = true;
+  g.removeIfDead(pr);
+  assert.ok(g.current.goldChest, "coffre doré");
 });

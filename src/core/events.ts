@@ -110,6 +110,8 @@ export type GameEvent =
    *  se lève ou se recouche ; rat qui dévore la nourriture au sol. */
   /** Crâne lunaire : il se charge (la ligne s'allume), puis le rayon part. */
   | { type: "beam"; actor: Actor; what: "charge" | "fire"; cells: { x: number; y: number }[]; damage?: number }
+  /** La Grande Prêtresse (boss de la section 3). */
+  | { type: "priestess"; what: "awake" | "call" | "moved" | "snuff" | "colossus" | "regrow" | "partDown" | "colossusDown" | "aloft"; x: number; y: number; left?: number }
   /** Grenade sainte : elle vole et éclate en lumière jaune ; monstres touchés, héros béni (et soigné). */
   | { type: "holy"; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[]; hit: number; blessed: boolean; healed: number }
   /** Encens : le héros, engourdi, perd ce tour. */
@@ -136,6 +138,8 @@ export type GameEvent =
       amount?: number;
       /** À sa mort : ses petits s'éloignent de quelques pas puis disparaissent dans la fumée (Thomas, 2026-11-14). */
       fled?: { id: number; path: Point[] }[];
+      /** Quel boss est tombé (la Tisseuse par défaut). */
+      kind?: "carillon" | "pretresse";
     }
   | { type: "stuck" }
   | {

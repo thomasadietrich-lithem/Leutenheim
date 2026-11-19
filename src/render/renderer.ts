@@ -70,6 +70,7 @@ import { TRAINARDS2 } from "./sprites/trainards2";
 import { VESSES } from "./sprites/vesses";
 import { OSSUAIRE } from "./sprites/ossuaire";
 import { CHAPELLE } from "./sprites/chapelle";
+import { PRETRESSE } from "./sprites/pretresse";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { MOBS_OSS } from "./sprites/mobsOss";
 
@@ -1692,7 +1693,7 @@ export class Renderer {
     ctx.fillStyle = "#000000";
     // Le Carillon : son nom et le compte avant le prochain coup (« 3 · 2 · 1 »), tant qu'il a son battant.
     const st = queen.boss;
-    const title = queen.defId === "carillon" ? (st.clapperUp && !(st.fallen > 0) ? tr(`LE CARILLON · ${st.ring ?? 3}`) : tr("LE CARILLON")) : tr("LA TISSEUSE");
+    const title = queen.defId === "carillon" ? (st.clapperUp && !(st.fallen > 0) ? tr(`LE CARILLON · ${st.ring ?? 3}`) : tr("LE CARILLON")) : queen.defId === "pretresse" ? tr("LA GRANDE PRÊTRESSE") : tr("LA TISSEUSE");
     ctx.fillText(title, W / 2 + scale, y - 2 * scale + scale);
     ctx.fillStyle = queen.defId === "carillon" && st.ring === 1 && st.clapperUp ? "#ffd75e" : "#ffe6aa";
     ctx.fillText(title, W / 2, y - 2 * scale);
@@ -2390,6 +2391,64 @@ export class Renderer {
       const r = tile * 0.36;
       // Le battant du Carillon est dessiné avec lui.
       if (game.isInert(m)) continue;
+      // Boss de la section 3 : les morceaux du Colosse sont dessinés avec lui (le crâne qui se charge allume sa ligne).
+      if (m.defId === "brasColosse" || m.defId === "craneColosse") {
+        if (m.beam) {
+          const a = 0.22 + 0.16 * Math.sin(this.time / 90);
+          for (const c of m.beam) {
+            ctx.fillStyle = `rgba(191,224,255,${a.toFixed(2)})`;
+            ctx.fillRect(ox + c.x * tile, oy + c.y * tile, tile, tile);
+            ctx.strokeStyle = `rgba(255,255,255,${(a + 0.3).toFixed(2)})`;
+            ctx.lineWidth = Math.max(1, tile * 0.05);
+            ctx.strokeRect(ox + (c.x + 0.08) * tile, oy + (c.y + 0.08) * tile, tile * 0.84, tile * 0.84);
+          }
+        }
+        if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+          ctx.fillStyle = "rgba(255,255,255,0.3)";
+          ctx.fillRect(ox + p.x * tile, oy + p.y * tile, tile, tile);
+        }
+        continue;
+      }
+      if (m.defId === "colosse") {
+        const parts = game.colossusParts(m);
+        const head = game.monsters.find((o) => o.defId === "craneColosse");
+        const name = parts.armL && parts.armR && parts.head && head?.beam ? "co_charge" : `co_${+parts.armL}${+parts.armR}${+parts.head}`;
+        const art = PRETRESSE[name];
+        this.drawBig(art.rows, art.palette, ox + (p.x + 1.5) * tile, oy + (p.y + 2) * tile, false);
+        if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+          ctx.fillStyle = "rgba(255,255,255,0.18)";
+          ctx.fillRect(ox + p.x * tile, oy + p.y * tile, tile * 3, tile * 3);
+        }
+        this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y - 0.6) * tile, false);
+        continue;
+      }
+      if (m.defId === "pretresse") {
+        const beat = (ms: number, n: number) => Math.floor(Math.abs(this.time) / ms) % n;
+        const name = m.hp <= 0 ? "pr_dead" : m.stunned ? "pr_dazed" : m.chanting ? `pr_chant${beat(260, 2)}` : game.bossWellTarget() ? "pr_call" : m.aloft ? `pr_chant${beat(400, 2)}` : `pr_idle${beat(600, 2)}`;
+        const art = PRETRESSE[name];
+        const lift = m.aloft ? tile * (0.6 + 0.08 * Math.sin(this.time / 300)) : 0;
+        if (m.aloft) {
+          const g = ctx.createRadialGradient(cx, cy, tile * 0.2, cx, cy, tile * 1.4);
+          g.addColorStop(0, "rgba(220,236,255,0.55)");
+          g.addColorStop(1, "rgba(220,236,255,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(cx - tile * 1.5, cy - tile * 2, tile * 3, tile * 3.5);
+        }
+        if (game.heroEdgeShown(m)) {
+          ctx.strokeStyle = `rgba(255,215,94,${(0.55 + 0.4 * Math.sin(this.time / 160)).toFixed(2)})`;
+          ctx.lineWidth = Math.max(2, tile * 0.07);
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + tile * 0.36, tile * 0.45, tile * 0.16, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        this.drawBig(art.rows, art.palette, cx, oy + p.y * tile - lift, game.hero.x < m.x);
+        if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+          ctx.fillStyle = "rgba(255,255,255,0.2)";
+          ctx.fillRect(cx - tile * 0.75, oy + (p.y - 1.1) * tile - lift, tile * 1.5, tile * 2.1);
+        }
+        this.drawStatusBubbles(m, cx, oy + (p.y - 1.4) * tile - lift, !!m.burning);
+        continue;
+      }
       if (m.boss && m.defId === "carillon") {
         this.drawCarillon(m, ox + (p.x + 1.5) * tile, oy + p.y * tile, game.heroEdgeShown(m));
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
@@ -2559,6 +2618,22 @@ export class Renderer {
     this.drawClouds(game, game.discordMist, ox, oy, DISCORD_TONES, 5);
     this.drawClouds(game, game.frost, ox, oy, FROST_TONES, 4);
     this.drawClouds(game, game.incense, ox, oy, INCENSE_TONES, 5);
+    // La Grande Prêtresse appelle la lune : un cercle pointillé qui palpite là où le puits va glisser.
+    const wellTo = game.bossWellTarget();
+    if (wellTo) {
+      const r = (game.bossWellRadius() + 0.5) * tile;
+      const wx = ox + (wellTo.x + 0.5) * tile;
+      const wy = oy + (wellTo.y + 0.5) * tile;
+      ctx.save();
+      ctx.setLineDash([tile * 0.25, tile * 0.18]);
+      ctx.lineDashOffset = -this.time / 40;
+      ctx.strokeStyle = `rgba(220,236,255,${(0.6 + 0.3 * Math.sin(this.time / 140)).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, tile * 0.08);
+      ctx.beginPath();
+      ctx.arc(wx, wy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     // Œil de chauve-souris (bibelot) : l'ombre des monstres qu'on ne voit pas.
     const shadows = game.batShadows();
     if (shadows.length > 0) {
@@ -3217,7 +3292,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3238,7 +3313,7 @@ export class Renderer {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || CHAPELLE[name] || name === "scarecrowHat") {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || CHAPELLE[name] || PRETRESSE[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

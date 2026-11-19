@@ -258,6 +258,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         case "rise":
           return "La Tisseuse se remet sur ses pattes.";
         case "dead":
+          if (e.kind === "carillon") return null;
+          if (e.kind === "pretresse") return "La Grande Prêtresse s'effondre au pied du socle vide. Les chaînes pendent, brisées : la cloche n'est plus là. Elle sonne encore plus bas.";
           return e.fled && e.fled.length > 0
             ? "La Tisseuse est morte. Ses petits détalent… et disparaissent dans un nuage de fumée."
             : "La Tisseuse est morte. La toile qui scellait l'escalier tombe.";
@@ -281,6 +283,28 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
         : `Le rayon de lune part sur toute la ligne (${e.damage ?? 0} dégâts à qui s'y trouve).`;
     case "numb":
       return "Engourdi par l'encens, vous perdez ce tour.";
+    case "priestess":
+      switch (e.what) {
+        case "awake":
+          return "La Grande Prêtresse lève son bâton. « La Lune pâle vous voit. » Éteignez ses cierges, restez dans l'ombre, frappez-la quand elle chante.";
+        case "call":
+          return "Elle appelle la lune : un cercle s'allume. Le puits va y glisser, et les gisants qu'il touchera se lèveront.";
+        case "moved":
+          return "Le puits de lune glisse sur les dalles.";
+        case "snuff":
+          return e.left === 0 ? "Vous soufflez le dernier cierge violet : le puits n'est plus qu'un filet de lune." : `Vous soufflez un cierge violet : la lune rétrécit (encore ${e.left ?? 0}).`;
+        case "colossus":
+          return "Blessée, la Prêtresse monte chanter dans la lumière. Tous les os de la salle se lèvent : le Colosse ! Cassez ses bras, ou son crâne, pour mettre son cœur à nu.";
+        case "regrow":
+          return "Dans la lune, un morceau du Colosse se ressoude !";
+        case "partDown":
+          return "Un morceau du Colosse se brise.";
+        case "colossusDown":
+          return "Le cœur de lune éclate : le Colosse s'écroule. La Prêtresse retombe, épuisée !";
+        case "aloft":
+          return "Elle chante dans le puits, hors d'atteinte : il faut la toucher de loin.";
+      }
+      return null;
     case "frost":
       return e.what === "freeze" ? `${capFirst(e.actor.name)} gèle sur place.` : `La glace craque : ${e.actor.name} dégèle.`;
     case "undead":

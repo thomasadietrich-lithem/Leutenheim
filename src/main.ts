@@ -882,6 +882,15 @@ function reveal(e: GameEvent): void {
     }
   } else if (e.type === "numb") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Engourdi…", "#c8a6ec");
+  } else if (e.type === "priestess") {
+    const words: Record<string, [string, string]> = {
+      awake: ["« La Lune pâle vous voit. »", "#bfe0ff"], call: ["La lune vient…", "#dcecff"], moved: ["", "#dcecff"], snuff: ["Pfff…", "#c8a6ec"],
+      colossus: ["LE COLOSSE !", "#e2d6b8"], regrow: ["Il se ressoude !", "#bfe0ff"], partDown: ["Crac !", "#e2d6b8"], colossusDown: ["Le cœur éclate !", "#ffe27a"], aloft: ["Hors d'atteinte", "#a8a2c0"],
+    };
+    const [text, color] = words[e.what];
+    if (text) renderer.addFloatingText(e.x, e.y, text, color);
+    if (e.what === "colossus" || e.what === "colossusDown") sfx.play("heavy");
+    if (e.what === "awake") sfx.play("bell");
   } else if (e.type === "frost") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "freeze" ? "Gelé !" : "Crac…", "#bfe6ff");
   } else if (e.type === "undead") {
@@ -944,7 +953,9 @@ function reveal(e: GameEvent): void {
     // La partie continue (Thomas, 2026-11-14 : la section 2 existe) : l'escalier s'ouvre, un coffre doré apparaît.
     void steps;
     logLines.push(
-      game.bossLayout()?.kind === "carillon"
+      game.bossLayout()?.kind === "pretresse"
+        ? "Un coffre doré luit au pied du socle. L'escalier, derrière, termine l'aperçu de l'Ossuaire."
+        : game.bossLayout()?.kind === "carillon"
         ? "Le Carillon s'effondre. Ce n'était pas la cloche : celle de Leutenheim sonne plus bas encore. Un coffre doré luit à côté de lui ; l'escalier, derrière, termine la démo."
         : "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.",
     );

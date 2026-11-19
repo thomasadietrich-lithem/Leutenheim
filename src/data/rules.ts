@@ -188,7 +188,14 @@ export const RULES = {
   /** Coffre doré de la fin du boss (Thomas, 2026-11-14) : or (C). */
   goldChestGold: [80, 140] as [number, number],
   /** Étages des boss (un par section, le dernier de la section). */
-  bossDepths: [5, 10],
+  bossDepths: [5, 10, 15],
+  /** Boss de la section 3 (C) : la Prêtresse appelle la lune tous les N tours (annoncé), chante tous les N tours ;
+   *  rayon du puits selon les cierges encore allumés ; le Colosse : tours dans la lune pour qu'un morceau se ressoude. */
+  priestessCallEvery: 5,
+  priestessChantEvery: 4,
+  priestessChantHeal: 5,
+  priestessWellRadius: [1, 2, 2, 3, 3, 4, 4],
+  colossusRegrowTurns: 4,
   /** Le Carillon (boss de la section 2, Thomas, 2026-11-16) : il sonne tous les tant de tours ; l'onde fait tant de
    *  dégâts (le double au contact de sa lèvre) ; sonné faux, il reste sonné tant de tours. (C) */
   carillonEvery: 8,

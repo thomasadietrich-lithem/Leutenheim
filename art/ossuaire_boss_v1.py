@@ -299,5 +299,28 @@ def main():
     print("art/ossuaire_boss_v1.png", sheet.size)
 
 
-if __name__ == "__main__":
+def export():
+    """python3 art/ossuaire_boss_v1.py export → src/render/sprites/pretresse.ts (Thomas, 2026-11-19 : « fonce sur boss »)."""
+    from export_jeu_v4 import write
+    sp = {f"pr_{st}{f}": priestess(st, f).img() for st in ("idle", "chant") for f in (0, 1)}
+    sp.update({"pr_call": priestess("call").img(), "pr_dazed": priestess("dazed").img(), "pr_rise": priestess("rise").img(), "pr_dead": priestess("dead").img()})
+    for l in (0, 1):
+        for r in (0, 1):
+            for h in (0, 1):
+                sp[f"co_{l}{r}{h}"] = colossus(arm_l=bool(l), arm_r=bool(r), head=bool(h), heart_open=(not l and not r) or not h).img()
+    sp["co_charge"] = colossus(charge=True).img()
+    sp["co_fallen"] = colossus(fallen=True).img()
+    sp["socle"] = socle().img()
+    sp["ciergeViolet"] = candle().img()
+    off = candle()
+    off.a[0:4] = 0
+    sp["ciergeVioletOff"] = off.img()
+    write("src/render/sprites/pretresse.ts", "PRETRESSE",
+          "Boss de la section 3 (art/ossuaire_boss_v1.png, validée le 2026-11-19) : la Grande Prêtresse, le Colosse (bras gauche, droit, crâne : 1 = là), le socle, les cierges violets.",
+          sp)
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+elif __name__ == "__main__":
     main()

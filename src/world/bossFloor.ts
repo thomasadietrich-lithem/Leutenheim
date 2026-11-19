@@ -43,7 +43,7 @@ export interface BossLayout {
   /** La salle de la nichée (pour la barre de vie : le combat est engagé quand le héros y entre). */
   lair: Room;
   /** Le boss de cet étage : la Tisseuse (par défaut) ou le Carillon (section 2). */
-  kind?: "carillon";
+  kind?: "carillon" | "pretresse";
   /** Carillon : la case du battant (sous son chapeau), les Kobolds envahis endormis, et où d'autres sortent à mi-vie. */
   clapper?: Point;
   sleepers?: Point[];

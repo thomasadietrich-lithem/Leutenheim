@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-19T14:38:32.016Z",
+ "commit": "5c2f910",
+ "note": "Boss section 3 : la Grande Prêtresse et son Colosse",
+ "logic": {
+  "tickMs": 0.4,
+  "lightMs": 0.46,
+  "visionMs": 0.24
+ },
+ "scenes": {
+  "immobile": {
+   "n": 97,
+   "avg": 25.4,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 39,
+   "js": 5
+  },
+  "marche": {
+   "n": 202,
+   "avg": 24.8,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 40,
+   "js": 3
+  },
+  "retour": {
+   "n": 242,
+   "avg": 20.7,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 48,
+   "js": 4
+  },
+  "zoom": {
+   "n": 120,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 44,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 4
+  },
+  "donjon": {
+   "n": 235,
+   "avg": 21.1,
+   "p95": 33.4,
+   "max": 116.6,
+   "fps": 47,
+   "js": 15
+  }
+ },
+ "errors": []
+}

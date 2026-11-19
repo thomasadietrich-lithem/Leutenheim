@@ -104,3 +104,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-19_10h56 | 2e9c8be | 26.2 | 24.2 | 24.4 | 21.5 | 16.7 | 21 | 0.49 | 0.11 | Section 3 : archer, crâne lunaire, flèches d'obsidienne et enflammées, potion de gel |
 | 2026-11-19_13h18 | 704121a | 26.3 | 22.2 | 21.9 | 24.3 | 16.7 | 18.5 | 0.7 | 0.33 | Section 3 : pièges, chapelle des os, Sœur Clavicule |
 | 2026-11-19_14h30 | a231242 | 24.9 | 24 | 24.3 | 27.1 | 16.7 | 26.1 | 0.56 | 0.14 | Grenade sainte |
+| 2026-11-19_14h30 | 5c2f910 | 25.6 | 29.7 | 25.3 | 26.3 | 16.7 | 24.8 | 0.48 | 0.32 | Grenade sainte (re-mesure) |
+| 2026-11-19_14h38 | 5c2f910 | 25.4 | 24.8 | 20.7 | 22.8 | 16.7 | 21.1 | 0.4 | 0.46 | Boss section 3 : la Grande Prêtresse et son Colosse |

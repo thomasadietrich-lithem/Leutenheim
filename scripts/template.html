@@ -53,7 +53,18 @@
   @keyframes bang-blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.25); } }
   /* Tout le bouton du héros clignote quand un choix l'attend (Thomas : pas seulement le « ! »). */
   @keyframes hero-blink { 0%, 100% { background-color: #3a2e1c; box-shadow: inset 0 0 0 2px var(--gold); } 50% { background-color: #8a6a26; box-shadow: inset 0 0 0 3px #ffd75e; } }
-  #power.off { filter: grayscale(1) brightness(0.6); }
+  /* Trois familles, trois couleurs (Thomas, 2026-11-19, planche art/pictos_capacites_v2.png) : ACTIONS en bronze,
+     CAPACITÉS à la couleur de la voie (billes = charges de l'étage), OBJET en vert (le raccourci du sac). */
+  #actions { box-shadow: inset 0 0 0 2px #b0783a; }
+  #skills { position: relative; box-shadow: inset 0 0 0 2px var(--voie, #d03a44); }
+  #quick { box-shadow: inset 0 0 0 2px #60aa50; }
+  #skills.off > svg, #quick.off > svg { filter: grayscale(1) brightness(0.6); }
+  .pips { position: absolute; top: 3px; right: 4px; display: flex; gap: 2px; }
+  .pips i { width: 5px; height: 5px; background: #ffd75e; box-shadow: 0 0 0 1px #120d08; }
+  .pips i.spent { background: #3c3228; }
+  #wheel-bar { box-shadow: inset 0 0 0 2px #b0783a, 0 0 0 2px #120d08; }
+  #wheel-pow { box-shadow: inset 0 0 0 2px var(--voie, #d03a44), 0 0 0 2px #120d08; }
+  #wheel-pow button { position: relative; }
   #aim.off { filter: grayscale(1) brightness(0.6); }
   #open-bag.pending { animation: hero-blink 0.9s ease-in-out infinite; }
   #floor-badge { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; color: var(--gold); font-size: 30px; line-height: 1; }
@@ -242,9 +253,8 @@
   #wheel-stack { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   #wheel-pow[hidden] { display: none; }
   #wheel-pow { justify-content: center; }
-  #wheel-pow button { flex: 0 1 31%; }
-  #wheel-bar, #wheel-pow { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94);
-    box-shadow: inset 0 0 0 2px #6a5a3a, 0 0 0 2px #120d08; }
+  #wheel-pow button { flex: 0 1 24%; }
+  #wheel-bar, #wheel-pow { flex: 1; min-width: 0; display: flex; gap: 5px; padding: 7px; margin: 0 6px 6px; background: rgba(14, 10, 8, 0.94); }
   #wheel button { flex: 1 1 0; min-width: 0; height: 74px; padding: 6px 0 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   #wheel button svg { width: 40px; height: 40px; flex: none; }
   #wheel button .wheel-label { font-size: 16px; text-transform: none; letter-spacing: 0; line-height: 1; color: #f0e6c8; white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
@@ -580,6 +590,13 @@
   .skill-card.locked { opacity: 0.45; cursor: default; }
   .skill-card.main { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; text-align: left; }
   .skill-card.main svg { margin: 0; }
+  /* Le picto de chaque capacité : cadre de la voie pour les actives, médaillon rond pour les passives. */
+  .skill-card .skill-pic { width: 48px; height: 48px; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; flex: none; background: #2c2218; }
+  .skill-card .skill-pic.active { box-shadow: inset 0 0 0 2px var(--voie, #d03a44); }
+  .skill-card .skill-pic.passive { border-radius: 50%; box-shadow: inset 0 0 0 2px #5a4a3a; background: #241e1a; }
+  .skill-card .skill-pic svg { width: 36px; height: 36px; margin: 0; }
+  .skill-card.main .skill-pic { margin: 0; }
+  .skill-card .skill-kind { font-size: 12px; letter-spacing: 0.08em; color: #a09078; text-transform: uppercase; }
   .skill-card { position: relative; }
   .skill-card .rank-now { color: #fff3c8; font-size: 15px; }
   .skill-card .rank-next { color: var(--dim); font-size: 13px; }
@@ -690,18 +707,17 @@
     <div id="test-tools" class="folded" hidden><button id="cheat-toggle" type="button">Triche</button><button id="wake-all" type="button">Réveiller</button><button id="level-up" type="button">+1 niveau</button><button id="alarm-up" type="button">+ Alerte</button><button id="alarm-down" type="button">− Alerte</button><button id="peace" type="button">Combats : oui</button><button id="reset-talks" type="button">Dialogues</button><button id="reset-floor" type="button">Tout remettre</button><button id="spawn-open" type="button">Objets</button><button id="kit-faible" type="button">Stuff faible</button><button id="kit-moyen" type="button">Stuff moyen</button><button id="kit-eleve" type="button">Stuff élevé</button><button id="carillon-mode" type="button">Carillon : doux</button><button id="boss2" type="button">Boss 2 · niv 10</button><button id="tp-up" type="button" hidden>Étage −</button><button id="tp-down" type="button" hidden>Étage +</button></div>
     <div id="arena-tools" hidden><button id="arena-reset" type="button">Arène : remettre</button><button id="arena-schrat" type="button">+ Kobold</button><button id="arena-frondeur" type="button">+ Frondeur</button><button id="arena-araignee" type="button">+ Araignée</button></div>
     <div id="wheel" hidden><div id="wheel-stack"><div id="wheel-pow" hidden>
+      <button id="wheel-skill" type="button"></button>
       <button id="wheel-tourbillon" type="button" hidden></button>
       <button id="wheel-charge" type="button" hidden></button>
       <button id="wheel-cri" type="button" hidden></button>
     </div><div id="wheel-bar">
       <button id="wheel-search" type="button"></button>
+      <button id="wheel-hide" type="button"></button>
       <button id="wheel-push" type="button"></button>
       <button id="wheel-disengage" type="button"></button>
-      <button id="wheel-item" type="button"></button>
       <button id="wheel-rest" type="button"></button>
-      <button id="wheel-hide" type="button"></button>
       <button id="wheel-disarm" type="button" hidden></button>
-      <button id="wheel-skill" type="button" hidden></button>
     </div></div></div>
     <div id="door-actions" hidden>
       <div class="door-choices">
@@ -743,7 +759,8 @@
     <button id="wait" type="button"></button>
     <button id="aim" type="button"></button>
     <button id="actions" type="button"></button>
-    <button id="power" type="button" hidden></button>
+    <button id="skills" type="button" hidden></button>
+    <button id="quick" type="button"></button>
     <button id="open-bag" type="button"></button>
   </div>
   <div id="shop" class="overlay" hidden>

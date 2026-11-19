@@ -40,7 +40,7 @@ import { getLang, missing as i18nMissing, setLang, tr } from "./i18n/i18n";
 import { TELEMETRY } from "./data/telemetry";
 import { detectPlatform, Telemetry } from "./telemetry/telemetry";
 import { PICTOS } from "./ui/pictos";
-import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, STATUS_ICONS, uiIcon } from "./ui/icons";
+import { BELL, BELL_COLORS, buildIcon, HERO_HEAD, HERO_HEAD_PALETTE, itemIcon, PATH_ICONS, SKILL_ICONS, type SkillIconId, STATUS_ICONS, uiIcon } from "./ui/icons";
 import { PATH_LEVEL, PATHS, PathId, PowerDef, StatId, TIER2_LEVEL } from "./data/skills";
 import { describe, REFUSALS } from "./ui/journal";
 
@@ -1871,76 +1871,102 @@ button("wait", () => {
 // ---------- Roue d'actions ----------
 
 const wheel = $("wheel");
-/** Les cinq actions, dans l'ordre de la couronne (en partant du haut, dans le sens des aiguilles d'une montre). */
+/** Les deux barres qui montent au-dessus du dé (Thomas, 2026-11-19, planche art/pictos_capacites_v2.png) :
+ *  ACTIONS (bronze), ce que tout héros sait faire ; CAPACITÉS (couleur de la voie), le pouvoir principal puis ceux du Rang II. */
 const WHEEL = [
   ["wheel-search", "search", "Fouiller"],
+  ["wheel-hide", "hide", "Se cacher"],
   ["wheel-push", "push", "Pousser"],
   ["wheel-disengage", "disengage", "Se dégager"],
-  ["wheel-item", "item", "Utiliser un objet"],
   ["wheel-rest", "rest", "Se reposer"],
-  ["wheel-hide", "hide", "Se cacher"],
   ["wheel-disarm", "disarm", "Désamorcer un piège"],
-  ["wheel-skill", "actions", "Compétence de voie"],
-  // Rang II de la voie rouge (2026-11-17) : une rangée au-dessus, seulement les pouvoirs acquis.
+  ["wheel-skill", "actions", "Pouvoir de la voie"],
   ["wheel-tourbillon", "whirl", "Tourbillon"],
   ["wheel-charge", "charge", "Charge"],
   ["wheel-cri", "cry", "Cri de guerre"],
 ] as const;
 const WHEEL_POWERS = { "wheel-tourbillon": "tourbillon", "wheel-charge": "charge", "wheel-cri": "cri_guerre" } as const;
+const ACTION_IDS = ["wheel-search", "wheel-hide", "wheel-push", "wheel-disengage", "wheel-rest", "wheel-disarm"];
+let wheelMode: "actions" | "skills" = "actions";
 
 function closeWheel(): void {
   wheelOpen = false;
   wheel.hidden = true;
 }
 
-function openWheel(): void {
+/** Des billes : une par charge restante. */
+function pips(n: number): HTMLElement {
+  const box = el("span", "pips");
+  for (let k = 0; k < Math.min(n, 6); k++) box.append(el("i", ""));
+  return box;
+}
+
+/** Le pouvoir principal de la voie : son picto et son nom court. */
+function mainSkill(): { icon: SkillIconId; short: string } | null {
+  if (game.voie === "blue") return { icon: "second_souffle", short: "Souffle" };
+  if (game.voie === "red") return { icon: "double_frappe", short: "Double" };
+  return null;
+}
+
+/** Les pouvoirs du Rang II acquis (voie rouge). */
+function ownedPowers(): (keyof typeof WHEEL_POWERS)[] {
+  return (Object.keys(WHEEL_POWERS) as (keyof typeof WHEEL_POWERS)[]).filter((id) => game.rank(WHEEL_POWERS[id]) > 0);
+}
+
+function openWheel(mode: "actions" | "skills" = "actions"): void {
   if (game.over) return;
   aimMode = false;
   jumpMode = false;
   pushMode = false;
   disarmMode = false;
   renderer.jumpCells = [];
-  // La caméra ne bouge plus à l'ouverture (Thomas, 2026-11-13 : « retire le centrage automatique ») ; la barre
-  // d'actions monte en bas de la carte.
-  // Le pouvoir de la voie (bleue, rouge) a désormais son propre bouton dans la barre du bas (Thomas, 2026-11-11).
-  const withSkill = false;
-  $("wheel-skill").hidden = !withSkill;
-  if (game.voie) $("wheel-skill").replaceChildren(buildIcon(PATH_ICONS[game.voie]));
-  // DÉSAMORCER : seulement à côté d'un piège connu (Thomas, 2026-11-17) ; toucher le piège y marche toujours.
-  $("wheel-disarm").hidden = game.disarmTargets().length === 0;
-  for (const [id, pw] of Object.entries(WHEEL_POWERS)) $(id).hidden = game.rank(pw) === 0;
-  $("wheel-pow").hidden = Object.entries(WHEEL_POWERS).every(([id]) => $(id).hidden);
-  const shown = WHEEL.filter(([id]) => (id !== "wheel-skill" || withSkill) && (id !== "wheel-disarm" || !$("wheel-disarm").hidden) && !(id in WHEEL_POWERS && $(id).hidden));
-  shown.forEach(([id]) => {
-    const b = $(id);
-    // Une action impossible reste visible, grisée ; « Objet » sert le raccourci choisi dans le sac.
-    const possible =
-      id === "wheel-rest" ? game.restRefusal() === null
-      : id === "wheel-hide" ? game.hideRefusal() === null
-      : id === "wheel-disengage" ? game.disengageRefusal() === null
-      : id === "wheel-search" ? game.searchRefusal() === null
-      : id === "wheel-push" ? game.pushRefusal() === null
-      : id === "wheel-disarm" ? game.disarmRefusal() === null
-      : id === "wheel-skill" ? game.skillRefusal() === null
-      : id === "wheel-item" ? game.quickStack() !== null
-      : id in WHEEL_POWERS ? game.powerRefusal(WHEEL_POWERS[id as keyof typeof WHEEL_POWERS]) === null
-      : false;
-    b.classList.toggle("off", !possible);
-  });
-  renderQuickButton();
+  wheelMode = mode;
+  $("wheel-bar").hidden = mode !== "actions";
+  $("wheel-pow").hidden = mode !== "skills";
+  if (mode === "actions") {
+    // DÉSAMORCER : seulement à côté d'un piège connu (Thomas, 2026-11-17) ; toucher le piège y marche toujours.
+    $("wheel-disarm").hidden = game.disarmTargets().length === 0;
+    for (const id of ACTION_IDS) {
+      // Une action impossible reste visible, grisée.
+      const possible =
+        id === "wheel-rest" ? game.restRefusal() === null
+        : id === "wheel-hide" ? game.hideRefusal() === null
+        : id === "wheel-disengage" ? game.disengageRefusal() === null
+        : id === "wheel-search" ? game.searchRefusal() === null
+        : id === "wheel-push" ? game.pushRefusal() === null
+        : game.disarmRefusal() === null;
+      $(id).classList.toggle("off", !possible);
+    }
+  } else {
+    const main = mainSkill();
+    const sk = $("wheel-skill");
+    if (main) sk.replaceChildren(buildIcon(SKILL_ICONS[main.icon]), el("span", "wheel-label", main.short), pips(powerCharges()));
+    sk.classList.toggle("off", game.skillRefusal() !== null);
+    const owned = ownedPowers();
+    for (const id of Object.keys(WHEEL_POWERS) as (keyof typeof WHEEL_POWERS)[]) {
+      const b = $(id);
+      b.hidden = !owned.includes(id);
+      if (b.hidden) continue;
+      const pw = WHEEL_POWERS[id];
+      b.replaceChildren(buildIcon(SKILL_ICONS[pw]), el("span", "wheel-label", WHEEL_SHORT[id]), pips(game.powerUsesLeft(pw)));
+      b.classList.toggle("off", game.powerRefusal(pw) !== null);
+    }
+  }
   wheelOpen = true;
   wheel.hidden = false;
 }
 
-/** La touche « Objet » montre l'objet choisi en raccourci et combien il en reste ; sinon le picto habituel. */
+/** Le bouton OBJET (vert) de la barre du bas : l'objet choisi en raccourci et combien il en reste ; sinon le picto habituel. */
+let quickShown = "";
 function renderQuickButton(): void {
-  const b = $("wheel-item");
+  const b = $("quick");
   const stack = game.quickStack();
-  if (game.quickItem) {
-    const icon = itemIcon(game.quickItem);
-    icon.classList.add("wheel-quick");
-    b.replaceChildren(icon, el("span", "wheel-label", stack ? `×${stack.count}` : "×0"));
-  } else b.replaceChildren(uiIcon("item"), el("span", "wheel-label", "Objet"));
+  const key = `${game.quickItem}|${stack?.count ?? 0}`;
+  if (key === quickShown) return;
+  quickShown = key;
+  if (game.quickItem) b.replaceChildren(itemIcon(game.quickItem), document.createTextNode(tr(`×${stack?.count ?? 0}`)));
+  else b.replaceChildren(uiIcon("item"));
+  b.classList.toggle("off", !stack);
 }
 
 /** Raccourci « Objet » sur une potion risquée : en attente du toucher qui confirme. */
@@ -1979,7 +2005,7 @@ function useQuickItem(): void {
 }
 
 // Noms courts sous les pictogrammes (barre d'actions, design C).
-const WHEEL_SHORT: Record<string, string> = { "wheel-tourbillon": "Tourbillon", "wheel-charge": "Charge", "wheel-cri": "Cri", "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-item": "Objet", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
+const WHEEL_SHORT: Record<string, string> = { "wheel-tourbillon": "Tourbillon", "wheel-charge": "Charge", "wheel-cri": "Cri", "wheel-search": "Fouiller", "wheel-push": "Pousser", "wheel-disengage": "Dégager", "wheel-rest": "Repos", "wheel-hide": "Cacher", "wheel-disarm": "Désarmer", "wheel-skill": "Voie" };
 for (const [id, icon, label] of WHEEL) {
   $(id).replaceChildren(uiIcon(icon), el("span", "wheel-label", WHEEL_SHORT[id] ?? label));
   $(id).setAttribute("aria-label", tr(label));
@@ -2038,8 +2064,6 @@ for (const [id, icon, label] of WHEEL) {
         renderer.jumpCells = game.jumpCells();
         logLines.push("Touchez la case où sauter.");
       }
-    } else if (id === "wheel-item") {
-      useQuickItem();
     } else {
       logLines.push(`${label} : pas encore possible.`);
     }
@@ -2047,7 +2071,23 @@ for (const [id, icon, label] of WHEEL) {
   });
 }
 wheel.addEventListener("click", closeWheel);
-button("actions", () => (wheelOpen ? closeWheel() : openWheel()));
+button("actions", () => (wheelOpen && wheelMode === "actions" ? closeWheel() : openWheel("actions")));
+// CAPACITÉS : sans pouvoir du Rang II, un toucher lance directement le pouvoir principal (comme l'ancien bouton) ;
+// sinon la barre des capacités s'ouvre.
+button("skills", () => {
+  if (wheelOpen && wheelMode === "skills") return closeWheel();
+  if (ownedPowers().length > 0) return openWheel("skills");
+  closeWheel();
+  const refusal = game.skillRefusal();
+  if (refusal) logLines.push(REFUSALS.skill[refusal]);
+  else if (game.useSkill()) stepMs = COMBAT_STEP_MS;
+  renderLog();
+});
+button("quick", () => {
+  closeWheel();
+  useQuickItem();
+  renderLog();
+});
 // Toucher le dé : frapper au corps à corps l'ennemi au contact (demande de Thomas).
 const diceBox = die.parentElement!.parentElement!;
 diceBox.addEventListener("click", () => {
@@ -3066,32 +3106,31 @@ button("bag-equip", () => {
 });
 // ---------- Bouton du pouvoir (voie bleue ou rouge) : picto de la voie et charges restantes, grisé sinon ----------
 let powerShown = "";
+const POWER_BUTTONS = { tourbillon: 1, charge: 1, cri_guerre: 1 } as const;
 function powerCharges(): number {
   if (game.voie === "blue") return Math.max(0, game.secondWindUses() - game.perks().secondWind);
   if (game.voie === "red") return game.perks().doubleStrikes;
   return 0;
 }
+/** Le bouton CAPACITÉS (couleur de la voie) : picto du pouvoir principal, une bille par charge qui reste sur l'étage
+ *  (pouvoir principal et Rang II), grisé quand plus rien ne peut servir. */
 function renderPower(): void {
-  const b = $("power");
-  const withPower = (game.voie === "blue" || game.voie === "red") && !game.over;
-  const ready = withPower && game.skillRefusal() === null;
-  const key = `${withPower}|${game.voie}|${powerCharges()}|${ready}`;
+  const b = $("skills");
+  const main = game.over ? null : mainSkill();
+  const owned = ownedPowers();
+  const left = powerCharges() + owned.reduce((n, id) => n + game.powerUsesLeft(WHEEL_POWERS[id]), 0);
+  const ready = !!main && (game.skillRefusal() === null || owned.some((id) => game.powerRefusal(WHEEL_POWERS[id]) === null));
+  const key = `${main?.icon}|${left}|${ready}|${owned.length}`;
   if (key === powerShown) return;
   powerShown = key;
-  b.hidden = !withPower;
-  if (!withPower || !game.voie) return;
-  const name = game.voie === "blue" ? "Second souffle" : "Double frappe";
-  b.setAttribute("aria-label", tr(name));
-  b.title = tr(name);
-  b.replaceChildren(buildIcon(PATH_ICONS[game.voie]), document.createTextNode(tr(`×${powerCharges()}`)));
+  b.hidden = !main;
+  if (!main || !game.voie) return;
+  document.body.style.setProperty("--voie", PATHS[game.voie].color);
+  b.setAttribute("aria-label", tr("Capacités"));
+  b.title = tr("Capacités");
+  b.replaceChildren(buildIcon(SKILL_ICONS[main.icon]), pips(left));
   b.classList.toggle("off", !ready);
 }
-button("power", () => {
-  const refusal = game.skillRefusal();
-  if (refusal) logLines.push(REFUSALS.skill[refusal]);
-  else if (game.useSkill()) stepMs = COMBAT_STEP_MS;
-  renderLog();
-});
 
 button("open-bag", () => {
   // Un objet consommé n'a pas encore fait son tour : le sac reste fermé jusque-là (Thomas, 2026-11-15 : on pouvait
@@ -3426,13 +3465,19 @@ function renderCharacter(): void {
       // Nom, puis une rangée : les billes de rang (pleines jusqu'au rang atteint) et, à droite, le petit « + ».
       const pips = el("div", "rank-pips");
       for (let k = 0; k < top; k++) pips.append(rankPip(k < r));
-      body.append(el("b", "", pw.name), pips);
+      // Le picto de la capacité, et ACTIVE (un bouton, des charges) ou PASSIVE (toujours là) (Thomas, 2026-11-19).
+      const active = main || pw.id in POWER_BUTTONS;
+      if (pw.id in SKILL_ICONS) {
+        const pic = el("div", `skill-pic ${active ? "active" : "passive"}`);
+        pic.append(buildIcon(SKILL_ICONS[pw.id as SkillIconId]));
+        card.append(pic);
+      }
+      body.append(el("b", "", pw.name), el("div", "skill-kind", active ? "Active" : "Passive"), pips);
       if (now) body.append(el("div", "rank-now", now));
       body.append(el("div", "rank-next", next));
       if (main) {
         const uses = game.voie === "blue" ? ` (${powerCharges()} à cet étage)` : ` (${game.perks().doubleStrikes} à cet étage)`;
-        body.append(el("div", "rank-next", `Pouvoir du bouton${uses}`));
-        card.append(buildIcon(PATH_ICONS[path.id]));
+        body.append(el("div", "rank-next", `Bouton Capacités${uses}`));
       }
       card.append(body);
       if (points > 0 && why === null) {
@@ -4550,6 +4595,7 @@ function frame(now: number): void {
   }
   aim.classList.toggle("active", aimMode);
   renderPower();
+  renderQuickButton();
   requestAnimationFrame(frame);
 }
 

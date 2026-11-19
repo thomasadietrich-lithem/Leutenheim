@@ -2421,4 +2421,11 @@ export const EN: Record<string, string> = {
   "« Tenez : un fémur de la réserve, monté en massue. Les morts n'aiment pas les os plus gros qu'eux. »": "“Here: a femur from the storeroom, mounted as a club. The dead dislike bones bigger than theirs.”",
   "(Il vous donne une massue de tricératops.)": "(He gives you a triceratops club.)",
   "Le tricératops du musée reste un bicératops.": "The museum's triceratops remains a biceratops.",
+  "Pouvoir de la voie": "Path power",
+  "Souffle": "Wind",
+  "Double": "Double",
+  "Capacités": "Abilities",
+  "Active": "Active",
+  "Passive": "Passive",
+  "Bouton Capacités{0}": "Abilities button{0}",
 };

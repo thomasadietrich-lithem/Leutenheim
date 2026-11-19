@@ -108,3 +108,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-19_14h38 | 5c2f910 | 25.4 | 24.8 | 20.7 | 22.8 | 16.7 | 21.1 | 0.4 | 0.46 | Boss section 3 : la Grande Prêtresse et son Colosse |
 | 2026-11-19_14h39 | ace9ac3 | 28.5 | 27.5 | 20.4 | 23.4 | 16.7 | 23.6 | 0.44 | 0.23 | Boss S3 (re-mesure) |
 | 2026-11-19_14h45 | ace9ac3 | 24.6 | 25.6 | 24.5 | 28.6 | 16.7 | 21.4 | 0.56 | 0.3 | Musée et Maître Osselet |
+| 2026-11-19_15h32 | f759ea1 | 26.1 | 22.5 | 23.2 | 23.4 | 16.7 | 26.2 | 0.65 | 0.34 | menu en trois familles : Actions, Capacités, Objet |

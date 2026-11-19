@@ -14,7 +14,7 @@ import type { Actor } from "../src/entities/actor";
 import { computeFov, computeLight, hasClearSight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath, isChokepoint } from "../src/world/pathfinding";
 import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
-import { guaranteedLoot } from "../src/core/floor";
+import { foodRations, guaranteedLoot } from "../src/core/floor";
 import { FURNITURE_KINDS } from "../src/data/themedRooms";
 import { MOTIF_SIZE } from "../src/data/motifs";
 import { buildSandbox, buildSandbox2, setSandboxPlan, setSandboxSection } from "../src/world/sandbox";
@@ -6929,4 +6929,14 @@ test("2026-11-19 : l'Elfe ne ramasse plus les flèches ordinaires ; Plumeau touj
   g.teleport(3);
   const k = g.npc("plumeau");
   if (k) assert.ok([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].some(([dx, dy]) => g.map.isWalkable(k.x + dx, k.y + dy)), "une case libre à côté de lui");
+});
+
+test("provisions par étage : tirées à part, jamais à l'étage d'un boss, environ 0,7 par étage", () => {
+  let n = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    for (const d of [5, 10, 15]) assert.deepEqual(foodRations(seed, d), []);
+    n += foodRations(seed, 12).length;
+    assert.ok(foodRations(seed, 12).every((f) => f.item === "tourte_fossoyeur" || f.item === "cuisse_poulet"));
+  }
+  assert.ok(n / 200 > 0.55 && n / 200 < 0.85, `moyenne ${n / 200}`);
 });

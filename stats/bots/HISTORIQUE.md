@@ -110,3 +110,7 @@
 | 2026-11-18 22:38 | ef839f4 | Moyen (halfelin) | 3 | 15 % | 15 % | 0 % | 2.4 | 14.7 | 0.7 / 0.4 / 0.1 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
 | 2026-11-18 22:38 | ef839f4 | Maîtrise (halfelin) | 3.9 | 2 % | 40 % | 12 % | 4.1 | 35.3 | 1.3 / 0.8 / 0.4 | nouveau passage du 18/11 au soir, sur la dernière version du jeu |
 | 2026-11-18 22:38 | ef839f4 | Expert (halfelin) | 8 | 11 % | 86 % | 82 % | 8.1 | 108.8 | 1.4 / 1.1 / 0.3 | [section 2 : étage 8 67 %, étage 10 65 %, bat le Carillon 65 %] nouveau passage du 18/11 au soir, sur la dernière version du jeu |
+| 2026-11-19 16:57 | 29b8232 | Débutant | 2.6 | 17 % | 5 % | 0 % | 1.6 | 6.3 | 0.6 / 0 / 0.4 | provisions par étage (0,55 + 0,15), monstres de front en couloir, brouillard qui cache des boss |
+| 2026-11-19 16:57 | 29b8232 | Moyen | 3.2 | 13 % | 19 % | 0 % | 2.5 | 14.3 | 0.8 / 0.4 / 0.2 | provisions par étage (0,55 + 0,15), monstres de front en couloir, brouillard qui cache des boss |
+| 2026-11-19 16:57 | 29b8232 | Maîtrise | 3.7 | 5 % | 37 % | 7 % | 3.9 | 30.1 | 1.1 / 0.6 / 0.4 | provisions par étage (0,55 + 0,15), monstres de front en couloir, brouillard qui cache des boss |
+| 2026-11-19 16:57 | 29b8232 | Expert | 7.6 | 7 % | 84 % | 81 % | 7.9 | 101.8 | 1.4 / 1.2 / 0.2 | [section 2 : étage 8 63 %, étage 10 41 %, bat le Carillon 39 %] provisions par étage (0,55 + 0,15), monstres de front en couloir, brouillard qui cache des boss |

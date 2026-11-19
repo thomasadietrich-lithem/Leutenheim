@@ -37,7 +37,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, guaranteedLoot, lootPool, noteUnique, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements, trackUniques } from "./floor";
+import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, foodRations, guaranteedLoot, lootPool, noteUnique, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements, trackUniques } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -598,7 +598,7 @@ export class Game {
       // Ses pièges à elle (Thomas, 2026-11-19 : « Maintenant piège », planche art/pieges_oss_v1.png).
       placeTraps(state, floorSeed(this.runSeed, depth), depth);
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
-      placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth)], floorSeed(this.runSeed, depth));
+      placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth), ...foodRations(this.runSeed, depth)], floorSeed(this.runSeed, depth));
     } else if (fresh) {
       this.spawnMonsters(state.rooms);
       state.population = Math.max(1, this.monsters.length);
@@ -608,7 +608,7 @@ export class Game {
       placeTraps(state, floorSeed(this.runSeed, depth), depth);
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
       // Garanties de la section 1 (une pomme à l'étage 1, deux équipements, une gemme, une potion).
-      placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth)], floorSeed(this.runSeed, depth));
+      placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth), ...foodRations(this.runSeed, depth)], floorSeed(this.runSeed, depth));
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     for (const m of this.monsters) {

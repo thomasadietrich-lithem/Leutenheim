@@ -191,6 +191,14 @@ export const RULES = {
   goldChestGold: [80, 140] as [number, number],
   /** Étages des boss (un par section, le dernier de la section). */
   bossDepths: [5, 10, 15],
+  /** Provisions par étage (Thomas, 2026-11-19), tirées à part : chance de la 1re, de la 2e (`foodRations`). */
+  foodRationChances: [0.55, 0.15],
+  /** Ce que donnent les provisions, par section (tiré au hasard dans la liste ; un doublon pèse double). */
+  foodRationTable: [
+    ["pomme", "pomme", "cuisse_poulet"],
+    ["morille", "cuisse_poulet", "pomme"],
+    ["tourte_fossoyeur", "tourte_fossoyeur", "cuisse_poulet"],
+  ],
   /** Boss de la section 3 (C) : la Prêtresse appelle la lune tous les N tours (annoncé), chante tous les N tours ;
    *  rayon du puits selon les cierges encore allumés ; le Colosse : tours dans la lune pour qu'un morceau se ressoude. */
   priestessCallEvery: 5,

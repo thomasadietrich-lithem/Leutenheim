@@ -571,6 +571,26 @@ export function guaranteedLoot(runSeed: number, depth: number): { item: ItemId; 
   return out;
 }
 
+/**
+ * PROVISIONS (Thomas, 2026-11-19 : « augmente légèrement le drop de nourriture, via une règle calculatoire
+ * indépendante ») : sur chaque étage hors boss, tirées à part (leur hasard ne touche rien d'autre), une provision de la
+ * section 55 % du temps, et une deuxième 15 % du temps. Section 1 : pomme ou cuisse ; section 2 : morille, cuisse ou
+ * pomme ; section 3 : tourte du fossoyeur ou cuisse.
+ */
+export function foodRations(runSeed: number, depth: number): { item: ItemId; count: number }[] {
+  if ((RULES.bossDepths as readonly number[]).includes(depth)) return [];
+  const rng = new Rng((runSeed ^ 0x0f00d5) + Math.imul(depth, 2654435761));
+  const section = Math.min(sectionOf(depth), RULES.foodRationTable.length - 1);
+  const table = RULES.foodRationTable[section];
+  const out: { item: ItemId; count: number }[] = [];
+  for (const chance of RULES.foodRationChances) {
+    const roll = rng.next();
+    const pick = table[Math.floor(rng.next() * table.length)];
+    if (roll < chance) out.push({ item: pick as ItemId, count: 1 });
+  }
+  return out;
+}
+
 /** Les objets des tables de butin (peu communs et rares compris) d'une sorte donnée, permis à cet étage. */
 export function lootPool(depth: number, keep: (kind: string, id: string) => boolean, only?: Rarity): ItemId[] {
   const ids: ItemId[] = [];

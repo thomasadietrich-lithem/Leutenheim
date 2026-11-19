@@ -110,3 +110,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-19_14h45 | ace9ac3 | 24.6 | 25.6 | 24.5 | 28.6 | 16.7 | 21.4 | 0.56 | 0.3 | Musée et Maître Osselet |
 | 2026-11-19_15h32 | f759ea1 | 26.1 | 22.5 | 23.2 | 23.4 | 16.7 | 26.2 | 0.65 | 0.34 | menu en trois familles : Actions, Capacités, Objet |
 | 2026-11-19_16h46 | 0bb9ca3 | 23.8 | 27.3 | 20.8 | 23.7 | 16.7 | 27.7 | 0.53 | 0.24 | filtres du sac, menu Tir, obsidienne, tourte |
+| 2026-11-19_17h00 | 29b8232 | 24.2 | 26.2 | 23.8 | 24.3 | 16.7 | 20.6 | 0.36 | 0.32 | provisions par étage |

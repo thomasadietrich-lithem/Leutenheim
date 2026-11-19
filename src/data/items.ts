@@ -75,6 +75,8 @@ export interface ItemDef {
   potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip" | "frost" | "night";
   /** Bombe arcanique (Thomas, 2026-11-16) : elle se lance, puis explose quelques tours plus tard. */
   bomb?: boolean;
+  /** Grenade sainte : elle éclate à l'impact en lumière jaune : bénit le héros, blesse les monstres (les morts deux fois). */
+  holy?: boolean;
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
   throwRange?: number;
   /** Potion qu'il est risqué de boire (Thomas, 2026-11-14) : on demande « Êtes-vous sûr ? » et l'on dit pourquoi. */
@@ -567,6 +569,9 @@ export const ITEMS = {
   potion_discorde: { id: "potion_discorde", name: "Potion de discorde", kind: "use", description: "Rose et pétillante. À lancer : les monstres de la case et des quatre voisines se battent entre eux.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "discord", throwRange: 5 },
   // Thomas, 2026-11-13 : potion d'agrandissement (« comme dans BG3 ») et potion glissante.
   potion_geant: { id: "potion_geant", name: "Potion de géant", kind: "use", description: "Violette et bouillonnante. Bue : vous doublez de taille 8 tours, vos coups font deux fois plus mal, mais vous ne passez plus les portes. Lancée : c'est le monstre touché qui grandit (le boss aussi).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "grow", throwRange: 5, drinkWarning: "Pendant 8 tours, vous ne passerez plus les portes." },
+  // Grenade sainte (Thomas, 2026-11-19 : « grenade sainte, avec une croix dessus, explosion lumineuse jaune, bénit les
+  // alliés, endommage les ennemis »). Valeurs (C).
+  grenade_sainte: { id: "grenade_sainte", name: "Grenade sainte", kind: "use", description: "Une grenade de laiton doré marquée d'une croix. À lancer : elle éclate aussitôt en une lumière jaune sur 2 cases autour. Les monstres pris dedans brûlent (2d6+2, deux fois plus pour les morts) ; vous, vous êtes béni (+1 attaque et +1 classe d'armure pendant 20 tours, et quelques PV).", w: 1, h: 1, maxStack: 3, rarity: "uncommon", holy: true, throwRange: 5 },
   bombe_arcanique: { id: "bombe_arcanique", name: "Bombe arcanique", kind: "use", description: "Une sphère de laiton qui bourdonne, des runes violettes au flanc. À lancer : elle explose 3 tours plus tard, en croix jusqu'à 4 cases (2d6 à qui s'y trouve, vous compris), fait sauter les portes et laisse un nuage gris.", w: 1, h: 1, maxStack: 3, rarity: "rare", bomb: true, throwRange: 5 },
   potion_glissante: { id: "potion_glissante", name: "Potion glissante", kind: "use", description: "Huileuse et verdâtre. À lancer : le monstre touché devient glissant pour toujours. Chaque coup qu'il reçoit le fait glisser jusqu'au mur, où il rebondit et se cogne.", w: 1, h: 1, maxStack: 3, rarity: "uncommon", potion: "slip", throwRange: 5 },
   // Thomas, 2026-11-13 : « nœud papillon kobold, +8 charisme, très rare » (rareté épique, violette).

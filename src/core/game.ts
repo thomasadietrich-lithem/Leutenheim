@@ -3650,7 +3650,7 @@ export class Game {
     if (this.over || !item) return false;
     const def = ITEMS[item.defId] as ItemDef;
     // La potion de feu ne se boit pas : elle se lance. (Celle de poison s'enduit OU se lance.)
-    if (def.kind !== "use" || this.tooLow(def) || def.bomb || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") return false;
+    if (def.kind !== "use" || this.tooLow(def) || def.bomb || def.holy || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") return false;
     if (def.heal && this.hero.hp >= this.hero.maxHp) return false;
     this.wait();
     this.waiting = false;
@@ -4233,6 +4233,7 @@ export class Game {
     const item = this.inventory.get(order.uid);
     if (!item || !this.inventory.take(item.defId, 1)) return;
     if (item.defId === "torche") return this.resolveTorchThrow(order);
+    if ((ITEMS[item.defId] as ItemDef).holy) return this.holyBurst(order);
     if ((ITEMS[item.defId] as ItemDef).bomb) {
       // Bombe arcanique (Thomas, 2026-11-16) : elle se pose là où elle tombe, et explosera dans quelques tours.
       this.reveal();
@@ -7900,6 +7901,48 @@ export class Game {
   }
 
   /** Les bombes posées : le compte à rebours, puis l'explosion. */
+  /**
+   * Grenade sainte (Thomas, 2026-11-19) : elle éclate à l'impact en lumière jaune, sur `holyRadius` cases autour (vues
+   * depuis le point d'impact). Les monstres pris brûlent (les morts deux fois plus) ; le héros pris dedans est béni
+   * (+1 attaque, +1 CA) et soigné un peu ; jamais blessé.
+   */
+  private holyBurst(at: Point): void {
+    this.reveal();
+    const R = RULES.holyRadius;
+    const cells: Point[] = [];
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const p = { x: at.x + dx, y: at.y + dy };
+        if (dx * dx + dy * dy > R * R + 1 || !this.map.inBounds(p.x, p.y) || this.map.blocksSight(p.x, p.y)) continue;
+        if (hasLineOfSight(this.map, at, p)) cells.push(p);
+      }
+    }
+    const hit: Actor[] = [];
+    for (const m of [...this.monsters]) {
+      if (this.isInert(m) || !cells.some((c) => occupies(m, c.x, c.y))) continue;
+      const undead = !!(MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.undead;
+      const dmg = rollDice(this.rng, RULES.holyDamage) * (undead ? 2 : 1);
+      m.hp -= dmg;
+      m.heroHurt = true;
+      m.alerted = true;
+      m.asleep = false;
+      m.chanting = false;
+      if (undead) m.crush = true;
+      hit.push(m);
+      this.events.push({ type: "burn", actor: m, damage: dmg });
+    }
+    const blessed = cells.some((c) => c.x === this.hero.x && c.y === this.hero.y);
+    let healed = 0;
+    if (blessed) {
+      this.blessTurns = Math.max(this.blessTurns, RULES.holyBlessTurns);
+      healed = Math.min(this.hero.maxHp - this.hero.hp, rollDice(this.rng, RULES.holyHeal));
+      this.hero.hp += healed;
+      this.refreshStats();
+    }
+    this.events.push({ type: "holy", fromX: this.hero.x, fromY: this.hero.y, x: at.x, y: at.y, cells, hit: hit.length, blessed, healed });
+    for (const m of hit) this.removeIfDead(m);
+  }
+
   private bombTick(): void {
     const bombs = this.current.bombs;
     if (!bombs || bombs.length === 0) return;
@@ -9451,6 +9494,7 @@ export class Game {
     this.testBoss2(false);
     this.inventory.add("fleche_obsidienne", 20);
     this.inventory.add("potion_gel", 2);
+    this.inventory.add("grenade_sainte", 2);
     this.chooseAmmo("fleche_obsidienne");
     return true;
   }

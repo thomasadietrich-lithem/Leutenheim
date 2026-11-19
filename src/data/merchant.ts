@@ -37,6 +37,7 @@ const SPECIAL: Partial<Record<ItemId, number>> = {
   fleche_ricochet: 6,
   fleche_recul: 4,
   fleche_obsidienne: 2,
+  grenade_sainte: 30,
   fleche_feu: 6,
   javeline: 8,
   pomme: 4,

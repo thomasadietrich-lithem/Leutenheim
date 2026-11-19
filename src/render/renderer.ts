@@ -1588,6 +1588,12 @@ export class Renderer {
   }
   private inkDrops: { x: number; y: number; age: number }[] = [];
 
+  /** Grenade sainte : un éclair de lumière jaune qui s'élargit sur ses cases, une croix au centre (0,7 s). */
+  holyFlash(x: number, y: number, cells: readonly { x: number; y: number }[]): void {
+    this.holies.push({ x, y, cells: [...cells], age: 0 });
+  }
+  private holies: { x: number; y: number; cells: { x: number; y: number }[]; age: number }[] = [];
+
   /** La lame pendule : elle se balance dans l'axe du couloir ; basse et cerclée de rouge les tours où elle frappe. */
   private drawPendulum(x: number, y: number, ox: number, oy: number, down: boolean, horizontal: boolean): void {
     const { ctx, tile } = this;
@@ -2651,6 +2657,32 @@ export class Renderer {
       ctx.restore();
     }
     // L'encre qui tombe : 220 ms de chute, puis 380 ms d'éclaboussure.
+    if (this.holies.length > 0) {
+      for (const h of this.holies) h.age += dt;
+      this.holies = this.holies.filter((h) => h.age < 700);
+      for (const h of this.holies) {
+        const f = h.age / 700;
+        const a = (1 - f) * 0.7;
+        for (const c of h.cells) {
+          const d = Math.hypot(c.x - h.x, c.y - h.y);
+          if (d > f * 4 + 0.5) continue;
+          ctx.fillStyle = `rgba(255,226,122,${(a * (1 - d / 4)).toFixed(3)})`;
+          ctx.fillRect(ox + c.x * tile, oy + c.y * tile, tile, tile);
+        }
+        const cx = ox + (h.x + 0.5) * tile;
+        const cy = oy + (h.y + 0.5) * tile;
+        ctx.strokeStyle = `rgba(255,248,200,${(1 - f).toFixed(2)})`;
+        ctx.lineWidth = tile * 0.12;
+        ctx.beginPath();
+        ctx.arc(cx, cy, tile * (0.4 + f * 2.4), 0, Math.PI * 2);
+        ctx.stroke();
+        // la croix de lumière
+        ctx.fillStyle = `rgba(255,255,240,${(1 - f).toFixed(2)})`;
+        const s = tile * (0.6 + f * 0.8);
+        ctx.fillRect(cx - s * 0.12, cy - s * 0.6, s * 0.24, s * 1.2);
+        ctx.fillRect(cx - s * 0.42, cy - s * 0.3, s * 0.84, s * 0.22);
+      }
+    }
     if (this.beams.length > 0) {
       for (const b of this.beams) b.age += dt;
       this.beams = this.beams.filter((b) => b.age < 450);

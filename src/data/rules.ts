@@ -177,6 +177,11 @@ export const RULES = {
   chapelChance: 0.6,
   /** Potion de gel (Thomas, 2026-11-19, C) : tours de gel, et le givre au sol. */
   freezeTurns: 3,
+  /** Grenade sainte (C) : rayon, dégâts (doublés contre les morts), bénédiction et soin du héros. */
+  holyRadius: 2,
+  holyDamage: { count: 2, sides: 6, bonus: 2 },
+  holyBlessTurns: 20,
+  holyHeal: { count: 1, sides: 6, bonus: 0 },
   chantRange: 4,
   chantHeal: 4,
   ossAlcovesPerRoom: 2,

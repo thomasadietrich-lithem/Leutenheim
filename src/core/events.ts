@@ -110,6 +110,8 @@ export type GameEvent =
    *  se lève ou se recouche ; rat qui dévore la nourriture au sol. */
   /** Crâne lunaire : il se charge (la ligne s'allume), puis le rayon part. */
   | { type: "beam"; actor: Actor; what: "charge" | "fire"; cells: { x: number; y: number }[]; damage?: number }
+  /** Grenade sainte : elle vole et éclate en lumière jaune ; monstres touchés, héros béni (et soigné). */
+  | { type: "holy"; fromX: number; fromY: number; x: number; y: number; cells: { x: number; y: number }[]; hit: number; blessed: boolean; healed: number }
   /** Encens : le héros, engourdi, perd ce tour. */
   | { type: "numb"; actor: Actor }
   /** Potion de gel : un monstre gelé, puis dégelé. */

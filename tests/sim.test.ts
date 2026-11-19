@@ -6839,6 +6839,17 @@ test("Ossuaire : squelette en tas d'os relevé par la lune, crâne brisé ; chan
   gm.springTrap(rat3);
   assert.equal(rat3.hp, hp3, "dalle déjà effondrée : rien");
   gm.current.traps.pop();
+  // grenade sainte : les morts brûlent deux fois plus, le héros pris dedans est béni et jamais blessé
+  game.monsters.splice(0);
+  const sk5 = g.newMonster(MONSTERS.squelette, game.hero.x + 1, game.hero.y, false);
+  if (game.map.isWalkable(sk5.x, sk5.y)) {
+    game.monsters.push(sk5);
+    const hpHero = game.hero.hp;
+    (game as unknown as { holyBurst: (p: { x: number; y: number }) => void }).holyBurst({ x: game.hero.x, y: game.hero.y });
+    assert.ok(sk5.hp < 18 || !game.monsters.includes(sk5), "le squelette brûle");
+    assert.ok(game.hero.hp >= hpHero, "le héros n'est pas blessé");
+    assert.ok((game as unknown as { blessTurns: number }).blessTurns >= RULES.holyBlessTurns, "le héros est béni");
+  }
   // potion de gel : figé, puis dégelé
   const rat2 = g.newMonster(MONSTERS.rat, dark!.x, dark!.y, false);
   game.monsters.splice(0, game.monsters.length, rat2);

@@ -2362,4 +2362,12 @@ export const EN: Record<string, string> = {
   "« Prenez ceci : une goutte de nuit. Là où vous la versez, la lune ne voit plus rien. »": "“Take this: a drop of night. Where you pour it, the moon sees nothing.”",
   "(Elle vous donne une potion de nuit.)": "(She gives you a night potion.)",
   "Les cierges d'argent restent froids.": "The silver candles stay cold.",
+  "Grenade sainte": "Holy grenade",
+  "Lumière !": "Light!",
+  "Béni ! +{0}": "Blessed! +{0}",
+  "La grenade sainte éclate en lumière jaune : ennemis brûlés : {0}, et vous êtes béni.": "The holy grenade bursts into yellow light: enemies burned: {0}, and you are blessed.",
+  "La grenade sainte éclate en lumière jaune : ennemis brûlés : {0}.": "The holy grenade bursts into yellow light: enemies burned: {0}.",
+  "La grenade sainte éclate en lumière jaune : vous êtes béni.": "The holy grenade bursts into yellow light: you are blessed.",
+  "La grenade sainte éclate en lumière jaune.": "The holy grenade bursts into yellow light.",
+  "Une grenade de laiton doré marquée d'une croix. À lancer : elle éclate aussitôt en une lumière jaune sur 2 cases autour. Les monstres pris dedans brûlent (2d6+2, deux fois plus pour les morts) ; vous, vous êtes béni (+1 attaque et +1 classe d'armure pendant 20 tours, et quelques PV).": "A gilded brass grenade marked with a cross. Thrown, it bursts at once into yellow light 2 tiles around. Monsters caught in it burn (2d6+2, twice as much for the dead); you are blessed (+1 attack and +1 armor class for 20 turns, and a few HP).",
 };

@@ -1050,6 +1050,27 @@ function reveal(e: GameEvent): void {
         alarmWaves(e.stage);
       }, k * 650);
     renderer.addFloatingText(game.hero.x, game.hero.y, ["", "Le donjon s'agite", "Alerte !", "Traque !"][e.stage] ?? "", "#ff8a7a");
+  } else if (e.type === "holy") {
+    // Grenade sainte (Thomas, 2026-11-19) : elle vole, puis éclate en lumière jaune.
+    renderer.addHop("grenade_sainte", e.fromX, e.fromY, e.x, e.y);
+    renderer.holdEffects([{ x: e.x, y: e.y }], THROW_LAND_MS);
+    window.setTimeout(() => {
+      renderer.holyFlash(e.x, e.y, e.cells);
+      renderer.addFloatingText(e.x, e.y, "Lumière !", "#ffe27a");
+      if (e.blessed) renderer.addFloatingText(game.hero.x, game.hero.y, e.healed > 0 ? `Béni ! +${e.healed}` : "Béni !", "#ffd75e");
+      sfx.play("heal");
+      sfx.play("heavy");
+    }, THROW_LAND_MS);
+    logLines.push(
+      e.hit > 0
+        ? e.blessed
+          ? `La grenade sainte éclate en lumière jaune : ennemis brûlés : ${e.hit}, et vous êtes béni.`
+          : `La grenade sainte éclate en lumière jaune : ennemis brûlés : ${e.hit}.`
+        : e.blessed
+          ? "La grenade sainte éclate en lumière jaune : vous êtes béni."
+          : "La grenade sainte éclate en lumière jaune.",
+    );
+    renderLog();
   } else if (e.type === "bomb") {
     // Bombe arcanique (Thomas, 2026-11-16) : elle vole, se pose, compte, puis explose en croix.
     if (e.what === "thrown") {
@@ -1935,7 +1956,7 @@ function useQuickItem(): void {
     return;
   }
   quickSure = null;
-  if (def.bomb || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") {
+  if (def.bomb || def.holy || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip") {
     throwUid = stack.uid;
     renderer.jumpCells = throwCells(stack.uid);
     logLines.push("Touchez la case où lancer la potion.");
@@ -2757,14 +2778,14 @@ function renderBag(): void {
   // les autres se BOIVENT.
   action.textContent = selectedSlot
     ? "Retirer"
-    : def.bomb || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip" ? "Lancer"
+    : def.bomb || def.holy || def.potion === "fire" || def.potion === "smoke" || def.potion === "fog" || def.potion === "discord" || def.potion === "slip" ? "Lancer"
     : def.potion === "poison" ? "Enduire"
     : def.potion ? "Boire"
     : def.lightTurns ? "Utiliser"
     : def.kind === "use" ? "Consommer" : "Équiper";
   action.textContent = tr(action.textContent ?? "");
   // Toutes les potions se lancent (Thomas, 2026-11-14) : celles qu'on boit ont leur bouton « Lancer » à part.
-  $("bag-throw").hidden = selectedSlot !== null || def.bomb || ((!def.potion || ["fire", "smoke", "fog", "discord", "slip"].includes(def.potion)) && def.id !== "torche");
+  $("bag-throw").hidden = selectedSlot !== null || def.bomb || def.holy || ((!def.potion || ["fire", "smoke", "fog", "discord", "slip"].includes(def.potion)) && def.id !== "torche");
   // Jeter : tout objet du sac (pas ce qu'on porte).
   $("bag-drop").hidden = selectedSlot !== null;
   // Pinceau magique et diapason, portés en artefact (Thomas, 2026-11-18) : « Peindre », « Faire vibrer ».
@@ -2983,7 +3004,7 @@ button("bag-equip", () => {
     aimShown = "";
     renderHeroScreen();
     return;
-  } else if (chosen && (chosenDef?.bomb || chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord" || chosenDef?.potion === "slip")) {
+  } else if (chosen && (chosenDef?.bomb || chosenDef?.holy || chosenDef?.potion === "fire" || chosenDef?.potion === "smoke" || chosenDef?.potion === "fog" || chosenDef?.potion === "discord" || chosenDef?.potion === "slip")) {
     // Lancer (potion de feu) : on referme le sac, puis on touche la case visée.
     throwUid = chosen.uid;
     renderer.jumpCells = throwCells(chosen.uid);

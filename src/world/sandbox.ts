@@ -102,7 +102,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 43;
+export const SANDBOX_LAYOUT = 44;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -480,7 +480,7 @@ function addArmory(
   zone(X(120), Y(34), 3, "S2", "#5cc8a8", [["marteau_guerre", 1], ["epee_batarde", 1], ["arc_corne", 1]]);
   // Hall d'exposition, salle de concert, Plumeau, canard (Thomas, 2026-11-18).
   // La section 3 (Thomas, 2026-11-19) : flèches d'obsidienne et enflammées, potion de gel.
-  zone(X(107), Y(29), 5, "S3", "#bfe0ff", [["fleche_obsidienne", 10], ["fleche_feu", 5], ["potion_gel", 2], ["potion_nuit", 1], ["chapelet_argent", 1]], 1);
+  zone(X(107), Y(29), 6, "S3", "#bfe0ff", [["fleche_obsidienne", 10], ["fleche_feu", 5], ["potion_gel", 2], ["potion_nuit", 1], ["chapelet_argent", 1], ["grenade_sainte", 3]], 1);
   zone(X(97), Y(29), 9, "Nouveautés", "#e0b4ff", [["ticket_expo", 1], ["pinceau_magique", 1], ["diapason", 1], ["pomme_doree_expo", 1], ["canard", 1], ["grand_poulet_or", 1], ["partition", 1], ["cle_geolier", 1]]);
 
 }

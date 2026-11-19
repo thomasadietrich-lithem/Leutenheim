@@ -106,6 +106,9 @@ export type GameEvent =
   /** La chambre de neige fond (un feu dedans ou contre elle). */
   | { type: "melt"; x: number; y: number; seen: boolean }
   | { type: "rise"; actor: Actor; what: "down" | "up" }
+  /** Section 3 : tas d'os, crâne brisé, relevé par la lune ; chant de l'acolyte (annonce, chant, sonné) ; gisant qui
+   *  se lève ou se recouche ; rat qui dévore la nourriture au sol. */
+  | { type: "undead"; actor: Actor; what: "pile" | "crush" | "rise" | "chant0" | "chant" | "daze" | "wake" | "rest" | "eat"; item?: string }
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }
   | { type: "lostTrack"; actor: Actor }

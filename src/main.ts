@@ -872,6 +872,13 @@ function reveal(e: GameEvent): void {
     shownHp = game.hero.hp;
     renderer.levelUp();
     sfx.play("heal");
+  } else if (e.type === "undead") {
+    const words: Record<string, [string, string]> = {
+      pile: ["Il s'effondre…", "#e8e0c8"], crush: ["Crac !", "#e8e0c8"], rise: ["Debout !", "#bfe0ff"], chant0: ["Il entonne…", "#bfe0ff"],
+      chant: ["♪ Lune pâle ♪", "#bfe0ff"], daze: ["Sonné !", "#ffd75e"], wake: ["La pierre craque…", "#bfe0ff"], rest: ["…", "#9a9aa8"], eat: ["Il l'a mangé !", "#e08a6a"],
+    };
+    const [text, color] = words[e.what];
+    renderer.addFloatingText(e.actor.x, e.actor.y, text, color);
   } else if (e.type === "rise") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "down" ? "Il palpite…" : "Debout !", "#7fe0c8");
   } else if (e.type === "melt") {
@@ -3980,7 +3987,7 @@ if (!PUBLIC_BUILD) {
     newRun(false, true);
     started = true;
     showScreen(null);
-    if (game.teleport(11)) logLines.push("Téléporté à l'étage 11 : l'Ossuaire de la Lune pâle (aperçu : le décor, pas encore les monstres).");
+    if (game.teleport(11)) logLines.push("Téléporté à l'étage 11 : l'Ossuaire de la Lune pâle (aperçu : rats, squelettes, acolytes et gisants).");
     collectEvents();
     renderLog();
   });

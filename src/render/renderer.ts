@@ -69,6 +69,10 @@ import { TRAINARDS2 } from "./sprites/trainards2";
 import { VESSES } from "./sprites/vesses";
 import { OSSUAIRE } from "./sprites/ossuaire";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
+import { MOBS_OSS } from "./sprites/mobsOss";
+
+/** Monstres dessinés en lignes de lettres à états nommés : section 2 (champignons) et section 3 (ossuaire). */
+const MOBS_SET: Record<string, { palette: Record<string, string>; frames: Record<string, readonly string[]> }> = { ...MOBS_CHAMPI, ...MOBS_OSS };
 import { SALLES as SALLES_V1 } from "./sprites/salles";
 import { ATELIERS } from "./sprites/atelier";
 import { BOSS } from "./sprites/boss";
@@ -1294,11 +1298,18 @@ export class Renderer {
     const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
     const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
     // Section 2 (planche art/mobs_champi_v1.png ; Thomas, 2026-11-15) : myconide, sporelin, Kobold cueilleur et envahi.
-    const champi = MOBS_CHAMPI[m.defId];
+    const champi = MOBS_SET[m.defId];
     if (champi) {
       const beat = (ms: number, n: number) => Math.floor((Math.abs(this.time) + m.id * 170) / ms) % n;
       const f = champi.frames;
-      const name = m.prone && !this.proneHold
+      // Ossuaire : le tas d'os (palpite dans la lune), le gisant couché comme le décor, l'acolyte qui chante.
+      const name = m.pile !== undefined
+        ? "prone0"
+        : m.effigy
+          ? "sleep"
+          : m.chanting
+            ? `chant${beat(260, 2)}`
+            : m.prone && !this.proneHold
         ? m.risen && m.defId === "envahi" ? `rise${beat(380, 2)}` : `prone${beat(200, 2)}`
         : m.asleep
           ? "sleep"
@@ -1312,7 +1323,7 @@ export class Renderer {
                   ? `listen${beat(350, 2)}`
                   : `idle${dir}${beat(560, 2)}`;
       // Le myconide est aveugle : pas d'éventail de regard.
-      if (!m.asleep && !m.prone && m.defId !== "myconide") this.drawGaze(cx, cy, facing, m.alerted, m.vision);
+      if (!m.asleep && !m.prone && !m.effigy && m.defId !== "myconide") this.drawGaze(cx, cy, facing, m.alerted, m.vision);
       this.drawMonsterSprite(f[name] ?? f[`idle${dir}0`], cx, cy, facing === "left", !m.prone && !m.asleep, champi.palette, m.grown ? 1.5 : 1);
       return;
     }
@@ -2275,7 +2286,7 @@ export class Renderer {
         continue;
       }
       const spider = c.actor.defId === "araignee";
-      const champiDead = MOBS_CHAMPI[c.actor.defId];
+      const champiDead = MOBS_SET[c.actor.defId];
       if (champiDead) {
         // Le sporelin ne laisse que sa peau vide ; l'envahi brûlé, sa version calcinée.
         this.drawMonsterSprite(champiDead.frames.dead, ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false, champiDead.palette);
@@ -2324,7 +2335,7 @@ export class Renderer {
         this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
-      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || MOBS_CHAMPI[m.defId]) {
+      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || MOBS_SET[m.defId]) {
         const advantage = game.heroEdgeShown(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.

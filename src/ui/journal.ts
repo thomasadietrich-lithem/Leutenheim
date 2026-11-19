@@ -275,6 +275,28 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       return e.what === "down"
         ? "Le Kobold envahi s'effondre… mais le champignon sur son crâne palpite encore. Achevez-le, ou brûlez-le !"
         : "Le Kobold envahi se relève, tiré par son champignon.";
+    case "undead":
+      switch (e.what) {
+        case "pile":
+          return "Le squelette s'effondre en tas d'os… Si la lune le touche, il se relèvera. Brisez-lui le crâne !";
+        case "crush":
+          return "Crac ! Le crâne éclate : ce squelette ne se relèvera plus.";
+        case "rise":
+          return "Les os s'assemblent, la lune les relève : le squelette est debout.";
+        case "chant0":
+          return "L'acolyte lève les bras et entonne un chant… Frappez-le avant qu'il chante !";
+        case "chant":
+          return "L'acolyte chante pour la Lune pâle : les morts autour de lui reprennent des forces.";
+        case "daze":
+          return "Frappé en plein chant, l'acolyte s'étrangle : il est sonné.";
+        case "wake":
+          return "La pierre craque… Le gisant se lève de sa dalle !";
+        case "rest":
+          return "Loin de la lune, le gisant se recouche et redevient pierre.";
+        case "eat":
+          return `Un rat d'ossuaire dévore ${e.item ? ITEMS[e.item as keyof typeof ITEMS]?.name.toLowerCase() ?? "la nourriture" : "la nourriture"} laissée au sol. Il l'a mangée !`;
+      }
+      return null;
     case "alembic":
       return `Vous ouvrez le robinet de l'alambic : une fiole se remplit, tiède et luisante. (${ITEMS[e.item].name})`;
     case "burst":

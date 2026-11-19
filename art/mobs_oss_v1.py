@@ -4,7 +4,8 @@ Les quatre familles de claude/MONSTRES_S3.md : RAT D'OSSUAIRE, SQUELETTE, ACOLYT
 Même format que la section 2 (16 × 16, lignes de lettres, palette, contour « O » ajouté par G.done()).
 Premier jet : les poses clés seulement (face, profil, attaque, états propres) ; les autres états viendront après validation.
 
-  python3 art/mobs_oss_v1.py   → art/mobs_oss_v1.png
+  python3 art/mobs_oss_v1.py          → art/mobs_oss_v1.png
+  python3 art/mobs_oss_v1.py export   → src/render/sprites/mobsOss.ts (Thomas, 2026-11-19 : « Ok fonce »)
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -470,6 +471,90 @@ def sheet():
     return sh
 
 
-if __name__ == "__main__":
+# ---------------------------------------------------------------- jeu : tous les états (mêmes noms que la section 2)
+def shift(rows, dx, dy):
+    b = [["."] * 16 for _ in range(16)]
+    for y, r in enumerate(rows):
+        for x, c in enumerate(r):
+            if c != "." and 0 <= x + dx < 16 and 0 <= y + dy < 16:
+                b[y + dy][x + dx] = c
+    return ["".join(r) for r in b]
+
+
+def recol(rows, table):
+    return ["".join(table.get(c, c) for c in r) for r in rows]
+
+
+SK_LIE = [E16] * 9 + [
+    "................",
+    "..WW......W.....",
+    ".WEWdWwWdWWddW..",
+    ".WWWdWdWdWw..WW.",
+    "..ww..wWdW...W..",
+    E16, E16]
+RAT_SLEEP = [E16] * 10 + [
+    "................",
+    ".....ffFFhP.....",
+    "...PfFFFFFFFf...",
+    "..P.fFFFFFFFFf..",
+    "....ffffffffff..",
+    E16]
+GI_RUBBLE = [r.replace("U", "T") for r in GI_LYING]
+GI_RUBBLE = [list(r) for r in GI_RUBBLE]
+for (x, y) in ((3, 8), (7, 7), (8, 9), (11, 8), (12, 9)):
+    if GI_RUBBLE[y][x] != ".":
+        GI_RUBBLE[y][x] = "X"
+GI_RUBBLE = ["".join(r) for r in GI_RUBBLE]
+
+
+def full_set(down, side, side_b, up, atk_side, sleep, dead, prone, extra=None):
+    f = {}
+    for v, a, b, atk in (("Down", down, shift(down, 0, -1), shift(down, 0, 1)), ("Side", side, side_b, atk_side), ("Up", up, shift(up, 0, -1), shift(up, 0, -1))):
+        f[f"idle{v}0"], f[f"idle{v}1"] = a, shift(a, 0, 1) if v != "Side" else a
+        f[f"walk{v}0"], f[f"walk{v}1"] = a, b
+        f[f"attack{v}0"], f[f"attack{v}1"] = a, atk
+    f["idleSide1"] = side_b if side_b != side else shift(side, 0, 1)
+    f["hurt"] = shift(side, -1, 0)
+    f["sleep"], f["dead"] = sleep, dead
+    f["prone0"], f["prone1"] = prone, shift(prone, 1, 0)
+    f.update(extra or {})
+    return {k: g(v) for k, v in f.items()}
+
+
+def game_sets():
+    rat_up = recol(RAT_DOWN, {"E": "F", "P": "f"})
+    rat_up[14] = "........P......."
+    ac_up = recol(AC_DOWN, {"K": "V", "M": "V", "L": "V", "H": "."})
+    gi_up = recol(GI_DOWN, {"X": "T", "M": "T"})
+    return {
+        "rat": (full_set(RAT_DOWN, RAT_SIDE, RAT_SIDE_B, rat_up, RAT_ATK, RAT_SLEEP, RAT_DEAD, RAT_DEAD,
+                         {"eat0": RAT_EAT, "eat1": shift(RAT_EAT, 0, 1)}), RAT),
+        "squelette": (full_set(SK_DOWN, SK_SIDE, SK_SIDE_B, SK_UP, SK_ATK, SK_LIE, SK_DEAD, SK_PILE,
+                               {"rise0": SK_RISE, "rise1": shift(SK_RISE, 0, -1)}), SKEL),
+        "acolyte": (full_set(AC_DOWN, AC_SIDE, shift(AC_SIDE, 0, -1), ac_up, AC_ATK, AC_DEAD, AC_DEAD, shift(AC_DEAD, 0, 0),
+                             {"chant0": AC_CHANT, "chant1": AC_CHANT2, "dazed": AC_DAZED}), ACO),
+        "gisantEveille": (full_set(GI_DOWN, GI_SIDE, shift(GI_SIDE, 0, -1), gi_up, GI_ATK, GI_LYING, GI_RUBBLE, GI_LYING,
+                                   {"wake0": GI_WAKE, "wake1": GI_SIT, "cracked": GI_CRACK}), GIS),
+    }
+
+
+def export():
+    import json
+    out = ["// FICHIER GÉNÉRÉ par art/mobs_oss_v1.py export : ne pas modifier à la main.",
+           "/** Monstres de la section 3 (planche art/mobs_oss_v1.png) : rat d'ossuaire, squelette, acolyte, gisant éveillé. */",
+           "export const MOBS_OSS: Record<string, { palette: Record<string, string>; frames: Record<string, readonly string[]> }> = {"]
+    for key, (frames, pal) in game_sets().items():
+        out.append(f"  {key}: {{ palette: {json.dumps(pal)}, frames: {{")
+        for n, rows in frames.items():
+            out.append(f"    {n}: {json.dumps(rows)},")
+        out.append("  } },")
+    out.append("};")
+    open(os.path.join(HERE, "..", "src", "render", "sprites", "mobsOss.ts"), "w").write("\n".join(out) + "\n")
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+    print("export ok")
+elif __name__ == "__main__":
     sheet().save(os.path.join(HERE, "mobs_oss_v1.png"))
     print("ok")

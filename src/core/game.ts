@@ -98,6 +98,8 @@ const CANDLE_LIGHT: Record<string, number> = { chandelierExpo: 3, table: 2, lowT
 export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau";
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
+/** Ce que le rat d'ossuaire dévore au sol. */
+const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo"]);
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
 /** Ce que Krik sait du héros, le temps d'une partie. */
@@ -571,9 +573,13 @@ export class Game {
       this.monsters.push(queen);
       state.population = 0;
     } else if (fresh && state.look === "ossuaire") {
-      // Ossuaire (Thomas, 2026-11-19 : « pas de PNJ ni de mob de l'étage inférieur ») : ses monstres ne sont pas encore
-      // faits ; ni clef (pas de porte verrouillée), ni piège des sections du dessus. Le butin reste.
-      state.population = 0;
+      // Ossuaire (Thomas, 2026-11-19 : « pas de PNJ ni de mob de l'étage inférieur ») : ses monstres à lui (rats,
+      // squelettes, acolytes, gisants ; « Ok fonce ») ; ni clef (pas de porte verrouillée), ni piège des sections du
+      // dessus. Le butin reste.
+      this.spawnMonsters(state.rooms);
+      this.wakeEffigies(state, depth);
+      state.population = Math.max(1, this.monsters.length);
+      state.nextRespawn = this.turn + RULES.respawnTurns;
       placeSecrets(state, depth, floorSeed(this.runSeed, depth));
       if (RULES.lootEnabled) placeLoot(state, depth, floorSeed(this.runSeed, depth));
       placeGuaranteed(state, [...guaranteedLoot(this.runSeed, depth), ...this.raceLoot(depth)], floorSeed(this.runSeed, depth));
@@ -627,6 +633,143 @@ export class Game {
     });
     // Il y a toujours au moins un promeneur sur l'étage : si tout le monde dort, le dernier venu se lève.
     if (this.monsters.length > 0 && this.monsters.every((m) => m.asleep)) this.monsters[this.monsters.length - 1].asleep = false;
+  }
+
+  /**
+   * Ossuaire, dès l'étage 13 : un gisant du décor sur deux est un GISANT ÉVEILLÉ (claude/MONSTRES_S3.md) : le meuble
+   * s'en va, le monstre couché prend sa place, pareil à l'œil ; il ne se lève que quand la lune le touche.
+   */
+  private wakeEffigies(state: FloorState, depth: number): void {
+    if (depth < 13) return;
+    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0x915a);
+    for (const f of state.furniture.filter((g) => g.kind === "gisant")) {
+      if (!rng.chance(0.5)) continue;
+      for (const c of furnitureCells(f)) this.map.set(c.x, c.y, Tile.Floor);
+      state.furniture.splice(state.furniture.indexOf(f), 1);
+      const m = this.newMonster(MONSTERS.gisantEveille, f.x, f.y, true);
+      m.effigy = true;
+      this.monsters.push(m);
+    }
+  }
+
+  /** Tas d'os : le feu le brise ; dans la lune, il se relève au bout de quelques tours ; dans l'ombre, il reste à terre. */
+  private pileAct(m: Actor): void {
+    if ((m.burning ?? 0) > 0 || this.isBurning(m.x, m.y)) {
+      m.crush = true;
+      m.hp = 0;
+      this.removeIfDead(m);
+      return;
+    }
+    if (!this.moonlit(m)) return;
+    m.pile = (m.pile ?? 1) - 1;
+    if (m.pile <= 0) this.raisePile(m);
+  }
+
+  private raisePile(m: Actor): void {
+    m.pile = undefined;
+    m.prone = 0;
+    m.crush = false;
+    m.alerted = true;
+    m.asleep = false;
+    this.events.push({ type: "undead", actor: m, what: "rise" });
+  }
+
+  /** Gisant couché : il se lève quand la lune le touche et que le héros est près, ou que le héros entre dans la lune près de lui. */
+  private effigyWakes(m: Actor): void {
+    const near = Math.max(Math.abs(m.x - this.hero.x), Math.abs(m.y - this.hero.y));
+    const wake = (this.moonlit(m) && near <= 5 && hasLineOfSight(this.map, m, this.hero)) || (this.moonlit(this.hero) && near <= 3);
+    if (!wake || this.peaceful) return;
+    m.effigy = false;
+    m.asleep = false;
+    m.alerted = true;
+    m.moonless = 0;
+    this.events.push({ type: "undead", actor: m, what: "wake" });
+  }
+
+  /** Gisant éveillé : trois tours hors de la lune, il se recouche sur place et redevient un meuble (on le sème). */
+  private effigyRests(m: Actor): boolean {
+    if (this.moonlit(m)) {
+      m.moonless = 0;
+      return false;
+    }
+    m.moonless = (m.moonless ?? 0) + 1;
+    if (m.moonless < RULES.effigyRestTurns) return false;
+    m.effigy = true;
+    m.asleep = true;
+    m.alerted = false;
+    m.wary = false;
+    m.goal = undefined;
+    this.events.push({ type: "undead", actor: m, what: "rest" });
+    return true;
+  }
+
+  /** Rat d'ossuaire : la nourriture laissée au sol à côté de lui, il la dévore (« Il l'a mangé ! »). */
+  private ratEats(m: Actor): boolean {
+    if (m.asleep) return false;
+    const food = this.current.ground.find((g) => RAT_FOOD.has(g.item) && Math.max(Math.abs(g.x - m.x), Math.abs(g.y - m.y)) <= 1);
+    if (!food) return false;
+    if (this.inReach(m, this.hero) && this.rng.chance(0.5)) return false;
+    food.count--;
+    if (food.count <= 0) this.current.ground.splice(this.current.ground.indexOf(food), 1);
+    this.events.push({ type: "undead", actor: m, what: "eat", item: food.item });
+    return true;
+  }
+
+  /**
+   * Acolyte de la Lune pâle : un tour sur trois, s'il est en vue et qu'un mort est près de lui, il entonne (annonce) ;
+   * au tour suivant il chante : les morts à 4 cases reprennent 4 PV et les tas d'os se relèvent aussitôt.
+   */
+  private chantAct(m: Actor): boolean {
+    if (m.asleep || !m.alerted) return false;
+    const undeadNear = (o: Actor) => o !== m && !!(MONSTERS[o.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.undead && Math.max(Math.abs(o.x - m.x), Math.abs(o.y - m.y)) <= RULES.chantRange;
+    if (m.chanting) {
+      m.chanting = false;
+      for (const o of this.monsters.filter(undeadNear)) {
+        if (o.pile !== undefined) this.raisePile(o);
+        else o.hp = Math.min(o.maxHp, o.hp + RULES.chantHeal);
+      }
+      this.events.push({ type: "undead", actor: m, what: "chant" });
+      return true;
+    }
+    const worth = this.monsters.some((o) => undeadNear(o) && (o.pile !== undefined || o.hp < o.maxHp || o.alerted));
+    if (!worth || (this.turn + m.id) % 3 !== 0 || !this.isVisible(m.x, m.y)) return false;
+    m.chanting = true;
+    this.faceToward(m, this.hero);
+    this.events.push({ type: "undead", actor: m, what: "chant0" });
+    return true;
+  }
+
+  /** Coup du héros qui porte (épée, tir) : le gisant couché se lève, l'acolyte qui chante se tait, sonné. */
+  private struckByHero(m: Actor, hit: boolean): void {
+    if (m.effigy) {
+      m.effigy = false;
+      m.asleep = false;
+      m.alerted = true;
+      m.moonless = 0;
+      this.events.push({ type: "undead", actor: m, what: "wake" });
+    }
+    if (hit && m.chanting && m.hp > 0) {
+      m.chanting = false;
+      m.stunned = Math.max(m.stunned ?? 0, 1);
+      this.events.push({ type: "undead", actor: m, what: "daze" });
+    }
+  }
+
+  /** Os creux ou pierre : les projectiles ne font que la moitié des dégâts. */
+  private shotResist(m: Actor, damage: number): number {
+    return (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.arrowResist ? Math.ceil(damage / 2) : damage;
+  }
+
+  /** Ossuaire : la lumière d'un puits de lune tombe sur cette case (même salle, à portée, rien entre les deux). */
+  moonlit(p: Point): boolean {
+    if (this.current?.look !== "ossuaire") return false;
+    for (const f of this.current.furniture) {
+      if (f.kind !== "moonWell") continue;
+      const r = moonArea(this, f);
+      if (p.x < r.x || p.x >= r.x + r.w || p.y < r.y || p.y >= r.y + r.h) continue;
+      if (Math.hypot(p.x - f.x, p.y - f.y) <= RULES.moonRadius - 0.5) return true;
+    }
+    return false;
   }
 
   private newMonster(def: MonsterDef, x: number, y: number, asleep: boolean): Actor {
@@ -2029,7 +2172,7 @@ export class Game {
    */
   private respawn(): void {
     const state = this.current;
-    if (this.turn < state.nextRespawn || this.peaceful || state.boss || state.look === "ossuaire") return;
+    if (this.turn < state.nextRespawn || this.peaceful || state.boss) return;
     // Salle d'essai avec arène : pas de renforts (on en ajoute à la main, par les boutons de l'arène).
     if (this.depth === 1 && this.sandboxFloor()?.arena !== undefined) return;
     // Agité, puis alerte : les promeneurs arrivent un peu plus vite, et un peu plus nombreux (en douceur, Thomas 2026-11-11).
@@ -2385,8 +2528,8 @@ export class Game {
 
   /** Empoisonne un personnage (un nouveau poison remet le compteur, il ne s'ajoute pas). */
   private poisonActor(actor: Actor, poison: { damage: number; turns: number }): void {
-    // La Tisseuse ne craint pas le poison (Thomas, 2026-11-13) ; le feu, si.
-    if (actor.boss) {
+    // La Tisseuse ne craint pas le poison (Thomas, 2026-11-13) ; le feu, si. Les morts de l'ossuaire non plus.
+    if (actor.boss || (actor.kind === "monster" && (MONSTERS[actor.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.undead)) {
       this.events.push({ type: "poisoned", actor, immune: true });
       return;
     }
@@ -9531,9 +9674,15 @@ export class Game {
       const speed = this.weapon("melee")?.speed;
       this.actionCost = speed === "slow" ? RULES.slowAttackTurns : speed === "fast" ? RULES.fastAttackTurns : 1;
     }
+    // Section 3 : la masse (toute arme qui assomme) fend les os et la pierre ; elle ou un critique brise le crâne.
+    const blunt = !!this.weapon("melee")?.stunOn;
+    const bdef = MONSTERS[monster.defId as keyof typeof MONSTERS] as MonsterDef | undefined;
+    if (result.hit && blunt && bdef?.blunt) result = { ...result, damage: bdef.blunt === "double" ? result.damage * 2 : result.damage + bdef.blunt };
+    monster.crush = result.critical || blunt;
     monster.struckUnaware = !monster.alerted || monster.asleep;
     monster.alerted = true;
     monster.asleep = false;
+    this.struckByHero(monster, result.hit);
     const intact = monster.hp >= monster.maxHp;
     monster.hp -= result.damage;
     monster.heroHurt = true;
@@ -9672,6 +9821,20 @@ export class Game {
     const sdef = MONSTERS[monster.defId as keyof typeof MONSTERS] as MonsterDef | undefined;
     // Kobold envahi (section 2) : le champignon le relève une fois, à moitié de ses PV, sauf s'il meurt en feu ; il reste
     // à terre 2 tours (le frapper alors l'achève pour de bon).
+    // Squelette (section 3) : il s'effondre en tas d'os (la lune le relèvera), sauf crâne brisé (masse, critique, feu) ;
+    // un tas d'os qu'on frappe encore est brisé pour de bon.
+    const burnt = (monster.burning ?? 0) > 0 || this.isBurning(monster.x, monster.y);
+    if (sdef?.bonePile && monster.pile === undefined && !monster.crush && !burnt) {
+      monster.pile = sdef.bonePile;
+      monster.hp = Math.ceil(monster.maxHp / 2);
+      monster.prone = 1;
+      monster.alerted = false;
+      monster.asleep = false;
+      monster.chanting = false;
+      this.events.push({ type: "undead", actor: monster, what: "pile" });
+      return;
+    }
+    if (sdef?.bonePile) this.events.push({ type: "undead", actor: monster, what: "crush" });
     if (sdef?.risesOnce && !monster.risen && !((monster.burning ?? 0) > 0) && !this.isBurning(monster.x, monster.y)) {
       monster.risen = true;
       monster.hp = Math.ceil(monster.maxHp / 2);
@@ -9807,9 +9970,12 @@ export class Game {
       // Têtu : le premier tir raté de l'étage est relancé.
       if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, shooter, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
       this.noteHeroAttack(result.hit);
+      if (result.hit) result = { ...result, damage: this.shotResist(victim, result.damage) };
+      victim.crush = result.critical;
       victim.struckUnaware = !victim.alerted || victim.asleep;
       victim.alerted = true;
       victim.asleep = false;
+      this.struckByHero(victim, result.hit);
       victim.hp -= result.damage;
       victim.heroHurt = true;
       this.noteBossHit(victim, result.damage);
@@ -9834,7 +10000,9 @@ export class Game {
             .filter((m) => m !== victim && !m.boss && this.isVisible(m.x, m.y) && Math.max(Math.abs(m.x - from.x), Math.abs(m.y - from.y)) <= RULES.ricochetRange && hasLineOfSight(this.map, from, m))
             .sort((p, q) => Math.max(Math.abs(p.x - from.x), Math.abs(p.y - from.y)) - Math.max(Math.abs(q.x - from.x), Math.abs(q.y - from.y)))[0];
           if (next) {
-            const second = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(next) }, grown: this.hero.grown }, next, "normal");
+            let second = rollAttack(this.rng, { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(next) }, grown: this.hero.grown }, next, "normal");
+            if (second.hit) second = { ...second, damage: this.shotResist(next, second.damage) };
+            this.struckByHero(next, second.hit);
             next.struckUnaware = !next.alerted || next.asleep;
             next.alerted = true;
             next.asleep = false;
@@ -9999,6 +10167,15 @@ export class Game {
         m.cower--;
         continue;
       }
+      // Section 3 : le tas d'os attend la lune ; le gisant couché attend qu'elle le touche.
+      if (m.pile !== undefined) {
+        this.pileAct(m);
+        continue;
+      }
+      if (m.effigy) {
+        this.effigyWakes(m);
+        continue;
+      }
       if (m.prone) {
         // Renversé : il passe son tour à se relever (pas dans le tour même où il est tombé).
         if (m.proneSince === this.turn) continue;
@@ -10014,6 +10191,11 @@ export class Game {
       }
       // Fidèle du Carillon : le battant est tombé, il va le remettre.
       if (m.defId === "fidele" && this.fideleRepair(m)) continue;
+      // Section 3 : le gisant hors de la lune se recouche ; le rat dévore ; l'acolyte chante.
+      const odef = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;
+      if (odef.effigy && this.effigyRests(m)) continue;
+      if (odef.eatsFood && this.ratEats(m)) continue;
+      if (odef.chanter && this.chantAct(m)) continue;
       if (m.slowed) {
         // Ralenti (bousculade) : il ne joue qu'un tour sur deux.
         m.slowed--;
@@ -10186,7 +10368,17 @@ export class Game {
       // L'araignée fond sur sa proie : deux pas par tour (elle s'arrête si elle arrive au contact).
       const steps = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).chaseSteps ?? 1;
       const before = { x: m.x, y: m.y };
-      for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) if (!this.stepToward(m, this.hero)) break;
+      const shuns = !!(MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).shunsMoon;
+      for (let i = 0; i < steps && !this.inReach(m, this.hero); i++) {
+        const prev = { x: m.x, y: m.y };
+        if (!this.stepToward(m, this.hero)) break;
+        // Le rat d'ossuaire n'entre pas dans la lumière de la lune : on s'y abrite.
+        if (shuns && this.moonlit(m) && !this.moonlit(prev)) {
+          m.x = prev.x;
+          m.y = prev.y;
+          break;
+        }
+      }
       // Il tourne un angle de mur derrière lequel le héros attend : il arrive en regardant devant lui, pas vers le héros
       // (Thomas, 2026-11-15) ; le héros l'aura avec l'avantage (embuscade).
       const moved = m.x !== before.x || m.y !== before.y;

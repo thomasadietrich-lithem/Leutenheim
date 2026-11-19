@@ -6,10 +6,11 @@ import { Game } from "../src/core/game";
 import { expectedDamagePerTurn, rollAttack } from "../src/core/combat";
 import { Rng } from "../src/core/rng";
 import { DEFAULT_FLOOR } from "../src/data/floors";
-import { spawnsForDepth } from "../src/data/monsters";
+import { MONSTERS, spawnsForDepth } from "../src/data/monsters";
 import { Inventory } from "../src/items/inventory";
 import { generateFloor } from "../src/world/generator";
 import { GameMap, Tile } from "../src/world/map";
+import type { Actor } from "../src/entities/actor";
 import { computeFov, computeLight, hasClearSight, hasLineOfSight } from "../src/world/fov";
 import { canStep, distanceField, findPath, isChokepoint } from "../src/world/pathfinding";
 import { furnishFloor, furnitureCells, underTorch } from "../src/world/furnish";
@@ -3860,7 +3861,7 @@ test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticab
   assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"));
 });
 
-test("Ossuaire (section 3) : décor seul, sans monstre, PNJ, piège, salle spéciale ni salle à thème des sections du dessus ; la lune seule éclaire ; étage d'un seul tenant (Thomas, 2026-11-19)", () => {
+test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle spéciale ni salle à thème des sections du dessus ; la lune seule éclaire ; étage d'un seul tenant (Thomas, 2026-11-19)", () => {
   for (const seed of [5, 17, 29, 41]) {
     const game = new Game(seed);
     game.testRun = true;
@@ -3868,7 +3869,8 @@ test("Ossuaire (section 3) : décor seul, sans monstre, PNJ, piège, salle spéc
       assert.ok(game.teleport(depth), `étage ${depth}`);
       const cur = (game as unknown as { current: { look?: string; furniture: { x: number; y: number; kind: string; side?: string; len?: number }[]; themes: unknown[]; traps: unknown[]; torches: unknown[]; gluck?: unknown; soeur?: unknown; krik?: unknown; morillon?: unknown; vernis?: unknown; maestro?: unknown; counter?: unknown; chicken?: unknown; niche?: unknown } }).current;
       assert.equal(cur.look, "ossuaire");
-      assert.equal(game.monsters.length, 0, "aucun monstre des sections du dessus");
+      assert.ok(game.monsters.every((m) => ["rat", "squelette", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
+      if (depth === 11) assert.ok(game.monsters.every((m) => m.defId === "rat" || m.defId === "squelette"), "étage 11 : rats et squelettes");
       assert.equal(cur.themes.length, 0, "aucune salle à thème");
       assert.equal(cur.traps.length, 0, "aucun piège des sections du dessus");
       assert.equal(cur.torches.length, 0, "ni torche ni cheminée");
@@ -6703,4 +6705,87 @@ test("2026-11-18 : le Carillon crache de l'encre à distance (un tour sur deux) 
     if (game.events.some((e) => e.type === "attack" && "ink" in e && e.ink)) spat++;
   }
   assert.ok(spat >= 2, `crachats : ${spat}`);
+});
+
+test("Ossuaire : squelette en tas d'os relevé par la lune, crâne brisé ; chant de l'acolyte ; gisant couché ; rat qui mange (Thomas, 2026-11-19)", () => {
+  const game = new Game(5);
+  game.testRun = true;
+  assert.ok(game.teleport(13));
+  const g = game as unknown as { current: { furniture: { x: number; y: number; kind: string }[]; ground: { x: number; y: number; item: string; count: number }[] }; newMonster: (d: unknown, x: number, y: number, a: boolean) => Actor; removeIfDead: (m: Actor) => void; monstersAct: () => void; moonlit: (p: { x: number; y: number }) => boolean };
+  game.monsters.splice(0);
+  const well = g.current.furniture.find((f) => f.kind === "moonWell")!;
+  // une case de lune libre, et une case d'ombre libre loin du héros
+  const free = (p: { x: number; y: number }) => game.map.get(p.x, p.y) === Tile.Floor && !game.furnitureAt(p.x, p.y) && !(p.x === game.hero.x && p.y === game.hero.y);
+  let lit: { x: number; y: number } | undefined;
+  let dark: { x: number; y: number } | undefined;
+  for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) {
+    const p = { x, y };
+    if (!free(p)) continue;
+    if (!lit && g.moonlit(p) && Math.hypot(x - well.x, y - well.y) >= 1) lit = p;
+    if (!dark && !g.moonlit(p) && Math.max(Math.abs(x - game.hero.x), Math.abs(y - game.hero.y)) > 8) dark = p;
+  }
+  assert.ok(lit && dark);
+  // squelette dans la lune : tas d'os puis debout
+  const sk = g.newMonster(MONSTERS.squelette, lit!.x, lit!.y, false);
+  game.monsters.push(sk);
+  sk.hp = 0;
+  g.removeIfDead(sk);
+  assert.equal(sk.pile, 3, "tas d'os");
+  assert.ok(game.monsters.includes(sk));
+  for (let i = 0; i < 3; i++) (game as unknown as { pileAct: (m: Actor) => void }).pileAct(sk);
+  assert.equal(sk.pile, undefined, "relevé par la lune");
+  assert.equal(sk.hp, 9);
+  // dans l'ombre il reste à terre ; frappé à terre, il est brisé
+  const sk2 = g.newMonster(MONSTERS.squelette, dark!.x, dark!.y, false);
+  game.monsters.push(sk2);
+  sk2.hp = 0;
+  g.removeIfDead(sk2);
+  for (let i = 0; i < 6; i++) (game as unknown as { pileAct: (m: Actor) => void }).pileAct(sk2);
+  assert.equal(sk2.pile, 3, "l'ombre le garde à terre");
+  sk2.hp = 0;
+  g.removeIfDead(sk2);
+  assert.ok(!game.monsters.includes(sk2), "crâne brisé");
+  // crâne brisé d'un coup (masse, critique)
+  const sk3 = g.newMonster(MONSTERS.squelette, dark!.x, dark!.y, false);
+  game.monsters.push(sk3);
+  sk3.crush = true;
+  sk3.hp = 0;
+  g.removeIfDead(sk3);
+  assert.ok(!game.monsters.includes(sk3));
+  // gisant couché : rien sans la lune, se lève quand le héros est dans la lune près de lui
+  const gi = g.newMonster(MONSTERS.gisantEveille, dark!.x, dark!.y, true);
+  gi.effigy = true;
+  game.monsters.push(gi);
+  (game as unknown as { effigyWakes: (m: Actor) => void }).effigyWakes(gi);
+  assert.ok(gi.effigy, "reste couché dans l'ombre");
+  gi.effigy = false;
+  for (let i = 0; i < 3; i++) (game as unknown as { effigyRests: (m: Actor) => boolean }).effigyRests(gi);
+  assert.ok(gi.effigy, "hors de la lune, il se recouche");
+  // rat qui mange
+  const rat = g.newMonster(MONSTERS.rat, dark!.x, dark!.y, false);
+  game.monsters.push(rat);
+  g.current.ground.push({ x: dark!.x, y: dark!.y, item: "pomme", count: 1 });
+  assert.ok((game as unknown as { ratEats: (m: Actor) => boolean }).ratEats(rat));
+  assert.ok(!g.current.ground.some((q) => q.x === dark!.x && q.y === dark!.y && q.item === "pomme"), "la pomme est mangée");
+  // acolyte : annonce puis chant qui relève un tas d'os voisin
+  const sk4 = g.newMonster(MONSTERS.squelette, dark!.x, dark!.y, false);
+  game.monsters.splice(0, game.monsters.length, sk4);
+  sk4.hp = 0;
+  g.removeIfDead(sk4);
+  const aco = g.newMonster(MONSTERS.acolyte, dark!.x + 1, dark!.y, false);
+  aco.alerted = true;
+  aco.chanting = true;
+  game.monsters.push(aco);
+  assert.ok((game as unknown as { chantAct: (m: Actor) => boolean }).chantAct(aco));
+  assert.equal(sk4.pile, undefined, "le chant relève le tas d'os, même dans l'ombre");
+  // des tours joués aux étages 11 à 14 avec leurs monstres : rien ne casse
+  for (const seed of [3, 8]) {
+    const run = new Game(seed);
+    run.testRun = true;
+    for (const depth of [11, 12, 13, 14]) {
+      assert.ok(run.teleport(depth));
+      run.hero.maxHp = run.hero.hp = 9999;
+      for (let i = 0; i < 80 && !run.over; i++) run.wait();
+    }
+  }
 });

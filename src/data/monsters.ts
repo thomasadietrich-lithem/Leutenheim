@@ -54,6 +54,23 @@ export interface MonsterDef {
   dropsMorels?: [number, number];
   /** Ne bouge ni n'agit jamais, ne se pousse pas (le battant du Carillon). */
   inert?: boolean;
+  // ---- Section 3, l'Ossuaire (Thomas, 2026-11-19 : « Ok fonce » ; `claude/MONSTRES_S3.md`) ----
+  /** Un mort (squelette, gisant) : le chant de l'acolyte le soigne ; insensible au poison. */
+  undead?: boolean;
+  /** Rongeur : il dévore la nourriture laissée au sol à côté de lui (le rat d'ossuaire). */
+  eatsFood?: boolean;
+  /** Il n'entre pas dans la lumière d'un puits de lune (le rat d'ossuaire). */
+  shunsMoon?: boolean;
+  /** Abattu, il s'effondre en tas d'os ; dans la lune, il se relève après ces tours, à moitié de ses PV (le squelette). */
+  bonePile?: number;
+  /** Os creux ou pierre : les projectiles ne font que la moitié des dégâts. */
+  arrowResist?: boolean;
+  /** Les armes qui assomment (masse, marteau, épée longue) : dégâts en plus, ou doublés (« double »). */
+  blunt?: number | "double";
+  /** Il chante pour les morts, un tour sur trois, annoncé le tour d'avant (l'acolyte). */
+  chanter?: boolean;
+  /** Gisant du décor : couché, il ne se lève que quand la lune le touche ; 3 tours hors de la lune, il se recouche. */
+  effigy?: boolean;
 }
 
 export const MONSTERS = {
@@ -201,6 +218,93 @@ export const MONSTERS = {
     blood: "green",
     risesOnce: true,
   },
+  // ---------- SECTION 3, L'OSSUAIRE DE LA LUNE PÂLE (planche art/mobs_oss_v1.png ; claude/MONSTRES_S3.md, C) ----------
+  // Pensés pour un héros de niveau 10 et plus. La règle qui les relie : la lune réveille les morts, l'ombre les endort.
+  rat: {
+    id: "rat",
+    name: "Rat d'ossuaire",
+    family: "rats",
+    description: "Un gros rat gris aux yeux rouges, nourri d'on ne sait quoi entre les os. Ils chassent en bande, vite, et dévorent tout ce qui se mange au sol. La lumière de la lune leur fait peur : ils n'y entrent pas.",
+    hp: 7,
+    armorClass: 12,
+    attackBonus: 6,
+    damage: { count: 1, sides: 4, bonus: 2 },
+    vision: 5,
+    xpMin: 2,
+    xpMax: 3,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 0.5,
+    color: "#6a5e58",
+    blood: "red",
+    chaseSteps: 2,
+    eatsFood: true,
+    shunsMoon: true,
+  },
+  squelette: {
+    id: "squelette",
+    name: "Squelette",
+    family: "morts",
+    description: "Un mort de l'ossuaire, l'épée rouillée à la main. Abattu, il s'effondre en tas d'os ; si la lune touche le tas, il se relève. Dans l'ombre, il reste à terre. Une masse, un coup critique ou le feu lui brisent le crâne pour de bon ; les flèches passent entre ses côtes.",
+    hp: 18,
+    armorClass: 14,
+    attackBonus: 7,
+    damage: { count: 1, sides: 8, bonus: 3 },
+    vision: 6,
+    xpMin: 4,
+    xpMax: 5,
+    goldChance: 0.25,
+    goldMax: 6,
+    noticeChance: 0.35,
+    color: "#e8e0c8",
+    blood: "black",
+    undead: true,
+    bonePile: 3,
+    arrowResist: true,
+    blunt: 2,
+  },
+  acolyte: {
+    id: "acolyte",
+    name: "Acolyte de la Lune pâle",
+    family: "culte",
+    description: "Un fidèle encapuchonné, une faucille à la main, les yeux pâles comme la lune. Un tour sur trois, il entonne un chant : les morts autour de lui reprennent des forces, et un tas d'os se relève. Frappé pendant qu'il chante, il se tait, sonné.",
+    hp: 16,
+    armorClass: 12,
+    attackBonus: 6,
+    damage: { count: 1, sides: 6, bonus: 2 },
+    vision: 7,
+    xpMin: 5,
+    xpMax: 6,
+    goldChance: 0.4,
+    goldMax: 8,
+    noticeChance: 0.45,
+    color: "#4a4a6e",
+    blood: "red",
+    chanter: true,
+  },
+  gisantEveille: {
+    id: "gisantEveille",
+    name: "Gisant éveillé",
+    family: "morts",
+    description: "Un chevalier de pierre couché sur sa dalle, comme les autres gisants… jusqu'à ce que la lune le touche. Il se lève alors, lent et lourd. La pierre ne craint ni le poison ni les flèches, mais la masse la fend. Trois tours hors de la lune, il se recouche.",
+    hp: 40,
+    armorClass: 17,
+    attackBonus: 8,
+    damage: { count: 2, sides: 6, bonus: 4 },
+    vision: 6,
+    xpMin: 9,
+    xpMax: 11,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 1,
+    color: "#8c8c96",
+    blood: "black",
+    slow: true,
+    undead: true,
+    arrowResist: true,
+    blunt: "double",
+    effigy: true,
+  },
   // Les FIDÈLES DU CARILLON (Thomas, 2026-11-17 : « B c'est bien, essayons ») : moines-champignons du culte de la Lune
   // pâle, à la place des Kobolds envahis dans sa grotte. Battant cassé : ils vont le réparer (3 tours à côté). (C)
   fidele: {
@@ -311,6 +415,21 @@ export interface FloorSpawns {
 
 /** Table d'apparition selon la profondeur. Pour l'instant : les Schrats, en meutes qui grossissent. */
 export function spawnsForDepth(depth: number): FloorSpawns {
+  // Section 3, l'Ossuaire (claude/MONSTRES_S3.md, C) : 11 rats et squelettes ; 12 + acolyte ; 13 + gisants (sortis du
+  // décor, voir `Game`) ; 14 meutes plus grosses.
+  if (depth > 10) {
+    const k = Math.min(depth - 10, 4) - 1;
+    return {
+      roomChance: [0.6, 0.65, 0.7, 0.75][k],
+      sleepChance: [0.4, 0.35, 0.3, 0.25][k],
+      entries: [
+        { monster: "rat", weight: [1, 0.9, 0.8, 0.7][k], packMin: k >= 3 ? 3 : 1, packMax: [3, 4, 4, 5][k] },
+        { monster: "squelette", weight: [0.8, 0.9, 1, 1][k], packMin: 1, packMax: k >= 3 ? 3 : k >= 1 ? 2 : 1 },
+        ...(k >= 1 ? [{ monster: "acolyte" as const, weight: [0, 0.4, 0.5, 0.6][k], packMin: 1, packMax: 1 }] : []),
+        ...(k >= 3 ? [{ monster: "gisantEveille" as const, weight: 0.3, packMin: 1, packMax: 2 }] : []),
+      ],
+    };
+  }
   // Section 2, la champignonnière (Thomas, 2026-11-15 : « retire les mobs de la section 1 dans la section 2 ») : plus de
   // Kobolds, de frondeurs ni d'araignées ; ses quatre monstres à elle (C).
   if (depth > 5) {

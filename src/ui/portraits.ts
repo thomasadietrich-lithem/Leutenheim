@@ -7,6 +7,7 @@ import { BAIN } from "../render/sprites/bain";
 import { SOEUR_PALETTE, SOEUR_SPRITE } from "../render/sprites/soeur";
 import { FERMIER } from "../render/sprites/ferme";
 import { MOBS_CHAMPI } from "../render/sprites/mobsChampi";
+import { MOBS_OSS } from "../render/sprites/mobsOss";
 import { CARILLON, CARILLON_PALETTE } from "../render/sprites/carillon";
 import { MARCHAND, MARCHAND_PALETTE } from "../render/sprites/marchand";
 import { POULET, POULET_PALETTE } from "../render/sprites/poulet";
@@ -27,6 +28,7 @@ const PORTRAITS: Record<string, Pic> = {
   "m:battant": { rows: CARILLON.idle1.slice(46, 62).map((r) => r.slice(16, 32)), palette: CARILLON_PALETTE },
   // Section 2 (planche art/mobs_champi_v1.png).
   ...Object.fromEntries(["myconide", "sporelin", "cueilleur", "envahi"].map((id) => [`m:${id}`, { rows: MOBS_CHAMPI[id].frames.idleDown0, palette: MOBS_CHAMPI[id].palette }])),
+  ...Object.fromEntries(Object.keys(MOBS_OSS).map((id) => [`m:${id}`, { rows: MOBS_OSS[id].frames.idleDown0, palette: MOBS_OSS[id].palette }])),
   "n:gluck": kobold(GLUCK_PALETTE),
   "n:krik": kobold(KRIK_PALETTE),
   "n:fifrelin": kobold(FIFRELIN_PALETTE),

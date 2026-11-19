@@ -170,6 +170,11 @@ export const RULES = {
   /** Ossuaire : puits de lune par étage (la seule lumière), leur portée ; alcôves d'ossuaire au plus par salle. */
   moonWells: [2, 4] as [number, number],
   moonRadius: 5,
+  /** Monstres de l'ossuaire (claude/MONSTRES_S3.md, C) : tours hors de la lune avant que le gisant se recouche ; portée et
+   *  soin du chant de l'acolyte. */
+  effigyRestTurns: 3,
+  chantRange: 4,
+  chantHeal: 4,
   ossAlcovesPerRoom: 2,
   /** Coffre doré de la fin du boss (Thomas, 2026-11-14) : or (C). */
   goldChestGold: [80, 140] as [number, number],

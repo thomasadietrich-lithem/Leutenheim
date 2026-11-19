@@ -60,6 +60,13 @@ export interface Actor {
   whistled?: boolean;
   riseShown?: boolean;
   quiet?: number;
+  /** Section 3 : tas d'os (tours de lune qu'il lui faut encore pour se relever) ; crâne brisé au prochain « mort » ;
+   *  l'acolyte entonne son chant (il chante au tour suivant) ; le gisant est couché comme le décor ; tours hors lune. */
+  pile?: number;
+  crush?: boolean;
+  chanting?: boolean;
+  effigy?: boolean;
+  moonless?: number;
   /** Il a perdu la trace du héros caché : il reste sur place à regarder autour de lui pendant tant de tours. */
   lost?: number;
   /** Sonné (poussé par le héros) : il perd ce nombre de tours. */

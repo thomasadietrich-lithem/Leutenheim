@@ -3861,6 +3861,7 @@ test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticab
   assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"));
 });
 
+let chapels = 0;
 test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle spéciale ni salle à thème des sections du dessus ; la lune seule éclaire ; étage d'un seul tenant (Thomas, 2026-11-19)", () => {
   for (const seed of [5, 17, 29, 41]) {
     const game = new Game(seed);
@@ -3871,7 +3872,7 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       assert.equal(cur.look, "ossuaire");
       assert.ok(game.monsters.every((m) => ["rat", "squelette", "squeletteArcher", "craneLunaire", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
       if (depth === 11) assert.ok(game.monsters.every((m) => m.defId === "rat" || m.defId === "squelette"), "étage 11 : rats et squelettes");
-      assert.equal(cur.themes.length, 0, "aucune salle à thème");
+      assert.ok((cur.themes as { id: string }[]).every((t) => t.id === "chapelle"), "aucune salle à thème des sections du dessus (la chapelle des os seulement)");
       assert.ok((cur.traps as { kind?: string }[]).every((t) => ["tombSlab", "boneHands", "censer", "moonMirror", "pendulum"].includes(t.kind ?? "")), "seulement les pièges de l'ossuaire");
       for (const t of cur.traps as { x: number; y: number; kind?: string; hidden?: boolean }[]) {
         const inRoom = (game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] }).rooms.some((r) => t.x >= r.x && t.y >= r.y && t.x < r.x + r.w && t.y < r.y + r.h);
@@ -3880,6 +3881,15 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       }
       assert.equal(cur.torches.length, 0, "ni torche ni cheminée");
       assert.ok(!cur.gluck && !cur.soeur && !cur.krik && !cur.morillon && !cur.vernis && !cur.maestro && !cur.counter && !cur.chicken && !cur.niche);
+      // la chapelle des os : personne dedans, Sœur Clavicule y prie
+      const chapel = (cur.themes as { id: string; room: number }[]).find((t) => t.id === "chapelle");
+      if (chapel) {
+        const r = (game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] }).rooms[chapel.room];
+        assert.ok(!game.monsters.some((m) => m.x >= r.x && m.y >= r.y && m.x < r.x + r.w && m.y < r.y + r.h), "pas de monstre dans la chapelle");
+        assert.ok(cur.furniture.some((f) => f.kind === "autelChapelle"), "l'autel de la chapelle");
+        assert.ok((cur as unknown as { clavicule?: unknown }).clavicule, "Sœur Clavicule prie dans la chapelle");
+        chapels++;
+      }
       // pas de salle spéciale : ni autel à la pomme, ni coffre verrouillé
       for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) {
         const t = game.map.get(x, y);
@@ -3910,6 +3920,7 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
     }
     assert.ok(!game.teleport(16));
   }
+  assert.ok(chapels > 0, "au moins une chapelle des os sur ces étages");
   // Une vraie partie s'arrête toujours à l'étage 10.
   const real = new Game(5);
   assert.ok(!real.teleport(11));

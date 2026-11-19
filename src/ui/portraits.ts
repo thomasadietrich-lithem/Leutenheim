@@ -14,6 +14,7 @@ import { POULET, POULET_PALETTE } from "../render/sprites/poulet";
 import { FIFRELIN_PALETTE, FRONDEUR_PALETTE, GLUCK_PALETTE, KRIK_PALETTE, MAESTRO_PALETTE, MORILLON_FRAMES, MORILLON_PALETTE } from "../render/renderer";
 import { EXPO } from "../render/sprites/expo";
 import { SECRET } from "../render/sprites/secret";
+import { CHAPELLE } from "../render/sprites/chapelle";
 
 type Pic = { rows: readonly string[]; palette: Record<string, string> };
 const kobold = (palette: Record<string, string>): Pic => ({ rows: SCHRAT.idleDown[0], palette });
@@ -39,6 +40,7 @@ const PORTRAITS: Record<string, Pic> = {
   "n:vernis": { rows: EXPO.vernis.rows, palette: EXPO.vernis.palette },
   "n:maestro": { rows: SCHRAT.idleDown[0], palette: MAESTRO_PALETTE },
   "n:plumeau": { rows: SECRET.plumeau0.rows, palette: SECRET.plumeau0.palette },
+  "n:clavicule": { rows: CHAPELLE.clavicule0.rows, palette: CHAPELLE.clavicule0.palette },
   "n:colporteur": { rows: MARCHAND.front, palette: MARCHAND_PALETTE },
   "n:poulet": { rows: POULET.idle, palette: POULET_PALETTE },
   "n:bain": BAIN.tub0,

@@ -288,5 +288,18 @@ def main():
     print("art/ossuaire_chapelle_v1.png", sheet.size)
 
 
-if __name__ == "__main__":
+def export():
+    """python3 art/ossuaire_chapelle_v1.py export → src/render/sprites/chapelle.ts (Thomas, 2026-11-19 : « Ok »)."""
+    from export_jeu_v4 import write
+    sway = [r for r in SOEUR[:-1]] + ["...KK.KVK.KKVK.."]
+    write("src/render/sprites/chapelle.ts", "CHAPELLE",
+          "Chapelle des os et Sœur Clavicule (art/ossuaire_chapelle_v1.png, validée le 2026-11-19).",
+          {"bancOs": pew().img(), "bancOsCasse": pew_broken().img(), "autelChapelle": chapel_altar().img(), "chandelierArgent": chandelier().img(),
+           "benitier": stoup().img(), "clavicule0": sprite(SOEUR, SOEUR_PAL).done().img(), "clavicule1": sprite(sway, SOEUR_PAL).done().img(),
+           "claviculePrie": sprite(SOEUR_PRAY, SOEUR_PAL).done().img(), "claviculeBulle": sprite(BUBBLE, BUBBLE_PAL).done().img()})
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()
+elif __name__ == "__main__":
     main()

@@ -173,6 +173,8 @@ export const RULES = {
   /** Monstres de l'ossuaire (claude/MONSTRES_S3.md, C) : tours hors de la lune avant que le gisant se recouche ; portée et
    *  soin du chant de l'acolyte. */
   effigyRestTurns: 3,
+  /** La chapelle des os (salle spéciale de la section 3) : chance par étage (C). */
+  chapelChance: 0.6,
   /** Potion de gel (Thomas, 2026-11-19, C) : tours de gel, et le givre au sol. */
   freezeTurns: 3,
   chantRange: 4,

@@ -480,7 +480,7 @@ function addArmory(
   zone(X(120), Y(34), 3, "S2", "#5cc8a8", [["marteau_guerre", 1], ["epee_batarde", 1], ["arc_corne", 1]]);
   // Hall d'exposition, salle de concert, Plumeau, canard (Thomas, 2026-11-18).
   // La section 3 (Thomas, 2026-11-19) : flèches d'obsidienne et enflammées, potion de gel.
-  zone(X(107), Y(29), 5, "S3", "#bfe0ff", [["fleche_obsidienne", 10], ["fleche_feu", 5], ["potion_gel", 2]], 2);
+  zone(X(107), Y(29), 5, "S3", "#bfe0ff", [["fleche_obsidienne", 10], ["fleche_feu", 5], ["potion_gel", 2], ["potion_nuit", 1], ["chapelet_argent", 1]], 1);
   zone(X(97), Y(29), 9, "Nouveautés", "#e0b4ff", [["ticket_expo", 1], ["pinceau_magique", 1], ["diapason", 1], ["pomme_doree_expo", 1], ["canard", 1], ["grand_poulet_or", 1], ["partition", 1], ["cle_geolier", 1]]);
 
 }

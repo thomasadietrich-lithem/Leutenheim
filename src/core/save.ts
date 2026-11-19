@@ -78,6 +78,10 @@ export interface SavedFloor {
   niche?: { wall: import("../world/map").Point; cell: import("../world/map").Point; plate: import("../world/map").Point; open?: boolean };
   maestro?: import("./floor").GluckSpot;
   plumeau?: import("./floor").GluckSpot;
+  clavicule?: import("./floor").GluckSpot;
+  restful?: boolean;
+  nights?: { x: number; y: number; turns: number; hero?: boolean }[];
+  moonFlashes?: { x: number; y: number; turns: number }[];
   fifrelin?: import("./floor").GluckSpot;
   courier?: import("./floor").FloorState["courier"];
   secretRoom?: import("./floor").FloorState["secretRoom"];
@@ -125,6 +129,7 @@ export interface SaveData {
   vernis?: { met: number };
   maestro?: { met: number };
   plumeau?: { met: number };
+  clavicule?: { met: number };
   fifrelin?: { met: number };
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;

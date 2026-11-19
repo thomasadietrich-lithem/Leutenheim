@@ -69,6 +69,7 @@ import { EXPO } from "./sprites/expo";
 import { TRAINARDS2 } from "./sprites/trainards2";
 import { VESSES } from "./sprites/vesses";
 import { OSSUAIRE } from "./sprites/ossuaire";
+import { CHAPELLE } from "./sprites/chapelle";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { MOBS_OSS } from "./sprites/mobsOss";
 
@@ -1148,7 +1149,7 @@ export class Renderer {
    * Vernis (hall d'exposition), le Maestro (salle de concert), Plumeau (prison) : un PNJ simple, son dessin, et une bulle
    * quand le héros approche (Thomas, 2026-11-18).
    */
-  private drawSimpleNpc(game: Game, id: "vernis" | "maestro" | "plumeau", ox: number, oy: number): void {
+  private drawSimpleNpc(game: Game, id: "vernis" | "maestro" | "plumeau" | "clavicule", ox: number, oy: number): void {
     const g = game.npc(id);
     if (!g || !game.isVisible(g.x, g.y)) return;
     const { tile } = this;
@@ -1161,6 +1162,13 @@ export class Renderer {
     else if (id === "maestro") {
       const frames = SCHRAT.idleDown;
       this.drawMonsterSprite(frames[Math.floor(Math.abs(this.time) / 380) % frames.length], cx, cy, flip, false, MAESTRO_PALETTE);
+    } else if (id === "clavicule") {
+      // Sœur Clavicule prie à genoux ; elle se relève quand le héros approche.
+      const near = Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 2;
+      const art = near ? CHAPELLE[`clavicule${Math.floor(Math.abs(this.time) / 700) % 2}`] : CHAPELLE.claviculePrie;
+      this.drawMonsterSprite(art.rows, cx, cy, false, true, art.palette);
+      if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, CHAPELLE.claviculeBulle.rows, CHAPELLE.claviculeBulle.palette);
+      return;
     } else {
       const art = SECRET[`plumeau${Math.floor(Math.abs(this.time) / 700) % 2}`];
       this.drawMonsterSprite(art.rows, cx, cy, false, true, art.palette);
@@ -2503,6 +2511,7 @@ export class Renderer {
     this.drawSimpleNpc(game, "vernis", ox, oy);
     this.drawSimpleNpc(game, "maestro", ox, oy);
     this.drawSimpleNpc(game, "plumeau", ox, oy);
+    this.drawSimpleNpc(game, "clavicule", ox, oy);
     this.drawFifrelin(game, ox, oy);
     this.drawCourier(game, ox, oy, progress);
     this.drawGoldHen(game, ox, oy, progress);
@@ -3176,7 +3185,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3197,7 +3206,7 @@ export class Renderer {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || name === "scarecrowHat") {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || CHAPELLE[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).

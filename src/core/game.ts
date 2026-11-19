@@ -13,6 +13,7 @@ import { KRIK, KRIK_OPENING } from "../data/krik";
 import { GRUM, GRUM_OPENING } from "../data/grum";
 import { MORILLON, MORILLON_OPENING } from "../data/morillon";
 import { MAESTRO, PLUMEAU, VERNIS } from "../data/npcsS2";
+import { CLAVICULE } from "../data/npcsS3";
 import { FIFRELIN, FIFRELIN_OPENING } from "../data/fifrelin";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
@@ -93,10 +94,10 @@ export interface GluckMemory {
 /** Les PNJ de quête : Gluck (quête 01), Sœur Osseuse (quête 02), Krik (quête 03). */
 /** Les meubles à bougies et le rayon de leur lueur (Thomas, 2026-11-14 : « toutes les bougies doivent éclairer » ; C). */
 // Section 2 (Thomas, 2026-11-14) : les champignons lumineux éclairent leur salle (C).
-const CANDLE_LIGHT: Record<string, number> = { chandelierExpo: 3, table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
+const CANDLE_LIGHT: Record<string, number> = { chandelierArgent: 3, chandelierExpo: 3, table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
 
-export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau";
-export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau"];
+export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
 const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo"]);
@@ -221,6 +222,8 @@ export class Game {
   vernisMemory: { met: number } = { met: 0 };
   maestroMemory: { met: number } = { met: 0 };
   plumeauMemory: { met: number } = { met: 0 };
+  /** Section 3 : Sœur Clavicule (chapelle des os). */
+  claviculeMemory: { met: number } = { met: 0 };
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -508,7 +511,9 @@ export class Game {
             state.furniture.push(srng.chance(0.5) ? { x: sr.entry.x, y: sr.entry.y, kind: "ossTablet", side, variant: "texte" } : { x: sr.entry.x, y: sr.entry.y, kind: "ossAlcove", side, len: 1 });
             for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocked.add(`${sr.entry.x + dx},${sr.entry.y + dy}`);
           }
-          decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked);
+          const chapel = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked);
+          // La chapelle des os : une « salle à thème » pour le reste du jeu (pas de piège, pas de monstre, Sœur Clavicule).
+          if (chapel !== undefined) state.themes = [...(state.themes ?? []), { room: chapel, id: "chapelle" } as (typeof state.themes)[number]];
           state.torches = floor.torches;
         }
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
@@ -611,7 +616,10 @@ export class Game {
   private spawnMonsters(rooms: Room[]): void {
     const spawns = spawnsForDepth(this.depth);
     const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
+    const quiet = new Set((this.current.themes ?? []).filter((t) => t.id === "chapelle").map((t) => rooms[t.room]));
     rooms.slice(1).forEach((room) => {
+      // La chapelle des os : personne n'y entre.
+      if (quiet.has(room)) return;
       // Une salle tissée de toiles abrite souvent une araignée (ou deux), qui l'attend dans le noir.
       const webbed = this.current.furniture.some(
         (f) => f.kind.startsWith("web") && f.x >= room.x && f.x < room.x + room.w && f.y >= room.y && f.y < room.y + room.h,
@@ -830,6 +838,12 @@ export class Game {
     } else this.events.push({ type: "stone", what: "monsterBack", actor: m });
   }
 
+  /** Chapelet d'argent (Sœur Clavicule) : de la classe d'armure en plus contre un mort. */
+  private undeadWard(m: Actor): number {
+    if (!(MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.undead) return 0;
+    return Object.values(this.equipment).reduce((n, it) => n + ((it && (ITEMS[it.defId] as ItemDef).undeadAc) || 0), 0);
+  }
+
   /** Os creux ou pierre : les projectiles ne font que la moitié des dégâts. */
   private shotResist(m: Actor, damage: number): number {
     return (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.arrowResist ? Math.ceil(damage / 2) : damage;
@@ -838,6 +852,11 @@ export class Game {
   /** Ossuaire : la lumière d'un puits de lune tombe sur cette case (même salle, à portée, rien entre les deux). */
   moonlit(p: Point): boolean {
     if (this.current?.look !== "ossuaire") return false;
+    // Potion de nuit : là où elle est versée (ou autour du héros qui l'a bue), la lune ne touche plus rien.
+    for (const n of this.current.nights ?? []) {
+      const c = n.hero ? this.hero : n;
+      if (Math.max(Math.abs(p.x - c.x), Math.abs(p.y - c.y)) <= 2) return false;
+    }
     for (const f of this.current.furniture) {
       if (f.kind !== "moonWell") continue;
       const r = moonArea(this, f);
@@ -2734,6 +2753,10 @@ export class Game {
       this.incense = this.incense.filter((f) => f.turns > 0);
       for (const f of this.incense) if (f.turns === 1) f.thin = true;
     }
+    if (this.current?.nights?.length) {
+      for (const n of this.current.nights) n.turns--;
+      this.current.nights = this.current.nights.filter((n) => n.turns > 0);
+    }
     const flashes = this.current?.moonFlashes;
     if (flashes && flashes.length > 0) {
       for (const f of flashes) f.turns--;
@@ -3155,6 +3178,10 @@ export class Game {
         niche: f.niche,
         maestro: f.maestro,
         plumeau: f.plumeau,
+        clavicule: f.clavicule,
+        restful: f.restful,
+        nights: f.nights,
+        moonFlashes: f.moonFlashes,
         courier: f.courier,
         secretRoom: f.secretRoom,
         look: f.look,
@@ -3200,6 +3227,7 @@ export class Game {
       vernis: this.vernisMemory,
       maestro: this.maestroMemory,
       plumeau: this.plumeauMemory,
+      clavicule: this.claviculeMemory,
       quest: this.quest,
       xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
@@ -3289,6 +3317,10 @@ export class Game {
         niche: f.niche,
         maestro: f.maestro,
         plumeau: f.plumeau,
+        clavicule: f.clavicule,
+        restful: f.restful,
+        nights: f.nights,
+        moonFlashes: f.moonFlashes,
         courier: f.courier,
         secretRoom: f.secretRoom,
         look: f.look,
@@ -3342,6 +3374,7 @@ export class Game {
     game.vernisMemory = saved.vernis ?? { met: 0 };
     game.maestroMemory = saved.maestro ?? { met: 0 };
     game.plumeauMemory = saved.plumeau ?? { met: 0 };
+    game.claviculeMemory = saved.clavicule ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
@@ -3656,6 +3689,9 @@ export class Game {
       this.stoneTurns = RULES.stoneTurns;
       for (const m of this.monsters) if (!m.boss) { m.alerted = false; m.wary = false; }
       this.events.push({ type: "potion", potion: "stone" });
+    } else if (def.potion === "night") {
+      this.current.nights = [...(this.current.nights ?? []).filter((n) => !n.hero), { x: this.hero.x, y: this.hero.y, turns: 11, hero: true }];
+      this.events.push({ type: "potion", potion: "night" });
     } else if (def.potion === "frost") {
       // Bue (Thomas, 2026-11-19) : un souffle glacé part du héros ; tout ce qui le touche (8 cases voisines) gèle.
       const cells: Point[] = [];
@@ -4213,6 +4249,15 @@ export class Game {
     const extra = splash[this.rng.int(0, splash.length - 1)];
     // La flaque de sa couleur, là où la fiole éclate (Thomas, 2026-11-12).
     if (this.map.get(order.x, order.y) !== Tile.Water) this.stain(order.x, order.y, POTION_STAIN[potion] ?? "pFire");
+    if (potion === "night") {
+      // Potion de nuit lancée : 10 tours de nuit sur la case et autour (la lune n'y touche plus).
+      this.current.nights = [...(this.current.nights ?? []), { x: order.x, y: order.y, turns: 10 }];
+      const cells: Point[] = [];
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (this.map.isWalkable(order.x + dx, order.y + dy)) cells.push({ x: order.x + dx, y: order.y + dy });
+      for (const c of cells) this.discordMist.push({ x: c.x, y: c.y, turns: 1, thin: true });
+      this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
+      return;
+    }
     if (potion === "frost") {
       // Potion de gel (Thomas, 2026-11-19) : lancée, la croix de 5 cases gèle ; les monstres pris sont figés (le boss un
       // tour), le feu s'éteint.
@@ -5369,7 +5414,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -6018,8 +6063,13 @@ export class Game {
    * Salle d'essai : les deux, toujours (Gluck dans la salle des colonnes, Sœur Osseuse dans la salle de prière).
    */
   private placeQuestNpc(state: FloorState, depth: number): void {
-    // Ossuaire : aucun PNJ des sections du dessus (Thomas, 2026-11-19) ; les siens viendront.
-    if (state.look === "ossuaire") return;
+    // Ossuaire : aucun PNJ des sections du dessus (Thomas, 2026-11-19) ; Sœur Clavicule dans la chapelle des os.
+    if (state.look === "ossuaire") {
+      if ((state.themes ?? []).some((t) => t.id === "chapelle") && this.claviculeMemory.met < CLAVICULE.maxEncounters) {
+        state.clavicule = this.placeInTheme(state, "chapelle", new Rng(floorSeed(this.runSeed, depth) ^ 0xc1a7)) ?? undefined;
+      }
+      return;
+    }
     // Section 2 : Morillon vit dans sa champignonnière de morilles (les PNJ de la section 1 n'y descendent pas).
     if (state.look === "champi" || (this.sandbox && this.sandboxFloor()?.look === "champi")) {
       if (this.morillonMemory.met < MORILLON.maxEncounters || this.sandbox) state.morillon = this.placeMorillon(state, new Rng(floorSeed(this.runSeed, depth) ^ 0x30b1)) ?? undefined;
@@ -6072,7 +6122,7 @@ export class Game {
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
   npcMax(id: NpcId): number {
-    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : id === "vernis" || id === "maestro" || id === "plumeau" ? 1 : KRIK.maxEncounters;
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : id === "clavicule" ? CLAVICULE.maxEncounters : id === "vernis" || id === "maestro" || id === "plumeau" ? 1 : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -6083,7 +6133,7 @@ export class Game {
     // Ni sur un PNJ ni juste à côté (il ne doit pas se retrouver coincé dans un goulet), ni sur un objet, un monstre, un
     // motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.vernis, state.maestro, state.plumeau, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -6137,9 +6187,10 @@ export class Game {
     this.vernisMemory = { met: 0 };
     this.maestroMemory = { met: 0 };
     this.plumeauMemory = { met: 0 };
+    this.claviculeMemory = { met: 0 };
     this.fifrelinMemory = { met: 0 };
     this.quest = null;
-    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau]) {
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -6168,7 +6219,7 @@ export class Game {
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
       !(state.grum && state.grum.x === x && state.grum.y === y) &&
       !(state.morillon && state.morillon.x === x && state.morillon.y === y) &&
-      ![state.vernis, state.maestro, state.plumeau].some((p) => p && p.x === x && p.y === y) &&
+      ![state.vernis, state.maestro, state.plumeau, state.clavicule].some((p) => p && p.x === x && p.y === y) &&
       !(state.fifrelin && state.fifrelin.x === x && state.fifrelin.y === y) &&
       ![state.chicken, state.farmChicken].some((c) => c && !c.done && c.x === x && c.y === y)
     );
@@ -6351,7 +6402,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : id === "vernis" ? this.vernisMemory : id === "maestro" ? this.maestroMemory : id === "plumeau" ? this.plumeauMemory : this.krikMemory;
+    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : id === "vernis" ? this.vernisMemory : id === "maestro" ? this.maestroMemory : id === "plumeau" ? this.plumeauMemory : id === "clavicule" ? this.claviculeMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -6385,12 +6436,12 @@ export class Game {
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     if (this.questWith(id)) return this.questScene(id);
-    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : id === "vernis" ? this.vernisScene() : id === "maestro" ? this.maestroScene() : id === "plumeau" ? this.plumeauScene() : this.krikScene();
+    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : id === "vernis" ? this.vernisScene() : id === "maestro" ? this.maestroScene() : id === "plumeau" ? this.plumeauScene() : id === "clavicule" ? this.claviculeScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
     if (this.questWith(id)) return this.questChoose(id, choice);
-    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : id === "vernis" ? this.vernisChoose(choice) : id === "maestro" ? this.maestroChoose(choice) : id === "plumeau" ? this.plumeauChoose(choice) : this.krikChoose(choice);
+    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : id === "vernis" ? this.vernisChoose(choice) : id === "maestro" ? this.maestroChoose(choice) : id === "plumeau" ? this.plumeauChoose(choice) : id === "clavicule" ? this.claviculeChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -7363,7 +7414,7 @@ export class Game {
     const def = QUEST_TASKS[id];
     let need = 1;
     if (def.kind === "kill") {
-      need = Math.min(def.count ?? 1, this.monsters.filter((m) => isKobold(m) && !m.boss).length);
+      need = Math.min(def.count ?? 1, this.monsters.filter((m) => (def.targets === "squelettes" ? isSkeleton(m) : isKobold(m)) && !m.boss).length);
       if (need <= 0) return false;
     }
     if (id === "grum_poule") {
@@ -7512,6 +7563,12 @@ export class Game {
       case "soeur_kobolds":
         this.grantProtection();
         this.grantLuck();
+        break;
+      case "clavicule_cranes":
+        this.current.restful = true;
+        break;
+      case "clavicule_cierges":
+        leaves("potion_nuit", 1);
         break;
       case "krik_magot": {
         g.gold = (g.gold ?? 0) + this.rng.int(KRIK.cacheGoldMin, KRIK.cacheGoldMax);
@@ -8103,7 +8160,7 @@ export class Game {
 
   /** La salle de prière de l'étage (s'il y en a une). */
   private chapelRoom(): Room | null {
-    const t = (this.current.themes ?? []).find((o) => o.id === "priere");
+    const t = (this.current.themes ?? []).find((o) => o.id === "priere" || o.id === "chapelle");
     return t ? this.rooms[t.room] : null;
   }
 
@@ -8151,7 +8208,7 @@ export class Game {
     this.map.touch(at.x, at.y);
     const q = this.quest;
     const lit = this.current.furniture.filter((o) => o.kind === "ciergeLit" && (this.current.cierges ?? []).some((c) => c.x === o.x && c.y === o.y)).length;
-    if (q?.id === "soeur_cierges" && q.depth === this.depth) q.got = lit;
+    if ((q?.id === "soeur_cierges" || q?.id === "clavicule_cierges") && q.depth === this.depth) q.got = lit;
     this.events.push({ type: "zone", what: "cierge", x: at.x, y: at.y, woke: lit });
     const z = this.current.zone;
     if (lit >= 3 && z?.kind === "sacristie" && !z.open) this.openZoneDoor();
@@ -8471,7 +8528,7 @@ export class Game {
       state.traps.some((t) => t.x === x && t.y === y) ||
       state.ground.some((o) => o.x === x && o.y === y) ||
       state.monsters.some((m) => m.x === x && m.y === y) ||
-      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.vernis, state.maestro, state.plumeau, state.merchant].some((p) => p && p.x === x && p.y === y));
+      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.merchant].some((p) => p && p.x === x && p.y === y));
     const before = reachable(map, state.start);
     const spots: Point[] = [];
     for (let ry = room.y + 1; ry + 5 <= room.y + room.h - 1; ry++) for (let rx = room.x + 1; rx + 4 <= room.x + room.w - 2; rx++) spots.push({ x: rx, y: ry });
@@ -8701,6 +8758,50 @@ export class Game {
       return { lines: ["« Bravo ! Elle doit traîner dans une salle de l'étage. Les champignons adorent la musique. »", "(La salle où elle se trouve brille sur la carte.)"], done: true };
     }
     return { lines: [], done: false };
+  }
+
+  // ---------- Section 3 (2026-11-19) : Sœur Clavicule, dans la chapelle des os ----------
+
+  claviculeScene(): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.npc("clavicule");
+    if (!g) return { lines: [], choices: [] };
+    if (this.quest && QUEST_TASKS[this.quest.id].npc === "clavicule") return this.questScene("clavicule");
+    g.opened = true;
+    const busy = this.quest ? "Une autre tâche en cours" : undefined;
+    const sister = this.soeurMemory.met > 0;
+    return {
+      lines: CLAVICULE.opening,
+      choices: [
+        { id: "cranes", label: "« Je leur brise le crâne »", off: busy ?? (this.monsters.some(isSkeleton) ? undefined : "Aucun squelette sur l'étage") },
+        { id: "cierges", label: "« Vos cierges ? »", off: busy },
+        { id: "soeur", label: "« J'ai rencontré votre sœur »", off: !sister ? "Vous ne connaissez pas sa sœur" : this.inventory.count("chapelet_argent") > 0 || g.drumDone ? "Déjà donné" : undefined },
+        { id: "leave", label: "La laisser prier" },
+      ],
+    };
+  }
+
+  claviculeChoose(id: string): GluckResult {
+    const g = this.npc("clavicule");
+    if (!g || !this.canTalk("clavicule")) return { lines: [], done: true };
+    if (this.quest && QUEST_TASKS[this.quest.id].npc === "clavicule") return this.questChoose("clavicule", id);
+    const choice = this.claviculeScene().choices.find((c) => c.id === id);
+    if (!choice || choice.off) return { lines: [], done: false };
+    switch (id) {
+      case "leave":
+        return { lines: ["« Que la vraie lumière vous garde. Pas celle-là. »"], done: true };
+      case "cranes":
+        if (this.giveTask("clavicule_cranes")) return { lines: ["« Une masse, un coup parfait, ou le feu. Dans l'ombre, de préférence. »", "(Brisez le crâne de squelettes de l'étage.)"], done: true };
+        return { lines: [], done: false };
+      case "cierges":
+        if (this.placeCierges(g) && this.giveTask("clavicule_cierges")) return { lines: ["« Le culte a soufflé mes trois cierges d'argent et les a dispersés. Une torche suffit. »", "(Les salles où ils sont brillent sur la carte.)"], done: true };
+        return { lines: ["« Plus tard, peut-être. »"], done: false };
+      case "soeur":
+        g.drumDone = true;
+        (g.items ??= []).push({ item: "chapelet_argent", count: 1 });
+        return { lines: ["« Osseuse ? Elle est vivante ? Enfin… vous voyez ce que je veux dire. »", "« Prenez mon chapelet. Les morts n'aiment pas l'argent. » (Elle le pose à vos pieds.)"], done: false };
+      default:
+        return { lines: [], done: false };
+    }
   }
 
   plumeauScene(): { lines: string[]; choices: GluckChoice[] } {
@@ -9998,7 +10099,7 @@ export class Game {
     // Squelette (section 3) : il s'effondre en tas d'os (la lune le relèvera), sauf crâne brisé (masse, critique, feu) ;
     // un tas d'os qu'on frappe encore est brisé pour de bon.
     const burnt = (monster.burning ?? 0) > 0 || this.isBurning(monster.x, monster.y);
-    if (sdef?.bonePile && monster.pile === undefined && !monster.crush && !burnt) {
+    if (sdef?.bonePile && monster.pile === undefined && !monster.crush && !burnt && !this.current.restful) {
       monster.pile = sdef.bonePile;
       monster.hp = Math.ceil(monster.maxHp / 2);
       monster.prone = 1;
@@ -10070,7 +10171,7 @@ export class Game {
       this.events.push({ type: "quest", what: "lost", id: q.id });
       this.quest = null;
     }
-    if (q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && isKobold(monster) && q.got < q.need) {
+    if (q && q.depth === this.depth && QUEST_TASKS[q.id].kind === "kill" && (QUEST_TASKS[q.id].targets === "squelettes" ? isSkeleton(monster) : isKobold(monster)) && q.got < q.need) {
       // Quêtes v3 : dans une zone, seuls ses Kobolds comptent (même tués par un autre, ou par un piège).
       if (QUEST_TASKS[q.id].zone) {
         if (this.current.zone?.sleepers.includes(monster.id)) q.got++;
@@ -10526,7 +10627,7 @@ export class Game {
         // Cri de guerre : le monstre impressionné frappe avec le désavantage, comme savonneux.
         const soapy = (m.soapy ?? 0) > 0 || (m.cowed ?? 0) > 0;
         // Garde (voie bleue, Rang II) : +CA quand deux ennemis ou plus le touchent.
-        const result = rollAttack(this.rng, m, { armorClass: this.hero.armorClass + this.guardBonus() }, ambush && !soapy ? "advantage" : soapy && !ambush ? "disadvantage" : "normal");
+        const result = rollAttack(this.rng, m, { armorClass: this.hero.armorClass + this.guardBonus() + this.undeadWard(m) }, ambush && !soapy ? "advantage" : soapy && !ambush ? "disadvantage" : "normal");
         result.damage = this.absorb(result.damage);
         if (m.bather && result.hit && this.rng.chance(RULES.towelBlindChance)) {
           // Un coup de serviette dans la figure : le prochain coup du héros a le désavantage.
@@ -10623,7 +10724,7 @@ export class Game {
     // Le héros caché derrière une colonne ou un meuble, ou dans le noir : la pierre a du mal à l'atteindre.
     const covered = this.hasCover(hero) && !this.inReach(m, hero);
     const cowed = (m.cowed ?? 0) > 0;
-    const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, hero, covered || cowed ? "disadvantage" : "normal");
+    const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, { armorClass: hero.armorClass + this.undeadWard(m) }, covered || cowed ? "disadvantage" : "normal");
     result.damage = this.absorb(result.damage);
     this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
     if (result.damage > 0) this.bleed(hero, m);
@@ -11148,6 +11249,11 @@ function clearPath(state: FloorState, from: Point, to: Point): boolean {
 }
 
 /** Un Kobold (ou un frondeur) : la famille que punit Sœur Osseuse et que fuit Krik. */
+/** Un squelette de l'ossuaire (à l'épée ou à l'arc). */
+function isSkeleton(m: Actor): boolean {
+  return m.defId === "squelette" || m.defId === "squeletteArcher";
+}
+
 function isKobold(m: Actor): boolean {
   return m.defId === "schrat" || m.defId === "frondeur";
 }

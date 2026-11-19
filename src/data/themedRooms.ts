@@ -375,6 +375,12 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   statueVoilee: { blocks: true, w: 1, h: 1, burns: false },
   fosseGrille: { blocks: false, w: 2, h: 2, burns: false, flat: true },
   brouetteOss: { blocks: true, w: 2, h: 1, burns: true },
+  // La chapelle des os (planche art/ossuaire_chapelle_v1.png, validée le 2026-11-19).
+  bancOs: { blocks: true, w: 2, h: 1, burns: false },
+  bancOsCasse: { blocks: true, w: 2, h: 1, burns: false },
+  autelChapelle: { blocks: true, w: 3, h: 1, burns: false },
+  chandelierArgent: { blocks: true, w: 1, h: 1, burns: false },
+  benitier: { blocks: true, w: 1, h: 1, burns: false },
   ciergeLit: { blocks: true, w: 1, h: 1, burns: false },
   grate: { blocks: false, w: 1, h: 1, burns: false },
   grateGlint: { blocks: false, w: 1, h: 1, burns: false },

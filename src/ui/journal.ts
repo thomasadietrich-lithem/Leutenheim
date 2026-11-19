@@ -103,7 +103,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "npc": {
       if (e.what !== "leave") return null;
       // Le bon nom pour chaque PNJ (Thomas, 2026-11-17 : « Krik » s'affichait quand Morillon partait, en section 2).
-      const name = ({ gluck: "Gluck", soeur: "Sœur Osseuse", krik: "Krik", grum: "Grum", fifrelin: "Fifrelin", morillon: "Morillon", vernis: "Vernis", maestro: "Le Maestro", plumeau: "Plumeau" } as Record<string, string>)[e.who] ?? "Krik";
+      const name = ({ gluck: "Gluck", soeur: "Sœur Osseuse", krik: "Krik", grum: "Grum", fifrelin: "Fifrelin", morillon: "Morillon", vernis: "Vernis", maestro: "Le Maestro", plumeau: "Plumeau", clavicule: "Sœur Clavicule" } as Record<string, string>)[e.who] ?? "Krik";
       const apples = (e.drops ?? []).some((d) => d.item === "pomme");
       const gold = (e.drops ?? []).some((d) => d.item === "or");
       const why = e.fled === "fire"

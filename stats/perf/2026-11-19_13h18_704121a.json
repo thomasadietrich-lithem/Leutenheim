@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-19T13:18:47.238Z",
+ "commit": "704121a",
+ "note": "Section 3 : pièges, chapelle des os, Sœur Clavicule",
+ "logic": {
+  "tickMs": 0.7,
+  "lightMs": 0.33,
+  "visionMs": 0.26
+ },
+ "scenes": {
+  "immobile": {
+   "n": 93,
+   "avg": 26.3,
+   "p95": 33.4,
+   "max": 50.1,
+   "fps": 38,
+   "js": 10
+  },
+  "marche": {
+   "n": 224,
+   "avg": 22.2,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 45,
+   "js": 6
+  },
+  "retour": {
+   "n": 227,
+   "avg": 21.9,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 46,
+   "js": 3
+  },
+  "zoom": {
+   "n": 112,
+   "avg": 24.3,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 41,
+   "js": 3
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 269,
+   "avg": 18.5,
+   "p95": 33.3,
+   "max": 116.6,
+   "fps": 54,
+   "js": 13
+  }
+ },
+ "errors": []
+}

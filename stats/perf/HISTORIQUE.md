@@ -102,3 +102,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-19_09h37 | ff28ed1 | 26.2 | 20.4 | 19.6 | 23.1 | 16.7 | 24.7 | 0.34 | 0.26 | Ossuaire en jeu (section 3, aperçu 11-15) |
 | 2026-11-19_10h08 | dfbc042 | 19.4 | 25.5 | 19.2 | 20.7 | 16.7 | 21.3 | 0.42 | 0.23 | Section 3 : monstres de l'ossuaire (rat, squelette, acolyte, gisant) |
 | 2026-11-19_10h56 | 2e9c8be | 26.2 | 24.2 | 24.4 | 21.5 | 16.7 | 21 | 0.49 | 0.11 | Section 3 : archer, crâne lunaire, flèches d'obsidienne et enflammées, potion de gel |
+| 2026-11-19_13h18 | 704121a | 26.3 | 22.2 | 21.9 | 24.3 | 16.7 | 18.5 | 0.7 | 0.33 | Section 3 : pièges, chapelle des os, Sœur Clavicule |

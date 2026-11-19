@@ -109,6 +109,11 @@ export interface FloorState {
   vernis?: GluckSpot;
   maestro?: GluckSpot;
   plumeau?: GluckSpot;
+  /** Section 3 : Sœur Clavicule (chapelle des os). */
+  clavicule?: GluckSpot;
+  /** Section 3 : bénédiction du repos (les squelettes abattus ne se relèvent plus sur l'étage) ; nuits (potion de nuit). */
+  restful?: boolean;
+  nights?: { x: number; y: number; turns: number; hero?: boolean }[];
   /** Fifrelin, le Kobold aux gobelets (quête 04), s'il est sur cet étage. */
   fifrelin?: GluckSpot;
   /** Le coursier de Krik (rencontre 3), à escorter jusqu'à l'escalier. */

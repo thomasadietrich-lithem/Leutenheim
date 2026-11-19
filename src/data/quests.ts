@@ -39,10 +39,14 @@ export type QuestTaskId =
   | "vernis_poulet"
   | "vernis_socle"
   | "maestro_partition"
-  | "plumeau_clef";
+  | "plumeau_clef"
+  | "clavicule_cranes"
+  | "clavicule_cierges";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau";
+  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule";
+  /** Quête « kill » : ce qui compte (les Kobolds par défaut ; les squelettes brisés pour Sœur Clavicule). */
+  targets?: "squelettes";
   /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
    * compteur tenu par la partie (cierges, tours sur la grille, chapeau) ; collect : rapporter plusieurs objets. */
   kind: "kill" | "fetch" | "statue" | "smoke" | "enter" | "count" | "collect";
@@ -286,6 +290,28 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     waiting: "« Le geôlier l'a laissée traîner. Il laisse tout traîner. Même moi. »",
     thanks: ["(La clef tourne. Les fers tombent.)", "« Libre ! Tenez, j'ai recopié le plan de l'étage. Les greffiers recopient tout. »", "(Il vous montre le plan de l'étage, et laisse un peu d'or.)"],
     failed: "Plumeau reste enchaîné à son mur.",
+  },
+  // Section 3, la chapelle des os (Thomas, 2026-11-19 : « Ok ») : Sœur Clavicule.
+  clavicule_cranes: {
+    npc: "clavicule",
+    kind: "kill",
+    targets: "squelettes",
+    count: 5,
+    goal: "Briser des crânes {0}/{1}",
+    back: "Revoir Sœur Clavicule",
+    waiting: "« Brisez-leur le crâne : une masse, un coup bien placé, ou le feu. Sinon la lune les relève. »",
+    thanks: ["« Je les entends se taire, un à un. »", "« Dormez, mes frères. » (Elle trace un signe sur votre front.)", "(Bénédiction du repos : sur cet étage, les squelettes abattus ne se relèvent plus.)"],
+    failed: "Les morts de l'étage continuent de se relever.",
+  },
+  clavicule_cierges: {
+    npc: "clavicule",
+    kind: "count",
+    count: 3,
+    goal: "Rallumer les cierges d'argent {0}/{1}",
+    back: "Revoir Sœur Clavicule",
+    waiting: "« Trois cierges d'argent, soufflés par le culte. Une torche suffit pour les rallumer. »",
+    thanks: ["« La chapelle sent de nouveau la cire. Merci. »", "« Prenez ceci : une goutte de nuit. Là où vous la versez, la lune ne voit plus rien. »", "(Elle vous donne une potion de nuit.)"],
+    failed: "Les cierges d'argent restent froids.",
   },
   soeur_kobolds: {
     npc: "soeur",

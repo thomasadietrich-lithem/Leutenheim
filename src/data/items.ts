@@ -47,6 +47,8 @@ export interface ItemDef {
   bonusForce?: number;
   bonusAgility?: number;
   bonusHit?: number;
+  /** Chapelet d'argent (Sœur Clavicule) : classe d'armure en plus contre les morts (squelettes, gisants, crânes). */
+  undeadAc?: number;
   /** Niveau du héros nécessaire pour équiper ou utiliser l'objet (Thomas : « le niveau du héros »). */
   level?: number;
   /** Armes de corps à corps : lente (une attaque prend 1,5 tour) ou rapide (¾ de tour). */
@@ -70,7 +72,7 @@ export interface ItemDef {
   bagCols?: number;
   bagRows?: number;
   /** Potions : ce qu'elles font (voir `src/core/game.ts`, `resolveUse`). */
-  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip" | "frost";
+  potion?: "youth" | "poison" | "haste" | "fire" | "smoke" | "fog" | "urchin" | "stone" | "discord" | "grow" | "slip" | "frost" | "night";
   /** Bombe arcanique (Thomas, 2026-11-16) : elle se lance, puis explose quelques tours plus tard. */
   bomb?: boolean;
   /** Potion lancée (feu) : portée en cases ; il faut viser une case. */
@@ -573,6 +575,9 @@ export const ITEMS = {
   amulette_vitalite: { id: "amulette_vitalite", name: "Amulette de vitalité", kind: "amulet", description: "Un pendentif de cuivre, une pierre rouge qui bat doucement. +4 PV max.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", level: 1, bonusHp: 4 },
   amulette_force: { id: "amulette_force", name: "Amulette de force", kind: "amulet", description: "Un pendentif de cuivre, une pierre orange, chaude au toucher. +1 en Force.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", level: 2, bonusForce: 1 },
   amulette_agilite: { id: "amulette_agilite", name: "Amulette d'agilité", kind: "amulet", description: "Un pendentif de cuivre, une pierre verte, légère comme une plume. +2 en Agilité.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", level: 2, bonusAgility: 2 },
+  // Sœur Clavicule (section 3, 2026-11-19) : la potion de nuit et le chapelet d'argent (récompenses de ses demandes).
+  potion_nuit: { id: "potion_nuit", name: "Potion de nuit", kind: "use", description: "Noire, avec des reflets d'étoiles. Bue : 10 tours, la lune ne vous touche plus (ni vous, ni les cases autour de vous) : les morts n'y voient rien et ne s'y relèvent pas. Lancée : la même nuit sur la case et autour.", w: 1, h: 1, maxStack: 3, rarity: "rare", potion: "night", throwRange: 5 },
+  chapelet_argent: { id: "chapelet_argent", name: "Chapelet d'argent", kind: "amulet", description: "Le chapelet de Sœur Clavicule, des perles d'argent sur un fil usé. +2 classe d'armure contre les morts (squelettes, gisants, crânes).", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 10, undeadAc: 2 },
   amulette_precision: { id: "amulette_precision", name: "Amulette de précision", kind: "amulet", description: "Un pendentif de cuivre, une pierre bleue, claire comme un œil. +1 au jet d'attaque, au contact et au tir.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 4, bonusHit: 1 },
   amulette_vitalite_2: { id: "amulette_vitalite_2", name: "Amulette de vitalité II", kind: "amulet", description: "Le pendentif d'argent à la pierre rouge, deux éclats sur la chaîne. +8 PV max.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusHp: 8 },
   amulette_force_2: { id: "amulette_force_2", name: "Amulette de force II", kind: "amulet", description: "Le pendentif d'argent à la pierre orange, deux éclats sur la chaîne. +2 en Force.", w: 1, h: 1, maxStack: 1, rarity: "rare", level: 6, bonusForce: 2 },

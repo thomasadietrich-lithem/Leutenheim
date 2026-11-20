@@ -2109,6 +2109,19 @@ export class Game {
         if (path && (!best || path.length < best.length)) best = path;
       }
     }
+    // L'escalier derrière le socle de la Grande Prêtresse : aucune case ne le touche (le socle prend les trois cases
+    // devant lui), on ne pouvait donc pas finir l'étage. On le prend depuis le pied du socle, deux cases plus bas.
+    if (!best && this.sealedStairsAt(x, y)) {
+      for (const dx of [0, -1, 1]) {
+        const nx = x + dx;
+        const ny = y + 2;
+        if (nx === this.hero.x && ny === this.hero.y) best = [];
+        if (best && best.length === 0) break;
+        if (!this.map.isWalkable(nx, ny) || this.monsterAt(nx, ny)) continue;
+        const path = this.heroPath({ x: nx, y: ny }, known);
+        if (path && (!best || path.length < best.length)) best = path;
+      }
+    }
     if (!best) return false;
     this.clearDoorOrders();
     this.targetId = null;
@@ -5174,6 +5187,19 @@ export class Game {
       const path = this.heroPath({ x: nx, y: ny }, known);
       if (path && (!best || path.length < best.length)) best = path;
     }
+    // L'escalier derrière le socle de la Grande Prêtresse : aucune case ne le touche (le socle prend les trois cases
+    // devant lui), on ne pouvait donc pas finir l'étage. On le prend depuis le pied du socle, deux cases plus bas.
+    if (!best && this.sealedStairsAt(x, y)) {
+      for (const dx of [0, -1, 1]) {
+        const nx = x + dx;
+        const ny = y + 2;
+        if (nx === this.hero.x && ny === this.hero.y) best = [];
+        if (best && best.length === 0) break;
+        if (!this.map.isWalkable(nx, ny) || this.monsterAt(nx, ny)) continue;
+        const path = this.heroPath({ x: nx, y: ny }, known);
+        if (path && (!best || path.length < best.length)) best = path;
+      }
+    }
     if (!best) return false;
     this.clearDoorOrders();
     this.targetId = null;
@@ -5582,7 +5608,9 @@ export class Game {
     } else if (this.breakTarget && this.path.length === 0) {
       const at = this.breakTarget;
       this.breakTarget = null;
-      if (Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) === 1) this.resolveBreak(at);
+      const reach = Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y));
+      // Deux cases pour l'escalier caché derrière un socle (voir `approachBreakable`).
+      if (reach === 1 || (reach === 2 && this.sealedStairsAt(at.x, at.y) && !this.map.isWalkable(at.x, at.y + 1))) this.resolveBreak(at);
       else return false;
     } else if (this.picking) {
       // Les objets identiques restés sur la case suivent d'eux-mêmes, un par tour.

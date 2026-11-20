@@ -379,6 +379,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
   let weaverDown = false;
   let stalls = 0;
   let lastWhy = "";
+  let sawPriestess = false;
+  let priestessDown = false;
 
   const hero = game.hero;
   const hp = () => hero.hp / hero.maxHp;
@@ -786,6 +788,30 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     return false;
   };
 
+  /** La Grande Prêtresse : quand elle chante dans le puits (hors d'atteinte), le Colosse est debout. Son cœur n'est à nu
+   *  qu'une fois le crâne cassé (ou les deux bras) : le crâne d'abord, puis le corps, vite, avant que la lune ne le répare. */
+  const priestess = (boss: Actor, foes: Actor[]): boolean => {
+    if (!(boss as { aloft?: boolean }).aloft) return false;
+    if (hp() < 0.4 && (eat(game, true) || (game.voie === "blue" && game.skillRefusal() === null && game.useSkill()))) return true;
+    const head = game.monsters.find((m) => m.defId === "craneColosse");
+    const body = game.monsters.find((m) => m.defId === "colosse");
+    const target = head ?? body;
+    if (!target) return false;
+    // Un mort ordinaire collé à nous passe d'abord (il frappe à chaque tour).
+    const pest = foes.find((m) => m !== boss && awake(m) && !["colosse", "brasColosse", "craneColosse"].includes(m.defId) && gapBetween(m, hero) <= 1);
+    if (pest) return game.setDestination(pest.x, pest.y);
+    if (tryShoot(game, target, mem)) return true;
+    const c = cellsOf(target).reduce((a, b) => (cheb(b, hero) < cheb(a, hero) ? b : a));
+    if (gapBetween(target, hero) <= 1) {
+      if (game.voie === "blue" && game.rank("bastion" as never) > 0 && game.powerRefusal("bastion" as never) === null && game.usePower("bastion" as never)) return true;
+      return game.setDestination(c.x, c.y);
+    }
+    const free = (x: number, y: number) => game.map.isWalkable(x, y) && !game.monsterAt(x, y) && !game.isBurning(x, y);
+    const path = route(game, free, (x, y) => gapBetween(target, { x, y }) === 1 && free(x, y), 900);
+    if (path && path.length > 0) return stepTo(path[0]);
+    return game.setDestination(c.x, c.y);
+  };
+
   // ---------- Hors combat ----------
 
   /** Le Colporteur : vendre le rebut, acheter ce qui compte. */
@@ -1002,6 +1028,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       if (mem.leave.has(`${game.depth}:${g.item}@${g.x},${g.y}`)) return false;
       const d = defOf(g.item) as ItemDef | undefined;
       if (!d) return true;
+      // L'Elfe (flèches sans fin) ne ramasse plus les flèches simples : inutile de courir après.
+      if (g.item === "fleche" && game.endlessAmmo("fleche")) return false;
       if (d.kind === "quest") {
         const q = game.quest ? (QUEST_TASKS[game.quest.id] as { item?: string; items?: string[] }) : null;
         return !!q && (q.item === g.item || !!q.items?.includes(g.item));
@@ -1053,7 +1081,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
   while (!game.over && game.turn < maxTurns) {
     if (game.pendingStairs === "down" && game.takeStairs()) continue;
     upkeep();
-    const foes = game.visibleMonsters().filter((m) => isFoe(m) && (mem.ignore.get(m.id) ?? 0) < game.turn);
+    const foes = game.visibleMonsters().filter((m) => isFoe(m) && (mem.ignore.get(m.id) ?? 0) < game.turn && !(m as { aloft?: boolean }).aloft);
     // Un combat qui n'avance pas (personne ne perd de vie pendant 40 tours) : ces monstres sont hors d'atteinte.
     const sum = hero.hp + game.monsters.reduce((n, m) => n + m.hp, 0) + game.depth * 100000;
     if (foes.some((m) => m.alerted && !m.asleep) && sum === mem.staleSum) mem.stale++;
@@ -1067,6 +1095,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     const boss = game.bossActor();
     if (game.depth === RULES.bossDepths[0] && !boss) weaverDown = true;
     if (mem.sawBell && !boss) mem.bellDown = true;
+    if (boss?.defId === "pretresse") sawPriestess = true;
+    if (sawPriestess && !boss && game.depth === RULES.bossDepths[2]) priestessDown = true;
     let acted = false;
 
     // Un repos ou une fouille en cours continue tant que rien ne vient.
@@ -1086,7 +1116,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       acted = fn();
       if (acted) why = name;
     };
-    if (boss && !off.bossPlan) rule("boss", () => (boss.defId === "carillon" ? bell(boss, foes) : game.depth === RULES.bossDepths[0] ? weaver(boss, foes) : false));
+    if (boss && !off.bossPlan) rule("boss", () => (boss.defId === "carillon" ? bell(boss, foes) : game.depth === RULES.bossDepths[0] ? weaver(boss, foes) : boss.defId === "pretresse" ? priestess(boss, foes) : false));
     rule("combat", () => combat(foes));
     rule("suite", () => !alertedNow && (game.restProgress() > 0 || game.searchProgress() > 0));
     rule("porte", () => !alertedNow && door());
@@ -1176,7 +1206,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     cause: game.deathCause,
     boss: weaverDown || game.deepest > RULES.bossDepths[0],
     boss2: mem.bellDown || (game.won && game.deepest >= RULES.demoLastDepth),
-    boss3: game.deepest >= 15 && game.won,
+    boss3: priestessDown,
     won: game.won,
     kills, talks, questsStarted, questsDone, questsFailed, skillUses, healed, lastStands,
     searches: mem.searches, chests: mem.chests, doors: mem.doors, bought: mem.bought, sold: mem.sold, potions: mem.potions, pushes: mem.pushes, shots: mem.shots,

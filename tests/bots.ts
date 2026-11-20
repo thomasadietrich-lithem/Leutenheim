@@ -17,6 +17,7 @@ import { ITEMS, ItemDef } from "../src/data/items";
 import { expectedDamagePerTurn } from "../src/core/combat";
 import type { StatId } from "../src/data/skills";
 import { Tile } from "../src/world/map";
+import { lineBetween } from "../src/world/fov";
 import { NPC_IDS, type NpcId } from "../src/core/game";
 import { QUEST_TASKS } from "../src/data/quests";
 import { RACES } from "../src/data/races";
@@ -194,7 +195,10 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
     if (!acted && foes.length > 0) {
       const target = foes.reduce((a, b) => (gap(b, game.hero) < gap(a, game.hero) ? b : a));
       // Maîtrise : un coup d'arc à distance avant le contact ; double frappe au contact.
-      if (level === "maitrise" && gap(target, game.hero) >= 2 && game.arrows() > 0 && game.shoot(target.x, target.y) === null) acted = true;
+      // Correctif (2026-11-20) : avec des flèches sans fin (Elfe), il tirait indéfiniment sur une cible cachée par un
+      // meuble ; il ne tire alors que si rien n'arrête la flèche. Les autres races ne changent pas.
+      const clear = !game.endlessAmmo("fleche") || lineBetween(game.hero, target).every((q) => (q.x === target.x && q.y === target.y) || (game.map.isWalkable(q.x, q.y) && !game.monsterAt(q.x, q.y)));
+      if (level === "maitrise" && clear && gap(target, game.hero) >= 2 && game.arrows() > 0 && game.shoot(target.x, target.y) === null) acted = true;
       // Rang II rouge : cri de guerre face à plusieurs, tourbillon quand deux touchent, charge à 2 cases.
       else if (level !== "debutant" && foes.filter((f) => gap(f, game.hero) <= 3).length >= 2 && game.powerRefusal("cri_guerre") === null && game.usePower("cri_guerre")) acted = true;
       else if (level !== "debutant" && foes.filter((f) => gap(f, game.hero) <= 1).length >= 2 && game.powerRefusal("tourbillon") === null && game.usePower("tourbillon")) acted = true;
@@ -244,7 +248,8 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
     if (!acted && game.itemsHere().length > 0 && (level !== "debutant" || rnd() < 0.5)) acted = game.pickUp();
     if (!acted && level !== "debutant") {
       const range = level === "maitrise" ? 99 : 6;
-      const items = game.ground.filter((g) => game.isVisible(g.x, g.y) && gap(g, game.hero) <= range && game.map.get(g.x, g.y) !== Tile.StairsDown);
+      // Correctif (2026-11-20) : l'Elfe ne ramasse plus les flèches simples ; le bot allait s'y planter sans fin.
+      const items = game.ground.filter((g) => game.isVisible(g.x, g.y) && gap(g, game.hero) <= range && game.map.get(g.x, g.y) !== Tile.StairsDown && !(g.item === "fleche" && game.endlessAmmo("fleche")));
       if (items.length > 0) {
         const it = items.reduce((a, b) => (gap(b, game.hero) < gap(a, game.hero) ? b : a));
         acted = game.setDestination(it.x, it.y);
@@ -252,7 +257,10 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
     }
     // Explorer, puis descendre.
     if (!acted) {
-      const stairs = stairsSeen(game);
+      // Correctif (2026-11-20) : après un boss, l'escalier est celui qui était scellé (un meuble, pas une case
+      // d'escalier) ; les bots ne le trouvaient pas et restaient plantés sur l'étage.
+      const seal = !queen && game.isBossDepth(game.depth) ? game.furnitureList().find((f) => f.kind === "sealedStairs") : undefined;
+      const stairs = seal ? { x: seal.x, y: seal.y } : stairsSeen(game);
       const want = level === "debutant" ? 0 : level === "moyen" ? 0.6 : 1;
       const front = frontier(game);
       // Une tâche en cours sur cet étage : on ne descend pas tant qu'on peut encore la faire (sauf le débutant).

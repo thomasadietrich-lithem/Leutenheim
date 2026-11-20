@@ -7053,3 +7053,20 @@ test("Osselet et Clavicule (2026-11-20) : jets de compétence, texte hors de leu
   assert.ok(res.roll?.success && game.blessTurns > 0, "bénie");
   assert.ok(game.events.some((e) => e.type === "feat" && e.npc === "clavicule"), "compte pour son succès");
 });
+
+test("Grande Prêtresse vaincue : l'escalier derrière le socle se prend, la partie d'essai se termine (2026-11-20)", () => {
+  const game = new Game(7);
+  game.testRun = true;
+  assert.ok(game.teleport(15));
+  const boss = game.bossActor()!;
+  assert.equal(boss.defId, "pretresse");
+  // Tous les monstres retirés : l'étage est vaincu.
+  game.monsters.length = 0;
+  const seal = game.furnitureList().find((f) => f.kind === "sealedStairs")!;
+  assert.ok(game.sealedStairsAt(seal.x, seal.y));
+  assert.ok(game.setDestination(seal.x, seal.y, true), "on peut s'y rendre");
+  for (let i = 0; i < 80 && !game.over; i++) {
+    if (!game.tick()) game.setDestination(seal.x, seal.y, true);
+  }
+  assert.ok(game.over && game.won, "toucher l'escalier termine la partie");
+});

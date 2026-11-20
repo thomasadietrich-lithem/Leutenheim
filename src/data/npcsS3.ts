@@ -16,6 +16,12 @@ export const OSSELET = {
     "« Bienvenue au musée ! Maître Osselet, conservateur. Ne touchez pas au cordon. »",
     "« Le culte m'a volé la corne du nez. Un tricératops à deux cornes, c'est un bicératops. Une honte. »",
   ],
+  /** Hors du musée (Thomas, 2026-11-20 : « s'il n'apparaît pas dans le musée, il faut qu'il parle différemment »). */
+  away: [
+    "Un squelette en monocle et nœud papillon fait sa ronde, un plumeau sous le bras, loin de ses vitrines.",
+    "« Maître Osselet, conservateur. Mon musée est un peu plus loin : je surveille les couloirs, le culte rôde. »",
+    "« Ils m'ont volé la corne du nez de mon tricératops. Un tricératops à deux cornes, c'est un bicératops. Une honte. »",
+  ],
 };
 
 export const CLAVICULE = {
@@ -24,6 +30,12 @@ export const CLAVICULE = {
   opening: [
     "Une religieuse d'os en voile blanc prie à genoux devant l'autel. Son chapelet d'argent tinte.",
     "« Un vivant ? Ici ? … Je suis Sœur Clavicule. Je garde la chapelle depuis que la Lune pâle a pris l'ossuaire. »",
+    "« Les morts ne dorment plus. La lune les relève, encore et encore. »",
+  ],
+  /** Hors de sa chapelle. */
+  away: [
+    "Une religieuse d'os en voile blanc égrène son chapelet d'argent, loin de son autel.",
+    "« Un vivant ? Ici ? … Je suis Sœur Clavicule. Je garde la vieille chapelle, d'habitude. Aujourd'hui, je cherche. »",
     "« Les morts ne dorment plus. La lune les relève, encore et encore. »",
   ],
   /** Crânes à briser (squelettes vaincus pour de bon) pour la bénédiction du repos. */

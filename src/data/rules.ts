@@ -203,6 +203,8 @@ export const RULES = {
    *  rayon du puits selon les cierges encore allumés ; le Colosse : tours dans la lune pour qu'un morceau se ressoude. */
   // Plus dure (Thomas, 2026-11-19 : « le boss 3 est beaucoup beaucoup trop simple »).
   priestessCallEvery: 4,
+  /** Bénédiction de Sœur Clavicule (jet de Charisme réussi) : tours bénis. */
+  claviculeBlessTurns: 80,
   priestessChantEvery: 4,
   priestessChantHeal: 5,
   priestessWellRadius: [1, 2, 2, 3, 3, 4, 4],

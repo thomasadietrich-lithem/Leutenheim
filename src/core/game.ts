@@ -9200,12 +9200,15 @@ export class Game {
     if (!g) return { lines: [], choices: [] };
     if (this.quest && QUEST_TASKS[this.quest.id].npc === "osselet") return this.questScene("osselet");
     g.opened = true;
+    const home = this.npcInTheme(g, "musee");
     return {
-      lines: OSSELET.opening,
+      lines: home ? OSSELET.opening : OSSELET.away,
       choices: [
         { id: "corne", label: "« Je vous retrouve votre corne »", off: this.quest ? "Une autre tâche en cours" : undefined },
-        { id: "ecriteau", label: "Lire l'écriteau", stat: "intelligence", dc: "easy", off: g.drumDone ? "Déjà lu" : undefined },
-        { id: "leave", label: "Visiter en silence" },
+        { id: "ecriteau", label: "Lire l'écriteau", stat: "intelligence", dc: "easy", off: !home ? "L'écriteau est au musée" : g.drumDone ? "Déjà lu" : undefined },
+        // Un jet d'Agilité (Thomas, 2026-11-20 : « des tests de compétences dans les quêtes ») : passer sous le cordon.
+        { id: "toucher", label: "Toucher le tricératops sans qu'il le voie", stat: "agilite", dc: "hard", off: !home ? "Le tricératops est au musée" : g.haggled ? "Déjà tenté" : undefined },
+        { id: "leave", label: home ? "Visiter en silence" : "Le laisser à sa ronde" },
       ],
     };
   }
@@ -9218,7 +9221,18 @@ export class Game {
     if (!choice || choice.off) return { lines: [], done: false };
     switch (id) {
       case "leave":
-        return { lines: ["« Le musée ferme à l'aube. Il n'y a jamais d'aube, ici. »"], done: true };
+        return { lines: [this.npcInTheme(g, "musee") ? "« Le musée ferme à l'aube. Il n'y a jamais d'aube, ici. »" : "« Passez au musée, à l'occasion. L'entrée est gratuite. La sortie aussi, en principe. »"], done: true };
+      case "toucher": {
+        const roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!]);
+        g.haggled = true;
+        if (!roll.success) {
+          this.raiseAlarm(5, g);
+          return { lines: ["(Le cordon tinte. Le monocle se tourne vers vous.)", "« AH ! On NE TOUCHE PAS ! Cent cinquante millions d'années, et vous mettez vos doigts ! »"], roll, done: false };
+        }
+        this.events.push({ type: "feat", npc: "osselet", id: "osselet_toucher" });
+        g.gold = (g.gold ?? 0) + 25;
+        return { lines: ["(Vous effleurez la collerette. Elle est froide et rugueuse. Personne n'a rien vu.)", "« … Vous avez touché, n'est-ce pas ? Je le sens. Tenez, et ne le dites à personne. » (Il laisse tomber quelques pièces.)"], roll, done: false };
+      }
       case "corne":
         if (this.giveTask("osselet_corne")) return { lines: ["« Le culte l'a cachée dans une salle de l'étage. Elle brille sur votre carte, maintenant. Ne me demandez pas comment. »"], done: true };
         return { lines: [], done: false };
@@ -9227,6 +9241,7 @@ export class Game {
         g.drumDone = true;
         if (!roll.success) return { lines: ["(L'écriteau est en vieux latin d'os. Vous reconnaissez le mot « tricératops ».)"], roll, done: false };
         this.revealFloorPlan();
+        this.events.push({ type: "feat", npc: "osselet", id: "osselet_ecriteau" });
         return { lines: ["(« Plan du musée et de ses galeries ». Vous le mémorisez.)", "« Un visiteur qui lit ! Je vais pleurer. Je n'ai plus de larmes, mais l'intention y est. »"], roll, done: false };
       }
       default:
@@ -9236,6 +9251,13 @@ export class Game {
 
   // ---------- Section 3 (2026-11-19) : Sœur Clavicule, dans la chapelle des os ----------
 
+  /** Le PNJ se tient-il dans sa salle (musée, chapelle) ? Sinon il parle autrement (Thomas, 2026-11-20). */
+  private npcInTheme(g: GluckSpot, theme: string): boolean {
+    const t = (this.current.themes ?? []).find((o) => o.id === theme);
+    const r = t ? this.rooms[t.room] : undefined;
+    return !!r && g.x >= r.x && g.y >= r.y && g.x < r.x + r.w && g.y < r.y + r.h;
+  }
+
   claviculeScene(): { lines: string[]; choices: GluckChoice[] } {
     const g = this.npc("clavicule");
     if (!g) return { lines: [], choices: [] };
@@ -9243,13 +9265,16 @@ export class Game {
     g.opened = true;
     const busy = this.quest ? "Une autre tâche en cours" : undefined;
     const sister = this.soeurMemory.met > 0;
+    const home = this.npcInTheme(g, "chapelle");
     return {
-      lines: CLAVICULE.opening,
+      lines: home ? CLAVICULE.opening : CLAVICULE.away,
       choices: [
         { id: "cranes", label: "« Je leur brise le crâne »", off: busy ?? (this.monsters.some(isSkeleton) ? undefined : "Aucun squelette sur l'étage") },
         { id: "cierges", label: "« Vos cierges ? »", off: busy },
         { id: "soeur", label: "« J'ai rencontré votre sœur »", off: !sister ? "Vous ne connaissez pas sa sœur" : this.inventory.count("chapelet_argent") > 0 || g.drumDone ? "Déjà donné" : undefined },
-        { id: "leave", label: "La laisser prier" },
+        // Un jet de Charisme (Thomas, 2026-11-20) : sa bénédiction, une seule demande.
+        { id: "benir", label: "« Bénissez-moi, ma sœur »", stat: "charisme", dc: "medium", off: g.haggled ? "Déjà demandé" : undefined },
+        { id: "leave", label: home ? "La laisser prier" : "La laisser chercher" },
       ],
     };
   }
@@ -9269,7 +9294,17 @@ export class Game {
       case "cierges":
         if (this.placeCierges(g) && this.giveTask("clavicule_cierges")) return { lines: ["« Le culte a soufflé mes trois cierges d'argent et les a dispersés. Une torche suffit. »", "(Les salles où ils sont brillent sur la carte.)"], done: true };
         return { lines: ["« Plus tard, peut-être. »"], done: false };
+      case "benir": {
+        const roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!]);
+        g.haggled = true;
+        if (!roll.success) return { lines: ["« Bénir un pillard de tombes ? Revenez quand vous aurez les mains propres. »"], roll, done: false };
+        this.blessTurns = Math.max(this.blessTurns, RULES.claviculeBlessTurns);
+        this.refreshStats();
+        this.events.push({ type: "feat", npc: "clavicule", id: "clavicule_benir" });
+        return { lines: ["(Elle trace une croix d'argent sur votre front. Une chaleur douce.)", "« Que la vraie lumière guide votre main. » (Béni : +1 à l'attaque et à la classe d'armure.)"], roll, done: false };
+      }
       case "soeur":
+        this.events.push({ type: "feat", npc: "clavicule", id: "clavicule_soeur" });
         g.drumDone = true;
         (g.items ??= []).push({ item: "chapelet_argent", count: 1 });
         return { lines: ["« Osseuse ? Elle est vivante ? Enfin… vous voyez ce que je veux dire. »", "« Prenez mon chapelet. Les morts n'aiment pas l'argent. » (Elle le pose à vos pieds.)"], done: false };

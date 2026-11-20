@@ -216,7 +216,7 @@ export type GameEvent =
   /** Le squelette à butin, fouillé : l'or, et parfois un objet. */
   | { type: "skeleton"; x: number; y: number; gold: number; item?: ItemId }
   /** Une mission réussie hors tâche (succès de quête) : Plumeau libéré par la force, registre lu ; pomme dorée volée. */
-  | { type: "feat"; npc: "plumeau" | "vernis"; id: string }
+  | { type: "feat"; npc: "plumeau" | "vernis" | "clavicule" | "osselet"; id: string }
   /** Artefacts qui s'utilisent : faux mur peint (puis effacé), diapason qui vibre. */
   | { type: "artifact"; what: "paint" | "unpaint" | "fork"; x?: number; y?: number; traps?: number; secret?: boolean }
   /** Rang II des voies (2026-11-17) : riposte, tourbillon (ennemis touchés), charge, cri de guerre (ennemis touchés, fuyards). */

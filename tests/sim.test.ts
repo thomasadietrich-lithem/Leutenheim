@@ -7013,3 +7013,43 @@ test("Sœur Clavicule (section 3) : ses trois choix donnent leur tâche ou leur 
   }
   assert.fail("aucune Sœur Clavicule sur 60 parties");
 });
+
+test("Osselet et Clavicule (2026-11-20) : jets de compétence, texte hors de leur salle, succès de la section 3", () => {
+  const game = new Game(1);
+  game.testRun = true;
+  game.testSection3();
+  const k = game.npc("osselet")!;
+  assert.ok(k, "Maître Osselet dans l'aperçu");
+  const g = game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] };
+  const next = (p: { x: number; y: number }) => [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: p.x + dx, y: p.y + dy })).find((c) => game.map.isWalkable(c.x, c.y) && !game.npcAt(c.x, c.y) && !game.furnitureAt(c.x, c.y))!;
+  const spot = next(k);
+  game.hero.x = game.hero.fromX = spot.x;
+  game.hero.y = game.hero.fromY = spot.y;
+  game.monsters.splice(0);
+  const inMuseum = game.npcScene("osselet");
+  assert.ok(inMuseum.choices.some((c) => c.id === "toucher" && c.stat === "agilite"), "un jet d'Agilité");
+  assert.ok(inMuseum.lines.some((l) => l.includes("Bienvenue au musée")));
+  // Hors du musée : il parle autrement, et l'écriteau n'est pas là.
+  const away = g.rooms.findIndex((r, i) => i > 0 && r.w >= 3 && !(k.x >= r.x && k.y >= r.y && k.x < r.x + r.w && k.y < r.y + r.h));
+  const r = g.rooms[away];
+  const cell = { x: r.x + 1, y: r.y + 1 };
+  k.x = cell.x;
+  k.y = cell.y;
+  const out = game.npcScene("osselet");
+  assert.ok(out.lines.some((l) => l.includes("fait sa ronde")), out.lines.join(" "));
+  assert.ok(out.choices.find((c) => c.id === "ecriteau")?.off, "l'écriteau est au musée");
+  // Clavicule : la bénédiction (Charisme).
+  const c = game.npc("clavicule")!;
+  const s2 = next(c);
+  game.hero.x = game.hero.fromX = s2.x;
+  game.hero.y = game.hero.fromY = s2.y;
+  game.alloc.charisme = 40;
+  // Un 1 naturel rate toujours : on redemande au besoin.
+  let res = game.npcChoose("clavicule", "benir");
+  for (let i = 0; i < 5 && !res.roll?.success; i++) {
+    c.haggled = false;
+    res = game.npcChoose("clavicule", "benir");
+  }
+  assert.ok(res.roll?.success && game.blessTurns > 0, "bénie");
+  assert.ok(game.events.some((e) => e.type === "feat" && e.npc === "clavicule"), "compte pour son succès");
+});

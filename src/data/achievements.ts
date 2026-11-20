@@ -33,7 +33,7 @@ export interface AchievementDef {
   /** « count » : un total qui monte ; « best » : le meilleur résultat d'une partie ; « low » : le plus petit (tours). */
   kind: "count" | "best" | "low";
   /** Un succès de quête : le PNJ (les missions différentes réussies comptent). */
-  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau";
+  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet";
   /** Un succès de classe : seule cette classe le fait avancer. */
   cls?: "guerrier" | "assassin" | "magicien";
 }
@@ -49,6 +49,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // Les boss, à part (Thomas, 2026-11-16 : « isole les kills de boss dans une section »).
   { id: "tisseuse", name: "Tisseuse", group: "boss", what: "Vaincre la Tisseuse.", tiers: [1, 5, 20], kind: "count" },
   { id: "carillon", name: "Carillon", group: "boss", what: "Vaincre le Carillon.", tiers: [1, 5, 20], kind: "count" },
+  // Section 3 (Thomas, 2026-11-20 : « tu as mis à jour les succès ? »).
+  { id: "pretresse", name: "Grande Prêtresse", group: "boss", what: "Vaincre la Grande Prêtresse et son Colosse.", tiers: [1, 5, 20], kind: "count" },
   { id: "course", name: "Course", group: "boss", what: "Atteindre la Tisseuse en peu de tours (une partie).", tiers: [1500, 1000, 600], kind: "low" },
   { id: "bousculeur", name: "Bousculeur", group: "combat", what: "Réussir des poussées.", tiers: [5, 25, 100], kind: "count" },
   { id: "fuyard", name: "Fuyard", group: "combat", what: "Se dégager d'un ennemi au contact (jet réussi).", tiers: [5, 20, 50], kind: "count" },
@@ -63,6 +65,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // 2026-11-18 (Thomas : « pense aux succès associés ») : Vernis, Plumeau, le Maestro, et le chapardage.
   { id: "vernis", name: "Vernis", group: "quetes", what: "Réussir les missions de Vernis : retrouver le Grand Poulet d'Or, poser sur le socle, voler une pomme dorée.", tiers: [1, 2, 3], kind: "count", npc: "vernis" },
   { id: "plumeau", name: "Plumeau", group: "quetes", what: "Aider Plumeau : la clef du geôlier, briser sa chaîne, lui lire le registre.", tiers: [1, 2, 3], kind: "count", npc: "plumeau" },
+  { id: "clavicule", name: "Sœur Clavicule", group: "quetes", what: "Aider Sœur Clavicule : briser des crânes, rallumer ses cierges, lui parler de sa sœur, obtenir sa bénédiction.", tiers: [1, 2, 4], kind: "count", npc: "clavicule" },
+  { id: "osselet", name: "Maître Osselet", group: "quetes", what: "Aider Maître Osselet : retrouver la corne, lire l'écriteau, toucher le tricératops sans se faire gronder.", tiers: [1, 2, 3], kind: "count", npc: "osselet" },
   { id: "maestro", name: "Mélomane", group: "quetes", what: "Rendre sa partition au Maestro, puis faire chanter le diapason.", tiers: [1, 5, 15], kind: "count" },
   { id: "chapardeur", name: "Chapardeur", group: "quetes", what: "Voler sans être pris : pommes dorées de l'exposition, canard du bain.", tiers: [1, 5, 15], kind: "count" },
   { id: "fifrelin", name: "Fifrelin", group: "quetes", what: "Gagner au tripot de Fifrelin : sur le champion, sur le petit, en trichant, en duel.", tiers: [1, 2, 4], kind: "count", npc: "fifrelin" },
@@ -82,6 +86,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "secondSouffle", name: "Second souffle", group: "classe", cls: "guerrier", what: "Se soigner avec le Second souffle (Guerrier).", tiers: [20, 100, 400], kind: "count" },
   { id: "tank", name: "Tank", group: "classe", cls: "guerrier", what: "Encaisser des dégâts (Guerrier).", tiers: [200, 1000, 5000], kind: "count" },
   { id: "charge", name: "Charge", group: "classe", cls: "guerrier", what: "Mettre des ennemis à terre d'une poussée (Guerrier).", tiers: [5, 25, 100], kind: "count" },
+  // Rang III (2026-11-20) ; seuils (C).
+  { id: "executeur", name: "Exécuteur", group: "classe", cls: "guerrier", what: "Achever des ennemis par l'Exécution (Guerrier).", tiers: [5, 25, 100], kind: "count" },
+  { id: "bastion", name: "Bastion", group: "classe", cls: "guerrier", what: "Repousser des ennemis pendant le Bastion (Guerrier).", tiers: [5, 25, 100], kind: "count" },
 ];
 
 /** Le succès des succès (Thomas, 2026-11-16) : des médailles de la page ; l'or, c'est la page entière. */

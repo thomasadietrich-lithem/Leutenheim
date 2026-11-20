@@ -10,6 +10,28 @@ const PAL: Record<string, string> = {
 type Rect = (x: number, y: number, w: number, h: number, c: string) => void;
 
 const ICONS: Record<string, (r: Rect) => void> = {
+  pretresse(r) {
+    // La mitre de craie et le masque d'os, l'orbe pâle.
+    r(5, 0, 6, 2, "W"); r(4, 2, 8, 3, "W"); r(7, 1, 2, 4, "w"); r(4, 5, 8, 5, "w"); r(5, 6, 2, 2, "K"); r(9, 6, 2, 2, "K"); r(7, 8, 2, 1, "K");
+    r(3, 10, 10, 5, "P"); r(5, 11, 6, 3, "p"); r(12, 3, 3, 3, "S"); r(13, 6, 1, 9, "B");
+  },
+  clavicule(r) {
+    // Le cierge d'argent et son voile blanc.
+    r(6, 4, 4, 10, "S"); r(6, 4, 1, 10, "W"); r(5, 14, 6, 1, "s"); r(7, 1, 2, 3, "Y"); r(7, 0, 1, 1, "O"); r(2, 2, 3, 9, "W"); r(11, 2, 3, 9, "W");
+  },
+  osselet(r) {
+    // La corne du tricératops et le monocle.
+    for (let i = 0; i < 8; i++) r(2 + i, 12 - i, 3, 2, i < 6 ? "W" : "w");
+    r(9, 9, 5, 5, "Y"); r(10, 10, 3, 3, "K"); r(11, 11, 1, 1, "S"); r(13, 14, 1, 2, "y");
+  },
+  executeur(r) {
+    // La hache et une goutte rouge.
+    r(3, 2, 6, 6, "S"); r(3, 2, 1, 6, "W"); r(9, 1, 2, 13, "B"); r(5, 9, 2, 2, "R"); r(5, 11, 2, 2, "r");
+  },
+  bastion(r) {
+    // La tour crénelée.
+    r(2, 3, 12, 11, "S"); r(2, 1, 3, 2, "S"); r(7, 1, 2, 2, "S"); r(11, 1, 3, 2, "S"); r(6, 8, 4, 6, "K"); r(2, 3, 1, 11, "W"); r(4, 5, 2, 1, "s"); r(10, 5, 2, 1, "s");
+  },
   carillon(r) {
     // Le coprin-cloche, chapeau pâle strié, le battant dessous.
     r(3, 2, 10, 2, "W"); r(2, 4, 12, 4, "W"); r(1, 8, 14, 2, "w"); r(4, 4, 1, 4, "w"); r(8, 4, 1, 4, "w"); r(11, 4, 1, 4, "w");

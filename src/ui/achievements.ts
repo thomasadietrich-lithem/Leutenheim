@@ -198,6 +198,9 @@ export function onEvents(events: readonly GameEvent[], game: Game): Unlock[] {
     else if (e.type === "skill" && warrior && e.path === "blue" && e.healed > 0) add("secondSouffle", e.healed);
     else if (e.type === "attack" && warrior && e.target.kind === "hero" && e.result.hit && e.result.damage > 0) add("tank", e.result.damage);
     else if (e.type === "boss" && e.what === "dead" && game.bossLayout()?.kind === "carillon") add("carillon", 1);
+    else if (e.type === "boss" && e.what === "dead" && game.bossLayout()?.kind === "pretresse") add("pretresse", 1);
+    else if (e.type === "power" && warrior && e.power === "execution") add("executeur", 1);
+    else if (e.type === "heavyBlow" && warrior && e.kind === "knockback" && game.bastionActive()) add("bastion", 1);
     else if (e.type === "boss" && e.what === "dead") {
       const before = profile.tiers[key(page, "tisseuse")] ?? -1;
       add("tisseuse", 1);

@@ -2640,12 +2640,17 @@ test("Rang II : encaisseur, riposte, garde (bleue) ; cri de guerre et tourbillon
   const { game, m } = foeAt(1);
   game.voie = "blue";
   game.ranks = { second_souffle: 1, encaisseur: 2, riposte: 1, garde: 1 };
-  assert.equal((game as unknown as { absorb(d: number): number }).absorb(5), 4, "rang 2 : -1");
-  assert.equal((game as unknown as { absorb(d: number): number }).absorb(2), 1, "rang 2 : même les petits coups");
-  assert.equal((game as unknown as { absorb(d: number): number }).absorb(1), 1, "au moins 1");
+  const soak = (d: number, fresh = true) => {
+    if (fresh) (game as unknown as { absorbedOn: number }).absorbedOn = -9;
+    return (game as unknown as { absorb(d: number): number }).absorb(d);
+  };
+  assert.equal(soak(5), 4, "rang 2 : -1");
+  assert.equal(soak(5, false), 5, "un seul coup amorti par tour");
+  assert.equal(soak(2), 1, "rang 2 : même les petits coups");
+  assert.equal(soak(1), 1, "au moins 1");
   game.ranks = { second_souffle: 1, encaisseur: 1, riposte: 1, garde: 1 };
-  assert.equal((game as unknown as { absorb(d: number): number }).absorb(5), 4, "rang 1 : -1 sur un gros coup");
-  assert.equal((game as unknown as { absorb(d: number): number }).absorb(2), 2, "rang 1 : rien sur un petit coup");
+  assert.equal(soak(5), 4, "rang 1 : -1 sur un gros coup");
+  assert.equal(soak(2), 2, "rang 1 : rien sur un petit coup");
   assert.equal(game.guardBonus(), 0, "un seul ennemi");
   m.alerted = true;
   // Riposte : une seule par tour.

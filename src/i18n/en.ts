@@ -2511,4 +2511,12 @@ export const EN: Record<string, string> = {
   "Un coup mortel vous laisse à 1 PV (1 fois par partie)": "A killing blow leaves you at 1 HP (once per run)",
   "+1 à la classe d'armure, au-dessus de la moitié de vos PV": "+1 armor class while above half your HP",
   "+2 à la classe d'armure, au-dessus de la moitié de vos PV": "+2 armor class while above half your HP",
+  "+3 PV, une fois par étage": "+3 HP, once per floor",
+  "+9 PV, une fois par étage": "+9 HP, once per floor",
+  "+11 PV, une fois par étage": "+11 HP, once per floor",
+  "Une fois par étage, en un tour : +3 PV. Se renforce.": "Once per floor, in one turn: +3 HP. Grows stronger.",
+  "Un ennemi au contact vous rate : vous ripostez, avec le désavantage (une fois tous les trois tours)": "An enemy next to you misses: you strike back, with disadvantage (once every three turns)",
+  "La riposte frappe normalement": "The riposte strikes normally",
+  "-1 dégât sur le premier coup de 3 dégâts ou plus, chaque tour": "-1 damage on the first hit of 3 damage or more, each turn",
+  "-1 dégât sur le premier coup reçu, chaque tour (au moins 1)": "-1 damage on the first hit taken, each turn (at least 1)",
 };

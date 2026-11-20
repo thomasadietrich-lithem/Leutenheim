@@ -258,6 +258,10 @@ export class Game {
   private strikeBonus = { hit: 0, damage: 0 };
   /** Tour de la dernière riposte (une par tour). */
   private ripostedOn = -9;
+  /** Le coup en cours part avec le désavantage (riposte au rang 1). */
+  private clumsyStrike = false;
+  /** Tour du dernier coup amorti par Encaisseur (un seul par tour). */
+  private absorbedOn = -9;
   /** Bastion (voie bleue, Rang III) : actif jusqu'à ce tour compris. */
   bastionUntil = -1;
   /** Frénésie (voie rouge, Rang III) : coups qui portent d'affilée, et le tour du dernier. */
@@ -4293,9 +4297,12 @@ export class Game {
     if (damage > 0 && this.bastionActive()) damage = Math.ceil(damage / 2);
     // Affaibli (Thomas, 2026-11-18 : la voie bleue battait le Carillon deux fois plus souvent que la rouge) : -1 aux
     // deux rangs ; au rang 1 seulement sur les coups de 3 dégâts ou plus, au rang 2 sur tous (jamais moins de 1).
+    // Un seul coup amorti par tour (Thomas, 2026-11-20) : contre un groupe, les coups suivants passent entiers.
     const r = this.rank("encaisseur");
-    if (r === 0 || damage <= 0) return damage;
-    return r === 1 ? (damage >= 3 ? damage - 1 : damage) : Math.max(1, damage - 1);
+    if (r === 0 || damage <= 0 || this.absorbedOn === this.turn) return damage;
+    const less = r === 1 ? (damage >= 3 ? damage - 1 : damage) : Math.max(1, damage - 1);
+    if (less < damage) this.absorbedOn = this.turn;
+    return less;
   }
 
   /** Riposte (voie bleue, Rang II) : un ennemi au contact rate le héros, il frappe aussitôt (une fois par tour). */
@@ -4305,9 +4312,11 @@ export class Game {
     if (r === 0 || this.over || this.turn - this.ripostedOn < 3 || !this.monsters.includes(m) || !this.inReach(this.hero, m)) return;
     this.ripostedOn = this.turn;
     this.events.push({ type: "power", power: "riposte" });
-    this.strikeBonus = r >= 2 ? { hit: 2, damage: 2 } : { hit: 0, damage: 0 };
+    // Affaiblie (Thomas, 2026-11-20) : au rang 1 elle frappe avec le désavantage, au rang 2 normalement (avant : coup
+    // normal, puis +2 pour toucher et +2 dégâts).
+    this.clumsyStrike = r < 2;
     this.heroAttacks(m, true);
-    this.strikeBonus = { hit: 0, damage: 0 };
+    this.clumsyStrike = false;
   }
 
   /** Pouvoirs du Rang II qui s'utilisent (voie rouge) : combien il en reste sur l'étage. */
@@ -10514,7 +10523,9 @@ export class Game {
     // Un coup de serviette dans la figure (le Kobold du bain) : le coup suivant a le désavantage.
     const blinded = this.towelBlind > 0;
     this.towelBlind = 0;
-    const mode = advantaged && !blinded ? "advantage" : blinded && !advantaged ? "disadvantage" : "normal";
+    // Riposte au rang 1 : le coup part de travers, avec le désavantage (il annule un avantage).
+    const hampered = blinded || this.clumsyStrike;
+    const mode = advantaged && !hampered ? "advantage" : hampered && !advantaged ? "disadvantage" : "normal";
     let result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
     // Têtu : le premier coup raté de l'étage est relancé.
     if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());

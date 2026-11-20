@@ -69,8 +69,8 @@ export const PATHS: Record<PathId, PathDef> = {
     id: "blue",
     name: "Second souffle",
     color: "#4a8fd0",
-    description: "Une fois par étage, en un tour : +4 PV. Se renforce.",
-    main: { id: "second_souffle", name: "Second souffle", ranks: ["+4 PV, une fois par étage", "+7 PV, une fois par étage", "+10 PV, une fois par étage", "+13 PV, une fois par étage", "+16 PV, une fois par étage", "+19 PV, une fois par étage"] },
+    description: "Une fois par étage, en un tour : +3 PV. Se renforce.",
+    main: { id: "second_souffle", name: "Second souffle", ranks: ["+3 PV, une fois par étage", "+5 PV, une fois par étage", "+7 PV, une fois par étage", "+9 PV, une fois par étage", "+11 PV, une fois par étage", "+13 PV, une fois par étage"] },
     secondaries: [
       { id: "peau_dure", name: "Peau dure", ranks: ["+1 à la classe d'armure, au-dessus de la moitié de vos PV", "+2 à la classe d'armure, au-dessus de la moitié de vos PV"] },
       // Thomas (2026-11-13) : remplace Récupération (« deux sources de soin direct, c'est trop »).
@@ -78,9 +78,9 @@ export const PATHS: Record<PathId, PathDef> = {
       { id: "dernier_rempart", name: "Dernier rempart", ranks: ["Un coup mortel vous laisse à 1 PV (1 fois par partie)", "Un coup mortel vous laisse à 5 PV (1 fois par section)"] },
     ],
     tier2: [
-      { id: "riposte", name: "Riposte", ranks: ["Un ennemi au contact vous rate : vous frappez aussitôt (une fois tous les trois tours)", "Riposte à +2 pour toucher et +2 dégâts"] },
+      { id: "riposte", name: "Riposte", ranks: ["Un ennemi au contact vous rate : vous ripostez, avec le désavantage (une fois tous les trois tours)", "La riposte frappe normalement"] },
       { id: "garde", name: "Garde", ranks: ["+2 à la classe d'armure quand deux ennemis ou plus vous touchent", "+3 à la classe d'armure quand deux ennemis ou plus vous touchent"] },
-      { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât sur les coups de 3 dégâts ou plus", "-1 dégât à chaque coup reçu (au moins 1)"] },
+      { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât sur le premier coup de 3 dégâts ou plus, chaque tour", "-1 dégât sur le premier coup reçu, chaque tour (au moins 1)"] },
     ],
     tier3: [
       { id: "bastion", name: "Bastion", ranks: ["Une fois par étage, 3 tours : dégâts reçus divisés par deux, et qui vous touche au contact recule d'une case", "Dure 4 tours"] },

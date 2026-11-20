@@ -48,6 +48,8 @@ export interface ExpertOptions {
   /** APERÇU : la partie continue après le Carillon jusqu'à la section 3 (étages 11 à 15, la Grande Prêtresse), comme la
    *  « partie d'essai » du jeu. Sans cela, la démo s'arrête à l'étage 10. */
   preview?: boolean;
+  /** Pour mesurer un atout de race : remplace certains de ses réglages (ex. `{ "agilite": 0 }`). */
+  raceTweak?: Record<string, unknown>;
   /** La race du héros (Humain par défaut). */
   race?: keyof typeof RACES;
   voie?: "blue" | "red";
@@ -365,7 +367,7 @@ function talkX(game: Game, id: NpcId): void {
 // ---------- La partie ----------
 
 export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions = {}): ExpertStats {
-  const game = new Game(seed, RACES[opts.race ?? "humain"]);
+  const game = new Game(seed, opts.raceTweak ? ({ ...RACES[opts.race ?? "humain"], ...opts.raceTweak } as (typeof RACES)["humain"]) : RACES[opts.race ?? "humain"]);
   if (opts.preview) game.testRun = true;
   const rnd = lcg(seed * 7919 + 6);
   const off = opts.off ?? {};

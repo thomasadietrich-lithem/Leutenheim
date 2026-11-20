@@ -161,6 +161,8 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
   const talked = new Set<string>();
   let idle = 0;
   let lastKey = "";
+  const pickTries = new Map<string, number>();
+  const leftBehind = new Set<string>();
   while (!game.over && game.turn < maxTurns) {
     if (game.pendingStairs === "down" && game.takeStairs()) continue;
     // Points de caractéristique et voie.
@@ -245,11 +247,19 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
       }
     }
     // Ramasser.
-    if (!acted && game.itemsHere().length > 0 && (level !== "debutant" || rnd() < 0.5)) acted = game.pickUp();
+    // Correctif (2026-11-20) : sac plein, l'objet ne se ramasse pas et le bot restait planté dessus pour toujours
+    // (surtout le bot maîtrise, qui ramasse tout). Après trois essais ratés sur une case, il la laisse.
+    const hereKey = `${game.depth}:${game.hero.x},${game.hero.y}`;
+    if (!acted && game.itemsHere().length > 0 && !leftBehind.has(hereKey) && (level !== "debutant" || rnd() < 0.5)) {
+      const n = (pickTries.get(hereKey) ?? 0) + 1;
+      pickTries.set(hereKey, n);
+      if (n > 3 + game.itemsHere().length) leftBehind.add(hereKey);
+      else acted = game.pickUp();
+    }
     if (!acted && level !== "debutant") {
       const range = level === "maitrise" ? 99 : 6;
       // Correctif (2026-11-20) : l'Elfe ne ramasse plus les flèches simples ; le bot allait s'y planter sans fin.
-      const items = game.ground.filter((g) => game.isVisible(g.x, g.y) && gap(g, game.hero) <= range && game.map.get(g.x, g.y) !== Tile.StairsDown && !(g.item === "fleche" && game.endlessAmmo("fleche")));
+      const items = game.ground.filter((g) => game.isVisible(g.x, g.y) && gap(g, game.hero) <= range && game.map.get(g.x, g.y) !== Tile.StairsDown && !(g.item === "fleche" && game.endlessAmmo("fleche")) && !leftBehind.has(`${game.depth}:${g.x},${g.y}`));
       if (items.length > 0) {
         const it = items.reduce((a, b) => (gap(b, game.hero) < gap(a, game.hero) ? b : a));
         acted = game.setDestination(it.x, it.y);

@@ -1,0 +1,1033 @@
+{
+ "date": "2026-11-20T10:06:19.864Z",
+ "commit": "2375af7",
+ "runs": 150,
+ "race": "elfe",
+ "note": "après correctifs des bots (flèches de l'Elfe, escalier après un boss, tirs sans fin) : l'historique des trois anciens bots repart d'ici",
+ "levels": {
+  "debutant": {
+   "floor": 2.1,
+   "deathFloor1": 33,
+   "reach": {
+    "2": 67,
+    "3": 32,
+    "4": 6,
+    "5": 2
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.1,
+   "turns": 101.2,
+   "gold": 3.5,
+   "kills": 3.5,
+   "questsStarted": 0.4,
+   "questsDone": 0,
+   "questsFailed": 0.3,
+   "causes": {
+    "un Kobold": 115,
+    "un Kobold frondeur": 20,
+    "une Araignée": 11,
+    "la Tisseuse": 3,
+    "un piège à pointes": 1
+   },
+   "blocked": 0,
+   "blockedRuns": []
+  },
+  "moyen": {
+   "floor": 2.1,
+   "deathFloor1": 40,
+   "reach": {
+    "2": 60,
+    "3": 33,
+    "4": 11,
+    "5": 5
+   },
+   "boss": 0,
+   "dead": 98,
+   "heroLevel": 1.7,
+   "turns": 221,
+   "gold": 18.2,
+   "kills": 7.5,
+   "questsStarted": 0.4,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 96,
+    "un Kobold frondeur": 22,
+    "la Tisseuse": 8,
+    "une Araignée": 21
+   },
+   "blocked": 2,
+   "blockedRuns": [
+    {
+     "seed": 5151,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 385,
+     "hp": "7/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5959,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 346,
+     "hp": "6/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8585,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 399,
+     "hp": "9/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "maitrise": {
+   "floor": 3.6,
+   "deathFloor1": 2,
+   "reach": {
+    "2": 92,
+    "3": 78,
+    "4": 55,
+    "5": 27
+   },
+   "boss": 9,
+   "dead": 38,
+   "heroLevel": 3.9,
+   "turns": 849.7,
+   "gold": 53.2,
+   "kills": 33.1,
+   "questsStarted": 1.1,
+   "questsDone": 0.6,
+   "questsFailed": 0.4,
+   "causes": {
+    "un Kobold frondeur": 7,
+    "un Kobold": 13,
+    "la Tisseuse": 20,
+    "le poison": 5,
+    "une Araignée": 9,
+    "un Kobold envahi": 1,
+    "un Sporelin": 2
+   },
+   "blocked": 62,
+   "blockedRuns": [
+    {
+     "seed": 101,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 374,
+     "hp": "10/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 202,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 536,
+     "hp": "11/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 404,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 591,
+     "hp": "8/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 505,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 1922,
+     "hp": "9/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 606,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 1387,
+     "hp": "10/18",
+     "cause": "monstre en vue qu'il n'attaque pas",
+     "detail": "Kobold frondeur (6 cases, 6 PV)"
+    },
+    {
+     "seed": 808,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 822,
+     "hp": "10/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 909,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 617,
+     "hp": "14/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 1010,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 932,
+     "hp": "14/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 1212,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 155,
+     "hp": "10/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 1515,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 803,
+     "hp": "16/18",
+     "cause": "combat qui n'avance pas",
+     "detail": "Araignée (1 cases, 5 PV)"
+    },
+    {
+     "seed": 1717,
+     "end": "bloqué",
+     "floor": 7,
+     "turn": 1699,
+     "hp": "13/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 1818,
+     "end": "bloqué",
+     "floor": 7,
+     "turn": 2045,
+     "hp": "11/22",
+     "cause": "monstre en vue qu'il n'attaque pas",
+     "detail": "Kobold envahi (7 cases, 6 PV)"
+    },
+    {
+     "seed": 2020,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 1113,
+     "hp": "15/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 2323,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 1318,
+     "hp": "11/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 2424,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 825,
+     "hp": "16/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 2626,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 572,
+     "hp": "8/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 2727,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 693,
+     "hp": "13/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 47,
+     "hp": "10/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3030,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 905,
+     "hp": "15/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3232,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 771,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3333,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 586,
+     "hp": "8/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3535,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 686,
+     "hp": "7/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3636,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 767,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3838,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 1318,
+     "hp": "15/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 3939,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 521,
+     "hp": "11/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4040,
+     "end": "bloqué",
+     "floor": 7,
+     "turn": 1003,
+     "hp": "13/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4141,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 682,
+     "hp": "10/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4242,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 349,
+     "hp": "10/10",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 4343,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 668,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4646,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 609,
+     "hp": "11/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4747,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 697,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5050,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 1205,
+     "hp": "10/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5252,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 487,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5353,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 673,
+     "hp": "14/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5656,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 820,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5858,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 664,
+     "hp": "16/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 6161,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 1236,
+     "hp": "10/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 6464,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 528,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 6666,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 918,
+     "hp": "10/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 6767,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 629,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 6969,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 635,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 7070,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 694,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 7171,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 929,
+     "hp": "11/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 7272,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 609,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 7373,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 729,
+     "hp": "9/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 7474,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 769,
+     "hp": "11/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 7676,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 755,
+     "hp": "15/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 7878,
+     "end": "bloqué",
+     "floor": 5,
+     "turn": 874,
+     "hp": "16/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 7979,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 513,
+     "hp": "11/14",
+     "cause": "monstre en vue qu'il n'attaque pas",
+     "detail": "Kobold (6 cases, 2 PV)"
+    },
+    {
+     "seed": 8080,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 296,
+     "hp": "8/10",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 8282,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 450,
+     "hp": "7/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8585,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 389,
+     "hp": "10/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8686,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 815,
+     "hp": "13/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8787,
+     "end": "bloqué",
+     "floor": 5,
+     "turn": 1095,
+     "hp": "15/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8888,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 837,
+     "hp": "15/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8989,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 804,
+     "hp": "14/14",
+     "cause": "combat qui n'avance pas",
+     "detail": "Kobold frondeur (2 cases, 1 PV)"
+    },
+    {
+     "seed": 9090,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 799,
+     "hp": "13/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9191,
+     "end": "bloqué",
+     "floor": 7,
+     "turn": 1028,
+     "hp": "13/18",
+     "cause": "monstre en vue qu'il n'attaque pas",
+     "detail": "Sporelin (6 cases, 8 PV)"
+    },
+    {
+     "seed": 9393,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 848,
+     "hp": "14/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9494,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 784,
+     "hp": "18/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9595,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 683,
+     "hp": "13/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9696,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 624,
+     "hp": "13/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9898,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 459,
+     "hp": "13/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9999,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 413,
+     "hp": "14/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 10100,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 692,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10302,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 525,
+     "hp": "12/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10403,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 786,
+     "hp": "8/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 10807,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 564,
+     "hp": "13/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 11009,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 402,
+     "hp": "10/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 11211,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 504,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 11413,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 260,
+     "hp": "10/10",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 11514,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 780,
+     "hp": "9/14",
+     "cause": "combat qui n'avance pas",
+     "detail": "Araignée (1 cases, 9 PV)"
+    },
+    {
+     "seed": 11716,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 697,
+     "hp": "7/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 11817,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 801,
+     "hp": "13/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 12019,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 1224,
+     "hp": "14/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 12221,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 589,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 12322,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 1043,
+     "hp": "11/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 12524,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 843,
+     "hp": "8/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 12726,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 677,
+     "hp": "10/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 12827,
+     "end": "bloqué",
+     "floor": 5,
+     "turn": 3635,
+     "hp": "3/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13433,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 559,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13635,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 315,
+     "hp": "10/10",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 344,
+     "hp": "7/10",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13938,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 820,
+     "hp": "8/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14039,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 810,
+     "hp": "11/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14140,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 708,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14241,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 983,
+     "hp": "12/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14342,
+     "end": "bloqué",
+     "floor": 5,
+     "turn": 793,
+     "hp": "11/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14443,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 832,
+     "hp": "14/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14544,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 554,
+     "hp": "12/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 14847,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 850,
+     "hp": "11/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 15049,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 959,
+     "hp": "13/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 15150,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 951,
+     "hp": "13/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "expert": {
+   "floor": 7.8,
+   "deathFloor1": 10,
+   "reach": {
+    "2": 89,
+    "3": 88,
+    "4": 85,
+    "5": 83,
+    "6": 74,
+    "7": 72,
+    "8": 68,
+    "9": 63,
+    "10": 57
+   },
+   "boss": 74,
+   "dead": 46,
+   "heroLevel": 7.9,
+   "turns": 2289,
+   "gold": 336.3,
+   "kills": 103.2,
+   "questsStarted": 1.6,
+   "questsDone": 1.2,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold": 17,
+    "un Myconide": 14,
+    "un Kobold envahi": 6,
+    "une Araignée": 19,
+    "un Fidèle du Carillon": 2,
+    "un Sporelin": 1,
+    "le poison": 4,
+    "un Kobold frondeur": 1,
+    "la Tisseuse": 1,
+    "le crachat du Carillon": 1,
+    "l'onde du Carillon": 3
+   },
+   "blocked": 1,
+   "blockedRuns": [
+    {
+     "seed": 3131,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 693,
+     "hp": "11/14",
+     "cause": "combat qui n'avance pas",
+     "detail": "Kobold (3 cases, 7 PV), Kobold (3 cases, 3 PV)",
+     "last": "combat"
+    }
+   ],
+   "boss2": 55,
+   "stuck": 1,
+   "armorClass": 17.7,
+   "searches": 45.5,
+   "chests": 7.4,
+   "doors": 8.9,
+   "bought": 4.5,
+   "sold": 5.6,
+   "potions": 6.8,
+   "pushes": 10.8,
+   "shots": 208,
+   "deathFloors": {
+    "1": 10,
+    "2": 1,
+    "3": 3,
+    "4": 1,
+    "5": 9,
+    "6": 2,
+    "7": 4,
+    "8": 5,
+    "9": 6,
+    "10": 4
+   }
+  }
+ }
+}

@@ -1,0 +1,322 @@
+{
+ "date": "2026-11-20T10:16:47.008Z",
+ "commit": "e7c2329",
+ "runs": 150,
+ "race": "halfelin",
+ "note": "après correctifs des bots (sac plein, flèches de l'Elfe, escalier après un boss, tirs sans fin) : l'historique des trois anciens bots repart d'ici",
+ "levels": {
+  "debutant": {
+   "floor": 1.9,
+   "deathFloor1": 38,
+   "reach": {
+    "2": 61,
+    "3": 25,
+    "4": 3,
+    "5": 1
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 1.1,
+   "turns": 95.9,
+   "gold": 3,
+   "kills": 3.1,
+   "questsStarted": 0.3,
+   "questsDone": 0,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold": 113,
+    "un Kobold frondeur": 24,
+    "une Araignée": 11,
+    "la Tisseuse": 1
+   },
+   "blocked": 1,
+   "blockedRuns": [
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 39,
+     "hp": "8/9",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 19,
+   "reach": {
+    "2": 81,
+    "3": 61,
+    "4": 35,
+    "5": 22
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 2.4,
+   "turns": 327.2,
+   "gold": 29.4,
+   "kills": 12.8,
+   "questsStarted": 0.7,
+   "questsDone": 0.4,
+   "questsFailed": 0.2,
+   "causes": {
+    "la Tisseuse": 29,
+    "un Kobold": 65,
+    "un Kobold frondeur": 20,
+    "une Araignée": 35
+   },
+   "blocked": 1,
+   "blockedRuns": [
+    {
+     "seed": 11211,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 422,
+     "hp": "10/17",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "maitrise": {
+   "floor": 4.9,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 95,
+    "3": 93,
+    "4": 86,
+    "5": 75
+   },
+   "boss": 27,
+   "dead": 89,
+   "heroLevel": 4.6,
+   "turns": 940.4,
+   "gold": 74.1,
+   "kills": 36.3,
+   "questsStarted": 1.5,
+   "questsDone": 0.9,
+   "questsFailed": 0.5,
+   "causes": {
+    "une Araignée": 26,
+    "un Kobold envahi": 10,
+    "la Tisseuse": 53,
+    "un Kobold frondeur": 7,
+    "un Kobold": 11,
+    "un Kobold cueilleur": 3,
+    "un Sporelin": 8,
+    "le poison": 12,
+    "un Myconide": 4
+   },
+   "blocked": 11,
+   "blockedRuns": [
+    {
+     "seed": 1717,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 523,
+     "hp": "11/13",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 2424,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 191,
+     "hp": "9/9",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 59,
+     "hp": "9/9",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5555,
+     "end": "bloqué",
+     "floor": 8,
+     "turn": 1479,
+     "hp": "1/17",
+     "cause": "monstre en vue qu'il n'attaque pas",
+     "detail": "Sporelin (6 cases, 8 PV), Sporelin (2 cases, 7 PV)"
+    },
+    {
+     "seed": 5858,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 1406,
+     "hp": "13/17",
+     "cause": "combat qui n'avance pas",
+     "detail": "Sporelin (4 cases, 8 PV)"
+    },
+    {
+     "seed": 5959,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 540,
+     "hp": "11/13",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 7474,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 1050,
+     "hp": "12/17",
+     "cause": "monstre en vue qu'il n'attaque pas",
+     "detail": "Sporelin (7 cases, 8 PV)"
+    },
+    {
+     "seed": 7878,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 390,
+     "hp": "11/13",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9595,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 780,
+     "hp": "11/13",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 11716,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 557,
+     "hp": "9/13",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 12019,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 647,
+     "hp": "11/13",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 12625,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 17,
+     "hp": "9/9",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 12928,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 1012,
+     "hp": "11/17",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13130,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 758,
+     "hp": "15/17",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13534,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 740,
+     "hp": "5/17",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 271,
+     "hp": "7/9",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "expert": {
+   "floor": 7.7,
+   "deathFloor1": 14,
+   "reach": {
+    "2": 86,
+    "3": 85,
+    "4": 83,
+    "5": 83,
+    "6": 80,
+    "7": 74,
+    "8": 68,
+    "9": 61,
+    "10": 54
+   },
+   "boss": 80,
+   "dead": 51,
+   "heroLevel": 7.9,
+   "turns": 2401.1,
+   "gold": 288.3,
+   "kills": 110.7,
+   "questsStarted": 1.5,
+   "questsDone": 1.1,
+   "questsFailed": 0.3,
+   "causes": {
+    "un Kobold envahi": 3,
+    "un Kobold": 24,
+    "un Myconide": 13,
+    "le poison": 17,
+    "une Araignée": 4,
+    "l'encre du Carillon": 2,
+    "un Kobold cueilleur": 5,
+    "un Sporelin": 1,
+    "le crachat du Carillon": 3,
+    "la Tisseuse": 2,
+    "un Fidèle du Carillon": 2
+   },
+   "blocked": 0,
+   "blockedRuns": [],
+   "boss2": 51,
+   "stuck": 0,
+   "armorClass": 18.6,
+   "searches": 36,
+   "chests": 6.9,
+   "doors": 8.3,
+   "bought": 4.3,
+   "sold": 6.5,
+   "potions": 6.4,
+   "pushes": 13.8,
+   "shots": 81.4,
+   "deathFloors": {
+    "1": 14,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "5": 3,
+    "6": 6,
+    "7": 6,
+    "8": 7,
+    "9": 7,
+    "10": 5
+   }
+  }
+ }
+}

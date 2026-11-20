@@ -4254,9 +4254,12 @@ export class Game {
   guardBonus(): number {
     const r = this.rank("garde");
     if (!this.hero) return 0;
-    if (r === 0) return this.stanceBonus();
+    // Peau dure affaiblie (Thomas, 2026-11-20) : elle ne tient que tant qu'on est au-dessus de la moitié de sa vie ;
+    // en dessous, son bonus de classe d'armure est retiré au moment du coup.
+    const thin = this.hero.hp * 2 <= this.hero.maxHp ? -this.rank("peau_dure") : 0;
+    if (r === 0) return this.stanceBonus() + thin;
     const near = this.monsters.filter((m) => m.alerted && m.hp > 0 && this.inReach(m, this.hero)).length;
-    return (near >= 2 ? r + 1 : 0) + this.stanceBonus();
+    return (near >= 2 ? r + 1 : 0) + this.stanceBonus() + thin;
   }
 
   /** Rang III bleu : Sang-froid (sous le quart des PV) et Posture (le héros ne s'est pas déplacé ce tour-ci). */
@@ -4298,8 +4301,8 @@ export class Game {
   /** Riposte (voie bleue, Rang II) : un ennemi au contact rate le héros, il frappe aussitôt (une fois par tour). */
   private riposte(m: Actor): void {
     const r = this.rank("riposte");
-    // Une riposte tous les deux tours (Thomas, 2026-11-18 ; une par tour avant).
-    if (r === 0 || this.over || this.turn - this.ripostedOn < 2 || !this.monsters.includes(m) || !this.inReach(this.hero, m)) return;
+    // Une riposte tous les trois tours (Thomas, 2026-11-20 ; tous les deux tours depuis le 18, une par tour avant).
+    if (r === 0 || this.over || this.turn - this.ripostedOn < 3 || !this.monsters.includes(m) || !this.inReach(this.hero, m)) return;
     this.ripostedOn = this.turn;
     this.events.push({ type: "power", power: "riposte" });
     this.strikeBonus = r >= 2 ? { hit: 2, damage: 2 } : { hit: 0, damage: 0 };
@@ -4488,7 +4491,14 @@ export class Game {
     if (damage <= 0 || this.stoneTurns > 0) return;
     this.perks().hurt = 1;
     const rampart = this.rank("dernier_rempart");
-    if (this.hero.hp - damage <= 0 && rampart > 0 && this.perks().lastStand < 1) {
+    // Affaibli (Thomas, 2026-11-20 : « je préfère affaiblir la bleue, le jeu est exigeant ») : au rang 1, une fois par
+    // PARTIE au rang 1, une fois par SECTION au rang 2 (une fois par étage avant) ; il laisse à 1 PV, puis à 5 PV.
+    const first = Math.floor((this.depth - 1) / RULES.floorsPerSection) * RULES.floorsPerSection + 1;
+    let usedInSection = 0;
+    for (let d = first; d < first + RULES.floorsPerSection; d++) usedInSection += this.floorPerks[d]?.lastStand ?? 0;
+    const usedInRun = Object.values(this.floorPerks).reduce((n, p) => n + (p.lastStand ?? 0), 0);
+    const spent = rampart >= 2 ? usedInSection >= 1 : usedInRun >= 1;
+    if (this.hero.hp - damage <= 0 && rampart > 0 && !spent) {
       this.perks().lastStand++;
       this.hero.hp = Math.min(this.hero.maxHp, rampart >= 2 ? 5 : 1);
       this.events.push({ type: "lastStand" });

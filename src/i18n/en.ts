@@ -2505,4 +2505,10 @@ export const EN: Record<string, string> = {
   "« Ils m'ont volé la corne du nez de mon tricératops. Un tricératops à deux cornes, c'est un bicératops. Une honte. »": "“They stole the nose horn of my triceratops. A triceratops with two horns is a biceratops. A disgrace.”",
   "Une religieuse d'os en voile blanc égrène son chapelet d'argent, loin de son autel.": "A bone nun in a white veil tells her silver rosary, far from her altar.",
   "« Un vivant ? Ici ? … Je suis Sœur Clavicule. Je garde la vieille chapelle, d'habitude. Aujourd'hui, je cherche. »": "“A living soul? Here? … I am Sister Clavicle. I usually keep the old chapel. Today, I am searching.”",
+  "Un coup mortel vous laisse à 1 PV (1 fois par section)": "A killing blow leaves you at 1 HP (once per section)",
+  "Un ennemi au contact vous rate : vous frappez aussitôt (une fois tous les trois tours)": "An enemy next to you misses: you strike back at once (once every three turns)",
+  "Un coup mortel vous laisse à 5 PV (1 fois par section)": "A killing blow leaves you at 5 HP (once per section)",
+  "Un coup mortel vous laisse à 1 PV (1 fois par partie)": "A killing blow leaves you at 1 HP (once per run)",
+  "+1 à la classe d'armure, au-dessus de la moitié de vos PV": "+1 armor class while above half your HP",
+  "+2 à la classe d'armure, au-dessus de la moitié de vos PV": "+2 armor class while above half your HP",
 };

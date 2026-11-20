@@ -53,6 +53,8 @@ export interface ExpertOptions {
   voie?: "blue" | "red";
   /** Ordre des points de caractéristique, répété. */
   stats?: StatId[];
+  /** Pouvoirs à ne jamais acheter (pour mesurer ce que chacun rapporte, sans changer l'ordre des autres). */
+  without?: string[];
   /** Ordre où améliorer les pouvoirs. */
   build?: string[];
   /** Couper une famille de stratégies (mesurer ce qu'elle rapporte). */
@@ -434,7 +436,8 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
           ? [["double_frappe", 1], ["enchainement", 1], ["tourbillon", 1], ["charge", 1], ["rage", 1], ["cri_guerre", 1], ["soif_sang", 2], ["frenesie", 2], ["execution", 1], ["double_frappe", 2], ["coup_puissant", 1], ["tourbillon", 2], ["enchainement", 2], ["rage", 2], ["charge", 2], ["execution", 2], ["double_frappe", 6], ["coup_puissant", 2], ["cri_guerre", 2]]
           : [["second_souffle", 1], ["encaisseur", 2], ["dernier_rempart", 1], ["peau_dure", 1], ["riposte", 1], ["posture", 2], ["bastion", 1], ["sang_froid", 1], ["peau_dure", 2], ["second_souffle", 2], ["garde", 1], ["dernier_rempart", 2], ["riposte", 2], ["bastion", 2], ["sang_froid", 2], ["garde", 2], ["second_souffle", 6], ["esquive", 2]];
       // Rang III (niveau 11, après le Carillon) : Posture, Bastion, Sang-froid en bleu ; Soif de sang, Frénésie, Exécution en rouge.
-      for (let n = 0; n < 6 && game.pathPoints() > 0; n++) if (!plan.some(([id, rank]) => game.rank(id as never) < rank && game.improve(id as never))) break;
+      const skip = opts.without ?? [];
+      for (let n = 0; n < 6 && game.pathPoints() > 0; n++) if (!plan.some(([id, rank]) => !skip.includes(id) && game.rank(id as never) < rank && game.improve(id as never))) break;
     }
     equipBestX(game);
     // Le rebut ne se garde que s'il y a un Colporteur devant et de la place.

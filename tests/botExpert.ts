@@ -45,6 +45,9 @@ const avgDice = (d: { count: number; sides: number; bonus: number }) => (d.count
 
 /** Réglages de l'expert (pour comparer des façons de jouer avec les mêmes graines). */
 export interface ExpertOptions {
+  /** APERÇU : la partie continue après le Carillon jusqu'à la section 3 (étages 11 à 15, la Grande Prêtresse), comme la
+   *  « partie d'essai » du jeu. Sans cela, la démo s'arrête à l'étage 10. */
+  preview?: boolean;
   /** La race du héros (Humain par défaut). */
   race?: keyof typeof RACES;
   voie?: "blue" | "red";
@@ -89,6 +92,8 @@ interface Memory {
 export interface ExpertStats extends RunStats {
   /** Le Carillon (boss de la section 2) est tombé ; la démo est finie. */
   boss2: boolean;
+  /** Aperçu : la Grande Prêtresse (boss de la section 3) est tombée. */
+  boss3: boolean;
   won: boolean;
   searches: number;
   chests: number;
@@ -271,6 +276,9 @@ function pickAmmo(game: Game, target: Actor | null): void {
     else if (bow && have("fleche_poison") && !target.boss && !target.poison && target.hp >= 6) pick = "fleche_poison";
     else if (have("javeline") && d <= (defOf("javeline").range ?? 6) && (target.hp >= 12 || !bow || game.inventory.count("fleche") === 0)) pick = "javeline";
   }
+  // Flèche enflammée sur ce qui craint le feu ; flèche d'obsidienne (1d8) plutôt que la flèche simple (1d6).
+  if (!pick && target && bow && have("fleche_feu" as ItemId) && (monsterDef(target)?.fireWeak || target.maxHp >= 20) && d >= 3) pick = "fleche_feu" as ItemId;
+  if (!pick && bow && have("fleche_obsidienne" as ItemId)) pick = "fleche_obsidienne" as ItemId;
   // Sinon la munition ordinaire de l'arme en main (flèches pour l'arc, pierres pour le lance-pierre), puis ce qui reste.
   const family = game.weapon("ranged")?.ammo as ItemId | undefined;
   if (!pick) pick = family && have(family) ? family : (game.ammoKinds().find((id) => have(id)) ?? null);
@@ -356,6 +364,7 @@ function talkX(game: Game, id: NpcId): void {
 
 export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions = {}): ExpertStats {
   const game = new Game(seed, RACES[opts.race ?? "humain"]);
+  if (opts.preview) game.testRun = true;
   const rnd = lcg(seed * 7919 + 6);
   const off = opts.off ?? {};
   const statOrder: StatId[] = opts.stats ?? ["vie", "force"];
@@ -418,10 +427,11 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       // Ordre d'achat : (pouvoir, rang visé). Les pouvoirs du rang II (niveau 6) passent dès qu'ils s'ouvrent :
       // Encaisseur (chaque coup reçu fait moins mal), Riposte et Garde en bleu ; Tourbillon, Charge et Cri de guerre en rouge.
       const plan: [string, number][] = opts.build
-        ? opts.build.map((id) => [id, 4] as [string, number])
+        ? opts.build.map((id) => [id, 6] as [string, number])
         : game.voie === "red"
-          ? [["double_frappe", 1], ["enchainement", 1], ["tourbillon", 1], ["charge", 1], ["rage", 1], ["cri_guerre", 1], ["double_frappe", 2], ["coup_puissant", 1], ["tourbillon", 2], ["enchainement", 2], ["rage", 2], ["charge", 2], ["double_frappe", 4], ["coup_puissant", 2], ["cri_guerre", 2]]
-          : [["second_souffle", 1], ["encaisseur", 2], ["dernier_rempart", 1], ["peau_dure", 1], ["riposte", 1], ["peau_dure", 2], ["second_souffle", 2], ["garde", 1], ["dernier_rempart", 2], ["riposte", 2], ["garde", 2], ["second_souffle", 4], ["esquive", 2]];
+          ? [["double_frappe", 1], ["enchainement", 1], ["tourbillon", 1], ["charge", 1], ["rage", 1], ["cri_guerre", 1], ["soif_sang", 2], ["frenesie", 2], ["execution", 1], ["double_frappe", 2], ["coup_puissant", 1], ["tourbillon", 2], ["enchainement", 2], ["rage", 2], ["charge", 2], ["execution", 2], ["double_frappe", 6], ["coup_puissant", 2], ["cri_guerre", 2]]
+          : [["second_souffle", 1], ["encaisseur", 2], ["dernier_rempart", 1], ["peau_dure", 1], ["riposte", 1], ["posture", 2], ["bastion", 1], ["sang_froid", 1], ["peau_dure", 2], ["second_souffle", 2], ["garde", 1], ["dernier_rempart", 2], ["riposte", 2], ["bastion", 2], ["sang_froid", 2], ["garde", 2], ["second_souffle", 6], ["esquive", 2]];
+      // Rang III (niveau 11, après le Carillon) : Posture, Bastion, Sang-froid en bleu ; Soif de sang, Frénésie, Exécution en rouge.
       for (let n = 0; n < 6 && game.pathPoints() > 0; n++) if (!plan.some(([id, rank]) => game.rank(id as never) < rank && game.improve(id as never))) break;
     }
     equipBestX(game);
@@ -463,6 +473,25 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
         const pals = alerted.filter((o) => o !== m && !o.boss && Math.abs(o.x - m.x) + Math.abs(o.y - m.y) <= 1);
         if (pals.length === 0) continue;
         const uid = throwable("potion_discorde", m.x, m.y);
+        if (uid !== null && game.throwPotion(uid, m.x, m.y)) return (mem.potions++, true);
+      }
+    }
+    // Grenade sainte : elle brûle tout à deux cases (les morts deux fois plus) et bénit le héros ; sur un groupe ou un gros.
+    if (hasItem(game, "grenade_sainte") !== null) {
+      for (const m of alerted) {
+        const hit = alerted.filter((o) => cheb(o, m) <= 2);
+        if (hit.length < 2 && !(m.maxHp >= 20)) continue;
+        const uid = throwable("grenade_sainte", m.x, m.y);
+        if (uid !== null && game.throwPotion(uid, m.x, m.y)) return (mem.potions++, true);
+      }
+    }
+    // Gel : deux ennemis dans la croix restent figés trois tours.
+    if (hasItem(game, "potion_gel") !== null) {
+      for (const m of alerted) {
+        if (m.boss || cheb(m, hero) < 2) continue;
+        const inCross = alerted.filter((o) => !o.boss && Math.abs(o.x - m.x) + Math.abs(o.y - m.y) <= 1);
+        if (inCross.length < 2) continue;
+        const uid = throwable("potion_gel", m.x, m.y);
         if (uid !== null && game.throwPotion(uid, m.x, m.y)) return (mem.potions++, true);
       }
     }
@@ -516,6 +545,10 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     if ((r < 0.4 || hero.hp <= danger * 1.3) && hero.hp < hero.maxHp && eat(game, true)) return true;
     // 2. Potions à lancer.
     if (throwSomething(alerted)) return true;
+    // Rang III. Bastion (bleu) : trois tours de dégâts divisés par deux, quand on est cerné, mal en point, ou face à un boss.
+    if (game.voie === "blue" && game.rank("bastion" as never) > 0 && adj.length > 0 && (adj.length >= 2 || r < 0.5 || adj.some((m) => !!m.boss)) && game.powerRefusal("bastion" as never) === null && game.usePower("bastion" as never)) return true;
+    // Exécution (rouge) : achever net un ennemi au contact déjà bien entamé, quand un coup ordinaire ne suffirait pas.
+    if (game.voie === "red" && game.rank("execution" as never) > 0 && adj.some((m) => !m.boss && m.hp > heroHit() * 0.8) && game.powerRefusal("execution" as never) === null && game.usePower("execution" as never)) return true;
     // Voie rouge, rang II : le Cri de guerre contre un groupe (désavantage pour eux), le Tourbillon dès que deux
     // ennemis sont au contact.
     if (game.voie === "red") {
@@ -762,7 +795,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       if (!isJunk(game, item) || game.sellPrice(item.uid) === null) continue;
       if (game.sell(item.uid)) mem.sold++;
     }
-    const potionValue: Record<string, number> = { youth: 60, fire: 30, haste: 28, grow: 26, urchin: 15, stone: 14, poison: 14, discord: 12, smoke: 10, fog: 2, slip: 2 };
+    const potionValue: Record<string, number> = { youth: 60, fire: 30, haste: 28, grow: 26, urchin: 15, stone: 14, poison: 14, discord: 12, frost: 14, smoke: 10, fog: 2, slip: 2, night: 2 };
     const value = (id: ItemId, count: number): number => {
       const d = defOf(id);
       if (d.heal) {
@@ -777,6 +810,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
         const weight: Record<string, number> = { armor: 25, hat: 25, melee: 18, ranged: 6, bag: 1, amulet: 8, artifact: 10 };
         return 20 + delta * (weight[d.kind] ?? 5);
       }
+      if (d.id === "grenade_sainte") return 24;
       if (d.potion) return potionValue[d.potion] ?? 0;
       if (d.kind === "ammo") {
         if (game.tooLow(d)) return 0;
@@ -1052,7 +1086,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       acted = fn();
       if (acted) why = name;
     };
-    if (boss && !off.bossPlan) rule("boss", () => (boss.defId === "carillon" ? bell(boss, foes) : weaver(boss, foes)));
+    if (boss && !off.bossPlan) rule("boss", () => (boss.defId === "carillon" ? bell(boss, foes) : game.depth === RULES.bossDepths[0] ? weaver(boss, foes) : false));
     rule("combat", () => combat(foes));
     rule("suite", () => !alertedNow && (game.restProgress() > 0 || game.searchProgress() > 0));
     rule("porte", () => !alertedNow && door());
@@ -1142,6 +1176,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
     cause: game.deathCause,
     boss: weaverDown || game.deepest > RULES.bossDepths[0],
     boss2: mem.bellDown || (game.won && game.deepest >= RULES.demoLastDepth),
+    boss3: game.deepest >= 15 && game.won,
     won: game.won,
     kills, talks, questsStarted, questsDone, questsFailed, skillUses, healed, lastStands,
     searches: mem.searches, chests: mem.chests, doors: mem.doors, bought: mem.bought, sold: mem.sold, potions: mem.potions, pushes: mem.pushes, shots: mem.shots,

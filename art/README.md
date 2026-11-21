@@ -30,6 +30,7 @@ en artefact « Cave Roller — catalogue du matériel »).
 |---|---|---|
 | Paperdoll : le héros change avec son équipement ; halfelin, elfe ; armure de plate, draconique, heaume, casque poulet | `paperdoll_v1.png` | `paperdoll_v1.py` |
 | Escaliers : six pistes | `escaliers_v2.png` | `escaliers_v2.py` |
+| Salles à énigme (tir, rebond, racines, glisse, balance, noire, gardiens, poulie ; coffre et clef d'argent) | `salles_enigme_v1.png` | `salles_enigme_v1.py` |
 | Briques des zones de quête (pan de mur, levier, dalle, tapisserie, tonneau creux, paillasse, bougie, cierge, œuf d'or) | dans le catalogue, onglet « À venir » | `scripts/atelier/concepts.ts` |
 
 ## archive/

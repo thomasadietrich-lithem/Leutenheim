@@ -12182,7 +12182,7 @@ export class Game {
     const target = this.depth + (direction === "down" ? 1 : -1);
     if (target < 1) return false;
     const healed = 0;
-    // Fin de la démo (Thomas, 2026-11-14) : au bas de la section 2, l'escalier de l'étage 10 termine la partie.
+    // Fin de la démo : l'escalier du dernier étage (15 depuis le 2026-11-21, « ouvre le 10 ») termine la partie.
     if (direction === "down" && !this.sandbox && this.depth >= this.lastDepth()) {
       this.over = true;
       this.won = true;

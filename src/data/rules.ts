@@ -161,9 +161,9 @@ export const RULES = {
   /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
   websFromDepth: 3,
   // ---- Étage du boss de la section 1 : la Tisseuse (src/world/bossFloor.ts, src/core/boss.ts ; valeurs C) ----
-  /** Dernier étage de la démo (Thomas, 2026-11-14) : descendre son escalier termine la partie (la section 2 n'a pas
-   *  encore de boss). */
-  demoLastDepth: 10,
+  /** Dernier étage de la démo : descendre son escalier termine la partie. 10 jusqu'au 2026-11-21 ; puis Thomas : « ouvre
+   *  le 10 » : après le Carillon, l'escalier mène à l'Ossuaire (section 3), la démo finit sous la Grande Prêtresse. */
+  demoLastDepth: 15,
   /** APERÇU DE LA SECTION 3, L'OSSUAIRE (Thomas, 2026-11-19 : « ok implémente tout ») : en partie d'essai seulement,
    *  l'escalier de l'étage 10 et le téléporteur mènent jusqu'ici ; la vraie démo finit toujours à l'étage 10. */
   previewLastDepth: 15,

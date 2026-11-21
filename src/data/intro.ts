@@ -27,4 +27,12 @@ export const SECTION_LINES: Record<number, string[]> = {
     "Vous avez gagné des cicatrices, perdu des flèches, et il n'y a plus personne pour la tape dans le dos.",
     "Ça sonne plus bas.",
   ],
+  // Thomas, 2026-11-21 : « ouvre le 10 » (après le Carillon, l'Ossuaire).
+  3: [
+    "Le Carillon s'est tu. Ce n'était qu'un champignon qui se prenait pour une cloche.",
+    "Derrière lui, les marches deviennent blanches : de la craie, et des os.",
+    "Ici, pas une torche. Seule la lune tombe par des puits, et les morts aiment sa lumière.",
+    "Si vous les abattez dans l'ombre, ils restent couchés. Dans la lune, ils se relèvent.",
+    "Ça sonne encore plus bas.",
+  ],
 };

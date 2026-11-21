@@ -3854,16 +3854,25 @@ test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticab
     assert.equal(new Game(seed).look(), "s1", "l'étage 1 garde le décor de la section 1");
   }
   assert.ok(mounds > 0, "des éboulements");
-  // Fin de la démo : l'escalier de l'étage 10.
+  // « Ouvre le 10 » (Thomas, 2026-11-21) : dans une vraie partie, l'escalier de l'étage 10 mène à l'Ossuaire ; la démo
+  // se termine sous la Grande Prêtresse (étage 15).
   const game = new Game(21);
   game.testRun = true;
   game.teleport(10);
-  // Une vraie partie (la partie d'essai, elle, continue vers l'aperçu de l'Ossuaire).
   game.testRun = false;
   const g = game as unknown as { pendingStairs: "down" | "up" | null };
   g.pendingStairs = "down";
   assert.ok(game.takeStairs());
-  assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"));
+  assert.ok(!game.over, "la partie continue");
+  assert.equal(game.depth, 11);
+  assert.equal(game.look(), "ossuaire");
+  assert.ok(game.events.some((e) => e.type === "sectionIntro" && e.section === 3), "le texte d'arrivée de la section 3");
+  game.testRun = true;
+  game.teleport(15);
+  game.testRun = false;
+  g.pendingStairs = "down";
+  assert.ok(game.takeStairs());
+  assert.ok(game.over && game.won && game.events.some((e) => e.type === "demoEnd"), "fin de la démo à l'étage 15");
 });
 
 let chapels = 0;

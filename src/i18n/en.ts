@@ -2578,4 +2578,11 @@ export const EN: Record<string, string> = {
   "Agile : Agilité +1.": "Nimble: Agility +1.",
   "Avantage à l'arc sur une cible à 7 cases ou plus.": "Advantage with a bow on a target 7 tiles away or more.",
   "Œil de lynx : avantage à l'arc sur une cible à 7 cases ou plus.": "Lynx eye: advantage with a bow on a target 7 tiles away or more.",
+  "Le Carillon s'est tu. Ce n'était qu'un champignon qui se prenait pour une cloche.": "The Carillon has fallen silent. It was only a mushroom that thought it was a bell.",
+  "Derrière lui, les marches deviennent blanches : de la craie, et des os.": "Behind it, the steps turn white: chalk, and bones.",
+  "Ici, pas une torche. Seule la lune tombe par des puits, et les morts aiment sa lumière.": "Not a single torch here. Only the moon falls through shafts, and the dead love its light.",
+  "Si vous les abattez dans l'ombre, ils restent couchés. Dans la lune, ils se relèvent.": "Strike them down in the shadows and they stay down. In the moonlight, they rise again.",
+  "Ça sonne encore plus bas.": "It rings even deeper down.",
+  "La Grande Prêtresse est tombée : l'Ossuaire est traversé. C'est tout pour l'instant.": "The High Priestess has fallen: the Ossuary is crossed. That's all for now.",
+  "La Grande Prêtresse est tombée.": "The High Priestess has fallen.",
 };

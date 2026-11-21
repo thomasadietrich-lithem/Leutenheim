@@ -1336,7 +1336,7 @@ function reveal(e: GameEvent): void {
 function showDemoEnd(): void {
   over.replaceChildren();
   over.classList.add("over-win");
-  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", game.depth >= 6 ? "La champignonnière est traversée : c'est tout pour l'instant." : "La Tisseuse est vaincue : la première section du donjon est terminée."));
+  over.append(el("div", "over-title", "Fin de la démo"), el("div", "over-line", game.depth >= 11 ? "La Grande Prêtresse est tombée : l'Ossuaire est traversé. C'est tout pour l'instant." : game.depth >= 6 ? "La champignonnière est traversée : c'est tout pour l'instant." : "La Tisseuse est vaincue : la première section du donjon est terminée."));
   over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
   over.append(el("div", "over-sub", "Merci d'avoir joué ! La suite du donjon arrive bientôt."));
   if (!game.sandbox && !game.testRun) {
@@ -1697,7 +1697,7 @@ function renderRecords(): void {
     text.append(
       el("div", "save-title", `${tr(race)} ${tr(cls)}`),
       el("div", "", `Étage ${r.deepest} · Niv ${r.level} · ${r.gold} or · ${r.turns ?? "?"} tours`),
-      el("div", won ? "record-win" : "save-when", r.cause === "victoire" ? (r.deepest >= 10 ? "Le Carillon est tombé." : "La Tisseuse est tombée.") : `Mort : ${r.cause}`),
+      el("div", won ? "record-win" : "save-when", r.cause === "victoire" ? (r.deepest >= 15 ? "La Grande Prêtresse est tombée." : r.deepest >= 10 ? "Le Carillon est tombé." : "La Tisseuse est tombée.") : `Mort : ${r.cause}`),
       el("div", "save-when", `Le ${r.date}`),
     );
     card.append(pictos, text);

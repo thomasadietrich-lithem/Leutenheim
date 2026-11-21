@@ -228,16 +228,20 @@ ROOMS = [
         "#####D#####",
     ], {(5, 1): "C", (3, 1): "K", (1, 3): "T", (2, 3): "F", (3, 3): "Ta", (4, 3): "F", (5, 3): "Tb", (6, 3): "F", (7, 3): "T", (8, 3): "F", (9, 3): "T"},
      dict(lanes=((1, 4, 10, 6), (2, 4, 6, 8)))),
-    ("2. Salle de rebond", "Tir vers la droite avec une flèche ricochante : elle rebondit sur les 3 cibles noires (droite, haut, gauche) puis tombe ; la clef apparaît.", [
-        "#############",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "######D######",
-    ], {(6, 1): "C", (11, 4): "/", (11, 2): "/", (1, 2): "\\", (1, 4): "K"},
-     dict(path=[(3, 4.3), (10.6, 4.3), (10.6, 2.3), (1.4, 2.3), (1.4, 3.6)], lanes=((1, 5, 12, 5), ()))),
+    ("2. Salle de rebond", "Salle en long, une cible noire une rangée sur deux, en alternant gauche et droite. Flèche ricochante tirée de la ligne de tir : elle rebondit en zigzag sur les 3 cibles, la clef apparaît au fond.", [
+        "#########",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "####D####",
+    ], {(4, 1): "C", (2, 1): "K", (1, 3): "\\", (7, 5): "/", (1, 7): "\\"},
+     dict(path=[(4, 9), (1.6, 7.2), (6.4, 5.2), (1.6, 3.2), (2, 1.8)], lanes=((1, 9, 8, 8), ()))),
     ("3. Salle des racines", "Une seule haie de racines d'un bout à l'autre : une torche ou une potion de feu suffit, le feu court d'une racine à l'autre et ouvre les deux alcôves.", [
         "###########",
         "##...#...##",
@@ -364,7 +368,7 @@ def ice_room(plan, items, extra, scale=3):
 
 def strip(scale=4):
     """Les nouveaux éléments, seuls, et leurs couleurs selon la section."""
-    names = [("Cible", "T"), ("Cible bleue", "Tb"), ("Flèches plantées", "Ta"), ("Cible noire, mur droit", "/"), ("Cible noire, mur gauche", "\\"),
+    names = [("Cible", "T"), ("Cible bleue", "Tb"), ("Flèches plantées", "Ta"), ("Noire, à droite", "/"), ("Noire, à gauche", "\\"),
              ("Coffre d'argent", "C"), ("Ouvert", "Co"), ("Clef d'argent", "K"), ("Racines", "R"), ("Herse", "G"),
              ("Herse levée", "Gu"), ("Gardien", "S")]
     ims = [(n, SPR[k].img()) for n, k in names]
@@ -388,7 +392,7 @@ def main():
     cols = 3
     pad = 26
     cw = max(t[2].width for t in tiles) + pad
-    rh = max(t[2].height for t in tiles) + 90
+    rh = max(t[2].height for t in tiles) + 110
     rows = (len(tiles) + cols - 1) // cols
     st = strip()
     sh = 2 * (4 * max(i.height for _, i in st) + 40) + 40
@@ -409,7 +413,7 @@ def main():
             else:
                 line = (line + " " + w_).strip()
         d.text((x, ly), line, font=sm, fill=(210, 200, 180))
-        out.paste(im, (x, y + 72), im)
+        out.paste(im, (x, y + 92), im)
     y = 60 + rows * rh + 10
     d.text((pad, y), "Éléments nouveaux (×4) et racines selon la section", font=f, fill=(240, 220, 170))
     x = pad

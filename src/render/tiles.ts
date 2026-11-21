@@ -1,4 +1,5 @@
 import { EXPO } from "./sprites/expo";
+import { ENIGME } from "./sprites/enigme";
 import { TRAINARDS2 } from "./sprites/trainards2";
 import { Game } from "../core/game";
 import { FERME } from "./sprites/ferme";
@@ -12,6 +13,8 @@ import { ESCALIERS_CHAMPI, ESCALIERS_CHAMPI_PALETTE } from "./sprites/escaliersC
 
 /** Le coffre d'acier : les bois du coffre passent à l'acier, les bandes au fer sombre. */
 const STEEL_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#7f88a6", b: "#4e5570", T: "#a4abc8", t: "#5e6680", S: "#2a2e40" };
+/** Coffre d'argent des salles à énigme (Thomas, 2026-11-21) : bois sombre, ferrures d'argent clair. */
+const SILVER_PALETTE: Record<string, string> = { ...DECOR_PALETTE, C: "#9aa4b6", D: "#c8d0dc", c: "#e6ecf4", S: "#ffffff", G: "#e6ecf4", g: "#9aa4b6" };
 /** Le coffre doré de la fin du boss (Thomas, 2026-11-14) : bois et bandes passent à l'or. */
 const GOLD_PALETTE: Record<string, string> = { ...DECOR_PALETTE, B: "#e0b040", b: "#a87818", T: "#ffe08a", t: "#c89a2a", S: "#6a4a10" };
 import { ESCALIERS, ESCALIERS_PALETTE, STAIRS_STYLE } from "./sprites/escaliers";
@@ -84,10 +87,10 @@ export class TilePainter {
     const { ctx, tile } = this;
     const u = tile / 16;
     for (const f of game.furnitureList()) {
-      if (isFlat(f.kind) && !f.kind.startsWith("rug") && !OSS_FLAT.has(f.kind)) {
+      if (isFlat(f.kind) && !f.kind.startsWith("rug") && !OSS_FLAT.has(f.kind) && f.kind !== "dalleGeant") {
         // Une case : toile d'araignée, rigole, évacuation, morceau de tapis de velours.
         if (f.x !== x || f.y !== y) continue;
-        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind] ?? FERME[f.kind] ?? SECRET[f.kind] ?? CHAMPI_SALLES[f.kind] ?? TRAINARDS2[f.kind];
+        const web = TRAINARDS[f.kind] ?? SALLES[f.kind] ?? ATELIERS[f.kind] ?? BOSS[f.kind] ?? FERME[f.kind] ?? SECRET[f.kind] ?? CHAMPI_SALLES[f.kind] ?? TRAINARDS2[f.kind] ?? ENIGME[f.kind];
         if (!web) continue;
         const smooth = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
@@ -95,9 +98,9 @@ export class TilePainter {
         ctx.imageSmoothingEnabled = smooth;
         continue;
       }
-      if (!f.kind.startsWith("rug") && !OSS_FLAT.has(f.kind)) continue;
+      if (!f.kind.startsWith("rug") && !OSS_FLAT.has(f.kind) && f.kind !== "dalleGeant") continue;
       const def = FURNITURE_KINDS[f.kind];
-      const art = DORTOIR[f.kind] ?? EXPO[f.kind] ?? OSSUAIRE[f.kind];
+      const art = DORTOIR[f.kind] ?? EXPO[f.kind] ?? OSSUAIRE[f.kind] ?? ENIGME[f.kind];
       const w = art.rows[0].length;
       const h = art.rows.length;
       const px = (f.x + def.w / 2) * 16 - w / 2;
@@ -315,7 +318,7 @@ export class TilePainter {
       ctx.imageSmoothingEnabled = false;
       // Coffre d'acier des pièces secrètes (Thomas, 2026-11-14) : le même coffre, recoloré.
       const chestTile = t === Tile.Chest || t === Tile.ChestOpen;
-      const palette = chestTile && game.goldChestAt(x, y) ? GOLD_PALETTE : chestTile && game.steelChestAt(x, y) ? STEEL_PALETTE : DECOR_PALETTE;
+      const palette = chestTile && game.goldChestAt(x, y) ? GOLD_PALETTE : chestTile && game.steelChestAt(x, y) ? STEEL_PALETTE : chestTile && game.silverChestAt(x, y) ? SILVER_PALETTE : DECOR_PALETTE;
       ctx.drawImage(this.sprite(decor, palette), Math.round(sx), Math.round(sy), Math.round(tile), Math.round(tile));
       ctx.imageSmoothingEnabled = smooth;
     } else if (t === Tile.DoorClosed || t === Tile.DoorLocked || t === Tile.DoorOpen) {

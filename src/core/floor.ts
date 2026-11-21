@@ -18,6 +18,30 @@ import { TRAPS, TrapKind } from "../data/traps";
  * qui leur donne leurs numéros.
  */
 /** Tout ce qu'il faut garder d'un étage pour le retrouver tel quel en y revenant. */
+/**
+ * Une salle à énigme (Thomas, 2026-11-21) : une énigme qu'on résout avec un objet posé sur l'étage, une CLEF D'ARGENT à
+ * aller chercher et un COFFRE D'ARGENT. `key` : où la clef est posée (ou apparaît) ; `keyShown` : elle est là.
+ */
+export interface Enigma {
+  kind: "tir" | "rebond" | "racines" | "glisse" | "balance" | "noire" | "gardiens";
+  /** La salle (case en haut à gauche, largeur, hauteur). */
+  room: { x: number; y: number; w: number; h: number };
+  key: Point;
+  keyShown: boolean;
+  chest: Point;
+  /** Balance et gardiens : la herse ; balance : la grande dalle (case en haut à gauche, 2 × 2). */
+  gate?: Point;
+  plate?: Point;
+  /** Gardiens : le regard de chaque statue (cases), la herse tombée. */
+  gazes?: Point[][];
+  dropped?: boolean;
+  /** Rebond : les cibles noires déjà touchées par la flèche (pour l'affichage). */
+  struck?: Point[];
+  /** Salle noire : les dalles sûres, marquées à la craie (visibles à la lumière d'une torche). */
+  safe?: Point[];
+  solved?: boolean;
+}
+
 export interface FloorState {
   /** Section 3 : la lune renvoyée par un miroir (piège), quelques tours autour de lui. */
   moonFlashes?: { x: number; y: number; turns: number }[];
@@ -88,6 +112,8 @@ export interface FloorState {
   zone?: QuestZone;
   /** La pièce secrète de l'étage (Thomas, 2026-11-14), s'il y en a une. */
   secretRoom?: import("../world/secretRoom").SecretRoom;
+  /** Salles à énigme de l'étage (Thomas, 2026-11-21). */
+  enigmas?: Enigma[];
   /** Faux murs du pinceau magique (2026-11-18) : la case, les tours avant qu'il s'efface. */
   fakeWalls?: { x: number; y: number; turns: number }[];
   /** Section 2 : salles où les champignons se sont refermés après un bruit, jusqu'à ce tour. */

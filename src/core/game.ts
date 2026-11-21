@@ -38,7 +38,7 @@ import { rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
-import { BloodStain, ChickenState, CounterDoor, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, foodRations, guaranteedLoot, lootPool, noteUnique, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements, trackUniques } from "./floor";
+import { BloodStain, ChickenState, CounterDoor, Enigma, StainColor, Debris, FloorState, GluckSpot, GroundItem, QuestZone, Trap, foodRations, guaranteedLoot, lootPool, noteUnique, placeGuaranteed, placeKey, placeLoot, placeSecrets, placeTraps, rollLoot, roomElements, trackUniques } from "./floor";
 
 // Les autres fichiers continuent d'importer ces types depuis la partie.
 export type { DoorAction, GameEvent, ShootRefusal } from "./events";
@@ -484,7 +484,7 @@ export class Game {
       if (sandboxFloor) state.merchant = makeMerchant(sandboxFloor.merchant, sandboxFloor.merchant.home, SANDBOX_WARES, seed);
       else if (!bossFloor && (depth - 1) % 5 === MERCHANT.floorInSection - 1) state.merchant = this.placeMerchant(floor, seed, depth) ?? undefined;
       // Salle d'essai de la section 2 : ni porte du compteur, ni poulet, ni PNJ (seulement le décor et les monstres).
-      const plainSandbox = sandboxFloor?.look === "champi";
+      const plainSandbox = sandboxFloor?.look === "champi" || !!sandboxFloor?.plain;
       if (!bossFloor && !plainSandbox && (sandboxFloor || this.funOf(depth) === "counter")) {
         state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? undefined;
         // Pas de porte qui convienne : la cloche prend sa place (il y a toujours un truc fun dans la section).
@@ -503,9 +503,10 @@ export class Game {
       }
       // La ferme (Thomas, 2026-11-13) : 1 à 3 poules dans le pré, et un poulet échappé dehors (s'il n'y a pas déjà le
       // poulet du truc fun).
-      if (!oss) this.placeFarm(state, seed);
+      if (!oss && !sandboxFloor?.plain) this.placeFarm(state, seed);
       // Pièce secrète (0 à 1 par étage) et marques dans les murs (Thomas, 2026-11-14).
       if (sandboxFloor?.secretRoom) state.secretRoom = JSON.parse(JSON.stringify(sandboxFloor.secretRoom));
+      if (sandboxFloor?.enigmas) state.enigmas = JSON.parse(JSON.stringify(sandboxFloor.enigmas));
       if (!sandboxFloor && !bossFloor) {
         const srng = new Rng(seed ^ 0x5ec7e7);
         if (srng.chance(RULES.secretRoomChance)) {
@@ -851,10 +852,13 @@ export class Game {
     for (const c of cells) this.frost.push({ x: c.x, y: c.y, turns: RULES.freezeTurns });
     // L'eau gèle (Thomas, 2026-11-21) : une plaque de glace qui tient `RULES.iceTurns` ; on y glisse.
     for (const c of cells) {
+      // Eau profonde (salle de glisse) : gelée, on peut y marcher… et y glisser.
+      const deep = this.map.get(c.x, c.y) === Tile.Furniture && this.current.furniture.some((f) => f.kind === "eauProfonde" && f.x === c.x && f.y === c.y);
+      if (deep) this.map.set(c.x, c.y, Tile.Water);
       if (this.map.get(c.x, c.y) !== Tile.Water) continue;
       const old = this.ice.find((i) => i.x === c.x && i.y === c.y);
       if (old) old.turns = RULES.iceTurns;
-      else this.ice.push({ x: c.x, y: c.y, turns: RULES.iceTurns });
+      else this.ice.push({ x: c.x, y: c.y, turns: RULES.iceTurns, deep: deep || undefined });
       this.map.touch(c.x, c.y);
     }
     for (const m of this.monsters) {
@@ -3012,8 +3016,138 @@ export class Game {
   incense: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Givre de la potion de gel (pour l'œil). */
   frost: { x: number; y: number; turns: number; thin?: boolean }[] = [];
+  // ---------- Salles à énigme (Thomas, 2026-11-21 ; planche art/salles_enigme_v1.png) ----------
+
+  /** Les salles à énigme de l'étage. */
+  enigmas(): readonly Enigma[] {
+    return this.current?.enigmas ?? [];
+  }
+
+  /** Le coffre d'argent sur cette case (sa salle à énigme). */
+  silverChestAt(x: number, y: number): Enigma | null {
+    return this.enigmas().find((e) => e.chest.x === x && e.chest.y === y) ?? null;
+  }
+
+  private enigmaAt(p: Point): Enigma | null {
+    return this.enigmas().find((e) => p.x >= e.room.x && p.y >= e.room.y && p.x < e.room.x + e.room.w && p.y < e.room.y + e.room.h) ?? null;
+  }
+
+  /**
+   * Une flèche frappe une cible. Cible de tir : elle s'y plante ; la cible BLEUE touchée par une flèche de recul recule
+   * (jusqu'à 3 cases) et ouvre le passage. Cible noire (flèche ricochante) : la flèche rebondit d'elle-même sur toutes
+   * les cibles noires de la salle ; toutes touchées, la clef d'argent apparaît.
+   */
+  private shootTarget(f: Furniture, ammo: ItemId, origin: Point, endless: boolean): void {
+    const kind = ARROW_KIND[ammo];
+    this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: f.x, y: f.y, hit: true, kept: false, planted: true, ammo, arrowKind: kind, endless: endless || undefined });
+    if (f.kind === "cible" || f.kind === "cibleBleue") {
+      if (f.kind === "cibleBleue" && (ITEMS[ammo] as ItemDef).knockback) {
+        const dx = Math.abs(f.x - origin.x) > Math.abs(f.y - origin.y) ? Math.sign(f.x - origin.x) : 0;
+        const dy = dx === 0 ? Math.sign(f.y - origin.y) : 0;
+        let nx = f.x;
+        let ny = f.y;
+        for (let k = 0; k < 3; k++) {
+          const tx = nx + dx;
+          const ty = ny + dy;
+          if (this.map.get(tx, ty) !== Tile.Floor || this.furnitureAt(tx, ty) || this.actorAt(tx, ty) || this.ground.some((g) => g.x === tx && g.y === ty)) break;
+          nx = tx;
+          ny = ty;
+        }
+        if (nx !== f.x || ny !== f.y) {
+          this.map.set(f.x, f.y, Tile.Floor);
+          f.x = nx;
+          f.y = ny;
+          this.map.set(nx, ny, Tile.Furniture);
+          this.updateVision();
+          this.events.push({ type: "enigma", what: "recoil", x: nx, y: ny });
+          return;
+        }
+      }
+      f.arrows = Math.min(3, (f.arrows ?? 0) + 1);
+      this.map.touch(f.x, f.y);
+      this.events.push({ type: "enigma", what: "planted", x: f.x, y: f.y });
+      return;
+    }
+    // Cible noire : le rebond en chaîne.
+    const e = this.enigmaAt(f);
+    const blacks = this.current.furniture.filter((o) => o.kind.startsWith("cibleNoire") && (!e || this.enigmaAt(o) === e));
+    const hit: Furniture[] = [f];
+    let cur: Furniture = f;
+    for (;;) {
+      const next = blacks
+        .filter((o) => !hit.includes(o) && hasLineOfSight(this.map, cur, o))
+        .sort((a, b) => Math.hypot(a.x - cur.x, a.y - cur.y) - Math.hypot(b.x - cur.x, b.y - cur.y))[0];
+      if (!next) break;
+      this.events.push({ type: "arrow", fromX: cur.x, fromY: cur.y, x: next.x, y: next.y, hit: true, kept: false, planted: true, ricochet: true, arrowKind: "ricochet", delay: 200 * hit.length });
+      hit.push(next);
+      cur = next;
+    }
+    if (e) e.struck = hit.map((o) => ({ x: o.x, y: o.y }));
+    for (const o of hit) this.map.touch(o.x, o.y);
+    if (e && !e.keyShown && hit.length === blacks.length) {
+      e.keyShown = true;
+      this.dropItem(e.key.x, e.key.y, "clef_argent", 1);
+      this.events.push({ type: "enigma", what: "key", x: e.key.x, y: e.key.y });
+    } else this.events.push({ type: "enigma", what: "bounce", x: cur.x, y: cur.y });
+  }
+
+  /**
+   * Chaque tour, les salles à énigme : la grande dalle s'enfonce sous un géant (la herse se lève) ; les gardiens font
+   * tomber leur herse s'ils voient le héros (pas dans le brouillard), elle se relève quand il quitte la salle ; dans la
+   * salle noire, la lumière d'une torche montre les pièges cachés.
+   */
+  private enigmaTick(): void {
+    for (const e of this.enigmas()) {
+      const gate = e.gate ? this.furnitureAt(e.gate.x, e.gate.y) : null;
+      if (e.kind === "balance" && gate?.kind === "herse" && e.plate && (this.hero.grown ?? 0) > 0) {
+        const on = this.hero.x >= e.plate.x && this.hero.x <= e.plate.x + 1 && this.hero.y >= e.plate.y && this.hero.y <= e.plate.y + 1;
+        if (on) {
+          gate.kind = "herseUp";
+          this.map.set(gate.x, gate.y, Tile.Floor);
+          this.events.push({ type: "enigma", what: "plate", x: e.plate.x, y: e.plate.y });
+          this.events.push({ type: "enigma", what: "gate", x: gate.x, y: gate.y });
+        }
+      }
+      if (e.kind === "gardiens" && gate && e.gazes) {
+        const inside = this.enigmaAt(this.hero) === e;
+        if (gate.kind === "herseUp" && !e.dropped && inside) {
+          const seen = e.gazes.some((g) => {
+            const i = g.findIndex((c) => c.x === this.hero.x && c.y === this.hero.y);
+            return i >= 0 && !g.slice(0, i + 1).some((c) => this.fog.some((f) => f.x === c.x && f.y === c.y));
+          });
+          if (seen && !this.actorAt(gate.x, gate.y)) {
+            gate.kind = "herse";
+            this.map.set(gate.x, gate.y, Tile.Furniture);
+            e.dropped = true;
+            this.events.push({ type: "enigma", what: "seen", x: gate.x, y: gate.y });
+          }
+        } else if (e.dropped && !inside) {
+          gate.kind = "herseUp";
+          this.map.set(gate.x, gate.y, Tile.Floor);
+          e.dropped = false;
+          this.events.push({ type: "enigma", what: "lift", x: gate.x, y: gate.y });
+        }
+      }
+      if (e.kind === "noire" && this.torchLit()) {
+        let shown = 0;
+        for (const t of this.current.traps) {
+          if (!t.hidden || this.enigmaAt(t) !== e || Math.max(Math.abs(t.x - this.hero.x), Math.abs(t.y - this.hero.y)) > RULES.enigmaTorchReach) continue;
+          t.hidden = false;
+          this.map.touch(t.x, t.y);
+          shown++;
+        }
+        if (shown > 0 && !e.solved) this.events.push({ type: "enigma", what: "torch", x: this.hero.x, y: this.hero.y });
+      }
+    }
+  }
+
+  /** Salle noire : les dalles sûres marquées à la craie se voient à la lumière de la torche du héros. */
+  chalkShown(p: Point): boolean {
+    return this.torchLit() && Math.max(Math.abs(p.x - this.hero.x), Math.abs(p.y - this.hero.y)) <= RULES.enigmaTorchReach;
+  }
+
   /** Eau gelée par une potion de gel : on y glisse jusqu'au bout et l'on tombe (Thomas, 2026-11-21). */
-  ice: { x: number; y: number; turns: number }[] = [];
+  ice: { x: number; y: number; turns: number; deep?: boolean }[] = [];
 
   /** Cette case est-elle de l'eau gelée ? */
   icedAt(x: number, y: number): boolean {
@@ -3166,7 +3300,20 @@ export class Game {
     for (const f of this.frost) f.turns--;
     this.frost = this.frost.filter((f) => f.turns > 0);
     for (const i of this.ice) if (--i.turns <= 0) this.map.touch(i.x, i.y);
+    const melted = this.ice.filter((i) => i.turns <= 0 && i.deep);
     this.ice = this.ice.filter((i) => i.turns > 0);
+    // L'eau profonde dégèle : elle redevient infranchissable ; qui s'y tenait regagne la rive (« Plouf ! »).
+    for (const m of melted) this.map.set(m.x, m.y, Tile.Furniture);
+    for (const m of melted) {
+      for (const a of [this.hero, ...this.monsters]) {
+        if (a.x !== m.x || a.y !== m.y) continue;
+        const to = this.nearestFree(a);
+        if (!to) continue;
+        a.x = a.fromX = to.x;
+        a.y = a.fromY = to.y;
+        this.events.push({ type: "enigma", what: "sink", x: to.x, y: to.y });
+      }
+    }
     if (this.fog.length === 0) return;
     this.fogBlinds();
     for (const f of this.fog) f.turns--;
@@ -3652,7 +3799,7 @@ export class Game {
     const race = (RACES as Record<string, RaceDef>)[data.race];
     const heroClass = (CLASSES as Record<string, ClassDef>)[data.heroClass];
     if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
-    if (data.sandbox) setSandboxSection(data.sandboxSection === 2 ? 2 : 1);
+    if (data.sandbox) setSandboxSection(data.sandboxSection === 2 ? 2 : data.sandboxSection === 3 ? 3 : 1);
     const game = new Game(data.runSeed, race, heroClass, DEFAULT_FLOOR, data.sandbox);
     const saved = clone(data);
     game.floors.clear();
@@ -4666,7 +4813,7 @@ export class Game {
     if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > range) return "far";
     if (!this.isVisible(x, y)) return "unseen";
     // Une porte verrouillée se vise aussi (Thomas, 2026-11-18) : le feu la consume.
-    if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.DoorLocked) return "wall";
+    if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.DoorLocked && !this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind === "racines" || f.kind === "eauProfonde"))) return "wall";
     return null;
   }
 
@@ -4727,7 +4874,8 @@ export class Game {
     if (potion === "frost") {
       // Potion de gel (Thomas, 2026-11-19) : lancée, la croix de 5 cases gèle ; les monstres pris sont figés (le boss un
       // tour), le feu s'éteint.
-      const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
+      // L'eau profonde gèle aussi (salle de glisse, Thomas 2026-11-21).
+      const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y) || this.current.furniture.some((f) => f.kind === "eauProfonde" && f.x === c.x && f.y === c.y));
       this.freezeCells(cells);
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
       return;
@@ -5849,6 +5997,7 @@ export class Game {
     this.sandboxHubCheck();
     this.zoneStep();
     this.questTick();
+    this.enigmaTick();
     this.boutTick();
     this.turn++;
     // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
@@ -6573,7 +6722,8 @@ export class Game {
       return;
     }
     if (this.sandbox) {
-      if (depth !== 1) return;
+      // Zone d'essai des salles à énigme : aucun PNJ, pas de statue creuse.
+      if (depth !== 1 || this.sandboxFloor()?.plain) return;
       const spots = this.sandboxFloor()?.npcs ?? {};
       const at = (list: Point[] | undefined): GluckSpot | null => {
         const p = list?.find((c) => this.npcFree(state, c.x, c.y));
@@ -10158,7 +10308,7 @@ export class Game {
   }
 
   /** Quelle salle d'essai (section 1 ou 2), choisie au menu avant de créer la partie. */
-  readonly sandboxSection: 1 | 2 = sandboxSection();
+  readonly sandboxSection: 1 | 2 | 3 = sandboxSection();
 
   /** Le décor de l'étage : « champi » (section 2, la champignonnière) ou celui de la section 1. */
   look(): "s1" | "champi" | "ossuaire" {
@@ -10411,6 +10561,22 @@ export class Game {
       const lots = [artifact, weapon, armor].filter((id): id is ItemId => id !== null);
       const drops = lots.length === 0 ? this.spillLoot(x, y, 0, { item: "or", count: gold }) : lots.flatMap((item, i) => (i === 0 ? this.spillLoot(x, y, gold, { item, count: 1 }) : this.spillLoot(x, y, 0, { item, count: 1 }).slice(1)));
       this.events.push({ type: "chest", gold, item: lots[0] ?? "or", count: lots.length > 0 ? 1 : 0, x, y, drops, golden: lots.slice(1) });
+    } else if (t === Tile.Chest && this.silverChestAt(x, y)) {
+      // Le COFFRE D'ARGENT d'une salle à énigme (Thomas, 2026-11-21) : il faut la clef d'argent de cet étage ; dedans, un
+      // objet rare à coup sûr et l'or doublé.
+      const e = this.silverChestAt(x, y)!;
+      if (!this.inventory.take("clef_argent", 1, this.depth)) {
+        this.events.push({ type: "enigma", what: "locked", x, y });
+        return;
+      }
+      this.map.set(x, y, Tile.ChestOpen);
+      e.solved = true;
+      const gold = lessGold((this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * 2);
+      const pool = lootPool(this.depth, () => true, "rare");
+      const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
+      const drops = this.spillLoot(x, y, gold, loot);
+      this.events.push({ type: "enigma", what: "opened", x, y });
+      this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = lessGold((this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1));
@@ -10921,10 +11087,17 @@ export class Game {
     let victim: Actor | undefined;
     let ricochet: { from: Point; target: Actor; result: ReturnType<typeof rollAttack> } | undefined;
     let missLine: { dx: number; dy: number; from: Point; next: number } | undefined;
+    // Salles à énigme : une cible de tir prend la flèche ; une cible noire prend la flèche ricochante.
+    let struck: Furniture | undefined;
 
     /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
     const fly = (c: Point): boolean => {
       if (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y)) {
+        const f = this.furnitureAt(c.x, c.y);
+        if (f && (f.kind === "cible" || f.kind === "cibleBleue" || (f.kind.startsWith("cibleNoire") && (ITEMS[ammo] as ItemDef).ricochet))) {
+          struck = f;
+          return false;
+        }
         // Rebond : elle retombe une ou deux cases en arrière de l'endroit où elle a heurté l'obstacle.
         via = trail[trail.length - 1];
         const back = this.rng.int(RULES.arrowBounceMin, RULES.arrowBounceMax);
@@ -10941,6 +11114,7 @@ export class Game {
       victim = this.monsterAt(c.x, c.y);
       if (victim) break;
     }
+    if (struck) return this.shootTarget(struck, ammo, origin, endless);
 
     if (victim) {
       // Avantage sur une cible qui n'a rien vu ou prise dans une porte ; désavantage si un ennemi est au contact du tireur.

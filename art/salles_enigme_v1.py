@@ -432,3 +432,27 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def chalk(vertical=True):
+    """Piste de tir peinte à la craie sur le sol : un trait (vertical : entre deux pistes ; sinon la ligne de tir)."""
+    s = Sprite(16, 16)
+    if vertical:
+        s.r(7, 0, 2, 16, "chalk").r(7, 3, 2, 1, "straw_d").r(8, 11, 1, 1, "straw_d")
+    else:
+        s.r(0, 7, 16, 2, "chalk").r(4, 7, 1, 1, "straw_d").r(12, 8, 1, 1, "straw_d")
+    return s.done(False)
+
+
+def export():
+    """Les dessins du jeu (src/render/sprites/enigme.ts)."""
+    from export_jeu_v4 import write
+    write("src/render/sprites/enigme.ts", "ENIGME",
+          "Salles à énigme (planche art/salles_enigme_v1.png, Thomas 2026-11-21) : cibles, cibles noires de rebond, barrière, racines, herse, grande dalle, gardien.",
+          {"cible": target().img(), "cibleBleue": target(True).img(), "cibleNoireD": deflector(True).img(), "cibleNoireG": deflector(False).img(),
+           "barriere": fence().img(), "racines": roots().img(), "herse": gate().img(), "herseUp": gate(True).img(), "dalleGeant": plate().img(),
+           "gardien": guardian().img(), "piste": chalk().img(), "ligneTir": chalk(False).img()})
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":
+    export()

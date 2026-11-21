@@ -622,7 +622,7 @@ function launchArrow(e: GameEvent | undefined): void {
   const aim = e.via ?? e;
   if (e.ricochet) {
     // Le ricochet part de la première cible, un peu après le premier vol.
-    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, 200, false, false, false, "ricochet");
+    renderer.addProjectile(e.fromX, e.fromY, e.x, e.y, e.delay ?? 200, false, false, false, "ricochet");
     renderer.addFloatingText(e.fromX, e.fromY, "Ricochet !", "#8fd0f0");
     return;
   }
@@ -894,6 +894,17 @@ function reveal(e: GameEvent): void {
     if (text) renderer.addFloatingText(e.x, e.y, text, color);
     if (e.what === "colossus" || e.what === "colossusDown") sfx.play("heavy");
     if (e.what === "awake") sfx.play("bell");
+  } else if (e.type === "enigma") {
+    // Salles à énigme (Thomas, 2026-11-21).
+    const words: Record<string, [string, string, string]> = {
+      locked: ["Fermé à clef", "#c8d0dc", "thud"], opened: ["Clic !", "#e6ecf4", "unlock"], planted: ["Tchok !", "#e8d8b0", "thud"],
+      recoil: ["Elle recule !", "#8fc7ff", "heavy"], bounce: ["Tink !", "#c8d0dc", "click"], key: ["Une clef d'argent !", "#e6ecf4", "unlock"],
+      plate: ["La dalle s'enfonce…", "#c8c0b0", "heavy"], gate: ["La herse se lève !", "#e6ecf4", "unlock"], seen: ["Vu ! La herse tombe", "#ff9a7a", "heavy"],
+      lift: ["La herse se relève", "#c8d0dc", "click"], torch: ["Des pièges !", "#ff9a7a", "click"], sink: ["Plouf !", "#8fd0f0", "splash"],
+    };
+    const [text, color, sound] = words[e.what];
+    renderer.addFloatingText(e.x, e.y, text, color);
+    sfx.play(sound as Parameters<typeof sfx.play>[0]);
   } else if (e.type === "iceSlide") {
     renderer.addFloatingText(e.x, e.y, "Glisse… Boum !", "#bfe6ff");
     sfx.play("thud");
@@ -4212,6 +4223,13 @@ if (!PUBLIC_BUILD) {
       showScreen(null);
     });
   }
+  // Zone d'essai des salles à énigme (Thomas, 2026-11-21).
+  button("essai-enigme", () => {
+    setSandboxSection(3);
+    newRun(true);
+    started = true;
+    showScreen(null);
+  });
   button("essai-all", () => {
     newRun(false, true);
     started = true;

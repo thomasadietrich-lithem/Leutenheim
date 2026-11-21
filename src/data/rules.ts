@@ -181,6 +181,8 @@ export const RULES = {
   freezeTurns: 3,
   /** Eau gelée par la potion de gel : tours avant le dégel (C). */
   iceTurns: 12,
+  /** Salle noire : portée de la torche du héros pour montrer les pièges et la craie (C). */
+  enigmaTorchReach: 3,
   /** Un boss gèle moins longtemps (2 tours). */
   bossFreezeTurns: 2,
   /** Grenade sainte (C) : rayon, dégâts (doublés contre les morts), bénédiction et soin du héros. */

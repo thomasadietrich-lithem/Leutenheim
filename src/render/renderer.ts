@@ -72,6 +72,7 @@ import { OSSUAIRE } from "./sprites/ossuaire";
 import { CHAPELLE } from "./sprites/chapelle";
 import { PRETRESSE } from "./sprites/pretresse";
 import { MUSEE } from "./sprites/musee";
+import { ENIGME } from "./sprites/enigme";
 import { MOBS_CHAMPI } from "./sprites/mobsChampi";
 import { MOBS_OSS } from "./sprites/mobsOss";
 
@@ -3163,6 +3164,41 @@ export class Renderer {
   private drawIce(game: Game, ox: number, oy: number): void {
     const { ctx, tile } = this;
     const p = tile / 16;
+    // Eau profonde (salle de glisse) : bleu nuit, rides claires, bord éclairé côté rive du haut.
+    const furn = game.furnitureList();
+    for (const f of furn) {
+      if (f.kind !== "eauProfonde" || game.icedAt(f.x, f.y) || (!game.isVisible(f.x, f.y) && !game.isKnown(f.x, f.y))) continue;
+      const x = ox + f.x * tile;
+      const y = oy + f.y * tile;
+      ctx.fillStyle = "#16224a";
+      ctx.fillRect(x, y, tile, tile);
+      ctx.fillStyle = "#2c467a";
+      const t = Math.floor(this.time / 600);
+      for (let k = 0; k < 3; k++) ctx.fillRect(x + ((f.x * 5 + k * 6 + t) % 13) * p, y + (3 + k * 5) * p, 3 * p, p);
+      if (!furn.some((o) => o.kind === "eauProfonde" && o.x === f.x && o.y === f.y - 1)) {
+        ctx.fillStyle = "#4a6ea8";
+        ctx.fillRect(x, y, tile, 2 * p);
+      }
+    }
+    // Salles à énigme : le regard des gardiens (bandes jaunes au sol), la craie de la salle noire.
+    for (const e of game.enigmas()) {
+      if (e.gazes) {
+        ctx.fillStyle = e.dropped ? "rgba(255,120,80,0.22)" : "rgba(255,226,122,0.16)";
+        for (const g of e.gazes) for (const c of g) if (game.isVisible(c.x, c.y)) ctx.fillRect(ox + c.x * tile, oy + c.y * tile, tile, tile);
+      }
+      if (e.safe) {
+        ctx.fillStyle = "rgba(232,226,208,0.85)";
+        for (const c of e.safe) {
+          if (!game.isVisible(c.x, c.y) || !game.chalkShown(c)) continue;
+          const x = ox + c.x * tile;
+          const y = oy + c.y * tile;
+          for (let k = 3; k <= 12; k++) {
+            ctx.fillRect(x + k * p, y + k * p, p, p);
+            ctx.fillRect(x + (15 - k) * p, y + k * p, p, p);
+          }
+        }
+      }
+    }
     for (const i of game.ice) {
       if (!game.isVisible(i.x, i.y) && !game.isKnown(i.x, i.y)) continue;
       const x = ox + i.x * tile;
@@ -3359,7 +3395,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3380,7 +3416,7 @@ export class Renderer {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;
-      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || CHAPELLE[name] || PRETRESSE[name] || MUSEE[name] || name === "scarecrowHat") {
+      } else if (SALLES[name] || BAIN[name] || ASSIETTE[name] || FERME[name] || CHAMPI_SALLES[name] || ALAMBIC[name] || OSSUAIRE[name] || CHAPELLE[name] || PRETRESSE[name] || MUSEE[name] || ENIGME[name] || name === "scarecrowHat") {
         // Salles v2 (cuisine, prière, torture) : centré sur son emprise, posé sur le bas de sa dernière rangée.
         px = (f.x + def.w / 2) * 16 - w / 2;
         // Accrochés au mur du fond : remontés pour pendre au mur (étagère à outils, herbes qui sèchent).
@@ -3396,6 +3432,17 @@ export class Renderer {
       const x = this.snap(ox + px * u);
       const y = this.snap(oy + py * u);
       ctx.drawImage(img, x, y, this.snap(ox + (px + w) * u) - x, this.snap(oy + (py + h) * u) - y);
+      // Salle de tir : les flèches plantées dans la cible (une tige et ses plumes, jusqu'à 3).
+      if (f.arrows && (f.kind === "cible" || f.kind === "cibleBleue")) {
+        const spots = [[5, 4], [9, 7], [6, 9]];
+        for (let k = 0; k < Math.min(3, f.arrows); k++) {
+          const [ax, ay] = spots[k];
+          ctx.fillStyle = "#5a3817";
+          ctx.fillRect(this.snap(ox + (px + ax) * u), this.snap(oy + (py + ay) * u), Math.max(1, this.snap(4 * u)), Math.max(1, this.snap(u)));
+          ctx.fillStyle = "#f4f7ff";
+          ctx.fillRect(this.snap(ox + (px + ax + 4) * u), this.snap(oy + (py + ay - 1) * u), Math.max(1, this.snap(2 * u)), Math.max(1, this.snap(3 * u)));
+        }
+      }
       // Table de cuisine : l'assiette posée dessus, pleine tant que la cuisse y est (Thomas, 2026-11-13).
       if (f.kind.startsWith("table") && f.plate !== undefined) {
         const pl = ASSIETTE[f.plate > 0 ? "plateFull" : "plate"];

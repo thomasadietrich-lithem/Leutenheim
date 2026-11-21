@@ -1,4 +1,5 @@
 import { ItemId } from "../data/items";
+import { buildSandboxEnigme } from "./sandboxEnigme";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Rng } from "../core/rng";
 import {
@@ -74,6 +75,10 @@ export interface SandboxFloor extends Floor {
   secretRoom?: SecretRoom;
   /** Le décor de la section (Thomas, 2026-11-14 : salle d'essai de la SECTION 2, la champignonnière). */
   look?: "champi";
+  /** Salles à énigme (zone d'essai des énigmes, Thomas 2026-11-21). */
+  enigmas?: import("../core/floor").Enigma[];
+  /** Sans les trucs fun de la section 1 (porte du compteur, poulet, ferme) ni PNJ. */
+  plain?: boolean;
 }
 
 export interface SandboxMonster {
@@ -102,7 +107,7 @@ export interface SandboxArea {
 }
 
 /** Version du plan : à augmenter quand on le change, pour qu'une ancienne salle d'essai sauvegardée ne soit pas reprise. */
-export const SANDBOX_LAYOUT = 48;
+export const SANDBOX_LAYOUT = 49;
 
 /** Graines des salles meublées (choisies pour que chaque salle montre tous ses meubles ; voir le test « salle d'essai »). */
 export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, forge: 30, alchemist: 28, bath: 2, farm: 1, soeur: 7, prison: 1, secret: 3 };
@@ -111,18 +116,19 @@ export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, fo
 let plan: () => SandboxFloor = () => buildSandbox();
 
 /** Quelle salle d'essai : la section 1 (le plan historique) ou la section 2, la champignonnière (Thomas, 2026-11-14). */
-let section: 1 | 2 = 1;
+let section: 1 | 2 | 3 = 1;
 
-export function setSandboxSection(s: 1 | 2): void {
+/** 1 : section 1 ; 2 : la champignonnière ; 3 : la zone d'essai des salles à énigme (Thomas, 2026-11-21). */
+export function setSandboxSection(s: 1 | 2 | 3): void {
   section = s;
 }
 
-export function sandboxSection(): 1 | 2 {
+export function sandboxSection(): 1 | 2 | 3 {
   return section;
 }
 
-export function sandboxPlan(s: 1 | 2 = section): SandboxFloor {
-  return s === 2 ? buildSandbox2() : plan();
+export function sandboxPlan(s: 1 | 2 | 3 = section): SandboxFloor {
+  return s === 2 ? buildSandbox2() : s === 3 ? buildSandboxEnigme() : plan();
 }
 
 export function setSandboxPlan(builder: () => SandboxFloor): void {

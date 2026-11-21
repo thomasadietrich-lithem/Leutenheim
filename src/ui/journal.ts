@@ -85,6 +85,7 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     case "arrow": {
       // Le nom du projectile vient de l'objet (règle : chaque arme de jet donne `single`).
       const what = (e.ammo && (ITEMS[e.ammo] as ItemDef).single) || "La flèche";
+      if (e.planted) return null;
       if (!e.kept) return e.endless ? null : `${what} se brise.`;
       if (!e.hit) return e.via ? `${what} rebondit et retombe au sol.` : `${what} se plante au sol.`;
       return null;
@@ -305,6 +306,21 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           return "Elle chante dans le puits, hors d'atteinte : il faut la toucher de loin.";
       }
       return null;
+    case "enigma":
+      return ({
+        locked: "Le coffre d'argent est fermé à clef : il faut la clef d'argent de cette salle.",
+        opened: "La clef d'argent tourne dans la serrure : le coffre s'ouvre.",
+        planted: "La flèche se plante dans la cible.",
+        recoil: "Touchée par la flèche de recul, la cible bleue recule : le passage est ouvert !",
+        bounce: "La flèche rebondit sur les cibles noires… mais pas sur toutes.",
+        key: "La flèche a touché toutes les cibles noires : une clef d'argent tombe au fond de la salle !",
+        plate: "Sous votre poids de géant, la grande dalle s'enfonce.",
+        gate: "Dans un grincement de chaînes, la herse se lève.",
+        seen: "Les yeux du gardien s'allument : la herse tombe ! Elle se relèvera quand vous serez sorti.",
+        lift: "Derrière vous, la herse se relève.",
+        torch: "À la lumière de la torche, des pièges apparaissent… et des croix de craie sur les dalles sûres.",
+        sink: "La glace cède : vous regagnez la rive, trempé.",
+      } as Record<string, string>)[e.what] ?? null;
     case "iceSlide":
       return "Vous glissez sur la glace, la traversez d'un trait… et tombez de l'autre côté.";
     case "frost":

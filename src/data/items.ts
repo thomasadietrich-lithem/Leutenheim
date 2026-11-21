@@ -548,6 +548,7 @@ export const ITEMS = {
     level: 6,
     acBonus: 2,
   },
+  clef_argent: { id: "clef_argent", name: "Clef d'argent", kind: "key", description: "Ouvre le coffre d'argent de la salle à énigme où on l'a trouvée. Ne sert plus à l'étage suivant.", w: 1, h: 1, maxStack: 3 },
   clef: { id: "clef", name: "Clef", kind: "key", description: "Ouvre une salle fermée de l'étage où on l'a trouvée, sans bruit. Ne sert qu'une fois.", w: 1, h: 1, maxStack: 5 },
   or: { id: "or", name: "Bourse d'or", kind: "gold", description: "Un petit sac de cuir fermé par une cordelette. Son or rejoint votre bourse dès que vous marchez dessus.", w: 1, h: 1, maxStack: 9999 },
   tunique: {

@@ -32,6 +32,8 @@ export interface Furniture {
   /** Ossuaire : sorte d'une pierre tombale ou d'une plaque, et angle d'une pierre tombale (degrés). */
   variant?: string;
   angle?: number;
+  /** Cible de la salle de tir : flèches plantées dedans (dessin). */
+  arrows?: number;
 }
 
 /** Une salle à thème : son numéro dans `rooms` et son thème (`THEMED_ROOMS`). */

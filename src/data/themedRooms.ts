@@ -454,6 +454,21 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   bonesA: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   // Sac d'œufs écrasé : coquilles et flaque verdâtre (planche art/objets_v4.png).
   eggSmash: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  // Salles à énigme (planche art/salles_enigme_v1.png, Thomas 2026-11-21).
+  cible: { blocks: true, w: 1, h: 1, burns: true },
+  cibleBleue: { blocks: true, w: 1, h: 1, burns: true },
+  cibleNoireD: { blocks: true, w: 1, h: 1, burns: false },
+  cibleNoireG: { blocks: true, w: 1, h: 1, burns: false },
+  barriere: { blocks: true, w: 1, h: 1, burns: true },
+  racines: { blocks: true, w: 1, h: 1, burns: true },
+  herse: { blocks: true, w: 1, h: 1, burns: false },
+  herseUp: { blocks: false, w: 1, h: 1, burns: false },
+  dalleGeant: { blocks: false, w: 2, h: 2, burns: false, flat: true },
+  gardien: { blocks: true, w: 1, h: 1, burns: false },
+  // Eau profonde : on ne la traverse pas ; la potion de gel la rend praticable (dessinée par le renderer).
+  eauProfonde: { blocks: true, w: 1, h: 1, burns: false, flat: true },
+  piste: { blocks: false, w: 1, h: 1, burns: false, flat: true },
+  ligneTir: { blocks: false, w: 1, h: 1, burns: false, flat: true },
   bonesB: { blocks: false, w: 1, h: 1, burns: false, flat: true },
 };
 

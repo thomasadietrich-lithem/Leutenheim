@@ -36,6 +36,10 @@ export type GameEvent =
       arrowKind?: "poison" | "ricochet" | "recul" | "obsidienne" | "feu";
       /** Le rebond d'une flèche ricochante, de la première cible vers la deuxième. */
       ricochet?: boolean;
+      /** Plantée dans une cible de salle à énigme (ni brisée ni au sol). */
+      planted?: boolean;
+      /** Rebond en chaîne (salle de rebond) : délai avant de partir (ms). */
+      delay?: number;
     }
   | { type: "pickup"; item: ItemId; count: number }
   /** `fire` : mort en brûlant ; `unaware` : tué par le héros sans l'avoir vu venir (succès). */
@@ -120,6 +124,7 @@ export type GameEvent =
   | { type: "numb"; actor: Actor }
   /** Potion de gel : un monstre gelé, puis dégelé. */
   | { type: "frost"; actor: Actor; what: "freeze" | "thaw" }
+  | { type: "enigma"; what: "locked" | "opened" | "planted" | "recoil" | "bounce" | "key" | "plate" | "gate" | "seen" | "lift" | "torch" | "sink"; x: number; y: number }
   | { type: "iceSlide"; from: Point; x: number; y: number; dx: number; dy: number }
   | { type: "undead"; actor: Actor; what: "pile" | "crush" | "rise" | "chant0" | "chant" | "daze" | "wake" | "rest" | "eat"; item?: string }
   | { type: "burst"; x: number; y: number }

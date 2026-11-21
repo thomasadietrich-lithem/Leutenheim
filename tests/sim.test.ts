@@ -2215,7 +2215,7 @@ test("salle d'essai v21 : HUB, six directions, tout accessible, écriteaux, armu
     // Chaque objet (hors objets de quête) est dans l'armurerie, dans une zone.
     const areas = game.areas();
     for (const id of Object.keys(ITEMS)) {
-      if (["sac_pommes", "magot_krik", "robe", "clef", "marmite", "louche", "corde", "poule_or", "gobelet"].includes(id)) continue;
+      if (["sac_pommes", "magot_krik", "robe", "clef", "clef_argent", "marmite", "louche", "corde", "poule_or", "gobelet"].includes(id)) continue;
       assert.ok(game.ground.some((g) => g.item === id && areas.some((a) => g.x >= a.x && g.x < a.x + a.w && g.y >= a.y && g.y < a.y + a.h)), `${id} hors des zones`);
     }
     // Écriteaux : sur un mur, et un par salle nommée.
@@ -7139,4 +7139,121 @@ test("Glace (2026-11-21) : la potion de gel gèle l'eau ; le héros y glisse, tr
     game.tick();
   }
   assert.ok(!game.icedAt(x + 3, y), "elle dégèle");
+});
+
+test("Salles à énigme (2026-11-21) : zone d'essai, les 7 énigmes se résolvent, clef et coffre d'argent", () => {
+  setSandboxSection(3);
+  try {
+    const game = new Game(3, undefined, undefined, undefined, true);
+    game.monsters.splice(0);
+    const en = (k: string) => game.enigmas().find((e) => e.kind === k)!;
+    assert.equal(game.enigmas().length, 7);
+    const put = (x: number, y: number) => {
+      game.hero.x = game.hero.fromX = x;
+      game.hero.y = game.hero.fromY = y;
+      (game as unknown as { updateVision(): void }).updateVision();
+    };
+    const turn = () => {
+      game.wait();
+      game.tick();
+    };
+    const give = (id: Parameters<typeof game.testGive>[0], _n: number) => game.testGive(id);
+    const uid = (id: string) => game.inventory.items.find((i) => i.defId === id)!.uid;
+    // 1. Tir : une flèche ordinaire se plante ; une flèche de recul fait reculer la cible bleue et ouvre le passage.
+    const tir = en("tir");
+    put(23, 15);
+    game.chooseAmmo("fleche");
+    assert.equal(game.shoot(21, 12), null);
+    game.tick();
+    assert.equal(game.furnitureAt(21, 12)?.arrows, 1, "flèche plantée");
+    give("fleche_recul", 3);
+    assert.ok(game.chooseAmmo("fleche_recul"));
+    assert.equal(game.shoot(23, 12), null);
+    game.tick();
+    assert.equal(game.map.get(23, 12), Tile.Floor, "la cible bleue a reculé");
+    assert.ok(game.furnitureAt(23, 11)?.kind === "cibleBleue");
+    // la clef, puis le coffre
+    put(tir.key.x, tir.key.y);
+    game.pickUp();
+    game.tick();
+    assert.ok(game.inventory.count("clef_argent", game.depth) > 0, "clef ramassée");
+    put(22, 10);
+    assert.ok(game.setDestination(tir.chest.x, tir.chest.y, true));
+    game.tick();
+    assert.equal(game.map.get(tir.chest.x, tir.chest.y), Tile.ChestOpen, "coffre d'argent ouvert");
+    assert.equal(game.inventory.count("clef_argent", game.depth), 0, "clef utilisée");
+    // 2. Rebond : la flèche ricochante touche les 3 cibles noires, la clef apparaît.
+    const reb = en("rebond");
+    give("fleche_ricochet", 3);
+    assert.ok(game.chooseAmmo("fleche_ricochet"));
+    put(33, 16);
+    assert.equal(game.shoot(30, 14), null);
+    game.tick();
+    assert.ok(reb.keyShown, "clef du rebond apparue");
+    assert.ok(game.ground.some((g) => g.item === "clef_argent" && g.x === reb.key.x && g.y === reb.key.y));
+    // Sans clef, le coffre d'argent reste fermé.
+    put(34, 8);
+    game.setDestination(reb.chest.x, reb.chest.y, true);
+    game.tick();
+    assert.equal(game.map.get(reb.chest.x, reb.chest.y), Tile.Chest, "fermé sans clef");
+    // 3. Racines : une torche lancée, toute la haie brûle (une seule fois suffit).
+    give("torche", 1);
+    put(43, 16);
+    assert.ok(game.throwPotion(uid("torche"), 39, 14));
+    game.tick();
+    for (let i = 0; i < 30 && game.furnitureList().some((f) => f.kind === "racines"); i++) turn();
+    assert.ok(!game.furnitureList().some((f) => f.kind === "racines"), "toutes les racines ont brûlé");
+    assert.equal(game.map.get(41, 13), Tile.Floor);
+    // 4. Glisse : l'eau profonde bloque ; gelée, on la traverse en glissant.
+    const gl = en("glisse");
+    assert.equal(game.map.get(54, 12), Tile.Furniture);
+    give("potion_gel", 1);
+    put(54, 15);
+    assert.ok(game.throwPotion(uid("potion_gel"), 54, 12));
+    game.tick();
+    assert.ok(game.icedAt(54, 11) && game.icedAt(54, 12), "eau profonde gelée");
+    put(54, 13);
+    assert.ok(game.setDestination(54, 12, true));
+    game.tick();
+    assert.equal(game.hero.y, 10, "glissé sur l'autre rive");
+    assert.ok(gl);
+    // 5. Balance : géant sur la grande dalle, la herse se lève.
+    const bal = en("balance");
+    put(64, 15);
+    game.hero.grown = 5;
+    turn();
+    assert.equal(game.furnitureAt(bal.gate!.x, bal.gate!.y)?.kind, "herseUp");
+    game.hero.grown = 0;
+    // 6. Salle noire : la torche allumée montre les pièges proches.
+    const noir = en("noire");
+    put(76, 16);
+    give("torche", 1);
+    game.useItem(uid("torche"));
+    game.tick();
+    turn();
+    assert.ok(game.torchLit());
+    assert.ok(game.traps().some((t) => !t.hidden && Math.abs(t.x - 76) <= 3 && Math.abs(t.y - 16) <= 3), "pièges révélés");
+    assert.ok(noir);
+    // 7. Gardiens : vu sur une rangée surveillée, la herse tombe ; dans le brouillard, non.
+    const gar = en("gardiens");
+    put(87, 17);
+    turn();
+    put(87, 16);
+    turn();
+    assert.equal(game.furnitureAt(gar.gate!.x, gar.gate!.y)?.kind, "herse", "vu : la herse tombe");
+    put(87, 19);
+    turn();
+    assert.equal(game.furnitureAt(gar.gate!.x, gar.gate!.y)?.kind, "herseUp", "dehors : elle se relève");
+    give("potion_brouillard", 1);
+    put(87, 17);
+    assert.ok(game.throwPotion(uid("potion_brouillard"), 87, 15));
+    game.tick();
+    put(87, 16);
+    turn();
+    put(87, 14);
+    turn();
+    assert.equal(game.furnitureAt(gar.gate!.x, gar.gate!.y)?.kind, "herseUp", "dans le brouillard, pas vu");
+  } finally {
+    setSandboxSection(1);
+  }
 });

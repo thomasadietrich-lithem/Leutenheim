@@ -155,7 +155,7 @@ export interface SaveData {
   /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */
   sandboxLayout?: number;
   /** Salle d'essai : section 1 ou 2 (Thomas, 2026-11-14). */
-  sandboxSection?: 1 | 2;
+  sandboxSection?: 1 | 2 | 3;
   /** Partie d'essai « toutes les sections » (Thomas, 2026-11-14). */
   testRun?: boolean;
   clock?: number;

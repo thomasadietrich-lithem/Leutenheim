@@ -117,3 +117,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-21_08h13 | 1feb60f | 28 | 29.3 | 29.1 | 28.4 | 16.7 | 24.3 | 0.66 | 0.47 | retours du 21/11 |
 | 2026-11-21_08h26 | 67514fb | 32.2 | 30 | 27.8 | 29.8 | 16.7 | 23.2 | 0.73 | 0.25 | Morillon : succès manquant ; sac de grain retiré |
 | 2026-11-21_09h00 | b3b1a57 | 32.7 | 27.8 | 28.6 | 29.6 | 16.7 | 24.5 | 0.72 | 0.55 | glace sur l'eau |
+| 2026-11-21_10h00 | d286d2d | 27.8 | 26.5 | 27.2 | 27.8 | 16.7 | 26 | 0.59 | 0.44 | salles à énigme (zone d'essai) |

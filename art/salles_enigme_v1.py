@@ -270,16 +270,7 @@ ROOMS = [
         "#.........#",
         "#####D#####",
     ], {(5, 1): "K", (5, 2): "G", (2, 2): "C"}, dict(plate=(4, 3))),
-    ("6. Salle noire", "Aucune lumière, des pièges cachés partout. Torche allumée : les dalles sûres se voient.", [
-        "###########",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#####D#####",
-    ], {(5, 1): "C", (8, 2): "K"}, dict(dark=True)),
-    ("7. Salle des gardiens", "Une dalle vue par un œil fait tomber la herse. Dans le brouillard, ils ne voient plus.", [
+    ("6. Salle des gardiens", "Une dalle vue par un œil fait tomber la herse. Dans le brouillard, ils ne voient plus.", [
         "###########",
         "####...####",
         "#.........#",
@@ -434,6 +425,21 @@ if __name__ == "__main__":
     main()
 
 
+def target_down(blue=True):
+    """Cible renversée sur le dos (16 × 16) : le disque à plat, vu en ovale, le chevalet dessous ; on marche à côté."""
+    s = Sprite(16, 16)
+    ring, dark = ("tb", "tb_d") if blue else ("tr", "tr_d")
+    s.r(1, 11, 14, 2, "wood_d").r(3, 13, 2, 2, "wood_d").r(11, 13, 2, 2, "wood_d")
+    for y in range(9):
+        for x in range(16):
+            d = (((x - 7.5) / 7.4) ** 2 + ((y - 4) / 4.3) ** 2) ** 0.5
+            if d > 1:
+                continue
+            c = "straw" if d > 0.86 else ring if d > 0.66 else "tw" if d > 0.47 else ring if d > 0.27 else dark
+            s.p(x, 3 + y, c)
+    return s.done()
+
+
 def chalk(vertical=True):
     """Piste de tir peinte à la craie sur le sol : un trait (vertical : entre deux pistes ; sinon la ligne de tir)."""
     s = Sprite(16, 16)
@@ -451,7 +457,7 @@ def export():
           "Salles à énigme (planche art/salles_enigme_v1.png, Thomas 2026-11-21) : cibles, cibles noires de rebond, barrière, racines, herse, grande dalle, gardien.",
           {"cible": target().img(), "cibleBleue": target(True).img(), "cibleNoireD": deflector(True).img(), "cibleNoireG": deflector(False).img(),
            "barriere": fence().img(), "racines": roots().img(), "herse": gate().img(), "herseUp": gate(True).img(), "dalleGeant": plate().img(),
-           "gardien": guardian().img(), "piste": chalk().img(), "ligneTir": chalk(False).img()})
+           "gardien": guardian().img(), "piste": chalk().img(), "ligneTir": chalk(False).img(), "cibleBleueTombee": target_down().img()})
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":

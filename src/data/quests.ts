@@ -391,9 +391,10 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     npc: "krik",
     kind: "smoke",
     zone: true,
-    goal: "Faire diversion devant le dortoir",
+    // Plus clair (Thomas, 2026-11-21 : « faire diversion, c'est pas clair ») : on dit QUOI faire et OÙ.
+    goal: "Lancer une fiole de fumée sur la tapisserie",
     back: "Revoir Krik",
-    waiting: "« Lance la fumée sur eux quand ils sortent ! Moi, je me glisse dedans. »",
+    waiting: "« La fiole de fumée ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »",
     thanks: ["« Ça a marché ! Ils toussaient tellement qu'ils ne m'ont pas vu. »", "« Le magot ! Ta part, et des fioles. Volées, évidemment. »", "(Il laisse de l'or et 2 fioles de fumée.)"],
     failed: "Krik attend toujours sa diversion.",
   },

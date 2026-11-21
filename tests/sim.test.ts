@@ -3880,7 +3880,10 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       assert.ok((cur.themes as { id: string }[]).every((t) => t.id === "chapelle" || t.id === "musee"), "aucune salle à thème des sections du dessus (la chapelle des os et le musée seulement)");
       if ((cur.themes as { id: string }[]).some((t) => t.id === "musee")) {
         assert.ok(cur.furniture.some((f) => f.kind === "expoTrike"), "le tricératops du musée");
-        assert.ok((cur as unknown as { osselet?: unknown }).osselet, "Maître Osselet au musée");
+        // Un seul PNJ de quête par étage (Thomas, 2026-11-21) : Maître Osselet, ou Sœur Clavicule si la chapelle a gagné.
+        const c2 = cur as unknown as { osselet?: unknown; clavicule?: unknown };
+        assert.ok(c2.osselet || c2.clavicule, "un PNJ de quête");
+        assert.ok(!(c2.osselet && c2.clavicule), "jamais deux PNJ de quête sur le même étage");
       }
       assert.ok((cur.traps as { kind?: string }[]).every((t) => ["tombSlab", "boneHands", "censer", "moonMirror", "pendulum"].includes(t.kind ?? "")), "seulement les pièges de l'ossuaire");
       for (const t of cur.traps as { x: number; y: number; kind?: string; hidden?: boolean }[]) {
@@ -7023,8 +7026,11 @@ test("Osselet et Clavicule (2026-11-20) : jets de compétence, texte hors de leu
   const game = new Game(1);
   game.testRun = true;
   game.testSection3();
+  assert.ok(game.npc("clavicule"), "Sœur Clavicule à l'étage 11 de l'aperçu");
+  assert.ok(!game.npc("osselet"), "un seul PNJ de quête par étage");
+  assert.ok(game.teleport(12));
   const k = game.npc("osselet")!;
-  assert.ok(k, "Maître Osselet dans l'aperçu");
+  assert.ok(k, "Maître Osselet à l'étage 12 de l'aperçu");
   const g = game as unknown as { rooms: { x: number; y: number; w: number; h: number }[] };
   const next = (p: { x: number; y: number }) => [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dx, dy]) => ({ x: p.x + dx, y: p.y + dy })).find((c) => game.map.isWalkable(c.x, c.y) && !game.npcAt(c.x, c.y) && !game.furnitureAt(c.x, c.y))!;
   const spot = next(k);
@@ -7043,7 +7049,9 @@ test("Osselet et Clavicule (2026-11-20) : jets de compétence, texte hors de leu
   const out = game.npcScene("osselet");
   assert.ok(out.lines.some((l) => l.includes("fait sa ronde")), out.lines.join(" "));
   assert.ok(out.choices.find((c) => c.id === "ecriteau")?.off, "l'écriteau est au musée");
-  // Clavicule : la bénédiction (Charisme).
+  // Clavicule : la bénédiction (Charisme), à l'étage 11.
+  assert.ok(game.teleport(11));
+  game.monsters.splice(0);
   const c = game.npc("clavicule")!;
   const s2 = next(c);
   game.hero.x = game.hero.fromX = s2.x;
@@ -7141,13 +7149,13 @@ test("Glace (2026-11-21) : la potion de gel gèle l'eau ; le héros y glisse, tr
   assert.ok(!game.icedAt(x + 3, y), "elle dégèle");
 });
 
-test("Salles à énigme (2026-11-21) : zone d'essai, les 7 énigmes se résolvent, clef et coffre d'argent", () => {
+test("Salles à énigme (2026-11-21) : zone d'essai, les 6 énigmes se résolvent, clef et coffre d'argent", () => {
   setSandboxSection(3);
   try {
     const game = new Game(3, undefined, undefined, undefined, true);
     game.monsters.splice(0);
     const en = (k: string) => game.enigmas().find((e) => e.kind === k)!;
-    assert.equal(game.enigmas().length, 7);
+    assert.equal(game.enigmas().length, 6);
     const put = (x: number, y: number) => {
       game.hero.x = game.hero.fromX = x;
       game.hero.y = game.hero.fromY = y;
@@ -7171,7 +7179,8 @@ test("Salles à énigme (2026-11-21) : zone d'essai, les 7 énigmes se résolven
     assert.equal(game.shoot(23, 12), null);
     game.tick();
     assert.equal(game.map.get(23, 12), Tile.Floor, "la cible bleue a reculé");
-    assert.ok(game.furnitureAt(23, 11)?.kind === "cibleBleue");
+    assert.equal(game.furnitureAt(23, 11)?.kind, "cibleBleueTombee", "puis basculé");
+    assert.equal(game.map.get(23, 11), Tile.Floor, "renversée, elle ne bloque plus");
     // la clef, puis le coffre
     put(tir.key.x, tir.key.y);
     game.pickUp();
@@ -7201,6 +7210,9 @@ test("Salles à énigme (2026-11-21) : zone d'essai, les 7 énigmes se résolven
     put(43, 16);
     assert.ok(game.throwPotion(uid("torche"), 39, 14));
     game.tick();
+    // Le feu se répand de proche en proche (Thomas, 2026-11-21) : pas toute la haie d'un coup.
+    const burning = () => (game as unknown as { furnitureFire: Map<unknown, number> }).furnitureFire.size;
+    assert.ok(burning() >= 1 && burning() <= 3, `au premier tour, une ou deux racines seulement (${burning()})`);
     for (let i = 0; i < 30 && game.furnitureList().some((f) => f.kind === "racines"); i++) turn();
     assert.ok(!game.furnitureList().some((f) => f.kind === "racines"), "toutes les racines ont brûlé");
     assert.equal(game.map.get(41, 13), Tile.Floor);
@@ -7217,6 +7229,13 @@ test("Salles à énigme (2026-11-21) : zone d'essai, les 7 énigmes se résolven
     game.tick();
     assert.equal(game.hero.y, 10, "glissé sur l'autre rive");
     assert.ok(gl);
+    // La glace tient tant qu'on est dans la salle (Thomas, 2026-11-21), puis fond une fois sorti.
+    for (let t = 0; t < RULES.iceTurns + 3; t++) turn();
+    assert.ok(game.icedAt(54, 11), "toujours gelée : on peut repasser");
+    put(60, 19);
+    for (let t = 0; t < RULES.iceTurns + 2; t++) turn();
+    assert.ok(!game.icedAt(54, 11), "fondue une fois sorti");
+    assert.equal(game.map.get(54, 11), Tile.Furniture);
     // 5. Balance : géant sur la grande dalle, la herse se lève.
     const bal = en("balance");
     put(64, 15);
@@ -7224,17 +7243,7 @@ test("Salles à énigme (2026-11-21) : zone d'essai, les 7 énigmes se résolven
     turn();
     assert.equal(game.furnitureAt(bal.gate!.x, bal.gate!.y)?.kind, "herseUp");
     game.hero.grown = 0;
-    // 6. Salle noire : la torche allumée montre les pièges proches.
-    const noir = en("noire");
-    put(76, 16);
-    give("torche", 1);
-    game.useItem(uid("torche"));
-    game.tick();
-    turn();
-    assert.ok(game.torchLit());
-    assert.ok(game.traps().some((t) => !t.hidden && Math.abs(t.x - 76) <= 3 && Math.abs(t.y - 16) <= 3), "pièges révélés");
-    assert.ok(noir);
-    // 7. Gardiens : vu sur une rangée surveillée, la herse tombe ; dans le brouillard, non.
+    // 6. Gardiens : vu sur une rangée surveillée, la herse tombe ; dans le brouillard, non.
     const gar = en("gardiens");
     put(87, 17);
     turn();

@@ -2570,4 +2570,9 @@ export const EN: Record<string, string> = {
   "5. Salle de la balance": "5. Scale room",
   "6. Salle noire": "6. Dark room",
   "7. Salle des gardiens": "7. Guardians' room",
+  "6. Salle des gardiens": "6. Guardians' room",
+  "(2 fioles de fumée dans le sac. Lancez-en une sur la tapisserie rouge du dortoir, ou sur un traître qui en sort : depuis le sac, bouton « Lancer ».)": "(2 smoke vials in your bag. Throw one at the dormitory's red tapestry, or at a traitor coming out of it: from the bag, “Throw” button.)",
+  "(Une fiole de fumée dans le sac. Ils sortent tous ! Lancez-la sur la tapisserie ou sur l'un d'eux : depuis le sac, bouton « Lancer ».)": "(One smoke vial in your bag. They're all coming out! Throw it at the tapestry or at one of them: from the bag, “Throw” button.)",
+  "Lancer une fiole de fumée sur la tapisserie": "Throw a smoke vial at the tapestry",
+  "« La fiole de fumée ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »": "“The smoke vial! Throw it at the red tapestry, or at a traitor coming out. While they cough, I'll slip inside.”",
 };

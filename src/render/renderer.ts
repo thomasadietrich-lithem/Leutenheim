@@ -1677,9 +1677,9 @@ export class Renderer {
   }
 
   /** Un grand dessin (40 × 34 : 2 cases et demie de large) centré sur (cx, cy), pieds en bas du carré de 2 × 2. */
-  private drawBig(rows: readonly string[], palette: Record<string, string>, cx: number, cy: number, mirror: boolean): void {
+  private drawBig(rows: readonly string[], palette: Record<string, string>, cx: number, cy: number, mirror: boolean, scale = 1): void {
     const { ctx, tile } = this;
-    const u = tile / 16;
+    const u = (tile / 16) * scale;
     const w = rows[0].length * u;
     const h = rows.length * u;
     const smooth = ctx.imageSmoothingEnabled;
@@ -2294,7 +2294,9 @@ export class Renderer {
       // orange ou rouge ») : une lueur rouge orangé qui palpite sous la dalle, cadre rouge.
       // Plus en permanence (Thomas, 2026-11-21 : « les pièges semblent entourés de rouge en permanence ») : seulement
       // quand le héros en est à 3 cases ou moins, pour prévenir du danger.
-      const nearHero = Math.max(Math.abs(p.x - game.hero.x), Math.abs(p.y - game.hero.y)) <= 3;
+      // Seulement un piège TROUVÉ (il était caché) : les dalles visibles d'emblée se repèrent à l'œil (Thomas, 2026-11-21 :
+      // « j'ai des pièges entourés que je n'ai pas découverts »).
+      const nearHero = !!p.found && Math.max(Math.abs(p.x - game.hero.x), Math.abs(p.y - game.hero.y)) <= 3;
       if (nearHero && !((kind === "pit" || kind === "tombSlab") && p.sprung) && kind !== "pendulum") {
         const pulse = 0.5 + 0.5 * Math.sin(this.time / 300 + p.x + p.y);
         const tx = this.snap(ox + p.x * tile);
@@ -2467,13 +2469,15 @@ export class Renderer {
           ctx.stroke();
         }
         if (m.petrified) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
-        this.drawBig(art.rows, art.palette, cx, oy + p.y * tile - lift, game.hero.x < m.x);
+        // Plus petite (Thomas, 2026-11-21 : « elle se superpose au mob, le sprite semble trop grand ») : ×0,7, environ une
+        // case de large et une case et demie de haut.
+        this.drawBig(art.rows, art.palette, cx, oy + p.y * tile - lift, game.hero.x < m.x, 0.7);
         this.ctx.filter = "none";
         if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
           ctx.fillStyle = "rgba(255,255,255,0.2)";
-          ctx.fillRect(cx - tile * 0.75, oy + (p.y - 1.1) * tile - lift, tile * 1.5, tile * 2.1);
+          ctx.fillRect(cx - tile * 0.55, oy + (p.y - 0.5) * tile - lift, tile * 1.1, tile * 1.5);
         }
-        this.drawStatusBubbles(m, cx, oy + (p.y - 1.4) * tile - lift, !!m.burning);
+        this.drawStatusBubbles(m, cx, oy + (p.y - 0.8) * tile - lift, !!m.burning);
         continue;
       }
       // Un boss gelé ou pétrifié se voit (Thomas, 2026-11-21) : bleu glacé ou gris, comme les autres monstres.
@@ -3168,35 +3172,60 @@ export class Renderer {
     const furn = game.furnitureList();
     for (const f of furn) {
       if (f.kind !== "eauProfonde" || game.icedAt(f.x, f.y) || (!game.isVisible(f.x, f.y) && !game.isKnown(f.x, f.y))) continue;
+      // Eau profonde v2 (Thomas, 2026-11-21 : « améliore le design ») : plus sombre au large, plus claire près des rives,
+      // des vaguelettes qui glissent lentement, un rebord de pierre mouillée et une frange d'écume côté rive du haut,
+      // l'ombre de la berge en bas, un reflet qui scintille de temps en temps.
       const x = ox + f.x * tile;
       const y = oy + f.y * tile;
-      ctx.fillStyle = "#16224a";
-      ctx.fillRect(x, y, tile, tile);
-      ctx.fillStyle = "#2c467a";
-      const t = Math.floor(this.time / 600);
-      for (let k = 0; k < 3; k++) ctx.fillRect(x + ((f.x * 5 + k * 6 + t) % 13) * p, y + (3 + k * 5) * p, 3 * p, p);
-      if (!furn.some((o) => o.kind === "eauProfonde" && o.x === f.x && o.y === f.y - 1)) {
-        ctx.fillStyle = "#4a6ea8";
-        ctx.fillRect(x, y, tile, 2 * p);
+      const deep = (dx: number, dy: number) => furn.some((o) => o.kind === "eauProfonde" && o.x === f.x + dx && o.y === f.y + dy);
+      const up = deep(0, -1);
+      const down = deep(0, 1);
+      const left = deep(-1, 0);
+      const right = deep(1, 0);
+      for (let j = 0; j < 16; j++) {
+        // Profondeur : plus sombre loin des rives (haut et bas de la nappe).
+        const fromUp = up ? 16 + j : j;
+        const fromDown = down ? 31 - j : 15 - j;
+        const depth = Math.min(fromUp, fromDown);
+        ctx.fillStyle = depth < 3 ? "#26407a" : depth < 7 ? "#1c3062" : depth < 12 ? "#152550" : "#101c40";
+        ctx.fillRect(x, y + j * p, tile, p + 0.5);
       }
+      // Vaguelettes : deux traits par case qui glissent vers la droite (une case toutes les ~6 s).
+      const t = this.time / 380;
+      for (const [row, seed] of [[4, 3], [11, 9]] as const) {
+        const sx = Math.floor((f.x * 7 + f.y * 5 + seed + t) % 16);
+        ctx.fillStyle = "#3a5c9a";
+        for (let k = 0; k < 5; k++) ctx.fillRect(x + ((sx + k) % 16) * p, y + (row + (k === 0 || k === 4 ? 1 : 0)) * p, p, p);
+        ctx.fillStyle = "#7aa0d8";
+        ctx.fillRect(x + ((sx + 2) % 16) * p, y + row * p, p, p);
+      }
+      // Reflet qui scintille.
+      if (Math.floor(this.time / 700 + f.x * 3 + f.y) % 7 === 0) {
+        ctx.fillStyle = "#d8ecff";
+        ctx.fillRect(x + ((f.x * 5 + f.y * 3) % 12 + 2) * p, y + ((f.x + f.y * 7) % 10 + 3) * p, p, p);
+      }
+      if (!up) {
+        // Rebord de pierre mouillée puis frange d'écume.
+        ctx.fillStyle = "#4a4658";
+        ctx.fillRect(x, y, tile, 2 * p);
+        ctx.fillStyle = "#6a6680";
+        ctx.fillRect(x, y, tile, p);
+        ctx.fillStyle = "#c8dcf4";
+        for (let k = (f.x % 2); k < 16; k += 3) ctx.fillRect(x + k * p, y + 2 * p, 2 * p, p);
+      }
+      if (!down) {
+        ctx.fillStyle = "#080e24";
+        ctx.fillRect(x, y + 14 * p, tile, 2 * p);
+      }
+      ctx.fillStyle = "#4a4658";
+      if (!left) ctx.fillRect(x, y, p, tile);
+      if (!right) ctx.fillRect(x + 15 * p, y, p, tile);
     }
     // Salles à énigme : le regard des gardiens (bandes jaunes au sol), la craie de la salle noire.
     for (const e of game.enigmas()) {
       if (e.gazes) {
         ctx.fillStyle = e.dropped ? "rgba(255,120,80,0.22)" : "rgba(255,226,122,0.16)";
         for (const g of e.gazes) for (const c of g) if (game.isVisible(c.x, c.y)) ctx.fillRect(ox + c.x * tile, oy + c.y * tile, tile, tile);
-      }
-      if (e.safe) {
-        ctx.fillStyle = "rgba(232,226,208,0.85)";
-        for (const c of e.safe) {
-          if (!game.isVisible(c.x, c.y) || !game.chalkShown(c)) continue;
-          const x = ox + c.x * tile;
-          const y = oy + c.y * tile;
-          for (let k = 3; k <= 12; k++) {
-            ctx.fillRect(x + k * p, y + k * p, p, p);
-            ctx.fillRect(x + (15 - k) * p, y + k * p, p, p);
-          }
-        }
       }
     }
     for (const i of game.ice) {

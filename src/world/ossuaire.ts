@@ -191,7 +191,7 @@ function roomOneBlock(floor: Floor, room: Room): boolean {
   return seen.size === cells.length;
 }
 
-export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = [], forceSpecial = false): { chapel?: number; museum?: number } {
+export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = [], forceSpecial: false | "chapel" | "museum" = false): { chapel?: number; museum?: number } {
   const { map, rooms, start } = floor;
   // Plus de torche ni de cheminée : la lune seule éclaire.
   floor.torches.splice(0, floor.torches.length);
@@ -257,8 +257,10 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
   // ---------- La chapelle des os : une salle sur deux étages environ, assez grande, ni départ ni escalier ----------
   let chapel: number | undefined;
   const stairsRoom = rooms.findIndex((r) => floor.stairs.x >= r.x - 1 && floor.stairs.x <= r.x + r.w && floor.stairs.y >= r.y - 1 && floor.stairs.y <= r.y + r.h);
-  // L'aperçu de la section 3 (salle d'essai) : chapelle et musée à coup sûr à l'étage 11, pour essayer leurs quêtes.
-  if (rng.chance(RULES.chapelChance) || forceSpecial) {
+  // L'aperçu de la section 3 (salle d'essai) : la chapelle à coup sûr à l'étage 11, le musée à l'étage 12 (un seul PNJ
+  // de quête par étage, Thomas 2026-11-21).
+  const chapelRoll = rng.chance(RULES.chapelChance);
+  if ((chapelRoll && forceSpecial !== "museum") || forceSpecial === "chapel") {
     const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && !avoidRooms.includes(i) && rooms[i].w >= 7 && rooms[i].h >= 5);
     for (const i of fits.sort(() => rng.next() - 0.5)) {
       if (furnishChapel(floor, furniture, rng, rooms[i])) {
@@ -270,7 +272,8 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
 
   // ---------- Le musée : une grande salle (9 × 5 au moins), un étage sur trois environ ----------
   let museum: number | undefined;
-  if (rng.chance(RULES.museumChance) || forceSpecial) {
+  const museumRoll = rng.chance(RULES.museumChance);
+  if ((museumRoll && forceSpecial !== "chapel") || forceSpecial === "museum") {
     const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && i !== chapel && rooms[i].w >= 9 && rooms[i].h >= 5);
     for (const i of fits.sort(() => rng.next() - 0.5)) {
       if (furnishMuseum(floor, furniture, rooms[i])) {

@@ -4504,7 +4504,19 @@ function beginStairs(force?: StairsVariant): void {
   tipIndex = (tipIndex + 1) % TIPS.length;
   stairsTip = tr(TIPS[tipIndex]);
   // Le héros de la scène a la tête de sa race, sans son équipement.
-  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`), heroSprites(heroLook(game.race.id, { melee: "epee" })), stairsTip);
+  // L'astuce s'affiche avec le MÊME élément que sur la carte (Thomas, 2026-11-21 : « les astuces n'ont pas la même
+  // taille ni le même dessin entre l'escalier et la carte ») : elle reste pendant tout le passage, puis 7 s.
+  stairsScene = new StairsScene(direction, variant, tr(`ÉTAGE ${target}`), heroSprites(heroLook(game.race.id, { melee: "epee" })), "");
+  holdTip(stairsTip);
+}
+
+/** L'astuce reste affichée (pendant le passage d'escalier), sans s'effacer. */
+function holdTip(text: string): void {
+  const el = $("tip-toast");
+  el.textContent = text;
+  el.classList.remove("out");
+  el.hidden = false;
+  window.clearTimeout(tipTimer);
 }
 
 /** L'astuce reste sur la carte quelques secondes après l'escalier, puis s'efface (Thomas, 2026-11-17 : « elles
@@ -4513,7 +4525,7 @@ const TIP_SHOWN_MS = 7000;
 let tipTimer = 0;
 function showTip(text: string): void {
   const el = $("tip-toast");
-  el.textContent = tr(text);
+  el.textContent = text;
   el.classList.remove("out");
   el.hidden = false;
   window.clearTimeout(tipTimer);

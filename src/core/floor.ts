@@ -23,7 +23,7 @@ import { TRAPS, TrapKind } from "../data/traps";
  * aller chercher et un COFFRE D'ARGENT. `key` : où la clef est posée (ou apparaît) ; `keyShown` : elle est là.
  */
 export interface Enigma {
-  kind: "tir" | "rebond" | "racines" | "glisse" | "balance" | "noire" | "gardiens";
+  kind: "tir" | "rebond" | "racines" | "glisse" | "balance" | "gardiens";
   /** La salle (case en haut à gauche, largeur, hauteur). */
   room: { x: number; y: number; w: number; h: number };
   key: Point;
@@ -37,8 +37,6 @@ export interface Enigma {
   dropped?: boolean;
   /** Rebond : les cibles noires déjà touchées par la flèche (pour l'affichage). */
   struck?: Point[];
-  /** Salle noire : les dalles sûres, marquées à la craie (visibles à la lumière d'une torche). */
-  safe?: Point[];
   solved?: boolean;
 }
 
@@ -260,6 +258,8 @@ export interface Trap extends Point {
   sprung?: boolean;
   /** Caché : invisible, et le héros ne le contourne pas, tant qu'une fouille ne l'a pas trouvé ou qu'il n'est pas parti. */
   hidden?: boolean;
+  /** Caché puis trouvé (fouille, diapason, torche…) : seul celui-là s'entoure de rouge près du héros (Thomas, 2026-11-21). */
+  found?: boolean;
 }
 
 /** Une cache : un objet enfoui dans une salle, invisible tant qu'une fouille réussie ne l'a pas trouvé. */

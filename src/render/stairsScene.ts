@@ -396,7 +396,8 @@ export class StairsScene {
       shown.forEach((text, i) => ctx.fillText(text, target.width / 2, bottom - (shown.length - 1 - i) * scale * 4.6));
       ctx.restore();
     }
-    // Le numéro de l'étage où l'on arrive, en bas, sur le fondu de fin.
+    // Le numéro de l'étage où l'on arrive, sur le fondu de fin : au milieu de l'écran (en bas, il chevauchait l'astuce,
+    // affichée maintenant par la page, Thomas 2026-11-21).
     if (this.phase === "out" || this.phase === "dark") {
       const alpha = this.phase === "dark" ? 0.9 : Math.min(1, 0.4 + this.phaseTime / FADE_OUT);
       ctx.globalAlpha = alpha;
@@ -404,7 +405,7 @@ export class StairsScene {
       ctx.font = `${Math.round(scale * 7)}px VT323, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(this.label, target.width / 2, dy + dh - scale * 6);
+      ctx.fillText(this.label, target.width / 2, dy + dh / 2);
     }
     ctx.restore();
   }

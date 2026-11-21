@@ -531,7 +531,7 @@ export class Game {
             state.furniture.push(srng.chance(0.5) ? { x: sr.entry.x, y: sr.entry.y, kind: "ossTablet", side, variant: "texte" } : { x: sr.entry.x, y: sr.entry.y, kind: "ossAlcove", side, len: 1 });
             for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocked.add(`${sr.entry.x + dx},${sr.entry.y + dy}`);
           }
-          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked, [], this.previewS3 && depth === 11);
+          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked, [], this.previewS3 && depth === 11 ? "chapel" : this.previewS3 && depth === 12 ? "museum" : false);
           // La chapelle des os et le musée : des « salles à thème » pour le reste du jeu (ni piège ni monstre ; Sœur
           // Clavicule, le Conservateur).
           if (special.chapel !== undefined) state.themes = [...(state.themes ?? []), { room: special.chapel, id: "chapelle" } as (typeof state.themes)[number]];
@@ -1580,6 +1580,42 @@ export class Game {
       }
     }
     this.guardColossus(body);
+  }
+
+  /** Un pas du Colosse (3 × 3, ses bras et son crâne avec lui) vers le héros, s'il n'est pas déjà à portée. */
+  private colossusStep(body: Actor): void {
+    const parts = this.monsters.filter((o) => o.defId === "brasColosse" || o.defId === "craneColosse");
+    const pieces = [body, ...parts];
+    if (pieces.some((o) => gapBetween(o, this.hero) <= 1)) return;
+    const own = new Set(pieces);
+    const footprint = (x: number, y: number): Point[] => {
+      const out: Point[] = [];
+      for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) out.push({ x: x + dx, y: y + dy });
+      for (const o of parts) {
+        const p = this.colossusPartAt({ ...body, x, y }, o.part as "armL" | "armR" | "head");
+        out.push(p);
+      }
+      return out;
+    };
+    const ok = (x: number, y: number) =>
+      footprint(x, y).every((c) => this.map.isWalkable(c.x, c.y) && !(c.x === this.hero.x && c.y === this.hero.y) && !this.npcAt(c.x, c.y) && (() => {
+        const a = this.monsterAt(c.x, c.y);
+        return !a || own.has(a);
+      })());
+    const tx = Math.sign(this.hero.x - (body.x + 1));
+    const ty = Math.sign(this.hero.y - (body.y + 1));
+    const tries: [number, number][] = [[tx, ty], [tx, 0], [0, ty]];
+    for (const [dx, dy] of tries) {
+      if (dx === 0 && dy === 0) continue;
+      if (!ok(body.x + dx, body.y + dy)) continue;
+      for (const o of pieces) {
+        o.fromX = o.x;
+        o.fromY = o.y;
+        o.x += dx;
+        o.y += dy;
+      }
+      return;
+    }
   }
 
   /** Un morceau du Colosse cassé, ou le Colosse tombé (la Prêtresse redescend, épuisée). */
@@ -2843,7 +2879,7 @@ export class Game {
     const trap = this.current.traps.find((t) => t.x === actor.x && t.y === actor.y);
     if (!trap) return;
     // Un piège caché se montre en partant (sous le héros ou sous un monstre en vue).
-    if (trap.hidden && (actor.kind === "hero" || this.isVisible(trap.x, trap.y))) trap.hidden = false;
+    if (trap.hidden && (actor.kind === "hero" || this.isVisible(trap.x, trap.y))) Object.assign(trap, { hidden: false, found: true });
     const kind = trap.kind ?? "spikes";
     const def = TRAPS[kind];
     // La lame pendule ne passe qu'un tour sur deux : entre deux passages, on traverse sans rien.
@@ -3053,15 +3089,18 @@ export class Game {
           nx = tx;
           ny = ty;
         }
-        if (nx !== f.x || ny !== f.y) {
-          this.map.set(f.x, f.y, Tile.Floor);
-          f.x = nx;
-          f.y = ny;
-          this.map.set(nx, ny, Tile.Furniture);
-          this.updateVision();
-          this.events.push({ type: "enigma", what: "recoil", x: nx, y: ny });
-          return;
-        }
+        // Elle recule autant qu'elle peut, puis BASCULE sur le dos (Thomas, 2026-11-21 : « si la cible bleue recule
+        // d'une case, elle bloque le chemin ») : renversée, on passe à côté ou par-dessus.
+        this.map.set(f.x, f.y, Tile.Floor);
+        this.map.touch(f.x, f.y);
+        f.x = nx;
+        f.y = ny;
+        f.kind = "cibleBleueTombee";
+        this.map.set(nx, ny, Tile.Floor);
+        this.map.touch(nx, ny);
+        this.updateVision();
+        this.events.push({ type: "enigma", what: "recoil", x: nx, y: ny });
+        return;
       }
       f.arrows = Math.min(3, (f.arrows ?? 0) + 1);
       this.map.touch(f.x, f.y);
@@ -3093,8 +3132,8 @@ export class Game {
 
   /**
    * Chaque tour, les salles à énigme : la grande dalle s'enfonce sous un géant (la herse se lève) ; les gardiens font
-   * tomber leur herse s'ils voient le héros (pas dans le brouillard), elle se relève quand il quitte la salle ; dans la
-   * salle noire, la lumière d'une torche montre les pièges cachés.
+   * tomber leur herse s'ils voient le héros (pas dans le brouillard), elle se relève quand il quitte la salle. (La salle
+   * noire est retirée : Thomas, 2026-11-21.)
    */
   private enigmaTick(): void {
     for (const e of this.enigmas()) {
@@ -3128,22 +3167,7 @@ export class Game {
           this.events.push({ type: "enigma", what: "lift", x: gate.x, y: gate.y });
         }
       }
-      if (e.kind === "noire" && this.torchLit()) {
-        let shown = 0;
-        for (const t of this.current.traps) {
-          if (!t.hidden || this.enigmaAt(t) !== e || Math.max(Math.abs(t.x - this.hero.x), Math.abs(t.y - this.hero.y)) > RULES.enigmaTorchReach) continue;
-          t.hidden = false;
-          this.map.touch(t.x, t.y);
-          shown++;
-        }
-        if (shown > 0 && !e.solved) this.events.push({ type: "enigma", what: "torch", x: this.hero.x, y: this.hero.y });
-      }
     }
-  }
-
-  /** Salle noire : les dalles sûres marquées à la craie se voient à la lumière de la torche du héros. */
-  chalkShown(p: Point): boolean {
-    return this.torchLit() && Math.max(Math.abs(p.x - this.hero.x), Math.abs(p.y - this.hero.y)) <= RULES.enigmaTorchReach;
   }
 
   /** Eau gelée par une potion de gel : on y glisse jusqu'au bout et l'on tombe (Thomas, 2026-11-21). */
@@ -3299,7 +3323,10 @@ export class Game {
     this.discordMist = this.discordMist.filter((f) => f.turns > 0);
     for (const f of this.frost) f.turns--;
     this.frost = this.frost.filter((f) => f.turns > 0);
-    for (const i of this.ice) if (--i.turns <= 0) this.map.touch(i.x, i.y);
+    // L'eau profonde gelée tient tant que le héros est dans la salle de glisse (Thomas, 2026-11-21 : « elle doit rester
+    // gelée au moins jusqu'à ce qu'on repasse de l'autre côté ») ; elle ne commence à fondre qu'une fois sorti.
+    const holdDeep = this.enigmaAt(this.hero)?.kind === "glisse";
+    for (const i of this.ice) if (!(i.deep && holdDeep) && --i.turns <= 0) this.map.touch(i.x, i.y);
     const melted = this.ice.filter((i) => i.turns <= 0 && i.deep);
     this.ice = this.ice.filter((i) => i.turns > 0);
     // L'eau profonde dégèle : elle redevient infranchissable ; qui s'y tenait regagne la rive (« Plouf ! »).
@@ -4813,7 +4840,7 @@ export class Game {
     if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) > range) return "far";
     if (!this.isVisible(x, y)) return "unseen";
     // Une porte verrouillée se vise aussi (Thomas, 2026-11-18) : le feu la consume.
-    if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.DoorLocked && !this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind === "racines" || f.kind === "eauProfonde"))) return "wall";
+    if (!this.map.isWalkable(x, y) && this.map.get(x, y) !== Tile.DoorLocked && !this.current.furniture.some((f) => f.x === x && f.y === y && (f.kind === "racines" || f.kind === "eauProfonde")) && !(this.current.zone?.entry.x === x && this.current.zone?.entry.y === y)) return "wall";
     return null;
   }
 
@@ -5066,13 +5093,14 @@ export class Game {
       if (!sheet || !this.events.some((e) => e.type === "furnitureFire" && e.kind === "webN")) this.events.push({ type: "furnitureFire", x: w.x, y: w.y, kind: sheet ? "webN" : w.kind });
     }
     if (webs.some((w) => w.kind.startsWith("webHub"))) this.checkHub();
-    let spread = true;
-    while (spread) {
-      spread = false;
+    // Le feu se répand de proche en proche, UNE case par tour (Thomas, 2026-11-21 : « le feu doit se répandre, pas
+    // apparaître instantanément sur toutes les tuiles ») : seules les flammes déjà là au début du tour allument.
+    const flames = [...this.fires];
+    {
       for (const f of this.current.furniture) {
         if (this.furnitureFire.has(f) || !FURNITURE_KINDS[f.kind]?.burns) continue;
         const cells = furnitureCells(f);
-        const near = cells.some((c) => this.fires.some((fire) => Math.max(Math.abs(fire.x - c.x), Math.abs(fire.y - c.y)) <= 1));
+        const near = cells.some((c) => flames.some((fire) => Math.max(Math.abs(fire.x - c.x), Math.abs(fire.y - c.y)) <= 1));
         if (!near) continue;
         this.furnitureFire.set(f, RULES.fireTurns);
         for (const c of cells) {
@@ -5081,7 +5109,6 @@ export class Game {
           else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
         }
         this.events.push({ type: "furnitureFire", x: f.x, y: f.y, kind: f.kind });
-        spread = true;
       }
     }
   }
@@ -6273,6 +6300,7 @@ export class Game {
       for (const t of this.searchLuck ? [] : this.current.traps) {
         if (!t.hidden || t.x < room.x || t.y < room.y || t.x >= room.x + room.w || t.y >= room.y + room.h) continue;
         t.hidden = false;
+        t.found = true;
         traps.push({ x: t.x, y: t.y });
       }
     }
@@ -6295,6 +6323,7 @@ export class Game {
       for (const t of this.current.traps) {
         if (!t.hidden || Math.max(Math.abs(t.x - this.hero.x), Math.abs(t.y - this.hero.y)) > reach || this.roomIndexAt(t) >= 0) continue;
         t.hidden = false;
+        t.found = true;
         traps.push({ x: t.x, y: t.y });
       }
     }
@@ -6704,21 +6733,40 @@ export class Game {
    */
   private placeQuestNpc(state: FloorState, depth: number): void {
     // Ossuaire : aucun PNJ des sections du dessus (Thomas, 2026-11-19) ; Sœur Clavicule dans la chapelle des os.
+    // UN SEUL PNJ DE QUÊTE PAR ÉTAGE, dans toutes les sections (Thomas, 2026-11-21 : « on ne doit pas avoir deux quêtes
+    // dans le même étage, sinon conflit dans l'affichage ; une quête est rattachée à un étage »).
+    const npcPick = new Rng(floorSeed(this.runSeed, depth) ^ 0x1a2b);
     if (state.look === "ossuaire") {
+      const options: (() => void)[] = [];
       if ((state.themes ?? []).some((t) => t.id === "chapelle") && this.claviculeMemory.met < CLAVICULE.maxEncounters) {
-        state.clavicule = this.placeInTheme(state, "chapelle", new Rng(floorSeed(this.runSeed, depth) ^ 0xc1a7)) ?? undefined;
+        options.push(() => (state.clavicule = this.placeInTheme(state, "chapelle", new Rng(floorSeed(this.runSeed, depth) ^ 0xc1a7)) ?? undefined));
       }
       if ((state.themes ?? []).some((t) => t.id === "musee") && this.osseletMemory.met < 1) {
-        state.osselet = this.placeInTheme(state, "musee", new Rng(floorSeed(this.runSeed, depth) ^ 0x05e1)) ?? undefined;
+        options.push(() => (state.osselet = this.placeInTheme(state, "musee", new Rng(floorSeed(this.runSeed, depth) ^ 0x05e1)) ?? undefined));
+      }
+      for (const { o } of options.map((o) => ({ o, k: npcPick.next() })).sort((a, b) => a.k - b.k)) {
+        o();
+        if (state.clavicule || state.osselet) break;
       }
       return;
     }
     // Section 2 : Morillon vit dans sa champignonnière de morilles (les PNJ de la section 1 n'y descendent pas).
     if (state.look === "champi" || (this.sandbox && this.sandboxFloor()?.look === "champi")) {
-      if (this.morillonMemory.met < MORILLON.maxEncounters || this.sandbox) state.morillon = this.placeMorillon(state, new Rng(floorSeed(this.runSeed, depth) ^ 0x30b1)) ?? undefined;
+      // La salle d'essai garde les trois (chacun dans sa salle, pour les essayer) ; dans le donjon, un seul.
+      const options: (() => void)[] = [];
+      if (this.morillonMemory.met < MORILLON.maxEncounters || this.sandbox) options.push(() => (state.morillon = this.placeMorillon(state, new Rng(floorSeed(this.runSeed, depth) ^ 0x30b1)) ?? undefined));
       // Vernis dans son hall d'exposition, le Maestro dans sa salle de concert (Thomas, 2026-11-18).
-      if (this.vernisMemory.met < 1 || this.sandbox) state.vernis = this.placeInTheme(state, "expo", new Rng(floorSeed(this.runSeed, depth) ^ 0x7e41)) ?? undefined;
-      if (this.maestroMemory.met < 1 || this.sandbox) state.maestro = this.placeInTheme(state, "concert", new Rng(floorSeed(this.runSeed, depth) ^ 0x3a57)) ?? undefined;
+      if (this.vernisMemory.met < 1 || this.sandbox) options.push(() => (state.vernis = this.placeInTheme(state, "expo", new Rng(floorSeed(this.runSeed, depth) ^ 0x7e41)) ?? undefined));
+      if (this.maestroMemory.met < 1 || this.sandbox) options.push(() => (state.maestro = this.placeInTheme(state, "concert", new Rng(floorSeed(this.runSeed, depth) ^ 0x3a57)) ?? undefined));
+      if (this.sandbox) for (const place of options) place();
+      else {
+        // On ne garde que ceux dont la salle existe : on essaie dans un ordre tiré au sort, le premier placé gagne.
+        const order = options.map((o) => ({ o, k: npcPick.next() })).sort((a, b) => a.k - b.k);
+        for (const { o } of order) {
+          o();
+          if (state.morillon || state.vernis || state.maestro) break;
+        }
+      }
       return;
     }
     if (this.sandbox) {
@@ -7971,8 +8019,8 @@ export class Game {
           if (this.giveTask("krik_diversion")) {
             return {
               lines: ok
-                ? ["« Là-bas ! … Ça marche ! » Il vous tend des fioles : « Quand ils sortent, la fumée. Moi, je me glisse dedans. »", "(Fioles de fumée dans le sac. Les traîtres se réveillent.)"]
-                : ["« Là-bas ! … C'est moi qui ai trahi tout le monde ! » Oups.", "« Vite, une fiole ! Sur eux ! »", "(Une fiole de fumée dans le sac. Ils sortent tous !)"],
+                ? ["« Là-bas ! … Ça marche ! » Il vous tend des fioles : « Quand ils sortent, la fumée. Moi, je me glisse dedans. »", "(2 fioles de fumée dans le sac. Lancez-en une sur la tapisserie rouge du dortoir, ou sur un traître qui en sort : depuis le sac, bouton « Lancer ».)"]
+                : ["« Là-bas ! … C'est moi qui ai trahi tout le monde ! » Oups.", "« Vite, une fiole ! Sur eux ! »", "(Une fiole de fumée dans le sac. Ils sortent tous ! Lancez-la sur la tapisserie ou sur l'un d'eux : depuis le sac, bouton « Lancer ».)"],
               roll,
               done: true,
             };
@@ -8294,7 +8342,7 @@ export class Game {
         g.drops = (g.drops ?? 0) + 2;
         break;
       case "gluck_banc":
-        for (const t of this.current.traps) t.hidden = false;
+        for (const t of this.current.traps) if (t.hidden) Object.assign(t, { hidden: false, found: true });
         for (const t of this.current.traps) this.map.touch(t.x, t.y);
         this.grantLuck();
         break;
@@ -9970,6 +10018,7 @@ export class Game {
     let traps = 0;
     for (const t of this.current.traps) if (t.hidden && near(t)) {
       t.hidden = false;
+      t.found = true;
       traps++;
     }
     const secret = this.revealSecretsNear(near);
@@ -10267,14 +10316,25 @@ export class Game {
     if (!this.testRun || this.over) return false;
     this.previewS3 = true;
     if (!this.teleport(11)) return false;
-    // Chapelle (Sœur Clavicule) et musée (Maître Osselet) sur cet étage : on retire au besoin un autre étage 11
-    // (Thomas, 2026-11-19 : « la nouvelle quête n'a pas de test ? »).
+    // Sœur Clavicule (chapelle) sur cet étage, Maître Osselet (musée) à l'étage 12 : un seul PNJ de quête par étage
+    // (Thomas, 2026-11-21). On retire au besoin un autre étage 11.
     const base = this.runSeed;
-    for (let i = 1; i < 60 && !(this.npc("clavicule") && this.npc("osselet")); i++) {
+    for (let i = 1; i < 60 && !this.npc("clavicule"); i++) {
       (this as unknown as { runSeed: number }).runSeed = (base ^ Math.imul(i, 0x9e3779b1)) >>> 0;
       this.floors.delete(11);
       this.monsters = [];
       this.enterFloor(11, "down");
+    }
+    // L'étage 12 avec le musée et Maître Osselet, préparé d'avance (l'étage 11 reste tel quel).
+    const seed11 = this.runSeed;
+    if (this.teleport(12)) {
+      for (let i = 1; i < 60 && !this.npc("osselet"); i++) {
+        (this as unknown as { runSeed: number }).runSeed = (seed11 ^ Math.imul(i, 0x85ebca6b)) >>> 0;
+        this.floors.delete(12);
+        this.monsters = [];
+        this.enterFloor(12, "down");
+      }
+      this.teleport(11);
     }
     this.testBoss2(false);
     // Niveau 11 (Thomas, 2026-11-19) : le Rang III s'ouvre, son point de voie reste à placer (le « ! » du héros).
@@ -11340,9 +11400,11 @@ export class Game {
         else this.bossAct(m);
         continue;
       }
-      // Le Colosse ne bouge pas : ses bras frappent, son crâne tire ; ses morceaux cassés se ressoudent dans la lune.
+      // Le Colosse avance lentement vers le héros, un pas tous les deux tours (Thomas, 2026-11-21 : « le squelette géant
+      // reste et ne bouge pas ») ; ses bras frappent, son crâne tire ; ses morceaux cassés se ressoudent dans la lune.
       if (m.defId === "colosse") {
         this.colossusAct(m);
+        if (!m.stunned && !m.petrified && this.turn % 2 === 0) this.colossusStep(m);
         continue;
       }
       if (m.defId === "craneColosse") {

@@ -181,8 +181,6 @@ export const RULES = {
   freezeTurns: 3,
   /** Eau gelée par la potion de gel : tours avant le dégel (C). */
   iceTurns: 12,
-  /** Salle noire : portée de la torche du héros pour montrer les pièges et la craie (C). */
-  enigmaTorchReach: 3,
   /** Un boss gèle moins longtemps (2 tours). */
   bossFreezeTurns: 2,
   /** Grenade sainte (C) : rayon, dégâts (doublés contre les morts), bénédiction et soin du héros. */
@@ -210,17 +208,19 @@ export const RULES = {
   // Plus dure (Thomas, 2026-11-19 : « le boss 3 est beaucoup beaucoup trop simple »).
   /** Pièges : part des PV max du héros perdue, par section (Thomas, 2026-11-21). */
   trapHeroShare: [[0.05, 0.1], [0.1, 0.15], [0.15, 0.2]] as [number, number][],
-  priestessCallEvery: 4,
+  // Adoucie (Thomas, 2026-11-21 : « le combat est beaucoup trop difficile ; réduis le nombre d'invocations ») :
+  // lune tous les 5 tours, chant tous les 6, 2 squelettes relevés au plus, éclair tous les 3 tours.
+  priestessCallEvery: 5,
   /** Bénédiction de Sœur Clavicule (jet de Charisme réussi) : tours bénis. */
   claviculeBlessTurns: 80,
-  priestessChantEvery: 4,
+  priestessChantEvery: 6,
   priestessChantHeal: 5,
   priestessWellRadius: [1, 2, 2, 3, 3, 4, 4],
   colossusRegrowTurns: 3,
   /** Chaque chant relève un squelette au pied du socle, tant que la salle en compte moins que ça. */
-  priestessRaiseMax: 5,
+  priestessRaiseMax: 2,
   /** Dans le puits : un éclair de lune sur le héros tous les N tours (jet +8, 2d6+2). */
-  priestessBoltEvery: 2,
+  priestessBoltEvery: 3,
   /** Le Carillon (boss de la section 2, Thomas, 2026-11-16) : il sonne tous les tant de tours ; l'onde fait tant de
    *  dégâts (le double au contact de sa lèvre) ; sonné faux, il reste sonné tant de tours. (C) */
   carillonEvery: 8,

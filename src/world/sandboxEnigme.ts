@@ -10,8 +10,9 @@ import type { Trap } from "../core/floor";
 /**
  * ZONE D'ESSAI DES SALLES À ÉNIGME (Thomas, 2026-11-21 : « fais une zone d'essai spéciale pour toutes ces salles ») :
  * un HUB où sont posés les objets qui résolvent les énigmes (flèches de recul et ricochantes, torches, potions de feu,
- * de gel, de géant, de brouillard, un arc), puis un long couloir vers la droite, et les sept salles au-dessus de lui,
- * dans l'ordre de la planche `art/salles_enigme_v1.png` : tir, rebond, racines, glisse, balance, salle noire, gardiens.
+ * de gel, de géant, de brouillard, un arc), puis un long couloir vers la droite, et les six salles au-dessus de lui,
+ * dans l'ordre de la planche `art/salles_enigme_v1.png` : tir, rebond, racines, glisse, balance, gardiens (la salle noire
+ * est retirée : Thomas, 2026-11-21).
  * Chacune a sa clef d'argent et son coffre d'argent. Revenir dans le HUB remet tout à neuf.
  */
 export function buildSandboxEnigme(): SandboxFloor {
@@ -134,28 +135,10 @@ export function buildSandboxEnigme(): SandboxFloor {
     enigmas.push({ kind: "balance", room: { x: 61, y: 10, w: 9, h: 8 }, key: { x: 65, y: 10 }, keyShown: true, chest: c, gate, plate });
   }
 
-  // ---------- 6. Salle noire (aucune lumière ; pièges cachés, un chemin sûr marqué à la craie) ----------
-  {
-    const r: Room = { x: 72, y: 11, w: 9, h: 7 };
-    addRoom(r, "6. Salle noire");
-    door(76, 18);
-    const safe: Point[] = [[76, 17], [76, 16], [77, 15], [78, 14], [79, 13], [79, 12], [78, 12], [77, 12], [76, 12], [76, 11]].map(([x, y]) => ({ x, y }));
-    const c = { x: 76, y: 11 };
-    chest(c);
-    const key = { x: 79, y: 12 };
-    for (let y = r.y; y < r.y + r.h; y++)
-      for (let x = r.x; x < r.x + r.w; x++) {
-        if (safe.some((p) => p.x === x && p.y === y) || (x === c.x && y === c.y)) continue;
-        // Des pièges cachés « partout » : à peu près une case sur deux hors du chemin sûr.
-        if ((x * 7 + y * 3) % 5 < 3) traps.push({ x, y, kind: (x + y) % 3 === 0 ? "pit" : "spikes", hidden: true });
-      }
-    enigmas.push({ kind: "noire", room: { ...r }, key, keyShown: true, chest: c, safe });
-  }
-
-  // ---------- 7. Salle des gardiens (deux statues regardent deux rangées ; la herse tombe si l'on est vu) ----------
+  // ---------- 6. Salle des gardiens (deux statues regardent deux rangées ; la herse tombe si l'on est vu) ----------
   {
     const r: Room = { x: 83, y: 12, w: 9, h: 6 };
-    addRoom(r, "7. Salle des gardiens");
+    addRoom(r, "6. Salle des gardiens");
     signs[signs.length - 1].y = 8;
     addRoom({ x: 86, y: 9, w: 3, h: 2 });
     torch(r, 1);

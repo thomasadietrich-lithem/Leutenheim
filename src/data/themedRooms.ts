@@ -457,6 +457,7 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   // Salles à énigme (planche art/salles_enigme_v1.png, Thomas 2026-11-21).
   cible: { blocks: true, w: 1, h: 1, burns: true },
   cibleBleue: { blocks: true, w: 1, h: 1, burns: true },
+  cibleBleueTombee: { blocks: false, w: 1, h: 1, burns: true },
   cibleNoireD: { blocks: true, w: 1, h: 1, burns: false },
   cibleNoireG: { blocks: true, w: 1, h: 1, burns: false },
   barriere: { blocks: true, w: 1, h: 1, burns: true },

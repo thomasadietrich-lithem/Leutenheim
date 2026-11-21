@@ -114,3 +114,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-19_20h30 | 1f2c90f | 20.6 | 26.2 | 26.4 | 20.2 | 16.7 | 25.5 | 0.66 | 0.17 | Rang III des voies |
 | 2026-11-19_21h06 | 6daa5a9 | 21.8 | 23.7 | 24.3 | 22.3 | 16.7 | 25.5 | 0.44 | 0.25 | retours du soir : lumière S3, socles, comparaisons, boss 3 |
 | 2026-11-20_09h35 | bb672ae | 33.8 | 30.2 | 26.7 | 30.9 | 16.7 | 23.4 | 0.72 | 0.4 | Osselet et Clavicule : jets, texte hors salle ; succès S3 |
+| 2026-11-21_08h13 | 1feb60f | 28 | 29.3 | 29.1 | 28.4 | 16.7 | 24.3 | 0.66 | 0.47 | retours du 21/11 |

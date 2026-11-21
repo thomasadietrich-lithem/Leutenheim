@@ -331,6 +331,8 @@ export const ITEMS = {
   // Thomas (2026-11-13) : un Kobold mort dans les flammes laisse une escalope.
   escalope: { id: "escalope", name: "Escalope de Kobold", kind: "use", description: "Bien grillée, un peu écailleuse. Rend 5 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 5 },
   cuisse_poulet: { id: "cuisse_poulet", name: "Cuisse de poulet", kind: "use", description: "Encore tiède. Rend 8 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 8 },
+  // La piste de pommes de Gluck (Thomas, 2026-11-21) : des pommes pourries, presque rien.
+  pomme_pourrie: { id: "pomme_pourrie", name: "Pomme pourrie", kind: "use", description: "Brune, molle, un ver à la fenêtre. Ça se mange… à peine. Rend 1 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 1 },
   // Section 3 (Thomas, 2026-11-19 : « un nouvel aliment pour 11 PV ») : la tourte du fossoyeur, commune dès l'étage 11.
   tourte_fossoyeur: { id: "tourte_fossoyeur", name: "Tourte du fossoyeur", kind: "use", description: "Une tourte épaisse, marquée d'une croix sur la croûte. Les fossoyeurs en emportent pour les longues nuits. Rend 11 PV.", w: 1, h: 1, maxStack: 3, rarity: "common", heal: 11 },
   // Section 2 : les morilles de Morillon (sa quête). Elles soignent (C).

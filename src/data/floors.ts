@@ -19,6 +19,8 @@ export interface FloorConfig {
   doorDetour: number;
   /** Nombre de salles spéciales (verrouillées) par étage, avec le poids de chaque cas. Toujours au moins une. */
   specialRoomCounts: { count: number; weight: number }[];
+  /** Les sortes de salles spéciales permises (toutes si absent ; l'ossuaire : la salle au trésor seule). */
+  specialKinds?: string[];
   specialRoomMinSize: number;
   specialRoomMaxSize: number;
   /** Probabilité qu'une salle assez grande (5×5 au moins) ait des colonnes, derrière lesquelles se cacher. */

@@ -6,6 +6,7 @@ import { ActivePower, MAIN_MAX_RANK, MAX_RANK, PATH_LEVEL, PathId, PATHS, PowerI
 import { MONSTERS, spawnsForDepth, MonsterDef } from "../data/monsters";
 import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
+import { MOTIF_SIZE } from "../data/motifs";
 import { RULES } from "../data/rules";
 import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { SOEUR, SOEUR_OPENING } from "../data/soeur";
@@ -104,7 +105,7 @@ export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
-const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur"]);
+const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur", "pomme_pourrie"]);
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
 /** Ce que Krik sait du héros, le temps d'une partie. */
@@ -411,7 +412,7 @@ export class Game {
       const bossFloor: BossFloor | null = !sandboxFloor && this.isBossDepth(depth) ? (this.isCarillonDepth(depth) ? buildCarillonFloor(seed) : this.isPriestessDepth(depth) ? buildPriestessFloor(seed) : buildBossFloor(seed)) : null;
       // Section 3, l'Ossuaire (Thomas, 2026-11-19) : pas de salle spéciale des sections du dessus.
       const oss = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) >= 2;
-      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, oss ? { ...this.floorConfig, specialRoomCounts: [{ count: 0, weight: 1 }], roomMaxSize: 10 } : this.floorConfig);
+      const floor = sandboxFloor ?? bossFloor ?? generateFloor(seed, oss ? { ...this.floorConfig, specialRoomCounts: [{ count: 1, weight: 1 }], specialKinds: ["tresor"], roomMaxSize: 10 } : this.floorConfig);
       // À partir du deuxième étage, un escalier remonte depuis le point d'arrivée.
       if (depth > 1) floor.map.set(floor.start.x, floor.start.y, Tile.StairsUp);
       // Escaliers enchâssés dans un « U » de mur, sur tous les étages tirés au hasard (Thomas, 2026-11-14).
@@ -608,6 +609,8 @@ export class Game {
       // dessus. Le butin reste.
       this.spawnMonsters(state.rooms);
       this.wakeEffigies(state, depth);
+      // Portes verrouillées revenues en section 3 (Thomas, 2026-11-21) : la salle au trésor, derrière une grille, et sa clef.
+      placeKey(state, this.rng, this.hero);
       state.population = Math.max(1, this.monsters.length);
       state.nextRespawn = this.turn + RULES.respawnTurns;
       placeSecrets(state, depth, floorSeed(this.runSeed, depth));
@@ -829,7 +832,10 @@ export class Game {
     const damage = rollDice(this.rng, beam.damage);
     this.events.push({ type: "beam", actor: m, what: "fire", cells, damage });
     for (const c of cells) {
-      if (this.hero.x === c.x && this.hero.y === c.y && !this.over) this.hurtHero(damage, this.killerName(m));
+      if (this.hero.x === c.x && this.hero.y === c.y && !this.over) {
+        this.hurtHero(damage, this.killerName(m));
+        this.stopTravel();
+      }
       const o = this.monsterAt(c.x, c.y);
       if (o && o !== m && !this.isInert(o)) {
         o.hp -= damage;
@@ -844,7 +850,9 @@ export class Game {
     for (const c of cells) this.frost.push({ x: c.x, y: c.y, turns: RULES.freezeTurns });
     for (const m of this.monsters) {
       if (this.isInert(m) || !cells.some((c) => occupies(m, c.x, c.y))) continue;
-      m.petrified = m.boss ? 1 : RULES.freezeTurns;
+      // Un boss (et le Colosse, ses bras, son crâne) gèle 2 tours (Thomas, 2026-11-21 : « la Tisseuse n'est pas
+      // affectée par la potion de gel » : 1 tour, elle repartait aussitôt).
+      m.petrified = this.bossLike(m) ? RULES.bossFreezeTurns : RULES.freezeTurns;
       m.frozen = true;
       m.burning = 0;
       m.chanting = false;
@@ -852,6 +860,11 @@ export class Game {
       m.feud = undefined;
       this.events.push({ type: "frost", actor: m, what: "freeze" });
     }
+  }
+
+  /** Un boss, ou le Colosse et ses morceaux (traités comme un boss par les potions). */
+  private bossLike(m: Actor): boolean {
+    return !!m.boss || !!m.part || m.defId === "colosse";
   }
 
   /** Fin d'un gel ou d'une pétrification. */
@@ -1459,6 +1472,7 @@ export class Game {
         const result = rollAttack(this.rng, { attackBonus: 8, damage: { count: 2, sides: 6, bonus: 2 } }, { armorClass: this.hero.armorClass + this.stanceBonus() });
         result.damage = this.absorb(result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true });
+        if (result.damage > 0) this.stopTravel();
         if (result.damage > 0) this.bleed(this.hero, m);
         this.hurtHero(result.damage, this.killerName(m));
       }
@@ -1677,6 +1691,7 @@ export class Game {
         const result = rollAttack(this.rng, { attackBonus: RULES.carillonSpitBonus, damage: RULES.carillonSpitDamage }, this.hero);
         result.damage = this.absorb(result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true, ink: true });
+        if (result.damage > 0) this.stopTravel();
         if (result.hit) {
           this.inkBlind = 1;
           this.stain(this.hero.x, this.hero.y, "black");
@@ -2059,7 +2074,9 @@ export class Game {
 
   /** La table de cuisine où attend une cuisse de poulet (sur une de ses deux cases). */
   plateTableAt(x: number, y: number): Furniture | null {
-    return this.current.furniture.find((f) => f.kind === "table" && (f.plate ?? 0) > 0 && f.y === y && (f.x === x || f.x + 1 === x)) ?? null;
+    // La cuisse se dessine sur le plateau, qui déborde sur la case du dessus (Thomas, 2026-11-21 : « le poulet sur la
+    // table n'est pas interactif ») : on accepte aussi un toucher sur cette rangée-là.
+    return this.current.furniture.find((f) => f.kind === "table" && (f.plate ?? 0) > 0 && (f.y === y || f.y - 1 === y) && (f.x === x || f.x + 1 === x)) ?? null;
   }
 
   /** La cloche d'alarme sur cette case, s'il y en a une. */
@@ -2830,7 +2847,7 @@ export class Game {
         return;
       }
     }
-    const damage = def.damage ? rollDice(this.rng, def.damage) : 0;
+    const damage = def.damage ? this.trapDamage(actor, def.damage) : 0;
     this.events.push({ type: "trap", x: actor.x, y: actor.y, victim: actor, damage, kind });
     if (kind === "pit" || def.sinks) trap.sprung = true;
     if (def.stuck) actor.stuck = Math.max(actor.stuck ?? 0, def.stuck);
@@ -3219,7 +3236,7 @@ export class Game {
     if (def.stuck) this.hero.stuck = Math.max(this.hero.stuck ?? 0, def.stuck);
     if (def.poison) this.poisonActor(this.hero, def.poison);
     if (def.gasTurns) this.puffGas(trap, def.gasTurns);
-    const damage = def.damage && kind !== "pit" ? rollDice(this.rng, def.damage) : 0;
+    const damage = def.damage && kind !== "pit" ? this.trapDamage(this.hero, def.damage) : 0;
     if (damage > 0) {
       this.bleed(this.hero, this.hero);
       this.hurtHero(damage, "un piège mal désamorcé");
@@ -4669,7 +4686,7 @@ export class Game {
     if (potion === "stone") {
       // Lancée : le monstre de la case est pétrifié 3 tours, et sert d'abri (Thomas, 2026-11-13). Pas le boss.
       const m = this.monsterAt(order.x, order.y);
-      if (m?.boss) {
+      if (m && this.bossLike(m)) {
         m.petrified = RULES.bossPetrifyTurns;
         this.events.push({ type: "bossPotion", potion, actor: m });
         this.events.push({ type: "stone", what: "petrified", actor: m });
@@ -4708,8 +4725,8 @@ export class Game {
         if (potion === "grow") {
           m.grown = RULES.growTurns;
           this.events.push({ type: "grow", actor: m });
-        } else if (m.defId !== "carillon") {
-          // Le Carillon est enraciné : la potion glissante n'y fait rien.
+        } else if (m.defId !== "carillon" && !m.aloft && m.defId !== "colosse" && !m.part) {
+          // Le Carillon, le Colosse et ses morceaux sont enracinés, la Prêtresse flotte dans le puits : rien.
           m.slippery = true;
           this.events.push({ type: "slippery", actor: m });
         }
@@ -4731,7 +4748,7 @@ export class Game {
       }
       // Lancée : les monstres de la croix se battent entre eux (Thomas, 2026-11-13 ; les querelles déjà codées).
       const cells = cross.map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy })).filter((c) => this.map.isWalkable(c.x, c.y));
-      const hit = this.monsters.filter((m) => !m.boss && cells.some((c) => occupies(m, c.x, c.y)));
+      const hit = this.monsters.filter((m) => !this.bossLike(m) && cells.some((c) => occupies(m, c.x, c.y)));
       for (const m of hit) {
         if (m.feud !== undefined) continue;
         const rivals = this.monsters.filter((o) => o !== m && !o.boss && o.feud === undefined && gapBetween(o, m) <= 4);
@@ -7471,8 +7488,27 @@ export class Game {
    * distance, se cacher, pousser, se dégager, crocheter ou enfoncer une porte). La relance part toute seule, au premier
    * raté de l'étage (C). Renvoie vrai si elle sert maintenant.
    */
-  private useStubborn(): boolean {
-    if (!this.race.stubborn || this.perks().stubborn) return false;
+  /**
+   * Dégâts d'un piège (Thomas, 2026-11-21 : « 5 à 10, 10 à 15, 15 à 20 % de vie en moins selon la section ») : pour le
+   * héros, une part de ses PV max selon la section (au moins 1) ; pour un monstre, les dés du piège.
+   */
+  private trapDamage(actor: Actor, dice: { count: number; sides: number; bonus: number }): number {
+    if (actor.kind !== "hero") return rollDice(this.rng, dice);
+    const [lo, hi] = RULES.trapHeroShare[Math.min(sectionOf(this.depth), RULES.trapHeroShare.length - 1)];
+    return Math.max(1, Math.round(this.hero.maxHp * (lo + this.rng.next() * (hi - lo))));
+  }
+
+  /** Touché à distance (fronde, flèche, rayon, encre, éclair) : le trajet s'arrête (Thomas, 2026-11-21). */
+  private stopTravel(): void {
+    this.path = [];
+    this.talkTarget = null;
+    this.shopTarget = false;
+    this.doorTarget = null;
+  }
+
+  /** Têtu (Humain) : seulement en combat, sur un coup ou un tir raté (Thomas, 2026-11-21), plus sur les portes, fouilles… */
+  private useStubborn(attack = false): boolean {
+    if (!attack || !this.race.stubborn || this.perks().stubborn) return false;
     this.perks().stubborn = 1;
     this.events.push({ type: "stubborn" });
     return true;
@@ -8629,7 +8665,8 @@ export class Game {
     const path = findPath(this.map, g, front) ?? [];
     for (let i = 2; i < path.length; i += 3) {
       const p = path[i];
-      if (this.map.get(p.x, p.y) === Tile.Floor && !this.isTrap(p.x, p.y)) this.dropItem(p.x, p.y, "pomme", 1);
+      // Des pommes pourries (Thomas, 2026-11-21 : « la piste amène trop de pommes ») : +1 PV chacune.
+      if (this.map.get(p.x, p.y) === Tile.Floor && !this.isTrap(p.x, p.y)) this.dropItem(p.x, p.y, "pomme_pourrie", 1);
     }
     const spot = z.inside ?? z.loot;
     if (spot) {
@@ -9513,6 +9550,27 @@ export class Game {
     if (candidates.length === 0) return null;
     const n = candidates[rng.int(0, candidates.length - 1)];
     (state.furniture ??= []).push({ x: n.plate.x, y: n.plate.y, kind: "pressurePlate" });
+    // Des caisses autour de la dalle, comme si on avait voulu la cacher (Thomas, 2026-11-21) ; jamais sur la dalle ni
+    // juste sous elle (une caisse déborde sur la case du dessus : elle la couvrirait), jamais dans un passage.
+    const d = { x: Math.sign(n.wall.x - n.plate.x), y: Math.sign(n.wall.y - n.plate.y) };
+    const perp = { x: d.y !== 0 ? 1 : 0, y: d.x !== 0 ? 1 : 0 };
+    const spots = [1, -1].flatMap((k) => [
+      { x: n.plate.x + perp.x * k, y: n.plate.y + perp.y * k },
+      { x: n.plate.x + perp.x * k - d.x, y: n.plate.y + perp.y * k - d.y },
+    ]);
+    let crates = 0;
+    for (const c of spots.sort(() => rng.next() - 0.5)) {
+      if (crates >= 2) break;
+      if (c.x === n.plate.x && c.y === n.plate.y + 1) continue;
+      if (map.get(c.x, c.y) !== Tile.Floor || state.furniture.some((f) => furnitureCells(f).some((q) => q.x === c.x && q.y === c.y))) continue;
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => map.isDoor(c.x + dx, c.y + dy))) continue;
+      if (state.ground.some((g) => g.x === c.x && g.y === c.y) || state.traps.some((t) => t.x === c.x && t.y === c.y)) continue;
+      if ((state.motifs ?? []).some((m) => c.x >= m.x && c.y >= m.y && c.x < m.x + MOTIF_SIZE[m.kind] && c.y < m.y + MOTIF_SIZE[m.kind])) continue;
+      if (isChokepoint(map, c.x, c.y, (a, b) => map.isWalkable(a, b) && !state.furniture.some((f) => f.x === a && f.y === b && FURNITURE_KINDS[f.kind]?.blocks))) continue;
+      state.furniture.push({ x: c.x, y: c.y, kind: rng.chance(0.5) ? "crate" : "barrel" });
+      map.set(c.x, c.y, Tile.Furniture);
+      crates++;
+    }
     return n;
   }
 
@@ -9525,11 +9583,11 @@ export class Game {
     this.map.set(n.cell.x, n.cell.y, Tile.Floor);
     const f = this.current.furniture.find((o) => o.x === n.plate.x && o.y === n.plate.y && o.kind === "pressurePlate");
     if (f) f.kind = "pressurePlateDown";
-    this.dropItem(n.cell.x, n.cell.y, "or", lessGold((this.rng.int(10, 20) + this.depth * 2) * (1 + sectionOf(this.depth))));
+    // Une seule chose dans l'alcôve (Thomas, 2026-11-21) : un objet 6 fois sur 10, sinon de l'or.
     if (this.rng.chance(0.6)) {
       const l = this.floorLoot();
       this.dropItem(n.cell.x, n.cell.y, l.item, l.count);
-    }
+    } else this.dropItem(n.cell.x, n.cell.y, "or", lessGold((this.rng.int(10, 20) + this.depth * 2) * (1 + sectionOf(this.depth))));
     this.raiseAlarm(RULES.nicheAlarm, n.wall);
     this.events.push({ type: "niche", x: n.wall.x, y: n.wall.y });
     this.refreshLight();
@@ -10364,7 +10422,11 @@ export class Game {
     for (let y = room.y; y < room.y + room.h; y++) {
       for (let x = room.x; x < room.x + room.w; x++) {
         const t = this.map.get(x, y);
-        if (t === Tile.Chest || t === Tile.Fountain || this.maidenAt(x, y)) out.push({ x, y });
+        // Tout ce qui se ramasse brille aussi (Thomas, 2026-11-21) : la cuisse sur la table, le squelette à fouiller,
+        // l'alambic plein, la carotte du bonhomme de neige, la pomme dorée sous cloche, le panier de pommes.
+        const pick =
+          this.plateTableAt(x, y) !== null && this.current.furniture.some((f) => f.kind === "table" && f.x <= x && x <= f.x + 1 && f.y === y);
+        if (t === Tile.Chest || t === Tile.Fountain || this.maidenAt(x, y) || pick || this.skeletonAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y)) out.push({ x, y });
       }
     }
     for (const g of this.ground) if (inside(g) && !out.some((p) => p.x === g.x && p.y === g.y)) out.push({ x: g.x, y: g.y });
@@ -10528,7 +10590,7 @@ export class Game {
     const mode = advantaged && !hampered ? "advantage" : hampered && !advantaged ? "disadvantage" : "normal";
     let result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
     // Têtu : le premier coup raté de l'étage est relancé.
-    if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
+    if (!result.hit && this.useStubborn(true)) result = rollAttack(this.rng, attacker, monster, mode, critFrom, () => this.useLuck(), () => this.useLuckyDie());
     this.noteHeroAttack(result.hit);
     if (frenzyRank > 0) {
       if (result.hit) {
@@ -10845,7 +10907,7 @@ export class Game {
       const shooter = { attackBonus, damage: { ...ammoDamage, bonus: ammoDamage.bonus + this.curseBonusOn(victim) }, grown: this.hero.grown };
       let result = rollAttack(this.rng, shooter, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
       // Têtu : le premier tir raté de l'étage est relancé.
-      if (!result.hit && this.useStubborn()) result = rollAttack(this.rng, shooter, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
+      if (!result.hit && this.useStubborn(true)) result = rollAttack(this.rng, shooter, victim, mode, 20, () => this.useLuck(), () => this.useLuckyDie());
       this.noteHeroAttack(result.hit);
       if (result.hit) result = { ...result, damage: this.shotResist(victim, result.damage) };
       victim.crush = result.critical;
@@ -11240,6 +11302,9 @@ export class Game {
       // Crâne lunaire : aligné avec le héros, il se charge (la ligne s'allume), et tire au tour suivant.
       const beamer = (MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef).beam;
       if (beamer && this.chargeBeam(m, beamer)) continue;
+      // Il ne vient pas au corps à corps (Thomas, 2026-11-21) : au contact, il recule ; en vue et à portée, il cherche une
+      // case alignée avec le héros (à 2 cases au moins) ou reste où il est.
+      if (beamer && !m.asleep && m.alerted && this.skullKeepsAway(m, beamer, distance)) continue;
 
       if (this.inReach(m, this.hero)) {
         // Embuscade : le monstre a l'avantage sur un héros pris dans une porte, ou qu'il frappe au coin d'un mur.
@@ -11306,6 +11371,40 @@ export class Game {
     }
   }
 
+  private skullKeepsAway(m: Actor, beam: NonNullable<MonsterDef["beam"]>, distance: number): boolean {
+    const hero = this.hero;
+    if (distance <= 1) {
+      const away = this.stepAway(m);
+      if (!away) return false;
+      const near = this.heroReaches(m);
+      m.x = away.x;
+      m.y = away.y;
+      this.heroOpportunity(m, near);
+      return true;
+    }
+    const sees = hasLineOfSight(this.map, m, hero) && this.isVisible(m.x, m.y) && !this.fogBetween(m, hero);
+    if (!sees || distance > beam.range) return false;
+    const aligned = (x: number, y: number) => {
+      const dx = hero.x - x;
+      const dy = hero.y - y;
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      return d >= 2 && d <= beam.range && (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy));
+    };
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const x = m.x + dx;
+      const y = m.y + dy;
+      if (!canStep(this.map, m.x, m.y, dx, dy) || !this.map.isWalkable(x, y) || this.actorAt(x, y) || this.npcAt(x, y) || this.map.isDoor(x, y)) continue;
+      if (aligned(x, y) && hasLineOfSight(this.map, { x, y }, hero)) {
+        this.faceToward(m, hero);
+        m.x = x;
+        m.y = y;
+        return true;
+      }
+    }
+    this.faceToward(m, hero);
+    return true;
+  }
+
   /**
    * Tour d'un tireur (Kobold frondeur, Thomas 2026-11-11) : trop près, il recule d'une case (vers un abri si possible) ;
    * à portée et en vue, il tire ; sinon il s'approche (renvoie faux : le tour ordinaire d'un monstre s'applique).
@@ -11352,6 +11451,7 @@ export class Game {
     const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, { armorClass: hero.armorClass + this.stanceBonus() + this.undeadWard(m) }, covered || cowed ? "disadvantage" : "normal");
     result.damage = this.absorb(result.damage);
     this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
+    if (result.damage > 0) this.stopTravel();
     if (result.damage > 0) this.bleed(hero, m);
     this.raiseAlarm(RULES.alarmCombat, hero);
     this.hurtHero(result.damage, this.killerName(m));

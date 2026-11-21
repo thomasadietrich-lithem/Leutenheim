@@ -79,7 +79,7 @@ export const MANUAL: ManualSection[] = [
     title: "Attaque d'opportunité",
     intro: "S'éloigner d'un monstre qui vous a repéré lui offre un coup gratuit, et votre déplacement s'arrête.",
     entries: [
-      { title: "Passer une porte", lines: ["En y entrant ou en en sortant : pas de coup."] },
+      { title: "Passer une porte", lines: ["Fuir par une porte, en y entrant ou en en sortant, ne provoque pas d'attaque d'opportunité : pas de coup dans le dos."] },
       { title: "Passer un angle de mur", lines: ["Se glisser derrière un coin de mur, là où il ne vous voit plus franchement : pas de coup. Attendez-le là : il débouchera sans vous voir, et vous aurez l'avantage."] },
       { title: "Se dégager", lines: ["Dans la barre d'actions : un saut de deux cases, sans coup. Il faut réussir un jet d'Agilité."] },
     ],

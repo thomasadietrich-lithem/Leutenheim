@@ -258,6 +258,8 @@ let stepMs = 125;
 let broodFlight: { id: number; path: { x: number; y: number }[] }[] = [];
 const BROOD_STEP_MS = 240;
 let stepping = false;
+/** Depuis combien de temps la boucle attend un événement ou un pas (filet de sécurité contre un héros « figé »). */
+let stuckMs = 0;
 let stepTime = 0;
 
 // ---------- Sauvegarde (sur l'appareil) ----------
@@ -4490,7 +4492,7 @@ const TIP_SHOWN_MS = 7000;
 let tipTimer = 0;
 function showTip(text: string): void {
   const el = $("tip-toast");
-  el.textContent = tr(`Astuce : ${text}`);
+  el.textContent = tr(text);
   el.classList.remove("out");
   el.hidden = false;
   window.clearTimeout(tipTimer);
@@ -4609,6 +4611,17 @@ function frame(now: number): void {
   }
   // Le tour suivant ne commence que lorsque tout ce qui s'est passé a été montré.
   advanceStairs(dt);
+  // FILET DE SÉCURITÉ (Thomas, 2026-11-21 : « mon perso est figé », non reproduit) : si un événement à montrer ou une
+  // animation de pas reste coincé plus de 6 s (aucun menu ouvert), on le laisse tomber pour rendre la main au joueur.
+  const busy = (cue !== null || queue.length > 0 || stepping) && !menuOpen && !bagOpen && !foundOpen && !shopOpen && !talkOpen && !stairsScene;
+  stuckMs = busy ? stuckMs + dt : 0;
+  if (stuckMs > 6000) {
+    console.warn("Boucle de jeu débloquée", { cue: cue?.event.type, queue: queue.map((e) => e.type), stepping });
+    cue = null;
+    queue = [];
+    stepping = false;
+    stuckMs = 0;
+  }
   // À TERRE (Thomas, 2026-11-17 : « fais durer au moins un tour le fait d'être couché ») : le tour perdu à se relever
   // passe tout seul, mais pas avant qu'on ait vu le héros couché un moment.
   // Entoilé (Thomas, 2026-11-18) : pareil, le tour perdu passe tout seul après un court instant.
@@ -4756,6 +4769,8 @@ requestAnimationFrame(frame);
   stairs: (variant?: StairsVariant) => beginStairs(variant),
   /** Pour les captures : montre les événements en attente (comme après un toucher). */
   flush: () => collectEvents(),
+  /** Pour les vérifications : ce qui retient la boucle de jeu (un personnage « figé »). */
+  hold: () => ({ proneShown, stairs: !!stairsScene, stepping, cue: !!cue, queue: queue.map((e) => e.type), menuOpen, bagOpen, foundOpen, shopOpen, talkOpen, wheelOpen }),
 };
 
 /** La tête du héros (bouton de son écran) : sa race, son casque et son armure, prises sur son image de repos de face. */

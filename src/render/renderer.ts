@@ -2290,7 +2290,10 @@ export class Renderer {
       const u = tile / 16;
       // Un piège connu se repère (Thomas, 2026-11-18 : « quand on fouille une salle avec un piège, il doit apparaître en
       // orange ou rouge ») : une lueur rouge orangé qui palpite sous la dalle, cadre rouge.
-      if (!((kind === "pit" || kind === "tombSlab") && p.sprung) && kind !== "pendulum") {
+      // Plus en permanence (Thomas, 2026-11-21 : « les pièges semblent entourés de rouge en permanence ») : seulement
+      // quand le héros en est à 3 cases ou moins, pour prévenir du danger.
+      const nearHero = Math.max(Math.abs(p.x - game.hero.x), Math.abs(p.y - game.hero.y)) <= 3;
+      if (nearHero && !((kind === "pit" || kind === "tombSlab") && p.sprung) && kind !== "pendulum") {
         const pulse = 0.5 + 0.5 * Math.sin(this.time / 300 + p.x + p.y);
         const tx = this.snap(ox + p.x * tile);
         const ty = this.snap(oy + p.y * tile);
@@ -2461,7 +2464,9 @@ export class Renderer {
           ctx.ellipse(cx, cy + tile * 0.36, tile * 0.45, tile * 0.16, 0, 0, Math.PI * 2);
           ctx.stroke();
         }
+        if (m.petrified) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
         this.drawBig(art.rows, art.palette, cx, oy + p.y * tile - lift, game.hero.x < m.x);
+        this.ctx.filter = "none";
         if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
           ctx.fillStyle = "rgba(255,255,255,0.2)";
           ctx.fillRect(cx - tile * 0.75, oy + (p.y - 1.1) * tile - lift, tile * 1.5, tile * 2.1);
@@ -2469,8 +2474,11 @@ export class Renderer {
         this.drawStatusBubbles(m, cx, oy + (p.y - 1.4) * tile - lift, !!m.burning);
         continue;
       }
+      // Un boss gelé ou pétrifié se voit (Thomas, 2026-11-21) : bleu glacé ou gris, comme les autres monstres.
+      if (m.boss && m.petrified) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
       if (m.boss && m.defId === "carillon") {
         this.drawCarillon(m, ox + (p.x + 1.5) * tile, oy + p.y * tile, game.heroEdgeShown(m));
+        this.ctx.filter = "none";
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
         this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y + 0.2) * tile, burning);
         continue;
@@ -2478,6 +2486,7 @@ export class Renderer {
       if (m.boss) {
         // La Tisseuse : 2 × 2 cases ; son dessin est centré sur son carré.
         this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game.heroEdgeShown(m));
+        this.ctx.filter = "none";
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
         if (m.burning && !burning) this.drawFlames(ox + p.x * tile + tile / 2, oy + p.y * tile + tile / 2, m.id, 1.2);
         this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);

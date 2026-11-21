@@ -3898,10 +3898,10 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
         assert.ok((cur as unknown as { clavicule?: unknown }).clavicule, "Sœur Clavicule prie dans la chapelle");
         chapels++;
       }
-      // pas de salle spéciale : ni autel à la pomme, ni coffre verrouillé
+      // pas d'autel à la pomme ; la salle au trésor verrouillée est revenue (Thomas, 2026-11-21)
       for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) {
         const t = game.map.get(x, y);
-        assert.ok(t !== Tile.DoorLocked && t !== Tile.Fountain, `case ${x},${y}`);
+        assert.ok(t !== Tile.Fountain, `case ${x},${y}`);
       }
       assert.ok(cur.furniture.some((f) => f.kind === "moonWell"), "au moins un puits de lune");
       assert.ok(game.light.some((v) => v > 0), "la lune éclaire");
@@ -4505,10 +4505,9 @@ test("quêtes v3 : Gluck (cellier, piste, vol), Sœur Osseuse (cierges, grilles,
   assert.equal(game.monsters.filter((m) => z.sleepers.includes(m.id) && m.asleep).length, 2, "deux dormeurs");
   // Gluck menacé : la piste de pommes ; entrer dans le cellier suffit.
   game = setup("gluck")!;
-  const apples = game.ground.filter((g) => g.item === "pomme").length;
   game.npcChoose("gluck", "threaten");
   assert.equal(game.quest?.id, "gluck_piste");
-  assert.ok(game.ground.filter((g) => g.item === "pomme").length > apples, "des pommes sur le chemin");
+  assert.ok(game.ground.filter((g) => g.item === "pomme_pourrie").length > 0, "des pommes pourries sur le chemin");
   z = game.zone()!;
   priv(game).openZoneDoor();
   game.hero.x = z.room.x;
@@ -6704,7 +6703,8 @@ test("2026-11-18 : niche secrète — la dalle à pression fait coulisser un pan
     game.hero.y = n.plate.y;
     (game as unknown as { openNiche(): void }).openNiche();
     assert.notEqual(game.map.get(n.wall.x, n.wall.y), Tile.Wall, "le pan a coulissé");
-    assert.ok(game.ground.some((g) => g.x === n.cell.x && g.y === n.cell.y && g.item === "or"), "de l'or dans la niche");
+    // Une seule chose dans l'alcôve (Thomas, 2026-11-21) : de l'or ou un objet.
+    assert.equal(game.ground.filter((g) => g.x === n.cell.x && g.y === n.cell.y).length, 1, "une seule chose dans la niche");
   }
   assert.ok(found >= 3, "des niches dans le donjon");
 });
@@ -7074,4 +7074,27 @@ test("Grande Prêtresse vaincue : l'escalier derrière le socle se prend, la par
     if (!game.tick()) game.setDestination(seal.x, seal.y, true);
   }
   assert.ok(game.over && game.won, "toucher l'escalier termine la partie");
+});
+
+test("2026-11-21 : potion de gel sur un boss (2 tours), pièges en part des PV, têtu seulement en combat", () => {
+  const game = new Game(4);
+  game.testRun = true;
+  game.teleport(5);
+  const queen = game.bossActor()!;
+  const g = game as unknown as { freezeCells(c: { x: number; y: number }[]): void; trapDamage(a: unknown, d: unknown): number; useStubborn(a?: boolean): boolean };
+  g.freezeCells([{ x: queen.x, y: queen.y }]);
+  assert.equal(queen.petrified, 2, "gelée deux tours");
+  assert.ok(queen.frozen);
+  // Pièges : 5 à 10 % des PV max en section 1, 15 à 20 % en section 3.
+  game.hero.maxHp = 100;
+  for (let i = 0; i < 20; i++) {
+    const d = g.trapDamage(game.hero, { count: 1, sides: 4, bonus: 0 });
+    assert.ok(d >= 5 && d <= 10, `section 1 : ${d}`);
+  }
+  game.teleport(12);
+  game.hero.maxHp = 100;
+  const d3 = g.trapDamage(game.hero, { count: 1, sides: 4, bonus: 0 });
+  assert.ok(d3 >= 15 && d3 <= 20, `section 3 : ${d3}`);
+  // Têtu : jamais hors d'un coup (porte, fouille…).
+  assert.equal(g.useStubborn(false), false);
 });

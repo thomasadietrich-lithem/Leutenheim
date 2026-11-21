@@ -179,6 +179,8 @@ export const RULES = {
   museumChance: 0.9,
   /** Potion de gel (Thomas, 2026-11-19, C) : tours de gel, et le givre au sol. */
   freezeTurns: 3,
+  /** Un boss gèle moins longtemps (2 tours). */
+  bossFreezeTurns: 2,
   /** Grenade sainte (C) : rayon, dégâts (doublés contre les morts), bénédiction et soin du héros. */
   holyRadius: 2,
   holyDamage: { count: 2, sides: 6, bonus: 2 },
@@ -202,6 +204,8 @@ export const RULES = {
   /** Boss de la section 3 (C) : la Prêtresse appelle la lune tous les N tours (annoncé), chante tous les N tours ;
    *  rayon du puits selon les cierges encore allumés ; le Colosse : tours dans la lune pour qu'un morceau se ressoude. */
   // Plus dure (Thomas, 2026-11-19 : « le boss 3 est beaucoup beaucoup trop simple »).
+  /** Pièges : part des PV max du héros perdue, par section (Thomas, 2026-11-21). */
+  trapHeroShare: [[0.05, 0.1], [0.1, 0.15], [0.15, 0.2]] as [number, number][],
   priestessCallEvery: 4,
   /** Bénédiction de Sœur Clavicule (jet de Charisme réussi) : tours bénis. */
   claviculeBlessTurns: 80,

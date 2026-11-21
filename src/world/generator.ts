@@ -150,7 +150,8 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
   const specials: { room: Room; kind: SpecialRoomDef }[] = [];
   let pickCount = rng.next() * cfg.specialRoomCounts.reduce((sum, c) => sum + c.weight, 0);
   // Jamais deux salles spéciales du même type sur un étage : pas plus de salles que de types.
-  const wanted = Math.min(SPECIAL_ROOMS.length, (cfg.specialRoomCounts.find((c) => (pickCount -= c.weight) < 0) ?? cfg.specialRoomCounts[0]).count);
+  const kinds = cfg.specialKinds ? SPECIAL_ROOMS.filter((k) => cfg.specialKinds!.includes(k.id)) : SPECIAL_ROOMS;
+  const wanted = Math.min(kinds.length, (cfg.specialRoomCounts.find((c) => (pickCount -= c.weight) < 0) ?? cfg.specialRoomCounts[0]).count);
   for (let attempt = 0; attempt < 300 && specials.length < wanted; attempt++) {
     const w = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
     const h = rng.int(cfg.specialRoomMinSize, cfg.specialRoomMaxSize);
@@ -193,7 +194,7 @@ function buildFloor(seed: number, cfg: FloorConfig): Floor {
       continue;
     }
     map.set(door.x, door.y, Tile.DoorLocked);
-    const unused = SPECIAL_ROOMS.filter((k) => !specials.some((sp) => sp.kind.id === k.id));
+    const unused = kinds.filter((k) => !specials.some((sp) => sp.kind.id === k.id));
     let pickKind = rng.next() * unused.reduce((sum, k) => sum + k.weight, 0);
     const kind = unused.find((k) => (pickKind -= k.weight) < 0) ?? unused[0];
     map.set(c.x, c.y, kind.feature);

@@ -542,6 +542,16 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
             fog: "Le brouillard n'arrête pas le son : l'onde vous trouvera quand même.",
           } as Record<string, string>
         )[e.potion] ?? null;
+      if (e.actor.defId === "pretresse")
+        return (
+          {
+            stone: "La Grande Prêtresse se fige un instant (2 tours).",
+            discord: "Prise de doute, la Grande Prêtresse se griffe le masque : elle perd un tour.",
+            grow: "La Grande Prêtresse grandit. Ses coups de bâton feront deux fois plus mal…",
+            slip: "Ses pieds dérapent : chaque coup la fera glisser.",
+            fog: "Dans le brouillard, la Grande Prêtresse ne vous voit plus : elle n'appelle plus la lune sur vous.",
+          } as Record<string, string>
+        )[e.potion] ?? null;
       return e.potion === "stone"
         ? "La carapace de la Tisseuse se fige… mais elle s'en dégage vite (2 tours)."
         : e.potion === "discord"

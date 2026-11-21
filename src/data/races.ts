@@ -82,12 +82,12 @@ export const RACES = {
     available: true,
     tagline: "Il tient bon.",
     traits: [
-      "Têtu : une fois par étage, il relance un d20 raté.",
+      "Têtu : une fois par étage, en combat, il relance un coup raté.",
       "Opportuniste : quand un monstre à son contact s'éloigne, il le frappe, avec l'avantage.",
       "Départ : une torche et une cuisse de poulet.",
     ],
     abilities: [
-      { id: "tetu", name: "Têtu", text: "Une fois par étage, il relance un d20 raté." },
+      { id: "tetu", name: "Têtu", text: "Une fois par étage, en combat, il relance un coup ou un tir raté." },
       { id: "opportuniste", name: "Opportuniste", text: "Quand un monstre à son contact s'éloigne, il le frappe, avec l'avantage." },
     ],
     hpBonus: 2,

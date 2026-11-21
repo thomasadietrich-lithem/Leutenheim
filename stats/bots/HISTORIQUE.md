@@ -150,3 +150,15 @@
 | 2026-11-20 10:16 | e7c2329 | Moyen (elfe) | 2.2 | 39 % | 6 % | 0 % | 1.7 | 7.4 | 0.4 / 0.2 / 0.1 | après correctifs des bots (sac plein, flèches de l'Elfe, escalier après un boss, tirs sans fin) : l'historique des trois anciens bots repart d'ici |
 | 2026-11-20 10:16 | e7c2329 | Maîtrise (elfe) | 5.1 | 2 % | 79 % | 28 % | 4.5 | 37.3 | 1.5 / 0.8 / 0.6 | après correctifs des bots (sac plein, flèches de l'Elfe, escalier après un boss, tirs sans fin) : l'historique des trois anciens bots repart d'ici |
 | 2026-11-20 10:16 | e7c2329 | Expert (elfe) | 7.8 | 10 % | 83 % | 74 % | 7.9 | 103.2 | 1.6 / 1.2 / 0.2 | [section 2 : étage 8 68 %, étage 10 57 %, bat le Carillon 55 %] après correctifs des bots (sac plein, flèches de l'Elfe, escalier après un boss, tirs sans fin) : l'historique des trois anciens bots repart d'ici |
+| 2026-11-21 20:38 | 21f8c72 | Débutant | 2.7 | 16 % | 8 % | 0 % | 1.6 | 6.4 | 0.6 / 0 / 0.4 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Moyen | 3.4 | 12 % | 31 % | 0 % | 2.6 | 14 | 0.8 / 0.4 / 0.2 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Maîtrise | 4.3 | 5 % | 63 % | 11 % | 4.1 | 29.7 | 1.2 / 0.7 / 0.4 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Expert | 7 | 12 % | 83 % | 77 % | 7.2 | 89.5 | 1.3 / 1 / 0.2 | [section 2 : étage 8 53 %, étage 10 27 %, bat le Carillon 25 %] batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Débutant (halfelin) | 1.8 | 45 % | 1 % | 0 % | 1.1 | 2.7 | 0.2 / 0 / 0.1 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Moyen (halfelin) | 2.7 | 23 % | 11 % | 0 % | 2 | 10 | 0.6 / 0.3 / 0.1 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Maîtrise (halfelin) | 4.5 | 5 % | 67 % | 16 % | 4.3 | 31.8 | 1.4 / 0.8 / 0.4 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:38 | 21f8c72 | Expert (halfelin) | 6.6 | 16 % | 75 % | 73 % | 6.9 | 86.8 | 1.2 / 0.9 / 0.3 | [section 2 : étage 8 49 %, étage 10 27 %, bat le Carillon 22 %] batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:39 | 21f8c72 | Débutant (elfe) | 2.1 | 32 % | 2 % | 0 % | 1.1 | 3.4 | 0.4 / 0 / 0.3 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:39 | 21f8c72 | Moyen (elfe) | 2 | 41 % | 3 % | 0 % | 1.6 | 6.5 | 0.4 / 0.2 / 0.1 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:39 | 21f8c72 | Maîtrise (elfe) | 4.8 | 4 % | 71 % | 23 % | 4.4 | 35.3 | 1.3 / 0.7 / 0.5 | batterie complète après resserrage des races et baisse de la voie bleue |
+| 2026-11-21 20:39 | 21f8c72 | Expert (elfe) | 6.7 | 17 % | 78 % | 65 % | 6.9 | 85.4 | 1.4 / 1.1 / 0.2 | [section 2 : étage 8 50 %, étage 10 36 %, bat le Carillon 31 %] batterie complète après resserrage des races et baisse de la voie bleue |

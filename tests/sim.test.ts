@@ -6066,13 +6066,13 @@ test("races : Humain, Halfelin et Elfe jouables ; PV, caractéristiques et objet
   assert.equal(copy.hero.maxHp, 9);
 });
 
-test("Halfelin : gourmand (+3 PV par nourriture) ; une chaise lui suffit pour se cacher", () => {
+test("Halfelin : gourmand (+2 PV par nourriture) ; une chaise lui suffit pour se cacher", () => {
   const game = new Game(5, RACES.halfelin);
   game.monsters = [];
   game.hero.hp = 1;
   assert.ok(game.useItem(bagUid(game, "pomme")));
   game.tick();
-  assert.equal(game.hero.hp, 1 + 5 + 3);
+  assert.equal(game.hero.hp, 1 + 5 + 2);
   // Une chaise posée à côté de lui, au milieu d'une salle : abri pour lui, pas pour un Humain.
   for (const race of [RACES.halfelin, RACES.humain]) {
     const g = new Game(5, race);

@@ -2532,4 +2532,6 @@ export const EN: Record<string, string> = {
   "Ses pieds dérapent : chaque coup la fera glisser.": "Her feet slip: every blow will send her sliding.",
   "Dans le brouillard, la Grande Prêtresse ne vous voit plus : elle n'appelle plus la lune sur vous.": "In the fog, the High Priestess can no longer see you: she stops calling the moon onto you.",
   "Aider Morillon : arroser ses rangs de morilles, et le faire avec de bonnes manières.": "Help Morillon: water his rows of morels, and do it with good manners.",
+  "Gourmand : toute nourriture lui rend 2 PV de plus.": "Glutton: any food restores 2 more HP.",
+  "Toute nourriture lui rend 2 PV de plus.": "Any food restores 2 more HP.",
 };

@@ -63,6 +63,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "krik", name: "Krik", group: "quetes", what: "Réussir les missions de Krik.", tiers: [1, 4, 8], kind: "count", npc: "krik" },
   { id: "grum", name: "Grum", group: "quetes", what: "Réussir les missions de Grum.", tiers: [1, 2, 3], kind: "count", npc: "grum" },
   // 2026-11-18 (Thomas : « pense aux succès associés ») : Vernis, Plumeau, le Maestro, et le chapardage.
+  // 2026-11-21 : il manquait, et rendre sa quête faisait planter le compteur (Thomas : conversation bloquée, héros figé).
+  { id: "morillon", name: "Morillon", group: "quetes", what: "Aider Morillon : arroser ses rangs de morilles, et le faire avec de bonnes manières.", tiers: [1, 2, 2], kind: "count", npc: "morillon" },
   { id: "vernis", name: "Vernis", group: "quetes", what: "Réussir les missions de Vernis : retrouver le Grand Poulet d'Or, poser sur le socle, voler une pomme dorée.", tiers: [1, 2, 3], kind: "count", npc: "vernis" },
   { id: "plumeau", name: "Plumeau", group: "quetes", what: "Aider Plumeau : la clef du geôlier, briser sa chaîne, lui lire le registre.", tiers: [1, 2, 3], kind: "count", npc: "plumeau" },
   { id: "clavicule", name: "Sœur Clavicule", group: "quetes", what: "Aider Sœur Clavicule : briser des crânes, rallumer ses cierges, lui parler de sa sœur, obtenir sa bénédiction.", tiers: [1, 2, 4], kind: "count", npc: "clavicule" },

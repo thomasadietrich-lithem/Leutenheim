@@ -19,6 +19,11 @@ const ICONS: Record<string, (r: Rect) => void> = {
     // Le cierge d'argent et son voile blanc.
     r(6, 4, 4, 10, "S"); r(6, 4, 1, 10, "W"); r(5, 14, 6, 1, "s"); r(7, 1, 2, 3, "Y"); r(7, 0, 1, 1, "O"); r(2, 2, 3, 9, "W"); r(11, 2, 3, 9, "W");
   },
+  morillon(r) {
+    // Une morille et une goutte d'eau de l'arrosoir.
+    r(4, 2, 6, 2, "B"); r(3, 4, 8, 5, "B"); r(4, 4, 1, 1, "b"); r(7, 5, 1, 1, "b"); r(5, 7, 1, 1, "b"); r(9, 6, 1, 1, "b"); r(4, 3, 2, 1, "W");
+    r(6, 9, 2, 6, "W"); r(5, 14, 4, 1, "w"); r(12, 3, 2, 2, "S"); r(11, 5, 4, 3, "S"); r(12, 5, 1, 1, "W");
+  },
   osselet(r) {
     // La corne du tricératops et le monocle.
     for (let i = 0; i < 8; i++) r(2 + i, 12 - i, 3, 2, i < 6 ? "W" : "w");

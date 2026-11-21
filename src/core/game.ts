@@ -8134,7 +8134,10 @@ export class Game {
         break;
       case "morillon_arrosage":
         leaves("morille", MORILLON.reward);
-        if (q.charmed) g.gold = (g.gold ?? 0) + 15;
+        if (q.charmed) {
+          g.gold = (g.gold ?? 0) + 15;
+          this.events.push({ type: "feat", npc: "morillon", id: "morillon_charme" });
+        }
         break;
     }
     this.quest = null;

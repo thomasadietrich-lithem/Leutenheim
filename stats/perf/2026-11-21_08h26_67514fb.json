@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-21T08:26:24.633Z",
+ "commit": "67514fb",
+ "note": "Morillon : succès manquant ; sac de grain retiré",
+ "logic": {
+  "tickMs": 0.73,
+  "lightMs": 0.25,
+  "visionMs": 0.13
+ },
+ "scenes": {
+  "immobile": {
+   "n": 76,
+   "avg": 32.2,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 31,
+   "js": 9
+  },
+  "marche": {
+   "n": 166,
+   "avg": 30,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 33,
+   "js": 10
+  },
+  "retour": {
+   "n": 180,
+   "avg": 27.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 36,
+   "js": 5
+  },
+  "zoom": {
+   "n": 99,
+   "avg": 29.8,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 34,
+   "js": 8
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 214,
+   "avg": 23.2,
+   "p95": 33.4,
+   "max": 116.7,
+   "fps": 43,
+   "js": 19
+  }
+ },
+ "errors": []
+}

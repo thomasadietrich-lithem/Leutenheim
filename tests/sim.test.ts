@@ -7098,3 +7098,13 @@ test("2026-11-21 : potion de gel sur un boss (2 tours), pièges en part des PV, 
   // Têtu : jamais hors d'un coup (porte, fouille…).
   assert.equal(g.useStubborn(false), false);
 });
+
+test("Succès (2026-11-21) : chaque PNJ de quête a son succès (Morillon manquait : rendre sa quête figeait le jeu)", async () => {
+  const { ACHIEVEMENTS } = await import("../src/data/achievements");
+  const { QUEST_TASKS } = await import("../src/data/quests");
+  const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
+  for (const [qid, def] of Object.entries(QUEST_TASKS)) {
+    if (qid === "maestro_partition") continue; // compté dans « Mélomane »
+    assert.ok(ids.has(def.npc), `pas de succès pour ${def.npc} (quête ${qid})`);
+  }
+});

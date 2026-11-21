@@ -67,7 +67,7 @@ function masterDef(): AchievementDef {
   const all = ACHIEVEMENTS.length * 3;
   return { id: MASTER_ID, name: "Maître de la page", group: "boss", what: "Obtenir les médailles de cette page : l'or, c'est la page entière.", tiers: [Math.ceil(all / 3), Math.ceil((2 * all) / 3), all], kind: "count" };
 }
-const defOf = (id: string) => (id === MASTER_ID ? masterDef() : ACHIEVEMENTS.find((a) => a.id === id)!);
+const defOf = (id: string): AchievementDef | undefined => (id === MASTER_ID ? masterDef() : ACHIEVEMENTS.find((a) => a.id === id));
 /** Les médailles obtenues sur une page (chaque rang compte une médaille), sans celle du maître. */
 const pageMedals = (page: AchievementPage) => ACHIEVEMENTS.reduce((n, a) => n + (profile.tiers[key(page, a.id)] ?? -1) + 1, 0);
 const tierName = (t: number) => (t < 0 ? "" : TIER_NAMES[t]);
@@ -86,6 +86,8 @@ export function splitMedal(line: string): { id: string; tier: number; text: stri
 /** La valeur change : rend le rang gagné (la première fois) ou rien. */
 function set(page: AchievementPage, id: string, value: number): Unlock | null {
   const def = defOf(id);
+  // Un succès inconnu ne doit jamais planter le jeu (2026-11-21 : Morillon n'en avait pas, la conversation se figeait).
+  if (!def) return null;
   profile.values[key(page, id)] = value;
   const t = tierOf(def, value);
   const had = profile.tiers[key(page, id)] ?? -1;
@@ -157,10 +159,11 @@ export function goalText(def: AchievementDef, t: number): string {
 
 /** Une mission (ou une issue du tripot) réussie : chacune ne compte qu'une fois. */
 function feat(page: AchievementPage, id: string, featId: string, out: Unlock[]): void {
+  if (!defOf(id)) return;
   const list = (profile.done[key(page, id)] ??= []);
   if (list.includes(featId)) {
     const t = profile.tiers[key(page, id)] ?? -1;
-    out.push({ id, tier: t, first: false, line: `${tr(defOf(id).name)}${t >= 0 ? ` (${tr(tierName(t))})` : ""} : ${tr("mission réussie, déjà faite dans une autre partie.")}` });
+    out.push({ id, tier: t, first: false, line: `${tr(defOf(id)!.name)}${t >= 0 ? ` (${tr(tierName(t))})` : ""} : ${tr("mission réussie, déjà faite dans une autre partie.")}` });
     return;
   }
   list.push(featId);
@@ -409,6 +412,7 @@ export function resetAchievements(): void {
  */
 export function playUnlock(frame: HTMLElement, target: HTMLElement | null, u: Unlock, done: () => void): void {
   const def = defOf(u.id);
+  if (!def) return done();
   const box = document.createElement("div");
   box.className = "succes-pop";
   const rays = document.createElement("canvas");
@@ -433,10 +437,10 @@ export function playUnlock(frame: HTMLElement, target: HTMLElement | null, u: Un
   a.className = "a";
   a.textContent = tr("SUCCÈS !");
   const b = document.createElement("div");
-  b.textContent = `${tr(def.name).toUpperCase()} — ${tr(TIER_NAMES[u.tier]).toUpperCase()}`;
+  b.textContent = `${tr(def!.name).toUpperCase()} — ${tr(TIER_NAMES[u.tier]).toUpperCase()}`;
   b.style.color = TIER_TEXT[TIER_KEYS[u.tier]];
   const c = document.createElement("div");
-  c.textContent = tr(goalText(def, u.tier));
+  c.textContent = tr(goalText(def!, u.tier));
   banner.append(a, b, c);
   box.append(rays, m, banner);
   frame.append(box);

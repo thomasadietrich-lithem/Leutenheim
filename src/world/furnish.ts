@@ -536,7 +536,7 @@ export function furnishKitchen(floor: Floor, room: Room, rng: Rng, out: Furnitur
     const x = rng.int(room.x, room.x + room.w - 1);
     const y = rng.int(room.y + 2, gy - 1);
     if (x !== room.x && x !== room.x + room.w - 1) continue;
-    const kind = (["barrel", "crate", "crateStack", "grainSack"] as const)[rng.int(0, 3)];
+    const kind = (["barrel", "crate", "crateStack"] as const)[rng.int(0, 2)];
     if (P.tryPlace({ x, y, kind })) put++;
   }
   // Un panier à fruits avec 2 à 3 pommes (Thomas), sur une case libre au bord de la salle.
@@ -816,8 +816,8 @@ export function placeClutter(floor: Floor, rng: Rng, furniture: Furniture[], spe
     if (!room || special.has(index)) continue;
     const x = rng.int(room.x, room.x + room.w - 1);
     const y = rng.int(room.y, room.y + room.h - 1);
-    // Thomas (2026-11-11, validé, codé le 2026-11-18) : aussi la botte de paille et le sac de céréales hors de la cuisine.
-    const kind = (["barrel", "crate", "crateStack", "barrel", "crate", "hayBaleT", "grainSack"] as const)[rng.int(0, 6)];
+    // Thomas (2026-11-11, validé, codé le 2026-11-18) : aussi la botte de paille hors de la cuisine. Sac de céréales retiré (Thomas, 2026-11-21).
+    const kind = (["barrel", "crate", "crateStack", "barrel", "crate", "hayBaleT"] as const)[rng.int(0, 5)];
     const againstWall = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
     if (!againstWall || !freeCell(floor, furniture, x, y) || besideOpening(floor, room, x, y) || underTorch(floor, x, y) || nearHearth(floor, x, y)) continue;
     map.set(x, y, Tile.Furniture);

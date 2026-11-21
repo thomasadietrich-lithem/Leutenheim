@@ -2531,4 +2531,5 @@ export const EN: Record<string, string> = {
   "La Grande Prêtresse grandit. Ses coups de bâton feront deux fois plus mal…": "The High Priestess grows. Her staff blows will hurt twice as much…",
   "Ses pieds dérapent : chaque coup la fera glisser.": "Her feet slip: every blow will send her sliding.",
   "Dans le brouillard, la Grande Prêtresse ne vous voit plus : elle n'appelle plus la lune sur vous.": "In the fog, the High Priestess can no longer see you: she stops calling the moon onto you.",
+  "Aider Morillon : arroser ses rangs de morilles, et le faire avec de bonnes manières.": "Help Morillon: water his rows of morels, and do it with good manners.",
 };

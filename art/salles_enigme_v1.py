@@ -54,21 +54,22 @@ def target(blue=False, arrows=0):
 
 
 def deflector(slash=True):
-    """Cible noire inclinée à 45° sur un poteau de fer (rebond) ; `slash` : « / », sinon « \\ »."""
+    """Cible noire de rebond, tournée de 45° vers la salle (16 × 22). `slash` : posée contre le mur de DROITE, sa face
+    regarde vers la gauche et le joueur ; sinon contre le mur de GAUCHE, face vers la droite. On voit la face annelée
+    (noir, gris, cœur d'argent) en ovale, et l'épaisseur du dos, côté mur."""
     s = Sprite(16, 22)
     s.r(4, 19, 8, 2, "shadow").r(7, 13, 2, 7, "iron_d").r(5, 19, 6, 1, "iron")
-    # disque noir vu de biais : une ellipse allongée le long de la diagonale, anneaux gris, bord d'argent
+    back = 1 if slash else -1  # le dos dépasse du côté du mur
     for y in range(15):
         for x in range(16):
             u, v = (x - 7.5), (y - 7)
-            a, b = (u - v) / 1.414, (u + v) / 1.414
-            if not slash:
-                a, b = b, a
-            d = (a / 7.2) ** 2 + (b / 3.4) ** 2
-            if d > 1:
-                continue
-            c = "silver" if d > 0.78 else "black" if d > 0.5 else "black_l" if d > 0.3 else "black" if d > 0.08 else "silver_l"
-            s.p(x, y, c)
+            d = ((u + 1.2 * back) / 4.2) ** 2 + (v / 7.0) ** 2
+            db = ((u - 2.0 * back) / 4.2) ** 2 + (v / 6.6) ** 2
+            if d <= 1:
+                c = "silver" if d > 0.8 else "black" if d > 0.52 else "black_l" if d > 0.3 else "black" if d > 0.1 else "silver_l"
+                s.p(x, y, c)
+            elif db <= 1:
+                s.p(x, y, "wood_l" if db > 0.75 else "wood")
     return s.done()
 
 
@@ -235,7 +236,7 @@ ROOMS = [
         "#...........#",
         "#...........#",
         "######D######",
-    ], {(6, 1): "C", (11, 4): "/", (11, 2): "\\", (1, 2): "/", (1, 4): "K"},
+    ], {(6, 1): "C", (11, 4): "/", (11, 2): "/", (1, 2): "\\", (1, 4): "K"},
      dict(path=[(3, 4.3), (10.6, 4.3), (10.6, 2.3), (1.4, 2.3), (1.4, 3.6)], lanes=((1, 5, 12, 5), ()))),
     ("3. Salle des racines", "Une seule haie de racines d'un bout à l'autre : une torche ou une potion de feu suffit, le feu court d'une racine à l'autre et ouvre les deux alcôves.", [
         "###########",
@@ -363,7 +364,7 @@ def ice_room(plan, items, extra, scale=3):
 
 def strip(scale=4):
     """Les nouveaux éléments, seuls, et leurs couleurs selon la section."""
-    names = [("Cible", "T"), ("Cible bleue", "Tb"), ("Flèches plantées", "Ta"), ("Cible noire /", "/"), ("Cible noire \\", "\\"),
+    names = [("Cible", "T"), ("Cible bleue", "Tb"), ("Flèches plantées", "Ta"), ("Cible noire, mur droit", "/"), ("Cible noire, mur gauche", "\\"),
              ("Coffre d'argent", "C"), ("Ouvert", "Co"), ("Clef d'argent", "K"), ("Racines", "R"), ("Herse", "G"),
              ("Herse levée", "Gu"), ("Gardien", "S")]
     ims = [(n, SPR[k].img()) for n, k in names]

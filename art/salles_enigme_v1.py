@@ -3,7 +3,7 @@ PROPOSITION à valider, rien en jeu.
 
 Chaque salle : une énigme simple qui se résout avec un objet posé à coup sûr sur l'étage, une CLEF D'ARGENT à aller
 chercher et un COFFRE D'ARGENT. Huit salles : tir, rebond, racines, glisse (idées de Thomas), balance, salle noire,
-gardiens, poulie (idées de Claude retenues). Les murs et le sol suivent la section ; ici, la section 1.
+gardiens (idées de Claude retenues ; la poulie est retirée). Les murs et le sol suivent la section ; ici, la section 1.
 
     python3 art/salles_enigme_v1.py          → art/salles_enigme_v1.png
 """
@@ -61,7 +61,7 @@ def deflector(slash=True):
     for y in range(15):
         for x in range(16):
             u, v = (x - 7.5), (y - 7)
-            a, b = (u + v) / 1.414, (u - v) / 1.414
+            a, b = (u - v) / 1.414, (u + v) / 1.414
             if not slash:
                 a, b = b, a
             d = (a / 7.2) ** 2 + (b / 3.4) ** 2
@@ -227,7 +227,7 @@ ROOMS = [
         "#####D#####",
     ], {(5, 1): "C", (3, 1): "K", (1, 3): "T", (2, 3): "F", (3, 3): "Ta", (4, 3): "F", (5, 3): "Tb", (6, 3): "F", (7, 3): "T", (8, 3): "F", (9, 3): "T"},
      dict(lanes=((1, 4, 10, 6), (2, 4, 6, 8)))),
-    ("2. Salle de rebond", "Flèche ricochante : elle rebondit sur les 3 cibles noires, la clef apparaît.", [
+    ("2. Salle de rebond", "Tir vers la droite avec une flèche ricochante : elle rebondit sur les 3 cibles noires (droite, haut, gauche) puis tombe ; la clef apparaît.", [
         "#############",
         "#...........#",
         "#...........#",
@@ -235,9 +235,9 @@ ROOMS = [
         "#...........#",
         "#...........#",
         "######D######",
-    ], {(6, 1): "C", (1, 2): "\\", (11, 2): "/", (6, 3): "/", (8, 4): "K"},
-     dict(path=[(6, 5), (6, 3.3), (1.4, 2.3), (11.6, 2.3)], lanes=((1, 4, 12, 5), (6,)))),
-    ("3. Salle des racines", "Torche lancée ou potion de feu : les racines flambent, deux alcôves s'ouvrent.", [
+    ], {(6, 1): "C", (11, 4): "/", (11, 2): "\\", (1, 2): "/", (1, 4): "K"},
+     dict(path=[(3, 4.3), (10.6, 4.3), (10.6, 2.3), (1.4, 2.3), (1.4, 3.6)], lanes=((1, 5, 12, 5), ()))),
+    ("3. Salle des racines", "Une seule haie de racines d'un bout à l'autre : une torche ou une potion de feu suffit, le feu court d'une racine à l'autre et ouvre les deux alcôves.", [
         "###########",
         "##...#...##",
         "##...#...##",
@@ -245,7 +245,7 @@ ROOMS = [
         "#.........#",
         "#.........#",
         "#####D#####",
-    ], {(3, 1): "C", (7, 1): "K", (2, 3): "R", (3, 3): "R", (4, 3): "R", (6, 3): "R", (7, 3): "R", (8, 3): "R"}, {}),
+    ], {(3, 1): "C", (7, 1): "K", (1, 3): "R", (2, 3): "R", (3, 3): "R", (4, 3): "R", (5, 3): "R", (6, 3): "R", (7, 3): "R", (8, 3): "R", (9, 3): "R"}, {}),
     ("4. Salle de glisse", "Eau profonde : on ne passe pas. Potion de gel : on glisse jusqu'à l'autre rive.", [
         "###########",
         "#.........#",
@@ -284,15 +284,6 @@ ROOMS = [
         "#.........#",
         "#####D#####",
     ], {(5, 1): "K", (5, 2): "Gu", (8, 1): "C", (1, 3): "S", (9, 5): "S"}, dict(gaze=[(3, (2, 9)), (5, (1, 8))])),
-    ("8. Salle de la poulie", "Tirer dans la corde (flèche, javeline) : la clef tombe de ce côté du trou.", [
-        "###########",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#####D#####",
-    ], {(1, 1): "C", (5, 2): "Y", (9, 1): "Q"}, dict(pits=[(4, 2), (5, 2), (6, 2), (4, 3), (5, 3), (6, 3)], rope=((5.5, 1.1), (9.5, 1.3)))),
 ]
 
 
@@ -374,7 +365,7 @@ def strip(scale=4):
     """Les nouveaux éléments, seuls, et leurs couleurs selon la section."""
     names = [("Cible", "T"), ("Cible bleue", "Tb"), ("Flèches plantées", "Ta"), ("Cible noire /", "/"), ("Cible noire \\", "\\"),
              ("Coffre d'argent", "C"), ("Ouvert", "Co"), ("Clef d'argent", "K"), ("Racines", "R"), ("Herse", "G"),
-             ("Herse levée", "Gu"), ("Gardien", "S"), ("Poulie et clef", "Y"), ("Taquet", "Q")]
+             ("Herse levée", "Gu"), ("Gardien", "S")]
     ims = [(n, SPR[k].img()) for n, k in names]
     # variantes de section des racines : S2 bouts lumineux, S3 racines pâles comme des os
     C.update({"root": hexrgb("#d8d0b8") + (255,), "root_l": hexrgb("#f0ead8") + (255,), "root_d": hexrgb("#8a8270") + (255,)})

@@ -1,0 +1,395 @@
+{
+ "date": "2026-11-21T20:49:14.601Z",
+ "commit": "1916bc6",
+ "runs": 150,
+ "race": "elfe",
+ "note": "étage 11 ouvert : la démo va jusqu'à la Grande Prêtresse (étage 15)",
+ "levels": {
+  "debutant": {
+   "floor": 2.1,
+   "deathFloor1": 32,
+   "reach": {
+    "2": 68,
+    "3": 31,
+    "4": 5,
+    "5": 2
+   },
+   "boss": 0,
+   "dead": 100,
+   "heroLevel": 1.1,
+   "turns": 100.7,
+   "gold": 3.4,
+   "kills": 3.4,
+   "questsStarted": 0.4,
+   "questsDone": 0,
+   "questsFailed": 0.3,
+   "causes": {
+    "un Kobold": 118,
+    "un Kobold frondeur": 20,
+    "une Araignée": 9,
+    "la Tisseuse": 3
+   },
+   "blocked": 0,
+   "blockedRuns": []
+  },
+  "moyen": {
+   "floor": 2,
+   "deathFloor1": 41,
+   "reach": {
+    "2": 59,
+    "3": 32,
+    "4": 9,
+    "5": 3
+   },
+   "boss": 0,
+   "dead": 99,
+   "heroLevel": 1.6,
+   "turns": 188.6,
+   "gold": 16.9,
+   "kills": 6.5,
+   "questsStarted": 0.4,
+   "questsDone": 0.2,
+   "questsFailed": 0.1,
+   "causes": {
+    "un Kobold": 101,
+    "un Kobold frondeur": 23,
+    "la Tisseuse": 4,
+    "une Araignée": 20
+   },
+   "blocked": 1,
+   "blockedRuns": [
+    {
+     "seed": 1212,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 138,
+     "hp": "7/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 1717,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 375,
+     "hp": "10/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "maitrise": {
+   "floor": 4.8,
+   "deathFloor1": 4,
+   "reach": {
+    "2": 95,
+    "3": 87,
+    "4": 76,
+    "5": 71
+   },
+   "boss": 23,
+   "dead": 93,
+   "heroLevel": 4.4,
+   "turns": 864.2,
+   "gold": 68.3,
+   "kills": 35.3,
+   "questsStarted": 1.3,
+   "questsDone": 0.7,
+   "questsFailed": 0.5,
+   "causes": {
+    "un Myconide": 8,
+    "la Tisseuse": 57,
+    "un Kobold frondeur": 7,
+    "une Araignée": 27,
+    "un Kobold envahi": 11,
+    "le poison": 13,
+    "un Kobold cueilleur": 3,
+    "un Kobold": 13,
+    "un Sporelin": 1
+   },
+   "blocked": 7,
+   "blockedRuns": [
+    {
+     "seed": 909,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 740,
+     "hp": "9/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 1212,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 188,
+     "hp": "9/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 47,
+     "hp": "10/10",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3131,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "6/18",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 4040,
+     "end": "bloqué",
+     "floor": 7,
+     "turn": 969,
+     "hp": "4/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4141,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 901,
+     "hp": "10/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 6666,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 968,
+     "hp": "8/18",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 9999,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 289,
+     "hp": "12/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 11009,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 557,
+     "hp": "10/14",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 11413,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 775,
+     "hp": "10/14",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    }
+   ]
+  },
+  "expert": {
+   "floor": 7.6,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 83,
+    "3": 81,
+    "4": 81,
+    "5": 78,
+    "6": 65,
+    "7": 58,
+    "8": 50,
+    "9": 41,
+    "10": 36,
+    "11": 31,
+    "12": 22,
+    "13": 19,
+    "14": 11,
+    "15": 6
+   },
+   "boss": 65,
+   "dead": 87,
+   "heroLevel": 7.9,
+   "turns": 2236.8,
+   "gold": 313.8,
+   "kills": 101.1,
+   "questsStarted": 1.5,
+   "questsDone": 1.2,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Myconide": 16,
+    "un Squelette": 14,
+    "un Kobold": 29,
+    "un Kobold envahi": 7,
+    "le poison": 12,
+    "une Araignée": 17,
+    "un Sporelin": 6,
+    "un Gisant éveillé": 1,
+    "un Squelette archer": 4,
+    "un Fidèle du Carillon": 1,
+    "un Crâne lunaire": 7,
+    "un Kobold frondeur": 2,
+    "le crachat du Carillon": 4,
+    "un Rat d'ossuaire": 2,
+    "la Tisseuse": 4,
+    "l'onde du Carillon": 2,
+    "un Kobold cueilleur": 2
+   },
+   "blocked": 7,
+   "blockedRuns": [
+    {
+     "seed": 808,
+     "end": "bloqué",
+     "floor": 13,
+     "turn": 4065,
+     "hp": "23/38",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (5 cases, 7 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 2626,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 3067,
+     "hp": "22/30",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (2 cases, 7 PV), Rat d'ossuaire (4 cases, 7 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 3838,
+     "end": "bloqué",
+     "floor": 13,
+     "turn": 4163,
+     "hp": "18/38",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (5 cases, 3 PV), Rat d'ossuaire (5 cases, 7 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 4848,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 3641,
+     "hp": "19/30",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (9 cases, 3 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 5656,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 3465,
+     "hp": "11/30",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (4 cases, 3 PV), Rat d'ossuaire (5 cases, 6 PV), Squelette (1 cases, 9 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 8888,
+     "end": "bloqué",
+     "floor": 13,
+     "turn": 3937,
+     "hp": "4/34",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (5 cases, 3 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 10605,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 3489,
+     "hp": "26/34",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (8 cases, 1 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 11009,
+     "end": "bloqué",
+     "floor": 5,
+     "turn": 1533,
+     "hp": "22/22",
+     "cause": "combat de boss qui n'avance pas",
+     "detail": "la Tisseuse : 11/72 PV, à 14 cases, phase « advance »",
+     "last": "attendre"
+    },
+    {
+     "seed": 11615,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 6499,
+     "hp": "28/38",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": "",
+     "last": "attendre"
+    },
+    {
+     "seed": 12019,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 3536,
+     "hp": "28/46",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (3 cases, 7 PV)",
+     "last": "combat"
+    },
+    {
+     "seed": 13231,
+     "end": "bloqué",
+     "floor": 14,
+     "turn": 4621,
+     "hp": "23/38",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (4 cases, 7 PV), Squelette archer (3 cases, 9 PV), Acolyte de la Lune pâle (1 cases, 5 PV), Squelette archer (4 cases, 14 PV)",
+     "last": "combat"
+    }
+   ],
+   "boss2": 31,
+   "boss3": 6,
+   "stuck": 7,
+   "armorClass": 17.2,
+   "searches": 39.9,
+   "chests": 6.7,
+   "doors": 8.5,
+   "bought": 3.9,
+   "sold": 4.9,
+   "potions": 5.9,
+   "pushes": 6.9,
+   "shots": 232.7,
+   "deathFloors": {
+    "1": 17,
+    "2": 1,
+    "3": 1,
+    "4": 3,
+    "5": 13,
+    "6": 7,
+    "7": 8,
+    "8": 9,
+    "9": 5,
+    "10": 5,
+    "11": 5,
+    "12": 3,
+    "13": 5,
+    "14": 5,
+    "15": 0
+   }
+  }
+ }
+}

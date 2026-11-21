@@ -32,7 +32,7 @@ const result = { date: now.toISOString(), commit, runs: n, race, note, levels: {
 const LABEL = { debutant: "Débutant", moyen: "Moyen", maitrise: "Maîtrise", expert: "Expert" };
 for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
   const runs = [];
-  for (let seed = 1; seed <= n; seed++) runs.push(level === "expert" ? playExpert(seed * 101, 24000, { race }) : playBot(level, seed * 101, 8000, { race }));
+  for (let seed = 1; seed <= n; seed++) runs.push(level === "expert" ? playExpert(seed * 101, 40000, { race }) : playBot(level, seed * 101, 8000, { race }));
   const avg = (f) => Math.round((10 * runs.reduce((a, r) => a + f(r), 0)) / runs.length) / 10;
   const pct = (f) => Math.round((100 * runs.filter(f).length) / runs.length);
   const causes = {};
@@ -40,7 +40,7 @@ for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
   result.levels[level] = {
     floor: avg((r) => r.deepest),
     deathFloor1: pct((r) => r.dead && r.deepest === 1),
-    reach: Object.fromEntries((level === "expert" ? [2, 3, 4, 5, 6, 7, 8, 9, 10] : [2, 3, 4, 5]).map((d) => [d, pct((r) => r.deepest >= d)])),
+    reach: Object.fromEntries((level === "expert" ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] : [2, 3, 4, 5]).map((d) => [d, pct((r) => r.deepest >= d)])),
     boss: pct((r) => r.boss),
     dead: pct((r) => r.dead),
     heroLevel: avg((r) => r.heroLevel),
@@ -59,11 +59,13 @@ for (const level of ["debutant", "moyen", "maitrise", "expert"]) {
   if (level === "expert") {
     Object.assign(result.levels[level], {
       boss2: pct((r) => r.boss2),
+      // Section 3 (ouverte le 2026-11-21) : la Grande Prêtresse, fin de la démo.
+      boss3: pct((r) => r.boss3),
       stuck: pct((r) => !r.dead && !r.won),
       armorClass: avg((r) => r.armorClass),
       searches: avg((r) => r.searches), chests: avg((r) => r.chests), doors: avg((r) => r.doors), bought: avg((r) => r.bought), sold: avg((r) => r.sold),
       potions: avg((r) => r.potions), pushes: avg((r) => r.pushes), shots: avg((r) => r.shots),
-      deathFloors: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => [d, pct((r) => r.dead && r.deepest === d)])),
+      deathFloors: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((d) => [d, pct((r) => r.dead && r.deepest === d)])),
     });
   }
 }
@@ -93,6 +95,7 @@ for (const [level, s] of Object.entries(result.levels)) {
   if (level === "expert") {
     console.log(`section 2 : étage 6 ${s.reach[6]} %${diff(s.reach[6], o?.reach?.[6])} ; étage 8 ${s.reach[8]} %${diff(s.reach[8], o?.reach?.[8])} ; étage 10 ${s.reach[10]} %${diff(s.reach[10], o?.reach?.[10])} ; bat le Carillon ${s.boss2} %${diff(s.boss2, o?.boss2)} ; bloqué ${s.stuck} %`);
     console.log(`par partie : CA finale ${s.armorClass}, ${s.searches} fouilles, ${s.chests} coffres, ${s.doors} portes ou sarcophages, ${s.bought} achats, ${s.sold} ventes, ${s.potions} potions, ${s.pushes} poussées, ${s.shots} tirs`);
+    console.log(`section 3 : étage 11 ${s.reach[11]} % ; étage 13 ${s.reach[13]} % ; étage 15 ${s.reach[15]} % ; bat la Grande Prêtresse ${s.boss3} %${diff(s.boss3, o?.boss3)}`);
     console.log("meurt à l'étage : " + Object.entries(s.deathFloors).map(([d, v]) => `${d}: ${v} %`).join(", "));
   }
   if (s.blockedRuns.length > 0) {

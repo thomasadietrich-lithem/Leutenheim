@@ -12,7 +12,7 @@ wait
 node -e '
 const fs=require("fs");const all=fs.readdirSync("stats/bots").filter(f=>f.endsWith(".json")).sort();
 const L={debutant:"Débutant",moyen:"Moyen",maitrise:"Maîtrise",expert:"Expert"};
-console.log("race     | bot      | étage | †ét.1 | Tisseuse | ét.8 | Carillon | bloqué");
+console.log("race     | bot      | étage | †ét.1 | Tisseuse | ét.8 | Carillon | ét.13 | Prêtresse | bloqué");
 for(const race of ["humain","halfelin","elfe"]){const f=all.filter(x=>race==="humain"?!/_(halfelin|elfe)\.json$/.test(x):x.endsWith("_"+race+".json")).pop();const r=JSON.parse(fs.readFileSync("stats/bots/"+f));
-for(const [k,s] of Object.entries(r.levels))console.log([race.padEnd(8),L[k].padEnd(8),String(s.floor).padStart(5),(s.deathFloor1+" %").padStart(5),(s.boss+" %").padStart(8),((s.reach[8]??"–")+(s.reach[8]!==undefined?" %":"")).padStart(4),((s.boss2??"–")+(s.boss2!==undefined?" %":"")).padStart(8),((s.blocked??0)+" %").padStart(6)].join(" | "))}'
+for(const [k,s] of Object.entries(r.levels))console.log([race.padEnd(8),L[k].padEnd(8),String(s.floor).padStart(5),(s.deathFloor1+" %").padStart(5),(s.boss+" %").padStart(8),((s.reach[8]??"–")+(s.reach[8]!==undefined?" %":"")).padStart(4),((s.boss2??"–")+(s.boss2!==undefined?" %":"")).padStart(8),((s.reach[13]??"–")+(s.reach[13]!==undefined?" %":"")).padStart(5),((s.boss3??"–")+(s.boss3!==undefined?" %":"")).padStart(9),((s.blocked??0)+" %").padStart(6)].join(" | "))}'
 grep -l "Error\|rror:" "$T"/*.txt 2>/dev/null | sed "s/^/ERREUR dans /"

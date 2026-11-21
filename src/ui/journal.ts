@@ -305,6 +305,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
           return "Elle chante dans le puits, hors d'atteinte : il faut la toucher de loin.";
       }
       return null;
+    case "iceSlide":
+      return "Vous glissez sur la glace, la traversez d'un trait… et tombez de l'autre côté.";
     case "frost":
       return e.what === "freeze" ? `${capFirst(e.actor.name)} gèle sur place.` : `La glace craque : ${e.actor.name} dégèle.`;
     case "undead":

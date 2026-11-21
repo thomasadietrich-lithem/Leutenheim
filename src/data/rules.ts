@@ -179,6 +179,8 @@ export const RULES = {
   museumChance: 0.9,
   /** Potion de gel (Thomas, 2026-11-19, C) : tours de gel, et le givre au sol. */
   freezeTurns: 3,
+  /** Eau gelée par la potion de gel : tours avant le dégel (C). */
+  iceTurns: 12,
   /** Un boss gèle moins longtemps (2 tours). */
   bossFreezeTurns: 2,
   /** Grenade sainte (C) : rayon, dégâts (doublés contre les morts), bénédiction et soin du héros. */

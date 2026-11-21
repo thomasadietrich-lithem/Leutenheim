@@ -2534,4 +2534,6 @@ export const EN: Record<string, string> = {
   "Aider Morillon : arroser ses rangs de morilles, et le faire avec de bonnes manières.": "Help Morillon: water his rows of morels, and do it with good manners.",
   "Gourmand : toute nourriture lui rend 2 PV de plus.": "Glutton: any food restores 2 more HP.",
   "Toute nourriture lui rend 2 PV de plus.": "Any food restores 2 more HP.",
+  "Glisse… Boum !": "Slide… Thud!",
+  "Vous glissez sur la glace, la traversez d'un trait… et tombez de l'autre côté.": "You slip on the ice, shoot straight across… and fall on the other side.",
 };

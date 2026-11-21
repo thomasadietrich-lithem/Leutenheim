@@ -7108,3 +7108,35 @@ test("Succès (2026-11-21) : chaque PNJ de quête a son succès (Morillon manqua
     assert.ok(ids.has(def.npc), `pas de succès pour ${def.npc} (quête ${qid})`);
   }
 });
+
+test("Glace (2026-11-21) : la potion de gel gèle l'eau ; le héros y glisse, traverse et tombe de l'autre côté", () => {
+  const game = new Game(4242);
+  game.monsters.splice(0);
+  const map = game.map;
+  // Une rangée de sol libre, avec 3 cases d'eau au milieu.
+  let row: { x: number; y: number } | null = null;
+  for (let y = 1; y < map.height - 1 && !row; y++)
+    for (let x = 1; x < map.width - 8 && !row; x++) {
+      let ok = true;
+      for (let k = 0; k < 7; k++) if (map.get(x + k, y) !== Tile.Floor || game.monsterAt(x + k, y) || game.npcAt(x + k, y)) ok = false;
+      if (ok) row = { x, y };
+    }
+  assert.ok(row);
+  const { x, y } = row!;
+  for (let k = 2; k <= 4; k++) map.set(x + k, y, Tile.Water);
+  (game as unknown as { freezeCells(c: { x: number; y: number }[]): void }).freezeCells([2, 3, 4].map((k) => ({ x: x + k, y })));
+  assert.ok(game.icedAt(x + 3, y));
+  game.hero.x = game.hero.fromX = x + 1;
+  game.hero.y = game.hero.fromY = y;
+  assert.ok(game.setDestination(x + 2, y, true));
+  game.tick();
+  assert.equal(game.hero.x, x + 5, "il traverse toute la plaque");
+  assert.equal(game.hero.y, y);
+  assert.ok((game.hero.prone ?? 0) > 0, "et tombe");
+  assert.ok(game.events.some((e) => e.type === "iceSlide"));
+  for (let t = 0; t < RULES.iceTurns + 2; t++) {
+    game.wait();
+    game.tick();
+  }
+  assert.ok(!game.icedAt(x + 3, y), "elle dégèle");
+});

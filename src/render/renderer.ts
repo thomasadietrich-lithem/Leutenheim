@@ -2175,6 +2175,7 @@ export class Renderer {
       ctx.fill();
     }
 
+    this.drawIce(game, ox, oy);
     this.drawAreas(game, ox, oy);
     this.drawFurniture(game, ox, oy, flicker, "early");
     this.drawSigns(game, ox, oy);
@@ -3155,6 +3156,39 @@ export class Renderer {
    * Zones de l'armurerie (salle d'essai, Thomas 2026-11-14) : un cadre de couleur peint au sol, son nom dans la rangée du
    * haut. Seulement une fois la zone vue ; plus pâle hors de vue.
    */
+  /**
+   * Eau gelée (potion de gel, Thomas 2026-11-21) : une plaque de glace bleu pâle, bord plus clair, deux reflets en
+   * diagonale ; au dernier tour, elle se fendille et s'éclaircit.
+   */
+  private drawIce(game: Game, ox: number, oy: number): void {
+    const { ctx, tile } = this;
+    const p = tile / 16;
+    for (const i of game.ice) {
+      if (!game.isVisible(i.x, i.y) && !game.isKnown(i.x, i.y)) continue;
+      const x = ox + i.x * tile;
+      const y = oy + i.y * tile;
+      const melting = i.turns <= 2;
+      ctx.fillStyle = melting ? "rgba(190,225,245,0.55)" : "rgba(205,236,255,0.86)";
+      ctx.fillRect(x, y, tile, tile);
+      // Bord : un liseré clair là où la glace touche une case qui n'est pas gelée.
+      ctx.fillStyle = "rgba(245,252,255,0.9)";
+      if (!game.icedAt(i.x, i.y - 1)) ctx.fillRect(x, y, tile, p);
+      if (!game.icedAt(i.x - 1, i.y)) ctx.fillRect(x, y, p, tile);
+      ctx.fillStyle = "rgba(120,170,210,0.7)";
+      if (!game.icedAt(i.x, i.y + 1)) ctx.fillRect(x, y + tile - p, tile, p);
+      if (!game.icedAt(i.x + 1, i.y)) ctx.fillRect(x + tile - p, y, p, tile);
+      // Reflets en diagonale (même place pour une même case).
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      const s = (i.x * 7 + i.y * 3) % 5;
+      for (let k = 0; k < 4; k++) ctx.fillRect(x + (3 + s + k) * p, y + (9 - k) * p, p, p);
+      for (let k = 0; k < 2; k++) ctx.fillRect(x + (10 + k) * p, y + (5 - k) * p, p, p);
+      if (melting) {
+        ctx.fillStyle = "rgba(70,120,170,0.8)";
+        for (let k = 0; k < 5; k++) ctx.fillRect(x + (4 + k * 2) * p, y + (6 + ((k * 3) % 4)) * p, p, p);
+      }
+    }
+  }
+
   private drawAreas(game: Game, ox: number, oy: number): void {
     const { ctx, tile } = this;
     for (const a of game.areas()) {

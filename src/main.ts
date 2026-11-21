@@ -894,6 +894,9 @@ function reveal(e: GameEvent): void {
     if (text) renderer.addFloatingText(e.x, e.y, text, color);
     if (e.what === "colossus" || e.what === "colossusDown") sfx.play("heavy");
     if (e.what === "awake") sfx.play("bell");
+  } else if (e.type === "iceSlide") {
+    renderer.addFloatingText(e.x, e.y, "Glisse… Boum !", "#bfe6ff");
+    sfx.play("thud");
   } else if (e.type === "frost") {
     renderer.addFloatingText(e.actor.x, e.actor.y, e.what === "freeze" ? "Gelé !" : "Crac…", "#bfe6ff");
   } else if (e.type === "undead") {

@@ -557,6 +557,7 @@ export class Game {
     this.fog = [];
     this.discordMist = [];
     this.frost = [];
+    this.ice = [];
     this.incense = [];
     this.furnitureFire.clear();
     // En descendant, on arrive en haut de l'étage ; en remontant, au pied de l'escalier qui descend.
@@ -848,6 +849,14 @@ export class Game {
   private freezeCells(cells: readonly Point[]): void {
     this.fires = this.fires.filter((f) => !cells.some((c) => c.x === f.x && c.y === f.y));
     for (const c of cells) this.frost.push({ x: c.x, y: c.y, turns: RULES.freezeTurns });
+    // L'eau gèle (Thomas, 2026-11-21) : une plaque de glace qui tient `RULES.iceTurns` ; on y glisse.
+    for (const c of cells) {
+      if (this.map.get(c.x, c.y) !== Tile.Water) continue;
+      const old = this.ice.find((i) => i.x === c.x && i.y === c.y);
+      if (old) old.turns = RULES.iceTurns;
+      else this.ice.push({ x: c.x, y: c.y, turns: RULES.iceTurns });
+      this.map.touch(c.x, c.y);
+    }
     for (const m of this.monsters) {
       if (this.isInert(m) || !cells.some((c) => occupies(m, c.x, c.y))) continue;
       // Un boss (et le Colosse, ses bras, son crâne) gèle 2 tours (Thomas, 2026-11-21 : « la Tisseuse n'est pas
@@ -2805,7 +2814,7 @@ export class Game {
   private crunch(): void {
     // Gravier qui crisse, ou eau qui clapote (Thomas, 2026-11-12 : « l'eau et le gravier attirent les ennemis »).
     const ground = this.map.get(this.hero.x, this.hero.y);
-    if ((ground !== Tile.Gravel && ground !== Tile.Water) || this.peaceful) return;
+    if ((ground !== Tile.Gravel && ground !== Tile.Water) || this.peaceful || this.icedAt(this.hero.x, this.hero.y)) return;
     this.reveal();
     let alerted = 0;
     for (const m of this.monsters) {
@@ -3003,6 +3012,44 @@ export class Game {
   incense: { x: number; y: number; turns: number; thin?: boolean }[] = [];
   /** Givre de la potion de gel (pour l'œil). */
   frost: { x: number; y: number; turns: number; thin?: boolean }[] = [];
+  /** Eau gelée par une potion de gel : on y glisse jusqu'au bout et l'on tombe (Thomas, 2026-11-21). */
+  ice: { x: number; y: number; turns: number }[] = [];
+
+  /** Cette case est-elle de l'eau gelée ? */
+  icedAt(x: number, y: number): boolean {
+    return this.map.get(x, y) === Tile.Water && this.ice.some((i) => i.x === x && i.y === y);
+  }
+
+  /**
+   * Le héros vient de poser le pied sur la glace en venant de `from` : il glisse tout droit, traverse la plaque et tombe
+   * de l'autre côté (à terre un tour). Un mur, une porte fermée ou quelqu'un l'arrête plus tôt : il tombe là.
+   */
+  private iceSlide(from: Point): void {
+    if (!this.icedAt(this.hero.x, this.hero.y)) return;
+    const dx = Math.sign(this.hero.x - from.x);
+    const dy = Math.sign(this.hero.y - from.y);
+    if (dx === 0 && dy === 0) return;
+    const start = { x: this.hero.x, y: this.hero.y };
+    let x = this.hero.x;
+    let y = this.hero.y;
+    for (let k = 0; k < 40; k++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const t = this.map.get(nx, ny);
+      if (!this.map.isWalkable(nx, ny) || t === Tile.DoorClosed || this.monsterAt(nx, ny) || this.npcAt(nx, ny) || this.merchantAt(nx, ny)) break;
+      if (dx !== 0 && dy !== 0 && !canStep(this.map, x, y, dx, dy)) break;
+      x = nx;
+      y = ny;
+      if (!this.icedAt(x, y)) break;
+    }
+    this.hero.x = x;
+    this.hero.y = y;
+    this.path = [];
+    this.hero.prone = Math.max(this.hero.prone ?? 0, 1);
+    this.events.push({ type: "iceSlide", from: start, x, y, dx, dy });
+    this.collectGold();
+    this.springTrap(this.hero);
+  }
   /** Potion d'oursin : tours restants pendant lesquels les coups reçus au contact renvoient une part des dégâts. */
   urchinTurns = 0;
   /** Potion de pierre bue : tours où le héros est une statue (rien ne le blesse, il ne peut rien faire). */
@@ -3118,6 +3165,8 @@ export class Game {
     this.discordMist = this.discordMist.filter((f) => f.turns > 0);
     for (const f of this.frost) f.turns--;
     this.frost = this.frost.filter((f) => f.turns > 0);
+    for (const i of this.ice) if (--i.turns <= 0) this.map.touch(i.x, i.y);
+    this.ice = this.ice.filter((i) => i.turns > 0);
     if (this.fog.length === 0) return;
     this.fogBlinds();
     for (const f of this.fog) f.turns--;
@@ -5753,6 +5802,8 @@ export class Game {
         if (this.over) return true;
         this.enterWeb();
         this.crunch();
+        this.iceSlide(left);
+        if (this.over) return true;
         this.openNiche();
         const puff = this.puffballAt(this.hero.x, this.hero.y);
         if (puff) this.burstPuffball(puff);

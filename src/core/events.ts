@@ -120,6 +120,7 @@ export type GameEvent =
   | { type: "numb"; actor: Actor }
   /** Potion de gel : un monstre gelé, puis dégelé. */
   | { type: "frost"; actor: Actor; what: "freeze" | "thaw" }
+  | { type: "iceSlide"; from: Point; x: number; y: number; dx: number; dy: number }
   | { type: "undead"; actor: Actor; what: "pile" | "crush" | "rise" | "chant0" | "chant" | "daze" | "wake" | "rest" | "eat"; item?: string }
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }

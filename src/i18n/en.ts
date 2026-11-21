@@ -2575,4 +2575,7 @@ export const EN: Record<string, string> = {
   "(Une fiole de fumée dans le sac. Ils sortent tous ! Lancez-la sur la tapisserie ou sur l'un d'eux : depuis le sac, bouton « Lancer ».)": "(One smoke vial in your bag. They're all coming out! Throw it at the tapestry or at one of them: from the bag, “Throw” button.)",
   "Lancer une fiole de fumée sur la tapisserie": "Throw a smoke vial at the tapestry",
   "« La fiole de fumée ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »": "“The smoke vial! Throw it at the red tapestry, or at a traitor coming out. While they cough, I'll slip inside.”",
+  "Agile : Agilité +1.": "Nimble: Agility +1.",
+  "Avantage à l'arc sur une cible à 7 cases ou plus.": "Advantage with a bow on a target 7 tiles away or more.",
+  "Œil de lynx : avantage à l'arc sur une cible à 7 cases ou plus.": "Lynx eye: advantage with a bow on a target 7 tiles away or more.",
 };

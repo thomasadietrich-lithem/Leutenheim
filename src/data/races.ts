@@ -105,7 +105,7 @@ export const RACES = {
     available: true,
     tagline: "Il esquive et se cache.",
     traits: [
-      "Agile : Agilité +2.",
+      "Agile : Agilité +1.",
       "Petit : Discrétion +3 ; n'importe quel meuble lui sert d'abri.",
       "Gourmand : toute nourriture lui rend 2 PV de plus.",
       "Faiblesse : Pousser −2.",
@@ -117,7 +117,8 @@ export const RACES = {
       { id: "gourmand", name: "Gourmand", text: "Toute nourriture lui rend 2 PV de plus." },
     ],
     hpBonus: -1,
-    agilite: 2,
+    // Baissée de 2 à 1 (Thomas, 2026-11-21) : le Halfelin gagnait 33 % des parties du bot Expert, l'Humain 19 %.
+    agilite: 1,
     stealthBonus: 3,
     pushBonus: -2,
     smallCover: true,
@@ -136,7 +137,7 @@ export const RACES = {
     traits: [
       "Vue perçante : il voit plus loin, dans le noir comme en lumière.",
       "Archer : +2 à l'arc ; pas de désavantage vers une case qu'il ne voit pas.",
-      "Œil de lynx : avantage à l'arc sur une cible à 5 cases ou plus.",
+      "Œil de lynx : avantage à l'arc sur une cible à 7 cases ou plus.",
       "Tir au contact : pas de désavantage à l'arc quand un ennemi le touche.",
       "Beau parleur : Charisme +5.",
       "Faiblesse : Force −1.",
@@ -145,7 +146,7 @@ export const RACES = {
     ],
     abilities: [
       { id: "archer", name: "Archer", text: "+2 à l'arc, et pas de désavantage vers une case qu'il ne voit pas." },
-      { id: "lynx", name: "Œil de lynx", text: "Avantage à l'arc sur une cible à 5 cases ou plus." },
+      { id: "lynx", name: "Œil de lynx", text: "Avantage à l'arc sur une cible à 7 cases ou plus." },
       { id: "contact", name: "Tir au contact", text: "Pas de désavantage à l'arc quand un ennemi le touche : il tire même au corps à corps." },
     ],
     hpBonus: 0,
@@ -156,7 +157,8 @@ export const RACES = {
     bowBonus: 2,
     blindShot: true,
     closeShot: true,
-    lynxRange: 5,
+    // Passé de 5 à 7 cases (Thomas, 2026-11-21), pour rapprocher l'Elfe de l'Humain.
+    lynxRange: 7,
     endlessArrows: true,
     recoilPiles: true,
     startingItems: [

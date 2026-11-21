@@ -6054,9 +6054,9 @@ test("races : Humain, Halfelin et Elfe jouables ; PV, caractéristiques et objet
   assert.equal(halfelin.inventory.count("pomme"), 2);
   assert.deepEqual([humain.inventory.count("fleche"), elfe.inventory.count("fleche"), elfe.inventory.count("fleche_recul")], [10, 10, 8]);
   for (const g of [humain, halfelin, elfe]) assert.equal(g.gold, 0);
-  // Halfelin : Agilité +2 (donc +1 en classe d'armure), Discrétion +3.
-  assert.equal(halfelin.agility(), 2);
-  assert.equal(halfelin.hero.armorClass, humain.hero.armorClass + 1);
+  // Halfelin : Agilité +1 (plus de +1 en classe d'armure : il en faut 2), Discrétion +3.
+  assert.equal(halfelin.agility(), 1);
+  assert.equal(halfelin.hero.armorClass, humain.hero.armorClass);
   assert.equal(halfelin.stealthBonus(), humain.stealthBonus() + 3);
   // Elfe : vue perçante, Charisme +5 (prix du Colporteur), Force −1 (dégâts au contact).
   assert.deepEqual([elfe.race.darkVision, elfe.race.sight], [6, 13]);
@@ -6144,11 +6144,11 @@ test("Humain : têtu (une relance par étage) et opportuniste (coup gratuit, ave
   assert.ok(seen >= 3, `seulement ${seen} fuites observées`);
 });
 
-test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 5 cases ou plus)", () => {
+test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 7 cases ou plus)", () => {
   let far = 0;
   let near = 0;
   for (let seed = 1; seed <= 60 && (far < 3 || near < 3); seed++) {
-    for (const dist of [5, 3]) {
+    for (const dist of [7, 3]) {
       const g = new Game(seed, RACES.elfe);
       const m = g.monsters[0];
       if (!m) continue;
@@ -6164,7 +6164,7 @@ test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 5 cases ou plus)"
       g.wait();
       g.tick();
       if (!g.isVisible(m.x, m.y) || m.x !== at.x || m.y !== at.y) continue;
-      assert.equal(g.lynxShot(m), dist >= 5);
+      assert.equal(g.lynxShot(m), dist >= 7);
       g.events.length = 0;
       if (g.shoot(m.x, m.y) !== null) continue;
       g.tick();
@@ -6173,7 +6173,7 @@ test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 5 cases ou plus)"
       // Arc court + 2 d'Archer (et le bonus du couloir étroit, quand la cible s'y trouve).
       const base = (ITEMS.arc_court.attackBonus ?? 0) + 2;
       assert.ok(shot.result.bonus === base || shot.result.bonus === base + RULES.narrowShotBonus, `graine ${seed} : bonus ${shot.result.bonus}`);
-      if (dist >= 5) {
+      if (dist >= 7) {
         assert.equal(shot.result.mode, "advantage", `graine ${seed}`);
         far++;
       } else {

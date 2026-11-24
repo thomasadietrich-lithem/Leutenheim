@@ -15,6 +15,26 @@ Parameters:
     Type: Number
     Default: 5
     Description: Appels simultanes au plus (garde-fou contre les abus et la facture).
+  MaxPer5Min:
+    Type: Number
+    Default: 300
+    Description: Coupe-circuit - appels acceptes au plus en 5 minutes avant fermeture automatique de l'adresse.
+  MaxPerDay:
+    Type: Number
+    Default: 20000
+    Description: Coupe-circuit - appels acceptes au plus en un jour avant fermeture automatique de l'adresse.
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 5
+    Description: Budget mensuel du compte (dollars) ; un courriel part a 50 % et a 100 %.
+  AlertEmail:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Adresse qui recoit les alertes (coupe-circuit, budget). Vide = pas de courriel. Jamais ecrite dans le depot.
+
+Conditions:
+  HasEmail: !Not [!Equals [!Ref AlertEmail, ""]]
 
 Resources:
   EventsBucket:
@@ -152,6 +172,157 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: "*"
       InvokedViaFunctionUrl: true
+
+  # ---------- Coupe-circuit (Thomas, 2026-11-24) ----------
+  # Si l'adresse publique recoit trop d'appels (abus), une alarme previent une petite fonction qui met a zero le
+  # nombre d'appels autorises : l'adresse repond alors "429" et plus rien ne coute. Rouvrir : bash rouvrir.sh.
+  BreakerTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: caveroller-stats-alertes
+
+  BreakerEmail:
+    Type: AWS::SNS::Subscription
+    Condition: HasEmail
+    Properties:
+      TopicArn: !Ref BreakerTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  BreakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: close-stats-url
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:PutFunctionConcurrency
+                Resource: !GetAtt StatsFunction.Arn
+
+  BreakerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/caveroller-stats-coupe-circuit
+      RetentionInDays: 90
+
+  BreakerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: BreakerLogs
+    Properties:
+      FunctionName: caveroller-stats-coupe-circuit
+      Description: Cave Roller - ferme l'adresse des statistiques quand une alarme d'abus se declenche.
+      Runtime: nodejs24.x
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 10
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt BreakerRole.Arn
+      Environment:
+        Variables:
+          TARGET: !Ref StatsFunction
+      Code:
+        ZipFile: |
+          const { LambdaClient, PutFunctionConcurrencyCommand } = require("@aws-sdk/client-lambda");
+          const lambda = new LambdaClient({});
+          exports.handler = async (event) => {
+            const alarms = (event.Records ?? []).map((r) => { try { return JSON.parse(r.Sns.Message); } catch { return {}; } });
+            if (!alarms.some((a) => a.NewStateValue === "ALARM")) return "rien a faire";
+            await lambda.send(new PutFunctionConcurrencyCommand({ FunctionName: process.env.TARGET, ReservedConcurrentExecutions: 0 }));
+            console.log("Adresse fermee :", alarms.map((a) => a.AlarmName).join(", "));
+            return "ferme";
+          };
+
+  BreakerSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BreakerTopic
+      Protocol: lambda
+      Endpoint: !GetAtt BreakerFunction.Arn
+
+  BreakerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BreakerFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BreakerTopic
+
+  TooManyCalls5Min:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caveroller-stats-trop-d-appels-5-min
+      AlarmDescription: Trop d'appels en 5 minutes sur l'adresse des statistiques - fermeture automatique.
+      Namespace: AWS/Lambda
+      MetricName: Invocations
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StatsFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref MaxPer5Min
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref BreakerTopic]
+
+  TooManyCallsDay:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caveroller-stats-trop-d-appels-jour
+      AlarmDescription: Trop d'appels en un jour sur l'adresse des statistiques - fermeture automatique.
+      Namespace: AWS/Lambda
+      MetricName: Invocations
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StatsFunction
+      Statistic: Sum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: !Ref MaxPerDay
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref BreakerTopic]
+
+  # Alerte de budget sur tout le compte (les chiffres d'AWS ont plusieurs heures de retard : c'est une alerte,
+  # pas un coupe-circuit).
+  AccountBudget:
+    Type: AWS::Budgets::Budget
+    Condition: HasEmail
+    Properties:
+      Budget:
+        BudgetName: caveroller-budget-mensuel
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
 
   # ---------- Lecture : Athena ----------
   StatsDatabase:

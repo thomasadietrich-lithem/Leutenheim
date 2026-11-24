@@ -61,3 +61,16 @@ Console AWS > Athena (région Paris) > groupe de travail « caveroller » > Requ
 
 - Que l'adresse répond : `curl -X POST <adresse> -d '{"events":[{"e":"test","run":"x","t":1}]}'` doit répondre 204, et un fichier apparaître dans `events/` du bucket.
 - Les prix du moment (Lambda, S3, Athena) : à faible volume, quelques centimes par mois au plus.
+
+## Coupe-circuit et alertes (2026-11-24)
+
+- Compte : uniquement le compte dédié LTH (profil `lth`). `deploy.sh` vérifie le numéro du compte et s'arrête s'il ne correspond pas.
+- Coupe-circuit : plus de 300 appels en 5 minutes (`MaxPer5Min`) ou 20 000 en un jour (`MaxPerDay`) → une alarme ferme l'adresse toute seule (zéro appel autorisé). Les joueurs gardent leurs événements sur l'appareil. Rouvrir : `bash aws/telemetry/rouvrir.sh`, après avoir compris la cause.
+- Alertes par courriel (fermeture, budget à 50 % et 100 % de `MonthlyBudgetUsd`, 5 $ par défaut) : `ALERT_EMAIL=adresse bash aws/telemetry/deploy.sh`. L'adresse n'est jamais écrite dans le dépôt. Sans adresse : coupe-circuit actif, mais ni courriel ni budget.
+- Vérifié avec `cfn-lint` (réglage par défaut). PAS ENCORE DÉPLOYÉ ni essayé en vrai.
+- Le jeu envoie vers AWS et ne lit jamais rien en retour : rien ne peut être poussé aux joueurs par ce canal.
+
+## Tableau de bord (maquette, 2026-11-24)
+
+`dashboard/index.html` : page seule, sans bibliothèque extérieure, qui lit `dashboard/data.json` (une ligne par partie, sans rien de personnel). Filtres : période, version, race, plateforme. `node aws/telemetry/dashboard/exemple.mjs` refabrique les DONNÉES D'EXEMPLE (bandeau jaune sur la page). Pas encore hébergé : prévu sur AWS, protégé par mot de passe, données recalculées chaque nuit.
+

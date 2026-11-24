@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Cave Roller - tableau de bord</title>
+<style>
+  /* Tableau de bord des statistiques de Cave Roller (LTH Studio). Page seule, sans bibliothèque extérieure.
+     Elle lit data.json (posé à côté) et ne contacte rien d'autre. Règle du jeu : aucun arrondi. */
+  :root {
+    color-scheme: dark;
+    --page: #111110; --surface: #1a1a19; --line: #33322f; --grid: #2a2927;
+    --text: #f0efec; --text2: #c3c2b7; --muted: #8f8e85;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --gold: #c98500;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header img { image-rendering: pixelated; display: block; }
+  header .studio { height: 48px; }
+  header .jeu { height: 48px; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; flex: 1; min-width: 160px; }
+  header .maj { color: var(--muted); font-size: 13px; }
+  #exemple { display: none; background: var(--gold); color: #111; font-weight: 700; text-align: center; padding: 8px 12px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 14px 16px 40px; }
+  .filtres { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .filtres label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 3px; }
+  select { background: var(--surface); color: var(--text); border: 1px solid var(--line); padding: 7px 9px; font: inherit; min-width: 120px; }
+  .tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .tuile { background: var(--surface); border: 1px solid var(--line); padding: 12px 14px; }
+  .tuile b { display: block; font-size: 28px; font-weight: 650; line-height: 1.15; }
+  .tuile span { color: var(--text2); font-size: 13px; }
+  .grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+  .carte { background: var(--surface); border: 1px solid var(--line); padding: 14px; min-width: 0; }
+  .carte.large { grid-column: 1 / -1; }
+  .carte h2 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  .carte p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+  svg { display: block; overflow: visible; }
+  .plot { min-width: 0; overflow: hidden; }
+  svg text { fill: var(--text2); font-size: 12px; }
+  svg .val { fill: var(--text); }
+  svg .hit { fill: transparent; cursor: default; }
+  svg .hit:hover + .mark, svg .mark.on { filter: brightness(1.25); }
+  .legende { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text2); margin-bottom: 8px; }
+  .legende i { display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px; }
+  details { margin-top: 10px; font-size: 13px; }
+  summary { color: var(--muted); cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+  th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  #bulle { position: fixed; pointer-events: none; background: #000; color: var(--text); border: 1px solid var(--line); padding: 6px 9px; font-size: 13px; display: none; z-index: 5; max-width: 240px; }
+  .vide { color: var(--muted); padding: 30px 0; text-align: center; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div id="exemple">DONNÉES D'EXEMPLE - aucun vrai joueur. Maquette à valider.</div>
+<header>
+  <img class="studio" src="logo_studio.png" alt="LTH Studio">
+  <img class="jeu" src="logo_titre.png" alt="Cave Roller">
+  <h1>Tableau de bord des joueurs</h1>
+  <span class="maj" id="maj"></span>
+</header>
+<main>
+  <div class="filtres">
+    <label>Période<select id="f-periode"><option value="0">Tout</option><option value="7">7 derniers jours</option><option value="30">30 derniers jours</option></select></label>
+    <label>Version<select id="f-version"></select></label>
+    <label>Race<select id="f-race"></select></label>
+    <label>Plateforme<select id="f-platform"></select></label>
+  </div>
+  <div class="tuiles" id="tuiles"></div>
+  <div class="grille" id="grille"></div>
+  <footer>Statistiques anonymes, envoyées seulement par les joueurs qui ont dit oui. Les parties d'essai sont écartées.</footer>
+</main>
+<div id="bulle"></div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const NOMS = { humain: "Humain", halfelin: "Halfelin", elfe: "Elfe", web: "Navigateur", android: "Android", ios: "iPhone",
+  rat: "Rat", schrat: "Schrat", frondeur: "Frondeur", araignee: "Araignée", myconide: "Myconide", sporelin: "Sporelin", cueilleur: "Cueilleur",
+  envahi: "Envahi", squelette: "Squelette", acolyte: "Acolyte", fidele: "Fidèle", colosse: "Colosse", tisseuse: "La Tisseuse (boss)",
+  carillon: "Le Carillon (boss)", pretresse: "La Grande Prêtresse (boss)" };
+const nom = (k) => NOMS[k] ?? (k ? k.charAt(0).toUpperCase() + k.slice(1) : "Inconnu");
+const COULEUR_RACE = { humain: "var(--s1)", halfelin: "var(--s2)", elfe: "var(--s3)" };
+const BOSS = [[5, "La Tisseuse"], [10, "Le Carillon"], [15, "La Grande Prêtresse"]];
+const mediane = (list) => { if (!list.length) return 0; const s = [...list].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+const compte = (list, key) => { const m = new Map(); for (const x of list) m.set(key(x), (m.get(key(x)) ?? 0) + 1); return m; };
+
+let DATA = { runs: [], quests: [] };
+
+/** Un tableau lisible sous chaque graphique (la couleur ne porte jamais l'information seule). */
+function tableau(head, rows) {
+  return `<details><summary>Voir le tableau</summary><table><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table></details>`;
+}
+const tip = (t) => `data-tip="${esc(t)}"`;
+
+/** Colonnes verticales : points = [{ label, value, tip, strong }]. */
+const colonnes = (points, { h = 200, every = 1 } = {}) => (W) => {
+  if (!points.length) return `<div class="vide">Pas de données sur cette sélection.</div>`;
+  every = Math.max(every, Math.ceil(points.length / (W / 46)));
+  const L = 34, B = 22, T = 14, max = Math.max(1, ...points.map((p) => p.value));
+  const step = (W - L) / points.length, bw = Math.max(2, Math.min(34, step - 2));
+  const y = (v) => T + (h - T - B) * (1 - v / max);
+  let out = `<svg width="${W}" height="${h}" role="img">`;
+  for (const g of [0, 0.5, 1]) out += `<line x1="${L}" x2="${W}" y1="${y(max * g)}" y2="${y(max * g)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(max * g) + 4}" text-anchor="end">${Math.round(max * g)}</text>`;
+  points.forEach((p, i) => {
+    const x = L + i * step + (step - bw) / 2;
+    out += `<rect class="hit" x="${L + i * step}" y="${T}" width="${step}" height="${h - T - B}" ${tip(p.tip)}/><rect class="mark" x="${x}" y="${y(p.value)}" width="${bw}" height="${Math.max(0, h - B - y(p.value))}" fill="${p.strong ? "var(--s2)" : "var(--s1)"}" pointer-events="none"/>`;
+    if (i % every === 0) out += `<text x="${x + bw / 2}" y="${h - 6}" text-anchor="middle">${esc(p.label)}</text>`;
+  });
+  return out + "</svg>";
+};
+
+/** Barres horizontales : rows = [{ label, value, text, tip, color, parts }]. parts = segments empilés. */
+const barres = (rows, { max } = {}) => (W) => {
+  if (!rows.length) return `<div class="vide">Pas de données sur cette sélection.</div>`;
+  const L = Math.min(190, Math.round(W * 0.4)), R = 96, rh = 28;
+  const top = max ?? Math.max(1, ...rows.map((r) => r.value));
+  let out = `<svg width="${W}" height="${rows.length * rh + 4}" role="img">`;
+  rows.forEach((r, i) => {
+    const y = i * rh + 4, full = W - L - R;
+    out += `<text x="${L - 8}" y="${y + 14}" text-anchor="end">${esc(r.label)}</text>`;
+    let x = L;
+    for (const part of r.parts ?? [{ value: r.value, color: r.color ?? "var(--s1)", tip: r.tip }]) {
+      const w = (full * part.value) / top;
+      if (w > 0) out += `<rect class="mark" x="${x}" y="${y + 3}" width="${Math.max(1, w - 2)}" height="${rh - 9}" fill="${part.color}" ${tip(part.tip ?? r.tip)}/>`;
+      x += w;
+    }
+    out += `<text class="val" x="${x + 6}" y="${y + 14}">${esc(r.text ?? r.value)}</text>`;
+  });
+  return out + "</svg>";
+};
+
+/** Courbe : points = [{ label, value (0-100), tip }]. */
+const courbe = (points, { h = 200 } = {}) => (W) => {
+  if (!points.length) return `<div class="vide">Pas de données sur cette sélection.</div>`;
+  const L = 44, B = 22, T = 14, step = (W - L - 10) / Math.max(1, points.length - 1);
+  const y = (v) => T + (h - T - B) * (1 - v / 100), x = (i) => L + i * step;
+  let out = `<svg width="${W}" height="${h}" role="img">`;
+  for (const g of [0, 50, 100]) out += `<line x1="${L}" x2="${W}" y1="${y(g)}" y2="${y(g)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(g) + 4}" text-anchor="end">${g} %</text>`;
+  out += `<polyline fill="none" stroke="var(--s1)" stroke-width="2" points="${points.map((p, i) => `${x(i)},${y(p.value)}`).join(" ")}"/>`;
+  points.forEach((p, i) => {
+    out += `<rect class="hit" x="${x(i) - step / 2}" y="${T}" width="${step}" height="${h - T - B}" ${tip(p.tip)}/><rect class="mark" x="${x(i) - 4}" y="${y(p.value) - 4}" width="8" height="8" fill="${p.strong ? "var(--s2)" : "var(--s1)"}" stroke="var(--surface)" stroke-width="2" pointer-events="none"/><text x="${x(i)}" y="${h - 6}" text-anchor="middle">${esc(p.label)}</text>`;
+  });
+  return out + "</svg>";
+};
+
+let PLOTS = [];
+const carte = (title, sub, plot, extra, large) => `<section class="carte${large ? " large" : ""}"><h2>${esc(title)}</h2><p>${esc(sub)}</p><div class="plot" data-i="${PLOTS.push(plot) - 1}"></div>${extra}</section>`;
+
+function render() {
+  const f = { periode: +$("f-periode").value, version: $("f-version").value, race: $("f-race").value, platform: $("f-platform").value };
+  const lastDay = DATA.runs.reduce((m, r) => (r.day > m ? r.day : m), "");
+  const from = f.periode && lastDay ? new Date(Date.parse(lastDay) - (f.periode - 1) * 86400000).toISOString().slice(0, 10) : "";
+  const keep = (r) => (!from || r.day >= from) && (!f.version || r.version === f.version) && (!f.race || r.race === f.race) && (!f.platform || r.platform === f.platform);
+  const runs = DATA.runs.filter(keep), quests = DATA.quests.filter(keep), n = runs.length;
+  const deaths = runs.filter((r) => r.end === "mort");
+
+  $("tuiles").innerHTML = [
+    [new Set(runs.map((r) => r.device)).size, "joueurs (appareils)"],
+    [n, "parties"],
+    [mediane(runs.map((r) => r.deepest)), "étage atteint (médiane)"],
+    [pct(runs.filter((r) => r.deepest > 5 || r.bosses > 0).length, n) + " %", "battent le premier boss"],
+    [pct(runs.filter((r) => r.end === "abandon").length, n) + " %", "parties abandonnées"],
+    [Math.round(mediane(runs.map((r) => r.turns))), "tours par partie (médiane)"],
+  ].map(([v, l]) => `<div class="tuile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
+
+  // Parties par jour
+  const perDay = compte(runs, (r) => r.day), days = [...perDay.keys()].sort();
+  const pDays = colonnes(days.map((d) => ({ label: d.slice(8) + "/" + d.slice(5, 7), value: perDay.get(d), tip: `${d} : ${perDay.get(d)} parties` })));
+  const cDays = tableau(["Jour", "Parties"], days.map((d) => [d, perDay.get(d)]));
+
+  // Étage de mort et entonnoir
+  const floors = Array.from({ length: 15 }, (_, i) => i + 1), isBoss = (fl) => BOSS.some(([b]) => b === fl);
+  const deadAt = compte(deaths, (r) => r.deepest);
+  const pDeath = colonnes(floors.map((fl) => ({ label: String(fl), value: deadAt.get(fl) ?? 0, strong: isBoss(fl), tip: `Étage ${fl}${isBoss(fl) ? " (boss)" : ""} : ${deadAt.get(fl) ?? 0} morts, ${pct(deadAt.get(fl) ?? 0, deaths.length)} % des morts` })));
+  const cDeath = `<div class="legende" style="margin-top:8px"><span><i style="background:var(--s1)"></i>Étage normal</span><span><i style="background:var(--s2)"></i>Étage de boss</span></div>`
+    + tableau(["Étage", "Morts", "Part des morts"], floors.map((fl) => [fl + (isBoss(fl) ? " (boss)" : ""), deadAt.get(fl) ?? 0, pct(deadAt.get(fl) ?? 0, deaths.length) + " %"]));
+  const reach = floors.map((fl) => runs.filter((r) => r.deepest >= fl).length);
+  const pFunnel = courbe(floors.map((fl, i) => ({ label: String(fl), value: pct(reach[i], n), strong: isBoss(fl), tip: `Étage ${fl} : ${reach[i]} parties y arrivent (${pct(reach[i], n)} %)` })));
+  const cFunnel = tableau(["Étage", "Parties", "Part"], floors.map((fl, i) => [fl, reach[i], pct(reach[i], n) + " %"]));
+
+  // Causes de mort
+  const causes = [...compte(deaths, (r) => r.cause || "inconnu")].sort((a, b) => b[1] - a[1]);
+  const pCauses = barres(causes.slice(0, 10).map(([c, v]) => ({ label: nom(c), value: v, text: `${v}  (${pct(v, deaths.length)} %)`, tip: `${nom(c)} : ${v} morts` })));
+  const cCauses = tableau(["Cause", "Morts", "Part"], causes.map(([c, v]) => [nom(c), v, pct(v, deaths.length) + " %"]));
+
+  // Races
+  const races = ["humain", "halfelin", "elfe"].map((id) => { const rr = runs.filter((r) => r.race === id); return { id, n: rr.length, med: mediane(rr.map((r) => r.deepest)), boss: pct(rr.filter((r) => r.bosses > 0).length, rr.length), lvl: mediane(rr.map((r) => r.level)) }; }).filter((r) => r.n);
+  const pRaces = barres(races.map((r) => ({ label: nom(r.id), value: r.n, color: COULEUR_RACE[r.id], text: `${r.n}  (${pct(r.n, n)} %)`, tip: `${nom(r.id)} : ${r.n} parties, étage médian ${r.med}` })));
+  const cRaces = tableau(["Race", "Parties", "Étage médian", "Niveau médian", "Battent le 1er boss"], races.map((r) => [nom(r.id), r.n, r.med, r.lvl, r.boss + " %"])).replace("<details>", "<details open>");
+
+  // Boss
+  const bosses = BOSS.map(([fl, label], i) => { const seen = runs.filter((r) => r.deepest >= fl).length, won = runs.filter((r) => r.bosses > i).length; return { label, fl, seen, won }; });
+  const pBoss = barres(bosses.map((b) => ({ label: b.label, value: pct(b.won, b.seen), text: `${pct(b.won, b.seen)} %`, tip: `${b.label} (étage ${b.fl}) : ${b.won} victoires sur ${b.seen} rencontres` })), { max: 100 });
+  const cBoss = tableau(["Boss", "Rencontres", "Victoires", "Taux"], bosses.map((b) => [b.label, b.seen, b.won, pct(b.won, b.seen) + " %"]));
+
+  // Quêtes
+  const RES = [["réussie", "var(--s3)"], ["ratée", "var(--s2)"], ["abandonnée", "var(--s1)"]];
+  const qIds = [...new Set(quests.map((q) => q.id))].sort();
+  const qRows = qIds.map((id) => { const qq = quests.filter((q) => q.id === id); return { id, total: qq.length, c: RES.map(([w]) => qq.filter((q) => q.what === w).length) }; }).sort((a, b) => b.total - a.total);
+  const lQuests = `<div class="legende">${RES.map(([w, c]) => `<span><i style="background:${c}"></i>${nom(w)}</span>`).join("")}</div>`;
+  const pQuests = barres(qRows.map((q) => ({ label: nom(q.id), value: q.total, text: `${pct(q.c[0], q.total)} % réussies`, parts: RES.map(([w, c], i) => ({ value: q.c[i], color: c, tip: `${nom(q.id)} - ${w} : ${q.c[i]} sur ${q.total}` })) })));
+  const cQuests = lQuests + tableau(["Quête", "Réussies", "Ratées", "Abandonnées"], qRows.map((q) => [nom(q.id), ...q.c]));
+
+  PLOTS = [];
+  $("grille").innerHTML = n === 0 ? `<div class="carte large vide">Aucune partie sur cette sélection.</div>` : [
+    carte("Parties par jour", "Combien de parties sont lancées chaque jour.", pDays, cDays, true),
+    carte("Où les parties s'arrêtent", "Nombre de morts à chaque étage.", pDeath, cDeath),
+    carte("Jusqu'où vont les joueurs", "Part des parties qui atteignent chaque étage.", pFunnel, cFunnel),
+    carte("De quoi ils meurent", "Les dix causes de mort les plus fréquentes.", pCauses, cCauses),
+    carte("Boss", "Part des rencontres gagnées par le joueur.", pBoss, cBoss),
+    carte("Races", "Nombre de parties par race.", pRaces, cRaces),
+    carte("Quêtes", "Résultat de chaque quête acceptée.", pQuests, cQuests),
+  ].join("");
+  for (const el of document.querySelectorAll(".plot")) el.innerHTML = PLOTS[+el.dataset.i](Math.max(240, el.clientWidth));
+}
+let resizeTimer = 0;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+
+// Bulle d'information (souris et doigt).
+const bulle = $("bulle");
+function showTip(e) {
+  const t = e.target.closest?.("[data-tip]");
+  if (!t) { bulle.style.display = "none"; return; }
+  bulle.textContent = t.dataset.tip;
+  bulle.style.display = "block";
+  const p = e.touches?.[0] ?? e;
+  bulle.style.left = Math.min(window.innerWidth - bulle.offsetWidth - 8, p.clientX + 12) + "px";
+  bulle.style.top = Math.max(8, p.clientY - bulle.offsetHeight - 10) + "px";
+}
+document.addEventListener("mousemove", showTip);
+document.addEventListener("touchstart", showTip, { passive: true });
+
+function fill(id, values, all) {
+  $(id).innerHTML = `<option value="">${all}</option>` + values.map((v) => `<option value="${esc(v)}">${esc(nom(v))}</option>`).join("");
+  $(id).addEventListener("change", render);
+}
+
+fetch("data.json", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+  DATA = { runs: d.runs ?? [], quests: d.quests ?? [] };
+  if (d.exemple) $("exemple").style.display = "block";
+  $("maj").textContent = d.genere ? "Mis à jour le " + d.genere : "";
+  fill("f-version", [...new Set(DATA.runs.map((r) => r.version))].sort(), "Toutes");
+  fill("f-race", [...new Set(DATA.runs.map((r) => r.race))].sort(), "Toutes");
+  fill("f-platform", [...new Set(DATA.runs.map((r) => r.platform))].sort(), "Toutes");
+  $("f-periode").addEventListener("change", render);
+  render();
+}).catch(() => { $("grille").innerHTML = `<div class="carte large vide">Les données ne sont pas encore disponibles.</div>`; });
+</script>
+</body>
+</html>

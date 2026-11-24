@@ -14,6 +14,9 @@ export interface Furniture {
   x: number;
   y: number;
   kind: string;
+  /** Tombe du héros précédent : l'objet qu'il a laissé (pris : absent), et son épitaphe. */
+  loot?: string;
+  epitaph?: { who: string; level: number; cause: string };
   /** Affiche parchemin : le numéro de son texte (`AFFICHES` dans src/data/affiches.ts). */
   text?: number;
   /** Panier à fruits : nombre de pommes posées dedans à la création de l'étage. */

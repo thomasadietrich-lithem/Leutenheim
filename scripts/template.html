@@ -189,6 +189,10 @@
   .shop-empty, .shop-note { color: var(--dim); font-size: 16px; text-align: center; }
   .shop-note { color: #ff8a7a; }
   #over.over-win { background: #0e1408; border-color: #8a7a2a; }
+  /* Mort (Thomas, 2026-11-24) : « Retour » ferme l'écran de fin ; le jeu reste grisé, le sac et la fiche restent ouverts
+     à la lecture ; ce bouton rouvre l'écran de fin. */
+  body.dead canvas { filter: grayscale(1) brightness(0.8); }
+  #over-show { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); z-index: 1; font-size: 22px; color: #ff6b7a; background: #140808; border: 2px solid #7a2a2a; padding: 6px 18px; }
   #over.over-win .over-title { color: #ffd75e; }
   #over .over-best { color: #ffd75e; font-size: 26px; }
   #over .over-sub { margin-top: 8px; color: #e0c890; }
@@ -773,6 +777,7 @@
       <div id="over-text"></div>
       <button id="over-new-run" type="button">Nouvelle partie</button>
     </div>
+    <button id="over-show" type="button" hidden>Fin de partie</button>
   </div>
   <div class="panel-wrap">
   <div class="panel">

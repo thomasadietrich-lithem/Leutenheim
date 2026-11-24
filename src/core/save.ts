@@ -106,6 +106,8 @@ export interface SaveData {
   turn: number;
   hero: Actor;
   bag: { items: BagItem[]; nextUid: number };
+  /** La tombe du héros précédent, à poser dans cette partie (Thomas, 2026-11-24). */
+  graveFrom?: import("./grave").HeroGrave | null;
   equipment: Record<Slot, BagItem | null>;
   gold: number;
   xp: number;

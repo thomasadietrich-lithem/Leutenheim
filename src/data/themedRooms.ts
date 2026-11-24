@@ -207,6 +207,9 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // La tombe du héros précédent (Thomas, 2026-11-24) : avec son objet, puis vide.
+  tombeHeros: { blocks: true, w: 1, h: 1, burns: false },
+  tombeHerosVide: { blocks: true, w: 1, h: 1, burns: false },
   // Affiches parchemin du culte du poulet (Thomas, 2026-11-24) : sur le mur du haut d'une salle ; on les lit au toucher.
   afficheAvis: { blocks: false, w: 1, h: 1, burns: true, wall: true },
   afficheTexte: { blocks: false, w: 1, h: 1, burns: true, wall: true },

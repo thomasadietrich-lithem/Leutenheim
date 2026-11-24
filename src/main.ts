@@ -34,6 +34,7 @@ import { RACE_PICTOS } from "./ui/racePictos";
 import { TIPS } from "./data/tips";
 import { MANUAL } from "./data/manual";
 import { NPC_IDS } from "./core/game";
+import { HeroGrave, setPreviousGrave } from "./core/grave";
 import { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } from "./data/codex";
 import { TRAPS } from "./data/traps";
 import { getLang, missing as i18nMissing, setLang, tr } from "./i18n/i18n";
@@ -390,7 +391,13 @@ function newRun(sandbox = false, testRun = false): void {
   currentSlot = freshSlot(sandbox || testRun);
   stats.newRun();
   // Seul endroit où le hasard « réel » intervient : le choix de la graine de la partie.
+  // La tombe du héros précédent (Thomas, 2026-11-24) : seulement dans une vraie partie ; on ne la pose qu'une fois.
+  const grave = sandbox || testRun ? null : readGrave();
+  setPreviousGrave(grave);
   const next = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox);
+  setPreviousGrave(null);
+  if (grave) writeGrave(null);
+  deadView(false);
   // SECTION : ALL (Thomas, 2026-11-14) : une vraie partie, avec les outils d'essai et le téléporteur d'étage.
   next.testRun = testRun;
   setupRun(next, testRun ? ["Partie d'essai : toutes les sections. Les boutons « Étage − / + » téléportent d'un étage."] : null);
@@ -979,6 +986,14 @@ function reveal(e: GameEvent): void {
         : "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.",
     );
     renderLog();
+  } else if (e.type === "grave") {
+    // La tombe du héros précédent (Thomas, 2026-11-24).
+    const line = `Ici repose un ${e.who}, niveau ${e.level}, tué par ${e.cause}.`;
+    const gift = e.item ? ` Il vous laisse : ${(ITEMS[e.item] as ItemDef).name}.` : "";
+    showTip(tr(line) + (gift ? tr(gift) : ""));
+    logLines.push(line + gift);
+    renderLog();
+    if (e.item) sfx.play("click");
   } else if (e.type === "affiche") {
     // Une affiche du culte du poulet : son texte s'affiche en bas, puis reste au journal.
     showTip(tr(e.text));
@@ -1067,6 +1082,9 @@ function reveal(e: GameEvent): void {
   } else if (e.type === "death") {
     if (e.actor.kind === "hero") {
       renderer.heroFalls();
+      // Sa tombe attendra la partie suivante, à l'étage où il est tombé (Thomas, 2026-11-24).
+      const g = game.heroGrave();
+      if (g) writeGrave(g);
       showDeath();
       over.hidden = false;
       sfx.play("death");
@@ -1543,6 +1561,8 @@ function showDeath(): void {
     back.type = "button";
     back.addEventListener("click", () => {
       if (!game.revive()) return;
+      writeGrave(null);
+      deadView(false);
       stats.track("revive", { depth: game.depth, level: game.level, turn: game.turn, test: game.sandbox || game.testRun });
       renderer.heroRises();
       over.hidden = true;
@@ -1555,10 +1575,51 @@ function showDeath(): void {
   }
   const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
   again.type = "button";
-  again.addEventListener("click", () => showScreen("new"));
+  again.addEventListener("click", () => {
+    deadView(false);
+    showScreen("new");
+  });
   over.append(again);
+  // Retour (Thomas, 2026-11-24) : on referme l'écran de fin pour regarder une dernière fois son inventaire, sa fiche, la
+  // carte ; le jeu reste grisé. « Fin de partie » le rouvre.
+  const look = el("button", "", "Retour") as HTMLButtonElement;
+  look.type = "button";
+  look.addEventListener("click", () => {
+    over.hidden = true;
+    $("over-show").hidden = false;
+  });
+  over.append(look);
+  deadView(true);
   over.hidden = false;
 }
+
+const GRAVE_KEY = "leutenheim.grave";
+function readGrave(): HeroGrave | null {
+  try {
+    const g = JSON.parse(localStorage.getItem(GRAVE_KEY) ?? "null") as HeroGrave | null;
+    return g && typeof g.depth === "number" && typeof g.item === "string" && g.item in ITEMS ? g : null;
+  } catch {
+    return null;
+  }
+}
+function writeGrave(g: HeroGrave | null): void {
+  try {
+    if (g) localStorage.setItem(GRAVE_KEY, JSON.stringify(g));
+    else localStorage.removeItem(GRAVE_KEY);
+  } catch {
+    /* stockage plein ou interdit : pas de tombe, tant pis */
+  }
+}
+
+/** Le jeu grisé après la mort (et le bouton qui rouvre l'écran de fin) ; `false` : on en sort. */
+function deadView(on: boolean): void {
+  document.body.classList.toggle("dead", on);
+  $("over-show").hidden = true;
+}
+button("over-show", () => {
+  $("over-show").hidden = true;
+  over.hidden = false;
+});
 
 /**
  * Gestionnaire de sauvegardes (Thomas, 2026-11-12 : « rappel des pictos de race et classe, étage, dernière connexion ;

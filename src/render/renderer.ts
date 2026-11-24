@@ -65,6 +65,9 @@ import { ALAMBIC } from "./sprites/alambic";
 import { NEIGE } from "./sprites/neige";
 import { CULTE } from "./sprites/culte";
 import { AFFICHES as AFFICHE_ART } from "./sprites/affiches";
+import { TOMBE } from "./sprites/tombe";
+/** Le héros tombé reste couché ce temps-là avant de devenir une tombe. */
+const HERO_TOMB_MS = 1400;
 import { CONCERT } from "./sprites/concert";
 import { EXPO } from "./sprites/expo";
 import { TRAINARDS2 } from "./sprites/trainards2";
@@ -477,7 +480,10 @@ export class Renderer {
   /** Le héros est tombé : il reste étendu au sol. */
   heroFalls(): void {
     this.heroDown = true;
+    this.heroDownAt = this.time;
   }
+  /** Quand le héros est tombé : un instant couché, puis il devient une tombe (Thomas, 2026-11-24). */
+  private heroDownAt = 0;
 
   /** Le héros se relève (partie d'essai : bouton « Revivre »). */
   heroRises(): void {
@@ -556,6 +562,16 @@ export class Renderer {
     }
     const cx = ox + (at.x + 0.5) * tile;
     const cy = oy + (at.y + 0.5) * tile;
+    // « Le PJ devient une tombe » (Thomas, 2026-11-24) : après sa chute, une pierre tombale à sa place.
+    if (this.heroDown && this.time - this.heroDownAt > HERO_TOMB_MS) {
+      const art = TOMBE.tombeHerosVide;
+      const size = Math.round(tile);
+      const smooth0 = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.sprite(art.rows, art.palette), Math.round(cx - size / 2), Math.round(cy + tile * 0.5 - size), size, size);
+      ctx.imageSmoothingEnabled = smooth0;
+      return;
+    }
     // Ombre au sol.
     ctx.fillStyle = "rgba(10,8,16,0.45)";
     ctx.beginPath();
@@ -3443,7 +3459,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? TOMBE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3464,7 +3480,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (CHAMPI[name] || name === "souche" || NEIGE[name]) {
+      } else if (CHAMPI[name] || name === "souche" || NEIGE[name] || TOMBE[name]) {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;

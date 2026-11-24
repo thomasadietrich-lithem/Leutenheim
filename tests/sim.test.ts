@@ -7493,3 +7493,39 @@ test("Affiches du culte du poulet (2026-11-24) : sur les murs du haut, on les li
   assert.ok(posters >= 8, `${posters} affiches`);
   assert.ok(seen.size >= 5, "les textes varient");
 });
+
+test("La tombe du héros précédent (2026-11-24) : à son étage dans la partie suivante, son objet le plus rare, une seule fois", async () => {
+  const { setPreviousGrave } = await import("../src/core/grave");
+  // Un héros meurt à l'étage 1 avec une dague rare dans le sac.
+  const dead = new Game(11);
+  dead.inventory.add("arc_puissant", 1);
+  dead.hero.hp = 1;
+  (dead as unknown as { hurtHero(d: number, c?: string): void }).hurtHero(5, "un Kobold");
+  assert.ok(dead.over);
+  const grave = dead.heroGrave()!;
+  assert.equal(grave.depth, 1);
+  assert.equal(grave.item, "arc_puissant", "le plus rare de ce qu'il portait");
+  // La partie suivante : la tombe est là, à l'étage 1.
+  setPreviousGrave(grave);
+  const next = new Game(12);
+  setPreviousGrave(null);
+  const t = next.furnitureList().find((f) => f.kind === "tombeHeros")!;
+  assert.ok(t, "la tombe est posée");
+  assert.equal(next.map.get(t.x, t.y), Tile.Furniture);
+  // On s'en approche : l'épitaphe, puis l'objet tombe à côté ; la tombe est vide.
+  next.monsters.splice(0);
+  assert.ok(next.setDestination(t.x, t.y, true));
+  for (let i = 0; i < 80 && !next.events.some((e) => e.type === "grave"); i++) next.tick();
+  const e = next.events.find((ev) => ev.type === "grave");
+  assert.ok(e && e.type === "grave" && e.item === "arc_puissant" && e.cause === "un Kobold");
+  assert.ok(next.ground.some((g) => g.item === "arc_puissant"), "l'objet est au sol");
+  assert.equal(next.graveAt(t.x, t.y)?.kind, "tombeHerosVide");
+  // Une autre partie ensuite : plus de tombe.
+  assert.ok(!new Game(13).furnitureList().some((f) => f.kind.startsWith("tombeHeros")));
+  // Sauvegarde : la tombe à venir est gardée.
+  setPreviousGrave({ ...grave, depth: 3 });
+  const later = new Game(14);
+  setPreviousGrave(null);
+  const back = Game.restore(JSON.parse(JSON.stringify(later.snapshot())))!;
+  assert.equal(back.graveFrom?.depth, 3);
+});

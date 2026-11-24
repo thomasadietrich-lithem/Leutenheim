@@ -130,6 +130,8 @@ export type GameEvent =
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }
   | { type: "lostTrack"; actor: Actor }
+  /** La tombe du héros précédent : son épitaphe, et l'objet qu'il laisse (la première fois). */
+  | { type: "grave"; who: string; level: number; cause: string; item?: ItemId }
   /** On lit une affiche du culte du poulet. */
   | { type: "affiche"; text: string }
   /** L'armure du Guerrier réveille un dormeur tout près. */

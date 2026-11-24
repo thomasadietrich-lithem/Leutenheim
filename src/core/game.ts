@@ -33,6 +33,7 @@ import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from ".
 import { decorateOssuaire, moonArea, sideOf } from "../world/ossuaire";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { AFFICHES, AFFICHES_PER_FLOOR } from "../data/affiches";
+import { previousGrave, HeroGrave } from "./grave";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, distanceField, findPath, isChokepoint } from "../world/pathfinding";
@@ -748,6 +749,7 @@ export class Game {
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     if (fresh && !state.boss && !this.sandbox) this.placeAffiches(state, depth);
+    if (fresh && !state.boss && !this.sandbox && !this.testRun && this.graveFrom && this.graveFrom.depth === depth) this.placeGrave(state, this.graveFrom);
     for (const m of this.monsters) {
       m.fromX = m.x;
       m.fromY = m.y;
@@ -2334,6 +2336,20 @@ export class Game {
 
   /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
   private resolveBreak(at: Point): void {
+    // La tombe du héros précédent : on lit son épitaphe ; la première fois, on récupère l'objet qu'il a laissé.
+    const grave = this.graveAt(at.x, at.y);
+    if (grave && Math.max(Math.abs(grave.x - this.hero.x), Math.abs(grave.y - this.hero.y)) <= 1) {
+      const item = grave.loot as ItemId | undefined;
+      this.events.push({ type: "grave", who: grave.epitaph?.who ?? "", level: grave.epitaph?.level ?? 1, cause: grave.epitaph?.cause ?? "", item });
+      if (item && ITEMS[item]) {
+        grave.loot = undefined;
+        grave.kind = "tombeHerosVide";
+        this.map.touch(grave.x, grave.y);
+        const to = this.landingCell(this.hero, item);
+        this.dropItem(to.x, to.y, item, 1);
+      }
+      return;
+    }
     const hen = this.current.goldHen;
     if (hen && Math.max(Math.abs(hen.x - this.hero.x), Math.abs(hen.y - this.hero.y)) <= 1 && hen.x === at.x && hen.y === at.y) {
       this.current.goldHen = undefined;
@@ -3903,6 +3919,7 @@ export class Game {
       turn: this.turn,
       hero: this.hero,
       bag: this.inventory.snapshot(),
+      graveFrom: this.graveFrom,
       equipment: this.equipment,
       gold: this.gold,
       xp: this.xp,
@@ -4035,6 +4052,7 @@ export class Game {
     game.testRun = !!saved.testRun;
     game.hero = saved.hero;
     game.inventory.restore(saved.bag);
+    game.graveFrom = saved.graveFrom ?? null;
     game.equipment = saved.equipment;
     game.gold = saved.gold;
     game.xp = saved.xp;
@@ -4869,6 +4887,53 @@ export class Game {
   /** Le héros encaisse des dégâts. Dernier rempart (voie bleue) : une fois par étage, il reste à 1 PV. */
   /** Ce qui a tué le héros, pour l'écran de fin (Thomas : « dis de quoi il est mort »). */
   deathCause: string | null = null;
+  /** La tombe du héros de la partie d'avant, à poser sur son étage (Thomas, 2026-11-24). Lue à la création. */
+  graveFrom: HeroGrave | null = previousGrave();
+
+  /**
+   * Le héros vient de mourir : ce qu'on garde pour la partie suivante (l'étage, l'objet le plus rare qu'il portait,
+   * son épitaphe). Rien en salle d'essai ni en partie de test.
+   */
+  heroGrave(): HeroGrave | null {
+    if (!this.over || this.won || this.sandbox || this.testRun) return null;
+    const rank: Record<string, number> = { rare: 3, uncommon: 2, common: 1 };
+    const keep = (id: ItemId) => {
+      const def = ITEMS[id] as ItemDef;
+      return def.kind !== "key" && def.kind !== "gold" && def.kind !== "quest" && def.kind !== "ammo" && def.kind !== "bag";
+    };
+    const pool: ItemId[] = [...Object.values(this.equipment).filter((s): s is NonNullable<typeof s> => !!s).map((s) => s.defId), ...this.inventory.items.map((i) => i.defId)].filter(keep);
+    if (pool.length === 0) return null;
+    const best = pool.reduce((a, b) => ((rank[(ITEMS[b] as ItemDef).rarity ?? "common"] ?? 1) > (rank[(ITEMS[a] as ItemDef).rarity ?? "common"] ?? 1) ? b : a));
+    const boss = (RULES.bossDepths as readonly number[]).includes(this.depth);
+    return { depth: boss ? this.depth - 1 : this.depth, item: best, who: `${this.race.name} ${this.heroClass.name}`, level: this.level, cause: this.deathCause ?? "ses blessures" };
+  }
+
+  /** La tombe du héros précédent : dans une salle (pas celle du départ ni une salle à épreuve), sur une case libre. */
+  private placeGrave(state: FloorState, g: HeroGrave): void {
+    const rng = new Rng(floorSeed(this.runSeed, g.depth) ^ 0x6a7e);
+    const startRoom = state.rooms.find((r) => this.inRect(state.start, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }));
+    const cells: Point[] = [];
+    for (const r of state.rooms) {
+      if (r === startRoom || r.w < 3 || r.h < 3) continue;
+      for (let y = r.y + 1; y < r.y + r.h - 1; y++)
+        for (let x = r.x + 1; x < r.x + r.w - 1; x++) {
+          const p = { x, y };
+          if (state.map.get(x, y) !== Tile.Floor || state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y))) continue;
+          if (state.ground.some((o) => o.x === x && o.y === y) || state.traps.some((t) => t.x === x && t.y === y) || state.monsters.some((m) => m.x === x && m.y === y)) continue;
+          if ((state.enigmas ?? []).some((e) => this.inRect(p, e.room))) continue;
+          cells.push(p);
+        }
+    }
+    if (cells.length === 0) return;
+    const at = cells[rng.int(0, cells.length - 1)];
+    state.furniture.push({ x: at.x, y: at.y, kind: "tombeHeros", loot: g.item, epitaph: { who: g.who, level: g.level, cause: g.cause } });
+    state.map.set(at.x, at.y, Tile.Furniture);
+  }
+
+  /** La tombe du héros précédent à cette case. */
+  graveAt(x: number, y: number): Furniture | undefined {
+    return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind.startsWith("tombeHeros"));
+  }
 
   private hurtHero(damage: number, cause = "ses blessures"): void {
     // Statue (potion de pierre) : rien ne la blesse.
@@ -5531,7 +5596,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.graveAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);

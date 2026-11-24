@@ -2599,4 +2599,7 @@ export const EN: Record<string, string> = {
   "« Ce soir, Grand Caquet dans la chapelle. Apportez vos plus belles plumes. Les retardataires nettoieront le perchoir. »": "“Tonight, Great Cackle in the chapel. Bring your finest feathers. Latecomers will clean the perch.”",
   "« …et quand le Poulet d'argent ne revint pas, les fidèles levèrent les yeux et virent la lune, pâle et ronde comme un œuf. \"Il a pondu le ciel\", dirent-ils. Ce jour-là naquit… » (La suite est arrachée.)": "“…and when the Silver Chicken did not return, the faithful looked up and saw the moon, pale and round as an egg. \"It has laid the sky\", they said. That day was born…” (The rest is torn off.)",
   "« Qui a encore lâché les poules dans la salle du trésor ? Troisième fois cette semaine. Signé : le sergent, qui en a assez. »": "“Who let the hens loose in the treasure room again? Third time this week. Signed: the sergeant, who has had enough.”",
+  "Ici repose un {0}, niveau {1}, tué par {2}.": "Here lies a {0}, level {1}, killed by {2}.",
+  "Il vous laisse : {0}.": "They leave you: {0}.",
+  "Fin de partie": "Game over",
 };

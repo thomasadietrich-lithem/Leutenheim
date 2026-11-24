@@ -308,7 +308,7 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
     const fits = (x: number) =>
       [x, x + 1, x + 2].every((cx) => cx >= r.x && cx < r.x + r.w && floor.map.get(cx, wy) === Tile.Wall && !floor.torches.some((t) => t.x === cx && t.y === wy) && !furniture.some((f) => f.x === cx && f.y === wy));
     const starts = [...Array(r.w).keys()].map((i) => r.x + i).filter(fits).sort((a, b) => Math.abs(a + 1 - chestX) - Math.abs(b + 1 - chestX));
-    if (starts.length > 0) furniture.push({ x: starts[0], y: wy, kind: "tapisserieCulte" });
+    if (starts.length > 0) furniture.push({ x: starts[0] + 1, y: wy, kind: "tapisserieCulte" });
   }
   const special = new Set(themes.map((t) => t.room));
   placeClutter(floor, new Rng(seed ^ 0x1c3a5e77), furniture, special);
@@ -659,7 +659,7 @@ function furnishChapelInner(floor: Floor, room: Room, rng: Rng, out: Furniture[]
       const f = P.placed[i];
       if (f.kind.startsWith("vitrail") && f.y === wy && Math.abs(f.x - ax) <= 1) P.placed.splice(i, 1);
     }
-    P.placed.push({ x: ax - 1, y: wy, kind: "tapisserieCulte" });
+    P.placed.push({ x: ax, y: wy, kind: "tapisserieCulte" });
   }
   out.push(...P.placed);
   return true;

@@ -4483,7 +4483,7 @@ test("quêtes v3, Krik : le dortoir des traîtres derrière la tapisserie ; une 
   game = setup();
   game.npcChoose("krik", "divert");
   assert.equal(game.quest?.id, "krik_diversion");
-  assert.ok(game.inventory.count("potion_fumee") >= 1);
+  assert.ok(game.inventory.count("potion_brouillard") >= 1);
   z = game.zone()!;
   (game as unknown as { smokeBurst(p: { x: number; y: number }, r: number): void }).smokeBurst(z.entry, 2);
   assert.ok(game.questDone());
@@ -4638,7 +4638,7 @@ test("quête 03, Krik : trois scènes, des jets, la fiole de fumée, l'investiss
   assert.ok(s1.lines.some((l) => l.includes("ne peux plus mentir")));
   const r = game.krikChoose("divert");
   assert.ok(r.roll && r.done);
-  if (r.roll.success) assert.ok(game.inventory.count("potion_fumee") >= 1);
+  if (r.roll.success) assert.ok(game.inventory.count("potion_fumee") + game.inventory.count("potion_brouillard") >= 1);
   // Quêtes v3 : la diversion devient une mission (Krik reste) ; sinon il part.
   assert.equal(game.krikMemory.met, game.quest ? 0 : 1);
   game.quest = null;
@@ -7396,4 +7396,62 @@ test("Salles à énigme (2026-11-24) : aucune colonne dans la salle", () => {
     }
   }
   assert.ok(rooms > 20);
+});
+
+test("Retours du 2026-11-24 : salles à épreuve (porte, taille moyenne, rien au sol, coffre avec équipement), sang sur suie, brouillard", () => {
+  let rooms = 0;
+  let chests = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    const game = new Game(seed * 53);
+    game.testRun = true;
+    for (let d = 2; d <= 4; d++) {
+      assert.ok(game.teleport(d));
+      for (const e of game.enigmas()) {
+        rooms++;
+        const h = e.hall!;
+        assert.ok(h.w >= 5 && h.h >= 5 && h.w * h.h >= 30, `graine ${seed} étage ${d} : salle ${h.w}×${h.h} trop petite`);
+        // Une porte sur le pourtour de la salle.
+        const ring: { x: number; y: number }[] = [];
+        for (let x = h.x; x < h.x + h.w; x++) ring.push({ x, y: h.y - 1 }, { x, y: h.y + h.h });
+        for (let y = h.y; y < h.y + h.h; y++) ring.push({ x: h.x - 1, y }, { x: h.x + h.w, y });
+        assert.ok(ring.some((p) => game.map.isDoor(p.x, p.y)), `graine ${seed} étage ${d} : ${e.kind} sans porte`);
+        const inBox = (p: { x: number; y: number }) => p.x >= e.room.x && p.y >= e.room.y && p.x < e.room.x + e.room.w && p.y < e.room.y + e.room.h;
+        assert.ok(!game.ground.some((g) => inBox(g) && g.item !== "clef_argent"), `graine ${seed} étage ${d} : un objet au sol dans la salle`);
+        assert.equal(game.floorStyle(h.x + 1, h.y + 1), "epreuve", "dalles claires");
+        // Le coffre d'argent : au moins un équipement.
+        if (chests < 4) {
+          game.monsters.splice(0);
+          game.inventory.add("clef_argent", 1, game.depth);
+          const before = game.ground.length;
+          (game as unknown as { useFeatureAt(x: number, y: number): void }).useFeatureAt(e.chest.x, e.chest.y);
+          const out = game.ground.slice(before).map((g) => ITEMS[g.item].kind);
+          assert.ok(out.some((k) => ["melee", "ranged", "armor", "hat", "artifact"].includes(k)), `coffre d'argent sans équipement : ${out.join(", ")}`);
+          chests++;
+        }
+      }
+    }
+  }
+  assert.ok(rooms >= 6 && chests >= 4);
+  // Une case brûlée garde sa suie sous le sang.
+  const g = new Game(5);
+  const stain = (g as unknown as { stain(x: number, y: number, c: string): void }).stain.bind(g);
+  stain(g.hero.x, g.hero.y, "soot");
+  stain(g.hero.x, g.hero.y, "red");
+  assert.deepEqual(g.bloodStains().filter((b) => b.x === g.hero.x && b.y === g.hero.y).map((b) => b.color), ["soot", "red"]);
+});
+
+test("Brouillard (2026-11-24) : même au contact, le monstre perd la trace du héros et cherche un moment", () => {
+  const { game, m } = foeAt(1);
+  game.monsters = [m];
+  Object.assign(m, { alerted: true, asleep: false, hp: 999, maxHp: 999 });
+  game.inventory.add("potion_brouillard", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "potion_brouillard")!.uid;
+  assert.ok(game.throwPotion(uid, game.hero.x, game.hero.y));
+  game.tick();
+  assert.equal(m.alerted, false, "il a perdu la trace");
+  const hp = game.hero.hp;
+  game.wait();
+  game.tick();
+  assert.equal(m.alerted, false, "il cherche encore");
+  assert.equal(game.hero.hp, hp, "il ne frappe pas");
 });

@@ -184,8 +184,14 @@ interface FloatingText {
  * chaque image ; à 2, c'est 2,25 fois moins, sans différence visible pour du pixel art.
  */
 export function screenScale(): number {
-  return frameScale ?? Math.min(maxScale, window.devicePixelRatio || 1);
+  return frameScale ?? Math.min(maxScale, zoomCap, window.devicePixelRatio || 1);
 }
+/**
+ * Vue dézoomée (Thomas, 2026-11-24 : « au dézoom, sur un étage chargé, chutes d'images ») : les cases sont petites, on
+ * dessine moins fin (1,25 pixel réel par pixel de page au lieu de 2) ; à l'œil, rien ne change à cette taille.
+ */
+let zoomCap = Infinity;
+const DEZOOM_COLUMNS = 18;
 /** La finesse lue une fois par image (lire `devicePixelRatio` des milliers de fois par image coûtait cher). */
 let frameScale: number | null = null;
 /** Plafond de finesse : 2 au départ, baissé tout seul si le téléphone peine (voir `Renderer.lowerQuality`). */
@@ -243,6 +249,18 @@ function wallFaces(kind: string): readonly (readonly [number, number])[] {
   if (/SideR/.test(kind)) return [[-1, 0]];
   if (/^(tapestry|curtain|tapisserieCulte|vitrail|tableau)/.test(kind)) return [[0, 1]];
   return [[0, 1], [0, -1], [1, 0], [-1, 0]];
+}
+
+type StainShown = { color: StainColor; shape: 0 | 1 | 2; turn?: number };
+
+/** Les yeux fermés : chaque pixel d'œil (« O ») pris entre deux pixels de peau (« S ») devient un trait de peau sombre. */
+const closedCache = new WeakMap<readonly string[], readonly string[]>();
+function closedEyes(rows: readonly string[]): readonly string[] {
+  const hit = closedCache.get(rows);
+  if (hit) return hit;
+  const out = rows.map((r) => r.replace(/(?<=S)O(?=S)/g, "s"));
+  closedCache.set(rows, out);
+  return out;
 }
 
 export class Renderer {
@@ -532,6 +550,8 @@ export class Renderer {
       const idle = F[`idle${dir}`];
       // Le temps peut être très légèrement négatif à la toute première image : on prend sa valeur absolue.
       rows = idle[Math.floor(Math.abs(this.time) / 520) % idle.length];
+      // Au repos (Thomas, 2026-11-24) : les yeux se ferment (un pixel d'œil, entouré de peau, devient un trait de peau sombre).
+      if (game.isResting()) rows = closedEyes(rows);
     }
     const cx = ox + (at.x + 0.5) * tile;
     const cy = oy + (at.y + 0.5) * tile;
@@ -558,11 +578,33 @@ export class Renderer {
     ctx.drawImage(this.sprite(rows, look.palette), -size / 2, top, size, size);
     ctx.restore();
     ctx.imageSmoothingEnabled = smooth;
+    // …et de petits « z » montent lentement, de plus en plus grands, puis s'effacent.
+    if (game.isResting() && !moving) {
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let k = 0; k < 3; k++) {
+        const life = ((Math.abs(this.time) / 2400 + k / 3) % 1);
+        const sz = Math.round(tile * (0.38 + 0.3 * life));
+        ctx.font = `${sz}px "VT323", "Courier New", monospace`;
+        ctx.globalAlpha = life < 0.15 ? life / 0.15 : 1 - (life - 0.15) / 0.85;
+        const zx = cx + tile * (0.5 + 0.35 * life + 0.08 * Math.sin(life * 6));
+        const zy = top + tile * (0.35 - 0.8 * life);
+        ctx.lineWidth = Math.max(2, tile * 0.08);
+        ctx.strokeStyle = "#120d08";
+        ctx.strokeText("z", zx, zy);
+        ctx.fillStyle = "#e8f0ff";
+        ctx.fillText("z", zx, zy);
+      }
+      ctx.restore();
+    }
   }
 
   private smoke: { x: number; y: number; age: number; life: number; drift: number; size: number }[] = [];
   /** Petits nuages « Pouf ! » (Gluck qui disparaît) : une case, environ 0,6 s. */
   private puffs: { x: number; y: number; age: number; poison?: boolean }[] = [];
+  /** Après un lancer, les monstres ne bougent qu'une fois l'objet tombé : leur avancée dans le pas (null : comme le héros). */
+  monsterProgress: number | null = null;
   /** Cases dont le feu ou le gaz ne doit apparaître qu'à l'éclatement de la fiole (clé « x,y » → instant). */
   private held = new Map<string, number>();
 
@@ -1091,7 +1133,7 @@ export class Renderer {
   /** Gluck (quête 01) : un Kobold pâle, immobile, avec une pomme dans une bulle quand le héros approche. */
   private drawGluck(game: Game, ox: number, oy: number): void {
     const g = game.gluck();
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
     const at = this.npcGlide("gluck", g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1111,7 +1153,7 @@ export class Renderer {
   /** Morillon, le Kobold cueilleur (section 2) : masque de toile, hotte ; une morille dans sa bulle quand on approche. */
   private drawMorillon(game: Game, ox: number, oy: number): void {
     const g = game.morillon();
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
     const at = this.npcGlide("morillon", g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1164,7 +1206,7 @@ export class Renderer {
    */
   private drawSimpleNpc(game: Game, id: "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet", ox: number, oy: number): void {
     const g = game.npc(id);
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
     const at = this.npcGlide(id, g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1198,7 +1240,7 @@ export class Renderer {
   /** Grum, le Kobold fermier (quête 05) : chapeau de paille et salopette ; un œuf d'or dans sa bulle quand on approche. */
   private drawGrum(game: Game, ox: number, oy: number): void {
     const g = game.grum();
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
     const at = this.npcGlide("grum", g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1211,7 +1253,7 @@ export class Renderer {
   /** Fifrelin (quête 04) : un Kobold rouge au chapeau haut de forme ; un gobelet dans sa bulle quand on approche. */
   private drawFifrelin(game: Game, ox: number, oy: number): void {
     const g = game.fifrelin();
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { ctx, tile } = this;
     const at = this.npcGlide("fifrelin", g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1256,7 +1298,7 @@ export class Renderer {
   /** Sœur Osseuse (quête 02) : le squelette en voile de nonne, une croix d'os dans sa bulle quand le héros approche. */
   private drawSoeur(game: Game, ox: number, oy: number): void {
     const g = game.soeur();
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
     const at = this.npcGlide("soeur", g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1270,7 +1312,7 @@ export class Renderer {
   /** Krik (quête 03) : un Kobold mauve à l'œil vert ; une fiole de fumée dans sa bulle quand le héros approche. */
   private drawKrik(game: Game, ox: number, oy: number): void {
     const g = game.krik();
-    if (!g || !game.isVisible(g.x, g.y)) return;
+    if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
     const at = this.npcGlide("krik", g.x, g.y);
     const cx = Math.round(ox + (at.x + 0.5) * tile);
@@ -1988,6 +2030,12 @@ export class Renderer {
    * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
    */
   draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null, aimTarget: Actor | null = null): void {
+    const cap = this.columns > DEZOOM_COLUMNS ? 1.25 : Infinity;
+    if (cap !== zoomCap) {
+      zoomCap = cap;
+      frameScale = null;
+      this.resize();
+    }
     frameScale = null;
     frameScale = screenScale();
     this.cellBudget = CELL_BUDGET;
@@ -2031,7 +2079,8 @@ export class Renderer {
     const shown = (a: Actor): Point => {
       const sl = this.slideAt(a.id);
       if (sl) return sl;
-      const p = { x: a.fromX + (a.x - a.fromX) * progress, y: a.fromY + (a.y - a.fromY) * progress };
+      const k = a.kind === "monster" && this.monsterProgress !== null ? this.monsterProgress : progress;
+      const p = { x: a.fromX + (a.x - a.fromX) * k, y: a.fromY + (a.y - a.fromY) * k };
       // Élan : l'attaquant avance d'un tiers de case vers sa cible, puis revient.
       const s = this.slashes.find((sl) => sl.attackerId === a.id);
       if (s) {
@@ -2071,8 +2120,15 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
 
     // Taches de sang de l'étage, par case (dessinées sur la case, sous l'ombre).
-    const stains = new Map<number, { color: StainColor; shape: 0 | 1 | 2; turn?: number }>();
-    for (const b of game.bloodStains()) if (this.showBlood || !BLOOD_COLORS.has(b.color)) stains.set(game.map.index(b.x, b.y), b);
+    // Plusieurs taches par case (la suie d'un feu, puis du sang par-dessus : Thomas, 2026-11-24), dans l'ordre où elles sont tombées.
+    const stains = new Map<number, StainShown[]>();
+    for (const b of game.bloodStains()) {
+      if (!this.showBlood && BLOOD_COLORS.has(b.color)) continue;
+      const k = game.map.index(b.x, b.y);
+      const list = stains.get(k);
+      if (list) list.push(b);
+      else stains.set(k, [b]);
+    }
     const x0 = Math.floor(-ox / tile);
     const y0 = Math.floor(-oy / tile);
     const x1 = Math.ceil((this.width - ox) / tile);
@@ -2709,46 +2765,7 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = smooth;
     }
-    // Le PNJ de la quête en cours se voit sur la carte, même hors de vue (Thomas, 2026-11-18 : « retourner voir X, on
-    // doit le voir sur la carte ») : une balise dorée (« ? » quand l'objectif est rempli, « ! » sinon) et un rayon.
-    for (const b of game.questBeacons()) {
-      if (!b.active || !game.isExplored(b.x, b.y) && !b.ret) continue;
-      const pulse = 0.5 + 0.5 * Math.sin(this.time / (b.ret ? 200 : 380));
-      const cx = ox + (b.x + 0.5) * tile;
-      const top = oy + (b.y - 1.05) * tile - pulse * tile * 0.08;
-      const seen = game.isVisible(b.x, b.y);
-      ctx.save();
-      if (!seen) {
-        const beam = ctx.createLinearGradient(cx, oy + (b.y + 1) * tile, cx, oy + (b.y - 1.6) * tile);
-        beam.addColorStop(0, `rgba(255,215,110,${(0.35 + 0.25 * pulse).toFixed(2)})`);
-        beam.addColorStop(1, "rgba(255,215,110,0)");
-        ctx.fillStyle = beam;
-        ctx.fillRect(cx - tile * 0.18, oy + (b.y - 1.6) * tile, tile * 0.36, tile * 2.6);
-        ctx.fillStyle = `rgba(255,215,110,${(0.55 + 0.3 * pulse).toFixed(2)})`;
-        ctx.beginPath();
-        ctx.ellipse(cx, oy + (b.y + 0.6) * tile, tile * 0.42, tile * 0.24, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // La balise : un losange doré, un « ? » ou un « ! » dedans.
-      const r = tile * 0.3;
-      ctx.fillStyle = b.ret ? "#ffd75e" : "#c89a14";
-      ctx.strokeStyle = "#120d08";
-      ctx.lineWidth = Math.max(2, tile * 0.07);
-      ctx.beginPath();
-      ctx.moveTo(cx, top - r);
-      ctx.lineTo(cx + r, top);
-      ctx.lineTo(cx, top + r);
-      ctx.lineTo(cx - r, top);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.font = `${Math.round(tile * 0.5)}px "VT323", "Courier New", monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#120d08";
-      ctx.fillText("!", cx, top + tile * 0.03);
-      ctx.restore();
-    }
+    // Le PNJ de la quête en cours reste visible, sans balise ni rayon (Thomas, 2026-11-24) : voir `Game.npcShown`.
     // Les zones de la quête en cours brillent (Thomas, 2026-11-17) : un cadre doré qui palpite, un voile très léger.
     const glow = game.questGlow();
     if (glow.length > 0) {
@@ -3078,7 +3095,7 @@ export class Renderer {
    * Un bloc de 8 × 8 cases déjà vues (décor et taches), refait seulement si une case a changé, vient d'être découverte,
    * ou a reçu une tache, ou si la taille des cases a changé ; sinon, une seule image à poser.
    */
-  private drawChunk(game: Game, cx: number, cy: number, ox: number, oy: number, stains: Map<number, { color: StainColor; shape: 0 | 1 | 2; turn?: number }>): void {
+  private drawChunk(game: Game, cx: number, cy: number, ox: number, oy: number, stains: Map<number, StainShown[]>): void {
     const { ctx, tile } = this;
     const dpr = screenScale();
     const px = Math.round(tile * dpr);
@@ -3093,8 +3110,9 @@ export class Renderer {
         }
         any = true;
         const i = map.index(x, y);
-        const st = stains.get(i);
-        sig = (sig * 31 + map.changed[i] * 7 + 3 + (st ? st.shape * 11 + (st.turn ?? 0) * 13 + st.color.length * 17 + 5 : 0)) | 0;
+        let st = 0;
+        for (const s of stains.get(i) ?? []) st = (st * 37 + s.shape * 11 + (s.turn ?? 0) * 13 + s.color.length * 17 + s.color.charCodeAt(1) + 5) | 0;
+        sig = (sig * 31 + map.changed[i] * 7 + 3 + st) | 0;
       }
     }
     if (!any) return;
@@ -3128,20 +3146,20 @@ export class Renderer {
           const got = this.cellCanvas(game, map.get(x, y), x, y, cell, cell);
           if (!got.final) complete = false;
           c.drawImage(got.canvas, lx, ly, px, px);
-          const stain = stains.get(map.index(x, y));
-          if (!stain) continue;
-          const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
-          const img = this.sprite(rows, ICON_PALETTE);
-          if (stain.shape === 2 || !stain.turn) {
-            c.drawImage(img, lx, ly, px, px);
-          } else {
-            // Au sol, la giclure tourne d'un quart de tour et/ou se retourne : elles ne se ressemblent pas toutes.
-            c.save();
-            c.translate(lx + px / 2, ly + px / 2);
-            c.rotate((stain.turn % 4) * (Math.PI / 2));
-            if (stain.turn >= 4) c.scale(-1, 1);
-            c.drawImage(img, -px / 2, -px / 2, px, px);
-            c.restore();
+          for (const stain of stains.get(map.index(x, y)) ?? []) {
+            const rows = BLOOD[stain.color][stain.shape === 2 ? "mur" : stain.shape === 1 ? "sol2" : "sol1"];
+            const img = this.sprite(rows, ICON_PALETTE);
+            if (stain.shape === 2 || !stain.turn) {
+              c.drawImage(img, lx, ly, px, px);
+            } else {
+              // Au sol, la giclure tourne d'un quart de tour et/ou se retourne : elles ne se ressemblent pas toutes.
+              c.save();
+              c.translate(lx + px / 2, ly + px / 2);
+              c.rotate((stain.turn % 4) * (Math.PI / 2));
+              if (stain.turn >= 4) c.scale(-1, 1);
+              c.drawImage(img, -px / 2, -px / 2, px, px);
+              c.restore();
+            }
           }
         }
       }
@@ -3434,8 +3452,8 @@ export class Renderer {
       let px: number;
       let py: number;
       if (name === "tapisserieCulte") {
-        // La bannière : centrée sur ses 3 cases de mur, elle pend un peu dans la salle.
-        px = f.x * 16 + (48 - w) / 2;
+        // La bannière : sur sa case de mur, elle pend un peu dans la salle.
+        px = f.x * 16 + (16 - w) / 2;
         py = f.y * 16 - 2;
       } else if (def.wall) {
         // Vitrail : dans la case de mur du fond, un pixel de débord.

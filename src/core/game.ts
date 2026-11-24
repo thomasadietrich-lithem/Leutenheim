@@ -307,6 +307,10 @@ export class Game {
   private lastGiverKey = "";
   /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
   private resting = 0;
+  /** Le héros se repose (yeux fermés, petits « z », Thomas 2026-11-24). */
+  isResting(): boolean {
+    return this.resting > 0;
+  }
   /** Genre d'objet en cours de ramassage : ses semblables sur la case suivent, un par tour. */
   private pickingItem: ItemId | null = null;
   private shotTarget: Point | null = null;
@@ -450,6 +454,8 @@ export class Game {
         if (tries.length > 0) {
           const roomOf = (p: Point) => floor.rooms.findIndex((r) => p.x >= r.x - 1 && p.y >= r.y - 1 && p.x <= r.x + r.w && p.y <= r.y + r.h);
           const avoid = new Set<number>([0, roomOf(floor.start), roomOf(floor.stairs), ...furnished.themes.map((t) => t.room), ...floor.specials.map((s) => floor.rooms.indexOf(s.room))]);
+          // Ni la cloche ni les autres trucs fun dans une salle à épreuve (Thomas, 2026-11-24).
+          for (const f of furnished.furniture) if (f.kind === "bell" || f.kind === "statue") avoid.add(roomOf(f));
           enigmaAvoid = avoid;
           const erng = new Rng(seed ^ 0xe1e1a);
           for (const kind of tries) {
@@ -473,15 +479,15 @@ export class Game {
       // avec Gluck, cache quelque chose, et on ne le sait que s'il le dit.
       // (Section 2 : ni statues, ni gravier, ni eau, ni PNJ de la section 1 ; Thomas, 2026-11-14.)
       if (!sandboxFloor && !bossFloor && !champi && !oss && new Rng(seed ^ 0x57a7e).chance(RULES.statueChance)) {
-        placeBell(floor, new Rng(seed ^ 0x57a7f), furnished.furniture, new Set(furnished.themes.map((t) => t.room)), "statue");
+        placeBell(floor, new Rng(seed ^ 0x57a7f), furnished.furniture, new Set([...furnished.themes.map((t) => t.room), ...enigmaHosts]), "statue");
       }
       // Gravier et flaques : à la main en salle d'essai ; dans le donjon, quelques-uns par étage.
       if (!sandboxFloor && !bossFloor && !champi && !oss && RULES.groundsInDungeon) {
-        const quiet = furnished.themes.filter((t) => t.id === "bain" || t.id === "ferme").map((t) => floor.rooms[t.room]);
+        const quiet = [...furnished.themes.filter((t) => t.id === "bain" || t.id === "ferme").map((t) => floor.rooms[t.room]), ...enigmaHosts.map((h) => floor.rooms[h])];
         placeGrounds(floor, seed, depth, quiet);
       }
       // Section 2 : pas de dalles gravées (Thomas, 2026-11-15 : « retire les designs gravure au sol »).
-      const motifs = sandboxFloor ? sandboxFloor.motifs : bossFloor || champi || oss ? [] : placeMotifs(floor, seed);
+      const motifs = (sandboxFloor ? sandboxFloor.motifs : bossFloor || champi || oss ? [] : placeMotifs(floor, seed)).filter((m) => !enigmaPlaced.some((p) => this.inRect(m, p.enigma.room)));
       state = {
         map: floor.map,
         start: floor.start,
@@ -525,7 +531,7 @@ export class Game {
         state.counter = this.placeCounterDoor(floor, state, seed, !!sandboxFloor) ?? undefined;
         // Pas de porte qui convienne : la cloche prend sa place (il y a toujours un truc fun dans la section).
         if (!state.counter && !sandboxFloor) {
-          const special = new Set((state.themes ?? []).map((t) => t.room));
+          const special = new Set([...(state.themes ?? []).map((t) => t.room), ...enigmaHosts]);
           placeBell(floor, new Rng(seed ^ 0x5b311e7d), state.furniture ?? [], special);
         }
       }
@@ -533,7 +539,7 @@ export class Game {
       if (!bossFloor && !plainSandbox && (sandboxFloor || this.funOf(depth) === "chicken")) {
         state.chicken = this.placeChicken(floor, state, seed, !!sandboxFloor) ?? undefined;
         if (!state.chicken && !sandboxFloor) {
-          const special = new Set((state.themes ?? []).map((t) => t.room));
+          const special = new Set([...(state.themes ?? []).map((t) => t.room), ...enigmaHosts]);
           placeBell(floor, new Rng(seed ^ 0x5b311e7e), state.furniture ?? [], special);
         }
       }
@@ -676,6 +682,28 @@ export class Game {
     if (fresh && state.enigmas?.length) {
       const inBox = (p: Point) => state.enigmas!.some((e) => p.x >= e.room.x && p.y >= e.room.y && p.x < e.room.x + e.room.w && p.y < e.room.y + e.room.h);
       state.traps = state.traps.filter((t) => !inBox(t));
+      // Aucun objet posé au sol dans la salle à épreuve (Thomas, 2026-11-24), sauf la clef d'argent : ce qui y serait
+      // tombé va sur la case libre la plus proche, dehors.
+      const taken = new Set(state.ground.map((g) => `${g.x},${g.y}`));
+      const startRoom = state.rooms.find((r) => this.inRect(state.start, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }));
+      for (const g of state.ground) {
+        if (g.item === "clef_argent" || !inBox(g)) continue;
+        let best: Point | null = null;
+        for (let r = 1; r <= 12 && !best; r++)
+          for (let dy = -r; dy <= r && !best; dy++)
+            for (let dx = -r; dx <= r; dx++) {
+              const p = { x: g.x + dx, y: g.y + dy };
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || inBox(p) || state.map.get(p.x, p.y) !== Tile.Floor || taken.has(`${p.x},${p.y}`)) continue;
+              if (startRoom && this.inRect(p, { x: startRoom.x - 1, y: startRoom.y - 1, w: startRoom.w + 2, h: startRoom.h + 2 })) continue;
+              if (state.furniture.some((f) => f.x === p.x && f.y === p.y)) continue;
+              best = p;
+              break;
+            }
+        if (!best) continue;
+        taken.add(`${best.x},${best.y}`);
+        g.x = best.x;
+        g.y = best.y;
+      }
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     for (const m of this.monsters) {
@@ -3132,8 +3160,11 @@ export class Game {
     this.events.push({ type: "arrow", fromX: origin.x, fromY: origin.y, x: f.x, y: f.y, hit: true, kept: false, planted: true, ammo, arrowKind: kind, endless: endless || undefined });
     if (f.kind === "cible" || f.kind === "cibleBleue") {
       if (f.kind === "cibleBleue" && (ITEMS[ammo] as ItemDef).knockback) {
-        const dx = Math.abs(f.x - origin.x) > Math.abs(f.y - origin.y) ? Math.sign(f.x - origin.x) : 0;
-        const dy = dx === 0 ? Math.sign(f.y - origin.y) : 0;
+        // Elle recule toujours vers le fond de la petite pièce, d'où qu'on tire, même en diagonale (Thomas, 2026-11-24).
+        const en = this.enigmaAt(f);
+        const back = en?.entry ? { x: en.chest.x - en.entry.x, y: en.chest.y - en.entry.y } : null;
+        const dx = back ? (Math.abs(back.x) > Math.abs(back.y) ? Math.sign(back.x) : 0) : Math.abs(f.x - origin.x) > Math.abs(f.y - origin.y) ? Math.sign(f.x - origin.x) : 0;
+        const dy = back ? (dx === 0 ? Math.sign(back.y) : 0) : dx === 0 ? Math.sign(f.y - origin.y) : 0;
         let nx = f.x;
         let ny = f.y;
         for (let k = 0; k < 3; k++) {
@@ -3320,11 +3351,14 @@ export class Game {
   /** Les monstres qui ne voient plus le héros à cause du brouillard perdent sa trace et vont voir là où il était. */
   private fogBlinds(): void {
     for (const m of this.monsters) {
-      if (m.boss || !m.alerted || this.inReach(m, this.hero) || !this.fogBetween(m, this.hero)) continue;
+      // Même au contact (Thomas, 2026-11-24 : « dans le brouillard, les monstres devraient perdre ma trace ») : il reste
+      // un moment sur place à chercher autour de lui, sans pouvoir le remarquer, puis va voir là où il l'a perdu.
+      if (m.boss || !m.alerted || !this.fogBetween(m, this.hero)) continue;
       m.alerted = false;
       m.wary = false;
-      m.lost = 0;
+      m.lost = RULES.fogLostTurns;
       m.goal = { x: this.hero.x, y: this.hero.y };
+      if (this.isVisible(m.x, m.y)) this.events.push({ type: "lostTrack", actor: m });
     }
   }
 
@@ -3587,8 +3621,10 @@ export class Game {
   }
 
   /** Sol particulier d'une case : carrelage de la cuisine, dalles sombres de la salle de torture (sinon le sol B). */
-  floorStyle(x: number, y: number): "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | "ossuaire" | undefined {
+  floorStyle(x: number, y: number): "epreuve" | "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | "ossuaire" | undefined {
     if (this.champiPatch(x, y)) return "champi";
+    // Les salles à épreuve : des dalles claires (Thomas, 2026-11-24).
+    if (this.current?.enigmas?.some((e) => this.inRect({ x, y }, e.room))) return "epreuve";
     // La chambre de neige : de la neige partout dans la pièce.
     const sr = this.current?.secretRoom;
     if (sr?.layout === "neige" && !sr.melted && x >= sr.room.x && y >= sr.room.y && x < sr.room.x + sr.room.w && y < sr.room.y + sr.room.h) return "snow";
@@ -5046,6 +5082,7 @@ export class Game {
     if (potion === "fog") {
       // Potion de brouillard (Thomas, 2026-11-12, soir) : une épaisse nappe noire en croix de 5 cases, pour fuir.
       const cells = this.spreadFog(order, RULES.fogArm);
+      this.krikDiversion(order, RULES.fogArm);
       const queen = this.monsters.find((q) => q.boss && cellsOf(q).some((c) => cells.some((f) => f.x === c.x && f.y === c.y)));
       if (queen) this.events.push({ type: "bossPotion", potion, actor: queen });
       this.events.push({ type: "potionThrown", item: item.defId, potion, fromX: this.hero.x, fromY: this.hero.y, x: order.x, y: order.y, cells });
@@ -5311,7 +5348,9 @@ export class Game {
   /** Une tache de sang posée sur une case (cocon ou œufs crevés). */
   private stain(x: number, y: number, color: StainColor): void {
     const stains = this.current.blood;
-    const same = stains.findIndex((b) => b.x === x && b.y === y);
+    // Une case brûlée peut aussi être tachée de sang (Thomas, 2026-11-24 : « sans réinitialiser ») : la suie et les
+    // autres taches se superposent ; seule une tache du même genre remplace l'ancienne.
+    const same = stains.findIndex((b) => b.x === x && b.y === y && (b.color === "soot") === (color === "soot"));
     if (same >= 0) stains.splice(same, 1);
     stains.push({ x, y, color, shape: ((x + y) % 2) as 0 | 1, turn: (x * 7 + y * 3) % 8 });
     if (stains.length > RULES.bloodMax) stains.shift();
@@ -6694,6 +6733,9 @@ export class Game {
       !this.isTrap(x, y) &&
       !this.monsterAt(x, y) &&
       !this.merchantAt(x, y) &&
+      // Ni sur un PNJ, ni juste au-dessus : sa bulle le cacherait (Thomas, 2026-11-24).
+      !this.npcAt(x, y) &&
+      !this.npcAt(x, y + 1) &&
       !this.ground.some((g) => g.x === x && g.y === y) &&
       hasLineOfSight(this.map, o, { x, y });
     for (let r = 1; r <= 3; r++) {
@@ -8077,13 +8119,14 @@ export class Game {
         // Quêtes v3 : protéger Krik pendant qu'il vide le dortoir ; lancer la fumée sur ceux qui sortent.
         if (!this.quest && this.openZone("traitres", g)) {
           const ok = test();
-          toBag("potion_fumee", ok ? 2 : 1);
+          // Des potions de brouillard (noires, plus efficaces) plutôt que des fioles de fumée (Thomas, 2026-11-24).
+          toBag("potion_brouillard", ok ? 2 : 1);
           this.zoneBreakOut(ok ? 2 : 0);
           if (this.giveTask("krik_diversion")) {
             return {
               lines: ok
-                ? ["« Là-bas ! … Ça marche ! » Il vous tend des fioles : « Quand ils sortent, la fumée. Moi, je me glisse dedans. »", "(2 fioles de fumée dans le sac. Lancez-en une sur la tapisserie rouge du dortoir, ou sur un traître qui en sort : depuis le sac, bouton « Lancer ».)"]
-                : ["« Là-bas ! … C'est moi qui ai trahi tout le monde ! » Oups.", "« Vite, une fiole ! Sur eux ! »", "(Une fiole de fumée dans le sac. Ils sortent tous ! Lancez-la sur la tapisserie ou sur l'un d'eux : depuis le sac, bouton « Lancer ».)"],
+                ? ["« Là-bas ! … Ça marche ! » Il vous tend des fioles noires : « Quand ils sortent, le brouillard. Moi, je me glisse dedans. »", "(2 potions de brouillard dans le sac. Lancez-en une sur la tapisserie rouge du dortoir, ou sur un traître qui en sort : depuis le sac, bouton « Lancer ».)"]
+                : ["« Là-bas ! … C'est moi qui ai trahi tout le monde ! » Oups.", "« Vite, une fiole ! Sur eux ! »", "(Une potion de brouillard dans le sac. Ils sortent tous ! Lancez-la sur la tapisserie ou sur l'un d'eux : depuis le sac, bouton « Lancer ».)"],
               roll,
               done: true,
             };
@@ -8307,6 +8350,15 @@ export class Game {
    * on doit le voir sur la carte ») : `ret` = celui à qui rendre la quête en cours, objectif rempli ; `active` = celui
    * qui l'a donnée. Les deux se voient sur la carte même hors de vue.
    */
+  /**
+   * Un PNJ se dessine s'il est en vue ; celui de la quête en cours, toujours, une fois sa case découverte (Thomas,
+   * 2026-11-24 : « plutôt qu'un cône doré avec un point d'exclamation, laisse-les juste visibles »).
+   */
+  npcShown(x: number, y: number): boolean {
+    if (this.isVisible(x, y)) return true;
+    return this.questBeacons().some((b) => b.active && b.x === x && b.y === y && (this.isExplored(x, y) || b.ret));
+  }
+
   questBeacons(): { id: NpcId; x: number; y: number; active: boolean; ret: boolean }[] {
     const giver = this.quest && this.quest.depth === this.depth ? QUEST_TASKS[this.quest.id].npc : null;
     const out: { id: NpcId; x: number; y: number; active: boolean; ret: boolean }[] = [];
@@ -8378,7 +8430,7 @@ export class Game {
       }
       case "krik_diversion":
         g.gold = (g.gold ?? 0) + 10;
-        leaves("potion_fumee", 2);
+        leaves("potion_brouillard", 2);
         break;
       case "gluck_piste":
         g.drops = (g.drops ?? 0) + 2;
@@ -10161,14 +10213,18 @@ export class Game {
   }
 
   /** Fumée : les monstres à `radius` cases ou moins perdent la trace du héros et restent un tour hébétés (pas le boss). */
-  private smokeBurst(at: Point, radius: number): void {
-    // Quêtes v3, diversion de Krik : la fumée sur un traître de la zone (ou devant la tapisserie) suffit.
+  /** Quêtes v3, diversion de Krik : la fumée ou le brouillard sur un traître de la zone (ou devant la tapisserie) suffit. */
+  private krikDiversion(at: Point, radius: number): void {
     const q = this.quest;
     const z = this.current.zone;
     if (q && q.id === "krik_diversion" && q.depth === this.depth && z) {
       const near = (p: Point) => Math.max(Math.abs(p.x - at.x), Math.abs(p.y - at.y)) <= radius;
       if (near(z.entry) || this.monsters.some((m) => z.sleepers.includes(m.id) && near(m))) q.got = q.need;
     }
+  }
+
+  private smokeBurst(at: Point, radius: number): void {
+    this.krikDiversion(at, radius);
     for (const m of this.monsters) {
       if (m.boss) {
         // La Tisseuse dans la fumée (Thomas, 2026-11-13) : elle perd la piste du héros et reste un tour hébétée.
@@ -10322,10 +10378,16 @@ export class Game {
   private wakeNear(at: Point): void {
     const b = this.current.bath;
     if (b && !b.out && gapBetween(b, at) <= RULES.combatWakeRadius) this.wakeBath(false);
+    // Le bruit du combat (Thomas, 2026-11-24 : « un combat devrait faire réagir les ennemis aux alentours ») : endormis
+    // ou distraits, ceux qui sont tout près l'entendent, se tournent vers lui et accourent.
     for (const m of this.monsters) {
-      if (!m.asleep || m.deaf || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
+      if (m.deaf || m.petrified || m.alerted || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
+      if (m.arena && m.arena !== "duel") continue;
       m.asleep = false;
-      if (!this.peaceful) m.alerted = true;
+      if (this.peaceful) continue;
+      m.alerted = true;
+      this.faceToward(m, at);
+      this.events.push({ type: "noticed", actor: m });
     }
   }
 
@@ -10695,11 +10757,17 @@ export class Game {
       this.map.set(x, y, Tile.ChestOpen);
       e.solved = true;
       const gold = lessGold((this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * 2);
-      const pool = lootPool(this.depth, () => true, "rare");
-      const loot = pool.length > 0 ? { item: pool[this.rng.int(0, pool.length - 1)], count: 1 } : rollLoot(this.rng, this.depth);
-      const drops = this.spillLoot(x, y, gold, loot);
+      // Meilleur butin (Thomas, 2026-11-24 : « au moins un équipement ») : un équipement rare à coup sûr (arme, armure,
+      // chapeau ou objet magique), plus un autre objet rare.
+      const equip = (k: string) => k === "melee" || k === "ranged" || k === "armor" || k === "hat" || k === "artifact";
+      const pick = (pool: ItemId[]) => (pool.length > 0 ? pool[this.rng.int(0, pool.length - 1)] : null);
+      const gear = pick(lootPool(this.depth, (k) => equip(k), "rare")) ?? pick(lootPool(this.depth, (k) => equip(k)));
+      const extra = pick(lootPool(this.depth, (_, id) => id !== gear, "rare"));
+      const lots = [gear, extra].filter((id): id is ItemId => id !== null);
+      const first = lots.length > 0 ? { item: lots[0], count: 1 } : rollLoot(this.rng, this.depth);
+      const drops = [...this.spillLoot(x, y, gold, first), ...lots.slice(1).flatMap((item) => this.spillLoot(x, y, 0, { item, count: 1 }).slice(1))];
       this.events.push({ type: "enigma", what: "opened", x, y });
-      this.events.push({ type: "chest", gold, item: loot.item, count: loot.count, x, y, drops });
+      this.events.push({ type: "chest", gold, item: first.item, count: first.count, x, y, drops, golden: lots.slice(1) });
     } else if (t === Tile.Chest) {
       this.map.set(x, y, Tile.ChestOpen);
       const gold = lessGold((this.rng.int(RULES.chestGoldMin, RULES.chestGoldMax) + this.depth * RULES.chestGoldPerDepth) * (this.current.boss || this.steelChestAt(x, y) ? 2 : 1));
@@ -11064,17 +11132,25 @@ export class Game {
    */
   private shoveBack(m: Actor, from: Point, steps: number): void {
     if (this.isInert(m) || m.petrified) return;
-    const dx = Math.sign(m.x - from.x);
-    const dy = Math.sign(m.y - from.y);
-    if (!dx && !dy) return;
+    const sx = Math.sign(m.x - from.x);
+    const sy = Math.sign(m.y - from.y);
+    if (!sx && !sy) return;
     const start = { x: m.x, y: m.y };
-    for (let i = 0; i < steps; i++) {
+    // En diagonale (Thomas, 2026-11-24 : « les flèches de recul en diagonale ne poussent pas ») : si le coin bloque, il
+    // recule sur l'axe le plus proche du tir, puis sur l'autre.
+    const far = Math.abs(m.x - from.x) >= Math.abs(m.y - from.y);
+    const tries: [number, number][] = sx && sy ? [[sx, sy], far ? [sx, 0] : [0, sy], far ? [0, sy] : [sx, 0]] : [[sx, sy]];
+    const freeStep = (dx: number, dy: number) => {
       const to = { x: m.x + dx, y: m.y + dy };
-      const free = this.map.isWalkable(to.x, to.y) && this.map.get(to.x, to.y) !== Tile.DoorClosed && !this.actorAt(to.x, to.y) &&
+      return this.map.isWalkable(to.x, to.y) && this.map.get(to.x, to.y) !== Tile.DoorClosed && !this.actorAt(to.x, to.y) &&
         canStep(this.map, m.x, m.y, dx, dy) && !this.npcAt(to.x, to.y);
-      if (!free) break;
-      m.x = to.x;
-      m.y = to.y;
+    };
+    const dir = tries.find(([dx, dy]) => freeStep(dx, dy));
+    if (dir) {
+      for (let i = 0; i < steps && freeStep(dir[0], dir[1]); i++) {
+        m.x += dir[0];
+        m.y += dir[1];
+      }
     }
     if (m.x === start.x && m.y === start.y) return;
     this.closeDoorAt(start.x, start.y);
@@ -11619,6 +11695,11 @@ export class Game {
       // Salle d'essai, combats coupés : personne ne remarque le héros, personne ne l'attaque.
       if (this.peaceful) m.alerted = false;
       if (!m.alerted && !this.peaceful) {
+        // Il vient de perdre le héros dans le brouillard : il cherche, sans le trouver.
+        if ((m.lost ?? 0) > 0 && this.fogBetween(m, this.hero)) {
+          this.wander(m);
+          continue;
+        }
         const def = MONSTERS[m.defId as keyof typeof MONSTERS];
         const chance =
           def.noticeChance *

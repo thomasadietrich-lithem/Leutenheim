@@ -188,7 +188,9 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
   // Les culs-de-sac d'abord ; puis les salles à plusieurs entrées dont on MURE les autres (si l'étage reste d'un seul tenant).
   // Jamais une salle spéciale (verrouillée : trésor, autel) : elles ne sont pas toujours repérées par leur numéro.
   const special = (r: Room) => floor.specials.some((s) => s.room.x === r.x && s.room.y === r.y) || entranceGroups(floor, r).some((g) => g.some((c) => map.get(c.x, c.y) === Tile.DoorLocked));
-  const hosts = floor.rooms.map((_, i) => i).filter((i) => !avoid.has(i) && floor.rooms[i].w >= 5 && floor.rooms[i].h >= 5 && !special(floor.rooms[i]));
+  // Au moins de taille moyenne (Thomas, 2026-11-24) : 5 cases de côté et 30 cases en tout.
+  const medium = (r: Room) => r.w >= 5 && r.h >= 5 && r.w * r.h >= 30;
+  const hosts = floor.rooms.map((_, i) => i).filter((i) => !avoid.has(i) && medium(floor.rooms[i]) && !special(floor.rooms[i]));
   for (let i = hosts.length - 1; i > 0; i--) {
     const j = rng.int(0, i);
     [hosts[i], hosts[j]] = [hosts[j], hosts[i]];
@@ -211,6 +213,15 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
         map.set(c.x, c.y, Tile.Wall);
         sealed.push(c);
       }
+      // L'entrée gardée devient UNE PORTE (Thomas, 2026-11-24 : « les salles spéciales ont une porte ») : une seule case,
+      // la porte déjà là ou celle du milieu ; les autres cases de l'ouverture sont murées.
+      const opening = groups[keep];
+      const door = opening.find((c) => map.isDoor(c.x, c.y)) ?? opening[Math.floor(opening.length / 2)];
+      for (const c of opening) if (c !== door) {
+        map.set(c.x, c.y, Tile.Wall);
+        sealed.push(c);
+      }
+      if (!map.isDoor(door.x, door.y)) map.set(door.x, door.y, Tile.DoorClosed);
       trimDeadEnds(sealed);
       const built = build(r, host);
       if (!built) {
@@ -235,7 +246,7 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
   }
   // Aucune salle en cul-de-sac ne convient : on en CREUSE une dans la roche, contre une salle ordinaire, reliée par une
   // seule porte (la salle à énigme reste isolée).
-  const sizes: [number, number][] = kind === "rebond" ? [[5, 7], [7, 5], [5, 6], [6, 5]] : [[7, 6], [5, 6], [5, 5], [5, 4]];
+  const sizes: [number, number][] = kind === "rebond" ? [[5, 7], [7, 5], [5, 6], [6, 5]] : [[7, 6], [6, 6], [6, 5], [5, 6]];
   const anchors = floor.rooms.map((_, i) => i).filter((i) => !avoid.has(i) && !special(floor.rooms[i]));
   for (let i = anchors.length - 1; i > 0; i--) {
     const j = rng.int(0, i);

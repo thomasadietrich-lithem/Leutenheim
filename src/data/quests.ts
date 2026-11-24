@@ -392,10 +392,10 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     kind: "smoke",
     zone: true,
     // Plus clair (Thomas, 2026-11-21 : « faire diversion, c'est pas clair ») : on dit QUOI faire et OÙ.
-    goal: "Lancer une fiole de fumée sur la tapisserie",
+    goal: "Lancer une potion de brouillard sur la tapisserie",
     back: "Revoir Krik",
-    waiting: "« La fiole de fumée ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »",
-    thanks: ["« Ça a marché ! Ils toussaient tellement qu'ils ne m'ont pas vu. »", "« Le magot ! Ta part, et des fioles. Volées, évidemment. »", "(Il laisse de l'or et 2 fioles de fumée.)"],
+    waiting: "« La potion de brouillard ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »",
+    thanks: ["« Ça a marché ! Ils toussaient tellement qu'ils ne m'ont pas vu. »", "« Le magot ! Ta part, et des fioles. Volées, évidemment. »", "(Il laisse de l'or et 2 potions de brouillard.)"],
     failed: "Krik attend toujours sa diversion.",
   },
 };

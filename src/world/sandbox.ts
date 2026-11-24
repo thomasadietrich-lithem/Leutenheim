@@ -396,7 +396,7 @@ export function buildSandbox(seeds = SANDBOX_SEEDS): SandboxFloor {
 
   // L'écriteau d'une salle ne cache pas la tapisserie du culte (chapelle) : il monte d'une case.
   for (const f of furniture.filter((o) => o.kind === "tapisserieCulte"))
-    for (const s of signs) if (s.y === f.y && s.x >= f.x - 1 && s.x <= f.x + 3) s.y -= 1;
+    for (const s of signs) if (s.y === f.y && s.x >= f.x - 2 && s.x <= f.x + 2) s.y -= 1;
   const fontaine = SPECIAL_ROOMS.find((k) => k.id === "fontaine") ?? SPECIAL_ROOMS[0];
   const tresor = SPECIAL_ROOMS.find((k) => k.id === "tresor") ?? SPECIAL_ROOMS[0];
   const gluck = rooms[gluckRoom];

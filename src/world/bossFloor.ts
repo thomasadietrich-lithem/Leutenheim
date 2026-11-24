@@ -275,12 +275,16 @@ export function buildBossFloor(seed: number): BossFloor {
     for (let x = 0; x < W; x++) {
       if (map.get(x, y) !== Tile.Floor || isTaken(x, y) || clear.has(map.index(x, y))) continue;
       let p: number;
-      if (inLair(x, y)) p = density;
+      // (Îlots plus serrés : les allées vides gardent autant de toile en tout.)
+      if (inLair(x, y)) p = density + 0.1;
       else if (inRing(x, y)) {
         // Le côté de l'anneau choisi garde sa rangée extérieure libre (un chemin pour faire le tour).
         const outer = [y === ring.y, x === ring.x + ring.w - 1, y === ring.y + ring.h - 1, x === ring.x][ringClearSide];
-        p = outer ? 0 : 0.32;
+        p = outer ? 0 : 0.38;
       } else continue;
+      // EN ÎLOTS (Thomas, 2026-11-24 : « contre la Fileuse, il ne faut pas que tout puisse brûler d'un coup ») : une
+      // colonne sur sept et une rangée sur six restent sans toile ; le feu, qui ne saute que d'une case, s'y arrête.
+      if ((((x - lair.x) % 7) + 7) % 7 === 6 || (((y - lair.y) % 6) + 6) % 6 === 5) continue;
       const v = noise(x >> 1, y >> 1, 0x51) * 0.6 + noise(x, y, 0x77) * 0.4;
       if (v < p) furniture.push({ x, y, kind: `webN${Math.floor(noise(x, y, 0x99) * 6)}` });
     }

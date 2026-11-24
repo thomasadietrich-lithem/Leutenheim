@@ -261,6 +261,8 @@ let stepping = false;
 /** Depuis combien de temps la boucle attend un événement ou un pas (filet de sécurité contre un héros « figé »). */
 let stuckMs = 0;
 let stepTime = 0;
+/** Après un lancer : les monstres attendent que l'objet soit tombé avant de bouger (ms dans le tour). */
+let throwLag = 0;
 
 // ---------- Sauvegarde (sur l'appareil) ----------
 
@@ -1746,6 +1748,16 @@ function collectEvents(): void {
     // Renversé par l'onde (Thomas, 2026-11-17 : « je suis couché avant l'onde de choc ») : couché seulement une fois
     // l'onde montrée.
     if (e.type === "carillon" && e.what === "ring") renderer.proneHold = true;
+    // UN LANCER ARRIVE AVANT LA RÉPONSE DES MONSTRES (Thomas, 2026-11-24) : la fiole ou la torche vole d'abord, les
+    // monstres ne bougent qu'une fois l'objet tombé ; et rien ne brûle autour de l'impact avant qu'il ne touche.
+    const thrown = e.type === "potionThrown" || e.type === "torchThrown" || e.type === "shatter" || (e.type === "bomb" && e.what === "thrown") || e.type === "holy";
+    if (thrown) {
+      throwLag = THROW_LAND_MS;
+      stepMs = Math.max(stepMs, THROW_LAND_MS + COMBAT_STEP_MS);
+      const around: { x: number; y: number }[] = [];
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) around.push({ x: e.x + dx, y: e.y + dy });
+      renderer.holdEffects(around, THROW_LAND_MS);
+    }
     queue.push(e);
   }
   // Le mur de succès (Thomas, 2026-11-14) : la première fois, l'animation ; ensuite, une ligne au journal.
@@ -1776,6 +1788,9 @@ function nextUnlock(): void {
 
 bindInput(canvas, {
   onTap(px, py) {
+    // Toucher la carte en sortant de l'escalier : l'astuce s'efface vite, pour ne pas couvrir ce qui va s'afficher
+    // (Thomas, 2026-11-24 : « les textes se superposent »).
+    dismissTip();
     // Pendant le passage d'un étage à l'autre, toucher l'écran l'abrège.
     if (stairsScene) {
       stairsScene.skip();
@@ -2373,6 +2388,7 @@ let shopPick: number | null = null;
 let shopNote = "";
 
 function openShop(line: number): void {
+  dismissTip();
   shopOpen = true;
   shopTab = "buy";
   shopPick = null;
@@ -2504,6 +2520,7 @@ function gluckPouf(e: Extract<GameEvent, { type: "npc" }>): void {
 }
 
 function openTalk(who: NpcId): void {
+  dismissTip();
   if (!game.canTalk(who)) return;
   talkWho = who;
   talkOpen = true;
@@ -4517,9 +4534,21 @@ function beginStairs(force?: StairsVariant): void {
 function holdTip(text: string): void {
   const el = $("tip-toast");
   el.textContent = text;
-  el.classList.remove("out");
+  el.classList.remove("out", "fast");
   el.hidden = false;
   window.clearTimeout(tipTimer);
+}
+
+/** L'astuce s'efface tout de suite (le joueur agit : une conversation, un objet, un texte vont s'afficher). */
+function dismissTip(): void {
+  const el = $("tip-toast");
+  if (el.hidden || stairsScene) return;
+  window.clearTimeout(tipTimer);
+  el.classList.add("out", "fast");
+  tipTimer = window.setTimeout(() => {
+    el.hidden = true;
+    el.classList.remove("fast");
+  }, 250);
 }
 
 /** L'astuce reste sur la carte quelques secondes après l'escalier, puis s'efface (Thomas, 2026-11-17 : « elles
@@ -4529,7 +4558,7 @@ let tipTimer = 0;
 function showTip(text: string): void {
   const el = $("tip-toast");
   el.textContent = text;
-  el.classList.remove("out");
+  el.classList.remove("out", "fast");
   el.hidden = false;
   window.clearTimeout(tipTimer);
   tipTimer = window.setTimeout(() => {
@@ -4619,6 +4648,7 @@ function frame(now: number): void {
       // Tour terminé ; le reste de temps est reporté sur le suivant pour garder une vitesse constante.
       stepTime -= stepMs;
       stepping = false;
+      throwLag = 0;
       if (game.pendingStairs) beginStairs();
     }
   }
@@ -4705,6 +4735,7 @@ function frame(now: number): void {
   }
   if (started) discoverSurroundings();
   const aimRange = aimMode && game.arrows() > 0 ? (game.shotProfile()?.range ?? null) : null;
+  renderer.monsterProgress = stepping && throwLag > 0 ? Math.max(0, Math.min((stepTime - throwLag) / Math.max(1, stepMs - throwLag), 1)) : null;
   if (stairsScene) stairsScene.draw(canvas);
   else renderer.draw(game, stepping ? Math.min(stepTime / stepMs, 1) : 1, dt, ghosts, aimRange, aimRange !== null ? aimTarget() : null);
   $("bag-bang").hidden = !game.hasPendingChoice() || game.over;

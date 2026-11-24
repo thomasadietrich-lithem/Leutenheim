@@ -92,7 +92,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     }
     case "pickup": {
       const found = ITEMS[e.item];
-      if (found.kind === "gold") return `Bourse : or ×${e.count}`;
+      // « J'ai ramassé une bourse d'or, c'est bizarre » (Thomas, 2026-11-24) : on dit simplement combien d'or.
+      if (found.kind === "gold") return `+${e.count} pièces d'or.`;
       // Une pierre précieuse : on dit sa valeur, pas son nom (Thomas).
       if (found.kind === "gem") return `Pierre précieuse : +${(found.value ?? 0) * e.count} or.`;
       return `Vous ramassez : ${found.name}${e.count > 1 ? ` ×${e.count}` : ""}.`;

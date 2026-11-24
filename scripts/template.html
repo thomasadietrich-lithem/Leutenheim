@@ -226,6 +226,7 @@
      même texte clair, sans cadre, en bas, puis elle s'efface. */
   #tip-toast { position: absolute; left: 12px; right: 12px; bottom: 44px; z-index: 1; padding: 0; pointer-events: none; text-align: center; font-size: 20px; line-height: 1.05; color: #cdbf9c; background: none; border: none; text-shadow: 0 0 3px #000, 0 0 6px #000, 1px 1px 0 #000; opacity: 1; transition: opacity 0.9s linear; }
   #tip-toast.out { opacity: 0; }
+  #tip-toast.fast { transition: opacity 0.2s linear; }
   #quest-banner.done { color: #fff1b8; border-color: var(--gold); }
   #quest-banner.done::before { color: var(--gold); }
   #quest-banner.flash { animation: quest-flash 0.9s ease-out 2; }

@@ -312,9 +312,9 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   alambic: { blocks: true, w: 1, h: 1, burns: false },
   // La chambre de neige (Thomas, 2026-11-16) : le bonhomme de neige (bloque) et les congères (décor au sol).
   bonhomme: { blocks: true, w: 1, h: 1, burns: false },
-  // Tapisserie du culte maudit (Thomas, 2026-11-16) : au mur du fond de la salle de prière (3 cases de mur), et pliée
+  // Tapisserie du culte (Thomas, 2026-11-16 ; une case et un poulet depuis le 2026-11-24) : au mur du fond de la salle de prière, et pliée
   // au pied du coffre d'une salle au trésor.
-  tapisserieCulte: { blocks: false, w: 3, h: 1, burns: true, wall: true },
+  tapisserieCulte: { blocks: false, w: 1, h: 1, burns: true, wall: true },
   drapPlie: { blocks: false, w: 1, h: 1, burns: true },
   congereA: { blocks: false, w: 1, h: 1, burns: false },
   congereB: { blocks: false, w: 1, h: 1, burns: false },

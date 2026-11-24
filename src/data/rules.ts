@@ -158,6 +158,8 @@ export const RULES = {
    */
   gazeHalfAngle: 0.8,
   asleepHearing: 3,
+  /** Brouillard : tours pendant lesquels un monstre qui a perdu le héros cherche sur place, sans le remarquer. */
+  fogLostTurns: 2,
   /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */
   websFromDepth: 3,
   // ---- Étage du boss de la section 1 : la Tisseuse (src/world/bossFloor.ts, src/core/boss.ts ; valeurs C) ----

@@ -150,7 +150,7 @@ function engrave(m: Motif, px: number, py: number, base: RGB): RGB {
  * Sols des salles à thème (planches art/cuisine_v2.png et art/torture_v1.png) : carrelage clair et fendu de la cuisine
  * (carreaux d'une demi-case), dalles sombres et rougies de la salle de torture. Mêmes calculs que les planches.
  */
-export type FloorStyle = "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | "ossuaire";
+export type FloorStyle = "epreuve" | "kitchen" | "torture" | "forge" | "bath" | "prison" | "champi" | "champiFelt" | "morilles" | "sculpture" | "champiWarm" | "snow" | "ossuaire";
 
 function kitchenTiles(px: number, py: number): RGB {
   const cell = 8;
@@ -190,19 +190,65 @@ function tortureFloor(px: number, py: number): RGB {
   return out;
 }
 
-/** Carreaux sombres de la prison (Thomas, 2026-11-14) : grandes dalles carrées d'ardoise, joints noirs, un peu d'humidité. */
+/**
+ * Sol des GEÔLES (Thomas, 2026-11-24 : « mets un sol en pierre vraiment naze, les carreaux sont trop propres ») : des
+ * pierres de toutes tailles mal jointées, cassées, enfoncées ; de la terre et de la paille sale dans les trous, des
+ * taches d'humidité.
+ */
 function prisonTiles(px: number, py: number): RGB {
-  const cell = 8;
-  const cx = Math.floor(px / cell);
-  const cy = Math.floor(py / cell);
-  const lx = px % cell;
-  const ly = py % cell;
-  if (lx === 0 || ly === 0) return hex("#16141c");
-  let c = scale(hex("#3a3846"), 0.85 + 0.2 * hash2(cx, cy, 711));
-  if (lx === 1 || ly === 1) c = scale(c, 1.12);
-  if (hash2(cx, cy, 712) < 0.12 && lx + ly === 7) c = hex("#24222c");
-  if (fbm(px, py, 16, 713, 2) < 0.33) c = [c[0] * 0.8, c[1] * 0.86, c[2] * 0.9];
+  // Rangées de pierres de largeur inégale, décalées : 5 pixels de haut, 4 à 9 de large.
+  const ry = Math.floor(py / 5);
+  const ly = py % 5;
+  const shift = Math.floor(hash2(ry, 0, 714) * 9);
+  let start = -shift;
+  let k = 0;
+  let w = 4 + Math.floor(hash2(ry, k, 715) * 6);
+  while (start + w <= px) {
+    start += w;
+    k++;
+    w = 4 + Math.floor(hash2(ry, k, 715) * 6);
+  }
+  const lx = px - start;
+  // Trous : une pierre manquante sur huit, remplie de terre et de brins de paille.
+  if (hash2(ry, k, 716) < 0.13) {
+    const e = earth(px, py, 717);
+    if (hash2(px, py, 718) > 0.9) return [118, 98, 54];
+    return scale(e, 0.75);
+  }
+  // Joints larges et irréguliers.
+  if (ly === 0 || lx === 0 || (lx === w - 1 && hash2(ry, k, 719) > 0.5)) return hex("#121016");
+  let c = scale(hex("#3c3a42"), 0.7 + 0.35 * hash2(ry, k, 720));
+  // Pierre enfoncée (plus sombre), arête claire en haut à gauche, fissures en zigzag.
+  if (hash2(ry, k, 721) < 0.25) c = scale(c, 0.72);
+  if (ly === 1 || lx === 1) c = scale(c, 1.1);
+  if (hash2(ry, k, 722) < 0.3 && Math.abs(lx - 1 - ((ly * 2 + Math.floor(hash2(ry, k, 723) * 3)) % (w - 1))) < 0.6) c = hex("#1c1a20");
+  // Coins ébréchés.
+  if ((lx === 1 || lx === w - 2) && (ly === 1 || ly === 4) && hash2(px, py, 724) < 0.5) c = hex("#201e24");
+  // Humidité et crasse.
+  if (fbm(px, py, 14, 713, 2) < 0.36) c = [c[0] * 0.72, c[1] * 0.8, c[2] * 0.78];
+  if (fbm(px, py, 10, 725, 2) > 0.66) c = [c[0] * 0.85 + 30 * 0.15, c[1] * 0.85 + 24 * 0.15, c[2] * 0.85 + 16 * 0.15];
   return c;
+}
+
+/**
+ * Dalles CLAIRES des salles à épreuve (Thomas, 2026-11-24) : grandes dalles de calcaire pâle d'une case, posées en
+ * quinconce, joints fins, quelques veines ; on reconnaît la salle d'un coup d'œil.
+ */
+function trialSlabs(px: number, py: number): RGB {
+  const row = Math.floor(py / T);
+  const sx = px + (row % 2 === 0 ? 0 : T / 2);
+  const cx = Math.floor(sx / T);
+  const lx = sx % T;
+  const ly = py % T;
+  if (lx === 0 || ly === 0) return hex("#5a564e");
+  let c = scale(hex("#b4ad9c"), 0.9 + 0.12 * hash2(cx, row, 731));
+  if (lx === 1 || ly === 1) c = scale(c, 1.07);
+  if (lx === T - 1 || ly === T - 1) c = scale(c, 0.88);
+  // Veines sombres, rares.
+  if (hash2(cx, row, 732) < 0.35 && Math.abs(lx - (ly * (0.3 + hash2(cx, row, 733)) + 3)) < 0.5) c = scale(c, 0.8);
+  if (fbm(px, py, 18, 734, 2) < 0.34) c = scale(c, 0.9);
+  // Éclairée comme le reste du donjon.
+  return scale(c, 0.72);
 }
 
 /** Dalles de la forge : le sol B noirci de suie (planche art/forge_v1.png). */
@@ -416,7 +462,7 @@ function groundImageInner(
     for (let i = 0; i < T; i++) {
       const px = ox + i;
       const py = oy + j;
-      let c = style === "champi" ? cobbles(px, py, burnt) : style === "morilles" ? packedEarth(px, py) : style === "sculpture" ? darkSlabs(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : style === "snow" ? snowFloor(px, py) : floorB(px, py);
+      let c = style === "champi" ? cobbles(px, py, burnt) : style === "morilles" ? packedEarth(px, py) : style === "sculpture" ? darkSlabs(px, py) : style === "champiFelt" ? felt(px, py) : style === "kitchen" ? kitchenTiles(px, py) : style === "torture" ? tortureFloor(px, py) : style === "forge" ? forgeFloor(px, py) : style === "bath" ? bathTiles(px, py) : style === "prison" ? prisonTiles(px, py) : style === "epreuve" ? trialSlabs(px, py) : style === "snow" ? snowFloor(px, py) : floorB(px, py);
       if (motif) c = engrave(motif, px, py, c);
       if (gravel.length > 0 && gravelEdge(px, py) > 0.5) c = scale(c, 0.8);
       pixels.push(c);

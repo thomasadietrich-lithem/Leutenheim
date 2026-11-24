@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T13:09:08.275Z",
+ "commit": "89432f8",
+ "note": "Code joueur dans les Paramètres, libellé Statistiques raccourci",
+ "logic": {
+  "tickMs": 1.51,
+  "lightMs": 0.34,
+  "visionMs": 0.34
+ },
+ "scenes": {
+  "immobile": {
+   "n": 51,
+   "avg": 47.4,
+   "p95": 66.8,
+   "max": 83.4,
+   "fps": 21,
+   "js": 6
+  },
+  "marche": {
+   "n": 107,
+   "avg": 46.4,
+   "p95": 83.3,
+   "max": 100.1,
+   "fps": 22,
+   "js": 8
+  },
+  "retour": {
+   "n": 128,
+   "avg": 39.1,
+   "p95": 66.6,
+   "max": 83.4,
+   "fps": 26,
+   "js": 5
+  },
+  "zoom": {
+   "n": 86,
+   "avg": 37.8,
+   "p95": 66.7,
+   "max": 83.3,
+   "fps": 26,
+   "js": 5
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 33.3,
+   "fps": 60,
+   "js": 11
+  },
+  "donjon": {
+   "n": 157,
+   "avg": 31.8,
+   "p95": 66.7,
+   "max": 183.3,
+   "fps": 31,
+   "js": 19
+  }
+ },
+ "errors": []
+}

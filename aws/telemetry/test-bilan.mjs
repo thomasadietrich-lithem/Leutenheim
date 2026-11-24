@@ -13,7 +13,7 @@ const code = [];
 for (const line of lines) { if (line.trim() && !line.startsWith("          ")) break; code.push(line.slice(10)); }
 const mod = { exports: {} };
 new Function("require", "exports", "module", "process", code.join("\n"))(() => ({}), mod.exports, mod, { env: {} });
-const { build } = mod.exports;
+const { build, code: playerCode } = mod.exports;
 
 const now = Date.UTC(2026, 10, 24, 12), H = 3600000;
 const ev = (run, e, t, more = {}) => ({ run, e, t: now - t * H, device: "appareil-" + run[0], version: "0.3.0", platform: "web", ...more });
@@ -36,8 +36,9 @@ assert.equal(by["humain/fin"].bosses, 1);
 assert.equal(by["humain/fin"].cause, "");
 assert.ok(by["halfelin/abandon"], "sans nouvelle depuis plus d'un jour : abandon");
 assert.ok(by["humain/en cours"], "partie récente sans fin : en cours");
-assert.deepEqual(out.quests, [{ day: by["elfe/mort"].day, version: "0.3.0", platform: "web", race: "elfe", id: "cloche", what: "réussie" }]);
-assert.ok(out.runs.every((r) => /^j\d+$/.test(r.device)), "aucun vrai numéro d'appareil ne sort");
+assert.deepEqual(out.quests, [{ day: by["elfe/mort"].day, version: "0.3.0", platform: "web", race: "elfe", device: "KFJC7", id: "cloche", what: "réussie" }]);
+assert.ok(out.runs.every((r) => /^[A-HJ-NP-Z2-9]{5}$/.test(r.device)), "seul le code joueur sort, jamais le numéro d'appareil");
+assert.equal(playerCode("appareil-a"), "KFJC7", "même calcul que playerCode dans le jeu");
 assert.equal(new Set(out.runs.map((r) => r.device)).size, 2, "a1 et a2 viennent du même appareil");
 assert.equal(out.genere, "2026-11-24");
 console.log("Bilan : tous les essais passent (" + out.runs.length + " parties).");

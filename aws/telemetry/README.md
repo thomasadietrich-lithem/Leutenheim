@@ -77,3 +77,10 @@ Console AWS > Athena (région Paris) > groupe de travail « caveroller » > Requ
 - Mise en ligne : `bash aws/telemetry/deploy.sh --tableau` demande un mot de passe (12 caractères au moins, jamais écrit dans le dépôt). La page est alors servie en HTTPS par CloudFront, utilisateur `lth`. Sans mot de passe, rien n'est en ligne. La page ne donne aucun accès au compte : elle ne lit qu'un fichier de totaux.
 - `node aws/telemetry/dashboard/exemple.mjs` refabrique des DONNÉES D'EXEMPLE pour travailler la page (bandeau jaune) ; elles ne sont jamais envoyées sur AWS.
 - Vérifié : cfn-lint, calcul essayé sans AWS, page essayée avec le résultat du calcul. PAS ENCORE DÉPLOYÉ : la mise en ligne et le mot de passe n'ont jamais été essayés en vrai.
+
+## Joueurs et étiquettes (2026-11-24)
+
+- Code joueur : cinq signes tirés du numéro d'appareil (`playerCode` dans `src/telemetry/telemetry.ts`, même calcul dans la fonction « caveroller-stats-bilan »). Affiché dans les Paramètres du jeu quand le joueur a accepté les statistiques. `data.json` contient ce code, jamais le numéro d'appareil.
+- Étiquettes : `powershell -ExecutionPolicy Bypass -File etiquettes.ps1` ouvre le Bloc-notes (une ligne « CODE = Prénom »), puis envoie `tags.json` dans le bucket du tableau de bord (derrière le mot de passe). Décision de Thomas : les prénoms sont gardés sur AWS, « entorse acceptable à ce stade du dev ». Le jeu, lui, n'envoie toujours aucun nom.
+- Tableau de bord : filtre « Joueur » et carte « Joueurs » (parties, morts, meilleur étage, dernière partie).
+

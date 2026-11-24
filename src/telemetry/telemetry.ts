@@ -53,6 +53,23 @@ export function randomId(): string {
   });
 }
 
+/**
+ * Code joueur (Thomas, 2026-11-24) : cinq signes tirés du numéro d'appareil, toujours les mêmes pour un appareil.
+ * Affiché dans les Paramètres ; un ami le donne à Thomas, qui pose une étiquette dessus dans le tableau de bord.
+ * Sans 0, O, 1 ni I (faciles à confondre). Le même calcul est recopié dans `aws/telemetry/cloudformation.yaml`.
+ */
+export function playerCode(device: string): string {
+  const signs = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let h = 0x811c9dc5;
+  for (let i = 0; i < device.length; i++) h = Math.imul(h ^ device.charCodeAt(i), 0x01000193) >>> 0;
+  let out = "";
+  for (let i = 0; i < 5; i++) {
+    out += signs[h & 31];
+    h >>>= 5;
+  }
+  return out;
+}
+
 /** Garde seulement des valeurs simples et courtes (jamais un objet entier du jeu). */
 export function clean(fields: Record<string, unknown>): Record<string, string | number | boolean> {
   const out: Record<string, string | number | boolean> = {};
@@ -151,13 +168,23 @@ export class Telemetry {
     return this.queue.length;
   }
 
-  private context(): TelemetryContext {
+  /** Le numéro de cet appareil (tiré au hasard la première fois, puis gardé). */
+  private device(): string {
     let device = this.store?.getItem(KEYS.device) ?? "";
     if (!device) {
       device = randomId();
       this.store?.setItem(KEYS.device, device);
     }
-    return { ...this.ctx, device };
+    return device;
+  }
+
+  /** Le code joueur de cet appareil (voir `playerCode`). */
+  code(): string {
+    return playerCode(this.device());
+  }
+
+  private context(): TelemetryContext {
+    return { ...this.ctx, device: this.device() };
   }
 
   private save(): void {

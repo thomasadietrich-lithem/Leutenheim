@@ -69,6 +69,7 @@
     <label>Version<select id="f-version"></select></label>
     <label>Race<select id="f-race"></select></label>
     <label>Plateforme<select id="f-platform"></select></label>
+    <label>Joueur<select id="f-player"></select></label>
   </div>
   <div class="tuiles" id="tuiles"></div>
   <div class="grille" id="grille"></div>
@@ -91,6 +92,9 @@ const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
 const compte = (list, key) => { const m = new Map(); for (const x of list) m.set(key(x), (m.get(key(x)) ?? 0) + 1); return m; };
 
 let DATA = { runs: [], quests: [] };
+/** Étiquettes posées par Thomas : code joueur → prénom (fichier tags.json, à côté de data.json). */
+let TAGS = {};
+const joueur = (code) => (TAGS[code] ? `${TAGS[code]} (${code})` : code || "Inconnu");
 
 /** Un tableau lisible sous chaque graphique (la couleur ne porte jamais l'information seule). */
 function tableau(head, rows) {
@@ -153,11 +157,12 @@ let PLOTS = [];
 const carte = (title, sub, plot, extra, large) => `<section class="carte${large ? " large" : ""}"><h2>${esc(title)}</h2><p>${esc(sub)}</p><div class="plot" data-i="${PLOTS.push(plot) - 1}"></div>${extra}</section>`;
 
 function render() {
-  const f = { periode: +$("f-periode").value, version: $("f-version").value, race: $("f-race").value, platform: $("f-platform").value };
+  const f = { periode: +$("f-periode").value, version: $("f-version").value, race: $("f-race").value, platform: $("f-platform").value, player: $("f-player").value };
   const lastDay = DATA.runs.reduce((m, r) => (r.day > m ? r.day : m), "");
   const from = f.periode && lastDay ? new Date(Date.parse(lastDay) - (f.periode - 1) * 86400000).toISOString().slice(0, 10) : "";
   const keep = (r) => (!from || r.day >= from) && (!f.version || r.version === f.version) && (!f.race || r.race === f.race) && (!f.platform || r.platform === f.platform);
-  const runs = DATA.runs.filter(keep), quests = DATA.quests.filter(keep), n = runs.length;
+  const keepAll = (r) => keep(r) && (!f.player || r.device === f.player);
+  const runs = DATA.runs.filter(keepAll), quests = DATA.quests.filter(keepAll), n = runs.length;
   const deaths = runs.filter((r) => r.end === "mort");
 
   $("tuiles").innerHTML = [
@@ -207,6 +212,13 @@ function render() {
   const pQuests = barres(qRows.map((q) => ({ label: nom(q.id), value: q.total, text: `${pct(q.c[0], q.total)} % réussies`, parts: RES.map(([w, c], i) => ({ value: q.c[i], color: c, tip: `${nom(q.id)} - ${w} : ${q.c[i]} sur ${q.total}` })) })));
   const cQuests = lQuests + tableau(["Quête", "Réussies", "Ratées", "Perdues"], qRows.map((q) => [nom(q.id), ...q.c]));
 
+  // Joueurs : une ligne par code, les plus actifs d'abord.
+  const byPlayer = new Map();
+  for (const r of runs) { const p = byPlayer.get(r.device) ?? { n: 0, best: 0, last: "", deaths: 0 }; p.n++; p.best = Math.max(p.best, r.deepest); if (r.day > p.last) p.last = r.day; if (r.end === "mort") p.deaths++; byPlayer.set(r.device, p); }
+  const players = [...byPlayer].sort((a, b) => b[1].n - a[1].n);
+  const pPlayers = barres(players.slice(0, 12).map(([c, p]) => ({ label: TAGS[c] ?? c ?? "Inconnu", value: p.n, text: `${p.n}  (étage ${p.best})`, tip: `${joueur(c)} : ${p.n} parties, meilleur étage ${p.best}, dernière partie le ${p.last}` })));
+  const cPlayers = tableau(["Joueur", "Code", "Parties", "Morts", "Meilleur étage", "Dernière partie"], players.map(([c, p]) => [TAGS[c] ?? "", c || "?", p.n, p.deaths, p.best, p.last])).replace("<details>", players.length <= 15 ? "<details open>" : "<details>");
+
   PLOTS = [];
   $("grille").innerHTML = n === 0 ? `<div class="carte large vide">Aucune partie sur cette sélection.</div>` : [
     carte("Parties par jour", "Combien de parties sont lancées chaque jour.", pDays, cDays, true),
@@ -216,6 +228,7 @@ function render() {
     carte("Boss", "Part des rencontres gagnées par le joueur.", pBoss, cBoss),
     carte("Races", "Nombre de parties par race.", pRaces, cRaces),
     carte("Quêtes", "Résultat de chaque quête acceptée.", pQuests, cQuests),
+    carte("Joueurs", "Parties par joueur. Les prénoms sont les étiquettes posées sur les codes joueur.", pPlayers, cPlayers, true),
   ].join("");
   for (const el of document.querySelectorAll(".plot")) el.innerHTML = PLOTS[+el.dataset.i](Math.max(240, el.clientWidth));
 }
@@ -241,13 +254,19 @@ function fill(id, values, all) {
   $(id).addEventListener("change", render);
 }
 
-fetch("data.json", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+const lire = (file) => fetch(file, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+Promise.all([lire("data.json"), lire("tags.json")]).then(([d, tags]) => {
+  if (!d) throw new Error("pas de données");
+  if (tags && typeof tags === "object") for (const [c, name] of Object.entries(tags)) if (typeof name === "string") TAGS[c] = name.slice(0, 30);
   DATA = { runs: d.runs ?? [], quests: d.quests ?? [] };
   if (d.exemple) $("exemple").style.display = "block";
   $("maj").textContent = d.genere ? "Mis à jour le " + d.genere : "";
   fill("f-version", [...new Set(DATA.runs.map((r) => r.version))].sort(), "Toutes");
   fill("f-race", [...new Set(DATA.runs.map((r) => r.race))].sort(), "Toutes");
   fill("f-platform", [...new Set(DATA.runs.map((r) => r.platform))].sort(), "Toutes");
+  const codes = [...new Set(DATA.runs.map((r) => r.device))].filter(Boolean).sort((a, b) => (TAGS[b] ? 1 : 0) - (TAGS[a] ? 1 : 0) || joueur(a).localeCompare(joueur(b)));
+  $("f-player").innerHTML = `<option value="">Tous</option>` + codes.map((c) => `<option value="${esc(c)}">${esc(joueur(c))}</option>`).join("");
+  $("f-player").addEventListener("change", render);
   $("f-periode").addEventListener("change", render);
   render();
 }).catch(() => { $("grille").innerHTML = `<div class="carte large vide">Les données ne sont pas encore disponibles.</div>`; });

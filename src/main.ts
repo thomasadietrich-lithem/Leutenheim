@@ -3827,7 +3827,10 @@ function showScreen(screen: Screen | null): void {
   $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);
   // Statistiques anonymes : le réglage n'apparaît que lorsque l'adresse d'envoi est réglée.
   $("settings-stats").hidden = !TELEMETRY.url;
-  $("settings-stats").textContent = tr(`Statistiques anonymes : ${stats.consent() === "yes" ? "oui" : "non"}`);
+  $("settings-stats").textContent = tr(`Statistiques : ${stats.consent() === "yes" ? "oui" : "non"}`);
+  // Code joueur : seulement si le joueur a accepté les statistiques (sinon rien n'est envoyé, le code ne sert à rien).
+  $("settings-code").hidden = !stats.enabled();
+  if (stats.enabled()) $("settings-code").textContent = tr(`Code joueur : ${stats.code()}`);
   $("settings-lang").textContent = tr(`Langue : ${options.lang === "en" ? "English" : "Français"}`);
   if (screen === "new") renderCards();
   if (screen === "codex") renderCodex();

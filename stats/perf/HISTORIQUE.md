@@ -126,3 +126,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-24_11h11 | c4b7945 | 29.2 | 31.6 | 28.4 | 30.4 | 16.7 | 22.8 | 0.9 | 0.36 | pas de colonnes (re-mesure) |
 | 2026-11-24_11h16 | b1509b2 | 34.5 | 34.2 | 41 | 35.4 | 16.7 | 29.7 | 1.08 | 0.4 | Statistiques activées : adresse AWS réglée (question d'accord au premier lancement) |
 | 2026-11-24_11h16 | b1509b2 | 37.4 | 38.5 | 31.5 | 32.4 | 16.7 | 30.7 | 1.1 | 0.38 | Statistiques activées : adresse AWS réglée (second passage, pour écarter le bruit) |
+| 2026-11-24_13h09 | 89432f8 | 47.4 | 46.4 | 39.1 | 37.8 | 16.7 | 31.8 | 1.51 | 0.34 | Code joueur dans les Paramètres, libellé Statistiques raccourci |

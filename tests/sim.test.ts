@@ -5767,6 +5767,20 @@ test("statistiques anonymes (Thomas, 2026-11-15) : rien sans accord, file gardé
   }
 });
 
+test("code joueur (Thomas, 2026-11-24) : cinq signes, toujours les mêmes pour un appareil, même calcul que sur AWS", async () => {
+  const { Telemetry, playerCode } = await import("../src/telemetry/telemetry");
+  // Valeurs de référence : les mêmes sont vérifiées par aws/telemetry/test-bilan.mjs sur le code de la fonction AWS.
+  assert.equal(playerCode("appareil-a"), "KFJC7");
+  assert.equal(playerCode("appareil-b"), "S9GCP");
+  const mem = new Map<string, string>();
+  const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+  const t = new Telemetry({ version: "test", platform: "web", build: "demo", lang: "fr" }, store, async () => true);
+  const code = t.code();
+  assert.match(code, /^[A-HJ-NP-Z2-9]{5}$/, "sans 0, O, 1 ni I");
+  const again = new Telemetry({ version: "test", platform: "web", build: "demo", lang: "fr" }, store, async () => true);
+  assert.equal(again.code(), code, "rechargé : le même code");
+});
+
 test("angle de mur (Thomas, 2026-11-15, capture) : arrêté depuis un tour, le monstre qui débouche de l'angle donne l'avantage", () => {
   const game = new Game(9);
   const map = game.map;

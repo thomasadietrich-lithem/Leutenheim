@@ -334,7 +334,7 @@ Resources:
 
   # ---------- Tableau de bord (Thomas, 2026-11-24) ----------
   # Chaque nuit, une fonction relit les evenements et ecrit data.json (une ligne par partie, rien de personnel :
-  # les numeros d'appareil sont remplaces par j1, j2...). La page n'est en ligne que si un mot de passe est donne.
+  # les numeros d'appareil sont remplaces par le code joueur de cinq signes). La page n'est en ligne que si un mot de passe est donne.
   DashboardBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -406,8 +406,16 @@ Resources:
           const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
           const QUEST = { complete: "r\u00e9ussie", fail: "rat\u00e9e", lost: "perdue" };
           const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+          // Code joueur : meme calcul que playerCode dans src/telemetry/telemetry.ts.
+          function code(device) {
+            const signs = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            let h = 0x811c9dc5, out = "";
+            for (let i = 0; i < device.length; i++) h = Math.imul(h ^ device.charCodeAt(i), 0x01000193) >>> 0;
+            for (let i = 0; i < 5; i++) { out += signs[h & 31]; h >>>= 5; }
+            return out;
+          }
           function build(events, now) {
-            const runs = new Map(), devices = new Map(), quests = [];
+            const runs = new Map(), quests = [];
             for (const e of events) {
               if (!e || typeof e.run !== "string" || e.test === true) continue;
               const t = Number(e.t) || Number(e.received) || now;
@@ -430,14 +438,14 @@ Resources:
             }
             const rows = new Map();
             for (const [id, r] of runs) {
-              if (r.device && !devices.has(r.device)) devices.set(r.device, "j" + (devices.size + 1));
               const end = r.fin ? "fin" : r.dead > r.alive ? "mort" : now - r.last > 86400000 ? "abandon" : "en cours";
-              rows.set(id, { day: day(r.first), version: r.version, platform: r.platform, race: r.race, deepest: r.deepest, end, cause: end === "mort" ? r.cause : "", level: r.level, turns: r.turns, gold: r.gold, bosses: r.bosses, device: devices.get(r.device) || "" });
+              rows.set(id, { day: day(r.first), version: r.version, platform: r.platform, race: r.race, deepest: r.deepest, end, cause: end === "mort" ? r.cause : "", level: r.level, turns: r.turns, gold: r.gold, bosses: r.bosses, device: r.device ? code(r.device) : "" });
             }
-            const q = quests.filter((x) => rows.has(x.run)).map((x) => { const r = rows.get(x.run); return { day: r.day, version: r.version, platform: r.platform, race: r.race, id: x.id, what: x.what }; });
+            const q = quests.filter((x) => rows.has(x.run)).map((x) => { const r = rows.get(x.run); return { day: r.day, version: r.version, platform: r.platform, race: r.race, device: r.device, id: x.id, what: x.what }; });
             return { genere: day(now), runs: [...rows.values()], quests: q };
           }
           exports.build = build;
+          exports.code = code;
           exports.handler = async () => {
             const s3 = new S3Client({}), now = Date.now(), from = day(now - Number(process.env.DAYS || 180) * 86400000);
             const keys = [];

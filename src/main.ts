@@ -979,6 +979,8 @@ function reveal(e: GameEvent): void {
         : "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.",
     );
     renderLog();
+  } else if (e.type === "clank") {
+    renderer.addFloatingText(e.actor.x, e.actor.y, "Hein ?", "#c8c0a8");
   } else if (e.type === "carillon") {
     // Le Carillon (boss de la section 2, Thomas, 2026-11-16).
     const b = game.bossLayout();

@@ -7455,3 +7455,15 @@ test("Brouillard (2026-11-24) : même au contact, le monstre perd la trace du h�
   assert.equal(m.alerted, false, "il cherche encore");
   assert.equal(game.hero.hp, hp, "il ne frappe pas");
 });
+
+test("Le Guerrier réveille les dormeurs à 2 cases (Thomas, 2026-11-24)", () => {
+  for (const dist of [2, 3]) {
+    const { game, m } = foeAt(dist);
+    game.monsters = [m];
+    Object.assign(m, { asleep: true, alerted: false, deaf: false });
+    game.wait();
+    game.tick();
+    if (dist === 2) assert.equal(m.asleep, false, "à 2 cases, il se réveille");
+    else assert.ok(m.asleep || m.alerted, "à 3 cases, l'armure ne suffit pas (seule l'ouïe ordinaire compte)");
+  }
+});

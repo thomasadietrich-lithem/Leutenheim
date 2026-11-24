@@ -129,3 +129,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-24_13h09 | 89432f8 | 47.4 | 46.4 | 39.1 | 37.8 | 16.7 | 31.8 | 1.51 | 0.34 | Code joueur dans les Paramètres, libellé Statistiques raccourci |
 | 2026-11-24_16h04 | b1509b2 | 49.3 | 43.8 | 39.6 | 45.6 | 16.8 | 40.6 | 1.07 | 0.52 | référence sans correctif (contrôle machine) |
 | 2026-11-24_19h13 | a30dcca | 52.1 | 45.7 | 46 | 38.4 | 16.7 | 39.8 | 0.98 | 0.63 | retours du 24/11 soir : dézoom moins fin (1,25), salles à épreuve, brouillard, etc. |
+| 2026-11-24_19h30 | b41a1b3 | 45.4 | 42.1 | 44.5 | 40.6 | 17 | 51.2 | 1.46 | 0.19 | guerrier réveille à 2 cases |
+| 2026-11-24_19h31 | b41a1b3 | 55.3 | 51 | 48.1 | 50.9 | 16.9 | 43.7 | 1.1 | 0.3 | guerrier réveille à 2 cases (re-mesure) |

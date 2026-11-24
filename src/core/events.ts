@@ -130,6 +130,8 @@ export type GameEvent =
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }
   | { type: "lostTrack"; actor: Actor }
+  /** L'armure du Guerrier réveille un dormeur tout près. */
+  | { type: "clank"; actor: Actor }
   | { type: "trapDodged"; x: number; y: number; kind: string; d20: number; bonus: number }
   /** Désamorcer un piège voisin (Thomas, 2026-11-17) : réussi, il disparaît ; raté de beaucoup, il part sur vous. */
   | { type: "disarm"; x: number; y: number; kind: string; d20: number; bonus: number; total: number; success: boolean; sprung: boolean }

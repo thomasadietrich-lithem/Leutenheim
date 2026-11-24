@@ -11695,6 +11695,13 @@ export class Game {
       // Salle d'essai, combats coupés : personne ne remarque le héros, personne ne l'attaque.
       if (this.peaceful) m.alerted = false;
       if (!m.alerted && !this.peaceful) {
+        // LE GUERRIER RÉVEILLE À 2 CASES (Thomas, 2026-11-24) : son armure cliquette ; un dormeur aussi près ouvre les
+        // yeux et se tourne vers lui (il lui reste à le remarquer). Pas s'il est caché ni dans le brouillard.
+        if (m.asleep && !m.deaf && this.heroClass.id === "guerrier" && distance <= RULES.warriorWakeRange && !this.hidden && !this.fogAt(this.hero.x, this.hero.y)) {
+          m.asleep = false;
+          this.faceToward(m, this.hero);
+          if (this.isVisible(m.x, m.y)) this.events.push({ type: "clank", actor: m });
+        }
         // Il vient de perdre le héros dans le brouillard : il cherche, sans le trouver.
         if ((m.lost ?? 0) > 0 && this.fogBetween(m, this.hero)) {
           this.wander(m);

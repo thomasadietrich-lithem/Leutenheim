@@ -2592,4 +2592,5 @@ export const EN: Record<string, string> = {
   "Lancer une potion de brouillard sur la tapisserie": "Throw a fog potion at the tapestry",
   "« La potion de brouillard ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »": "“The fog potion! Throw it at the red tapestry, or at a traitor coming out. While they cough, I slip inside.”",
   "(Il laisse de l'or et 2 potions de brouillard.)": "(He leaves some gold and 2 fog potions.)",
+  "Hein ?": "Huh?",
 };

@@ -158,6 +158,8 @@ export const RULES = {
    */
   gazeHalfAngle: 0.8,
   asleepHearing: 3,
+  /** Le Guerrier (armure qui cliquette) réveille les dormeurs à tant de cases. */
+  warriorWakeRange: 2,
   /** Brouillard : tours pendant lesquels un monstre qui a perdu le héros cherche sur place, sans le remarquer. */
   fogLostTurns: 2,
   /** Toiles d'araignée : à partir de cet étage, chance qu'une salle sans torche en ait, et nombre de coins tissés. */

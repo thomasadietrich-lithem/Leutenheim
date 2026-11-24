@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T19:31:20.248Z",
+ "commit": "b41a1b3",
+ "note": "guerrier réveille à 2 cases (re-mesure)",
+ "logic": {
+  "tickMs": 1.1,
+  "lightMs": 0.3,
+  "visionMs": 0.23
+ },
+ "scenes": {
+  "immobile": {
+   "n": 44,
+   "avg": 55.3,
+   "p95": 83.4,
+   "max": 100,
+   "fps": 18,
+   "js": 6
+  },
+  "marche": {
+   "n": 98,
+   "avg": 51,
+   "p95": 66.8,
+   "max": 83.4,
+   "fps": 20,
+   "js": 5
+  },
+  "retour": {
+   "n": 104,
+   "avg": 48.1,
+   "p95": 66.7,
+   "max": 83.4,
+   "fps": 21,
+   "js": 5
+  },
+  "zoom": {
+   "n": 72,
+   "avg": 50.9,
+   "p95": 66.7,
+   "max": 83.4,
+   "fps": 20,
+   "js": 6
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.9,
+   "p95": 16.8,
+   "max": 33.4,
+   "fps": 59,
+   "js": 13
+  },
+  "donjon": {
+   "n": 114,
+   "avg": 43.7,
+   "p95": 83.3,
+   "max": 233.3,
+   "fps": 23,
+   "js": 19
+  }
+ },
+ "errors": []
+}

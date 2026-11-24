@@ -35,6 +35,7 @@ import { TIPS } from "./data/tips";
 import { MANUAL } from "./data/manual";
 import { NPC_IDS } from "./core/game";
 import { HeroGrave, setPreviousGrave } from "./core/grave";
+import { TOMBE } from "./render/sprites/tombe";
 import { CODEX_ITEM_GROUPS, CODEX_PEOPLE, CODEX_STATES, CODEX_TRAPS } from "./data/codex";
 import { TRAPS } from "./data/traps";
 import { getLang, missing as i18nMissing, setLang, tr } from "./i18n/i18n";
@@ -986,6 +987,22 @@ function reveal(e: GameEvent): void {
         : "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.",
     );
     renderLog();
+  } else if (e.type === "chickenRing") {
+    // Le trou aux poulets (Thomas, 2026-11-24).
+    if (e.what === "fall") {
+      renderer.chickenRingFall();
+      if (e.seen) {
+        logLines.push("Les trois poulets se courent après autour du trou… et y tombent, l'un après l'autre. Cot ! Cot ! Plouf.");
+        window.setTimeout(() => renderer.addFloatingText(e.x, e.y, "Cot ! Plouf !", "#f6f2e6"), 900);
+      }
+    } else if (e.what === "omelette") logLines.push("Vous fouillez le trou : une omelette, encore chaude !");
+    else logLines.push("Il n'y a plus rien dans le trou. Juste des plumes.");
+    renderLog();
+  } else if (e.type === "swept") {
+    renderer.addFloatingText(e.x, e.y, "Balayé !", "#ffd75e");
+    logLines.push("Le bras du Colosse vous balaie : vous voilà à terre.");
+    renderLog();
+    sfx.play("heavy");
   } else if (e.type === "grave") {
     // La tombe du héros précédent (Thomas, 2026-11-24).
     const line = `Ici repose un ${e.who}, niveau ${e.level}, tué par ${e.cause}.`;
@@ -1545,8 +1562,12 @@ function showDeath(): void {
   over.classList.remove("over-win");
   const cause = game.deathCause ?? "ses blessures";
   over.replaceChildren();
-  over.append(el("div", "over-title", "Vous êtes mort"), el("div", "over-line", `À l'étage ${game.depth}, tué par ${cause}.`));
-  over.append(el("div", "over-line", `Niveau ${game.level} · ${game.gold} pièces d'or`));
+  // Écran de mort revu (Thomas, 2026-11-24 : « c'est pas très beau, vis-à-vis des boutons ») : la tombe, le titre, le
+  // récit, puis une colonne de boutons de même largeur ; « Nouvelle partie » en premier, en or.
+  const stone = buildIcon(TOMBE.tombeHerosVide.rows, TOMBE.tombeHerosVide.palette);
+  stone.classList.add("over-stone");
+  over.append(stone, el("div", "over-title", "Vous êtes mort"), el("div", "over-line", `À l'étage ${game.depth}, tué par ${cause}.`));
+  over.append(el("div", "over-line over-dim", `Niveau ${game.level} · ${game.gold} pièces d'or`));
   if (!game.sandbox && !game.testRun) {
     const d = new Date();
     const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -1554,10 +1575,26 @@ function showDeath(): void {
     if (rank === 1) over.append(el("div", "over-best", "Nouveau record !"));
     else if (rank > 0) over.append(el("div", "over-line", `${rank}e meilleure partie`));
   }
+  const buttons = el("div", "over-buttons");
+  const again = el("button", "over-main", "Nouvelle partie") as HTMLButtonElement;
+  again.type = "button";
+  again.addEventListener("click", () => {
+    deadView(false);
+    showScreen("new");
+  });
+  // Retour (Thomas, 2026-11-24) : on referme l'écran de fin pour regarder une dernière fois son inventaire, sa fiche, la
+  // carte ; le jeu reste grisé. « Fin de partie » le rouvre.
+  const look = el("button", "ghost", "Retour") as HTMLButtonElement;
+  look.type = "button";
+  look.addEventListener("click", () => {
+    over.hidden = true;
+    $("over-show").hidden = false;
+  });
+  buttons.append(again, look);
   // Revivre (Thomas, 2026-11-15 : « un bouton sur l'écran de mort », partie en cours comprise) : dans la démo
   // d'essai, pour toutes les parties ; jamais dans la version publique.
   if (!PUBLIC_BUILD) {
-    const back = el("button", "", "Revivre") as HTMLButtonElement;
+    const back = el("button", "ghost over-small", "Revivre (essai)") as HTMLButtonElement;
     back.type = "button";
     back.addEventListener("click", () => {
       if (!game.revive()) return;
@@ -1571,24 +1608,9 @@ function showDeath(): void {
       renderLog();
       writeSave(true);
     });
-    over.append(back);
+    buttons.append(back);
   }
-  const again = el("button", "", "Nouvelle partie") as HTMLButtonElement;
-  again.type = "button";
-  again.addEventListener("click", () => {
-    deadView(false);
-    showScreen("new");
-  });
-  over.append(again);
-  // Retour (Thomas, 2026-11-24) : on referme l'écran de fin pour regarder une dernière fois son inventaire, sa fiche, la
-  // carte ; le jeu reste grisé. « Fin de partie » le rouvre.
-  const look = el("button", "", "Retour") as HTMLButtonElement;
-  look.type = "button";
-  look.addEventListener("click", () => {
-    over.hidden = true;
-    $("over-show").hidden = false;
-  });
-  over.append(look);
+  over.append(buttons);
   deadView(true);
   over.hidden = false;
 }

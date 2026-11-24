@@ -132,6 +132,10 @@ export type GameEvent =
   | { type: "lostTrack"; actor: Actor }
   /** La tombe du héros précédent : son épitaphe, et l'objet qu'il laisse (la première fois). */
   | { type: "grave"; who: string; level: number; cause: string; item?: ItemId }
+  /** Le trou aux poulets : ils tombent, on trouve l'omelette, le trou est vide. */
+  | { type: "chickenRing"; what: "fall" | "omelette" | "empty"; x: number; y: number; seen: boolean }
+  /** Le bras du Colosse balaie le héros : repoussé, à terre. */
+  | { type: "swept"; fromX: number; fromY: number; x: number; y: number }
   /** On lit une affiche du culte du poulet. */
   | { type: "affiche"; text: string }
   /** L'armure du Guerrier réveille un dormeur tout près. */

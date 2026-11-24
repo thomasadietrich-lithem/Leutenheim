@@ -2602,4 +2602,13 @@ export const EN: Record<string, string> = {
   "Ici repose un {0}, niveau {1}, tué par {2}.": "Here lies a {0}, level {1}, killed by {2}.",
   "Il vous laisse : {0}.": "They leave you: {0}.",
   "Fin de partie": "Game over",
+  "Balayé !": "Swept!",
+  "Le bras du Colosse vous balaie : vous voilà à terre.": "The Colossus swings its arm: you are knocked down.",
+  "Revivre (essai)": "Revive (test)",
+  "Omelette": "Omelette",
+  "Trois œufs, une chute, et beaucoup de chance : elle est encore chaude. Rend 12 PV.": "Three eggs, one fall, and a lot of luck: it is still warm. Restores 12 HP.",
+  "Les trois poulets se courent après autour du trou… et y tombent, l'un après l'autre. Cot ! Cot ! Plouf.": "The three chickens chase each other around the hole… and fall in, one after another. Cluck! Cluck! Plop.",
+  "Cot ! Plouf !": "Cluck! Plop!",
+  "Vous fouillez le trou : une omelette, encore chaude !": "You search the hole: an omelette, still warm!",
+  "Il n'y a plus rien dans le trou. Juste des plumes.": "Nothing left in the hole. Just feathers.",
 };

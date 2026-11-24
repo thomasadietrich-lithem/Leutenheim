@@ -5169,7 +5169,9 @@ test("clef inutile : la dernière porte verrouillée forcée, la clef de l'étag
     const game = new Game(seed);
     if (!game.ground.some((g) => g.item === "clef")) continue;
     const doors: { x: number; y: number }[] = [];
-    for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.DoorLocked) doors.push({ x, y });
+    // (Sauf la porte du poulailler : rien ne l'ouvre, le poulet la défonce.)
+    const pens = game.chickens().map((c) => c.door).filter((d): d is { x: number; y: number } => !!d);
+    for (let y = 0; y < game.map.height; y++) for (let x = 0; x < game.map.width; x++) if (game.map.get(x, y) === Tile.DoorLocked && !pens.some((d) => d.x === x && d.y === y)) doors.push({ x, y });
     if (doors.length === 0) continue;
     game.alloc.force = 60;
     const priv = game as unknown as { resolveDoor(a: string, p: { x: number; y: number }): void; isVisible(x: number, y: number): boolean };
@@ -7528,4 +7530,78 @@ test("La tombe du héros précédent (2026-11-24) : à son étage dans la partie
   setPreviousGrave(null);
   const back = Game.restore(JSON.parse(JSON.stringify(later.snapshot())))!;
   assert.equal(back.graveFrom?.depth, 3);
+});
+
+test("Le trou aux poulets (2026-11-24) : vus, ils tombent ; fouillé, une omelette ; le poulet fou plus fréquent", () => {
+  let rings = 0;
+  let chickens = 0;
+  let floors = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const game = new Game(seed * 89);
+    game.testRun = true;
+    for (let d = 1; d <= 4; d++) {
+      if (game.depth !== d) assert.ok(game.teleport(d));
+      floors++;
+      if (game.chickenRing()) rings++;
+      if (game.chicken()) chickens++;
+    }
+  }
+  assert.ok(rings >= 4 && rings <= 22, `${rings} trous sur ${floors} étages`);
+  assert.ok(chickens >= 8, `${chickens} poulets fous sur ${floors} étages`);
+  // Un trou : on le voit, ils tombent ; on fouille, l'omelette.
+  for (let seed = 1; seed <= 60; seed++) {
+    const game = new Game(seed * 89);
+    const r = game.chickenRing();
+    if (!r) continue;
+    game.monsters.splice(0);
+    const hole = { x: r.x, y: r.y };
+    game.hero.x = game.hero.fromX = hole.x;
+    game.hero.y = game.hero.fromY = hole.y + 1;
+    for (let i = 0; i < RULES.chickenRingTurns + 2; i++) {
+      game.wait();
+      game.tick();
+    }
+    assert.ok(game.chickenRing()!.fallen, "tombés");
+    game.events.length = 0;
+    assert.ok(game.setDestination(hole.x, hole.y, true));
+    game.tick();
+    assert.ok(game.ground.some((g) => g.item === "omelette"), "l'omelette");
+    return;
+  }
+  assert.fail("aucun trou aux poulets");
+});
+
+test("Boss 3 (2026-11-24) : la Prêtresse ne monte jamais sur le héros ; le bras du Colosse balaie et jette à terre", () => {
+  const game = new Game(7);
+  game.testRun = true;
+  game.testBoss2(false);
+  game.hero.maxHp = game.hero.hp = 999;
+  assert.ok(game.teleport(15));
+  const g = game as unknown as { priestessAct(m: unknown): void; bossWell(): { x: number; y: number } };
+  const pr = game.bossActor()!;
+  const well = g.bossWell();
+  game.hero.x = well.x;
+  game.hero.y = well.y;
+  pr.hp = Math.floor(pr.maxHp / 2);
+  pr.chanting = false;
+  pr.boss!.wellTo = undefined;
+  g.priestessAct(pr);
+  assert.ok(pr.aloft);
+  assert.ok(!(pr.x === game.hero.x && pr.y === game.hero.y), "pas sur le héros");
+  // Le bras : le héros à côté, touché : repoussé et à terre.
+  const arm = game.monsters.find((m) => m.defId === "brasColosse")!;
+  const sweep = (game as unknown as { sweepHero(m: unknown, n: number): void }).sweepHero.bind(game);
+  // Du côté libre du bras (pas dans le corps du Colosse).
+  const free = (x: number, y: number) => game.map.isWalkable(x, y) && !game.monsterAt(x, y);
+  const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+  const d = dirs.find(([dx, dy]) => free(arm.x + dx, arm.y + dy) && free(arm.x + 2 * dx, arm.y + 2 * dy))!;
+  assert.ok(d, "une case libre à côté du bras");
+  game.hero.x = arm.x + d[0];
+  game.hero.y = arm.y + d[1];
+  const before = { x: game.hero.x, y: game.hero.y };
+  game.events.length = 0;
+  sweep(arm, 2);
+  assert.ok(game.hero.prone! >= 1, "à terre");
+  assert.ok(game.events.some((e) => e.type === "swept"));
+  assert.ok(game.hero.x !== before.x || game.hero.y !== before.y, "repoussé loin du bras");
 });

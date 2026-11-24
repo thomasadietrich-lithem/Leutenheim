@@ -162,6 +162,8 @@ export const RULES = {
    */
   gazeHalfAngle: 0.8,
   asleepHearing: 3,
+  /** Le bras du Colosse qui touche repousse le héros de tant de cases, et le jette à terre. */
+  colossusSweep: 2,
   /** Le Guerrier (armure qui cliquette) réveille les dormeurs à tant de cases. */
   warriorWakeRange: 2,
   /** Brouillard : tours pendant lesquels un monstre qui a perdu le héros cherche sur place, sans le remarquer. */
@@ -359,6 +361,11 @@ export const RULES = {
   /** UN TRUC FUN PAR SECTION (Thomas, 2026-11-12) : sur un des étages 1 à `funMaxFloor` de chaque section, tiré au
    *  début de la partie, la cloche d'alarme OU la porte du Kobold qui compte (une chance sur deux). */
   funMaxFloor: 3,
+  /** Le poulet fou en plus du truc fun (Thomas, 2026-11-24 : « augmente la fréquence ») : chance par étage (sections 1 et 2). */
+  chickenExtraChance: 0.35,
+  /** Le trou aux poulets : chance par étage (sections 1 et 2), et tours de course avant la chute une fois vus. */
+  chickenRingChance: 0.3,
+  chickenRingTurns: 4,
   /** Porte du Kobold qui compte (Thomas, 2026-11-12) : il dit son nombre une fois par tour (« 17… 17… 17… », un à la
    *  fois) quand le héros est à tant de cases ou moins ; son nombre de départ ; le doigt dans l'œil fait tant de dégâts. */
   counterHearing: 5,

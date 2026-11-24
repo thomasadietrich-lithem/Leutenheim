@@ -207,6 +207,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // Le trou aux poulets (Thomas, 2026-11-24) : on n'y marche pas ; dessiné par le moteur de rendu (un trou de terre).
+  trouPoulets: { blocks: true, w: 1, h: 1, burns: false, flat: true },
   // La tombe du héros précédent (Thomas, 2026-11-24) : avec son objet, puis vide.
   tombeHeros: { blocks: true, w: 1, h: 1, burns: false },
   tombeHerosVide: { blocks: true, w: 1, h: 1, burns: false },

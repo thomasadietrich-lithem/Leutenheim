@@ -189,6 +189,13 @@
   .shop-empty, .shop-note { color: var(--dim); font-size: 16px; text-align: center; }
   .shop-note { color: #ff8a7a; }
   #over.over-win { background: #0e1408; border-color: #8a7a2a; }
+  /* Écran de mort (Thomas, 2026-11-24) : la tombe, le titre, le récit, puis les boutons en colonne, même largeur. */
+  #over .over-stone { width: 64px; height: 64px; margin-bottom: 2px; }
+  #over .over-dim { color: var(--dim); font-size: 19px; }
+  #over .over-buttons { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: min(78%, 260px); margin-top: 16px; }
+  #over .over-buttons button { width: 100%; }
+  #over .over-main { background: #6b4a12; color: #fff3c8; font-size: 21px; padding: 9px 10px; }
+  #over .over-small { font-size: 16px; padding: 5px 10px; opacity: 0.85; }
   /* Mort (Thomas, 2026-11-24) : « Retour » ferme l'écran de fin ; le jeu reste grisé, le sac et la fiche restent ouverts
      à la lecture ; ce bouton rouvre l'écran de fin. */
   body.dead canvas { filter: grayscale(1) brightness(0.8); }

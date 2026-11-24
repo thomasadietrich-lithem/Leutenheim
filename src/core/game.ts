@@ -108,7 +108,7 @@ export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
-const RAT_FOOD: ReadonlySet<string> = new Set(["pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur", "pomme_pourrie"]);
+const RAT_FOOD: ReadonlySet<string> = new Set(["omelette", "pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur", "pomme_pourrie"]);
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
 /** Ce que Krik sait du héros, le temps d'une partie. */
@@ -578,9 +578,12 @@ export class Game {
         }
       }
       // Le poulet (truc fun, Thomas 2026-11-13) ; sans salle qui convienne, la cloche prend sa place.
-      if (!bossFloor && !plainSandbox && (sandboxFloor || this.funOf(depth) === "chicken")) {
-        state.chicken = this.placeChicken(floor, state, seed, !!sandboxFloor) ?? undefined;
-        if (!state.chicken && !sandboxFloor) {
+      // Plus souvent (Thomas, 2026-11-24 : « augmente la fréquence du poulet fou ») : en plus du truc fun, une chance par
+      // étage dans les sections 1 et 2.
+      const extraChicken = !sandboxFloor && !bossFloor && depth <= 2 * RULES.floorsPerSection && this.funOf(depth) === null && new Rng(seed ^ 0xc41c4e2).chance(RULES.chickenExtraChance);
+      if (!bossFloor && !plainSandbox && (sandboxFloor || this.funOf(depth) === "chicken" || extraChicken)) {
+        state.chicken = this.placeChicken(floor, state, seed, !!sandboxFloor) ?? (extraChicken ? this.placeChickenPen(state, seed) : null) ?? undefined;
+        if (!state.chicken && !sandboxFloor && !extraChicken) {
           const special = new Set([...(state.themes ?? []).map((t) => t.room), ...enigmaHosts]);
           placeBell(floor, new Rng(seed ^ 0x5b311e7e), state.furniture ?? [], special);
         }
@@ -749,6 +752,7 @@ export class Game {
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     if (fresh && !state.boss && !this.sandbox) this.placeAffiches(state, depth);
+    if (fresh && !state.boss && !this.sandbox && depth <= 2 * RULES.floorsPerSection && new Rng(floorSeed(this.runSeed, depth) ^ 0xc41c4e).chance(RULES.chickenRingChance)) this.placeChickenRing(state);
     if (fresh && !state.boss && !this.sandbox && !this.testRun && this.graveFrom && this.graveFrom.depth === depth) this.placeGrave(state, this.graveFrom);
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -1140,6 +1144,40 @@ export class Game {
       if (openings.length !== 1 || map.get(openings[0].x, openings[0].y) !== Tile.DoorClosed) continue;
       const done = tryRoom(index, openings[0]);
       if (done) return done;
+    }
+    return null;
+  }
+
+  /**
+   * Le poulet fou EN PLUS (Thomas, 2026-11-24 : « augmente la fréquence ») : sans salle en cul-de-sac qui convienne, on
+   * creuse un POULAILLER fermé contre une salle ordinaire (comme celui de la ferme) ; le poulet traîne dans la salle.
+   */
+  private placeChickenPen(state: FloorState, seed: number): ChickenState | null {
+    const rng = new Rng(seed ^ 0x9e11);
+    const themed = new Set((state.themes ?? []).map((t) => t.room));
+    const startRoom = state.rooms.findIndex((r) => this.inRect(state.start, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }));
+    const order = state.rooms.map((_, i) => i).filter((i) => i !== startRoom && !themed.has(i) && state.rooms[i].w >= 4 && state.rooms[i].h >= 4 && !(state.enigmas ?? []).some((e) => e.hall && this.inRect({ x: state.rooms[i].x, y: state.rooms[i].y }, e.room)));
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = rng.int(0, i);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const furniture = state.furniture;
+    const floorLike = { map: state.map, rooms: state.rooms, torches: state.torches, start: state.start, stairs: state.stairs, specials: [] };
+    for (const index of order) {
+      const room = state.rooms[index];
+      const cells: Point[] = [];
+      for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (this.npcFree(state, x, y)) cells.push({ x, y });
+      if (cells.length === 0) continue;
+      const pen = carvePocket(floorLike, furniture, rng, index, 3, 3);
+      if (!pen) continue;
+      state.map.set(pen.entry.x, pen.entry.y, Tile.DoorLocked);
+      const perp = { x: pen.dir.y !== 0 ? 1 : 0, y: pen.dir.x !== 0 ? 1 : 0 };
+      const back = (a: number) => ({ x: pen.entry.x + pen.dir.x * 3 + perp.x * a, y: pen.entry.y + pen.dir.y * 3 + perp.y * a });
+      state.map.set(back(-1).x, back(-1).y, Tile.Chest);
+      furniture.push({ x: back(1).x, y: back(1).y, kind: "hayBale" });
+      state.map.set(back(1).x, back(1).y, Tile.Furniture);
+      const at = cells[rng.int(0, cells.length - 1)];
+      return { x: at.x, y: at.y, door: { ...pen.entry }, crash: back(0), room: index, pen: pen.room, done: false };
     }
     return null;
   }
@@ -1545,10 +1583,7 @@ export class Game {
       well.x = st.wellTo.x;
       well.y = st.wellTo.y;
       st.wellTo = undefined;
-      if (m.aloft) {
-        m.x = well.x;
-        m.y = well.y;
-      }
+      if (m.aloft) this.perchOnWell(m, well);
       this.events.push({ type: "priestess", what: "moved", x: well.x, y: well.y });
       this.refreshLight();
       return;
@@ -1625,8 +1660,7 @@ export class Game {
   private raiseColossus(pr: Actor, well: Furniture): void {
     const lair = this.current.boss!.lair;
     pr.aloft = true;
-    pr.x = well.x;
-    pr.y = well.y;
+    this.perchOnWell(pr, well);
     pr.chanting = false;
     const cx = lair.x + Math.floor(lair.w / 2) - 1;
     const cy = lair.y + Math.floor(lair.h / 2) - 1;
@@ -1767,6 +1801,42 @@ export class Game {
   }
 
   /** Une case libre près d'un point (pour poser la Prêtresse qui redescend). */
+  /**
+   * La Prêtresse monte dans le puits : sur sa case, ou à côté si le héros (ou un monstre) s'y tient (Thomas, 2026-11-24 :
+   * « je peux être superposé au boss 3 »).
+   */
+  private perchOnWell(pr: Actor, well: Point): void {
+    const taken = (x: number, y: number) => (x === this.hero.x && y === this.hero.y) || this.monsters.some((o) => o !== pr && occupies(o, x, y));
+    const spot = taken(well.x, well.y) ? this.nearFree(well) : well;
+    if (!spot) return;
+    pr.x = spot.x;
+    pr.y = spot.y;
+  }
+
+  /** Repousse le héros loin de `from` (au plus `steps` cases libres), et le jette à terre un tour. */
+  private sweepHero(from: Actor, steps: number): void {
+    const c = { x: from.x + ((from.size ?? 1) - 1) / 2, y: from.y + ((from.size ?? 1) - 1) / 2 };
+    const dx = Math.sign(this.hero.x - c.x);
+    const dy = Math.sign(this.hero.y - c.y);
+    const start = { x: this.hero.x, y: this.hero.y };
+    for (let i = 0; i < steps && (dx || dy); i++) {
+      const nx = this.hero.x + dx;
+      const ny = this.hero.y + dy;
+      if (!this.map.isWalkable(nx, ny) || this.map.get(nx, ny) === Tile.DoorClosed || this.monsterAt(nx, ny) || this.npcAt(nx, ny) || !canStep(this.map, this.hero.x, this.hero.y, dx, dy)) break;
+      this.hero.x = nx;
+      this.hero.y = ny;
+    }
+    this.hero.fromX = start.x;
+    this.hero.fromY = start.y;
+    this.path = [];
+    this.hero.prone = Math.max(this.hero.prone ?? 0, 1);
+    this.events.push({ type: "swept", fromX: start.x, fromY: start.y, x: this.hero.x, y: this.hero.y });
+    if (this.hero.x !== start.x || this.hero.y !== start.y) {
+      this.collectGold();
+      this.springTrap(this.hero);
+    }
+  }
+
   private nearFree(p: Point): Point | null {
     for (let r = 0; r <= 3; r++) {
       for (let dy = -r; dy <= r; dy++) {
@@ -2336,6 +2406,18 @@ export class Game {
 
   /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
   private resolveBreak(at: Point): void {
+    // Le trou aux poulets : s'ils courent encore, ils s'affolent et tombent ; ensuite, on fouille : une omelette.
+    const ring = this.current.chickenRing;
+    if (ring && ring.x === at.x && ring.y === at.y && Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) <= 1) {
+      if (!ring.fallen) this.chickensFall(ring);
+      else if (!ring.searched) {
+        ring.searched = true;
+        const to = this.landingCell(this.hero, "omelette");
+        this.dropItem(to.x, to.y, "omelette", 1);
+        this.events.push({ type: "chickenRing", what: "omelette", x: at.x, y: at.y, seen: true });
+      } else this.events.push({ type: "chickenRing", what: "empty", x: at.x, y: at.y, seen: true });
+      return;
+    }
     // La tombe du héros précédent : on lit son épitaphe ; la première fois, on récupère l'objet qu'il a laissé.
     const grave = this.graveAt(at.x, at.y);
     if (grave && Math.max(Math.abs(grave.x - this.hero.x), Math.abs(grave.y - this.hero.y)) <= 1) {
@@ -4930,6 +5012,62 @@ export class Game {
     state.map.set(at.x, at.y, Tile.Furniture);
   }
 
+  /** Le trou aux poulets : au milieu d'une salle ordinaire, le trou et les 8 cases autour libres (la piste de course). */
+  private placeChickenRing(state: FloorState): void {
+    const startRoom = state.rooms.find((r) => this.inRect(state.start, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }));
+    const themed = new Set((state.themes ?? []).map((t) => t.room));
+    const free = (x: number, y: number) =>
+      state.map.get(x, y) === Tile.Floor &&
+      !state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) &&
+      !state.ground.some((g) => g.x === x && g.y === y) &&
+      !state.traps.some((t) => t.x === x && t.y === y) &&
+      !state.monsters.some((m) => occupies(m, x, y)) &&
+      !(state.stairs.x === x && state.stairs.y === y);
+    for (const [i, r] of state.rooms.entries()) {
+      if (r === startRoom || themed.has(i) || r.w < 5 || r.h < 5) continue;
+      const cx = r.x + Math.floor(r.w / 2);
+      const cy = r.y + Math.floor(r.h / 2);
+      if ((state.enigmas ?? []).some((e) => this.inRect({ x: cx, y: cy }, { x: e.room.x - 2, y: e.room.y - 2, w: e.room.w + 4, h: e.room.h + 4 }))) continue;
+      let ok = true;
+      for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1; dx++) if (!free(cx + dx, cy + dy)) ok = false;
+      if (!ok) continue;
+      // Ni PNJ tout près, ni passage coupé par le trou.
+      const npcs = NPC_IDS.map((id) => (state as unknown as Record<string, Point | undefined>)[id]).filter((p): p is Point => !!p);
+      if (npcs.some((p) => Math.max(Math.abs(p.x - cx), Math.abs(p.y - cy)) <= 2)) continue;
+      if (isChokepoint(state.map, cx, cy, (a, b) => state.map.isWalkable(a, b) && !state.furniture.some((f) => f.x === a && f.y === b && FURNITURE_KINDS[f.kind]?.blocks))) continue;
+      state.furniture.push({ x: cx, y: cy, kind: "trouPoulets" });
+      state.map.set(cx, cy, Tile.Furniture);
+      state.chickenRing = { x: cx, y: cy };
+      return;
+    }
+  }
+
+  /** Le trou aux poulets de l'étage, s'il y en a un. */
+  chickenRing(): FloorState["chickenRing"] {
+    return this.current?.chickenRing;
+  }
+
+  private chickenHoleAt(x: number, y: number): boolean {
+    const r = this.current.chickenRing;
+    return !!r && r.x === x && r.y === y;
+  }
+
+  /** Vus, les poulets courent encore quelques tours, puis tombent dans le trou, l'un après l'autre. */
+  private chickenRingTick(): void {
+    const r = this.current.chickenRing;
+    if (!r || r.fallen) return;
+    if (r.seenAt === undefined) {
+      if (this.isVisible(r.x, r.y)) r.seenAt = this.turn;
+      return;
+    }
+    if (this.turn - r.seenAt >= RULES.chickenRingTurns) this.chickensFall(r);
+  }
+
+  private chickensFall(r: NonNullable<FloorState["chickenRing"]>): void {
+    r.fallen = true;
+    this.events.push({ type: "chickenRing", what: "fall", x: r.x, y: r.y, seen: this.isVisible(r.x, r.y) });
+  }
+
   /** La tombe du héros précédent à cette case. */
   graveAt(x: number, y: number): Furniture | undefined {
     return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind.startsWith("tombeHeros"));
@@ -5596,7 +5734,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.graveAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.graveAt(x, y) || this.chickenHoleAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y)) && !(this.monsterAt(x, y) && this.isVisible(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -6240,6 +6378,7 @@ export class Game {
     this.zoneStep();
     this.questTick();
     this.enigmaTick();
+    this.chickenRingTick();
     this.boutTick();
     this.turn++;
     // Tocsin : le temps passé sur l'étage fait monter l'alerte, et chaque coup échangé fait du bruit.
@@ -11673,7 +11812,13 @@ export class Game {
         continue;
       }
       if (m.defId === "brasColosse") {
-        if (!m.stunned && !m.petrified && gapBetween(m, this.hero) <= 1 && !this.over) this.monsterStrikes(m);
+        if (!m.stunned && !m.petrified && gapBetween(m, this.hero) <= 1 && !this.over) {
+          const hp = this.hero.hp;
+          this.monsterStrikes(m);
+          // Le bras BALAIE (Thomas, 2026-11-24 : « le grand squelette devrait pouvoir pousser et faire tomber ») : touché,
+          // le héros est repoussé d'une ou deux cases et tombe à terre un tour.
+          if (this.hero.hp < hp && !this.over) this.sweepHero(m, RULES.colossusSweep);
+        }
         else if (m.stunned) m.stunned--;
         else if (m.petrified && --m.petrified === 0) this.thaw(m);
         continue;

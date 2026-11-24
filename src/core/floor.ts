@@ -116,6 +116,11 @@ export interface FloorState {
   secretRoom?: import("../world/secretRoom").SecretRoom;
   /** Salles à énigme de l'étage (Thomas, 2026-11-21). */
   enigmas?: Enigma[];
+  /**
+   * LE TROU AUX POULETS (Thomas, 2026-11-24) : trois poulets qui se courent après en cercle autour d'un trou, puis y
+   * tombent ; fouiller le trou donne une omelette. `seenAt` : tour où le héros l'a vu ; `fallen` : ils sont tombés.
+   */
+  chickenRing?: { x: number; y: number; seenAt?: number; fallen?: boolean; searched?: boolean };
   /** Faux murs du pinceau magique (2026-11-18) : la case, les tours avant qu'il s'efface. */
   fakeWalls?: { x: number; y: number; turns: number }[];
   /** Section 2 : salles où les champignons se sont refermés après un bruit, jusqu'à ce tour. */

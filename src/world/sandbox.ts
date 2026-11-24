@@ -472,7 +472,7 @@ function addArmory(
   zone(X(117), Y(27), 5, "Sacs", "#9c7b4f", [["sac_toile", 1], ["sac_cuir", 1], ["sac_voyage", 1]], 2);
   zone(X(97), Y(31), 8, "Gemmes et or", "#5cb8c9", [["amethyste", 1], ["saphir", 1], ["emeraude", 1], ["diamant", 1], ["oeuf_or", 1], ["or", 5], ["or", 15], ["or", 40]]);
   zone(X(106), Y(31), 7, "Bibelots", "#d47a9e", [["oeil_chauve_souris", 1], ["flute_pan", 1], ["noeud_papillon", 1], ["outils_voleur", 1], ["d20_enchante", 1], ["bombe_arcanique", 3]]);
-  zone(X(115), Y(31), 8, "Vivres et lumière", "#d9853b", [["pomme", 3], ["pomme_pourrie", 2], ["escalope", 1], ["cuisse_poulet", 1], ["morille", 2], ["carotte_magique", 1], ["tourte_fossoyeur", 1], ["torche", 2]], 1);
+  zone(X(115), Y(31), 9, "Vivres et lumière", "#d9853b", [["pomme", 3], ["pomme_pourrie", 2], ["escalope", 1], ["cuisse_poulet", 1], ["morille", 2], ["carotte_magique", 1], ["tourte_fossoyeur", 1], ["omelette", 1], ["torche", 2]], 1);
   // Les objets de quête et la clef (Thomas, 2026-11-14 : « il manque beaucoup d'objets dans la salle de test »).
   zone(X(97), Y(34), 8, "Objets de quête", "#e0c070", [["sac_pommes", 1], ["magot_krik", 1], ["marmite", 1], ["louche", 1], ["corde", 1], ["poule_or", 1], ["clef", 1], ["corne_triceratops", 1]]);
   // Les amulettes (Thomas, 2026-11-15).

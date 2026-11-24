@@ -340,6 +340,8 @@ export const ITEMS = {
   morille: { id: "morille", name: "Morille", kind: "use", description: "Une morille de Morillon, alvéolée et parfumée. Rend 9 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 9 },
   // L'Elfe part avec deux pains elfiques (Thomas, 2026-11-17 : « du Lembas +3, ×2 » ; nom propre au jeu).
   pain_elfique: { id: "pain_elfique", name: "Pain elfique", kind: "use", description: "Une galette dorée, enveloppée dans une feuille qui ne fane pas. Une bouchée suffit. Rend 3 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 3 },
+  // L'omelette du trou aux poulets (Thomas, 2026-11-24 : « si on fouille le trou, on trouve une omelette »).
+  omelette: { id: "omelette", name: "Omelette", kind: "use", description: "Trois œufs, une chute, et beaucoup de chance : elle est encore chaude. Rend 12 PV.", w: 1, h: 1, maxStack: 1, rarity: "uncommon", heal: 12 },
   pomme: { id: "pomme", name: "Pomme", kind: "use", description: "Croquante. Rend 5 PV.", w: 1, h: 1, maxStack: 5, rarity: "common", heal: 5 },
   torche: {
     id: "torche",

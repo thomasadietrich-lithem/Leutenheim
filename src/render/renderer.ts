@@ -257,6 +257,14 @@ function wallFaces(kind: string): readonly (readonly [number, number])[] {
 
 type StainShown = { color: StainColor; shape: 0 | 1 | 2; turn?: number };
 
+/** Un nombre entre 0 et 1, toujours le même pour un même entier (le dessin ne tire pas au hasard). */
+function hash01(n: number): number {
+  let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 /** Les yeux fermés : chaque pixel d'œil (« O ») pris entre deux pixels de peau (« S ») devient un trait de peau sombre. */
 const closedCache = new WeakMap<readonly string[], readonly string[]>();
 function closedEyes(rows: readonly string[]): readonly string[] {
@@ -474,7 +482,85 @@ export class Renderer {
 
   /** Un monstre est vaincu : son corps reste étendu une seconde, puis s'efface. */
   monsterDies(actor: Actor): void {
+    // Morts du boss de la section 3 (Thomas, 2026-11-24 : « une animation quand le grand squelette meurt » ; « quand la
+    // Prêtresse est morte, une animation, et j'ai eu l'araignée KO à la place ») : le Colosse s'écroule en pluie d'os,
+    // la Prêtresse se défait en lumière qui monte. Leurs morceaux (bras, crâne) tombent en poussière ; la cloche du
+    // Carillon reste à terre (dessinée à part).
+    if (actor.defId === "colosse") {
+      this.crumbles.push({ art: PRETRESSE.co_000, x: actor.x + 1.5, bottom: actor.y + 3, scale: 1, mode: "fall", age: 0, life: 2600 });
+      return;
+    }
+    if (actor.defId === "pretresse") {
+      this.crumbles.push({ art: PRETRESSE.pr_dead, x: actor.x + 0.5, bottom: actor.y + 1, scale: 0.7, mode: "rise", age: 0, life: 3000 });
+      return;
+    }
+    if (actor.defId === "brasColosse" || actor.defId === "craneColosse") {
+      this.addPuff(actor.x, actor.y);
+      return;
+    }
+    if (actor.defId === "carillon") return;
     this.corpses.push({ actor, age: 0, facing: this.monsterFacing.get(actor.id) ?? "down" });
+  }
+
+  /** Un grand sprite qui se défait pixel par pixel : `fall` (les os s'écroulent et rebondissent), `rise` (la lumière monte). */
+  private crumbles: { art: { rows: readonly string[]; palette: Record<string, string> }; x: number; bottom: number; scale: number; mode: "fall" | "rise"; age: number; life: number }[] = [];
+
+  private drawCrumbles(ox: number, oy: number, dt: number): void {
+    const { ctx, tile } = this;
+    this.crumbles = this.crumbles.filter((c) => (c.age += dt) < c.life);
+    for (const c of this.crumbles) {
+      const rows = c.art.rows;
+      const u = (tile / 16) * c.scale;
+      const w = rows[0].length * u;
+      const h = rows.length * u;
+      const left = ox + c.x * tile - w / 2;
+      const top = oy + c.bottom * tile - h;
+      const ground = oy + c.bottom * tile;
+      const t = c.age / 1000;
+      const k = c.age / c.life;
+      const fade = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+      if (c.mode === "rise" && c.age < 500) {
+        // L'éclair de lune, au moment où elle tombe.
+        const g = ctx.createRadialGradient(left + w / 2, top + h / 2, tile * 0.1, left + w / 2, top + h / 2, tile * 2);
+        g.addColorStop(0, `rgba(210,180,255,${(0.7 * (1 - c.age / 500)).toFixed(2)})`);
+        g.addColorStop(1, "rgba(210,180,255,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(left - tile * 2, top - tile * 2, w + tile * 4, h + tile * 4);
+      }
+      for (let j = 0; j < rows.length; j++) {
+        const row = rows[j];
+        for (let i = 0; i < row.length; i++) {
+          const ch = row[i];
+          if (ch === "." || ch === " ") continue;
+          const color = c.art.palette[ch];
+          if (!color) continue;
+          const r1 = hash01(i * 31 + j * 17 + 7);
+          const r2 = hash01(i * 13 + j * 29 + 11);
+          let x = left + i * u;
+          let y = top + j * u;
+          if (c.mode === "fall") {
+            // Les rangées du haut partent un peu après ; chute avec la pesanteur, petit rebond au sol, un peu d'écart.
+            const start = 0.15 + 0.35 * (1 - j / rows.length) + 0.15 * r1;
+            const s = Math.max(0, t - start);
+            const drop = 0.5 * 9 * s * s * tile;
+            const floorY = ground - u - r2 * tile * 0.35;
+            y = Math.min(y + drop, floorY);
+            x += (r1 - 0.5) * s * tile * 1.2;
+            ctx.globalAlpha = fade;
+          } else {
+            // Chaque pixel s'élève en ondulant et pâlit.
+            const start = 0.2 + 0.6 * r1;
+            const s = Math.max(0, t - start);
+            y -= s * tile * (0.8 + 0.8 * r2);
+            x += Math.sin(s * 4 + r2 * 6) * tile * 0.12 * s;
+            ctx.globalAlpha = s > 0 ? Math.max(0, fade * (1 - s / 2.2)) : fade;
+          }
+          ctx.fillStyle = c.mode === "rise" && t > 0.2 + 0.6 * r1 ? "#d8c4ff" : color;
+          ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(u), Math.ceil(u));
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
   /** Le héros est tombé : il reste étendu au sol. */
@@ -644,6 +730,68 @@ export class Renderer {
   runChicken(path: { x: number; y: number }[], door: { x: number; y: number } | undefined, onDoor: () => void, onCrash: () => void, onCell?: (p: { x: number; y: number }) => void): void {
     const di = door ? path.findIndex((p) => p.x === door.x && p.y === door.y) : -1;
     this.chickenRun = { path, start: performance.now(), door: di < 0 ? path.length - 1 : di, onDoor, onCrash, doorDone: false, onCell, cell: -1 };
+  }
+
+  /** Les poulets du trou tombent : instant de début de la chute (Thomas, 2026-11-24). */
+  chickenRingFall(): void {
+    this.ringFallAt = this.time;
+  }
+  private ringFallAt: number | null = null;
+
+  /**
+   * LE TROU AUX POULETS (Thomas, 2026-11-24) : un trou de terre au milieu de la salle ; trois poulets se courent après en
+   * cercle tout autour ; à la chute, chacun à son tour glisse en spirale vers le trou et disparaît dedans.
+   */
+  private drawChickenRing(game: Game, ox: number, oy: number): void {
+    const r = game.chickenRing();
+    if (!r || !game.isExplored(r.x, r.y)) return;
+    const { ctx, tile } = this;
+    const hx = ox + (r.x + 0.5) * tile;
+    const hy = oy + (r.y + 0.55) * tile;
+    // Le trou : bord de terre, fond noir.
+    ctx.fillStyle = "#4a3828";
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, tile * 0.46, tile * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#08060a";
+    ctx.beginPath();
+    ctx.ellipse(hx, hy + tile * 0.03, tile * 0.36, tile * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (r.fallen && r.searched) return;
+    // Après la chute : deux plumes au bord du trou.
+    const since = this.ringFallAt === null ? Infinity : this.time - this.ringFallAt;
+    if (r.fallen && since > 1600) {
+      ctx.fillStyle = "#f6f2e6";
+      ctx.fillRect(Math.round(hx - tile * 0.25), Math.round(hy - tile * 0.2), Math.ceil(tile / 8), Math.ceil(tile / 16));
+      ctx.fillRect(Math.round(hx + tile * 0.18), Math.round(hy + tile * 0.12), Math.ceil(tile / 8), Math.ceil(tile / 16));
+      return;
+    }
+    if (!game.isVisible(r.x, r.y) && !(r.fallen && since < 1600)) return;
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    for (let k = 0; k < 3; k++) {
+      const a = (this.time / 1600) * Math.PI * 2 + (k * Math.PI * 2) / 3;
+      let rad = 1;
+      let scale = 1;
+      if (r.fallen) {
+        const s = Math.max(0, Math.min(1, (since - k * 350) / 600));
+        rad = 1 - s;
+        scale = 1 - 0.7 * s;
+        if (s >= 1) continue;
+      }
+      const px = hx + Math.cos(a) * tile * rad;
+      const py = hy + Math.sin(a) * tile * rad * 0.75;
+      // Il court vers la gauche ou la droite selon son sens sur le cercle.
+      const mirror = -Math.sin(a) < 0;
+      const size = Math.round(tile * 0.8 * scale);
+      const rows = Math.floor(this.time / 90 + k) % 2 === 0 ? POULET.run : POULET.idle;
+      ctx.save();
+      ctx.translate(Math.round(px), 0);
+      if (mirror) ctx.scale(-1, 1);
+      ctx.drawImage(this.sprite(rows, POULET_PALETTE), -size / 2, Math.round(py - size * 0.85), size, size);
+      ctx.restore();
+    }
+    ctx.imageSmoothingEnabled = smooth;
   }
 
   /** Les poules du pré (ferme) : elles trottinent d'une case à l'autre et picorent. */
@@ -2446,10 +2594,11 @@ export class Renderer {
     }
 
     // Corps des monstres vaincus : étendus, puis effacés.
+    this.drawCrumbles(ox, oy, this.lastDt);
     for (const c of this.corpses) {
       if (!game.isVisible(c.actor.x, c.actor.y)) continue;
       ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
-      if (c.actor.boss) {
+      if (c.actor.defId === "tisseuse") {
         const art = BOSS.tisseuse_dead;
         this.drawBig(art.rows, art.palette, ox + (c.actor.x + 1) * tile, oy + (c.actor.y + 1) * tile, false);
         ctx.globalAlpha = 1;
@@ -2691,6 +2840,7 @@ export class Renderer {
     this.drawGoldHen(game, ox, oy, progress);
     this.drawChicken(game, ox, oy, dt);
     this.drawHens(game, ox, oy, progress);
+    this.drawChickenRing(game, ox, oy);
     this.drawStatueGlints(game, ox, oy);
     // Héros : son sprite animé.
     // Statue (potion de pierre) : le héros est dessiné en pierre grise.

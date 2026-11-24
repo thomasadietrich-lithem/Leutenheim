@@ -14,7 +14,7 @@ Parameters:
   MaxConcurrency:
     Type: Number
     Default: 5
-    Description: Appels simultanes au plus (garde-fou contre les abus et la facture).
+    Description: Appels simultanes au plus (garde-fou contre les abus et la facture). 0 = pas de reserve (compte AWS neuf, deja limite a 10 appels simultanes au total).
   MaxPer5Min:
     Type: Number
     Default: 300
@@ -42,6 +42,7 @@ Parameters:
 
 Conditions:
   HasEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+  Reserve: !Not [!Equals [!Ref MaxConcurrency, 0]]
   HasPassword: !Not [!Equals [!Ref DashboardPassword, ""]]
 
 Resources:
@@ -107,7 +108,7 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Timeout: 5
-      ReservedConcurrentExecutions: !Ref MaxConcurrency
+      ReservedConcurrentExecutions: !If [Reserve, !Ref MaxConcurrency, !Ref "AWS::NoValue"]
       Role: !GetAtt FunctionRole.Arn
       Environment:
         Variables:
@@ -233,7 +234,6 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Timeout: 10
-      ReservedConcurrentExecutions: 1
       Role: !GetAtt BreakerRole.Arn
       Environment:
         Variables:
@@ -394,7 +394,6 @@ Resources:
       Handler: index.handler
       MemorySize: 512
       Timeout: 300
-      ReservedConcurrentExecutions: 1
       Role: !GetAtt AggregatorRole.Arn
       Environment:
         Variables:

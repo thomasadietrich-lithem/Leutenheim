@@ -22,7 +22,11 @@ if [ "$ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
 fi
 echo "Compte AWS : $ACCOUNT (LTH), région $REGION."
 
-OVERRIDES=()
+# Un compte AWS neuf n'a droit qu'à 10 appels simultanés au total et refuse qu'on en réserve : on s'adapte.
+LIMIT="$(aws lambda get-account-settings --region "$REGION" --query AccountLimit.ConcurrentExecutions --output text)"
+RESERVE=0; if [ "$LIMIT" -ge 105 ]; then RESERVE=5; fi
+echo "Appels simultanés autorisés sur ce compte : $LIMIT (réservés aux statistiques : $RESERVE)."
+OVERRIDES=("MaxConcurrency=$RESERVE")
 if [ -n "${ALERT_EMAIL:-}" ]; then OVERRIDES+=("AlertEmail=$ALERT_EMAIL"); fi
 if [ "${1:-}" = "--tableau" ]; then
   read -r -s -p "Mot de passe du tableau de bord (12 caractères au moins, rien ne s'affiche) : " PASS1; echo

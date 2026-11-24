@@ -86,6 +86,7 @@ export interface SavedFloor {
   fifrelin?: import("./floor").GluckSpot;
   courier?: import("./floor").FloorState["courier"];
   secretRoom?: import("./floor").FloorState["secretRoom"];
+  enigmas?: import("./floor").FloorState["enigmas"];
   look?: "champi" | "ossuaire";
   mossBurnt?: number[];
   goldChest?: Point;

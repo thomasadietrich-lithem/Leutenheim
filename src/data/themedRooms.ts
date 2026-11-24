@@ -460,6 +460,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   cibleBleueTombee: { blocks: false, w: 1, h: 1, burns: true },
   cibleNoireD: { blocks: true, w: 1, h: 1, burns: false },
   cibleNoireG: { blocks: true, w: 1, h: 1, burns: false },
+  cibleNoireH: { blocks: true, w: 1, h: 1, burns: false },
+  cibleNoireB: { blocks: true, w: 1, h: 1, burns: false },
   barriere: { blocks: true, w: 1, h: 1, burns: true },
   racines: { blocks: true, w: 1, h: 1, burns: true },
   herse: { blocks: true, w: 1, h: 1, burns: false },

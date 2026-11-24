@@ -1452,7 +1452,7 @@ test("coffre : en s'ouvrant, il fait tomber son or et un objet à côté de lui"
     let at: { x: number; y: number } | null = null;
     for (let y = 0; y < game.map.height && !at; y++) {
       for (let x = 0; x < game.map.width; x++) {
-        if (game.map.get(x, y) === Tile.Chest) {
+        if (game.map.get(x, y) === Tile.Chest && !game.silverChestAt(x, y)) {
           at = { x, y };
           break;
         }
@@ -2920,8 +2920,9 @@ test("passages : aucun PNJ dans un couloir, devant une porte ou un goulet ; aucu
         assert.ok(!isChokepoint(map, g.x, g.y), `graine ${seed} : PNJ dans un goulet (${g.x}, ${g.y})`);
       }
       for (const f of game.furnitureList()) {
-        // La grille d'une alcôve de prison ferme sa cellule, exprès : ce n'est pas un passage.
-        if (!FURNITURE_KINDS[f.kind]?.blocks || f.kind === "grille") continue;
+        // La grille d'une alcôve de prison ferme sa cellule, exprès : ce n'est pas un passage. De même les salles à
+        // énigme : cibles, racines, eau profonde, herse ferment la petite pièce de la clef (2026-11-24).
+        if (!FURNITURE_KINDS[f.kind]?.blocks || f.kind === "grille" || ["cible", "cibleBleue", "barriere", "racines", "eauProfonde", "herse", "gardien", "cibleNoireG", "cibleNoireD", "cibleNoireH", "cibleNoireB"].includes(f.kind)) continue;
         for (const c of furnitureCells(f)) {
           // Le plan de la salle nue (murs, colonnes, portes) : la case serait-elle un goulet ?
           const cut = isChokepoint(map, c.x, c.y, (a, b) => { const t = map.get(a, b); return t !== Tile.Wall && t !== Tile.Pillar && t !== Tile.DoorLocked; });
@@ -3850,7 +3851,9 @@ test("section 2 dans le donjon : les étages 6 à 10 sont « champi », praticab
     // (La pièce secrète, murée, n'est pas encore ouverte.)
     const secret = game.secretRoom();
     const hidden = secret && !secret.found ? secret.room.w * secret.room.h : 0;
-    assert.ok(seen.size >= total - hidden, `graine ${seed} : ${total - seen.size} cases inaccessibles`);
+    // (La petite pièce d'une salle à énigme ne s'ouvre qu'en résolvant l'énigme.)
+    const puzzle = game.enigmas().reduce((n, e) => n + e.room.w * e.room.h, 0);
+    assert.ok(seen.size >= total - hidden - puzzle, `graine ${seed} : ${total - seen.size} cases inaccessibles`);
     assert.equal(new Game(seed).look(), "s1", "l'étage 1 garde le décor de la section 1");
   }
   assert.ok(mounds > 0, "des éboulements");
@@ -7274,4 +7277,35 @@ test("Salles à énigme (2026-11-21) : zone d'essai, les 6 énigmes se résolven
   } finally {
     setSandboxSection(1);
   }
+});
+
+test("Salles à énigme dans le donjon (2026-11-24) : deux par section, jamais deux fois la même, le rebond dès l'étage 6, l'objet sur l'étage", async () => {
+  const { ENIGMA_ITEMS } = await import("../src/world/enigmaRooms");
+  let sections = 0;
+  let full = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    const game = new Game(seed * 37);
+    game.testRun = true;
+    const seen = new Set<string>();
+    for (const section of [0, 1, 2]) {
+      let n = 0;
+      for (const k of [1, 2, 3, 4]) {
+        const d = section * 5 + k;
+        if (game.depth !== d) assert.ok(game.teleport(d), `étage ${d}`);
+        for (const e of game.enigmas()) {
+          n++;
+          assert.ok(!seen.has(e.kind), `graine ${seed} : ${e.kind} deux fois`);
+          seen.add(e.kind);
+          if (e.kind === "rebond") assert.ok(d >= 6, "le rebond, pas avant l'étage 6");
+          assert.ok(game.ground.some((g) => g.item === ENIGMA_ITEMS[e.kind].item), `graine ${seed} étage ${d} : ${ENIGMA_ITEMS[e.kind].item} posé`);
+          assert.ok(game.silverChestAt(e.chest.x, e.chest.y), "le coffre d'argent");
+          if (e.kind !== "rebond") assert.ok(game.ground.some((g) => g.item === "clef_argent"), "la clef d'argent");
+        }
+      }
+      sections++;
+      if (n >= 2) full++;
+      assert.ok(n >= 1, `graine ${seed} section ${section + 1} : aucune salle à énigme`);
+    }
+  }
+  assert.ok(full / sections >= 0.85, `deux salles par section : ${full}/${sections}`);
 });

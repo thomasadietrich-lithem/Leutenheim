@@ -274,7 +274,7 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
   let museum: number | undefined;
   const museumRoll = rng.chance(RULES.museumChance);
   if ((museumRoll && forceSpecial !== "chapel") || forceSpecial === "museum") {
-    const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && i !== chapel && rooms[i].w >= 9 && rooms[i].h >= 5);
+    const fits = rooms.map((r, i) => i).filter((i) => i !== 0 && i !== startRoom && i !== stairsRoom && i !== chapel && !avoidRooms.includes(i) && rooms[i].w >= 9 && rooms[i].h >= 5);
     for (const i of fits.sort(() => rng.next() - 0.5)) {
       if (furnishMuseum(floor, furniture, rooms[i])) {
         museum = i;
@@ -286,7 +286,8 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
   // ---------- Mobilier ----------
   const count = new Map<string, number>();
   rooms.forEach((room, index) => {
-    if (index === startRoom || index === chapel || index === museum || room.w < 4 || room.h < 3) return;
+    // Ni mobilier dans une salle à énigme (avoidRooms).
+    if (index === startRoom || index === chapel || index === museum || avoidRooms.includes(index) || room.w < 4 || room.h < 3) return;
     for (let k = rng.int(1, room.w * room.h >= 30 ? 3 : 2); k > 0; k--) {
       const choices = PIECES.filter((p) => (count.get(p.kind) ?? 0) < (p.max ?? 99));
       let pick = rng.next() * choices.reduce((s, p) => s + p.weight, 0);

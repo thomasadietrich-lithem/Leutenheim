@@ -73,6 +73,24 @@ def deflector(slash=True):
     return s.done()
 
 
+def deflector_front(front=True):
+    """Cible noire de rebond posée contre le mur du HAUT (face vers le bas : on voit ses anneaux) ou du BAS (on voit son
+    dos de bois). Pour les salles de rebond en largeur."""
+    s = Sprite(16, 22)
+    s.r(4, 19, 8, 2, "shadow").r(7, 13, 2, 7, "iron_d").r(5, 19, 6, 1, "iron")
+    for y in range(15):
+        for x in range(16):
+            d = ((x - 7.5) / 6.4) ** 2 + ((y - 7) / 6.6) ** 2
+            if d > 1:
+                continue
+            if front:
+                c = "silver" if d > 0.8 else "black" if d > 0.52 else "black_l" if d > 0.3 else "black" if d > 0.1 else "silver_l"
+            else:
+                c = "wood_l" if d > 0.8 else "wood" if (x + y) % 5 else "wood_d"
+            s.p(x, y, c)
+    return s.done()
+
+
 def chest(open_=False):
     """Coffre d'argent (16 × 16) : bois sombre cerclé d'argent, serrure en forme de clef."""
     s = Sprite(16, 16)
@@ -457,7 +475,7 @@ def export():
           "Salles à énigme (planche art/salles_enigme_v1.png, Thomas 2026-11-21) : cibles, cibles noires de rebond, barrière, racines, herse, grande dalle, gardien.",
           {"cible": target().img(), "cibleBleue": target(True).img(), "cibleNoireD": deflector(True).img(), "cibleNoireG": deflector(False).img(),
            "barriere": fence().img(), "racines": roots().img(), "herse": gate().img(), "herseUp": gate(True).img(), "dalleGeant": plate().img(),
-           "gardien": guardian().img(), "piste": chalk().img(), "ligneTir": chalk(False).img(), "cibleBleueTombee": target_down().img()})
+           "gardien": guardian().img(), "piste": chalk().img(), "ligneTir": chalk(False).img(), "cibleBleueTombee": target_down().img(), "cibleNoireH": deflector_front(True).img(), "cibleNoireB": deflector_front(False).img()})
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "export":

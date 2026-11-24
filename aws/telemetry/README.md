@@ -84,3 +84,10 @@ Console AWS > Athena (région Paris) > groupe de travail « caveroller » > Requ
 - Étiquettes : `powershell -ExecutionPolicy Bypass -File etiquettes.ps1` ouvre le Bloc-notes (une ligne « CODE = Prénom »), puis envoie `tags.json` dans le bucket du tableau de bord (derrière le mot de passe). Décision de Thomas : les prénoms sont gardés sur AWS, « entorse acceptable à ce stade du dev ». Le jeu, lui, n'envoie toujours aucun nom.
 - Tableau de bord : filtre « Joueur » et carte « Joueurs » (parties, morts, meilleur étage, dernière partie).
 
+## Organisation sur le PC de Thomas et sécurité (2026-11-24, après l'audit)
+
+- Dossier du PC : `Bureau\Claude\LTH Studio\Cave Roller`. À la racine, seulement `Cave Roller - AWS.cmd` (un menu) et `LISEZ-MOI.txt` ; tout le reste dans `systeme\` (`menu.ps1`, `installer.ps1`, `cloudformation.yaml`, `dashboard\`). Ne pas ajouter de fichier à la racine.
+- `menu.ps1` : chaque action qui touche au compte commence par `aws logout` puis `aws login` (navigateur : mot de passe + code MFA) et finit par `aws logout`. Aucun accès AWS ne reste sur le PC entre deux usages.
+- Étiquettes : saisies dans le tableau de bord (carte « Joueurs »), enregistrées par la fonction « caveroller-stats-etiquettes », joignable seulement par CloudFront, derrière le mot de passe ; elle n'écrit que `tags.json`. `etiquettes.ps1` reste dans le dépôt en secours, il n'est plus déposé sur le PC.
+- Audit complet : `claude/statistiques/AUDIT_SECURITE.md` dans le Projet.
+

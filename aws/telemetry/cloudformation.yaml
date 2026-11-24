@@ -339,6 +339,14 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "caveroller-tableau-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-versions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         IgnorePublicAcls: true
@@ -507,11 +515,127 @@ Resources:
         - |
           function handler(event) {
             var h = event.request.headers.authorization;
-            if (h && h.value === "Basic ${Token}") return event.request;
+            if (h && h.value === "Basic ${Token}") { delete event.request.headers.authorization; return event.request; }
             return { statusCode: 401, statusDescription: "Unauthorized", headers: { "www-authenticate": { value: "Basic realm=\"Cave Roller\"" } } };
           }
         - Token: !Base64
             Fn::Sub: "lth:${DashboardPassword}"
+
+  # Etiquettes des joueurs (Thomas, 2026-11-24) : la page enregistre tags.json par cette fonction. Elle n'est
+  # joignable que par CloudFront (donc derriere le mot de passe) et ne sait ecrire que ce seul fichier.
+  TagsRole:
+    Type: AWS::IAM::Role
+    Condition: HasPassword
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: write-tags
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "${DashboardBucket.Arn}/tags.json"
+
+  TagsLogs:
+    Type: AWS::Logs::LogGroup
+    Condition: HasPassword
+    Properties:
+      LogGroupName: /aws/lambda/caveroller-stats-etiquettes
+      RetentionInDays: 90
+
+  TagsFunction:
+    Type: AWS::Lambda::Function
+    Condition: HasPassword
+    DependsOn: TagsLogs
+    Properties:
+      FunctionName: caveroller-stats-etiquettes
+      Description: Cave Roller - enregistre les etiquettes des joueurs (tags.json) pour le tableau de bord.
+      Runtime: nodejs24.x
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 10
+      Role: !GetAtt TagsRole.Arn
+      Environment:
+        Variables:
+          OUT: !Ref DashboardBucket
+      Code:
+        # Essai sans AWS : node aws/telemetry/test-bilan.mjs (lit ce code-ci dans le modele).
+        ZipFile: |
+          const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+          const reply = (statusCode, body) => ({ statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(body) });
+          // Garde seulement des codes joueur valides et des prenoms courts, sans signes dangereux.
+          function clean(input) {
+            if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+            const out = {};
+            for (const [code, name] of Object.entries(input)) {
+              if (!/^[A-HJ-NP-Z2-9]{5}$/.test(code) || typeof name !== "string") return null;
+              const text = name.replace(/[\u0000-\u001f<>"'&`\\]/g, "").trim().slice(0, 30);
+              if (text) out[code] = text;
+            }
+            return Object.keys(out).length <= 300 ? out : null;
+          }
+          exports.clean = clean;
+          exports.handler = async (event) => {
+            const h = event.headers || {};
+            if (event.requestContext?.http?.method !== "PUT") return reply(405, { erreur: "methode" });
+            if (!String(h["content-type"] || "").startsWith("application/json")) return reply(415, { erreur: "type" });
+            if (h["sec-fetch-site"] && h["sec-fetch-site"] !== "same-origin") return reply(403, { erreur: "origine" });
+            let raw = event.body || "";
+            if (event.isBase64Encoded) raw = Buffer.from(raw, "base64").toString("utf8");
+            if (raw.length > 20000) return reply(413, { erreur: "taille" });
+            let tags;
+            try { tags = clean(JSON.parse(raw)); } catch { tags = null; }
+            if (!tags) return reply(400, { erreur: "contenu" });
+            await new S3Client({}).send(new PutObjectCommand({ Bucket: process.env.OUT, Key: "tags.json", Body: JSON.stringify(tags), ContentType: "application/json; charset=utf-8", CacheControl: "no-store" }));
+            console.log("Etiquettes enregistrees :", Object.keys(tags).length);
+            return reply(200, { ok: true, nombre: Object.keys(tags).length });
+          };
+
+  TagsUrl:
+    Type: AWS::Lambda::Url
+    Condition: HasPassword
+    Properties:
+      TargetFunctionArn: !GetAtt TagsFunction.Arn
+      AuthType: AWS_IAM
+
+  TagsOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Condition: HasPassword
+    Properties:
+      OriginAccessControlConfig:
+        Name: caveroller-etiquettes
+        OriginAccessControlOriginType: lambda
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Seul CloudFront (cette distribution-ci) peut appeler la fonction des etiquettes.
+  TagsUrlPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasPassword
+    Properties:
+      FunctionName: !Ref TagsFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DashboardDistribution}"
+
+  TagsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasPassword
+    Properties:
+      FunctionName: !Ref TagsFunction
+      Action: lambda:InvokeFunction
+      Principal: cloudfront.amazonaws.com
+      InvokedViaFunctionUrl: true
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DashboardDistribution}"
 
   DashboardDistribution:
     Type: AWS::CloudFront::Distribution
@@ -529,6 +653,23 @@ Resources:
             OriginAccessControlId: !GetAtt DashboardOAC.Id
             S3OriginConfig:
               OriginAccessIdentity: ""
+          - Id: etiquettes
+            DomainName: !Select [2, !Split ["/", !GetAtt TagsUrl.FunctionUrl]]
+            OriginAccessControlId: !GetAtt TagsOAC.Id
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        CacheBehaviors:
+          - PathPattern: api/tags
+            TargetOriginId: etiquettes
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            Compress: false
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # AllViewerExceptHostHeader
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt DashboardAuth.FunctionMetadata.FunctionARN
         DefaultCacheBehavior:
           TargetOriginId: tableau
           ViewerProtocolPolicy: redirect-to-https

@@ -42,3 +42,25 @@ assert.equal(playerCode("appareil-a"), "KFJC7", "même calcul que playerCode dan
 assert.equal(new Set(out.runs.map((r) => r.device)).size, 2, "a1 et a2 viennent du même appareil");
 assert.equal(out.genere, "2026-11-24");
 console.log("Bilan : tous les essais passent (" + out.runs.length + " parties).");
+
+// --- Étiquettes : le filtre de la fonction « caveroller-stats-etiquettes », lu lui aussi dans le modèle.
+const startTags = yaml.indexOf("ZipFile: |", yaml.indexOf("FunctionName: caveroller-stats-etiquettes"));
+const codeTags = [];
+for (const line of yaml.slice(startTags).split("\n").slice(1)) { if (line.trim() && !line.startsWith("          ")) break; codeTags.push(line.slice(10)); }
+const modTags = { exports: {} };
+new Function("require", "exports", "module", "process", codeTags.join("\n"))(() => ({}), modTags.exports, modTags, { env: {} });
+const { clean, handler } = modTags.exports;
+assert.deepEqual(clean({ KFJC7: "  Florian  ", S9GCP: "" }), { KFJC7: "Florian" }, "prénom nettoyé, étiquette vide retirée");
+assert.deepEqual(clean({ KFJC7: "<img src=x onerror=alert(1)>" }), { KFJC7: "img src=x onerror=alert(1)" }, "signes dangereux retirés");
+assert.equal(clean({ "../x": "a" }), null, "code invalide : tout est refusé");
+assert.equal(clean({ KFJC7: 12 }), null, "prénom qui n'est pas un texte : refusé");
+assert.equal(clean([1, 2]), null);
+assert.equal(clean({ KFJC7: "x".repeat(80) }).KFJC7.length, 30, "30 signes au plus");
+const call = (method, headers, body) => handler({ requestContext: { http: { method } }, headers, body });
+assert.equal((await call("POST", { "content-type": "application/json" }, "{}")).statusCode, 405, "seul PUT est accepté");
+assert.equal((await call("PUT", { "content-type": "text/plain" }, "{}")).statusCode, 415);
+assert.equal((await call("PUT", { "content-type": "application/json", "sec-fetch-site": "cross-site" }, "{}")).statusCode, 403, "appel venu d'un autre site : refusé");
+assert.equal((await call("PUT", { "content-type": "application/json" }, "pas du json")).statusCode, 400);
+assert.equal((await call("PUT", { "content-type": "application/json" }, "x".repeat(30000))).statusCode, 413);
+console.log("Étiquettes : tous les essais passent.");
+

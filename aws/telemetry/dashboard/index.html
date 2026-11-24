@@ -52,6 +52,12 @@
   th { color: var(--muted); font-weight: 500; }
   #bulle { position: fixed; pointer-events: none; background: #000; color: var(--text); border: 1px solid var(--line); padding: 6px 9px; font-size: 13px; display: none; z-index: 5; max-width: 240px; }
   .vide { color: var(--muted); padding: 30px 0; text-align: center; }
+  .etiq input { background: var(--page); color: var(--text); border: 1px solid var(--line); padding: 5px 7px; font: inherit; width: 100%; max-width: 190px; }
+  .etiq td:first-child { width: 200px; }
+  .etiq-bar { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  button.action { background: var(--s1); color: #fff; border: 0; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.action:disabled { background: var(--line); color: var(--muted); cursor: default; }
+  #etiq-etat { color: var(--text2); font-size: 13px; }
   footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
 </style>
 </head>
@@ -94,6 +100,7 @@ const compte = (list, key) => { const m = new Map(); for (const x of list) m.set
 let DATA = { runs: [], quests: [] };
 /** Étiquettes posées par Thomas : code joueur → prénom (fichier tags.json, à côté de data.json). */
 let TAGS = {};
+let EXEMPLE = false;
 const joueur = (code) => (TAGS[code] ? `${TAGS[code]} (${code})` : code || "Inconnu");
 
 /** Un tableau lisible sous chaque graphique (la couleur ne porte jamais l'information seule). */
@@ -217,7 +224,8 @@ function render() {
   for (const r of runs) { const p = byPlayer.get(r.device) ?? { n: 0, best: 0, last: "", deaths: 0 }; p.n++; p.best = Math.max(p.best, r.deepest); if (r.day > p.last) p.last = r.day; if (r.end === "mort") p.deaths++; byPlayer.set(r.device, p); }
   const players = [...byPlayer].sort((a, b) => b[1].n - a[1].n);
   const pPlayers = barres(players.slice(0, 12).map(([c, p]) => ({ label: TAGS[c] ?? c ?? "Inconnu", value: p.n, text: `${p.n}  (étage ${p.best})`, tip: `${joueur(c)} : ${p.n} parties, meilleur étage ${p.best}, dernière partie le ${p.last}` })));
-  const cPlayers = tableau(["Joueur", "Code", "Parties", "Morts", "Meilleur étage", "Dernière partie"], players.map(([c, p]) => [TAGS[c] ?? "", c || "?", p.n, p.deaths, p.best, p.last])).replace("<details>", players.length <= 15 ? "<details open>" : "<details>");
+  // Étiquettes : un champ par joueur ; « Enregistrer » envoie tout d'un coup (fichier tags.json sur AWS).
+  const cPlayers = `<details class="etiq"${players.length <= 15 ? " open" : ""}><summary>Étiqueter les joueurs</summary><table><tr><th>Prénom</th><th>Code</th><th>Parties</th><th>Morts</th><th>Meilleur étage</th><th>Dernière partie</th></tr>${players.map(([c, p]) => `<tr><td>${c ? `<input type="text" maxlength="30" data-code="${esc(c)}" value="${esc(TAGS[c] ?? "")}" placeholder="sans étiquette" aria-label="Prénom du joueur ${esc(c)}">` : ""}</td><td>${esc(c || "?")}</td><td>${p.n}</td><td>${p.deaths}</td><td>${p.best}</td><td>${esc(p.last)}</td></tr>`).join("")}</table><div class="etiq-bar"><button class="action" id="etiq-save" type="button"${EXEMPLE ? " disabled" : ""}>Enregistrer les étiquettes</button><span id="etiq-etat">${EXEMPLE ? "Données d'exemple : rien n'est enregistré." : ""}</span></div></details>`;
 
   PLOTS = [];
   $("grille").innerHTML = n === 0 ? `<div class="carte large vide">Aucune partie sur cette sélection.</div>` : [
@@ -235,6 +243,30 @@ function render() {
 let resizeTimer = 0;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
 
+/** Enregistre les étiquettes saisies. AWS exige l'empreinte du contenu dans l'en-tête x-amz-content-sha256. */
+async function saveTags() {
+  const etat = $("etiq-etat"), next = { ...TAGS };
+  for (const input of document.querySelectorAll(".etiq input[data-code]")) {
+    const name = input.value.replace(/[<>"'&`\\]/g, "").trim().slice(0, 30);
+    if (name) next[input.dataset.code] = name; else delete next[input.dataset.code];
+  }
+  const body = JSON.stringify(next);
+  etat.textContent = "Enregistrement...";
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
+    const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const r = await fetch("api/tags", { method: "PUT", headers: { "content-type": "application/json", "x-amz-content-sha256": hash }, body, cache: "no-store" });
+    if (!r.ok) throw new Error("réponse " + r.status);
+    TAGS = next;
+    fillPlayers();
+    render();
+    $("etiq-etat").textContent = "Enregistré.";
+  } catch (e) {
+    etat.textContent = "Échec de l'enregistrement (" + (e && e.message ? e.message : "erreur") + "). Rien n'a été changé.";
+  }
+}
+document.addEventListener("click", (e) => { if (e.target && e.target.id === "etiq-save") void saveTags(); });
+
 // Bulle d'information (souris et doigt).
 const bulle = $("bulle");
 function showTip(e) {
@@ -249,6 +281,14 @@ function showTip(e) {
 document.addEventListener("mousemove", showTip);
 document.addEventListener("touchstart", showTip, { passive: true });
 
+/** La liste du filtre « Joueur » : les joueurs étiquetés d'abord. Garde le choix en cours. */
+function fillPlayers() {
+  const current = $("f-player").value;
+  const codes = [...new Set(DATA.runs.map((r) => r.device))].filter(Boolean).sort((a, b) => (TAGS[b] ? 1 : 0) - (TAGS[a] ? 1 : 0) || joueur(a).localeCompare(joueur(b)));
+  $("f-player").innerHTML = `<option value="">Tous</option>` + codes.map((c) => `<option value="${esc(c)}">${esc(joueur(c))}</option>`).join("");
+  $("f-player").value = codes.includes(current) ? current : "";
+}
+
 function fill(id, values, all) {
   $(id).innerHTML = `<option value="">${all}</option>` + values.map((v) => `<option value="${esc(v)}">${esc(nom(v))}</option>`).join("");
   $(id).addEventListener("change", render);
@@ -259,13 +299,13 @@ Promise.all([lire("data.json"), lire("tags.json")]).then(([d, tags]) => {
   if (!d) throw new Error("pas de données");
   if (tags && typeof tags === "object") for (const [c, name] of Object.entries(tags)) if (typeof name === "string") TAGS[c] = name.slice(0, 30);
   DATA = { runs: d.runs ?? [], quests: d.quests ?? [] };
-  if (d.exemple) $("exemple").style.display = "block";
+  EXEMPLE = !!d.exemple;
+  if (EXEMPLE) $("exemple").style.display = "block";
   $("maj").textContent = d.genere ? "Mis à jour le " + d.genere : "";
   fill("f-version", [...new Set(DATA.runs.map((r) => r.version))].sort(), "Toutes");
   fill("f-race", [...new Set(DATA.runs.map((r) => r.race))].sort(), "Toutes");
   fill("f-platform", [...new Set(DATA.runs.map((r) => r.platform))].sort(), "Toutes");
-  const codes = [...new Set(DATA.runs.map((r) => r.device))].filter(Boolean).sort((a, b) => (TAGS[b] ? 1 : 0) - (TAGS[a] ? 1 : 0) || joueur(a).localeCompare(joueur(b)));
-  $("f-player").innerHTML = `<option value="">Tous</option>` + codes.map((c) => `<option value="${esc(c)}">${esc(joueur(c))}</option>`).join("");
+  fillPlayers();
   $("f-player").addEventListener("change", render);
   $("f-periode").addEventListener("change", render);
   render();

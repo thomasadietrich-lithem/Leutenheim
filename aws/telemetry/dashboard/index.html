@@ -164,7 +164,7 @@ function render() {
     [new Set(runs.map((r) => r.device)).size, "joueurs (appareils)"],
     [n, "parties"],
     [mediane(runs.map((r) => r.deepest)), "étage atteint (médiane)"],
-    [pct(runs.filter((r) => r.deepest > 5 || r.bosses > 0).length, n) + " %", "battent le premier boss"],
+    [pct(runs.filter((r) => r.bosses > 0).length, n) + " %", "battent le premier boss"],
     [pct(runs.filter((r) => r.end === "abandon").length, n) + " %", "parties abandonnées"],
     [Math.round(mediane(runs.map((r) => r.turns))), "tours par partie (médiane)"],
   ].map(([v, l]) => `<div class="tuile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
@@ -200,12 +200,12 @@ function render() {
   const cBoss = tableau(["Boss", "Rencontres", "Victoires", "Taux"], bosses.map((b) => [b.label, b.seen, b.won, pct(b.won, b.seen) + " %"]));
 
   // Quêtes
-  const RES = [["réussie", "var(--s3)"], ["ratée", "var(--s2)"], ["abandonnée", "var(--s1)"]];
+  const RES = [["réussie", "var(--s3)"], ["ratée", "var(--s2)"], ["perdue", "var(--s1)"]];
   const qIds = [...new Set(quests.map((q) => q.id))].sort();
   const qRows = qIds.map((id) => { const qq = quests.filter((q) => q.id === id); return { id, total: qq.length, c: RES.map(([w]) => qq.filter((q) => q.what === w).length) }; }).sort((a, b) => b.total - a.total);
   const lQuests = `<div class="legende">${RES.map(([w, c]) => `<span><i style="background:${c}"></i>${nom(w)}</span>`).join("")}</div>`;
   const pQuests = barres(qRows.map((q) => ({ label: nom(q.id), value: q.total, text: `${pct(q.c[0], q.total)} % réussies`, parts: RES.map(([w, c], i) => ({ value: q.c[i], color: c, tip: `${nom(q.id)} - ${w} : ${q.c[i]} sur ${q.total}` })) })));
-  const cQuests = lQuests + tableau(["Quête", "Réussies", "Ratées", "Abandonnées"], qRows.map((q) => [nom(q.id), ...q.c]));
+  const cQuests = lQuests + tableau(["Quête", "Réussies", "Ratées", "Perdues"], qRows.map((q) => [nom(q.id), ...q.c]));
 
   PLOTS = [];
   $("grille").innerHTML = n === 0 ? `<div class="carte large vide">Aucune partie sur cette sélection.</div>` : [

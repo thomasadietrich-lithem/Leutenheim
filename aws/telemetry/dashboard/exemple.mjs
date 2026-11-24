@@ -36,7 +36,7 @@ for (let d = 0; d < 30; d++) {
     }
     const level = Math.max(1, Math.round(floor * 0.8 + rnd() * 2));
     runs.push({ day, version, platform, race, deepest: floor, end, cause, level, turns: Math.round(floor * (140 + rnd() * 120)), gold: Math.round(floor * (18 + rnd() * 30)), kills: Math.round(floor * (3 + rnd() * 4)), bosses, device: "ex" + Math.floor(rnd() * (40 + d * 4)) });
-    for (const q of QUESTS) if (rnd() < 0.12 * Math.min(floor, 6)) quests.push({ day, version, platform, race, id: q, what: pick([["réussie", 5], ["ratée", 3], ["abandonnée", 2]]) });
+    for (const q of QUESTS) if (rnd() < 0.12 * Math.min(floor, 6)) quests.push({ day, version, platform, race, id: q, what: pick([["réussie", 5], ["ratée", 3], ["perdue", 2]]) });
   }
 }
 const out = { exemple: true, genere: "2026-11-24", runs, quests };

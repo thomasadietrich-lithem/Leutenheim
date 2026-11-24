@@ -1,0 +1,43 @@
+// Essai sans AWS du calcul du tableau de bord : lit le code de la fonction « caveroller-stats-bilan » directement
+// dans cloudformation.yaml (une seule copie du code), lui donne de faux événements et vérifie le résultat.
+//   node aws/telemetry/test-bilan.mjs
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const yaml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "cloudformation.yaml"), "utf8");
+const start = yaml.indexOf("ZipFile: |", yaml.indexOf("FunctionName: caveroller-stats-bilan"));
+const lines = yaml.slice(start).split("\n").slice(1);
+const code = [];
+for (const line of lines) { if (line.trim() && !line.startsWith("          ")) break; code.push(line.slice(10)); }
+const mod = { exports: {} };
+new Function("require", "exports", "module", "process", code.join("\n"))(() => ({}), mod.exports, mod, { env: {} });
+const { build } = mod.exports;
+
+const now = Date.UTC(2026, 10, 24, 12), H = 3600000;
+const ev = (run, e, t, more = {}) => ({ run, e, t: now - t * H, device: "appareil-" + run[0], version: "0.3.0", platform: "web", ...more });
+const out = build([
+  ev("a1", "run_start", 50, { race: "elfe" }), ev("a1", "floor", 49, { depth: 2, level: 2, turn: 150, gold: 30 }),
+  ev("a1", "quest", 49, { id: "cloche", what: "start" }), ev("a1", "quest", 48, { id: "cloche", what: "complete" }),
+  ev("a1", "death", 48, { depth: 3, level: 3, turn: 400, gold: 55, cause: "rat", deepest: 3 }),
+  ev("a2", "run_start", 40, { race: "humain" }), ev("a2", "death", 39, { depth: 5, cause: "tisseuse", deepest: 5 }), ev("a2", "revive", 38.9),
+  ev("a2", "boss_kill", 38, { depth: 5 }), ev("a2", "demo_end", 30, { deepest: 15, bosses: 3 }),
+  ev("b1", "run_start", 30, { race: "halfelin" }), ev("b1", "floor", 29, { depth: 2 }),
+  ev("b2", "run_start", 1, { race: "humain" }),
+  ev("c1", "run_start", 5, { race: "elfe", test: true }),
+  { e: "floor", depth: 9 }, null,
+], now);
+const by = Object.fromEntries(out.runs.map((r) => [r.race + "/" + r.end, r]));
+assert.equal(out.runs.length, 4, "la partie d'essai et les lignes sans numéro sont écartées");
+assert.deepEqual({ end: by["elfe/mort"].end, cause: by["elfe/mort"].cause, deepest: by["elfe/mort"].deepest, level: by["elfe/mort"].level, gold: by["elfe/mort"].gold }, { end: "mort", cause: "rat", deepest: 3, level: 3, gold: 55 });
+assert.equal(by["humain/fin"].deepest, 15, "ressuscité puis fin de la démo");
+assert.equal(by["humain/fin"].bosses, 1);
+assert.equal(by["humain/fin"].cause, "");
+assert.ok(by["halfelin/abandon"], "sans nouvelle depuis plus d'un jour : abandon");
+assert.ok(by["humain/en cours"], "partie récente sans fin : en cours");
+assert.deepEqual(out.quests, [{ day: by["elfe/mort"].day, version: "0.3.0", platform: "web", race: "elfe", id: "cloche", what: "réussie" }]);
+assert.ok(out.runs.every((r) => /^j\d+$/.test(r.device)), "aucun vrai numéro d'appareil ne sort");
+assert.equal(new Set(out.runs.map((r) => r.device)).size, 2, "a1 et a2 viennent du même appareil");
+assert.equal(out.genere, "2026-11-24");
+console.log("Bilan : tous les essais passent (" + out.runs.length + " parties).");

@@ -32,9 +32,17 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Adresse qui recoit les alertes (coupe-circuit, budget). Vide = pas de courriel. Jamais ecrite dans le depot.
+  DashboardPassword:
+    Type: String
+    Default: ""
+    NoEcho: true
+    AllowedPattern: "^$|^.{12,}$"
+    ConstraintDescription: Mot de passe vide (pas de page en ligne) ou d'au moins 12 caracteres.
+    Description: Mot de passe du tableau de bord (utilisateur lth). Vide = la page n'est pas mise en ligne. Jamais ecrit dans le depot.
 
 Conditions:
   HasEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+  HasPassword: !Not [!Equals [!Ref DashboardPassword, ""]]
 
 Resources:
   EventsBucket:
@@ -324,6 +332,222 @@ Resources:
             - SubscriptionType: EMAIL
               Address: !Ref AlertEmail
 
+  # ---------- Tableau de bord (Thomas, 2026-11-24) ----------
+  # Chaque nuit, une fonction relit les evenements et ecrit data.json (une ligne par partie, rien de personnel :
+  # les numeros d'appareil sont remplaces par j1, j2...). La page n'est en ligne que si un mot de passe est donne.
+  DashboardBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "caveroller-tableau-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  AggregatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: read-events-write-data
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt EventsBucket.Arn
+                Condition:
+                  StringLike:
+                    "s3:prefix": "events/*"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${EventsBucket.Arn}/events/*"
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "${DashboardBucket.Arn}/data.json"
+
+  AggregatorLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/caveroller-stats-bilan
+      RetentionInDays: 14
+
+  AggregatorFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: AggregatorLogs
+    Properties:
+      FunctionName: caveroller-stats-bilan
+      Description: Cave Roller - relit les evenements et ecrit le fichier du tableau de bord (une ligne par partie).
+      Runtime: nodejs24.x
+      Handler: index.handler
+      MemorySize: 512
+      Timeout: 300
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt AggregatorRole.Arn
+      Environment:
+        Variables:
+          EVENTS: !Ref EventsBucket
+          OUT: !Ref DashboardBucket
+          DAYS: "180"
+      Code:
+        # Essai sans AWS : node aws/telemetry/test-bilan.mjs (lit ce code-ci dans le modele).
+        ZipFile: |
+          const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
+          const QUEST = { complete: "r\u00e9ussie", fail: "rat\u00e9e", lost: "perdue" };
+          const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+          function build(events, now) {
+            const runs = new Map(), devices = new Map(), quests = [];
+            for (const e of events) {
+              if (!e || typeof e.run !== "string" || e.test === true) continue;
+              const t = Number(e.t) || Number(e.received) || now;
+              let r = runs.get(e.run);
+              if (!r) runs.set(e.run, (r = { first: t, last: t, version: "", platform: "", race: "inconnu", deepest: 1, level: 1, turns: 0, gold: 0, bosses: 0, cause: "", dead: 0, alive: 0, fin: false, device: "" }));
+              r.first = Math.min(r.first, t); r.last = Math.max(r.last, t);
+              if (e.version) r.version = String(e.version);
+              if (e.platform) r.platform = String(e.platform);
+              if (e.device) r.device = String(e.device);
+              r.deepest = Math.max(r.deepest, Number(e.depth) || 0, Number(e.deepest) || 0);
+              r.level = Math.max(r.level, Number(e.level) || 0);
+              r.turns = Math.max(r.turns, Number(e.turn) || 0);
+              if (typeof e.gold === "number") r.gold = e.gold;
+              if (e.e === "run_start" && e.race) r.race = String(e.race);
+              else if (e.e === "boss_kill") r.bosses++;
+              else if (e.e === "demo_end") r.fin = true;
+              else if (e.e === "death" && t >= r.dead) { r.dead = t; r.cause = String(e.cause || ""); }
+              else if (e.e === "revive") r.alive = Math.max(r.alive, t);
+              else if (e.e === "quest" && QUEST[e.what]) quests.push({ run: e.run, id: String(e.id || ""), what: QUEST[e.what] });
+            }
+            const rows = new Map();
+            for (const [id, r] of runs) {
+              if (r.device && !devices.has(r.device)) devices.set(r.device, "j" + (devices.size + 1));
+              const end = r.fin ? "fin" : r.dead > r.alive ? "mort" : now - r.last > 86400000 ? "abandon" : "en cours";
+              rows.set(id, { day: day(r.first), version: r.version, platform: r.platform, race: r.race, deepest: r.deepest, end, cause: end === "mort" ? r.cause : "", level: r.level, turns: r.turns, gold: r.gold, bosses: r.bosses, device: devices.get(r.device) || "" });
+            }
+            const q = quests.filter((x) => rows.has(x.run)).map((x) => { const r = rows.get(x.run); return { day: r.day, version: r.version, platform: r.platform, race: r.race, id: x.id, what: x.what }; });
+            return { genere: day(now), runs: [...rows.values()], quests: q };
+          }
+          exports.build = build;
+          exports.handler = async () => {
+            const s3 = new S3Client({}), now = Date.now(), from = day(now - Number(process.env.DAYS || 180) * 86400000);
+            const keys = [];
+            let token;
+            do {
+              const page = await s3.send(new ListObjectsV2Command({ Bucket: process.env.EVENTS, Prefix: "events/", ContinuationToken: token }));
+              for (const o of page.Contents || []) { const m = /dt=(\d{4}-\d{2}-\d{2})\//.exec(o.Key); if (m && m[1] >= from) keys.push(o.Key); }
+              token = page.NextContinuationToken;
+            } while (token);
+            const events = [];
+            for (let i = 0; i < keys.length; i += 16) {
+              const texts = await Promise.all(keys.slice(i, i + 16).map(async (Key) => (await s3.send(new GetObjectCommand({ Bucket: process.env.EVENTS, Key }))).Body.transformToString()));
+              for (const text of texts) for (const line of text.split("\n")) { if (!line) continue; try { events.push(JSON.parse(line)); } catch {} }
+            }
+            const out = build(events, now);
+            await s3.send(new PutObjectCommand({ Bucket: process.env.OUT, Key: "data.json", Body: JSON.stringify(out), ContentType: "application/json", CacheControl: "no-store" }));
+            console.log(keys.length, "fichiers,", events.length, "evenements,", out.runs.length, "parties");
+            return { fichiers: keys.length, evenements: events.length, parties: out.runs.length };
+          };
+
+  AggregatorSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Cave Roller - recalcule le tableau de bord chaque nuit.
+      ScheduleExpression: cron(15 3 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AggregatorFunction.Arn
+          Id: bilan
+
+  AggregatorSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AggregatorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AggregatorSchedule.Arn
+
+  DashboardOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Condition: HasPassword
+    Properties:
+      OriginAccessControlConfig:
+        Name: caveroller-tableau
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  DashboardAuth:
+    Type: AWS::CloudFront::Function
+    Condition: HasPassword
+    Properties:
+      Name: caveroller-tableau-mot-de-passe
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Cave Roller - demande le mot de passe du tableau de bord.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub
+        - |
+          function handler(event) {
+            var h = event.request.headers.authorization;
+            if (h && h.value === "Basic ${Token}") return event.request;
+            return { statusCode: 401, statusDescription: "Unauthorized", headers: { "www-authenticate": { value: "Basic realm=\"Cave Roller\"" } } };
+          }
+        - Token: !Base64
+            Fn::Sub: "lth:${DashboardPassword}"
+
+  DashboardDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: HasPassword
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Cave Roller - tableau de bord (mot de passe obligatoire)
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: tableau
+            DomainName: !GetAtt DashboardBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt DashboardOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: tableau
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # CachingDisabled (politique geree par AWS)
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt DashboardAuth.FunctionMetadata.FunctionARN
+
+  DashboardBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: HasPassword
+    Properties:
+      Bucket: !Ref DashboardBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${DashboardBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DashboardDistribution}"
+
   # ---------- Lecture : Athena ----------
   StatsDatabase:
     Type: AWS::Glue::Database
@@ -475,3 +699,10 @@ Outputs:
   AthenaWorkGroup:
     Description: Groupe de travail Athena (console Athena > choisir "caveroller", puis Requetes enregistrees).
     Value: !Ref StatsWorkGroup
+  DashboardBucketName:
+    Description: Bucket prive du tableau de bord (page et data.json).
+    Value: !Ref DashboardBucket
+  DashboardUrl:
+    Condition: HasPassword
+    Description: Adresse du tableau de bord (utilisateur lth, mot de passe choisi au deploiement).
+    Value: !Sub "https://${DashboardDistribution.DomainName}/"

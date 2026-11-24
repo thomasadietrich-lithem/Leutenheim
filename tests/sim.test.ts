@@ -7340,3 +7340,20 @@ test("Salles à énigme dans le donjon (2026-11-24) : deux par section, jamais d
   }
   assert.ok(full / sections >= 0.85, `deux salles par section : ${full}/${sections}`);
 });
+
+test("Salles à énigme (2026-11-24) : aucune colonne dans la salle", () => {
+  let rooms = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const game = new Game(seed * 71);
+    game.testRun = true;
+    for (const d of [1, 2, 3, 4, 6, 7, 8, 9]) {
+      if (game.depth !== d) game.teleport(d);
+      for (const e of game.enigmas()) {
+        rooms++;
+        const r = e.room;
+        for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) assert.notEqual(game.map.get(x, y), Tile.Pillar, `graine ${seed} étage ${d} : colonne en (${x}, ${y})`);
+      }
+    }
+  }
+  assert.ok(rooms > 20);
+});

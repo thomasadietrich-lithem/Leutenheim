@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T11:10:57.390Z",
+ "commit": "cdc6c49",
+ "note": "pas de colonnes en salle à énigme",
+ "logic": {
+  "tickMs": 0.86,
+  "lightMs": 0.27,
+  "visionMs": 0.5
+ },
+ "scenes": {
+  "immobile": {
+   "n": 89,
+   "avg": 27.5,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 36,
+   "js": 5
+  },
+  "marche": {
+   "n": 190,
+   "avg": 26.2,
+   "p95": 33.5,
+   "max": 50.1,
+   "fps": 38,
+   "js": 4
+  },
+  "retour": {
+   "n": 178,
+   "avg": 28,
+   "p95": 33.4,
+   "max": 83.3,
+   "fps": 36,
+   "js": 5
+  },
+  "zoom": {
+   "n": 92,
+   "avg": 31.5,
+   "p95": 50,
+   "max": 50,
+   "fps": 32,
+   "js": 6
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 197,
+   "avg": 25.4,
+   "p95": 33.5,
+   "max": 150,
+   "fps": 39,
+   "js": 17
+  }
+ },
+ "errors": []
+}

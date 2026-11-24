@@ -203,6 +203,8 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
     const groups = entranceGroups(floor, r);
     if (groups.length === 0) continue;
     for (let keep = 0; keep < Math.min(groups.length, 3); keep++) {
+      // Pas de colonnes dans une salle à énigme (Thomas, 2026-11-24) : elles redeviennent du sol.
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (map.get(x, y) === Tile.Pillar) map.set(x, y, Tile.Floor);
       // Murer les autres entrées : la salle ne garde que celle-là (« pas entre deux salles »).
       const sealed: Point[] = [];
       for (const [g, cells] of groups.entries()) if (g !== keep) for (const c of cells) {
@@ -301,7 +303,7 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
         const key = P(end, 1);
         if (![...cells.map((c) => c[0]), chest, key].every(floorFree) || cells.some(([p]) => (p.x === chest.x && p.y === chest.y) || (p.x === key.x && p.y === key.y) || byOpening(r, p)) || byOpening(r, chest)) continue;
         // Les cibles contre un mur ou une colonne (pas devant une porte ni une ouverture).
-        if (!cells.every(([, , wall]) => map.get(wall.x, wall.y) === Tile.Wall || map.get(wall.x, wall.y) === Tile.Pillar)) continue;
+        if (!cells.every(([, , wall]) => map.get(wall.x, wall.y) === Tile.Wall)) continue;
         for (const [p, k] of cells) put(p.x, p.y, k);
         map.set(chest.x, chest.y, Tile.Chest);
         return { enigma: { kind, room: { ...r }, hall: { ...r }, key, keyShown: false, chest, struck: [] }, items: [], host: -1 };

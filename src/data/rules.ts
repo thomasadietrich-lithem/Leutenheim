@@ -26,6 +26,8 @@ export const RULES = {
   brokenArrowFadeTurns: 4,
   /** Tir sur une cible engagée dans un couloir d'une case de large : bonus au d20 (la flèche n'a guère où passer à côté). */
   narrowShotBonus: 3,
+  /** Précision de base du héros, ajoutée à toutes ses attaques, au contact et à distance (Thomas, 2026-11-24 : « ajoute +1 »). */
+  heroHitBonus: 1,
   /** Séries de ratés du héros : à partir de ce nombre d'attaques manquées d'affilée, les suivantes sont aidées… */
   missStreakStart: 3,
   /** …de ce bonus au d20 par raté au-delà (3, puis 6, puis 9…), jusqu'au premier coup qui porte. */

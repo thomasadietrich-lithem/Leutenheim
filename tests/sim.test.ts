@@ -541,20 +541,20 @@ test("ce qui est porté est à part du sac ; attaque et classe d'armure viennent
   );
   // L'Humain ajoute une torche et une cuisse de poulet à l'équipement du Guerrier (Thomas, 2026-11-16).
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche", "torche", "cuisse_poulet"]);
-  assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4, { count: 1, sides: 6, bonus: 2 }, 12]);
+  assert.deepEqual([game.hero.attackBonus, game.hero.damage, game.hero.armorClass], [4 + RULES.heroHitBonus, { count: 1, sides: 6, bonus: 2 }, 12]);
   assert.equal(game.arrows(), 10);
   // On retire l'épée : elle va dans le sac, on se bat à mains nues.
   assert.ok(game.unequip("melee"));
   const sword = game.inventory.items.find((i) => i.defId === "epee")!;
   assert.ok(sword && game.equipment.melee === null);
-  assert.deepEqual([game.hero.attackBonus, game.hero.damage.sides], [2, 2]);
+  assert.deepEqual([game.hero.attackBonus, game.hero.damage.sides], [2 + RULES.heroHitBonus, 2]);
   // On retire l'armure : classe d'armure de base.
   assert.ok(game.unequip("armor"));
   assert.equal(game.hero.armorClass, 10);
   // On rééquipe : les objets quittent le sac.
   assert.ok(game.equip(sword.uid));
   assert.ok(game.equip(game.inventory.items.find((i) => i.defId === "tunique")!.uid));
-  assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4, 12]);
+  assert.deepEqual([game.hero.attackBonus, game.hero.armorClass], [4 + RULES.heroHitBonus, 12]);
   assert.deepEqual(game.inventory.items.map((i) => i.defId), ["fleche", "torche", "cuisse_poulet"]);
   // Les flèches ne se portent pas.
   assert.equal(game.equip(game.inventory.items[0].uid), false);
@@ -1538,7 +1538,7 @@ test("tir : à l'aveugle vers une case non vue, et bonus dans un couloir d'une c
   game.tick();
   const shot = game.events.find((e) => e.type === "attack" && e.ranged);
   assert.ok(shot && shot.type === "attack");
-  assert.equal(shot.result.bonus, (game.weapon("ranged")?.attackBonus ?? 0) + RULES.narrowShotBonus);
+  assert.equal(shot.result.bonus, (game.weapon("ranged")?.attackBonus ?? 0) + RULES.narrowShotBonus + RULES.heroHitBonus);
   // Tir à l'aveugle : une case jamais vue, à portée, est acceptée.
   game.visible.fill(0);
   game.inventory.add("fleche", 1);
@@ -6216,7 +6216,7 @@ test("Elfe : archer (+2 à l'arc) et œil de lynx (avantage à 7 cases ou plus)"
       const shot = g.events.find((e) => e.type === "attack" && e.attacker === g.hero);
       if (!shot || shot.type !== "attack") continue;
       // Arc court + 2 d'Archer (et le bonus du couloir étroit, quand la cible s'y trouve).
-      const base = (ITEMS.arc_court.attackBonus ?? 0) + 2;
+      const base = (ITEMS.arc_court.attackBonus ?? 0) + 2 + RULES.heroHitBonus;
       assert.ok(shot.result.bonus === base || shot.result.bonus === base + RULES.narrowShotBonus, `graine ${seed} : bonus ${shot.result.bonus}`);
       if (dist >= 7) {
         assert.equal(shot.result.mode, "advantage", `graine ${seed}`);

@@ -182,3 +182,7 @@
 | 2026-11-24 19:53 | 9326c81 | Moyen | 3.2 | 16 % | 25 % | 0 % | 2.5 | 14.3 | 0.7 / 0.4 / 0.2 | survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |
 | 2026-11-24 19:53 | 9326c81 | Maîtrise | 3.6 | 15 % | 37 % | 9 % | 4 | 34.8 | 1 / 0.6 / 0.2 | survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |
 | 2026-11-24 19:53 | 9326c81 | Expert | 7.2 | 7 % | 83 % | 74 % | 7.6 | 100.8 | 1.5 / 1.2 / 0.3 | [section 2 : étage 8 49 %, étage 10 21 %, bat le Carillon 18 %] survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |
+| 2026-11-24 20:06 | 5e09cdf | Débutant | 2.7 | 16 % | 7 % | 0 % | 1.6 | 6.6 | 0.6 / 0 / 0.4 | précision du héros +1 (toutes attaques) |
+| 2026-11-24 20:06 | 5e09cdf | Moyen | 3.3 | 15 % | 29 % | 1 % | 2.6 | 15.2 | 0.7 / 0.4 / 0.2 | précision du héros +1 (toutes attaques) |
+| 2026-11-24 20:06 | 5e09cdf | Maîtrise | 3.9 | 10 % | 49 % | 12 % | 4.3 | 40.5 | 1.1 / 0.7 / 0.3 | précision du héros +1 (toutes attaques) |
+| 2026-11-24 20:06 | 5e09cdf | Expert | 7.9 | 5 % | 89 % | 83 % | 8.5 | 115.9 | 1.5 / 1.2 / 0.2 | [section 2 : étage 8 60 %, étage 10 27 %, bat le Carillon 23 %] précision du héros +1 (toutes attaques) |

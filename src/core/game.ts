@@ -4222,7 +4222,7 @@ export class Game {
   private refreshStats(): void {
     const melee = this.weapon("melee");
     const blessed = this.blessTurns > 0 ? RULES.blessBonus : 0;
-    this.hero.attackBonus = (melee?.attackBonus ?? UNARMED.attackBonus) + blessed + this.gear("bonusHit");
+    this.hero.attackBonus = (melee?.attackBonus ?? UNARMED.attackBonus) + RULES.heroHitBonus + blessed + this.gear("bonusHit");
     // Chaque point de Force ajoute 1 aux dégâts au contact.
     const base = melee?.damage ?? UNARMED.damage;
     this.hero.damage = { ...base, bonus: base.bonus + this.strength() };
@@ -4561,7 +4561,7 @@ export class Game {
     return this.heroClass.disengageBonus + this.agility();
   }
   rangedBonus(): number {
-    return this.agility() + this.gear("bonusHit");
+    return RULES.heroHitBonus + this.agility() + this.gear("bonusHit");
   }
 
   /** Peut-on choisir sa voie maintenant ? */

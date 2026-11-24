@@ -134,3 +134,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-24_19h36 | a41d8f2 | 38.9 | 37.2 | 37.6 | 39.9 | 16.7 | 33 | 0.96 | 0.24 | affiches du culte du poulet |
 | 2026-11-24_20h01 | 9326c81 | 45.3 | 39.1 | 36.1 | 37.5 | 16.7 | 32.8 | 1.14 | 0.63 | survie : bruit réduit, plus de provisions |
 | 2026-11-24_20h01 | d2aceb2 | 45.1 | 41.2 | 39.2 | 44.4 | 16.8 | 42.2 | 0.72 | 0.57 | survie (re-mesure) |
+| 2026-11-24_20h14 | 5e09cdf | 39.5 | 41.7 | 35.2 | 38.8 | 16.7 | 38.3 | 0.98 | 0.68 | précision +1 |

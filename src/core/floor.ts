@@ -24,8 +24,12 @@ import { TRAPS, TrapKind } from "../data/traps";
  */
 export interface Enigma {
   kind: "tir" | "rebond" | "racines" | "glisse" | "balance" | "gardiens";
-  /** La salle (case en haut à gauche, largeur, hauteur). */
+  /** La salle (case en haut à gauche, largeur, hauteur), petite pièce de la clef comprise. */
   room: { x: number; y: number; w: number; h: number };
+  /** La salle hôte seule (sans la petite pièce) : isolée, une seule entrée (Thomas, 2026-11-24). */
+  hall?: { x: number; y: number; w: number; h: number };
+  /** La case de mur entre la salle et la petite pièce de la clef. */
+  entry?: Point;
   key: Point;
   keyShown: boolean;
   chest: Point;

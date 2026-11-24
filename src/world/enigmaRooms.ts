@@ -31,7 +31,7 @@ export const ENIGMA_ITEMS: Record<EnigmaKind, { item: ItemId; count: number }> =
 export const ENIGMA_MIN_DEPTH: Record<EnigmaKind, number> = { tir: 1, rebond: 6, racines: 1, glisse: 1, balance: 1, gardiens: 1 };
 
 /**
- * Le plan de la partie : deux salles par section, sur deux étages tirés parmi les étages 1 à 4 de la section, jamais
+ * Le plan de la partie : deux salles par section, sur deux étages tirés parmi les étages 1 à 3 de la section, jamais
  * deux fois la même dans la partie (6 salles pour 3 sections). Rend étage → sorte.
  */
 export function enigmaPlan(runSeed: number, sections = 3, floorsPerSection = 5): Map<number, EnigmaKind> {
@@ -44,7 +44,8 @@ export function enigmaPlan(runSeed: number, sections = 3, floorsPerSection = 5):
   const plan = new Map<number, EnigmaKind>();
   const slots: number[] = [];
   for (let s = 0; s < sections; s++) {
-    const floors = [1, 2, 3, 4].map((k) => s * floorsPerSection + k);
+    // Parmi les étages 1 à 3 de la section : une salle qui ne tient pas a toujours un étage suivant où passer (le 4).
+    const floors = [1, 2, 3].map((k) => s * floorsPerSection + k);
     for (let i = floors.length - 1; i > 0; i--) {
       const j = rng.int(0, i);
       [floors[i], floors[j]] = [floors[j], floors[i]];
@@ -82,6 +83,71 @@ function reachable(floor: Floor): Set<number> {
   return seen;
 }
 
+/** Les entrées d'une salle : groupes de cases franchissables (sol, porte…) collées à son pourtour. */
+export function entranceGroups(floor: Floor, r: Room): Point[][] {
+  const { map } = floor;
+  const ring: Point[] = [];
+  for (let x = r.x; x < r.x + r.w; x++) ring.push({ x, y: r.y - 1 }, { x, y: r.y + r.h });
+  for (let y = r.y; y < r.y + r.h; y++) ring.push({ x: r.x - 1, y }, { x: r.x + r.w, y });
+  const open = ring.filter((p) => {
+    const t = map.get(p.x, p.y);
+    return t !== Tile.Wall && t !== Tile.Pillar;
+  });
+  // Deux cases voisines (couloir de 2 de large) : une seule entrée.
+  const seen = new Set<string>();
+  const groups: Point[][] = [];
+  for (const p of open) {
+    if (seen.has(`${p.x},${p.y}`)) continue;
+    const group = [p];
+    const stack = [p];
+    seen.add(`${p.x},${p.y}`);
+    while (stack.length) {
+      const c = stack.pop()!;
+      for (const q of open) if (!seen.has(`${q.x},${q.y}`) && Math.abs(q.x - c.x) + Math.abs(q.y - c.y) === 1) {
+        seen.add(`${q.x},${q.y}`);
+        stack.push(q);
+        group.push(q);
+      }
+    }
+    groups.push(group);
+  }
+  return groups;
+}
+
+export function entrances(floor: Floor, r: Room): number {
+  return entranceGroups(floor, r).length;
+}
+
+/**
+ * L'objet qui résout l'énigme, posé APRÈS tout le décor de l'étage (Thomas, 2026-11-24 : « mon pote n'a pas dropé la
+ * potion associée » : un champignon, une pierre tombale ou un meuble posé ensuite le recouvrait) : dans une autre salle,
+ * sur une case nue (aucun meuble, même plat), praticable, atteignable depuis le départ. Halfelin : un arc en plus.
+ */
+export function placeEnigmaItems(floor: Floor, furniture: Furniture[], rng: Rng, kind: EnigmaKind, host: number, avoid: Set<number>, needBow: boolean, ground: { x: number; y: number }[]): { x: number; y: number; item: ItemId; count: number }[] {
+  const { map } = floor;
+  const reach = reachable(floor);
+  const occupied = new Set(furniture.flatMap((f) => furnitureCells(f)).map((c) => `${c.x},${c.y}`));
+  const ok = (p: Point) =>
+    map.get(p.x, p.y) === Tile.Floor && !occupied.has(`${p.x},${p.y}`) && reach.has(map.index(p.x, p.y)) && !(p.x === floor.start.x && p.y === floor.start.y) && !ground.some((g) => g.x === p.x && g.y === p.y);
+  const rooms = floor.rooms.map((_, i) => i).filter((i) => i !== host && !avoid.has(i));
+  const out: { x: number; y: number; item: ItemId; count: number }[] = [];
+  const spot = (): Point | null => {
+    const cells: Point[] = [];
+    for (const i of rooms.length > 0 ? rooms : [host]) {
+      const r = floor.rooms[i];
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (ok({ x, y }) && !out.some((o) => o.x === x && o.y === y)) cells.push({ x, y });
+    }
+    return cells.length > 0 ? cells[rng.int(0, cells.length - 1)] : null;
+  };
+  const at = spot();
+  if (at) out.push({ ...at, ...ENIGMA_ITEMS[kind] });
+  if (needBow && (kind === "tir" || kind === "rebond")) {
+    const bow = spot();
+    if (bow) out.push({ ...bow, item: "arc_court", count: 1 });
+  }
+  return out;
+}
+
 export interface PlacedEnigma {
   enigma: Enigma;
   /** La salle hôte (numéro dans `floor.rooms`). */
@@ -95,7 +161,7 @@ export interface PlacedEnigma {
  * spéciales). Si rien ne convient, ou si le résultat couperait l'étage, tout est défait et rend `null`.
  * `needBow` : le héros n'a pas d'arc (Halfelin) : un arc court est posé avec les flèches.
  */
-export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind: EnigmaKind, avoid: Set<number>, needBow = false): PlacedEnigma | null {
+export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind: EnigmaKind, avoid: Set<number>): PlacedEnigma | null {
   const { map } = floor;
   const before = reachable(floor);
   const tiles = map.tiles.slice();
@@ -111,50 +177,106 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
   };
   const inside = (r: Room, p: Point) => p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h;
   const floorFree = (p: Point) => map.get(p.x, p.y) === Tile.Floor && !taken(p);
-  const hosts = floor.rooms.map((_, i) => i).filter((i) => !avoid.has(i) && floor.rooms[i].w >= 5 && floor.rooms[i].h >= 5);
+  /** Une case collée (même en diagonale) à une porte ou une ouverture du pourtour : on n'y pose rien qui bloque. */
+  const byOpening = (r: Room, p: Point) =>
+    [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]].some(([dx, dy]) => {
+      const q = { x: p.x + dx, y: p.y + dy };
+      return !inside(r, q) && (map.isWalkable(q.x, q.y) || map.isDoor(q.x, q.y));
+    });
+  // Une salle ISOLÉE, en cul-de-sac (Thomas, 2026-11-24 : « les salles spéciales doivent être isolées, pas entre deux
+  // salles ») : une seule entrée.
+  // Les culs-de-sac d'abord ; puis les salles à plusieurs entrées dont on MURE les autres (si l'étage reste d'un seul tenant).
+  // Jamais une salle spéciale (verrouillée : trésor, autel) : elles ne sont pas toujours repérées par leur numéro.
+  const special = (r: Room) => floor.specials.some((s) => s.room.x === r.x && s.room.y === r.y) || entranceGroups(floor, r).some((g) => g.some((c) => map.get(c.x, c.y) === Tile.DoorLocked));
+  const hosts = floor.rooms.map((_, i) => i).filter((i) => !avoid.has(i) && floor.rooms[i].w >= 5 && floor.rooms[i].h >= 5 && !special(floor.rooms[i]));
   for (let i = hosts.length - 1; i > 0; i--) {
     const j = rng.int(0, i);
     [hosts[i], hosts[j]] = [hosts[j], hosts[i]];
   }
   let curRoom: Room | null = null;
   let curHost: number | null = null;
-  for (const host of hosts) {
+  const byEntrances = [...hosts].sort((a, b) => Math.min(2, entrances(floor, floor.rooms[a])) - Math.min(2, entrances(floor, floor.rooms[b])));
+  for (const host of byEntrances) {
     const r = floor.rooms[host];
     curRoom = r;
     curHost = host;
-    const built = build(r, host);
-    if (!built) continue;
-    // Rien de ce qui était accessible ne doit le devenir moins (sauf les cases désormais occupées par l'énigme).
-    const after = reachable(floor);
-    const blocked = (i: number) => !map.isWalkable(i % map.width, Math.floor(i / map.width));
-    if ([...before].some((i) => !after.has(i) && !blocked(i))) {
-      undo();
-      continue;
-    }
-    // L'objet de l'énigme, dans une autre salle (case libre, ni meuble, ni escalier).
-    const others = floor.rooms.map((_, i) => i).filter((i) => i !== host && !avoid.has(i) && after.has(map.index(floor.rooms[i].x + Math.floor(floor.rooms[i].w / 2), floor.rooms[i].y + Math.floor(floor.rooms[i].h / 2))));
-    const spot = (): Point | null => {
-      for (let tries = 0; tries < 60; tries++) {
-        const ro = floor.rooms[others.length > 0 ? others[rng.int(0, others.length - 1)] : host];
-        const p = { x: rng.int(ro.x, ro.x + ro.w - 1), y: rng.int(ro.y, ro.y + ro.h - 1) };
-        if (floorFree(p) && !(p.x === floor.start.x && p.y === floor.start.y) && after.has(map.index(p.x, p.y)) && !built.items.some((it) => it.x === p.x && it.y === p.y)) return p;
+    const groups = entranceGroups(floor, r);
+    if (groups.length === 0) continue;
+    for (let keep = 0; keep < Math.min(groups.length, 3); keep++) {
+      // Murer les autres entrées : la salle ne garde que celle-là (« pas entre deux salles »).
+      const sealed: Point[] = [];
+      for (const [g, cells] of groups.entries()) if (g !== keep) for (const c of cells) {
+        map.set(c.x, c.y, Tile.Wall);
+        sealed.push(c);
       }
-      return null;
-    };
-    const need = ENIGMA_ITEMS[kind];
-    const at = spot();
-    if (!at) {
+      trimDeadEnds(sealed);
+      const built = build(r, host);
+      if (!built) {
+        undo();
+        continue;
+      }
+      // Rien de ce qui était accessible ne doit le devenir moins (sauf les cases désormais occupées ou murées).
+      const after = reachable(floor);
+      const blocked = (i: number) => !map.isWalkable(i % map.width, Math.floor(i / map.width));
+      const inRoom = (i: number) => {
+        const x = i % map.width;
+        const y = Math.floor(i / map.width);
+        return x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+      };
+      // La salle elle-même doit rester atteignable par son entrée.
+      if ([...before].some((i) => !after.has(i) && !blocked(i)) || ![...after].some(inRoom)) {
+        undo();
+        continue;
+      }
+      return { ...built, host };
+    }
+  }
+  // Aucune salle en cul-de-sac ne convient : on en CREUSE une dans la roche, contre une salle ordinaire, reliée par une
+  // seule porte (la salle à énigme reste isolée).
+  const sizes: [number, number][] = kind === "rebond" ? [[5, 7], [7, 5], [5, 6], [6, 5]] : [[7, 6], [5, 6], [5, 5], [5, 4]];
+  const anchors = floor.rooms.map((_, i) => i).filter((i) => !avoid.has(i) && !special(floor.rooms[i]));
+  for (let i = anchors.length - 1; i > 0; i--) {
+    const j = rng.int(0, i);
+    [anchors[i], anchors[j]] = [anchors[j], anchors[i]];
+  }
+  for (const anchor of anchors) {
+    for (const [W, D] of sizes) {
+      const dug = carvePocket(floor, furniture, rng, anchor, W, D);
+      if (!dug) continue;
+      // La porte ; la nouvelle salle entre dans la liste des salles de l'étage.
+      map.set(dug.entry.x, dug.entry.y, Tile.DoorClosed);
+      floor.rooms.push(dug.room);
+      const host = floor.rooms.length - 1;
+      curRoom = dug.room;
+      curHost = host;
+      const built = build(dug.room, host);
+      const after = built ? reachable(floor) : null;
+      const blocked = (i: number) => !map.isWalkable(i % map.width, Math.floor(i / map.width));
+      const reached = !!after && after.has(map.index(dug.entry.x, dug.entry.y));
+      if (built && after && reached && ![...before].some((i) => !after.has(i) && !blocked(i))) return { ...built, host };
+      floor.rooms.pop();
       undo();
-      continue;
     }
-    built.items.push({ ...at, ...need });
-    if (needBow && (kind === "tir" || kind === "rebond")) {
-      const bow = spot();
-      if (bow) built.items.push({ ...bow, item: "arc_court", count: 1 });
-    }
-    return { ...built, host };
   }
   return null;
+
+  /**
+   * Le couloir qui menait à une entrée murée finit en impasse : on le comble de proche en proche (hors des salles, jamais
+   * un escalier ni le départ), pour ne pas laisser de bout de couloir ni de porte qui donne sur un mur.
+   */
+  function trimDeadEnds(from: Point[]): void {
+    const inAnyRoom = (p: Point) => floor.rooms.some((ro) => inside(ro, p));
+    const stack = from.flatMap((c) => [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.x + dx, y: c.y + dy })));
+    while (stack.length) {
+      const c = stack.pop()!;
+      const t = map.get(c.x, c.y);
+      if (!map.isWalkable(c.x, c.y) || inAnyRoom(c) || t === Tile.StairsDown || t === Tile.StairsUp || (c.x === floor.start.x && c.y === floor.start.y)) continue;
+      const ways = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => map.isWalkable(c.x + dx, c.y + dy) || map.get(c.x + dx, c.y + dy) === Tile.DoorLocked).length;
+      if (ways > 1) continue;
+      map.set(c.x, c.y, Tile.Wall);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) stack.push({ x: c.x + dx, y: c.y + dy });
+    }
+  }
 
   /** Construit l'énigme dans la salle `r` ; rend `null` (sans rien avoir changé) si elle n'y tient pas. */
   function build(r: Room, host: number): PlacedEnigma | null {
@@ -164,10 +286,10 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
       for (const tall of r.h >= r.w ? [true, false] : [false, true]) {
         const len = tall ? r.h : r.w;
         const wide = tall ? r.w : r.h;
-        if (len < 7 || wide < 5) continue;
+        if (len < 6 || wide < 5) continue;
         // (u : le long de la salle ; v : en travers) → case.
         const P = (u: number, v: number): Point => (tall ? { x: r.x + v, y: r.y + u } : { x: r.x + u, y: r.y + v });
-        for (let o = 0; o + 7 <= len; o++) {
+        for (let o = 0; o + 6 <= len; o++) {
         for (const end of [0, len - 1]) {
         const cells: [Point, string, Point][] = [
           // Contre le mur de gauche / droite (dos de bois côté mur), ou du haut (face vers la salle) / du bas (dos).
@@ -177,12 +299,12 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
         ];
         const chest = P(end, Math.floor(wide / 2));
         const key = P(end, 1);
-        if (![...cells.map((c) => c[0]), chest, key].every(floorFree) || cells.some(([p]) => (p.x === chest.x && p.y === chest.y) || (p.x === key.x && p.y === key.y))) continue;
+        if (![...cells.map((c) => c[0]), chest, key].every(floorFree) || cells.some(([p]) => (p.x === chest.x && p.y === chest.y) || (p.x === key.x && p.y === key.y) || byOpening(r, p)) || byOpening(r, chest)) continue;
         // Les cibles contre un mur ou une colonne (pas devant une porte ni une ouverture).
         if (!cells.every(([, , wall]) => map.get(wall.x, wall.y) === Tile.Wall || map.get(wall.x, wall.y) === Tile.Pillar)) continue;
         for (const [p, k] of cells) put(p.x, p.y, k);
         map.set(chest.x, chest.y, Tile.Chest);
-        return { enigma: { kind, room: { ...r }, key, keyShown: false, chest, struck: [] }, items: [], host: -1 };
+        return { enigma: { kind, room: { ...r }, hall: { ...r }, key, keyShown: false, chest, struck: [] }, items: [], host: -1 };
         }
         }
       }
@@ -223,7 +345,7 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
     box.h = Math.max(r.y + r.h, pk.y + pk.h) - box.y;
     const wallRow = (a: number) => at(e, a, 0);
     const straight = (a: number) => map.get(wallRow(a).x, wallRow(a).y) === Tile.Wall && inside(r, at(e, a, 1)) && floorFree(at(e, a, 1));
-    const enigma: Enigma = { kind, room: box, key, keyShown: true, chest };
+    const enigma: Enigma = { kind, room: box, hall: { ...r }, entry: { ...e }, key, keyShown: true, chest };
     if (kind === "tir" || kind === "racines") {
       // Le mur entre la salle et la petite pièce s'ouvre sur 5 cases (tir) ou 3 (racines), s'il est droit.
       const span = kind === "tir" ? [-2, -1, 0, 1, 2] : [-1, 0, 1];
@@ -281,7 +403,7 @@ export function placeEnigma(floor: Floor, furniture: Furniture[], rng: Rng, kind
           if (line.length < 4) return restore();
           if (side > 0) line.reverse();
           const statue = line[0];
-          if (!floorFree(statue)) return restore();
+          if (!floorFree(statue) || byOpening(r, statue)) return restore();
           put(statue.x, statue.y, "gardien");
           gazes.push(line.slice(1));
         }

@@ -1,5 +1,5 @@
 import { QUEST_TASKS, type QuestTask, type QuestTaskId } from "../data/quests";
-import { enigmaPlan, placeEnigma } from "../world/enigmaRooms";
+import { enigmaPlan, placeEnigma, placeEnigmaItems } from "../world/enigmaRooms";
 import { CLASSES, ClassDef } from "../data/classes";
 import { DEFAULT_FLOOR, FloorConfig } from "../data/floors";
 import { ITEMS, ItemDef, ItemId, Slot, UNARMED, UNARMORED_AC } from "../data/items";
@@ -434,32 +434,39 @@ export class Game {
       // Salles à énigme (Thomas, 2026-11-21 / 24) : deux par section, sur des étages tirés au début de la partie ; posées
       // avant le décor de la section (champignons, ossuaire), qui laisse leur salle tranquille.
       // Une salle qui n'a pas tenu sur son étage passe à l'étage suivant de la section (jamais moins de deux par section).
-      let enigmaPlaced: ReturnType<typeof placeEnigma> = null;
-      let enigmaHost = -1;
+      const enigmaPlaced: NonNullable<ReturnType<typeof placeEnigma>>[] = [];
+      let enigmaAvoid = new Set<number>();
       if (!sandboxFloor && !bossFloor) {
         const plan = enigmaPlan(this.runSeed);
         const section = Math.floor((depth - 1) / RULES.floorsPerSection);
         const sameSection = (d: number) => Math.floor((d - 1) / RULES.floorsPerSection) === section;
         const placedHere = new Set([...this.floors].filter(([d]) => sameSection(d)).flatMap(([, f]) => (f.enigmas ?? []).map((e) => e.kind)));
-        const tries: Enigma["kind"][] = [];
         const own = plan.get(depth);
-        if (own) tries.push(own);
-        for (const [d, k] of plan) if (d < depth && sameSection(d) && this.floors.has(d) && !placedHere.has(k)) tries.push(k);
+        const carried: Enigma["kind"][] = [];
+        for (const [d, k] of plan) if (d < depth && sameSection(d) && this.floors.has(d) && !placedHere.has(k)) carried.push(k);
+        // Le 4e étage de la section rattrape tout ce qui manque (jusqu'à deux salles sur l'étage) ; avant, une seule.
+        const lastChance = (depth - 1) % RULES.floorsPerSection === 3;
+        const tries: Enigma["kind"][] = [...(own ? [own] : []), ...carried];
         if (tries.length > 0) {
           const roomOf = (p: Point) => floor.rooms.findIndex((r) => p.x >= r.x - 1 && p.y >= r.y - 1 && p.x <= r.x + r.w && p.y <= r.y + r.h);
           const avoid = new Set<number>([0, roomOf(floor.start), roomOf(floor.stairs), ...furnished.themes.map((t) => t.room), ...floor.specials.map((s) => floor.rooms.indexOf(s.room))]);
+          enigmaAvoid = avoid;
+          const erng = new Rng(seed ^ 0xe1e1a);
           for (const kind of tries) {
-            enigmaPlaced = placeEnigma(floor, furnished.furniture, new Rng(seed ^ 0xe1e1a), kind, avoid, this.race.id === "halfelin");
-            if (enigmaPlaced) break;
+            if (enigmaPlaced.length >= (lastChance ? 2 : 1)) break;
+            const placed = placeEnigma(floor, furnished.furniture, erng, kind, avoid);
+            if (!placed) continue;
+            enigmaPlaced.push(placed);
+            avoid.add(placed.host);
           }
-          enigmaHost = enigmaPlaced?.host ?? -1;
         }
       }
+      const enigmaHosts = enigmaPlaced.map((p) => p.host);
       // Section 2, la champignonnière (étages 6 à 10 ; Thomas, 2026-11-14 : « génère la section ») : l'étage tiré au
       // hasard est habillé (torches retirées, champignons, éboulements) ; le décor suit `look`.
       const champi = !sandboxFloor && !bossFloor && Math.floor((depth - 1) / RULES.floorsPerSection) === 1;
       if (champi) {
-        const skip = new Set<number>([...furnished.themes.map((t) => t.room), ...floor.specials.map((s) => floor.rooms.indexOf(s.room)), enigmaHost]);
+        const skip = new Set<number>([...furnished.themes.map((t) => t.room), ...floor.specials.map((s) => floor.rooms.indexOf(s.room)), ...enigmaHosts]);
         decorateChampi(floor, furnished.furniture, new Rng(seed ^ 0xc4a3b1), skip, new Set(furnished.themes.filter((t) => ["morilles", "sculpture", "expo", "concert"].includes(t.id)).map((t) => t.room)));
       }
       // Statues de pierre (Thomas, 2026-11-12) : une sur un étage sur trois (C), du décor ; seule une statue CREUSE, posée
@@ -502,9 +509,9 @@ export class Game {
         motifs,
         boss: bossFloor?.boss,
       };
-      if (enigmaPlaced) {
-        state.enigmas = [enigmaPlaced.enigma];
-        for (const it of enigmaPlaced.items) state.ground.push({ x: it.x, y: it.y, item: it.item, count: it.count });
+      if (enigmaPlaced.length > 0) {
+        state.enigmas = enigmaPlaced.map((p) => p.enigma);
+        for (const it of enigmaPlaced.flatMap((p) => p.items)) state.ground.push({ x: it.x, y: it.y, item: it.item, count: it.count });
       }
       const tub = furnished.furniture.find((f) => f.kind === "tub");
       if (tub) state.bath = { x: tub.x, y: tub.y, out: false, music: true, beaten: false };
@@ -539,7 +546,7 @@ export class Game {
       if (!sandboxFloor && !bossFloor) {
         const srng = new Rng(seed ^ 0x5ec7e7);
         if (srng.chance(RULES.secretRoomChance)) {
-          const hosts = new Set([...(state.themes ?? []).map((t) => t.room), enigmaHost]);
+          const hosts = new Set([...(state.themes ?? []).map((t) => t.room), ...enigmaHosts]);
           // Ossuaire : seulement les pièces de toujours (trésor, armurerie, reliquaire, cache), pas celles des sections du dessus.
           state.secretRoom = (oss ? placeSecretRoom(floor, state.furniture, srng, hosts, (["tresor", "reliquaire", "armurerie", "contrebandier"] as const)[srng.int(0, 3)]) : placeSecretRoom(floor, state.furniture, srng, hosts)) ?? undefined;
           if (state.secretRoom) for (const g of state.secretRoom.gold) state.ground.push({ x: g.x, y: g.y, item: "or", count: lessGold((srng.int(RULES.secretGold[0], RULES.secretGold[1]) + depth * 2) * (1 + sectionOf(depth))) });
@@ -560,7 +567,7 @@ export class Game {
             state.furniture.push(srng.chance(0.5) ? { x: sr.entry.x, y: sr.entry.y, kind: "ossTablet", side, variant: "texte" } : { x: sr.entry.x, y: sr.entry.y, kind: "ossAlcove", side, len: 1 });
             for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocked.add(`${sr.entry.x + dx},${sr.entry.y + dy}`);
           }
-          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked, enigmaHost >= 0 ? [enigmaHost] : [], this.previewS3 && depth === 11 ? "chapel" : this.previewS3 && depth === 12 ? "museum" : false);
+          const special = decorateOssuaire(floor, state.furniture, new Rng(seed ^ 0x055a1e), blocked, enigmaHosts, this.previewS3 && depth === 11 ? "chapel" : this.previewS3 && depth === 12 ? "museum" : false);
           // La chapelle des os et le musée : des « salles à thème » pour le reste du jeu (ni piège ni monstre ; Sœur
           // Clavicule, le Conservateur).
           if (special.chapel !== undefined) state.themes = [...(state.themes ?? []), { room: special.chapel, id: "chapelle" } as (typeof state.themes)[number]];
@@ -575,6 +582,11 @@ export class Game {
             state.secretRoom.peek = { ...state.secretRoom.entry };
           }
         }
+      }
+      // L'objet de l'énigme, une fois tout le décor posé (rien ne le recouvre).
+      {
+        const irng = new Rng(seed ^ 0xe1e1b);
+        for (const p of enigmaPlaced) for (const it of placeEnigmaItems(floor, state.furniture, irng, p.enigma.kind, p.host, enigmaAvoid, this.race.id === "halfelin", state.ground)) state.ground.push(it);
       }
       if (champi || bossFloor?.boss.kind === "carillon") state.look = "champi";
       if (bossFloor?.boss.kind === "pretresse") state.look = "ossuaire";
@@ -994,6 +1006,8 @@ export class Game {
     const open = reachable(map, floor.start);
     const tryRoom = (index: number, door: Point, spot?: Point): ChickenState | null => {
       const room = rooms[index];
+      // Jamais la salle d'une énigme (sa seule porte resterait verrouillée pour de bon).
+      if ((state.enigmas ?? []).some((e) => e.hall && inside(e.hall, room))) return null;
       const was = map.get(door.x, door.y);
       map.set(door.x, door.y, Tile.DoorLocked);
       const center = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
@@ -1273,6 +1287,8 @@ export class Game {
       const inside = sides.find((p) => inRoom(p) > 0 && map.get(p.x, p.y) === Tile.Floor && !state.furniture?.some((f) => f.x === p.x && f.y === p.y));
       if (!inside || sides.length !== 2) continue;
       if ((inside.x === floor.stairs.x && inside.y === floor.stairs.y) || (inside.x === floor.start.x && inside.y === floor.start.y)) continue;
+      // Jamais la porte d'une salle à énigme.
+      if ((state.enigmas ?? []).some((e) => e.room && Math.abs(door.x - (e.room.x + e.room.w / 2)) <= e.room.w / 2 + 1 && Math.abs(door.y - (e.room.y + e.room.h / 2)) <= e.room.h / 2 + 1)) continue;
       map.set(door.x, door.y, Tile.DoorLocked);
       if (reachable(map, floor.start) === open - 1) return { x: door.x, y: door.y, inside, n: RULES.counterStart, heard: false, opened: false };
       map.set(door.x, door.y, Tile.DoorClosed);
@@ -5399,8 +5415,8 @@ export class Game {
   setDestination(x: number, y: number, ignoreFog = false): boolean {
     if (this.over) return false;
     this.wary = false;
-    // Toucher le poulet : il prend peur (Thomas, 2026-11-13).
-    if (this.chickenAt(x, y) && this.isVisible(x, y)) {
+    // Toucher le poulet : il prend peur (Thomas, 2026-11-13). Un monstre debout sur sa case passe avant (on l'attaque).
+    if (this.chickenAt(x, y) && this.isVisible(x, y) && !this.monsterAt(x, y)) {
       this.path = [];
       this.scareChicken(this.chickenAt(x, y));
       return true;
@@ -9815,7 +9831,7 @@ export class Game {
     const solid = (x: number, y: number) => map.inBounds(x, y) && map.get(x, y) === Tile.Wall;
     const candidates: { wall: Point; cell: Point; plate: Point }[] = [];
     state.rooms.forEach((r, index) => {
-      if (index === 0 || themed.has(index) || r.w * r.h < 20) return;
+      if (index === 0 || themed.has(index) || r.w * r.h < 20 || (state.enigmas ?? []).some((e) => e.hall && e.hall.x === r.x && e.hall.y === r.y)) return;
       for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
         const cells: Point[] = [];
         if (dy !== 0) for (let x = r.x + 1; x < r.x + r.w - 1; x++) cells.push({ x, y: dy < 0 ? r.y - 1 : r.y + r.h });

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T20:01:18.804Z",
+ "commit": "9326c81",
+ "note": "survie : bruit réduit, plus de provisions",
+ "logic": {
+  "tickMs": 1.14,
+  "lightMs": 0.63,
+  "visionMs": 0.15
+ },
+ "scenes": {
+  "immobile": {
+   "n": 53,
+   "avg": 45.3,
+   "p95": 66.6,
+   "max": 66.7,
+   "fps": 22,
+   "js": 12
+  },
+  "marche": {
+   "n": 128,
+   "avg": 39.1,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 26,
+   "js": 6
+  },
+  "retour": {
+   "n": 138,
+   "avg": 36.1,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 28,
+   "js": 4
+  },
+  "zoom": {
+   "n": 85,
+   "avg": 37.5,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 27,
+   "js": 5
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 10
+  },
+  "donjon": {
+   "n": 153,
+   "avg": 32.8,
+   "p95": 66.6,
+   "max": 133.5,
+   "fps": 30,
+   "js": 16
+  }
+ },
+ "errors": []
+}

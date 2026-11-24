@@ -129,6 +129,8 @@ export const RULES = {
   gravelAlarm: 1,
   /** Le bruit d'un combat réveille les dormeurs à tant de cases ou moins. */
   combatWakeRadius: 4,
+  /** Un monstre éveillé mais distrait accourt au bruit d'un combat à tant de cases, s'il le voit. */
+  combatHearRadius: 3,
   /** Le héros contourne le gravier si le détour ne coûte pas plus de tant de pas. */
   gravelDetour: 6,
   /** Dortoir des Schrats (2026-11-11) : chance qu'un étage en ait un (au plus un), dans une salle d'au moins 6 × 5. */
@@ -200,7 +202,8 @@ export const RULES = {
   /** Étages des boss (un par section, le dernier de la section). */
   bossDepths: [5, 10, 15],
   /** Provisions par étage (Thomas, 2026-11-19), tirées à part : chance de la 1re, de la 2e (`foodRations`). */
-  foodRationChances: [0.55, 0.15],
+  // Plus de nourriture (Thomas, 2026-11-24 : « augmenter la fréquence de soin donné »), avant [0.55, 0.15].
+  foodRationChances: [0.8, 0.35],
   /** Ce que donnent les provisions, par section (tiré au hasard dans la liste ; un doublon pèse double). */
   foodRationTable: [
     ["pomme", "pomme", "cuisse_poulet"],

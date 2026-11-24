@@ -1,0 +1,404 @@
+{
+ "date": "2026-11-24T19:44:14.425Z",
+ "commit": "9326c81",
+ "runs": 150,
+ "race": "humain",
+ "note": "soin simplifié : repos 50 % partout, nourriture en 3 tailles (5/8/12)",
+ "levels": {
+  "debutant": {
+   "floor": 2.6,
+   "deathFloor1": 17,
+   "reach": {
+    "2": 82,
+    "3": 52,
+    "4": 19,
+    "5": 6
+   },
+   "boss": 0,
+   "dead": 97,
+   "heroLevel": 1.5,
+   "turns": 163.2,
+   "gold": 4.6,
+   "kills": 6.3,
+   "questsStarted": 0.6,
+   "questsDone": 0,
+   "questsFailed": 0.4,
+   "causes": {
+    "une Araignée": 21,
+    "un Kobold": 96,
+    "un Kobold frondeur": 18,
+    "la Tisseuse": 8,
+    "le poison": 2
+   },
+   "blocked": 3,
+   "blockedRuns": [
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 39,
+     "hp": "8/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 10706,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 46,
+     "hp": "9/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 143,
+     "hp": "7/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13938,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 213,
+     "hp": "3/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14847,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 98,
+     "hp": "12/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "moyen": {
+   "floor": 3,
+   "deathFloor1": 16,
+   "reach": {
+    "2": 84,
+    "3": 65,
+    "4": 33,
+    "5": 19
+   },
+   "boss": 0,
+   "dead": 97,
+   "heroLevel": 2.4,
+   "turns": 382.9,
+   "gold": 29.6,
+   "kills": 13,
+   "questsStarted": 0.6,
+   "questsDone": 0.3,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold": 63,
+    "un Kobold frondeur": 19,
+    "une Araignée": 37,
+    "la Tisseuse": 19,
+    "le poison": 6,
+    "un piège à pointes": 1
+   },
+   "blocked": 3,
+   "blockedRuns": [
+    {
+     "seed": 9898,
+     "end": "limite de tours",
+     "floor": 3,
+     "turn": 8000,
+     "hp": "8/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10706,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 196,
+     "hp": "8/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 253,
+     "hp": "9/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13938,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 394,
+     "hp": "9/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14847,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 185,
+     "hp": "9/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "maitrise": {
+   "floor": 3.4,
+   "deathFloor1": 16,
+   "reach": {
+    "2": 82,
+    "3": 72,
+    "4": 51,
+    "5": 30
+   },
+   "boss": 6,
+   "dead": 91,
+   "heroLevel": 3.9,
+   "turns": 977,
+   "gold": 50.6,
+   "kills": 32.3,
+   "questsStarted": 0.9,
+   "questsDone": 0.6,
+   "questsFailed": 0.2,
+   "causes": {
+    "la Tisseuse": 28,
+    "une Araignée": 31,
+    "un Kobold frondeur": 13,
+    "un Kobold": 56,
+    "le poison": 6,
+    "un Sporelin": 3
+   },
+   "blocked": 9,
+   "blockedRuns": [
+    {
+     "seed": 1717,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 615,
+     "hp": "14/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 55,
+     "hp": "12/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3333,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 706,
+     "hp": "14/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3434,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "1/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 4141,
+     "end": "limite de tours",
+     "floor": 4,
+     "turn": 8000,
+     "hp": "11/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 5555,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 629,
+     "hp": "13/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 7676,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 709,
+     "hp": "16/20",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 7878,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 1162,
+     "hp": "6/20",
+     "cause": "combat qui n'avance pas",
+     "detail": "Sporelin (3 cases, 8 PV)"
+    },
+    {
+     "seed": 9898,
+     "end": "limite de tours",
+     "floor": 3,
+     "turn": 8000,
+     "hp": "10/12",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10605,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 810,
+     "hp": "14/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10706,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 232,
+     "hp": "12/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 12625,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 218,
+     "hp": "7/12",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 506,
+     "hp": "10/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "expert": {
+   "floor": 6.8,
+   "deathFloor1": 6,
+   "reach": {
+    "2": 94,
+    "3": 90,
+    "4": 85,
+    "5": 83,
+    "6": 75,
+    "7": 53,
+    "8": 42,
+    "9": 21,
+    "10": 13,
+    "11": 9,
+    "12": 7,
+    "13": 5,
+    "14": 1,
+    "15": 1
+   },
+   "boss": 76,
+   "dead": 98,
+   "heroLevel": 7.2,
+   "turns": 2170.4,
+   "gold": 248,
+   "kills": 91.5,
+   "questsStarted": 1.5,
+   "questsDone": 1.2,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold": 16,
+    "un Kobold frondeur": 3,
+    "le poison": 30,
+    "un Kobold envahi": 20,
+    "un Kobold cueilleur": 4,
+    "un Squelette": 6,
+    "un Crâne lunaire": 4,
+    "une Araignée": 14,
+    "l'encre du Carillon": 3,
+    "un Sporelin": 12,
+    "un Myconide": 29,
+    "le crachat du Carillon": 1,
+    "un Fidèle du Carillon": 1,
+    "un Squelette archer": 1,
+    "la Tisseuse": 2,
+    "l'onde du Carillon": 1
+   },
+   "blocked": 1,
+   "blockedRuns": [
+    {
+     "seed": 3333,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 3876,
+     "hp": "29/36",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": "",
+     "last": "attendre"
+    },
+    {
+     "seed": 15049,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 4138,
+     "hp": "36/44",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": "",
+     "last": "attendre"
+    }
+   ],
+   "boss2": 9,
+   "boss3": 1,
+   "stuck": 1,
+   "armorClass": 16.8,
+   "searches": 35.3,
+   "chests": 5.8,
+   "doors": 7.7,
+   "bought": 3.3,
+   "sold": 4.5,
+   "potions": 5.5,
+   "pushes": 4,
+   "shots": 73.6,
+   "deathFloors": {
+    "1": 6,
+    "2": 4,
+    "3": 5,
+    "4": 2,
+    "5": 7,
+    "6": 22,
+    "7": 11,
+    "8": 21,
+    "9": 7,
+    "10": 4,
+    "11": 1,
+    "12": 1,
+    "13": 4,
+    "14": 1,
+    "15": 0
+   }
+  }
+ }
+}

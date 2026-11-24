@@ -10428,8 +10428,12 @@ export class Game {
     if (b && !b.out && gapBetween(b, at) <= RULES.combatWakeRadius) this.wakeBath(false);
     // Le bruit du combat (Thomas, 2026-11-24 : « un combat devrait faire réagir les ennemis aux alentours ») : endormis
     // ou distraits, ceux qui sont tout près l'entendent, se tournent vers lui et accourent.
+    // Les distraits (éveillés) seulement à 3 cases et à vue : pas à travers les murs (Thomas, 2026-11-24 : « augmenter la
+    // survie »). Les dormeurs : à 4 cases, comme avant.
     for (const m of this.monsters) {
-      if (m.deaf || m.petrified || m.alerted || Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) > RULES.combatWakeRadius) continue;
+      if (m.deaf || m.petrified || m.alerted) continue;
+      const d = Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y));
+      if (d > RULES.combatWakeRadius || (!m.asleep && (d > RULES.combatHearRadius || !hasLineOfSight(this.map, m, at)))) continue;
       if (m.arena && m.arena !== "duel") continue;
       m.asleep = false;
       if (this.peaceful) continue;

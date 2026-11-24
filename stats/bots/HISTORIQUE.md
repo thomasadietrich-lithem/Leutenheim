@@ -174,3 +174,11 @@
 | 2026-11-21 20:48 | 1916bc6 | Moyen | 3.4 | 12 % | 31 % | 0 % | 2.6 | 14 | 0.8 / 0.4 / 0.2 | étage 11 ouvert : la démo va jusqu'à la Grande Prêtresse (étage 15) |
 | 2026-11-21 20:48 | 1916bc6 | Maîtrise | 4.3 | 5 % | 63 % | 11 % | 4.1 | 29.7 | 1.2 / 0.7 / 0.4 | étage 11 ouvert : la démo va jusqu'à la Grande Prêtresse (étage 15) |
 | 2026-11-21 20:48 | 1916bc6 | Expert | 7.6 | 12 % | 83 % | 77 % | 7.9 | 99.3 | 1.4 / 1.1 / 0.2 | [section 2 : étage 8 53 %, étage 10 27 %, bat le Carillon 25 %] étage 11 ouvert : la démo va jusqu'à la Grande Prêtresse (étage 15) |
+| 2026-11-24 19:44 | 9326c81 | Débutant | 2.6 | 17 % | 6 % | 0 % | 1.5 | 6.3 | 0.6 / 0 / 0.4 | état du soir (guerrier bruyant, combats bruyants…) ; le « soin simplifié » mesuré avec a été annulé |
+| 2026-11-24 19:44 | 9326c81 | Moyen | 3 | 16 % | 19 % | 0 % | 2.4 | 13 | 0.6 / 0.3 / 0.2 | état du soir (guerrier bruyant, combats bruyants…) ; le « soin simplifié » mesuré avec a été annulé |
+| 2026-11-24 19:44 | 9326c81 | Maîtrise | 3.4 | 16 % | 30 % | 6 % | 3.9 | 32.3 | 0.9 / 0.6 / 0.2 | état du soir (guerrier bruyant, combats bruyants…) ; le « soin simplifié » mesuré avec a été annulé |
+| 2026-11-24 19:44 | 9326c81 | Expert | 6.8 | 6 % | 83 % | 76 % | 7.2 | 91.5 | 1.5 / 1.2 / 0.2 | [section 2 : étage 8 42 %, étage 10 13 %, bat le Carillon 9 %] état du soir ; « soin simplifié » annulé ensuite, nourriture en 3 tailles (5/8/12) |
+| 2026-11-24 19:53 | 9326c81 | Débutant | 2.6 | 17 % | 7 % | 0 % | 1.5 | 6.1 | 0.6 / 0 / 0.4 | survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |
+| 2026-11-24 19:53 | 9326c81 | Moyen | 3.2 | 16 % | 25 % | 0 % | 2.5 | 14.3 | 0.7 / 0.4 / 0.2 | survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |
+| 2026-11-24 19:53 | 9326c81 | Maîtrise | 3.6 | 15 % | 37 % | 9 % | 4 | 34.8 | 1 / 0.6 / 0.2 | survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |
+| 2026-11-24 19:53 | 9326c81 | Expert | 7.2 | 7 % | 83 % | 74 % | 7.6 | 100.8 | 1.5 / 1.2 / 0.3 | [section 2 : étage 8 49 %, étage 10 21 %, bat le Carillon 18 %] survie : bruit des combats réduit (distraits à 3 cases et à vue), provisions 80 % / 35 % (avant 55 / 15) |

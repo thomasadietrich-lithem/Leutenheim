@@ -57,6 +57,7 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, de
 const page = await ctx.newPage();
 await page.addInitScript(() => {
   localStorage.clear();
+  localStorage.setItem("leutenheim.stats", "no"); // statistiques refusées : pas de question à l'écran, aucun envoi pendant la mesure
   localStorage.setItem("leutenheim.options", JSON.stringify({ sound: false, music: false, lang: "fr" })); let __s = 12345; Math.random = () => ((__s = (Math.imul(__s, 1103515245) + 12345) >>> 0) / 4294967296);
 });
 const errors = [];

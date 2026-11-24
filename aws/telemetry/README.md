@@ -84,10 +84,16 @@ Console AWS > Athena (région Paris) > groupe de travail « caveroller » > Requ
 - Étiquettes : `powershell -ExecutionPolicy Bypass -File etiquettes.ps1` ouvre le Bloc-notes (une ligne « CODE = Prénom »), puis envoie `tags.json` dans le bucket du tableau de bord (derrière le mot de passe). Décision de Thomas : les prénoms sont gardés sur AWS, « entorse acceptable à ce stade du dev ». Le jeu, lui, n'envoie toujours aucun nom.
 - Tableau de bord : filtre « Joueur » et carte « Joueurs » (parties, morts, meilleur étage, dernière partie).
 
-## Organisation sur le PC de Thomas et sécurité (2026-11-24, après l'audit)
+## Mise en ligne : `aws/deploiement/` (2026-11-24, même structure que NeuroVision)
 
-- Dossier du PC : `Bureau\Claude\LTH Studio\Cave Roller`. À la racine, seulement `Cave Roller - AWS.cmd` (un menu) et `LISEZ-MOI.txt` ; tout le reste dans `systeme\` (`menu.ps1`, `installer.ps1`, `cloudformation.yaml`, `dashboard\`). Ne pas ajouter de fichier à la racine.
-- `menu.ps1` : chaque action qui touche au compte commence par `aws logout` puis `aws login` (navigateur : mot de passe + code MFA) et finit par `aws logout`. Aucun accès AWS ne reste sur le PC entre deux usages.
-- Étiquettes : saisies dans le tableau de bord (carte « Joueurs »), enregistrées par la fonction « caveroller-stats-etiquettes », joignable seulement par CloudFront, derrière le mot de passe ; elle n'écrit que `tags.json`. `etiquettes.ps1` reste dans le dépôt en secours, il n'est plus déposé sur le PC.
-- Audit complet : `claude/statistiques/AUDIT_SECURITE.md` dans le Projet.
+Thomas a demandé de reproduire son outil NeuroVision : un double-clic, un seul code du téléphone tapé dans la fenêtre, un seul « O », et jamais de republication de ce qui est déjà en ligne. Cet outil servira aussi aux versions du jeu.
 
+- Dossier du PC : `Bureau\Claude\LTH Studio\Cave Roller`. Racine : `TOUT_DEPLOYER.bat`, `LISEZ-MOI.txt`, `A_DEPLOYER\` et `Outils\`. Rien d'autre à la racine.
+  - `A_DEPLOYER\1_AWS\cloudformation.yaml` (copie de `aws/telemetry/cloudformation.yaml`), `A_DEPLOYER\2_TableauDeBord\` (page et deux logos). Plus tard `3_Jeu`.
+  - `Outils\` : `TOUT_DEPLOYER.ps1`, `commun.ps1`, `INSTALLER_COMPTE` (une seule fois), `CHANGER_REGLAGES`, `acces.yaml`, `journal_deploiements.log`.
+- Accès (`acces.yaml`, pile « lth-acces ») : utilisateur `lth-deployer` (profil `lth-deploy` du PC) qui ne peut rien sans le code MFA ; rôle `lth-deploiement-stats` limité aux ressources « caveroller-* » ; plafond de droits `lth-limite-fonctions` sur tous les rôles des fonctions. Le root ne sert qu'à `INSTALLER_COMPTE`, puis est déconnecté.
+- `TOUT_DEPLOYER` : double vérification (jetons en mémoire, 1 heure) → aperçu (empreinte du modèle comparée à la sortie « Empreinte » de la pile ; MD5 de chaque fichier de la page comparé à S3) → « O » → envoi du modèle, puis de la page, puis recalcul → vérification en ligne (empreintes, adresse des statistiques qui répond 405, tableau de bord qui répond 401 sans mot de passe). Il rouvre aussi l'adresse si le coupe-circuit l'a fermée.
+- Étiquettes : saisies dans le tableau de bord (fonction « caveroller-stats-etiquettes », derrière CloudFront et le mot de passe).
+- Scripts PowerShell 5.1 : sans accents. Aucun secret dans le dossier ni dans le journal.
+- Audit : `claude/statistiques/AUDIT_SECURITE.md` dans le Projet.
+- `deploy.sh` et `rouvrir.sh` (Git Bash, compte root) restent pour un développeur ; Thomas ne s'en sert pas.

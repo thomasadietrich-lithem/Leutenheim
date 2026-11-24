@@ -32,6 +32,10 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Adresse qui recoit les alertes (coupe-circuit, budget). Vide = pas de courriel. Jamais ecrite dans le depot.
+  Empreinte:
+    Type: String
+    Default: ""
+    Description: Empreinte du modele en ligne (SHA-256 du fichier), posee par TOUT_DEPLOYER pour ne pas republier ce qui est deja en ligne.
   DashboardPassword:
     Type: String
     Default: ""
@@ -81,6 +85,7 @@ Resources:
           - Effect: Allow
             Principal: { Service: lambda.amazonaws.com }
             Action: sts:AssumeRole
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/lth-limite-fonctions"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
@@ -207,6 +212,7 @@ Resources:
           - Effect: Allow
             Principal: { Service: lambda.amazonaws.com }
             Action: sts:AssumeRole
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/lth-limite-fonctions"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
@@ -366,6 +372,7 @@ Resources:
           - Effect: Allow
             Principal: { Service: lambda.amazonaws.com }
             Action: sts:AssumeRole
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/lth-limite-fonctions"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
@@ -533,6 +540,7 @@ Resources:
           - Effect: Allow
             Principal: { Service: lambda.amazonaws.com }
             Action: sts:AssumeRole
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/lth-limite-fonctions"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
@@ -854,3 +862,6 @@ Outputs:
     Condition: HasPassword
     Description: Adresse du tableau de bord (utilisateur lth, mot de passe choisi au deploiement).
     Value: !Sub "https://${DashboardDistribution.DomainName}/"
+  Empreinte:
+    Description: Empreinte du modele en ligne (comparee au fichier du PC avant toute publication).
+    Value: !Ref Empreinte

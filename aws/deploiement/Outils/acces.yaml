@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  LTH Studio - acces de mise en ligne (Thomas, 2026-11-24, meme principe que NeuroVision). Un utilisateur
+  "lth-deployer" qui ne peut RIEN faire sans le code du telephone, un role "lth-deploiement-stats" limite aux
+  statistiques de Cave Roller, et une limite de droits posee sur toutes les fonctions. Installe une seule fois
+  par Outils\INSTALLER_COMPTE (avec le compte root), puis le root ne sert plus.
+
+Resources:
+  # Plafond de droits de toutes les fonctions creees par la pile "caveroller-stats" : meme si quelqu'un modifiait
+  # le modele, une fonction ne pourrait jamais faire plus que ceci (ni machine, ni utilisateur, ni cle).
+  LimiteFonctions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: lth-limite-fonctions
+      Description: Plafond de droits des fonctions de Cave Roller.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+            Resource: "*"
+          - Effect: Allow
+            Action: [s3:GetObject, s3:PutObject, s3:ListBucket]
+            Resource: ["arn:aws:s3:::caveroller-*", "arn:aws:s3:::caveroller-*/*"]
+          - Effect: Allow
+            Action: lambda:PutFunctionConcurrency
+            Resource: !Sub "arn:aws:lambda:*:${AWS::AccountId}:function:caveroller-*"
+
+  Deployer:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: lth-deployer
+      Policies:
+        - PolicyName: rien-sans-le-code-du-telephone
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: VoirSonAppareil
+                Effect: Allow
+                Action: iam:ListMFADevices
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:user/lth-deployer"
+              - Sid: PrendreUnRoleAvecLeCode
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/lth-deploiement-*"
+                Condition:
+                  Bool:
+                    "aws:MultiFactorAuthPresent": "true"
+
+  RoleStats:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lth-deploiement-stats
+      Description: Mise en ligne des statistiques de Cave Roller (pile caveroller-stats, tableau de bord).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt Deployer.Arn
+            Action: sts:AssumeRole
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+      Policies:
+        - PolicyName: statistiques-cave-roller
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Pile
+                Effect: Allow
+                Action: "cloudformation:*"
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/caveroller-stats/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*"
+              - Sid: Lecture
+                Effect: Allow
+                Action:
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStacks
+                  - lambda:GetAccountSettings
+                  - lambda:ListFunctions
+                  - s3:ListAllMyBuckets
+                  - logs:DescribeLogGroups
+                  - cloudwatch:DescribeAlarms
+                  - sns:ListTopics
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:GetPolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - budgets:ViewBudget
+                  - budgets:DescribeBudget*
+                Resource: "*"
+              - Sid: Fonctions
+                Effect: Allow
+                Action: "lambda:*"
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:caveroller-*"
+              - Sid: Stockage
+                Effect: Allow
+                Action: "s3:*"
+                Resource: ["arn:aws:s3:::caveroller-*", "arn:aws:s3:::caveroller-*/*"]
+              - Sid: Journaux
+                Effect: Allow
+                Action: "logs:*"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/caveroller-*"
+              - Sid: Alertes
+                Effect: Allow
+                Action: "sns:*"
+                Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:caveroller-*"
+              - Sid: Alarmes
+                Effect: Allow
+                Action: [cloudwatch:PutMetricAlarm, cloudwatch:DeleteAlarms, cloudwatch:TagResource, cloudwatch:UntagResource, cloudwatch:ListTagsForResource]
+                Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:caveroller-*"
+              - Sid: Horloge
+                Effect: Allow
+                Action: "events:*"
+                Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/caveroller-*"
+              - Sid: Catalogue
+                Effect: Allow
+                Action: "glue:*"
+                Resource:
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog"
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/caveroller*"
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/caveroller*/*"
+              - Sid: Requetes
+                Effect: Allow
+                Action: "athena:*"
+                Resource: !Sub "arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/caveroller*"
+              - Sid: PageEnLigne
+                Effect: Allow
+                Action: "cloudfront:*"
+                Resource: "*"
+              - Sid: Budget
+                Effect: Allow
+                Action: "budgets:*"
+                Resource: !Sub "arn:aws:budgets::${AWS::AccountId}:budget/caveroller-*"
+              # Roles des fonctions : seulement ceux de la pile, et seulement s'ils portent la limite de droits.
+              - Sid: RolesAvecLimite
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePermissionsBoundary
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/caveroller-stats-*"
+                Condition:
+                  StringEquals:
+                    "iam:PermissionsBoundary": !Ref LimiteFonctions
+              - Sid: RolesAutres
+                Effect: Allow
+                Action: [iam:DeleteRole, iam:TagRole, iam:UntagRole, iam:UpdateRoleDescription]
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/caveroller-stats-*"
+              - Sid: DonnerUnRoleAUneFonction
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/caveroller-stats-*"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": lambda.amazonaws.com

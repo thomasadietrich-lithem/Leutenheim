@@ -14,6 +14,8 @@ export interface Furniture {
   x: number;
   y: number;
   kind: string;
+  /** Affiche parchemin : le numéro de son texte (`AFFICHES` dans src/data/affiches.ts). */
+  text?: number;
   /** Panier à fruits : nombre de pommes posées dedans à la création de l'étage. */
   count?: number;
   /** Table de cuisine (Thomas, 2026-11-13) : une assiette posée dessus ; 1 = la cuisse y est encore, 0 = assiette vide. */

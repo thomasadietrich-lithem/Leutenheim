@@ -7467,3 +7467,29 @@ test("Le Guerrier réveille les dormeurs à 2 cases (Thomas, 2026-11-24)", () =>
     else assert.ok(m.asleep || m.alerted, "à 3 cases, l'armure ne suffit pas (seule l'ouïe ordinaire compte)");
   }
 });
+
+test("Affiches du culte du poulet (2026-11-24) : sur les murs du haut, on les lit au toucher, rien de plus", async () => {
+  const { AFFICHES } = await import("../src/data/affiches");
+  let posters = 0;
+  const seen = new Set<number>();
+  for (let seed = 1; seed <= 4; seed++) {
+    const game = new Game(seed * 71);
+    game.testRun = true;
+    for (let d = 1; d <= 3; d++) {
+      if (game.depth !== d) assert.ok(game.teleport(d));
+      for (const f of game.furnitureList().filter((o) => o.kind.startsWith("affiche"))) {
+        posters++;
+        seen.add(f.text!);
+        assert.equal(game.map.get(f.x, f.y), Tile.Wall, "accrochée à un mur");
+        assert.equal(game.map.get(f.x, f.y + 1), Tile.Floor, "mur du haut d'une salle");
+        game.explored[game.map.index(f.x, f.y)] = 1;
+        game.events.length = 0;
+        assert.equal(game.setDestination(f.x, f.y), false, "la toucher ne fait pas bouger");
+        const e = game.events.find((ev) => ev.type === "affiche");
+        assert.ok(e && e.type === "affiche" && e.text === AFFICHES[f.text!].text);
+      }
+    }
+  }
+  assert.ok(posters >= 8, `${posters} affiches`);
+  assert.ok(seen.size >= 5, "les textes varient");
+});

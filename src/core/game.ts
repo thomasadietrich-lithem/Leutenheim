@@ -32,6 +32,7 @@ import { bigStep, cellsOf, gapBetween, occupies, sizeOf } from "./boss";
 import { furnishFloor, Furniture, furnitureCells, placeBell, reachable } from "../world/furnish";
 import { decorateOssuaire, moonArea, sideOf } from "../world/ossuaire";
 import { FURNITURE_KINDS } from "../data/themedRooms";
+import { AFFICHES, AFFICHES_PER_FLOOR } from "../data/affiches";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, distanceField, findPath, isChokepoint } from "../world/pathfinding";
@@ -307,6 +308,46 @@ export class Game {
   private lastGiverKey = "";
   /** Tours de repos restant à passer sur place (0 : le héros ne se repose pas). */
   private resting = 0;
+  /**
+   * Affiches parchemin du culte du poulet (Thomas, 2026-11-24) : 1 ou 2 par étage, sur le mur du haut d'une salle
+   * ordinaire (ni torche, ni décor de mur, ni porte dessous, pas dans une salle à épreuve). Chaque partie les montre
+   * dans un ordre à elle, sans répéter avant d'avoir tout vu.
+   */
+  private placeAffiches(state: FloorState, depth: number): void {
+    const rng = new Rng(floorSeed(this.runSeed, depth) ^ 0xaff1c4e);
+    const order = [...AFFICHES.keys()];
+    const orng = new Rng(this.runSeed ^ 0xaff1c4f);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = orng.int(0, i);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const want = rng.int(AFFICHES_PER_FLOOR[0], AFFICHES_PER_FLOOR[1]);
+    const inEnigma = (p: Point) => (state.enigmas ?? []).some((e) => this.inRect(p, e.room));
+    const spots: Point[] = [];
+    for (const r of state.rooms) {
+      const y = r.y - 1;
+      for (let x = r.x + 1; x < r.x + r.w - 1; x++) {
+        if (state.map.get(x, y) !== Tile.Wall || state.map.get(x, r.y) !== Tile.Floor) continue;
+        if (state.torches.some((t) => t.x === x && t.y === y) || state.furniture.some((f) => f.y === y && Math.abs(f.x - x) <= 1 && (FURNITURE_KINDS[f.kind]?.wall || f.x === x))) continue;
+        if (state.furniture.some((f) => f.x === x && f.y === r.y) || inEnigma({ x, y: r.y })) continue;
+        if ([x - 1, x + 1].some((nx) => state.map.isDoor(nx, y))) continue;
+        spots.push({ x, y });
+      }
+    }
+    for (let k = 0; k < want && spots.length > 0; k++) {
+      const at = spots.splice(rng.int(0, spots.length - 1), 1)[0];
+      const text = order[(2 * (depth - 1) + k) % order.length];
+      state.furniture.push({ x: at.x, y: at.y, kind: AFFICHES[text].art, text });
+      // Pas deux affiches côte à côte.
+      for (let i = spots.length - 1; i >= 0; i--) if (spots[i].y === at.y && Math.abs(spots[i].x - at.x) <= 3) spots.splice(i, 1);
+    }
+  }
+
+  /** L'affiche accrochée à cette case de mur, s'il y en a une. */
+  afficheAt(x: number, y: number): Furniture | undefined {
+    return this.current.furniture.find((f) => f.x === x && f.y === y && f.text !== undefined && f.kind.startsWith("affiche"));
+  }
+
   /** Le héros se repose (yeux fermés, petits « z », Thomas 2026-11-24). */
   isResting(): boolean {
     return this.resting > 0;
@@ -706,6 +747,7 @@ export class Game {
       }
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
+    if (fresh && !state.boss && !this.sandbox) this.placeAffiches(state, depth);
     for (const m of this.monsters) {
       m.fromX = m.x;
       m.fromY = m.y;
@@ -5493,6 +5535,12 @@ export class Game {
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
+    // Une affiche du culte du poulet : on la lit, c'est tout (Thomas, 2026-11-24 : « pas interactives »).
+    const affiche = this.afficheAt(x, y);
+    if (affiche && this.isExplored(x, y)) {
+      this.events.push({ type: "affiche", text: AFFICHES[affiche.text!].text });
+      return false;
+    }
     // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
     const statue = this.statueAt(x, y);
     if (statue && this.isExplored(x, y)) {

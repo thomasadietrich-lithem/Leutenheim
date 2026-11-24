@@ -131,3 +131,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-24_19h13 | a30dcca | 52.1 | 45.7 | 46 | 38.4 | 16.7 | 39.8 | 0.98 | 0.63 | retours du 24/11 soir : dézoom moins fin (1,25), salles à épreuve, brouillard, etc. |
 | 2026-11-24_19h30 | b41a1b3 | 45.4 | 42.1 | 44.5 | 40.6 | 17 | 51.2 | 1.46 | 0.19 | guerrier réveille à 2 cases |
 | 2026-11-24_19h31 | b41a1b3 | 55.3 | 51 | 48.1 | 50.9 | 16.9 | 43.7 | 1.1 | 0.3 | guerrier réveille à 2 cases (re-mesure) |
+| 2026-11-24_19h36 | a41d8f2 | 38.9 | 37.2 | 37.6 | 39.9 | 16.7 | 33 | 0.96 | 0.24 | affiches du culte du poulet |

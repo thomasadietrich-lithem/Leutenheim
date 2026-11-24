@@ -130,6 +130,8 @@ export type GameEvent =
   | { type: "burst"; x: number; y: number }
   | { type: "whistle"; actor: Actor }
   | { type: "lostTrack"; actor: Actor }
+  /** On lit une affiche du culte du poulet. */
+  | { type: "affiche"; text: string }
   /** L'armure du Guerrier réveille un dormeur tout près. */
   | { type: "clank"; actor: Actor }
   | { type: "trapDodged"; x: number; y: number; kind: string; d20: number; bonus: number }

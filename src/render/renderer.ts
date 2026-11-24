@@ -64,6 +64,7 @@ import { CHAMPI_SALLES } from "./sprites/champiSalles";
 import { ALAMBIC } from "./sprites/alambic";
 import { NEIGE } from "./sprites/neige";
 import { CULTE } from "./sprites/culte";
+import { AFFICHES as AFFICHE_ART } from "./sprites/affiches";
 import { CONCERT } from "./sprites/concert";
 import { EXPO } from "./sprites/expo";
 import { TRAINARDS2 } from "./sprites/trainards2";
@@ -247,7 +248,7 @@ function wallFaces(kind: string): readonly (readonly [number, number])[] {
   if (/Low/.test(kind)) return [[0, -1]];
   if (/SideL/.test(kind)) return [[1, 0]];
   if (/SideR/.test(kind)) return [[-1, 0]];
-  if (/^(tapestry|curtain|tapisserieCulte|vitrail|tableau)/.test(kind)) return [[0, 1]];
+  if (/^(tapestry|curtain|tapisserieCulte|vitrail|tableau|affiche)/.test(kind)) return [[0, 1]];
   return [[0, 1], [0, -1], [1, 0], [-1, 0]];
 }
 
@@ -3442,7 +3443,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3455,6 +3456,10 @@ export class Renderer {
         // La bannière : sur sa case de mur, elle pend un peu dans la salle.
         px = f.x * 16 + (16 - w) / 2;
         py = f.y * 16 - 2;
+      } else if (name.startsWith("affiche")) {
+        // Affiche : punaisée au milieu de la case de mur.
+        px = f.x * 16 + (16 - w) / 2;
+        py = f.y * 16 + 1;
       } else if (def.wall) {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;

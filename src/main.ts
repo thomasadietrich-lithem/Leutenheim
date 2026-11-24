@@ -979,6 +979,11 @@ function reveal(e: GameEvent): void {
         : "Un coffre doré luit là où la Tisseuse est tombée. La toile de l'escalier se déchire : il mène plus bas.",
     );
     renderLog();
+  } else if (e.type === "affiche") {
+    // Une affiche du culte du poulet : son texte s'affiche en bas, puis reste au journal.
+    showTip(tr(e.text));
+    logLines.push(e.text);
+    renderLog();
   } else if (e.type === "clank") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Hein ?", "#c8c0a8");
   } else if (e.type === "carillon") {

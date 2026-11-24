@@ -207,6 +207,10 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // Affiches parchemin du culte du poulet (Thomas, 2026-11-24) : sur le mur du haut d'une salle ; on les lit au toucher.
+  afficheAvis: { blocks: false, w: 1, h: 1, burns: true, wall: true },
+  afficheTexte: { blocks: false, w: 1, h: 1, burns: true, wall: true },
+  afficheDechiree: { blocks: false, w: 1, h: 1, burns: true, wall: true },
   // Quêtes v3, zones spéciales (2026-11-14) : la tapisserie de l'entrée (dans le mur ; « Low » : mur du bas), tranchée ;
   // paillasse, bougie (allumée, soufflée), dalle à pression (levée, enfoncée).
   tapestry: { blocks: false, w: 1, h: 1, burns: false, wall: true },

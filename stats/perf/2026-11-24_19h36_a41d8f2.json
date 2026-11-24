@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T19:36:35.670Z",
+ "commit": "a41d8f2",
+ "note": "affiches du culte du poulet",
+ "logic": {
+  "tickMs": 0.96,
+  "lightMs": 0.24,
+  "visionMs": 0.5
+ },
+ "scenes": {
+  "immobile": {
+   "n": 63,
+   "avg": 38.9,
+   "p95": 50,
+   "max": 66.8,
+   "fps": 26,
+   "js": 6
+  },
+  "marche": {
+   "n": 135,
+   "avg": 37.2,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 27,
+   "js": 4
+  },
+  "retour": {
+   "n": 132,
+   "avg": 37.6,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 27,
+   "js": 5
+  },
+  "zoom": {
+   "n": 84,
+   "avg": 39.9,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 25,
+   "js": 5
+  },
+  "combat": {
+   "n": 238,
+   "avg": 16.7,
+   "p95": 16.8,
+   "max": 16.8,
+   "fps": 60,
+   "js": 9
+  },
+  "donjon": {
+   "n": 151,
+   "avg": 33,
+   "p95": 50.1,
+   "max": 133.2,
+   "fps": 30,
+   "js": 20
+  }
+ },
+ "errors": []
+}

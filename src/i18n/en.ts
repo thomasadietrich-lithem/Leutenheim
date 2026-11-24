@@ -2593,4 +2593,10 @@ export const EN: Record<string, string> = {
   "« La potion de brouillard ! Lance-la sur la tapisserie rouge, ou sur un traître qui en sort. Pendant qu'ils toussent, je me glisse dedans. »": "“The fog potion! Throw it at the red tapestry, or at a traitor coming out. While they cough, I slip inside.”",
   "(Il laisse de l'or et 2 potions de brouillard.)": "(He leaves some gold and 2 fog potions.)",
   "Hein ?": "Huh?",
+  "« RECHERCHÉ — Poulet d'or, dit \"le Fugitif\". Évadé du saint poulailler. Mord. Récompense : une poignée de grains bénits. »": "“WANTED — Golden Chicken, known as \"the Fugitive\". Escaped from the holy henhouse. Bites. Reward: a handful of blessed grain.”",
+  "« Avant la torche, il y avait l'Œuf. Avant l'Œuf, il y avait le Poulet. Qui demande ce qu'il y avait avant le Poulet sera plumé. »": "“Before the torch, there was the Egg. Before the Egg, there was the Chicken. Whoever asks what came before the Chicken shall be plucked.”",
+  "« Règlement du culte : ne jamais manger de poulet le jour du Grand Caquet. Saluer chaque plume tombée. Ne jamais, jamais traverser une route. »": "“Rules of the cult: never eat chicken on the day of the Great Cackle. Salute every fallen feather. Never, ever cross a road.”",
+  "« Ce soir, Grand Caquet dans la chapelle. Apportez vos plus belles plumes. Les retardataires nettoieront le perchoir. »": "“Tonight, Great Cackle in the chapel. Bring your finest feathers. Latecomers will clean the perch.”",
+  "« …et quand le Poulet d'argent ne revint pas, les fidèles levèrent les yeux et virent la lune, pâle et ronde comme un œuf. \"Il a pondu le ciel\", dirent-ils. Ce jour-là naquit… » (La suite est arrachée.)": "“…and when the Silver Chicken did not return, the faithful looked up and saw the moon, pale and round as an egg. \"It has laid the sky\", they said. That day was born…” (The rest is torn off.)",
+  "« Qui a encore lâché les poules dans la salle du trésor ? Troisième fois cette semaine. Signé : le sergent, qui en a assez. »": "“Who let the hens loose in the treasure room again? Third time this week. Signed: the sergeant, who has had enough.”",
 };

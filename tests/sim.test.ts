@@ -7312,6 +7312,32 @@ test("Salles à énigme (2026-11-21) : zone d'essai, les 6 énigmes se résolven
   }
 });
 
+test("Salles à énigme (2026-11-24) : la herse des gardiens tombée arrête le héros, il ne reste jamais coincé derrière", () => {
+  const game = new Game(40 * 37);
+  game.testRun = true;
+  for (let d = 2; d <= 7; d++) assert.ok(game.teleport(d));
+  game.monsters.splice(0);
+  const g = game.enigmas().find((e) => e.kind === "gardiens")!;
+  assert.ok(g, "une salle des gardiens à l'étage 7");
+  const gate = () => game.furnitureAt(g.gate!.x, g.gate!.y)!;
+  const put = (x: number, y: number) => {
+    game.hero.x = game.hero.fromX = x;
+    game.hero.y = game.hero.fromY = y;
+  };
+  // Le héros part du fond de la salle vers la clef, sans brouillard : vu en chemin, la herse tombe et il s'arrête devant.
+  put(g.hall!.x, g.hall!.y);
+  assert.ok(game.setDestination(g.key.x, g.key.y, true));
+  for (let i = 0; i < 30; i++) game.tick();
+  assert.equal(gate().kind, "herse", "vu : la herse est tombée");
+  const behind = (game.hero.x - g.gate!.x) * Math.sign(g.key.x - g.gate!.x) + (game.hero.y - g.gate!.y) * Math.sign(g.key.y - g.gate!.y);
+  assert.ok(behind < 0, `resté devant la herse (${game.hero.x},${game.hero.y})`);
+  // Une partie d'avant : héros derrière la herse tombée. Elle se relève d'elle-même.
+  put(g.key.x, g.key.y);
+  game.wait();
+  game.tick();
+  assert.equal(gate().kind, "herseUp", "derrière la herse : elle se relève");
+});
+
 test("Salles à énigme dans le donjon (2026-11-24) : deux par section, jamais deux fois la même, le rebond dès l'étage 6, l'objet sur l'étage", async () => {
   const { ENIGMA_ITEMS } = await import("../src/world/enigmaRooms");
   let sections = 0;

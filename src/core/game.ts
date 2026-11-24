@@ -3114,6 +3114,10 @@ export class Game {
     return this.enigmas().find((e) => e.chest.x === x && e.chest.y === y) ?? null;
   }
 
+  private inRect(p: Point, r: { x: number; y: number; w: number; h: number }): boolean {
+    return p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h;
+  }
+
   private enigmaAt(p: Point): Enigma | null {
     return this.enigmas().find((e) => p.x >= e.room.x && p.y >= e.room.y && p.x < e.room.x + e.room.w && p.y < e.room.y + e.room.h) ?? null;
   }
@@ -3210,7 +3214,8 @@ export class Game {
             e.dropped = true;
             this.events.push({ type: "enigma", what: "seen", x: gate.x, y: gate.y });
           }
-        } else if (e.dropped && !inside) {
+        } else if (e.dropped && (!inside || (e.hall && !this.inRect(this.hero, e.hall)))) {
+          // Sorti de la salle, ou passé derrière la herse (partie d'avant ce correctif, Thomas 2026-11-24) : elle se relève.
           gate.kind = "herseUp";
           this.map.set(gate.x, gate.y, Tile.Floor);
           e.dropped = false;
@@ -5975,6 +5980,12 @@ export class Game {
       }
       const next = this.path[0];
       if (!next) return false;
+      // La case a pu se fermer depuis le calcul du chemin (une herse tombée devant le héros, Thomas 2026-11-24 : « resté
+      // coincé derrière une grille ») : on s'arrête là, sans passer au travers.
+      if (!this.map.isWalkable(next.x, next.y) && !this.monsterAt(next.x, next.y)) {
+        this.path = [];
+        return false;
+      }
       // Le Colporteur sur le chemin : si on allait le voir, on s'arrête et sa boutique s'ouvre ; sinon il s'écarte
       // (il prend la place du héros) et on passe.
       // Gluck sur le chemin : on s'arrête à côté de lui (la conversation s'ouvre) ; sinon il s'écarte, comme le Colporteur.

@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T16:02:43.996Z",
+ "commit": "b1509b2",
+ "note": "herse des gardiens : le chemin s'arrête devant (2e mesure)",
+ "logic": {
+  "tickMs": 1.01,
+  "lightMs": 0.22,
+  "visionMs": 0.12
+ },
+ "scenes": {
+  "immobile": {
+   "n": 64,
+   "avg": 38.3,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 26,
+   "js": 6
+  },
+  "marche": {
+   "n": 118,
+   "avg": 42.2,
+   "p95": 66.7,
+   "max": 83.3,
+   "fps": 24,
+   "js": 5
+  },
+  "retour": {
+   "n": 137,
+   "avg": 36.4,
+   "p95": 50.1,
+   "max": 66.8,
+   "fps": 27,
+   "js": 4
+  },
+  "zoom": {
+   "n": 82,
+   "avg": 38.6,
+   "p95": 50.1,
+   "max": 66.7,
+   "fps": 26,
+   "js": 6
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.8,
+   "p95": 16.7,
+   "max": 49.9,
+   "fps": 60,
+   "js": 10
+  },
+  "donjon": {
+   "n": 131,
+   "avg": 38.2,
+   "p95": 66.6,
+   "max": 150.1,
+   "fps": 26,
+   "js": 18
+  }
+ },
+ "errors": []
+}

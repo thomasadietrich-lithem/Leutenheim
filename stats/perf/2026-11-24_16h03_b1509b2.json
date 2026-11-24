@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T16:03:36.805Z",
+ "commit": "b1509b2",
+ "note": "herse des gardiens (3e mesure, machine chargée ?)",
+ "logic": {
+  "tickMs": 0.95,
+  "lightMs": 0.44,
+  "visionMs": 0.34
+ },
+ "scenes": {
+  "immobile": {
+   "n": 48,
+   "avg": 50.7,
+   "p95": 66.8,
+   "max": 100,
+   "fps": 20,
+   "js": 13
+  },
+  "marche": {
+   "n": 110,
+   "avg": 45.1,
+   "p95": 66.7,
+   "max": 83.4,
+   "fps": 22,
+   "js": 7
+  },
+  "retour": {
+   "n": 120,
+   "avg": 41.7,
+   "p95": 66.7,
+   "max": 83.4,
+   "fps": 24,
+   "js": 4
+  },
+  "zoom": {
+   "n": 86,
+   "avg": 37.6,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 27,
+   "js": 6
+  },
+  "combat": {
+   "n": 240,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 12
+  },
+  "donjon": {
+   "n": 118,
+   "avg": 41.9,
+   "p95": 83.3,
+   "max": 250,
+   "fps": 24,
+   "js": 21
+  }
+ },
+ "errors": []
+}

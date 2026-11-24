@@ -123,3 +123,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-24_07h24 | 5987e45 | 35 | 32.7 | 34.6 | 35.4 | 16.7 | 28.8 | 0.61 | 0.24 | salles à énigme dans le donjon |
 | 2026-11-24_11h05 | 2a4a13f | 24 | 30.2 | 27.7 | 28.3 | 16.7 | 25.5 | 0.63 | 0.2 | salles à énigme isolées |
 | 2026-11-24_11h10 | cdc6c49 | 27.5 | 26.2 | 28 | 31.5 | 16.7 | 25.4 | 0.86 | 0.27 | pas de colonnes en salle à énigme |
+| 2026-11-24_11h11 | c4b7945 | 29.2 | 31.6 | 28.4 | 30.4 | 16.7 | 22.8 | 0.9 | 0.36 | pas de colonnes (re-mesure) |

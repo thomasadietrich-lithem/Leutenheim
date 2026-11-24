@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-24T11:11:33.239Z",
+ "commit": "c4b7945",
+ "note": "pas de colonnes (re-mesure)",
+ "logic": {
+  "tickMs": 0.9,
+  "lightMs": 0.36,
+  "visionMs": 0.29
+ },
+ "scenes": {
+  "immobile": {
+   "n": 84,
+   "avg": 29.2,
+   "p95": 50,
+   "max": 50,
+   "fps": 34,
+   "js": 6
+  },
+  "marche": {
+   "n": 158,
+   "avg": 31.6,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 32,
+   "js": 5
+  },
+  "retour": {
+   "n": 176,
+   "avg": 28.4,
+   "p95": 50,
+   "max": 50,
+   "fps": 35,
+   "js": 4
+  },
+  "zoom": {
+   "n": 97,
+   "avg": 30.4,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 33,
+   "js": 4
+  },
+  "combat": {
+   "n": 237,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 5
+  },
+  "donjon": {
+   "n": 219,
+   "avg": 22.8,
+   "p95": 33.4,
+   "max": 116.7,
+   "fps": 44,
+   "js": 13
+  }
+ },
+ "errors": []
+}

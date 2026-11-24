@@ -3,6 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File installer.ps1
 # L'adresse de courriel et le mot de passe sont demandes ici : ils ne sont ecrits nulle part ailleurs que chez AWS.
 # (Messages sans accents : PowerShell 5.1 les lirait mal.)
+param([switch] $Changer)   # -Changer : redemande le courriel des alertes et le mot de passe du tableau de bord
 $env:AWS_PROFILE = "lth"                 # compte dedie LTH, jamais celui de l'association
 $expected = "906515679954"
 $region = "eu-west-3"                    # Paris
@@ -35,16 +36,32 @@ $overrides = @("MaxConcurrency=$reserve")
 # pour qu'un refus d'AWS sur la page n'annule pas tout le reste.
 aws cloudformation describe-stacks --stack-name $stack --region $region --query "Stacks[0].StackStatus" --output text 2>$null | Out-Null
 $first = ($LASTEXITCODE -ne 0)
-$email = (Read-Host "Adresse de courriel pour les alertes (Entree pour garder le reglage actuel)").Trim()
-if ($email) {
-  if ($email -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { Stop-Here "cette adresse n'a pas la forme d'une adresse de courriel. Rien n'a ete fait." }
-  $overrides += "AlertEmail=$email"
+
+# Ce qui est deja regle chez AWS n'est pas redemande (sauf avec -Changer).
+function Test-Resource([string] $id) {
+  aws cloudformation describe-stack-resource --stack-name $stack --region $region --logical-resource-id $id --query "StackResourceDetail.ResourceStatus" --output text 2>$null | Out-Null
+  return ($LASTEXITCODE -eq 0)
+}
+$hasEmail = $false
+$hasPassword = $false
+if (-not $first) { $hasEmail = Test-Resource "BreakerEmail"; $hasPassword = Test-Resource "DashboardDistribution" }
+$email = ""
+if ($Changer -or -not $hasEmail) {
+  $email = (Read-Host "Adresse de courriel pour les alertes (Entree pour ne rien changer)").Trim()
+  if ($email) {
+    if ($email -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { Stop-Here "cette adresse n'a pas la forme d'une adresse de courriel. Rien n'a ete fait." }
+    $overrides += "AlertEmail=$email"
+  }
+} else {
+  Write-Host "Courriel des alertes : deja regle."
 }
 if ($first) {
   Write-Host "Premiere installation : le mot de passe du tableau de bord sera demande au passage suivant."
+} elseif ($hasPassword -and -not $Changer) {
+  Write-Host "Mot de passe du tableau de bord : deja regle."
 } else {
   Write-Host "Mot de passe du tableau de bord : 12 caracteres au moins, lettres et chiffres seulement."
-  Write-Host "Rien ne s'affiche pendant la frappe. Entree seule = garder le reglage actuel."
+  Write-Host "Rien ne s'affiche pendant la frappe. Entree seule = ne rien changer."
   $s1 = Read-Host "Mot de passe" -AsSecureString
   $p1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s1))
   if ($p1) {

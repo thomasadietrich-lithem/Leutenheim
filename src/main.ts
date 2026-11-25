@@ -1225,6 +1225,12 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, `-${e.damage}`, "#9fe060");
   } else if (e.type === "used") {
     sfx.play(e.healed !== undefined ? "heal" : "pickup");
+    // On mange AVANT le coup qui suit (Thomas, 2026-11-25) : la barre de vie remonte d'abord, le coup la fait redescendre.
+    if (e.healed) {
+      shownHp = Math.min(game.hero.maxHp, shownHp + e.healed);
+      pulse(hpBar, "gain");
+      renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.healed}`, "#7fe08a");
+    }
     // Allumée depuis le sac : l'animation attend qu'on le referme (Thomas, 2026-11-16).
     if (e.item === "torche") flarePending = true;
   } else if (e.type === "noticed") {
@@ -2591,7 +2597,8 @@ const POTION_SHADES: Record<string, string[]> = {
   stone: ["#a4abc8", "#7f88a6", "#d8dce8"],
   discord: ["#f08ab8", "#b04a7a", "#ffd0e4"],
   grow: ["#b48ce0", "#7a5aa0", "#e0ccf8"],
-  slip: ["#b8e05a", "#5e8a2a", "#e8f4b0"],
+  // Huile dorée, bien distincte du poison vert (Thomas, 2026-11-25).
+  slip: ["#f0d84a", "#c8a818", "#fff3b0"],
 };
 
 /** À qui l'on parle : Gluck (quête 01) ou Sœur Osseuse (quête 02). */

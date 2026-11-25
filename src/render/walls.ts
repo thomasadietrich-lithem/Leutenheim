@@ -321,8 +321,8 @@ function wallImageInner(
       if ((left === b && reader.brickAt(X - 2, Y) !== b) || (up === b && reader.brickAt(X, Y - 2) !== b)) c = mul(c, 1.18);
       if ((right !== null && right !== b) || (down !== null && down !== b)) c = mul(c, 0.72);
       if (hsh(X, Y, 9) < 0.05) c = mul(c, 0.85);
-      // Section 2 : quelques briques manquantes (un trou noir).
-      if (champi && strHash(b + "m") < 0.025) c = [10, 8, 12];
+      // Section 2 : plus de briques manquantes au hasard (Thomas, 2026-11-25 : « beaucoup trop ; des murs lisses ») ; il
+      // ne reste que les brèches près des éboulis.
     }
     const nearOpen = open(Math.floor(X / T), Math.floor((Y + 3) / T)) || open(Math.floor(X / T), Math.floor((Y - 3) / T)) ||
       open(Math.floor((X + 3) / T), Math.floor(Y / T)) || open(Math.floor((X - 3) / T), Math.floor(Y / T));

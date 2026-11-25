@@ -126,7 +126,14 @@ export interface FloorState {
   /** Section 2 : salles où les champignons se sont refermés après un bruit, jusqu'à ce tour. */
   hush?: { room: number; until: number }[];
   /** Niche secrète : le pan de mur, la case derrière, la dalle à pression ; ouverte ou non. */
-  niche?: { wall: Point; cell: Point; plate: Point; open?: boolean };
+  niche?: {
+    wall: Point;
+    cell: Point;
+    plate: Point;
+    open?: boolean;
+    /** Parfois, derrière l'alcôve, un passage creusé qui mène à une petite salle au coffre (Thomas, 2026-11-25). */
+    passage?: { cells: Point[]; room: { x: number; y: number; w: number; h: number } };
+  };
   /** Bombes arcaniques posées : leur case et les tours avant l'explosion. */
   bombs?: { x: number; y: number; turns: number }[];
   /** Quêtes v3, Sœur Osseuse : les cierges à rallumer (les cases) ; les grilles d'où monte le son (la bonne, indiquée ou non). */

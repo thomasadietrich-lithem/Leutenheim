@@ -2339,16 +2339,16 @@ const ICONS: Record<ItemId, string[]> = {
     ".......KK.......",
     "......KbBK......",
     "......KBbK......",
-    ".....KcAAcK.....",
-    ".....KKcAKK.....",
-    "....KcAAAAcK....",
-    "...KcAAAAAAcK...",
-    "..KcAWAAAAaacK..",
-    "..KcAWAAAaaacK..",
-    "..KcAAAAaaaaaK..",
-    "..KcAAAaaaaacK..",
-    "...KcAaaaaacK...",
-    "....KcaaaacK....",
+    ".....KcyycK.....",
+    ".....KKcyKK.....",
+    "....KcyyyycK....",
+    "...KcyyyyyycK...",
+    "..KcyWyyyyNNcK..",
+    "..KcyWyyyNNNcK..",
+    "..KcyyyyNNNNNK..",
+    "..KcyyyNNNNNcK..",
+    "...KcyNNNNNcK...",
+    "....KcNNNNcK....",
     ".....KccccK.....",
     "......KKKK......",
     "................",
@@ -2781,7 +2781,7 @@ export const BLOOD = {
     return memoColor("pGrow", this.puddle, { "4": "p", "5": "P", "6": "Q" });
   },
   get pSlip() {
-    return memoColor("pSlip", this.puddle, { "4": "a", "5": "A", "6": "Z" });
+    return memoColor("pSlip", this.puddle, { "4": "m", "5": "N", "6": "y" });
   },
 };
 

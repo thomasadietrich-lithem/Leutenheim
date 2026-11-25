@@ -2370,7 +2370,9 @@ export class Renderer {
         } else {
           // Déjà visité mais hors de vue : un voile nettement plus sombre que la pénombre de ce qu'on voit,
           // pour distinguer d'un coup d'œil le souvenir du présent (les murs restent devinables).
-          veil(wall ? "rgba(8,7,14,0.720)" : "rgba(8,7,14,0.820)", rx, ry, rw, rh);
+          // L'escalier, une fois découvert, reste bien visible (Thomas, 2026-11-25).
+          const t = game.map.get(x, y);
+          veil(t === Tile.StairsDown || t === Tile.StairsUp ? "rgba(8,7,14,0.300)" : wall ? "rgba(8,7,14,0.720)" : "rgba(8,7,14,0.820)", rx, ry, rw, rh);
         }
       }
     }
@@ -3562,7 +3564,8 @@ export class Renderer {
         ctx.restore();
         continue;
       }
-      let dark = 0.82;
+      // Un escalier dessiné en meuble (ossuaire, scellés) reste visible une fois découvert (Thomas, 2026-11-25).
+      let dark = /^stairs|sealedStairs/.test(f.kind) ? 0.3 : 0.82;
       let warm = 0;
       if (visible) {
         let lit = 0;

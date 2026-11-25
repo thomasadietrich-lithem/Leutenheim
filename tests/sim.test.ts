@@ -1467,7 +1467,7 @@ test("coffre : en s'ouvrant, il fait tomber son or et un objet à côté de lui"
     assert.equal(game.map.get(at.x, at.y), Tile.ChestOpen);
     const near = (g: { x: number; y: number }) => Math.max(Math.abs(g.x - at!.x), Math.abs(g.y - at!.y)) === 1;
     const gold = game.ground.find((g) => g.item === "or" && near(g));
-    assert.ok(gold && gold.count >= 11 && gold.count <= 23, `or au sol : ${gold?.count}`);
+    assert.ok(gold && gold.count >= 8 && gold.count <= 18, `or au sol : ${gold?.count}`);
     const chest = game.events.find((e) => e.type === "chest");
     assert.ok(chest && chest.type === "chest" && game.ground.some((g) => g.item === chest.item && near(g)), "l'objet tombe à côté");
     return;
@@ -2508,17 +2508,17 @@ test("flèches empoisonnées : choisies dans le carquois (niveau 4), le poison r
 test("butin : rareté selon la section, tas d'or selon la section, jamais dans la salle de départ", async () => {
   const { rollLoot } = await import("../src/core/floor");
   const { goldRange } = await import("../src/data/loot");
-  // Réduit de 40 % (Thomas, 2026-11-16).
-  assert.deepEqual(goldRange(1, "small"), [2, 5]);
-  assert.deepEqual(goldRange(7, "medium"), [12, 24]);
-  assert.deepEqual(goldRange(12, "large"), [60, 96]);
+  // Réduit de 40 % (Thomas, 2026-11-16), puis de 55 % (2026-11-25).
+  assert.deepEqual(goldRange(1, "small"), [1, 4]);
+  assert.deepEqual(goldRange(7, "medium"), [9, 18]);
+  assert.deepEqual(goldRange(12, "large"), [45, 72]);
   const rng = new Rng(5);
   const count = { common: 0, uncommon: 0, rare: 0 };
   for (let i = 0; i < 4000; i++) {
     const loot = rollLoot(rng, 1);
     const def = ITEMS[loot.item] as import("../src/data/items").ItemDef;
     if (loot.item === "or") {
-      assert.ok(loot.count >= 2 && loot.count <= 24);
+      assert.ok(loot.count >= 1 && loot.count <= 18);
       continue;
     }
     count[def.rarity === "epic" ? "rare" : def.rarity!]++;
@@ -6985,14 +6985,14 @@ test("2026-11-19 : l'Elfe ne ramasse plus les flèches ordinaires ; Plumeau touj
   if (k) assert.ok([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].some(([dx, dy]) => g.map.isWalkable(k.x + dx, k.y + dy)), "une case libre à côté de lui");
 });
 
-test("provisions par étage : tirées à part, jamais à l'étage d'un boss, environ 1,15 par étage (2026-11-24)", () => {
+test("provisions par étage : tirées à part, jamais à l'étage d'un boss, environ 0,9 par étage (2026-11-25)", () => {
   let n = 0;
   for (let seed = 1; seed <= 200; seed++) {
     for (const d of [5, 10, 15]) assert.deepEqual(foodRations(seed, d), []);
     n += foodRations(seed, 12).length;
     assert.ok(foodRations(seed, 12).every((f) => f.item === "tourte_fossoyeur" || f.item === "cuisse_poulet"));
   }
-  assert.ok(n / 200 > 1.0 && n / 200 < 1.3, `moyenne ${n / 200}`);
+  assert.ok(n / 200 > 0.75 && n / 200 < 1.05, `moyenne ${n / 200}`);
 });
 
 test("Rang III (2026-11-19) : ouvert au niveau 11, Rang II gelé ; Posture, Sang-froid, Bastion, Exécution, Soif de sang", () => {
@@ -7470,7 +7470,7 @@ test("Le Guerrier réveille les dormeurs à 2 cases (Thomas, 2026-11-24)", () =>
   }
 });
 
-test("Affiches du culte du poulet (2026-11-24) : sur les murs du haut, on les lit au toucher, rien de plus", async () => {
+test("Affiches du culte du poulet (2026-11-24) : sur les murs du haut, on les lit de près, rien de plus", async () => {
   const { AFFICHES } = await import("../src/data/affiches");
   let posters = 0;
   const seen = new Set<number>();
@@ -7485,8 +7485,11 @@ test("Affiches du culte du poulet (2026-11-24) : sur les murs du haut, on les li
         assert.equal(game.map.get(f.x, f.y), Tile.Wall, "accrochée à un mur");
         assert.equal(game.map.get(f.x, f.y + 1), Tile.Floor, "mur du haut d'une salle");
         game.explored[game.map.index(f.x, f.y)] = 1;
+        // De près seulement (2026-11-25) : juste dessous, on la lit tout de suite.
+        game.hero.x = game.hero.fromX = f.x;
+        game.hero.y = game.hero.fromY = f.y + 1;
         game.events.length = 0;
-        assert.equal(game.setDestination(f.x, f.y), false, "la toucher ne fait pas bouger");
+        assert.equal(game.setDestination(f.x, f.y), false, "de près, on la lit sans bouger");
         const e = game.events.find((ev) => ev.type === "affiche");
         assert.ok(e && e.type === "affiche" && e.text === AFFICHES[f.text!].text);
       }
@@ -7546,7 +7549,7 @@ test("Le trou aux poulets (2026-11-24) : vus, ils tombent ; fouillé, une omelet
       if (game.chicken()) chickens++;
     }
   }
-  assert.ok(rings >= 4 && rings <= 22, `${rings} trous sur ${floors} étages`);
+  assert.ok(rings >= 5 && rings <= 10, `${rings} trous sur ${floors} étages (un par section)`);
   assert.ok(chickens >= 8, `${chickens} poulets fous sur ${floors} étages`);
   // Un trou : on le voit, ils tombent ; on fouille, l'omelette.
   for (let seed = 1; seed <= 60; seed++) {
@@ -7604,4 +7607,48 @@ test("Boss 3 (2026-11-24) : la Prêtresse ne monte jamais sur le héros ; le bra
   assert.ok(game.hero.prone! >= 1, "à terre");
   assert.ok(game.events.some((e) => e.type === "swept"));
   assert.ok(game.hero.x !== before.x || game.hero.y !== before.y, "repoussé loin du bras");
+});
+
+test("Lot du 2026-11-25 : feu qui s'étend, affiche lue de loin = on y va, trajet coupé au premier coup, flèche au-dessus du pré", () => {
+  // Le feu : la case touchée d'abord, les voisines au tour suivant.
+  const { game, m } = foeAt(3);
+  game.monsters = [m];
+  Object.assign(m, { hp: 999, maxHp: 999, asleep: true });
+  game.inventory.add("potion_feu", 1);
+  const uid = game.inventory.items.find((i) => i.defId === "potion_feu")!.uid;
+  assert.ok(game.throwPotion(uid, m.x, m.y));
+  game.tick();
+  assert.equal(game.fires.length, 1, "au premier tour, la case touchée seulement");
+  game.wait();
+  game.tick();
+  assert.ok(game.fires.length >= 3, `au tour suivant, les voisines (${game.fires.length})`);
+  // Un coup arrête le trajet tout de suite.
+  const g2 = new Game(4);
+  const far = (g2 as unknown as { current: { stairs: { x: number; y: number } } }).current.stairs;
+  assert.ok(g2.setDestination(far.x, far.y, true));
+  (g2 as unknown as { hurtHero(d: number, c: string): void }).hurtHero(1, "un Kobold");
+  assert.equal(g2.path.length, 0, "trajet arrêté");
+});
+
+test("Niche secrète (2026-11-25) : rien devant elle ; une fois sur trois, un passage vers une petite salle au coffre", () => {
+  let niches = 0;
+  let passages = 0;
+  for (let seed = 1; seed <= 120 && passages < 3; seed++) {
+    const game = new Game(seed);
+    const n = (game as unknown as { current: { niche?: { wall: { x: number; y: number }; cell: { x: number; y: number }; plate: { x: number; y: number }; passage?: { room: { x: number; y: number; w: number; h: number } } } } }).current.niche;
+    if (!n) continue;
+    niches++;
+    const front = { x: 2 * n.wall.x - n.cell.x, y: 2 * n.wall.y - n.cell.y };
+    assert.ok(!game.furnitureList().some((f) => f.x === front.x && f.y === front.y), `graine ${seed} : un meuble devant la niche`);
+    if (!n.passage) continue;
+    passages++;
+    game.monsters.splice(0);
+    game.hero.x = n.plate.x;
+    game.hero.y = n.plate.y;
+    (game as unknown as { openNiche(): void }).openNiche();
+    const r = n.passage.room;
+    assert.equal(game.map.get(r.x + 1, r.y + 1), Tile.Chest, "le coffre au milieu");
+    assert.ok(game.setDestination(r.x + 1, r.y, true), "on peut y aller");
+  }
+  assert.ok(niches > 0 && passages > 0, `${niches} niches, ${passages} passages`);
 });

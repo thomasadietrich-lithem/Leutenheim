@@ -131,7 +131,7 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     goal: "Écouter sur la bonne grille {0}/{1}",
     back: "Revoir Sœur Osseuse",
     waiting: "« Trois grilles dans le sol. Une seule chante. Tenez-vous dessus, et écoutez. Longtemps. Deux tours, au moins. »",
-    thanks: ["« Vous l'avez entendue ? Ma cloche. En bas. »", "« Alors allez-y. Je vous montre le chemin. »", "(L'escalier apparaît sur la carte. Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"],
+    thanks: ["« Vous l'avez entendue ? Ma cloche. En bas. »", "« Alors allez-y. Et prenez ceci en chemin : là, un coffre que personne n'a ouvert. »", "(Une salle apparaît sur la carte. Clarté : le poison vous ronge deux fois moins longtemps, sur cet étage.)"],
     failed: "La cloche sonne encore, quelque part sous vos pieds.",
   },
   soeur_cloche: {

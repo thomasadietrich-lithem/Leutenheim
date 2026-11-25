@@ -44,7 +44,7 @@ export function makeMerchant(at: Point, home: Room, list: { item: ItemId; count:
   const dear = 1 + section * MERCHANT.pricePerSection;
   const wares = list.map((w, i) => {
     const swing = 1 + (mix(seed, i, 77) * 2 - 1) * MERCHANT.priceSwing;
-    return { ...w, price: Math.max(1, Math.round((basePrice(w.item) ?? 1) * w.count * swing * dear)) };
+    return { ...w, price: Math.max(1, Math.round((basePrice(w.item) ?? 1) * w.count * swing * dear * MERCHANT.priceScale)) };
   });
   return { x: at.x, y: at.y, fromX: at.x, fromY: at.y, hidden: false, wares, home, target: null, facing: "down" };
 }

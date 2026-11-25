@@ -646,6 +646,7 @@ export class Game {
     }
     this.useFloor(state, depth);
     this.fires = [];
+    this.pendingFires = [];
     this.gas = [];
     this.fog = [];
     this.discordMist = [];
@@ -752,7 +753,12 @@ export class Game {
     }
     if (fresh && !state.boss) this.placeQuestNpc(state, depth);
     if (fresh && !state.boss && !this.sandbox) this.placeAffiches(state, depth);
-    if (fresh && !state.boss && !this.sandbox && depth <= 2 * RULES.floorsPerSection && new Rng(floorSeed(this.runSeed, depth) ^ 0xc41c4e).chance(RULES.chickenRingChance)) this.placeChickenRing(state);
+    // Le nid à poules : UNE FOIS PAR SECTION (Thomas, 2026-11-25), sur un étage tiré au hasard (1 à 4 de la section).
+    if (fresh && !state.boss && !this.sandbox && depth <= 2 * RULES.floorsPerSection) {
+      const section = Math.floor((depth - 1) / RULES.floorsPerSection);
+      const pick = section * RULES.floorsPerSection + new Rng((this.runSeed ^ 0xc41c4e) + section).int(1, RULES.floorsPerSection - 1);
+      if (pick === depth) this.placeChickenRing(state);
+    }
     if (fresh && !state.boss && !this.sandbox && !this.testRun && this.graveFrom && this.graveFrom.depth === depth) this.placeGrave(state, this.graveFrom);
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -2406,6 +2412,11 @@ export class Game {
 
   /** Un coup d'épée : le cocon ou le sac d'œufs crève, l'amarre est tranchée. La toile vibre : la Tisseuse le sent. */
   private resolveBreak(at: Point): void {
+    const affiche = this.afficheAt(at.x, at.y);
+    if (affiche) {
+      this.events.push({ type: "affiche", text: AFFICHES[affiche.text!].text });
+      return;
+    }
     // Le trou aux poulets : s'ils courent encore, ils s'affolent et tombent ; ensuite, on fouille : une omelette.
     const ring = this.current.chickenRing;
     if (ring && ring.x === at.x && ring.y === at.y && Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) <= 1) {
@@ -5077,6 +5088,9 @@ export class Game {
     // Statue (potion de pierre) : rien ne la blesse.
     if (damage <= 0 || this.stoneTurns > 0) return;
     this.perks().hurt = 1;
+    // Un coup arrête le trajet dès le premier (Thomas, 2026-11-25 : « un long chemin n'a pas été interrompu avant 3
+    // coups ») ; pas le poison ni les flammes qui rongent tour après tour, ni quand on marche sur celui qu'on attaque.
+    if (cause !== "le poison" && cause !== "les flammes" && this.targetId === null && this.path.length > 0) this.stopTravel();
     const rampart = this.rank("dernier_rempart");
     // Affaibli (Thomas, 2026-11-20 : « je préfère affaiblir la bleue, le jeu est exigeant ») : au rang 1, une fois par
     // PARTIE au rang 1, une fois par SECTION au rang 2 (une fois par étage avant) ; il laisse à 1 PV, puis à 5 PV.
@@ -5353,7 +5367,15 @@ export class Game {
     const cells = [...cross, extra]
       .map(([dx, dy]) => ({ x: order.x + dx, y: order.y + dy }))
       .filter((c) => this.map.isWalkable(c.x, c.y) && this.map.get(c.x, c.y) !== Tile.Water);
+    // LE FEU S'ÉTEND PROGRESSIVEMENT (Thomas, 2026-11-25) : la case touchée flambe tout de suite, ses quatre voisines
+    // au tour suivant, l'éclaboussure le tour d'après.
     for (const c of cells) {
+      const step = c.x === order.x && c.y === order.y ? 0 : Math.abs(c.x - order.x) + Math.abs(c.y - order.y) === 1 ? 1 : 2;
+      if (step > 0) {
+        // (Le compteur de tours avance juste après le geste du héros : +1.)
+        this.pendingFires.push({ x: c.x, y: c.y, at: this.turn + step + 1 });
+        continue;
+      }
       const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
       if (old) old.turns = RULES.fireTurns;
       else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
@@ -5474,7 +5496,23 @@ export class Game {
   }
 
   /** Fin de tour : le feu brûle ceux qui s'y tiennent, puis faiblit. */
+  /** Flammes à venir (feu qui s'étend case par case) : où, et à quel tour. */
+  private pendingFires: { x: number; y: number; at: number }[] = [];
+
   private burn(): void {
+    // Le feu gagne les cases prévues, tour après tour.
+    if (this.pendingFires.length > 0) {
+      const now = this.pendingFires.filter((p) => p.at <= this.turn);
+      this.pendingFires = this.pendingFires.filter((p) => p.at > this.turn);
+      for (const c of now) {
+        if (!this.map.isWalkable(c.x, c.y) || this.map.get(c.x, c.y) === Tile.Water) continue;
+        const old = this.fires.find((f) => f.x === c.x && f.y === c.y);
+        if (old) old.turns = Math.max(old.turns, RULES.fireTurns);
+        else this.fires.push({ x: c.x, y: c.y, turns: RULES.fireTurns });
+        for (const m of this.monsters) if (m.x === c.x && m.y === c.y) { m.alerted = true; m.asleep = false; }
+      }
+      if (now.length > 0) this.igniteFurniture();
+    }
     // L'eau ne brûle jamais (Thomas, 2026-11-12 : « l'eau éteint le feu et ne peut pas brûler »).
     this.fires = this.fires.filter((f) => this.map.get(f.x, f.y) !== Tile.Water);
     // Ceux qui ont quitté les flammes brûlent encore un peu (les flammes les suivent).
@@ -5741,8 +5779,12 @@ export class Game {
     // Une affiche du culte du poulet : on la lit, c'est tout (Thomas, 2026-11-24 : « pas interactives »).
     const affiche = this.afficheAt(x, y);
     if (affiche && this.isExplored(x, y)) {
-      this.events.push({ type: "affiche", text: AFFICHES[affiche.text!].text });
-      return false;
+      // On ne la lit que de près (Thomas, 2026-11-25) : sinon le héros va devant, puis la lit.
+      if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) <= 1) {
+        this.events.push({ type: "affiche", text: AFFICHES[affiche.text!].text });
+        return false;
+      }
+      return this.approachBreakable(x, y, ignoreFog);
     }
     // Une statue : celle dont Gluck a parlé se brise ; les autres ne sont que de la pierre.
     const statue = this.statueAt(x, y);
@@ -7726,8 +7768,9 @@ export class Game {
           if (this.hintStatue()) {
             return end(["« Marché conclu : une pomme, et un secret. La statue de pierre, sur cet étage… elle sonne creux. Un bon coup, et hop ! »", "(Une fissure apparaît sur la statue. Touchez-la pour la briser.)"]);
           }
-          this.revealStairs();
-          return end(["« Marché conclu : une pomme, et un secret. L'escalier qui descend ? C'est par là. »", "(L'escalier apparaît sur votre carte.)"]);
+          if (this.revealChestRoom()) return end(["« Marché conclu : une pomme, et un secret. Un coffre qui dort, par là. »", "(Une salle apparaît sur votre carte.)"]);
+          this.gluckDrops(1);
+          return end(["« Marché conclu : deux pommes. Les secrets, je les ai tous vendus. »"]);
         }
         g.pending = "scam";
         g.pendingLines = [`« Une pomme ? ${GLUCK.scamPrice} pièces. C'est le prix d'une potion de jouvence… mais en meilleur. »`];
@@ -7844,9 +7887,12 @@ export class Game {
         if (gift === "stairs" && this.hintStatue()) {
           return end(["« Un secret, entre nous : la statue de pierre ? Creuse. J'y ai caché mes économies. Enfin… mes ANCIENNES économies. »", "(Une fissure apparaît sur la statue. Touchez-la pour la briser.)"]);
         }
+        if (gift === "stairs" && this.revealChestRoom()) {
+          return end(["« Un secret, entre nous : il y a un coffre, par là. »", "(Une salle apparaît sur votre carte.)"]);
+        }
         if (gift === "stairs") {
-          this.revealStairs();
-          return end(["« Un secret, entre nous : l'escalier, c'est par là. »", "(L'escalier apparaît sur votre carte.)"]);
+          this.gluckDrops(1);
+          return end(["« Tiens. Une pomme de ma réserve secrète. »"]);
         }
         for (const m of this.monsters) {
           if (m.boss || (m.defId !== "schrat" && m.defId !== "frondeur")) continue;
@@ -8691,7 +8737,7 @@ export class Game {
         this.grantProtection();
         break;
       case "soeur_grille":
-        this.revealStairs();
+        this.revealChestRoom();
         this.clarityDepth = this.depth;
         break;
       case "soeur_cloche":
@@ -10054,9 +10100,10 @@ export class Game {
         const roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!]);
         g.drumDone = true;
         if (!roll.success) return { lines: ["(Vous butez sur l'écriture penchée.)", "« Non, non, ça se lit “Grosse-Dent”, pas “Grosse Dinde”. »"], roll, done: false };
-        this.revealStairs();
+        const found = this.revealChestRoom();
+        if (!found) this.gold += 10;
         this.events.push({ type: "feat", npc: "plumeau", id: "plumeau_registre" });
-        return { lines: ["(Vous lisez une page au hasard.)", "« Ah, l'escalier ! Il est là, je l'avais noté. » (L'escalier apparaît sur la carte.)"], roll, done: false };
+        return { lines: ["(Vous lisez une page au hasard.)", found ? "« Ah, la réserve ! Un coffre, là, je l'avais noté. » (Une salle apparaît sur la carte.)" : "« Ah, une note de frais ! Tenez, elle vous revient : 10 pièces. »"], roll, done: false };
       }
       default:
         return { lines: [], done: false };
@@ -10159,7 +10206,10 @@ export class Game {
           for (let oy = -1; oy <= 1 && rock; oy++) for (let ox = -1; ox <= 1; ox++) if (!(b.x + ox === w.x && b.y + oy === w.y) && !solid(b.x + ox, b.y + oy)) rock = false;
           if (!rock || map.get(p.x, p.y) !== Tile.Floor) continue;
           if (state.torches.some((t) => Math.abs(t.x - w.x) + Math.abs(t.y - w.y) <= 1)) continue;
-          if ((state.furniture ?? []).some((f) => furnitureCells(f).some((c) => (c.x === w.x && c.y === w.y) || (c.x === p.x && c.y === p.y)))) continue;
+          // Ni la dalle, ni la case devant la niche, ni le mur encombrés (Thomas, 2026-11-25 : « une alcôve derrière une caisse »).
+          const front = { x: w.x - dx, y: w.y - dy };
+          if (map.get(front.x, front.y) !== Tile.Floor) continue;
+          if ((state.furniture ?? []).some((f) => furnitureCells(f).some((c) => (c.x === w.x && c.y === w.y) || (c.x === p.x && c.y === p.y) || (c.x === front.x && c.y === front.y)))) continue;
           if (state.traps.some((t) => t.x === p.x && t.y === p.y) || state.ground.some((g) => g.x === p.x && g.y === p.y)) continue;
           if ((p.x === state.start.x && p.y === state.start.y) || (p.x === state.stairs.x && p.y === state.stairs.y)) continue;
           candidates.push({ wall: w, cell: b, plate: p });
@@ -10167,7 +10217,10 @@ export class Game {
       }
     });
     if (candidates.length === 0) return null;
-    const n = candidates[rng.int(0, candidates.length - 1)];
+    const n: NonNullable<FloorState["niche"]> = { ...candidates[rng.int(0, candidates.length - 1)] };
+    // Une fois sur trois (Thomas, 2026-11-25 : « l'alcôve pourrait être un couloir qui mène de temps en temps à une
+    // salle spéciale ») : un passage tout droit dans la roche, puis une petite salle au coffre ; creusés à l'ouverture.
+    if (rng.chance(RULES.nichePassageChance)) n.passage = this.planNichePassage(map, n) ?? undefined;
     (state.furniture ??= []).push({ x: n.plate.x, y: n.plate.y, kind: "pressurePlate" });
     // Des caisses autour de la dalle, comme si on avait voulu la cacher (Thomas, 2026-11-21) ; jamais sur la dalle ni
     // juste sous elle (une caisse déborde sur la case du dessus : elle la couvrirait), jamais dans un passage.
@@ -10193,6 +10246,37 @@ export class Game {
     return n;
   }
 
+  /**
+   * Le passage derrière une niche : 3 à 6 cases tout droit depuis l'alcôve, puis une salle de 3 × 3 ; tout doit être de la
+   * roche pleine, sans toucher une autre case ouverte (une case de roche tout autour).
+   */
+  private planNichePassage(map: GameMap, n: { wall: Point; cell: Point }): { cells: Point[]; room: { x: number; y: number; w: number; h: number } } | null {
+    const d = { x: Math.sign(n.cell.x - n.wall.x), y: Math.sign(n.cell.y - n.wall.y) };
+    const solidAround = (p: Point, skip: Point[]) => {
+      for (let oy = -1; oy <= 1; oy++)
+        for (let ox = -1; ox <= 1; ox++) {
+          const q = { x: p.x + ox, y: p.y + oy };
+          if (skip.some((s) => s.x === q.x && s.y === q.y)) continue;
+          if (!map.inBounds(q.x, q.y) || q.x <= 0 || q.y <= 0 || q.x >= map.width - 1 || q.y >= map.height - 1 || map.get(q.x, q.y) !== Tile.Wall) return false;
+        }
+      return true;
+    };
+    for (const len of [6, 5, 4, 3]) {
+      const cells: Point[] = [];
+      for (let k = 1; k <= len; k++) cells.push({ x: n.cell.x + d.x * k, y: n.cell.y + d.y * k });
+      const end = cells[cells.length - 1];
+      // La salle : 3 × 3, centrée sur l'axe, juste après le passage.
+      const c = { x: end.x + d.x * 2, y: end.y + d.y * 2 };
+      const room = { x: c.x - 1, y: c.y - 1, w: 3, h: 3 };
+      const roomCells: Point[] = [];
+      for (let y = room.y; y < room.y + 3; y++) for (let x = room.x; x < room.x + 3; x++) roomCells.push({ x, y });
+      const all = [n.cell, ...cells, ...roomCells];
+      const ok = [...cells, ...roomCells].every((p) => solidAround(p, all)) && map.get(n.cell.x, n.cell.y) === Tile.Wall;
+      if (ok) return { cells, room };
+    }
+    return null;
+  }
+
   /** Le héros marche sur la dalle de la niche secrète : le pan de mur coulisse, le butin est là. */
   private openNiche(): void {
     const n = this.current.niche;
@@ -10202,8 +10286,15 @@ export class Game {
     this.map.set(n.cell.x, n.cell.y, Tile.Floor);
     const f = this.current.furniture.find((o) => o.x === n.plate.x && o.y === n.plate.y && o.kind === "pressurePlate");
     if (f) f.kind = "pressurePlateDown";
-    // Une seule chose dans l'alcôve (Thomas, 2026-11-21) : un objet 6 fois sur 10, sinon de l'or.
-    if (this.rng.chance(0.6)) {
+    if (n.passage) {
+      // Le passage s'ouvre derrière l'alcôve : un couloir sombre, une petite salle, un coffre au milieu.
+      for (const c of n.passage.cells) this.map.set(c.x, c.y, Tile.Floor);
+      const r = n.passage.room;
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) this.map.set(x, y, Tile.Floor);
+      this.map.set(r.x + 1, r.y + 1, Tile.Chest);
+      this.dropItem(r.x, r.y + 2, "or", lessGold((this.rng.int(10, 20) + this.depth * 2) * (1 + sectionOf(this.depth))));
+    } else if (this.rng.chance(0.6)) {
+      // Une seule chose dans l'alcôve (Thomas, 2026-11-21) : un objet 6 fois sur 10, sinon de l'or.
       const l = this.floorLoot();
       this.dropItem(n.cell.x, n.cell.y, l.item, l.count);
     } else this.dropItem(n.cell.x, n.cell.y, "or", lessGold((this.rng.int(10, 20) + this.depth * 2) * (1 + sectionOf(this.depth))));
@@ -10516,10 +10607,26 @@ export class Game {
     this.events.push({ type: "krikReturn", amount });
   }
 
-  /** L'escalier qui descend apparaît sur la carte (il est noté comme déjà vu, avec ses voisines). */
-  private revealStairs(): void {
-    const s = this.current.stairs;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.map.inBounds(s.x + dx, s.y + dy)) this.explored[this.map.index(s.x + dx, s.y + dy)] = 1;
+  /**
+   * À la place de l'escalier (Thomas, 2026-11-25 : « une fois découvert, l'escalier doit rester visible ; pour tout
+   * objectif de quête qui le rendait visible, trouve autre chose ») : une salle où dort un coffre apparaît sur la carte.
+   * Faux s'il n'y en a plus à découvrir.
+   */
+  private revealChestRoom(): boolean {
+    const rooms = this.current.rooms.filter((r) => {
+      let chest = false;
+      let seen = true;
+      for (let y = r.y; y < r.y + r.h; y++)
+        for (let x = r.x; x < r.x + r.w; x++) {
+          if (this.map.get(x, y) === Tile.Chest) chest = true;
+          if (!this.explored[this.map.index(x, y)]) seen = false;
+        }
+      return chest && !seen;
+    });
+    if (rooms.length === 0) return false;
+    const r = rooms[this.rng.int(0, rooms.length - 1)];
+    for (let y = r.y - 1; y <= r.y + r.h; y++) for (let x = r.x - 1; x <= r.x + r.w; x++) if (this.map.inBounds(x, y)) this.explored[this.map.index(x, y)] = 1;
+    return true;
   }
 
   /** Vol raté : un Kobold frondeur accourt (il arrive hors de vue, à quelques cases, et sait où est le héros). */
@@ -11547,7 +11654,9 @@ export class Game {
 
     /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
     const fly = (c: Point): boolean => {
-      if (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y)) {
+      // Les flèches passent au-dessus des plantations (Thomas, 2026-11-25), de l'eau profonde et du trou aux poulets.
+      const low = this.map.get(c.x, c.y) === Tile.Furniture && /^(soil|morelRow|trouPoulets|eauProfonde)/.test(this.furnitureAt(c.x, c.y)?.kind ?? "");
+      if (!low && (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y))) {
         const f = this.furnitureAt(c.x, c.y);
         if (f && (f.kind === "cible" || f.kind === "cibleBleue" || (f.kind.startsWith("cibleNoire") && (ITEMS[ammo] as ItemDef).ricochet))) {
           struck = f;

@@ -186,3 +186,7 @@
 | 2026-11-24 20:06 | 5e09cdf | Moyen | 3.3 | 15 % | 29 % | 1 % | 2.6 | 15.2 | 0.7 / 0.4 / 0.2 | précision du héros +1 (toutes attaques) |
 | 2026-11-24 20:06 | 5e09cdf | Maîtrise | 3.9 | 10 % | 49 % | 12 % | 4.3 | 40.5 | 1.1 / 0.7 / 0.3 | précision du héros +1 (toutes attaques) |
 | 2026-11-24 20:06 | 5e09cdf | Expert | 7.9 | 5 % | 89 % | 83 % | 8.5 | 115.9 | 1.5 / 1.2 / 0.2 | [section 2 : étage 8 60 %, étage 10 27 %, bat le Carillon 23 %] précision du héros +1 (toutes attaques) |
+| 2026-11-25 13:36 | ea5a70e | Débutant | 2.8 | 13 % | 9 % | 0 % | 1.6 | 6.9 | 0.6 / 0 / 0.4 | lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |
+| 2026-11-25 13:36 | ea5a70e | Moyen | 3.3 | 14 % | 29 % | 1 % | 2.6 | 15.1 | 0.7 / 0.4 / 0.2 | lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |
+| 2026-11-25 13:36 | ea5a70e | Maîtrise | 4 | 9 % | 53 % | 15 % | 4.3 | 38.5 | 1.1 / 0.7 / 0.3 | lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |
+| 2026-11-25 13:36 | ea5a70e | Expert | 8 | 3 % | 89 % | 83 % | 8.4 | 111.9 | 1.5 / 1.2 / 0.2 | [section 2 : étage 8 54 %, étage 10 30 %, bat le Carillon 25 %] lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |

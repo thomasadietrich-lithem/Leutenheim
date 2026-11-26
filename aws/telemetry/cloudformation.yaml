@@ -339,7 +339,7 @@ Resources:
               Address: !Ref AlertEmail
 
   # ---------- Tableau de bord (Thomas, 2026-11-24) ----------
-  # Chaque nuit, une fonction relit les evenements et ecrit data.json (une ligne par partie, rien de personnel :
+  # Toutes les 10 minutes (Thomas, 2026-11-26 : voir un ami jouer le jour meme), une fonction relit les evenements et ecrit data.json (une ligne par partie, rien de personnel :
   # les numeros d'appareil sont remplaces par le code joueur de cinq signes). La page n'est en ligne que si un mot de passe est donne.
   DashboardBucket:
     Type: AWS::S3::Bucket
@@ -457,7 +457,7 @@ Resources:
               rows.set(id, { day: day(r.first), version: r.version, platform: r.platform, race: r.race, deepest: r.deepest, end, cause: end === "mort" ? r.cause : "", level: r.level, turns: r.turns, gold: r.gold, bosses: r.bosses, device: r.device ? code(r.device) : "" });
             }
             const q = quests.filter((x) => rows.has(x.run)).map((x) => { const r = rows.get(x.run); return { day: r.day, version: r.version, platform: r.platform, race: r.race, device: r.device, id: x.id, what: x.what }; });
-            return { genere: day(now), runs: [...rows.values()], quests: q };
+            return { genere: day(now), maj: new Date(now).toISOString(), runs: [...rows.values()], quests: q };
           }
           exports.build = build;
           exports.code = code;
@@ -484,8 +484,8 @@ Resources:
   AggregatorSchedule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Cave Roller - recalcule le tableau de bord chaque nuit.
-      ScheduleExpression: cron(15 3 * * ? *)
+      Description: Cave Roller - recalcule le tableau de bord toutes les 10 minutes.
+      ScheduleExpression: rate(10 minutes)
       State: ENABLED
       Targets:
         - Arn: !GetAtt AggregatorFunction.Arn

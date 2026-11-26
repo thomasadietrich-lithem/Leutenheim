@@ -41,6 +41,7 @@ assert.ok(out.runs.every((r) => /^[A-HJ-NP-Z2-9]{5}$/.test(r.device)), "seul le 
 assert.equal(playerCode("appareil-a"), "KFJC7", "même calcul que playerCode dans le jeu");
 assert.equal(new Set(out.runs.map((r) => r.device)).size, 2, "a1 et a2 viennent du même appareil");
 assert.equal(out.genere, "2026-11-24");
+assert.equal(out.maj, "2026-11-24T12:00:00.000Z", "heure du calcul, pour l'afficher dans la page");
 console.log("Bilan : tous les essais passent (" + out.runs.length + " parties).");
 
 // --- Étiquettes : le filtre de la fonction « caveroller-stats-etiquettes », lu lui aussi dans le modèle.

@@ -301,7 +301,9 @@ Promise.all([lire("data.json"), lire("tags.json")]).then(([d, tags]) => {
   DATA = { runs: d.runs ?? [], quests: d.quests ?? [] };
   EXEMPLE = !!d.exemple;
   if (EXEMPLE) $("exemple").style.display = "block";
-  $("maj").textContent = d.genere ? "Mis à jour le " + d.genere : "";
+  // Heure du dernier calcul, à l'heure de cet appareil (le calcul repasse toutes les 10 minutes).
+  const quand = d.maj ? new Date(d.maj) : null;
+  $("maj").textContent = quand && !isNaN(quand) ? "Chiffres de " + quand.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " à " + quand.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + " (recalcul toutes les 10 minutes)" : d.genere ? "Mis à jour le " + d.genere : "";
   fill("f-version", [...new Set(DATA.runs.map((r) => r.version))].sort(), "Toutes");
   fill("f-race", [...new Set(DATA.runs.map((r) => r.race))].sort(), "Toutes");
   fill("f-platform", [...new Set(DATA.runs.map((r) => r.platform))].sort(), "Toutes");

@@ -73,7 +73,7 @@ Console AWS > Athena (région Paris) > groupe de travail « caveroller » > Requ
 ## Tableau de bord (2026-11-24)
 
 - `dashboard/index.html` : page seule, sans bibliothèque extérieure, qui lit `data.json` posé à côté. Filtres : période, version, race, plateforme.
-- Chaque nuit (3 h 15 UTC), la fonction « caveroller-stats-bilan » relit les événements des 180 derniers jours et écrit `data.json` dans un bucket privé : une ligne par partie, les numéros d'appareil remplacés par j1, j2... Son code est dans `cloudformation.yaml` ; essai sans AWS : `node aws/telemetry/test-bilan.mjs`.
+- Toutes les 10 minutes (depuis le 2026-11-26 ; avant : chaque nuit), la fonction « caveroller-stats-bilan » relit les événements des 180 derniers jours et écrit `data.json` dans un bucket privé : une ligne par partie, les numéros d'appareil remplacés par j1, j2... Son code est dans `cloudformation.yaml` ; essai sans AWS : `node aws/telemetry/test-bilan.mjs`.
 - Mise en ligne : `bash aws/telemetry/deploy.sh --tableau` demande un mot de passe (12 caractères au moins, jamais écrit dans le dépôt). La page est alors servie en HTTPS par CloudFront, utilisateur `lth`. Sans mot de passe, rien n'est en ligne. La page ne donne aucun accès au compte : elle ne lit qu'un fichier de totaux.
 - `node aws/telemetry/dashboard/exemple.mjs` refabrique des DONNÉES D'EXEMPLE pour travailler la page (bandeau jaune) ; elles ne sont jamais envoyées sur AWS.
 - Vérifié : cfn-lint, calcul essayé sans AWS, page essayée avec le résultat du calcul. PAS ENCORE DÉPLOYÉ : la mise en ligne et le mot de passe n'ont jamais été essayés en vrai.

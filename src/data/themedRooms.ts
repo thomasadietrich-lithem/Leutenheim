@@ -207,6 +207,18 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   runnerB: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   runnerC: { blocks: false, w: 1, h: 1, burns: true, flat: true },
   vitrail0: { blocks: false, w: 1, h: 1, burns: false, wall: true },
+  // Les salles spéciales (Thomas, 2026-11-26 ; planche art/salles_speciales_v1.png).
+  puitsVoeux: { blocks: true, w: 1, h: 1, burns: false },
+  autelPoulet: { blocks: true, w: 1, h: 1, burns: false },
+  autelPouletVide: { blocks: true, w: 1, h: 1, burns: false },
+  miroir: { blocks: true, w: 1, h: 1, burns: false },
+  miroirBrise: { blocks: true, w: 1, h: 1, burns: false },
+  champiFestin: { blocks: true, w: 1, h: 1, burns: false },
+  champiFestinMange: { blocks: true, w: 1, h: 1, burns: false },
+  tableCarte: { blocks: true, w: 1, h: 1, burns: true },
+  tableCarteLue: { blocks: true, w: 1, h: 1, burns: true },
+  ciergeCrypte: { blocks: true, w: 1, h: 1, burns: false },
+  ciergeCrypteAllume: { blocks: true, w: 1, h: 1, burns: false },
   // Le trou aux poulets (Thomas, 2026-11-24) : on n'y marche pas ; dessiné par le moteur de rendu (un trou de terre).
   trouPoulets: { blocks: true, w: 1, h: 1, burns: false, flat: true },
   // La tombe du héros précédent (Thomas, 2026-11-24) : avec son objet, puis vide.

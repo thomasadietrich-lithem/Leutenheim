@@ -1,5 +1,6 @@
 import { ItemId } from "../data/items";
 import { buildSandboxEnigme } from "./sandboxEnigme";
+import { buildSandboxSpeciales } from "./sandboxSpeciales";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { Rng } from "../core/rng";
 import {
@@ -77,6 +78,8 @@ export interface SandboxFloor extends Floor {
   look?: "champi";
   /** Salles à énigme (zone d'essai des énigmes, Thomas 2026-11-21). */
   enigmas?: import("../core/floor").Enigma[];
+  /** La crypte aux trois cierges (zone d'essai des salles spéciales). */
+  crypt?: import("../core/floor").FloorState["crypt"];
   /** Sans les trucs fun de la section 1 (porte du compteur, poulet, ferme) ni PNJ. */
   plain?: boolean;
 }
@@ -116,19 +119,19 @@ export const SANDBOX_SEEDS = { dortoir: 1, kitchen: 5, chapel: 7, torture: 3, fo
 let plan: () => SandboxFloor = () => buildSandbox();
 
 /** Quelle salle d'essai : la section 1 (le plan historique) ou la section 2, la champignonnière (Thomas, 2026-11-14). */
-let section: 1 | 2 | 3 = 1;
+let section: 1 | 2 | 3 | 4 = 1;
 
 /** 1 : section 1 ; 2 : la champignonnière ; 3 : la zone d'essai des salles à énigme (Thomas, 2026-11-21). */
-export function setSandboxSection(s: 1 | 2 | 3): void {
+export function setSandboxSection(s: 1 | 2 | 3 | 4): void {
   section = s;
 }
 
-export function sandboxSection(): 1 | 2 | 3 {
+export function sandboxSection(): 1 | 2 | 3 | 4 {
   return section;
 }
 
-export function sandboxPlan(s: 1 | 2 | 3 = section): SandboxFloor {
-  return s === 2 ? buildSandbox2() : s === 3 ? buildSandboxEnigme() : plan();
+export function sandboxPlan(s: 1 | 2 | 3 | 4 = section): SandboxFloor {
+  return s === 2 ? buildSandbox2() : s === 3 ? buildSandboxEnigme() : s === 4 ? buildSandboxSpeciales() : plan();
 }
 
 export function setSandboxPlan(builder: () => SandboxFloor): void {

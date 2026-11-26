@@ -94,6 +94,26 @@ export const MONSTERS = {
     color: "#d9763a",
     blood: "yellow",
   },
+  // LE REFLET (salle des miroirs, Thomas 2026-11-26) : il sort du miroir avec les armes, l'armure et la moitié des PV du
+  // héros (posés à sa sortie ; ces valeurs-ci ne servent qu'à la fiche). Vaincu, il laisse un objet rare.
+  reflet: {
+    id: "reflet",
+    name: "Votre reflet",
+    family: "culte",
+    description: "Vous, mais de l'autre côté du miroir : mêmes armes, même armure, la moitié de vos forces. Il sourit quand vous ne souriez pas.",
+    hp: 10,
+    armorClass: 12,
+    attackBonus: 4,
+    damage: { count: 1, sides: 6, bonus: 0 },
+    vision: 10,
+    xpMin: 6,
+    xpMax: 6,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 1,
+    color: "#9ab8d8",
+    blood: "black",
+  },
   // KOBOLD FRONDEUR (Thomas, 2026-11-11 : « Kobold frondeur ok » ; planche art/frondeur_v1.png). Valeurs (C).
   frondeur: {
     id: "frondeur",

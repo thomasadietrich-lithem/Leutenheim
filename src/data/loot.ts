@@ -34,6 +34,8 @@ export const LOOT: Record<Rarity, { item: ItemId | "gold"; count?: [number, numb
     { item: "potion_brouillard" }, { item: "potion_oursin" }, { item: "potion_pierre", minDepth: 2 }, { item: "potion_discorde", minDepth: 2 }, { item: "potion_gel", minDepth: 2 }, { item: "potion_geant", minDepth: 2 }, { item: "potion_glissante", minDepth: 2 }, { item: "flute_pan", minDepth: 2 },
     // Amulettes (Thomas, 2026-11-15).
     { item: "amulette_vitalite" }, { item: "amulette_force", minDepth: 2 }, { item: "amulette_agilite", minDepth: 2 },
+    // Le casque poulet (Thomas, 2026-11-26 : « vérifie son drop » : il ne venait que de la quête de Grum) : rare au sol aussi.
+    { item: "casque_poulet", minDepth: 2, weight: 0.5 },
   ],
   rare: [
     { item: "gold" }, { item: "cimeterre" }, { item: "epee_batarde", minDepth: 8 }, { item: "arc_corne", minDepth: 7 }, { item: "harnois", minDepth: 8 }, { item: "armure_obsidienne", minDepth: 11 }, { item: "fleche_ricochet", count: [3, 5], minDepth: 6 }, { item: "saphir" }, { item: "potion_jouvence" },

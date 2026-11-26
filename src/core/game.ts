@@ -108,6 +108,8 @@ export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon
 export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
+/** Les objets des salles spéciales (2026-11-26) : on les touche, à côté, pour s'en servir. */
+const SPECIAL_FEATURES: ReadonlySet<string> = new Set(["puitsVoeux", "autelPoulet", "autelPouletVide", "miroir", "miroirBrise", "champiFestin", "champiFestinMange", "tableCarte", "tableCarteLue", "ciergeCrypte", "ciergeCrypteAllume"]);
 const RAT_FOOD: ReadonlySet<string> = new Set(["omelette", "pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur", "pomme_pourrie"]);
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
@@ -346,7 +348,7 @@ export class Game {
 
   /** L'affiche accrochée à cette case de mur, s'il y en a une. */
   afficheAt(x: number, y: number): Furniture | undefined {
-    return this.current.furniture.find((f) => f.x === x && f.y === y && f.text !== undefined && f.kind.startsWith("affiche"));
+    return this.current.furniture.find((f) => f.x === x && f.y === y && (f.text !== undefined || f.note !== undefined) && f.kind.startsWith("affiche"));
   }
 
   /** Le héros se repose (yeux fermés, petits « z », Thomas 2026-11-24). */
@@ -594,6 +596,7 @@ export class Game {
       // Pièce secrète (0 à 1 par étage) et marques dans les murs (Thomas, 2026-11-14).
       if (sandboxFloor?.secretRoom) state.secretRoom = JSON.parse(JSON.stringify(sandboxFloor.secretRoom));
       if (sandboxFloor?.enigmas) state.enigmas = JSON.parse(JSON.stringify(sandboxFloor.enigmas));
+      if (sandboxFloor?.crypt) state.crypt = JSON.parse(JSON.stringify(sandboxFloor.crypt));
       if (!sandboxFloor && !bossFloor) {
         const srng = new Rng(seed ^ 0x5ec7e7);
         if (srng.chance(RULES.secretRoomChance)) {
@@ -910,6 +913,23 @@ export class Game {
 
   /** Coup du héros qui porte (épée, tir) : le gisant couché se lève, l'acolyte qui chante se tait, sonné. */
   private struckByHero(m: Actor, hit: boolean): void {
+    // LA TISSEUSE TOUCHÉE S'ÉVEILLE (Thomas, 2026-11-26 : « on pouvait la taper avant de lancer le combat, surtout avec
+    // l'elfe ») : coup ou flèche, même de loin, elle sait d'où ça vient et y va.
+    if (m.boss && m.defId === "tisseuse" && !this.peaceful) {
+      const st = m.boss;
+      st.target = { x: this.hero.x, y: this.hero.y };
+      st.lure = undefined;
+      if (!st.engaged) {
+        st.engaged = true;
+        m.alerted = true;
+        m.asleep = false;
+        this.events.push({ type: "boss", what: "awake", x: m.x, y: m.y });
+      }
+      if (st.phase === "lurk") {
+        st.lurk = 0;
+        this.bossAdvance(m);
+      }
+    }
     if (m.effigy) {
       m.effigy = false;
       m.asleep = false;
@@ -2414,9 +2434,11 @@ export class Game {
   private resolveBreak(at: Point): void {
     const affiche = this.afficheAt(at.x, at.y);
     if (affiche) {
-      this.events.push({ type: "affiche", text: AFFICHES[affiche.text!].text });
+      this.events.push({ type: "affiche", text: affiche.note ?? AFFICHES[affiche.text!].text });
       return;
     }
+    const special = this.specialAt(at.x, at.y);
+    if (special) return this.useSpecial(special);
     // Le trou aux poulets : s'ils courent encore, ils s'affolent et tombent ; ensuite, on fouille : une omelette.
     const ring = this.current.chickenRing;
     if (ring && ring.x === at.x && ring.y === at.y && Math.max(Math.abs(at.x - this.hero.x), Math.abs(at.y - this.hero.y)) <= 1) {
@@ -2834,10 +2856,20 @@ export class Game {
       }
       if (!st.target) return;
       const steps = onWeb() ? RULES.bossWebSteps : RULES.bossGroundSteps;
+      let moved = 0;
       for (let i = 0; i < steps && gapBetween(m, hero) !== 1; i++) {
         const step = bigStep(this.map, m, free, null, st.target);
         if (!step) break;
         this.bossMove(m, step);
+        moved++;
+      }
+      // Bloquée (couloir trop étroit pour elle, héros hors d'atteinte) : elle ne reste plus figée (Thomas, 2026-11-26) ;
+      // un tour sur deux, elle CRACHE SA TOILE sur le héros en vue : englué un tour.
+      if (moved === 0 && gapBetween(m, hero) > 1 && gapBetween(m, hero) <= RULES.bossSpitRange && (this.turn + m.id) % 2 === 0 && hasLineOfSight(this.map, { x: m.x + 1, y: m.y + 1 }, hero) && !this.fogBetween(m, hero)) {
+        this.faceToward(m, hero);
+        this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+        this.stopTravel();
+        this.events.push({ type: "webSpit", fromX: m.x + 1, fromY: m.y + 1, x: hero.x, y: hero.y });
       }
       if (!sensed && st.target && gapBetween(m, st.target) <= 1 && !st.lure) st.target = undefined;
       return;
@@ -3983,6 +4015,8 @@ export class Game {
         fakeWalls: f.fakeWalls,
         hush: f.hush,
         niche: f.niche,
+        chickenRing: f.chickenRing,
+        crypt: f.crypt,
         maestro: f.maestro,
         plumeau: f.plumeau,
         clavicule: f.clavicule,
@@ -4070,7 +4104,7 @@ export class Game {
     const race = (RACES as Record<string, RaceDef>)[data.race];
     const heroClass = (CLASSES as Record<string, ClassDef>)[data.heroClass];
     if (!race || !heroClass || !data.floors.some((f) => f.depth === data.depth)) return null;
-    if (data.sandbox) setSandboxSection(data.sandboxSection === 2 ? 2 : data.sandboxSection === 3 ? 3 : 1);
+    if (data.sandbox) setSandboxSection(data.sandboxSection === 2 ? 2 : data.sandboxSection === 3 ? 3 : data.sandboxSection === 4 ? 4 : 1);
     const game = new Game(data.runSeed, race, heroClass, DEFAULT_FLOOR, data.sandbox);
     const saved = clone(data);
     game.floors.clear();
@@ -4126,6 +4160,8 @@ export class Game {
         fakeWalls: f.fakeWalls,
         hush: f.hush,
         niche: f.niche,
+        chickenRing: f.chickenRing,
+        crypt: f.crypt,
         maestro: f.maestro,
         plumeau: f.plumeau,
         clavicule: f.clavicule,
@@ -5079,6 +5115,162 @@ export class Game {
     this.events.push({ type: "chickenRing", what: "fall", x: r.x, y: r.y, seen: this.isVisible(r.x, r.y) });
   }
 
+  /** Un objet de salle spéciale à cette case (puits, autel du Poulet, miroir, festin, table du cartographe, cierge). */
+  specialAt(x: number, y: number): Furniture | undefined {
+    return this.current.furniture.find((f) => f.x === x && f.y === y && SPECIAL_FEATURES.has(f.kind));
+  }
+
+  /**
+   * LES SALLES SPÉCIALES (Thomas, 2026-11-26 : « implémente les salles spéciales en test ») : ce que fait chaque objet
+   * quand le héros, à côté, le touche.
+   */
+  private useSpecial(f: Furniture): void {
+    const at = { x: f.x, y: f.y };
+    const drop = (item: ItemId, count = 1) => {
+      const to = this.landingCell(this.hero, item);
+      this.dropItem(to.x, to.y, item, count);
+    };
+    const rare = (): ItemId | null => {
+      const pool = lootPool(this.depth, (k) => k !== "gold" && k !== "gem", "rare");
+      return pool.length > 0 ? pool[this.rng.int(0, pool.length - 1)] : null;
+    };
+    const used = (): void => {
+      this.events.push({ type: "special", what: "used", ...at });
+    };
+    switch (f.kind) {
+      case "puitsVoeux": {
+        // Le puits aux vœux : 10 pièces, un d20 ; rien, un objet, une bénédiction, ou (20) un objet rare.
+        if (this.gold < RULES.wellCost) return void this.events.push({ type: "special", what: "wellPoor", ...at });
+        this.gold -= RULES.wellCost;
+        const d20 = this.rng.int(1, 20);
+        if (d20 === 20) {
+          const item = rare() ?? this.floorLoot().item;
+          drop(item);
+          this.events.push({ type: "special", what: "wellRare", ...at, d20, item });
+        } else if (d20 >= 17) {
+          this.blessTurns = Math.max(this.blessTurns, RULES.altarBlessTurns);
+          this.refreshStats();
+          this.events.push({ type: "special", what: "wellBless", ...at, d20 });
+        } else if (d20 >= 10) {
+          const l = this.floorLoot();
+          drop(l.item, l.count);
+          this.events.push({ type: "special", what: "wellItem", ...at, d20, item: l.item });
+        } else this.events.push({ type: "special", what: "wellNothing", ...at, d20 });
+        return;
+      }
+      case "autelPoulet": {
+        // L'autel du Poulet : la meilleure nourriture du sac en offrande ; bénédiction, et la protection en plus si elle
+        // est grande (omelette, tourte, carotte).
+        const food = this.inventory.items
+          .filter((i) => (ITEMS[i.defId] as ItemDef).heal && i.defId !== "pomme_pourrie")
+          .sort((a, b) => ((ITEMS[b.defId] as ItemDef).heal ?? 0) - ((ITEMS[a.defId] as ItemDef).heal ?? 0))[0];
+        if (!food) return void this.events.push({ type: "special", what: "altarNoFood", ...at });
+        const big = ((ITEMS[food.defId] as ItemDef).heal ?? 0) >= 12;
+        this.inventory.take(food.defId, 1);
+        f.kind = "autelPouletVide";
+        this.map.touch(f.x, f.y);
+        this.blessTurns = Math.max(this.blessTurns, RULES.altarBlessTurns);
+        if (big) this.grantProtection();
+        else this.refreshStats();
+        this.events.push({ type: "special", what: big ? "altarRare" : "altar", ...at, item: food.defId });
+        return;
+      }
+      case "miroir": {
+        // Le reflet sort du miroir : les armes, l'armure et la moitié des PV du héros.
+        const spot = this.nearFree(at);
+        f.kind = "miroirBrise";
+        this.map.touch(f.x, f.y);
+        if (spot) {
+          const m = this.newMonster(MONSTERS.reflet, spot.x, spot.y, false);
+          m.hp = m.maxHp = Math.max(6, Math.ceil(this.hero.maxHp / 2));
+          m.armorClass = this.hero.armorClass;
+          m.attackBonus = this.hero.attackBonus;
+          m.damage = { ...this.hero.damage };
+          m.alerted = true;
+          m.asleep = false;
+          m.fromX = m.x;
+          m.fromY = m.y;
+          this.monsters.push(m);
+        }
+        this.events.push({ type: "special", what: "mirror", ...at });
+        return;
+      }
+      case "champiFestin": {
+        // Le festin des Myconides : tous les PV ; puis un jet de discrétion, sinon les dormeurs de la salle s'éveillent.
+        this.hero.hp = this.hero.maxHp;
+        f.kind = "champiFestinMange";
+        this.map.touch(f.x, f.y);
+        const d20 = this.rng.int(1, 20);
+        const ok = d20 !== 1 && (d20 === 20 || d20 + this.stealthBonus() >= RULES.feastStealthDc);
+        if (!ok) {
+          for (const m of this.monsters) if (m.asleep && Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y)) <= 5) {
+            m.asleep = false;
+            m.alerted = true;
+            this.faceToward(m, this.hero);
+          }
+        }
+        this.events.push({ type: "special", what: ok ? "feast" : "feastWake", ...at, d20 });
+        return;
+      }
+      case "tableCarte": {
+        // La carte du cartographe : toutes les salles de l'étage, sauf l'escalier (Thomas, 2026-11-25).
+        const s = this.current.stairs;
+        const keep = new Set<number>();
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (this.map.inBounds(s.x + dx, s.y + dy) && !this.explored[this.map.index(s.x + dx, s.y + dy)]) keep.add(this.map.index(s.x + dx, s.y + dy));
+        for (const r of this.current.rooms)
+          for (let y = r.y - 1; y <= r.y + r.h; y++)
+            for (let x = r.x - 1; x <= r.x + r.w; x++) if (this.map.inBounds(x, y) && !keep.has(this.map.index(x, y))) this.explored[this.map.index(x, y)] = 1;
+        f.kind = "tableCarteLue";
+        this.map.touch(f.x, f.y);
+        this.events.push({ type: "special", what: "map", ...at });
+        return;
+      }
+      case "ciergeCrypte": {
+        const c = this.current.crypt;
+        if (!c || c.done) return used();
+        const i = c.candles.findIndex((p) => p.x === f.x && p.y === f.y);
+        if (i < 0 || c.lit.includes(i)) return used();
+        if (c.order[c.lit.length] === i) {
+          c.lit.push(i);
+          f.kind = "ciergeCrypteAllume";
+          this.map.touch(f.x, f.y);
+          this.refreshLight();
+          if (c.lit.length === c.order.length) {
+            c.done = true;
+            const sarco = this.current.furniture.find((o) => o.kind === "sarcophage" && o.x === c.sarco.x && o.y === c.sarco.y);
+            if (sarco) sarco.kind = "sarcophageOuvert";
+            const item = rare() ?? this.floorLoot().item;
+            const to = this.landingCell(c.sarco, item);
+            this.dropItem(to.x, to.y, item, 1);
+            this.events.push({ type: "special", what: "cryptOpen", x: c.sarco.x, y: c.sarco.y, item });
+          } else this.events.push({ type: "special", what: "candle", ...at });
+          return;
+        }
+        // Mauvais ordre : tout s'éteint, et un mort se lève du sarcophage.
+        for (const p of c.candles) {
+          const o = this.current.furniture.find((q) => q.x === p.x && q.y === p.y && q.kind.startsWith("ciergeCrypte"));
+          if (o) o.kind = "ciergeCrypte";
+          this.map.touch(p.x, p.y);
+        }
+        c.lit = [];
+        const spot = this.nearFree(c.sarco);
+        if (spot) {
+          const m = this.newMonster(MONSTERS.squelette, spot.x, spot.y, false);
+          m.alerted = true;
+          m.asleep = false;
+          m.fromX = m.x;
+          m.fromY = m.y;
+          this.monsters.push(m);
+        }
+        this.refreshLight();
+        this.events.push({ type: "special", what: "cryptWrong", ...at });
+        return;
+      }
+      default:
+        return used();
+    }
+  }
+
   /** La tombe du héros précédent à cette case. */
   graveAt(x: number, y: number): Furniture | undefined {
     return this.current.furniture.find((f) => f.x === x && f.y === y && f.kind.startsWith("tombeHeros"));
@@ -5772,7 +5964,7 @@ export class Game {
     const npcHere = this.npcAt(x, y);
     if (npcHere && this.isVisible(x, y) && !this.monsterAt(x, y)) return this.approachNpc(npcHere);
     // Nichée : un cocon, un sac d'œufs ou une amarre (sur sa colonne) : on va à côté, puis on le crève d'un coup.
-    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.graveAt(x, y) || this.chickenHoleAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y)) && !(this.monsterAt(x, y) && this.isVisible(x, y))) return this.approachBreakable(x, y, ignoreFog);
+    if ((this.breakableAt(x, y) || this.bellAt(x, y) || this.sealedStairsAt(x, y) || this.sealedBlockedAt(x, y) || this.bathTargetAt(x, y) || this.plateTableAt(x, y) || this.zoneDoorAt(x, y) || this.candleAt(x, y) || this.ciergeAt(x, y) || this.current.furniture.some((f) => f.kind === "ciergeViolet" && f.x === x && f.y === y) || this.scarecrowAt(x, y) || this.graveAt(x, y) || this.chickenHoleAt(x, y) || this.specialAt(x, y) || this.grilleAt(x, y) || this.alembicAt(x, y) || this.snowmanAt(x, y) || this.appleDomeAt(x, y) || this.skeletonAt(x, y)) && (ignoreFog || this.isExplored(x, y)) && !(this.monsterAt(x, y) && this.isVisible(x, y))) return this.approachBreakable(x, y, ignoreFog);
     // Quêtes v3 : la poule aux œufs d'or ; on va à côté, puis on l'attrape (si elle ne s'est pas sauvée avant).
     const hen = this.current.goldHen;
     if (hen && hen.x === x && hen.y === y && this.isVisible(x, y)) return this.approachBreakable(x, y, ignoreFog);
@@ -5781,7 +5973,7 @@ export class Game {
     if (affiche && this.isExplored(x, y)) {
       // On ne la lit que de près (Thomas, 2026-11-25) : sinon le héros va devant, puis la lit.
       if (Math.max(Math.abs(x - this.hero.x), Math.abs(y - this.hero.y)) <= 1) {
-        this.events.push({ type: "affiche", text: AFFICHES[affiche.text!].text });
+        this.events.push({ type: "affiche", text: affiche.note ?? AFFICHES[affiche.text!].text });
         return false;
       }
       return this.approachBreakable(x, y, ignoreFog);
@@ -10856,7 +11048,7 @@ export class Game {
   }
 
   /** Quelle salle d'essai (section 1 ou 2), choisie au menu avant de créer la partie. */
-  readonly sandboxSection: 1 | 2 | 3 = sandboxSection();
+  readonly sandboxSection: 1 | 2 | 3 | 4 = sandboxSection();
 
   /** Le décor de l'étage : « champi » (section 2, la champignonnière) ou celui de la section 1. */
   look(): "s1" | "champi" | "ossuaire" {
@@ -11554,6 +11746,12 @@ export class Game {
       monster.asleep = false;
       this.events.push({ type: "rise", actor: monster, what: "down" });
       return;
+    }
+    // Le reflet vaincu (salle des miroirs) : un objet rare tombe là où il se brise.
+    if (monster.defId === "reflet") {
+      const pool = lootPool(this.depth, (k) => k !== "gold" && k !== "gem", "rare");
+      const item = pool.length > 0 ? pool[this.rng.int(0, pool.length - 1)] : this.floorLoot().item;
+      this.dropItem(monster.x, monster.y, item, 1);
     }
     // Un Kobold mort dans les flammes laisse une escalope (Thomas, 2026-11-13).
     if ((monster.burning ?? 0) > 0 && !monster.boss && MONSTERS[monster.defId as keyof typeof MONSTERS]?.family === "kobolds") {

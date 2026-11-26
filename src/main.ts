@@ -184,6 +184,8 @@ let menuOpen = true;
 let bagOpen = false;
 /** Une torche allumée dans le sac : sa lumière s'étend quand le sac se referme. */
 let flarePending = false;
+/** La potion de géant bue (ou son effet fini) : l'animation attend que le sac soit refermé. */
+let growPending: { back: boolean } | null = null;
 /** Objet sélectionné dans l'écran du sac : dans le sac (par identifiant) ou porté (par emplacement). */
 let selected: { uid: number } | { slot: Slot } | null = null;
 /** Vrai : l'arc est bandé, le prochain toucher tire une flèche. Puis on revient à l'arme de corps à corps. */
@@ -311,6 +313,26 @@ const DUNGEON_SLOTS = [SAVE_KEYS.donjon, "leutenheim.save.2", "leutenheim.save.3
 let lastSaveAt = 0;
 /** L'emplacement de la partie en cours. */
 let currentSlot = SAVE_KEYS.donjon;
+
+/**
+ * Le bouton « Reprendre » (Thomas, 2026-11-26) : sous le mot, en petit, les pictos de la race et de la classe, l'étage,
+ * le niveau et la dernière partie.
+ */
+function renderResumeButton(): void {
+  const btn = $("menu-resume");
+  const run = started && !game.over ? game : savedRun;
+  btn.replaceChildren(el("span", "resume-main", "Reprendre"));
+  if (!run) return;
+  const sub = el("span", "resume-sub");
+  for (const id of [run.race.id, run.heroClass.id]) {
+    const p = PICTOS[id];
+    if (p) sub.append(buildIcon(p.rows, p.palette));
+  }
+  const at = started && !game.over ? Date.now() : savedAtOf(savedSlot);
+  const when = at > 0 ? new Intl.DateTimeFormat(options.lang === "en" ? "en-GB" : "fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(at)) : "?";
+  sub.append(el("span", "", `Étage ${run.depth} · Niv ${run.level} · ${started && !game.over ? tr("en cours") : when}`));
+  btn.append(sub);
+}
 
 function savedAtOf(key: string): number {
   try {
@@ -786,8 +808,12 @@ function reveal(e: GameEvent): void {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Pschh !", "#9fd0f4");
     sfx.play("splash");
   } else if (e.type === "grow") {
-    renderer.addFloatingText(e.actor.x, e.actor.y, e.back ? "Rétréci" : "Géant !", "#c8a8f0");
-    sfx.play(e.back ? "click" : "heavy");
+    // Le héros : l'animation se joue une fois le sac refermé (Thomas, 2026-11-26).
+    if (e.actor === game.hero) growPending = { back: !!e.back };
+    else {
+      renderer.addFloatingText(e.actor.x, e.actor.y, e.back ? "Rétréci" : "Géant !", "#c8a8f0");
+      sfx.play(e.back ? "click" : "heavy");
+    }
   } else if (e.type === "slippery") {
     renderer.addFloatingText(e.actor.x, e.actor.y, "Glissant !", "#b8e05a");
   } else if (e.type === "slide") {
@@ -998,6 +1024,36 @@ function reveal(e: GameEvent): void {
     } else if (e.what === "omelette") logLines.push("Vous fouillez le trou : une omelette, encore chaude !");
     else logLines.push("Il n'y a plus rien dans le trou. Juste des plumes.");
     renderLog();
+  } else if (e.type === "special") {
+    // Les salles spéciales (Thomas, 2026-11-26).
+    const name = e.item ? (ITEMS[e.item] as ItemDef).name : "";
+    const lines: Record<typeof e.what, string> = {
+      wellPoor: `Il faut ${RULES.wellCost} pièces d'or pour faire un vœu.`,
+      wellNothing: "Plouf. Les pièces coulent ; rien ne se passe.",
+      wellItem: `Plouf… et le puits vous rend quelque chose : ${name}.`,
+      wellBless: "Plouf… une lueur monte du puits : vous voilà béni.",
+      wellRare: `Le puits s'illumine ! Il vous offre : ${name}.`,
+      altarNoFood: "L'autel attend une offrande de nourriture.",
+      altar: `Vous offrez ${name} au Poulet d'argent : vous voilà béni.`,
+      altarRare: `Vous offrez ${name} au Poulet d'argent. Il approuve : béni, et protégé.`,
+      mirror: "Le miroir se fend… votre reflet en sort, l'arme à la main !",
+      feast: "Vous croquez le champignon géant : tous vos PV ! Les Myconides dorment toujours.",
+      feastWake: "Vous croquez le champignon géant : tous vos PV… mais les Myconides se réveillent !",
+      map: "Vous étudiez la carte du cartographe : les salles de l'étage apparaissent (pas l'escalier).",
+      candle: "Le cierge s'allume.",
+      cryptWrong: "Les cierges s'éteignent d'un coup… et quelque chose sort du sarcophage !",
+      cryptOpen: `Le sarcophage s'ouvre dans un grondement : ${name}.`,
+      used: "Il n'y a plus rien à en tirer.",
+    };
+    if (e.d20 !== undefined) landDie(e.d20, e.what === "wellNothing" || e.what === "feastWake" ? "miss" : "hit", false);
+    logLines.push(lines[e.what]);
+    renderLog();
+    if (e.what === "mirror" || e.what === "cryptWrong") sfx.play("break");
+    else if (e.what === "wellBless" || e.what === "altar" || e.what === "altarRare" || e.what === "cryptOpen" || e.what === "wellRare") sfx.play("unlock");
+    else sfx.play("click");
+  } else if (e.type === "webSpit") {
+    renderer.addFloatingText(e.x, e.y, "Englué !", "#e8e4d8");
+    sfx.play("slide");
   } else if (e.type === "swept") {
     renderer.addFloatingText(e.x, e.y, "Balayé !", "#ffd75e");
     logLines.push("Le bras du Colosse vous balaie : vous voilà à terre.");
@@ -3937,6 +3993,7 @@ function showScreen(screen: Screen | null): void {
   if ((!started || game.over) && savedRun === null) savedRun = readSave();
   $("menu-resume").hidden = false;
   ($("menu-resume") as HTMLButtonElement).disabled = (!started || game.over) && savedRun === null;
+  renderResumeButton();
   if (screen === "settings") showSettingsPane(settingsPane);
   $("settings-blood").textContent = tr(`Sang : ${options.blood ? "oui" : "non"}`);
   // Statistiques anonymes : le réglage n'apparaît que lorsque l'adresse d'envoi est réglée.
@@ -4347,6 +4404,13 @@ if (!PUBLIC_BUILD) {
     started = true;
     showScreen(null);
   });
+  // Zone d'essai des salles spéciales (Thomas, 2026-11-26).
+  button("essai-speciales", () => {
+    setSandboxSection(4);
+    newRun(true);
+    started = true;
+    showScreen(null);
+  });
   button("essai-all", () => {
     newRun(false, true);
     started = true;
@@ -4718,6 +4782,13 @@ function frame(now: number): void {
   if (flarePending && !bagOpen && !menuOpen) {
     flarePending = false;
     renderer.torchFlare();
+  }
+  if (growPending && !bagOpen && !menuOpen) {
+    const back = growPending.back;
+    growPending = null;
+    renderer.heroGrows(!back);
+    renderer.addFloatingText(game.hero.x, game.hero.y, back ? "Rétréci" : "Géant !", "#c8a8f0");
+    sfx.play(back ? "click" : "heavy");
   }
   // Étage du boss : pas d'alerte ; la musique y reste tendue (palier « alerte »), puis « le cœur du boss » pendant le
   // combat (Thomas, 2026-11-16) : son tempo suit la vie du boss.

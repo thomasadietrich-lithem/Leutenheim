@@ -58,5 +58,8 @@
   "over-line over-dim",
   "over-main",
   "over-buttons",
-  "over-stone"
+  "over-stone",
+  "resume-main",
+  "resume-sub",
+  "grayscale(0.6) sepia(0.4) hue-rotate(170deg) brightness(1.05)"
 ]

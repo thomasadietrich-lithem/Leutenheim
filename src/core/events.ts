@@ -100,6 +100,8 @@ export type GameEvent =
   | { type: "furnitureFire"; x: number; y: number; kind: string }
   | { type: "web"; escaped: boolean; roll: number; bonus: number }
   | { type: "webbed"; by: Actor }
+  /** La Tisseuse, bloquée, crache sa toile sur le héros. */
+  | { type: "webSpit"; fromX: number; fromY: number; x: number; y: number }
   /** Le héros évite d'un bond un piège qu'il vient de déclencher (agilité). */
   | { type: "watered"; x: number; y: number }
   | { type: "alembic"; x: number; y: number; item: ItemId; toX: number; toY: number }
@@ -136,6 +138,8 @@ export type GameEvent =
   | { type: "chickenRing"; what: "fall" | "omelette" | "empty"; x: number; y: number; seen: boolean }
   /** Le bras du Colosse balaie le héros : repoussé, à terre. */
   | { type: "swept"; fromX: number; fromY: number; x: number; y: number }
+  /** Les salles spéciales (2026-11-26) : ce qui s'y passe (puits, autel, miroir, festin, carte, crypte). */
+  | { type: "special"; what: "wellPoor" | "wellNothing" | "wellItem" | "wellBless" | "wellRare" | "altarNoFood" | "altar" | "altarRare" | "mirror" | "feast" | "feastWake" | "map" | "candle" | "cryptWrong" | "cryptOpen" | "used"; x: number; y: number; d20?: number; item?: ItemId }
   /** On lit une affiche du culte du poulet. */
   | { type: "affiche"; text: string }
   /** L'armure du Guerrier réveille un dormeur tout près. */

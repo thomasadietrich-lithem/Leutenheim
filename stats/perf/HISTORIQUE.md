@@ -138,3 +138,5 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-24_20h33 | f3e4111 | 38.6 | 38.5 | 39.7 | 38.7 | 16.7 | 34.8 | 1.14 | 0.29 | mort : retour, jeu grisé, tombe |
 | 2026-11-24_21h02 | 748cf87 | 37.8 | 41 | 35.5 | 38.8 | 16.9 | 35.1 | 0.91 | 0.29 | boss 3, écran de mort, poulets |
 | 2026-11-25_13h42 | ea5a70e | 29.7 | 29.3 | 30.3 | 31.4 | 16.7 | 25.6 | 0.76 | 0.64 | lot du 25/11 |
+| 2026-11-26_08h34 | b12ca1a | 34.8 | 34.8 | 31.8 | 29.5 | 16.7 | 26.7 | 1.27 | 0.28 | lot du 26/11 : salles spéciales en essai, Tisseuse, géant animé |
+| 2026-11-26_08h34 | b12ca1a | 31.2 | 29.3 | 31 | 38.6 | 16.7 | 24 | 1.01 | 0.85 | lot du 26/11 (re-mesure) |

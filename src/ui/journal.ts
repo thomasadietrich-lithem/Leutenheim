@@ -217,6 +217,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
     }
     case "web":
       return `Une toile d'araignée ! Force : ${roll(e.roll, e.bonus, e.roll + e.bonus)} — ${e.escaped ? "vous la déchirez en passant." : "raté, vous voilà englué un tour."}`;
+    case "webSpit":
+      return "La Tisseuse crache sa toile sur vous : englué, votre prochain pas servira à vous dégager.";
     case "webbed":
       return `La morsure de ${e.by.name.toLowerCase() === "araignée" ? "l'araignée" : e.by.name} vous englue : votre prochain pas servira à vous dégager.`;
     case "disarm":

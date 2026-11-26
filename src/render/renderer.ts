@@ -66,6 +66,7 @@ import { NEIGE } from "./sprites/neige";
 import { CULTE } from "./sprites/culte";
 import { AFFICHES as AFFICHE_ART } from "./sprites/affiches";
 import { TOMBE } from "./sprites/tombe";
+import { SPECIALES } from "./sprites/speciales";
 /** Le héros tombé reste couché ce temps-là avant de devenir une tombe. */
 const HERO_TOMB_MS = 1400;
 import { CONCERT } from "./sprites/concert";
@@ -564,6 +565,42 @@ export class Renderer {
   }
 
   /** Le héros est tombé : il reste étendu au sol. */
+  /**
+   * POTION DE GÉANT ANIMÉE (Thomas, 2026-11-26 : « une animation au moment de la boire, à la sortie de l'inventaire, et
+   * quand l'effet se termine ») : le héros grandit par à-coups (trois secousses, il dépasse un peu, se pose) dans un
+   * éclat violet ; à la fin, il rapetisse d'un coup, avec un petit nuage. `heroGrows(false)` : la fin.
+   */
+  heroGrows(up: boolean): void {
+    this.growAnim = { up, start: this.time };
+    const h = this.lastHeroCell;
+    if (h) {
+      for (const [dx, dy] of [[0, 0], [0.4, -0.3], [-0.4, -0.3], [0, -0.6]]) this.addPuff(h.x + dx, h.y + dy);
+    }
+  }
+  private growAnim: { up: boolean; start: number } | null = null;
+  private lastHeroCell: { x: number; y: number } | null = null;
+  /** Le dessin du héros (calques compris), pour son reflet. */
+  private lastHeroLook: { frames: Record<string, readonly (readonly string[])[]>; palette: Record<string, string> } | null = null;
+  /** La taille du héros (1 ou 1,5), pendant l'animation aussi. */
+  private heroGiantScale(grown: boolean): number {
+    const a = this.growAnim;
+    if (!a) return grown ? 1.5 : 1;
+    const t = (this.time - a.start) / 900;
+    if (t >= 1) {
+      this.growAnim = null;
+      return grown ? 1.5 : 1;
+    }
+    if (a.up) {
+      // Trois paliers qui tremblent, puis un dépassement qui se pose.
+      const steps = t < 0.6 ? Math.floor(t / 0.2) + 1 : 3;
+      const base = 1 + (0.5 * steps) / 3;
+      const shake = t < 0.6 ? 0.04 * Math.sin(t * 90) : 0.12 * Math.sin((t - 0.6) * Math.PI * 2.5) * (1 - t);
+      return base + shake;
+    }
+    // Il rapetisse d'un coup, rebondit un peu.
+    return 1 + 0.5 * Math.max(0, 1 - t * 3) + 0.06 * Math.sin(t * 20) * (1 - t);
+  }
+
   heroFalls(): void {
     this.heroDown = true;
     this.heroDownAt = this.time;
@@ -615,6 +652,7 @@ export class Renderer {
   private drawHero(game: Game, at: Point, ox: number, oy: number, progress: number): void {
     const { ctx, tile } = this;
     const h = game.hero;
+    this.lastHeroCell = { x: h.x, y: h.y };
     const mdx = h.x - h.fromX;
     const mdy = h.y - h.fromY;
     const moving = progress < 1 && (mdx !== 0 || mdy !== 0);
@@ -626,6 +664,7 @@ export class Renderer {
     const gear = game.equipment;
     const look = heroSprites(heroLook(game.race.id, { armor: gear.armor?.defId, hat: gear.hat?.defId, melee: gear.melee?.defId, ranged: gear.ranged?.defId }));
     const F = look.frames;
+    this.lastHeroLook = look;
     // À TERRE : retenu (fosse, toile, lacet, racines), il est couché et se débat ; libéré, il se relève un instant.
     // …et renversé par l'onde du Carillon (Thomas, 2026-11-17 : « implémente les sprites couchés à terre »).
     const stuck = !this.heroDown && ((h.stuck ?? 0) > 0 || ((h.prone ?? 0) > 0 && !this.proneHold));
@@ -665,7 +704,7 @@ export class Renderer {
     ctx.fill();
     // Le sprite dépasse un peu de sa case pour que le personnage ait la taille d'un occupant, armes comprises.
     // Potion de géant : une fois et demie plus grand, pieds au même niveau.
-    const giant = (game.hero.grown ?? 0) > 0 ? 1.5 : 1;
+    const giant = this.heroGiantScale((game.hero.grown ?? 0) > 0);
     const size = Math.round(tile * 1.3 * giant);
     const top = Math.round(cy + tile * 0.53 - size);
     const smooth = ctx.imageSmoothingEnabled;
@@ -1533,6 +1572,18 @@ export class Renderer {
     this.monsterFacing.set(m.id, facing);
     const dir = facing === "down" ? "Down" : facing === "up" ? "Up" : "Side";
     const hurt = (this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS;
+    // Le reflet (salle des miroirs, 2026-11-26) : le héros lui-même, bleuté et un peu transparent.
+    if (m.defId === "reflet" && this.lastHeroLook) {
+      const F = this.lastHeroLook.frames;
+      const rows = slash ? F[`sword${dir}`][Math.min(2, Math.floor((3 * slash.age) / SLASH_MS))] : moving ? F[`walk${dir}`][((m.x + m.y) & 1) * 2 % 4] : F[`idle${dir}`][Math.floor(Math.abs(this.time) / 520) % F[`idle${dir}`].length];
+      const { ctx } = this;
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.filter = hurt ? "brightness(1.6)" : "grayscale(0.6) sepia(0.4) hue-rotate(170deg) brightness(1.05)";
+      this.drawMonsterSprite(rows, cx, cy, facing === "left", true, this.lastHeroLook.palette);
+      ctx.restore();
+      return;
+    }
     // Section 2 (planche art/mobs_champi_v1.png ; Thomas, 2026-11-15) : myconide, sporelin, Kobold cueilleur et envahi.
     const champi = MOBS_SET[m.defId];
     if (champi) {
@@ -2722,7 +2773,7 @@ export class Renderer {
         this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
-      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || MOBS_SET[m.defId]) {
+      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || m.defId === "reflet" || MOBS_SET[m.defId]) {
         const advantage = game.heroEdgeShown(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.
@@ -3585,7 +3636,7 @@ export class Renderer {
       // presque pas d'ombre sur lui, même dans le noir d'une salle vue.
       if (f.kind === "mycCurtain") dark = Math.min(dark, visible ? 0.08 : 0.3);
       // Meubles animés (bougie de la table, jambon qui se balance, robinet qui goutte, corde, candélabre) : 3 images.
-      const animated = f.kind.startsWith("table") || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
+      const animated = (f.kind.startsWith("table") && !SPECIALES[f.kind]) || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
       // Panier à fruits : son dessin montre les pommes qui restent dedans (0 à 3).
       const apples = f.kind === "basket" ? game.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
       // Cloche d'alarme : elle se balance (à gauche, à droite) pendant un peu plus d'une seconde après le coup.
@@ -3612,7 +3663,7 @@ export class Renderer {
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
       const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? TOMBE[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? TOMBE[name] ?? SPECIALES[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;
@@ -3633,7 +3684,7 @@ export class Renderer {
         // Vitrail : dans la case de mur du fond, un pixel de débord.
         px = f.x * 16 + 1;
         py = f.y * 16 - 1;
-      } else if (CHAMPI[name] || name === "souche" || NEIGE[name] || TOMBE[name]) {
+      } else if (CHAMPI[name] || name === "souche" || NEIGE[name] || TOMBE[name] || SPECIALES[name]) {
         // Section 2 : un champignon tient sur sa dalle, centré, le bas des pieds sur le bas de la case.
         px = f.x * 16 + (16 - w) / 2;
         py = (f.y + 1) * 16 - h;

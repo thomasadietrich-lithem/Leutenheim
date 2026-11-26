@@ -75,7 +75,9 @@ export interface SavedFloor {
   vernis?: import("./floor").GluckSpot;
   fakeWalls?: { x: number; y: number; turns: number }[];
   hush?: { room: number; until: number }[];
-  niche?: { wall: import("../world/map").Point; cell: import("../world/map").Point; plate: import("../world/map").Point; open?: boolean };
+  niche?: import("./floor").FloorState["niche"];
+  chickenRing?: import("./floor").FloorState["chickenRing"];
+  crypt?: import("./floor").FloorState["crypt"];
   maestro?: import("./floor").GluckSpot;
   plumeau?: import("./floor").GluckSpot;
   clavicule?: import("./floor").GluckSpot;
@@ -158,7 +160,7 @@ export interface SaveData {
   /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */
   sandboxLayout?: number;
   /** Salle d'essai : section 1 ou 2 (Thomas, 2026-11-14). */
-  sandboxSection?: 1 | 2 | 3;
+  sandboxSection?: 1 | 2 | 3 | 4;
   /** Partie d'essai « toutes les sections » (Thomas, 2026-11-14). */
   testRun?: boolean;
   clock?: number;

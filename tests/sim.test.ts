@@ -7652,3 +7652,68 @@ test("Niche secrète (2026-11-25) : rien devant elle ; une fois sur trois, un pa
   }
   assert.ok(niches > 0 && passages > 0, `${niches} niches, ${passages} passages`);
 });
+
+test("Salles spéciales en zone d'essai (2026-11-26) : puits, autel, miroir, festin, carte, crypte", () => {
+  setSandboxSection(4);
+  try {
+    const game = new Game(5, undefined, undefined, undefined, true);
+    const g = game as unknown as { useSpecial(f: unknown): void; current: { crypt?: { candles: { x: number; y: number }[]; order: number[]; lit: number[]; done?: boolean } } };
+    const find = (k: string) => game.furnitureList().find((f) => f.kind === k)!;
+    const near = (f: { x: number; y: number }) => {
+      game.hero.x = f.x;
+      game.hero.y = f.y + 1;
+    };
+    game.gold = 100;
+    // Puits : 10 pièces par vœu.
+    const well = find("puitsVoeux");
+    near(well);
+    g.useSpecial(well);
+    assert.equal(game.gold, 90);
+    // Autel : il prend la meilleure nourriture (l'omelette).
+    game.inventory.add("omelette", 1);
+    game.inventory.add("pomme", 1);
+    const altar = find("autelPoulet");
+    g.useSpecial(altar);
+    assert.equal(game.inventory.count("omelette"), 0, "l'omelette offerte");
+    assert.equal(altar.kind, "autelPouletVide");
+    assert.ok(game.blessTurns > 0);
+    // Miroir : le reflet en sort, avec la moitié des PV du héros.
+    const mirror = find("miroir");
+    g.useSpecial(mirror);
+    const reflet = game.monsters.find((m) => m.defId === "reflet")!;
+    assert.ok(reflet && reflet.maxHp === Math.max(6, Math.ceil(game.hero.maxHp / 2)));
+    // Festin : tous les PV.
+    game.hero.hp = 1;
+    g.useSpecial(find("champiFestin"));
+    assert.equal(game.hero.hp, game.hero.maxHp);
+    // Carte : les salles apparaissent, pas l'escalier.
+    const s = (game as unknown as { current: { stairs: { x: number; y: number } } }).current.stairs;
+    const wasStairs = game.isExplored(s.x, s.y);
+    g.useSpecial(find("tableCarte"));
+    assert.equal(game.isExplored(s.x, s.y), wasStairs, "l'escalier reste caché");
+    // Crypte : mauvais ordre, un squelette ; bon ordre, le sarcophage s'ouvre.
+    const c = g.current.crypt!;
+    const candle = (i: number) => game.furnitureList().find((f) => f.x === c.candles[i].x && f.y === c.candles[i].y)!;
+    const before = game.monsters.length;
+    g.useSpecial(candle(c.order[1]));
+    assert.equal(game.monsters.length, before + 1, "un mort se lève");
+    for (const i of c.order) g.useSpecial(candle(i));
+    assert.ok(c.done, "la crypte s'ouvre");
+    assert.ok(game.furnitureList().some((f) => f.kind === "sarcophageOuvert"));
+  } finally {
+    setSandboxSection(1);
+  }
+});
+
+test("Tisseuse (2026-11-26) : touchée de loin, elle s'éveille et vient ; bloquée, elle crache sa toile", () => {
+  const game = new Game(7);
+  game.testRun = true;
+  for (let d = 2; d <= 5; d++) assert.ok(game.teleport(d));
+  const q = game.bossActor()!;
+  assert.equal(q.defId, "tisseuse");
+  assert.equal(q.boss!.engaged, false);
+  (game as unknown as { struckByHero(m: unknown, hit: boolean): void }).struckByHero(q, true);
+  assert.ok(q.boss!.engaged, "éveillée par le coup");
+  assert.equal(q.boss!.phase, "advance");
+  assert.ok(q.boss!.target, "elle sait d'où ça vient");
+});

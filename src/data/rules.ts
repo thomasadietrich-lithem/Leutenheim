@@ -167,6 +167,12 @@ export const RULES = {
   colossusSweep: 2,
   /** Niche secrète : chance que l'alcôve s'ouvre sur un passage menant à une petite salle au coffre. */
   nichePassageChance: 0.33,
+  /** Bibelots (artefacts) qui peuvent sortir dans une partie, au plus (butin, coffres, caches, Colporteur). */
+  artifactsPerRun: 2,
+  /** Salles spéciales : ce que coûte un vœu, la bénédiction de l'autel (tours), le jet de discrétion du festin. */
+  wellCost: 10,
+  altarBlessTurns: 40,
+  feastStealthDc: 12,
   /** Le Guerrier (armure qui cliquette) réveille les dormeurs à tant de cases. */
   warriorWakeRange: 2,
   /** Brouillard : tours pendant lesquels un monstre qui a perdu le héros cherche sur place, sans le remarquer. */
@@ -328,6 +334,8 @@ export const RULES = {
   bossWebSteps: 3,
   bossGroundSteps: 2,
   bossSenseRange: 5,
+  /** La Tisseuse bloquée crache sa toile jusqu'à tant de cases. */
+  bossSpitRange: 7,
   bossChaseRange: 8,
   /** Grande toile effondrée (amarres coupées, ou brûlée) : elle tombe sur le dos, sonnée tant de tours. */
   bossFallTurns: 3,

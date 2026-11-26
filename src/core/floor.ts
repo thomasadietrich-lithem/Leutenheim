@@ -121,6 +121,8 @@ export interface FloorState {
    * tombent ; fouiller le trou donne une omelette. `seenAt` : tour où le héros l'a vu ; `fallen` : ils sont tombés.
    */
   chickenRing?: { x: number; y: number; seenAt?: number; fallen?: boolean; searched?: boolean };
+  /** La crypte aux trois cierges (salle spéciale, 2026-11-26) : l'ordre à suivre (indices des cierges), ceux allumés. */
+  crypt?: { candles: Point[]; order: number[]; lit: number[]; sarco: Point; done?: boolean };
   /** Faux murs du pinceau magique (2026-11-18) : la case, les tours avant qu'il s'efface. */
   fakeWalls?: { x: number; y: number; turns: number }[];
   /** Section 2 : salles où les champignons se sont refermés après un bruit, jusqu'à ce tour. */
@@ -522,7 +524,8 @@ export function isUnique(id: ItemId): boolean {
 export function noteUnique(id: ItemId): void {
   if (isUnique(id)) seenUniques.add(id);
 }
-const available = (id: string): boolean => id === "gold" || !isUnique(id as ItemId) || !seenUniques.has(id);
+// Et pas plus de deux par partie (Thomas, 2026-11-26 : « éviter de pouvoir dropper tous les artefacts »).
+const available = (id: string): boolean => id === "gold" || !isUnique(id as ItemId) || (!seenUniques.has(id) && seenUniques.size < RULES.artifactsPerRun);
 
 /** Les objets qu'on porte (armes, armures, casques, sacs, amulettes, bibelots) : soumis à la règle de section. */
 const GEAR_KINDS = new Set(["melee", "ranged", "armor", "hat", "bag", "amulet", "artifact"]);
@@ -610,6 +613,14 @@ export function guaranteedLoot(runSeed: number, depth: number): { item: ItemId; 
   const section = sectionOf(depth);
   const torch = new Rng(runSeed ^ 0x51ed270b ^ Math.imul(section + 1, 7919));
   if (section * RULES.floorsPerSection + torch.int(1, 4) === depth) out.push({ item: "torche", count: 1 });
+  // UN SAC PLUS GRAND, à coup sûr (Thomas, 2026-11-26 : « vérifie le drop des sacs à dos » : 3 sacs de cuir en 60 parties
+  // seulement) : le sac de cuir au début de la section 2 (jamais en section 1 : Thomas), sur l'étage 6 ou 7 ; le sac
+  // d'aventurier au début de la section 3, sur un des étages 11 à 13 (tirés à part).
+  const bag = new Rng(runSeed ^ 0x5ac5ac);
+  const leather = bag.int(6, 7);
+  const travel = bag.int(11, 13);
+  if (depth === leather) out.push({ item: "sac_cuir", count: 1 });
+  if (depth === travel) out.push({ item: "sac_voyage", count: 1 });
   return out;
 }
 

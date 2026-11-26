@@ -349,6 +349,10 @@
   #here button svg { width: 100%; height: 100%; }
   #here button:disabled { opacity: 0.35; }
   #menu-resume:disabled { opacity: 0.4; }
+  /* Reprendre (Thomas, 2026-11-26) : les pictos race et classe, l'étage, le niveau, la dernière partie, en petit. */
+  #menu-resume { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  #menu-resume .resume-sub { display: flex; align-items: center; gap: 4px; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--dim); }
+  #menu-resume .resume-sub svg { width: 16px; height: 16px; }
   #here button[hidden] { display: none; }
   /* Taille FIXE : ni la hauteur du panneau ni la largeur de la zone du dé ne bougent, quel que soit le texte
      du journal ou le nombre de dés. Le journal trop long est coupé par le haut ; le second dé (avantage ou
@@ -917,6 +921,7 @@
       <button id="essai-all" type="button">Section : toutes</button>
       <button id="essai-s3" type="button">Section 3 (aperçu)</button>
       <button id="essai-enigme" type="button">Salles à énigme</button>
+      <button id="essai-speciales" type="button">Salles spéciales</button>
       <button id="essai-back" type="button" class="ghost back">Retour</button>
     </section>
     <section id="screen-pause" hidden>

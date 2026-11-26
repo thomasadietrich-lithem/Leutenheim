@@ -27,6 +27,8 @@ export type SoundName =
   | "pickup"
   | "advantage"
   | "disadvantage"
+  | "spark"
+  | "victory"
   | "click"
   | "coin"
   | "heavy"
@@ -166,6 +168,56 @@ export class Sfx {
         // Une braise qui éclate, plus grave et plus forte.
         if (Math.random() < 0.06) this.snap(0.05, 0.22 * level, 500 + Math.random() * 400, 1.2, Math.random() * 0.1);
       }
+    } catch {
+      return;
+    }
+  }
+
+  private dripDebt = 0;
+  private windDebt = 0;
+
+  /**
+   * AMBIANCE DU LIEU (Thomas, 2026-11-26 : « implémente tout » de l'immersion), à appeler à chaque image : dans un
+   * couloir, des gouttes qui tombent de loin en loin et un souffle de vent ; dans une grande salle, les gouttes résonnent
+   * (un écho). `corridor` : le héros est dans un couloir ; `big` : dans une grande salle (0 à 1).
+   */
+  ambience(corridor: boolean, big: number, dt: number): void {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "running") return;
+    try {
+      // Une goutte toutes les 4 à 9 secondes environ.
+      this.dripDebt += dt / (4000 + Math.random() * 5000);
+      if (this.dripDebt >= 1) {
+        this.dripDebt = 0;
+        const f = 1400 + Math.random() * 900;
+        const v = 0.035 + 0.02 * Math.random();
+        this.tone(f, f * 0.45, 0.07, "sine", v);
+        if (big > 0.3) {
+          // L'écho de la grande salle : la même goutte, plus faible, deux fois.
+          this.tone(f, f * 0.45, 0.07, "sine", v * 0.45 * big, 0.18);
+          this.tone(f, f * 0.45, 0.07, "sine", v * 0.2 * big, 0.36);
+        }
+      }
+      // Le vent des couloirs : un long souffle grave, de temps en temps.
+      if (corridor) {
+        this.windDebt += dt / 7000;
+        if (this.windDebt >= 1) {
+          this.windDebt = 0;
+          this.noise(2.2, 0.018, 320 + Math.random() * 200);
+        }
+      }
+    } catch {
+      return;
+    }
+  }
+
+  /** Ronflement d'un monstre endormi tout proche (`near` : 0 loin, 1 à côté) : inspiration râpeuse, puis souffle. */
+  snore(near: number): void {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "running" || near <= 0) return;
+    try {
+      const v = 0.05 * near;
+      this.tone(70, 95, 0.55, "sawtooth", v * 0.5);
+      this.noise(0.5, v * 0.6, 260);
+      this.noise(0.6, v * 0.35, 500, 0.75);
     } catch {
       return;
     }
@@ -345,6 +397,15 @@ export class Sfx {
           break;
         case "click":
           this.tone(700, 700, 0.03, "square", 0.05);
+          break;
+        case "spark": // la lame ricoche sur l'armure : un tintement sec et aigu
+          this.snap(0.02, 0.12, 4200, 6);
+          this.tone(2600, 2400, 0.06, "triangle", 0.05, 0.01);
+          break;
+        case "victory": // un combat difficile gagné : trois notes qui montent, la dernière tenue
+          this.tone(523, 523, 0.14, "triangle", 0.09);
+          this.tone(659, 659, 0.14, "triangle", 0.09, 0.15);
+          this.tone(784, 784, 0.5, "triangle", 0.1, 0.3);
           break;
       }
     } catch {

@@ -411,6 +411,17 @@
   #menu h3 { margin: 6px 0 0; font-size: 18px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); align-self: flex-start; }
   #menu p { margin: 0 0 14px; font-size: 18px; color: var(--dim); }
   #menu section > button, #detail > button { width: min(250px, 80%); padding: 10px; font-size: 22px; }
+  /* MENU QUI TIENT DANS L'ÉCRAN (Thomas, 2026-11-26 : « le menu principal est trop haut, il déroule ») : les quatre
+     boutons secondaires vont par deux, plus petits ; sur un écran court, l'emblème et le titre rapetissent (facteurs
+     entiers, sans lissage). */
+  .menu-small { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: min(300px, 88%); margin-top: 4px; }
+  .menu-small button { padding: 8px 4px; font-size: 16px; white-space: normal; line-height: 1.05; }
+  @media (max-height: 720px) {
+    #title-logo { width: 64px; height: 64px; margin-bottom: 0; }
+    #title-word { width: 200px; height: 82px; }
+    #screen-main { gap: 8px !important; }
+    #screen-main > button { padding: 7px; font-size: 20px; }
+  }
   #seed { font-size: 15px; color: #6a5f4a; margin-top: 8px; }
   /* minmax(0, 1fr) : les trois cases se partagent la largeur, même si un mot est long (sinon elles débordent). */
   .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
@@ -902,10 +913,12 @@
       <button id="menu-new" type="button">Nouvelle partie</button>
       <button id="menu-saves" type="button">Sauvegardes</button>
       <button id="menu-sandbox" type="button">Salle d'essai</button>
-      <button id="menu-codex" type="button">Encyclopédie</button>
-      <button id="menu-succes" type="button">Succès</button>
-      <button id="menu-settings" type="button">Paramètres</button>
-      <button id="menu-more" type="button">En savoir plus</button>
+      <div class="menu-small">
+        <button id="menu-codex" type="button">Encyclopédie</button>
+        <button id="menu-succes" type="button">Succès</button>
+        <button id="menu-settings" type="button">Paramètres</button>
+        <button id="menu-more" type="button">En savoir plus</button>
+      </div>
       <span id="seed"></span>
     </section>
     <section id="screen-more" hidden>

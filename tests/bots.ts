@@ -293,7 +293,7 @@ export function playBot(level: Level, seed: number, maxTurns = 8000, opts: BotOp
       if (e.type === "quest") {
         if (e.what === "start") questsStarted++;
         else if (e.what === "complete") questsDone++;
-        else questsFailed++;
+        else if (e.what !== "resume") questsFailed++; // « park » : laissée sur son étage (les bots ne remontent pas)
       }
     }
     game.events.length = 0;

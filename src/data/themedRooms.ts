@@ -145,6 +145,8 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   ashes2: { blocks: false, w: 2, h: 1, burns: false },
   // Trainards (planche art/trainards_v3.png, validée) : tonneau, caisse, deux caisses empilées. On se cache derrière.
   barrel: { blocks: true, w: 1, h: 1, burns: true },
+  // Feu de camp des Kobolds (Thomas, 2026-11-26 : « les monstres vivent ») : ils dorment autour, en section 1.
+  feuCamp: { blocks: true, w: 1, h: 1, burns: false },
   crate: { blocks: true, w: 1, h: 1, burns: true },
   crateStack: { blocks: true, w: 1, h: 1, burns: true },
   // Cloche d'alarme sur son support de bois (Thomas, 2026-11-12) : la sonner fait monter l'alerte, et on se moque de vous.

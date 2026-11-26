@@ -190,3 +190,7 @@
 | 2026-11-25 13:36 | ea5a70e | Moyen | 3.3 | 14 % | 29 % | 1 % | 2.6 | 15.1 | 0.7 / 0.4 / 0.2 | lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |
 | 2026-11-25 13:36 | ea5a70e | Maîtrise | 4 | 9 % | 53 % | 15 % | 4.3 | 38.5 | 1.1 / 0.7 / 0.3 | lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |
 | 2026-11-25 13:36 | ea5a70e | Expert | 8 | 3 % | 89 % | 83 % | 8.4 | 111.9 | 1.5 / 1.2 / 0.2 | [section 2 : étage 8 54 %, étage 10 30 %, bat le Carillon 25 %] lot du 25/11 : provisions 65/23 % (−60 % de l'ajout), or ×0,45, prix +30 %, feu progressif, trajet coupé au 1er coup |
+| 2026-11-26 09:05 | 3b39f8c | Débutant | 2.8 | 14 % | 9 % | 0 % | 1.6 | 6.7 | 0.6 / 0 / 0.4 | quêtes d'étage (plus d'échec en descendant), feu de camp des Kobolds, une salle spéciale par section |
+| 2026-11-26 09:05 | 3b39f8c | Moyen | 3.2 | 15 % | 27 % | 0 % | 2.5 | 14.2 | 0.7 / 0.3 / 0.2 | quêtes d'étage (plus d'échec en descendant), feu de camp des Kobolds, une salle spéciale par section |
+| 2026-11-26 09:05 | 3b39f8c | Maîtrise | 4 | 8 % | 53 % | 13 % | 4.2 | 39.6 | 1 / 0.7 / 0.3 | quêtes d'étage (plus d'échec en descendant), feu de camp des Kobolds, une salle spéciale par section |
+| 2026-11-26 09:05 | 3b39f8c | Expert | 8 | 3 % | 90 % | 88 % | 8.5 | 110.3 | 1.5 / 1.2 / 0.3 | [section 2 : étage 8 61 %, étage 10 23 %, bat le Carillon 18 %] quêtes d'étage (plus d'échec en descendant), feu de camp des Kobolds, une salle spéciale par section |

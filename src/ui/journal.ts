@@ -599,6 +599,8 @@ export function describe(e: GameEvent, ctx: JournalContext): string | null {
       if (e.what === "fail") return QUEST_TASKS[e.id].failed.replace("{0}", String(e.gold ?? 0));
       if (e.what === "lost") return "Quête perdue : la personne qui l'avait donnée s'est enfuie.";
       if (e.what === "start") return `Nouvelle quête — ${QUEST_TASKS[e.id].goal.replace(/ \{0\}\/\{1\}$/, "")}.`;
+      if (e.what === "park") return `Votre quête vous attend à l'étage ${e.depth}.`;
+      if (e.what === "resume") return `De retour : votre quête reprend — ${QUEST_TASKS[e.id].goal.replace(/ \{0\}\/\{1\}$/, "")}.`;
       return null;
     case "krikReturn":
       return e.amount > 0

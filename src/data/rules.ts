@@ -374,6 +374,8 @@ export const RULES = {
    *  début de la partie, la cloche d'alarme OU la porte du Kobold qui compte (une chance sur deux). */
   funMaxFloor: 3,
   /** Le poulet fou en plus du truc fun (Thomas, 2026-11-24 : « augmente la fréquence ») : chance par étage (sections 1 et 2). */
+  /** Feu de camp (section 1) : chance par étage qu'une bande de Kobolds endormis dorme autour d'un feu. */
+  campfireChance: 0.8,
   chickenExtraChance: 0.35,
   /** Le trou aux poulets (une fois par section, sections 1 et 2) : tours de course avant la chute une fois vus. */
   chickenRingTurns: 4,

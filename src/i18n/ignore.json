@@ -61,5 +61,7 @@
   "over-stone",
   "resume-main",
   "resume-sub",
-  "grayscale(0.6) sepia(0.4) hue-rotate(170deg) brightness(1.05)"
+  "grayscale(0.6) sepia(0.4) hue-rotate(170deg) brightness(1.05)",
+  "VVZ",
+  "italic {0}px \"VT323\", \"Courier New\", monospace"
 ]

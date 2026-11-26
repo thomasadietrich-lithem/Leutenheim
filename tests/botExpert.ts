@@ -1187,7 +1187,7 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       if (e.type === "quest") {
         if (e.what === "start") questsStarted++;
         else if (e.what === "complete") questsDone++;
-        else questsFailed++;
+        else if (e.what !== "resume") questsFailed++;
       }
     }
     game.events.length = 0;

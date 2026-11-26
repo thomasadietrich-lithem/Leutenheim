@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-26T09:05:15.819Z",
+ "commit": "3b39f8c",
+ "note": "immersion (secousse, ombres, feu de camp, pensées), salles spéciales dans le donjon, quêtes d'étage, menu, casque poulet",
+ "logic": {
+  "tickMs": 0.91,
+  "lightMs": 0.43,
+  "visionMs": 0.34
+ },
+ "scenes": {
+  "immobile": {
+   "n": 80,
+   "avg": 30.4,
+   "p95": 33.5,
+   "max": 50,
+   "fps": 33,
+   "js": 9
+  },
+  "marche": {
+   "n": 150,
+   "avg": 33.2,
+   "p95": 50,
+   "max": 66.7,
+   "fps": 30,
+   "js": 4
+  },
+  "retour": {
+   "n": 146,
+   "avg": 34.2,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 29,
+   "js": 3
+  },
+  "zoom": {
+   "n": 92,
+   "avg": 31,
+   "p95": 50,
+   "max": 50,
+   "fps": 32,
+   "js": 5
+  },
+  "combat": {
+   "n": 236,
+   "avg": 16.7,
+   "p95": 16.7,
+   "max": 16.8,
+   "fps": 60,
+   "js": 6
+  },
+  "donjon": {
+   "n": 164,
+   "avg": 30.5,
+   "p95": 50,
+   "max": 200,
+   "fps": 33,
+   "js": 22
+  }
+ },
+ "errors": []
+}

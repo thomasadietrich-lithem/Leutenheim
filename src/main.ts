@@ -18,6 +18,7 @@ import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
 import { RULES } from "./data/rules";
+import { THOUGHTS, THOUGHT_GAP_MS, THOUGHT_SLEEPERS, THOUGHT_WIPE } from "./data/thoughts";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
@@ -452,6 +453,9 @@ function applyCarillonMode(): void {
 
 function setupRun(next: Game, lines: string[] | null): void {
   game = next;
+  thoughtRooms.clear();
+  fight.on = false;
+  lastBlowFrom.clear();
   applyCarillonMode();
   const sandbox = game.sandbox;
   // Outils d'essai : en salle d'essai, et dans la partie d'essai « toutes les sections » (avec le téléporteur).
@@ -715,6 +719,68 @@ function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean, 
 }
 
 /** Le résultat d'un événement est montré : texte, son, effets. */
+/**
+ * L'AMBIANCE, à chaque image (Thomas, 2026-11-26) : gouttes et vent (écho des grandes salles), ronflements des
+ * dormeurs proches, la flamme qui se trouble quand un monstre approche hors de vue, la fanfare après un combat dur,
+ * la lame essuyée, et les pensées du héros en entrant dans un lieu marquant.
+ */
+function immersion(dt: number): void {
+  if (!started || game.over) {
+    renderer.unease = 0;
+    return;
+  }
+  const hero = game.hero;
+  const room = game.rooms.findIndex((r) => hero.x >= r.x && hero.x < r.x + r.w && hero.y >= r.y && hero.y < r.y + r.h);
+  const area = room >= 0 ? game.rooms[room].w * game.rooms[room].h : 0;
+  sfx.ambience(room < 0, Math.max(0, Math.min(1, (area - 40) / 80)), dt);
+  // Les dormeurs en vue ronflent (de plus en plus fort en approchant).
+  let sleeper = Infinity;
+  let hunter = Infinity;
+  for (const m of game.monsters) {
+    if (game.isInert(m) || m.hp <= 0) continue;
+    const d = Math.hypot(m.x - hero.x, m.y - hero.y);
+    if (m.asleep) {
+      if (game.isVisible(m.x, m.y)) sleeper = Math.min(sleeper, d);
+    } else if (!game.isVisible(m.x, m.y) && d <= 7) hunter = Math.min(hunter, d * (m.alerted ? 1 : 1.6));
+  }
+  if (sleeper <= 7) {
+    snoreDebt += dt / 3400;
+    if (snoreDebt >= 1) {
+      snoreDebt = 0;
+      sfx.snore(1 - sleeper / 8);
+    }
+  }
+  const uneasy = hunter <= 7 ? Math.min(1, 1.15 - hunter / 7) : 0;
+  renderer.unease += (uneasy - renderer.unease) * Math.min(1, dt / 500);
+  // Le combat : il commence quand un ennemi éveillé est en vue, finit après un peu de calme.
+  const foes = game.monsters.some((m) => m.alerted && !m.asleep && !game.isInert(m) && m.hp > 0 && game.isVisible(m.x, m.y));
+  const idle = !stepping && queue.length === 0 && cue === null;
+  if (foes) {
+    if (!fight.on) fight = { on: true, hpAtStart: hero.hp, lowest: hero.hp, kills: 0, melee: false, calmMs: 0 };
+    fight.lowest = Math.min(fight.lowest, hero.hp);
+    fight.calmMs = 0;
+  } else if (fight.on && idle) {
+    fight.calmMs += dt;
+    if (fight.calmMs > 700) {
+      fight.on = false;
+      const lost = fight.hpAtStart - fight.lowest;
+      if (fight.kills >= 1 && (lost >= hero.maxHp * 0.4 || fight.lowest <= hero.maxHp * 0.3 || fight.kills >= 4)) sfx.play("victory");
+      if (fight.kills >= 1 && fight.melee && game.weapon("melee")) renderer.addFloatingText(hero.x, hero.y, THOUGHT_WIPE, "#cfc6ae");
+    }
+  }
+  // Une pensée en entrant pour la première fois dans une salle marquante.
+  if (room < 0 || !idle || performance.now() - thoughtAt < THOUGHT_GAP_MS) return;
+  const key = `${game.depth}:${room}`;
+  if (thoughtRooms.has(key)) return;
+  thoughtRooms.add(key);
+  const r = game.rooms[room];
+  const kinds = new Set(game.furnitureList().filter((f) => f.x >= r.x - 1 && f.x <= r.x + r.w && f.y >= r.y - 1 && f.y <= r.y + r.h).map((f) => f.kind));
+  const text = THOUGHTS.find((t) => t.kinds.some((k) => kinds.has(k)))?.text ?? (sleeper <= 7 && !foes ? THOUGHT_SLEEPERS : null);
+  if (!text) return;
+  thoughtAt = performance.now();
+  renderer.addThought(text);
+}
+
 function reveal(e: GameEvent): void {
   const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0, sees: (a) => game.isVisible(a.x, a.y) });
   if (line) logLines.push(line);
@@ -732,6 +798,15 @@ function reveal(e: GameEvent): void {
       r.critical ? "#ffd75e" : r.hit ? (foe ? "#ff6b7a" : "#ffffff") : "#a8a2c0",
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
+    if (r.hit) lastBlowFrom.set(e.target.id, { x: e.attacker.x, y: e.attacker.y });
+    if (!foe && r.hit && !e.ranged) fight.melee = true;
+    // Critique du héros : l'image s'arrête un dixième de seconde. Gros coup encaissé : l'écran tremble.
+    if (r.critical && !foe) hitStop = Math.max(hitStop, HIT_STOP_MS);
+    if (foe && r.hit && r.damage >= Math.max(3, game.hero.maxHp * 0.2)) renderer.shake(r.critical ? 1.3 : 1);
+    else if (foe && r.critical) renderer.shake(0.7);
+    // Raté de peu, au contact : la lame ricoche sur l'armure (étincelles, tintement).
+    const deflected = !r.hit && r.d20 !== 1 && r.total >= r.targetAc - 3 && !e.ranged;
+    if (deflected) renderer.addSparks(e.target.x, e.target.y, e.attacker.x, e.attacker.y);
     if (!foe && r.hit) renderer.monsterHurt(e.target.id);
     if (r.hit && r.damage > 0) {
       const bloodColor = e.target.kind === "monster" ? (MONSTERS[e.target.defId as keyof typeof MONSTERS]?.blood ?? "red") : "red";
@@ -745,7 +820,7 @@ function reveal(e: GameEvent): void {
     // Arme lourde (lente) : un choc plus grave, pour sentir le poids de la lame.
     const melee = !foe && !e.ranged ? game.weapon("melee") : undefined;
     const heavy = !!melee && melee.speed === "slow";
-    sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : heavy ? "heavy" : "hit") : "miss");
+    sfx.play(r.critical ? "crit" : r.hit ? (foe ? "hurt" : heavy ? "heavy" : "hit") : deflected ? "spark" : "miss");
   } else if (e.type === "door") {
     if (e.action === "key") {
       sfx.play("key");
@@ -851,6 +926,7 @@ function reveal(e: GameEvent): void {
     sfx.play("flute");
   } else if (e.type === "quest") {
     if (e.what === "start") renderer.addFloatingText(game.hero.x, game.hero.y, "Nouvelle quête !", "#ffd75e");
+    if (e.what === "resume") renderer.addFloatingText(game.hero.x, game.hero.y, "Quête reprise", "#ffd75e");
     if (e.what === "fail" && e.gold) renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#f0c850");
   } else if (e.type === "krikReturn") {
     if (e.amount > 0) {
@@ -1163,7 +1239,11 @@ function reveal(e: GameEvent): void {
       sfx.play("death");
     } else {
       ghosts = ghosts.filter((g) => g !== e.actor);
-      renderer.monsterDies(e.actor);
+      renderer.monsterDies(e.actor, lastBlowFrom.get(e.actor.id));
+      lastBlowFrom.delete(e.actor.id);
+      const dropped = MONSTER_WEAPON[e.actor.defId];
+      if (dropped && !e.fire) renderer.dropWeapon(e.actor.x, e.actor.y, dropped, game.turn + 8, game.depth);
+      if (fight.on) fight.kills++;
       lastKill = { x: e.actor.x + ((e.actor.size ?? 1) - 1) / 2, y: e.actor.y + ((e.actor.size ?? 1) - 1) / 2 };
       sfx.play("kill");
     }
@@ -1529,6 +1609,29 @@ function hpOrbs(): void {
 
 /** Dernier monstre vaincu (sa case) : c'est de là que partent les billes d'expérience. */
 let lastKill: { x: number; y: number } | null = null;
+/**
+ * IMMERSION (Thomas, 2026-11-26 : « que proposes-tu pour améliorer le feeling ») : arrêt sur image d'un critique
+ * (`hitStop`, ms), d'où venait le dernier coup reçu par chacun (le corps tombe dans ce sens), le combat en cours (pour
+ * la petite fanfare d'après un combat dur, et la lame essuyée), les salles déjà commentées par le héros.
+ */
+const HIT_STOP_MS = 110;
+let hitStop = 0;
+const lastBlowFrom = new Map<number, { x: number; y: number }>();
+let fight: { on: boolean; hpAtStart: number; lowest: number; kills: number; melee: boolean; calmMs: number } = { on: false, hpAtStart: 0, lowest: 0, kills: 0, melee: false, calmMs: 0 };
+const thoughtRooms = new Set<string>();
+let thoughtAt = -Infinity;
+let snoreDebt = 0;
+/** L'arme qu'un monstre laisse tomber en mourant (dessin au sol pendant quelques tours). */
+const MONSTER_WEAPON: Partial<Record<string, "lame" | "arc" | "fronde" | "os">> = {
+  schrat: "lame",
+  frondeur: "fronde",
+  squelette: "os",
+  squeletteArcher: "arc",
+  acolyte: "lame",
+  fidele: "lame",
+  gisantEveille: "lame",
+  cueilleur: "lame",
+};
 /** Points d'XP encore en vol (billes bleues pas arrivées) : la jauge ne les compte qu'à leur arrivée (Thomas, 2026-11-12). */
 let xpInFlight = 0;
 
@@ -4776,9 +4879,15 @@ function frame(now: number): void {
     requestAnimationFrame(frame);
     return;
   }
-  const dt = Math.min(now - last, 100);
+  let dt = Math.min(now - last, 100);
   last = now;
   watchSpeed(dt);
+  // Arrêt sur image (coup critique) : le monde se fige un instant.
+  if (hitStop > 0) {
+    const held = Math.min(hitStop, dt);
+    hitStop -= dt;
+    dt -= held;
+  }
   if (flarePending && !bagOpen && !menuOpen) {
     flarePending = false;
     renderer.torchFlare();
@@ -4889,6 +4998,7 @@ function frame(now: number): void {
       fire = Math.max(fire, 1 - d / 8);
     }
     sfx.fireplace(fire, dt);
+    immersion(dt);
   }
   // Les cases de saut ne s'affichent que pendant le choix.
   if ((!jumpMode || game.disengageRefusal() !== null) && !pushMode && throwUid === null && !paintMode) {

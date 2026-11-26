@@ -4432,11 +4432,19 @@ test("tâches de quête : Sœur Osseuse compte les Kobolds punis ; descendre san
   }
   assert.equal(q.got, q.need);
   assert.ok(game.questDone());
-  // Descendre sans être revenu : ratée, elle ne sera plus là.
+  // Descendre sans être revenu (Thomas, 2026-11-26) : la quête attend sur son étage, et reprend en y remontant.
+  const depth = game.depth;
   game.pendingStairs = "down";
   assert.ok(game.takeStairs());
   assert.equal(game.quest, null);
-  assert.ok(game.events.some((e) => e.type === "quest" && e.what === "fail"));
+  assert.ok(game.events.some((e) => e.type === "quest" && e.what === "park" && e.depth === depth));
+  assert.ok(!game.events.some((e) => e.type === "quest" && e.what === "fail"));
+  game.pendingStairs = "up";
+  assert.ok(game.takeStairs());
+  assert.equal(game.depth, depth);
+  assert.equal((game.quest as { id: string } | null)?.id, "soeur_kobolds");
+  assert.ok(game.questDone(), "les Kobolds vaincus comptent toujours");
+  assert.ok(game.events.some((e) => e.type === "quest" && e.what === "resume"));
 });
 
 test("quêtes v3, Krik : le dortoir des traîtres derrière la tapisserie ; une mission par choix (Thomas, 2026-11-14)", () => {
@@ -7716,4 +7724,40 @@ test("Tisseuse (2026-11-26) : touchée de loin, elle s'éveille et vient ; bloqu
   assert.ok(q.boss!.engaged, "éveillée par le coup");
   assert.equal(q.boss!.phase, "advance");
   assert.ok(q.boss!.target, "elle sait d'où ça vient");
+});
+
+test("salles spéciales dans le donjon (Thomas, 2026-11-26) : une par section, jamais deux fois la même ; le festin en section 2, la crypte en section 3", () => {
+  const FEATURE: Record<string, string> = { puitsVoeux: "puits", autelPoulet: "autel", miroir: "miroirs", champiFestin: "festin", tableCarte: "cartographe", ciergeCrypte: "crypte" };
+  let found = 0;
+  let tries = 0;
+  for (const seed of [3, 8, 21, 34, 55, 89]) {
+    const game = new Game(seed);
+    game.testRun = true;
+    const kinds: string[] = [];
+    for (let section = 0; section < 3; section++) {
+      const expected = game.specialRoomOf(section)!;
+      assert.ok(section === 1 || expected !== "festin", "le festin seulement en section 2");
+      assert.ok(section === 2 || expected !== "crypte", "la crypte seulement en section 3");
+      tries++;
+      let seen: string[] = [];
+      for (let d = section * RULES.floorsPerSection + 1; d <= section * RULES.floorsPerSection + RULES.floorsPerSection - 1; d++) {
+        if (game.depth !== d) assert.ok(game.teleport(d), `étage ${d}`);
+        const here = [...new Set(game.furnitureList().map((f) => FEATURE[f.kind]).filter((k): k is string => !!k))];
+        if (here.length > 0) seen = [...seen, ...here.map((k) => `${k}@${d}`)];
+      }
+      assert.ok(seen.length <= 1, `une seule salle spéciale par section (${seen.join(", ")})`);
+      if (seen.length === 1) {
+        found++;
+        assert.equal(seen[0].split("@")[0], expected);
+        kinds.push(expected);
+      }
+      if (expected === "crypte" && seen.length === 1) {
+        game.teleport(Number(seen[0].split("@")[1]));
+        const crypt = (game as unknown as { current: { crypt?: { candles: unknown[]; order: number[] } } }).current.crypt;
+        assert.ok(crypt && crypt.candles.length === 3 && [...crypt.order].sort().join() === "0,1,2", "la crypte a ses trois cierges et son ordre");
+      }
+    }
+    assert.equal(new Set(kinds).size, kinds.length, "jamais deux fois la même salle dans une partie");
+  }
+  assert.ok(found >= tries * 0.8, `placées : ${found} sur ${tries}`);
 });

@@ -7,7 +7,7 @@ import { HERO_BASE, HERO_PALETTE, HERO_RACE_PALETTE, HERO_WEAPON } from "./sprit
  * retouche se fait des deux côtés.
  */
 export type HeroArmor = "tunique" | "cuir" | "cloute" | "mailles" | "harnois" | "obsidienne";
-export type HeroHelmet = "aucun" | "cuir" | "mailles" | "obsidienne";
+export type HeroHelmet = "aucun" | "cuir" | "mailles" | "obsidienne" | "poulet";
 export type HeroWeapon = "poings" | "couteau" | "epee" | "masse" | "cimeterre" | "epee_longue" | "lance" | "serpe";
 export type HeroBow = "court" | "puissant" | "fronde";
 
@@ -27,7 +27,7 @@ export interface HeroSprites {
 
 /** Ce que porte le héros (identifiants de `src/data/items.ts`) → les calques à dessiner. */
 const ARMOR_OF: Record<string, HeroArmor> = { armure_cuir: "cuir", armure_cloutee: "cloute", cotte_mailles: "mailles", harnois: "harnois", armure_obsidienne: "obsidienne" };
-const HELMET_OF: Record<string, HeroHelmet> = { casque_cuir: "cuir", casque_poulet: "cuir", casque_maille: "mailles", casque_obsidienne: "obsidienne" };
+const HELMET_OF: Record<string, HeroHelmet> = { casque_cuir: "cuir", casque_poulet: "poulet", casque_maille: "mailles", casque_obsidienne: "obsidienne" };
 const WEAPON_OF: Record<string, HeroWeapon> = {
   epee: "epee",
   dague: "couteau",
@@ -58,6 +58,8 @@ const LYING = new Set(["dead", "prone0", "prone1"]);
 const ARMOR_TONES: Record<Exclude<HeroArmor, "tunique">, string> = { cuir: "123", cloute: "123", mailles: "456", harnois: "789", obsidienne: "IJL" };
 /** Le verre noir de l'obsidienne, aux reflets violets (Thomas, 2026-11-19). */
 const OBSIDIAN_PALETTE: Record<string, string> = { I: "#5a4a7a", J: "#2e2640", L: "#1a1524", N: "#b48ce0" };
+/** Casque poulet (Thomas, 2026-11-26 : « le casque poulet n'a pas de skin ») : plumes blanches, ombre crème, crête rouge. */
+const CHICKEN_PALETTE: Record<string, string> = { V: "#f4f0e4", Z: "#cfc6ae", K: "#d8342c" };
 
 function applyWeapon(g: string[][], packed: string | undefined): void {
   if (!packed) return;
@@ -168,8 +170,22 @@ function applyHelmet(g: string[][], helmet: HeroHelmet, lying: boolean): void {
     }
     return;
   }
-  const tones = "Cce";
+  const tones = helmet === "poulet" ? "VVZ" : "Cce";
   const first = lying ? x0 : y0;
+  if (helmet === "poulet") {
+    // La crête : trois pixels rouges au sommet du crâne (à gauche si le héros est couché).
+    const across: number[] = [];
+    for (let k = 0; k < 16; k++) if ("HG".includes(lying ? g[k][first] : g[first][k])) across.push(k);
+    const mid = across.length ? across[Math.floor(across.length / 2)] : -1;
+    const comb: [number, number][] = [[-1, 0], [-1, -1], [-2, 0]];
+    for (const [d, s] of comb) {
+      const a = first + d;
+      const b = mid + s;
+      if (mid < 0 || a < 0 || b < 0 || b > 15) continue;
+      const [x, y] = lying ? [a, b] : [b, a];
+      if (g[y][x] === ".") g[y][x] = "K";
+    }
+  }
   for (let i = 0; i < 3 && first + i < 16; i++) {
     for (let k = 0; k < 16; k++) {
       const x = lying ? first + i : k;
@@ -228,7 +244,7 @@ export function heroSprites(look: HeroLook): HeroSprites {
   if (s) return s;
   let palette = palettes.get(look.race);
   if (!palette) {
-    palette = { ...HERO_PALETTE, ...HERO_RACE_PALETTE[look.race], ...OBSIDIAN_PALETTE };
+    palette = { ...HERO_PALETTE, ...HERO_RACE_PALETTE[look.race], ...OBSIDIAN_PALETTE, ...CHICKEN_PALETTE };
     palettes.set(look.race, palette);
   }
   const weapon = HERO_WEAPON[look.race]?.[look.weapon];

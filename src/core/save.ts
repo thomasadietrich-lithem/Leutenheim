@@ -140,6 +140,9 @@ export interface SaveData {
   fifrelin?: { met: number };
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;
+  /** Quêtes laissées sur d'autres étages (elles reprennent en y revenant). */
+  parkedQuests?: QuestTask[];
+  specialSections?: number[];
   xpCarry?: number;
   urchinTurns?: number;
   stoneTurns?: number;

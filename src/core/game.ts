@@ -9,6 +9,7 @@ import { TRAPS } from "../data/traps";
 import { RACES, RaceDef } from "../data/races";
 import { MOTIF_SIZE } from "../data/motifs";
 import { RULES } from "../data/rules";
+import { CRYPTE_ORDRES, SALLES_SPECIALES_PAR_SECTION, SalleSpeciale } from "../data/sallesSpeciales";
 import { GLUCK, GLUCK_OPENING, GluckChoice, STAT_NAMES } from "../data/gluck";
 import { SOEUR, SOEUR_OPENING } from "../data/soeur";
 import { KRIK, KRIK_OPENING } from "../data/krik";
@@ -245,6 +246,14 @@ export class Game {
   quickItem: ItemId | null = null;
   /** La tâche de quête en cours (une seule à la fois ; Thomas, 2026-11-12). */
   quest: QuestTask | null = null;
+  /**
+   * QUÊTES D'ÉTAGE (Thomas, 2026-11-26 : « monter et descendre annule une quête en cours, c'est pas bon ; une quête est
+   * associée à un étage, et peut être continuée en retournant dans l'étage ») : en quittant l'étage, sa quête est mise
+   * de côté ici ; elle reprend en y revenant. `quest` ne porte donc que la quête de l'étage où l'on est.
+   */
+  parkedQuests: QuestTask[] = [];
+  /** Sections dont la salle spéciale est déjà posée (sans place sur l'étage tiré, elle passe à l'étage suivant). */
+  specialSections: number[] = [];
   /** Les fractions de points d'expérience pas encore gagnées (XP divisée par deux). */
   xpCarry = 0;
   /** Bénédiction de l'autel à la pomme dorée : +1 au jet d'attaque et +1 CA, pendant tant de tours. */
@@ -762,6 +771,8 @@ export class Game {
       const pick = section * RULES.floorsPerSection + new Rng((this.runSeed ^ 0xc41c4e) + section).int(1, RULES.floorsPerSection - 1);
       if (pick === depth) this.placeChickenRing(state);
     }
+    if (fresh && !state.boss && !this.sandbox && depth <= RULES.floorsPerSection) this.placeCampfire(state, depth);
+    if (fresh && !state.boss && !this.sandbox) this.placeSpecialRoom(state, depth);
     if (fresh && !state.boss && !this.sandbox && !this.testRun && this.graveFrom && this.graveFrom.depth === depth) this.placeGrave(state, this.graveFrom);
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -4074,6 +4085,8 @@ export class Game {
       clavicule: this.claviculeMemory,
       osselet: this.osseletMemory,
       quest: this.quest,
+      parkedQuests: this.parkedQuests,
+      specialSections: this.specialSections,
       xpCarry: this.xpCarry,
       blessings: { protect: this.protectTurns, clarity: this.clarityDepth, curse: this.curseDepth, luck: this.luck },
       blessTurns: this.blessTurns,
@@ -4227,6 +4240,8 @@ export class Game {
     game.claviculeMemory = saved.clavicule ?? { met: 0 };
     game.osseletMemory = saved.osselet ?? { met: 0 };
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
+    game.parkedQuests = (saved.parkedQuests ?? []).filter((q) => !!QUEST_TASKS[q.id]);
+    game.specialSections = saved.specialSections ?? [];
     game.xpCarry = saved.xpCarry ?? 0;
     game.protectTurns = saved.blessings?.protect ?? 0;
     game.clarityDepth = saved.blessings?.clarity ?? 0;
@@ -5085,6 +5100,157 @@ export class Game {
       state.furniture.push({ x: cx, y: cy, kind: "trouPoulets" });
       state.map.set(cx, cy, Tile.Furniture);
       state.chickenRing = { x: cx, y: cy };
+      return;
+    }
+  }
+
+  /**
+   * FEU DE CAMP DES KOBOLDS (Thomas, 2026-11-26 : « les monstres vivent ») : en section 1, une bande de Kobolds endormis
+   * (deux au moins) dort autour d'un feu, au milieu de sa salle. Au plus un par étage ; tirage à part (graine de
+   * l'étage) pour ne rien changer au reste de l'étage.
+   */
+  private placeCampfire(state: FloorState, depth: number): void {
+    const rng = new Rng((this.runSeed ^ 0xca3f17e) + depth * 7919);
+    if (!rng.chance(RULES.campfireChance)) return;
+    const themed = new Set((state.themes ?? []).map((t) => t.room));
+    const startRoom = state.rooms.find((r) => this.inRect(state.start, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }));
+    const blocked = (a: number, b: number) => state.map.isWalkable(a, b) && !state.furniture.some((f) => FURNITURE_KINDS[f.kind]?.blocks && furnitureCells(f).some((c) => c.x === a && c.y === b));
+    for (const [i, r] of state.rooms.entries()) {
+      if (r === startRoom || themed.has(i) || r.w < 4 || r.h < 4) continue;
+      const band = state.monsters.filter((m) => m.defId === "schrat" && m.asleep && this.inRect(m, r));
+      if (band.length < 2) continue;
+      const others = (x: number, y: number) => state.monsters.some((m) => !band.includes(m) && occupies(m, x, y));
+      const free = (x: number, y: number) =>
+        state.map.get(x, y) === Tile.Floor &&
+        !state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) &&
+        !state.ground.some((g) => g.x === x && g.y === y) &&
+        !state.traps.some((t) => t.x === x && t.y === y) &&
+        !others(x, y) &&
+        !(state.stairs.x === x && state.stairs.y === y);
+      // Le feu : au plus près du milieu de la salle, sur une case libre qui ne coupe aucun passage, avec assez de place
+      // autour pour toute la bande.
+      const mx = r.x + (r.w - 1) / 2;
+      const my = r.y + (r.h - 1) / 2;
+      // À gauche, à droite, en dessous d'abord : un dormeur juste au-dessus cacherait les flammes.
+      const ringOf = (x: number, y: number) => [[-1, 0], [1, 0], [0, 1], [-1, 1], [1, 1], [0, -1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: x + dx, y: y + dy })).filter((c) => this.inRect(c, r) && free(c.x, c.y));
+      const spots: Point[] = [];
+      for (let y = r.y + 1; y < r.y + r.h - 1; y++) for (let x = r.x + 1; x < r.x + r.w - 1; x++) spots.push({ x, y });
+      spots.sort((a, b) => Math.hypot(a.x - mx, a.y - my) - Math.hypot(b.x - mx, b.y - my));
+      const spot = spots.find((s) => free(s.x, s.y) && !isChokepoint(state.map, s.x, s.y, blocked) && ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => state.map.isDoor(s.x + dx, s.y + dy)) && ringOf(s.x, s.y).length >= band.length);
+      if (!spot) continue;
+      const cx = spot.x;
+      const cy = spot.y;
+      const ring = ringOf(cx, cy);
+      state.furniture.push({ x: cx, y: cy, kind: "feuCamp" });
+      state.map.set(cx, cy, Tile.Furniture);
+      band.forEach((m, k) => {
+        m.x = m.fromX = ring[k].x;
+        m.y = m.fromY = ring[k].y;
+      });
+      return;
+    }
+  }
+
+  /** La salle spéciale de chaque section, tirée pour la partie (jamais deux fois la même). */
+  specialRoomOf(section: number): SalleSpeciale | null {
+    if (section < 0 || section >= SALLES_SPECIALES_PAR_SECTION.length) return null;
+    const rng = new Rng(this.runSeed ^ 0x5be1a2);
+    const used = new Set<SalleSpeciale>();
+    let kind: SalleSpeciale | null = null;
+    for (let s = 0; s <= section; s++) {
+      const pool = SALLES_SPECIALES_PAR_SECTION[s].filter((k) => !used.has(k));
+      kind = pool[rng.int(0, pool.length - 1)];
+      used.add(kind);
+    }
+    return kind;
+  }
+
+  /**
+   * SALLES SPÉCIALES DANS LE DONJON (Thomas, 2026-11-26) : une par section, sur un étage tiré (1 à 4 de la section),
+   * dans une salle ordinaire d'au moins 7 × 6 cases : son meuble au milieu (ou contre le mur du fond), libre autour.
+   * Tirages à part (graine de la partie) : le reste de l'étage ne change pas.
+   */
+  private placeSpecialRoom(state: FloorState, depth: number): void {
+    const fps = RULES.floorsPerSection;
+    const section = Math.floor((depth - 1) / fps);
+    const kind = this.specialRoomOf(section);
+    if (!kind) return;
+    const pickRng = new Rng((this.runSeed ^ 0x5be1a1) + section * 131);
+    if (this.specialSections.includes(section) || depth < section * fps + pickRng.int(1, fps - 1) || depth > section * fps + fps - 1) return;
+    const near = (p: Point, r: Room) => this.inRect(p, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 });
+    const themed = new Set((state.themes ?? []).map((t) => t.room));
+    const npcs = NPC_IDS.map((id) => (state as unknown as Record<string, Point | undefined>)[id]).filter((p): p is Point => !!p);
+    const free = (x: number, y: number) =>
+      state.map.get(x, y) === Tile.Floor &&
+      !state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === y)) &&
+      !state.ground.some((g) => g.x === x && g.y === y) &&
+      !state.traps.some((t) => t.x === x && t.y === y);
+    const wallAbove = (x: number, r: Room) => state.map.get(x, r.y - 1) === Tile.Wall && !state.furniture.some((f) => furnitureCells(f).some((c) => c.x === x && c.y === r.y - 1));
+    const order = state.rooms.map((_, i) => i);
+    for (let k = order.length - 1; k > 0; k--) {
+      const j = pickRng.int(0, k);
+      [order[k], order[j]] = [order[j], order[k]];
+    }
+    for (const i of order) {
+      const r = state.rooms[i];
+      if (r.w < 5 || r.h < 5 || r.w * r.h < 30 || themed.has(i) || near(state.start, r) || near(state.stairs, r)) continue;
+      if (state.secretRoom && (state.secretRoom.host === i || near(state.secretRoom.entry, r))) continue;
+      if ((state.enigmas ?? []).some((e) => e.room === r || near({ x: e.room.x, y: e.room.y }, r))) continue;
+      if (state.merchant && near(state.merchant, r)) continue;
+      if (state.zone && (state.zone as { room?: Room }).room === r) continue;
+      if (npcs.some((p) => near(p, r))) continue;
+      if (state.chickenRing && near(state.chickenRing, r)) continue;
+      // La place du meuble : le milieu de la salle (contre le mur du fond pour l'autel, le miroir, la crypte), ou à
+      // défaut la place libre la plus proche ; libre autour (les cases à occuper et celles où l'on se tient).
+      const wallSide = kind === "autel" || kind === "miroirs" || kind === "crypte";
+      const needsAt = (cx: number, cy: number): Point[] =>
+        kind === "autel" || kind === "miroirs" ? [-1, 0, 1].flatMap((dx) => [0, 1].map((dy) => ({ x: cx + dx, y: r.y + dy })))
+        : kind === "crypte" ? [-2, -1, 0, 1, 2].flatMap((dx) => [0, 1, 2, 3].map((dy) => ({ x: cx + dx, y: r.y + dy })))
+        : [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: cx + dx, y: cy + dy })));
+      const mx = r.x + Math.floor(r.w / 2);
+      const my = r.y + Math.floor(r.h / 2);
+      const spots: Point[] = [];
+      for (let y = wallSide ? r.y : r.y + 1; y <= (wallSide ? r.y : r.y + r.h - 2); y++) for (let x = r.x + 1; x <= r.x + r.w - 2; x++) spots.push({ x, y });
+      spots.sort((a, b) => Math.abs(a.x - mx) + Math.abs(a.y - my) - (Math.abs(b.x - mx) + Math.abs(b.y - my)));
+      // Les cases que le meuble bouche : ni goulet, ni à côté d'une porte.
+      const blocksAt = (cx: number, cy: number): Point[] =>
+        kind === "autel" || kind === "miroirs" ? [{ x: cx, y: r.y }]
+        : kind === "crypte" ? [{ x: cx - 2, y: r.y + 1 }, { x: cx, y: r.y + 1 }, { x: cx + 2, y: r.y + 1 }, { x: cx - 1, y: r.y + 3 }, { x: cx, y: r.y + 3 }]
+        : [{ x: cx, y: cy }];
+      const walk = (a: number, b: number) => state.map.isWalkable(a, b) && !state.furniture.some((f) => FURNITURE_KINDS[f.kind]?.blocks && furnitureCells(f).some((c) => c.x === a && c.y === b));
+      const safe = (p: Point) => !isChokepoint(state.map, p.x, p.y, walk) && ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => state.map.isDoor(p.x + dx, p.y + dy));
+      const spot = spots.find((s) => needsAt(s.x, s.y).every((p) => this.inRect(p, r) && free(p.x, p.y)) && blocksAt(s.x, s.y).every(safe) && (kind !== "crypte" || wallAbove(s.x - 2, r)));
+      if (!spot) continue;
+      const cx = spot.x;
+      const cy = spot.y;
+      const put = (x: number, y: number, k: string, extra: Partial<Furniture> = {}) => {
+        state.furniture.push({ x, y, kind: k, ...extra });
+        if (FURNITURE_KINDS[k]?.blocks) for (let d = 0; d < (FURNITURE_KINDS[k]?.w ?? 1); d++) state.map.set(x + d, y, Tile.Furniture);
+      };
+      // Les monstres de la salle s'en vont (la salle a ses propres hôtes).
+      for (let k = state.monsters.length - 1; k >= 0; k--) if (this.inRect(state.monsters[k], r)) state.monsters.splice(k, 1);
+      if (kind === "puits") put(cx, cy, "puitsVoeux");
+      else if (kind === "cartographe") put(cx, cy, "tableCarte");
+      else if (kind === "miroirs") put(cx, r.y, "miroir");
+      else if (kind === "autel") {
+        put(cx, r.y, "autelPoulet");
+        if (wallAbove(cx - 2, r) && wallAbove(cx - 1, r) && wallAbove(cx, r)) put(cx - 2, r.y - 1, "tapisserieCulte");
+      } else if (kind === "festin") {
+        put(cx, cy, "champiFestin");
+        for (const [dx, dy] of [[-2, 0], [2, 0], [0, 2]]) {
+          const p = { x: cx + dx, y: cy + dy };
+          if (free(p.x, p.y) && !state.monsters.some((m) => occupies(m, p.x, p.y))) state.monsters.push(this.newMonster(MONSTERS.myconide, p.x, p.y, true));
+        }
+      } else {
+        const candles = [{ x: cx - 2, y: r.y + 1 }, { x: cx, y: r.y + 1 }, { x: cx + 2, y: r.y + 1 }];
+        for (const c of candles) put(c.x, c.y, "ciergeCrypte");
+        const sarco = { x: cx - 1, y: r.y + 3 };
+        put(sarco.x, sarco.y, "sarcophage");
+        const pick = CRYPTE_ORDRES[pickRng.int(0, CRYPTE_ORDRES.length - 1)];
+        put(cx - 2, r.y - 1, "afficheTexte", { note: pick.note });
+        state.crypt = { candles, order: [...pick.order], lit: [], sarco };
+      }
+      this.specialSections.push(section);
       return;
     }
   }
@@ -9002,22 +9168,6 @@ export class Game {
     return { lines: def.thanks, done: true };
   }
 
-  /** Descendre sans être revenu : la tâche est ratée, le PNJ s'en va. Le magot de Krik, lui, est gardé (en or). */
-  private failQuest(): void {
-    const q = this.quest!;
-    const def = QUEST_TASKS[q.id];
-    let gold: number | undefined;
-    if (def.kind === "fetch" && this.inventory.take(def.item!, 1) && q.id === "krik_magot") {
-      gold = lessGold(KRIK.keptMagot);
-      this.gold += gold;
-    }
-    const g = this.current[def.npc];
-    if (g) g.gone = true;
-    if (def.npc === "gluck") this.gluckMemory.mood = Math.max(-1, this.gluckMemory.mood - 1);
-    this.quest = null;
-    this.events.push({ type: "quest", what: "fail", id: q.id, gold });
-  }
-
   // ---------- Quêtes v3 : zones spéciales (Thomas, 2026-11-13/14) ----------
 
   /** La zone spéciale de l'étage, s'il y en a une. */
@@ -12909,12 +13059,23 @@ export class Game {
       this.events.push({ type: "demoEnd" });
       return true;
     }
-    // Descendre sans être revenu voir le PNJ : la tâche est ratée (Thomas, 2026-11-12 : il reste sur l'étage).
-    if (direction === "down" && this.quest && this.quest.depth === this.depth) this.failQuest();
+    // La quête de l'étage attend qu'on revienne (Thomas, 2026-11-26 ; avant : ratée en descendant).
+    const leaving = this.quest && this.quest.depth === this.depth ? this.quest : null;
+    if (leaving) {
+      this.parkedQuests.push(leaving);
+      this.quest = null;
+    }
     const left = this.perks();
     const unhurt = (direction === "down" && !left.hurt && !left.left && (left.kills ?? 0) > 0) || undefined;
     left.left = 1;
     this.enterFloor(target, direction);
+    if (leaving) this.events.push({ type: "quest", what: "park", id: leaving.id, depth: leaving.depth });
+    const back = this.parkedQuests.findIndex((q) => q.depth === this.depth);
+    if (back >= 0 && !this.quest) {
+      this.quest = this.parkedQuests.splice(back, 1)[0];
+      this.refreshLight();
+      this.events.push({ type: "quest", what: "resume", id: this.quest.id });
+    }
     this.events.push({ type: "stairs", direction, healed, unhurt });
     if (direction === "down") this.settleKrik();
     return true;

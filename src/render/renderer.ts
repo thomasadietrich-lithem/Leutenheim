@@ -138,6 +138,8 @@ const HURT_MS = 260;
 /** Durée de l'image « se relève », quand le héros n'est plus retenu au sol. */
 const GET_UP_MS = 320;
 const CORPSE_MS = 1400;
+const SHAKE_MS = 320;
+const THOUGHT_MS = 2600;
 type Facing = "down" | "up" | "left" | "right";
 
 /** Un coup porté de (fromX, fromY) vers (x, y). */
@@ -340,7 +342,17 @@ export class Renderer {
   private monsterFacing = new Map<number, Facing>();
   private monsterHurtAge = new Map<number, number>();
   /** Monstres vaincus : leur corps reste un instant au sol avant de s'effacer. */
-  private corpses: { actor: Actor; age: number; facing: Facing }[] = [];
+  private corpses: { actor: Actor; age: number; facing: Facing; dx: number; dy: number }[] = [];
+  /**
+   * IMMERSION (Thomas, 2026-11-26) : l'écran tremble sous un gros coup (`shake`), le héros pense tout haut en entrant
+   * dans un lieu marquant (`thoughts`), l'arme d'un monstre vaincu reste au sol quelques tours (`droppedWeapons`), et
+   * la flamme vacille quand quelque chose approche dans le noir (`unease`, 0 à 1, posé par main.ts).
+   */
+  private shakeAmp = 0;
+  private shakeAge = 0;
+  private thoughts: { text: string; age: number }[] = [];
+  private droppedWeapons: { x: number; y: number; kind: "lame" | "arc" | "fronde" | "os"; until: number; angle: number; depth: number }[] = [];
+  unease = 0;
   private heroDown = false;
   /** Le héros était retenu au sol à l'image précédente ; jusqu'à quand il montre l'image « se relève ». */
   private heroWasStuck = false;
@@ -449,6 +461,8 @@ export class Renderer {
     this.camX = game.hero.x;
     this.camY = game.hero.y;
     this.floats = [];
+    this.thoughts = [];
+    this.shakeAmp = 0;
     this.cellCache.clear();
     this.chunkCache.clear();
     this.slashes = [];
@@ -476,13 +490,47 @@ export class Renderer {
     this.hurtAge = 0;
   }
 
+  /** L'écran tremble (1 = un gros coup encaissé ; il retombe en un tiers de seconde). */
+  shake(power: number): void {
+    if (power > this.shakeAmp * (1 - this.shakeAge / SHAKE_MS)) {
+      this.shakeAmp = power;
+      this.shakeAge = 0;
+    }
+  }
+
+  /** Une pensée du héros, dans une bulle au-dessus de sa tête (deux secondes et demie). */
+  addThought(text: string): void {
+    this.thoughts = [{ text, age: 0 }];
+  }
+
+  /** Coup qui ricoche sur une armure : des étincelles jaillissent, côté attaquant. */
+  addSparks(x: number, y: number, fromX: number, fromY: number): void {
+    const bx = Math.sign(fromX - x) * 0.3;
+    const by = Math.sign(fromY - y) * 0.3;
+    for (let i = 0; i < 8; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 1.6 + Math.random() * 2;
+      this.drops.push({
+        x: x + 0.5 + bx, y: y + 0.35 + by,
+        vx: Math.cos(a) * v + bx * 3, vy: Math.sin(a) * v - 2,
+        color: ["#fff6d0", "#ffd75e", "#ff9a30"][i % 3], age: 0, life: 160 + Math.random() * 120,
+      });
+    }
+  }
+
+  /** L'arme d'un monstre vaincu reste au sol jusqu'au tour `until` (dessinée sous les personnages). */
+  dropWeapon(x: number, y: number, kind: "lame" | "arc" | "fronde" | "os", until: number, depth: number): void {
+    this.droppedWeapons = this.droppedWeapons.filter((w) => w.depth === depth && !(w.x === x && w.y === y));
+    this.droppedWeapons.push({ x, y, kind, until, angle: (Math.random() - 0.5) * 1.6 + (Math.random() < 0.5 ? 0 : Math.PI), depth });
+  }
+
   /** Un monstre vient d'être blessé : il s'éclaire un instant. */
   monsterHurt(id: number): void {
     this.monsterHurtAge.set(id, 0);
   }
 
   /** Un monstre est vaincu : son corps reste étendu une seconde, puis s'efface. */
-  monsterDies(actor: Actor): void {
+  monsterDies(actor: Actor, from?: Point): void {
     // Morts du boss de la section 3 (Thomas, 2026-11-24 : « une animation quand le grand squelette meurt » ; « quand la
     // Prêtresse est morte, une animation, et j'ai eu l'araignée KO à la place ») : le Colosse s'écroule en pluie d'os,
     // la Prêtresse se défait en lumière qui monte. Leurs morceaux (bras, crâne) tombent en poussière ; la cloche du
@@ -500,7 +548,11 @@ export class Renderer {
       return;
     }
     if (actor.defId === "carillon") return;
-    this.corpses.push({ actor, age: 0, facing: this.monsterFacing.get(actor.id) ?? "down" });
+    // Il tombe dans le sens du coup (Thomas, 2026-11-26 : « des morts qui comptent ») : repoussé d'un quart de case.
+    const dx = from ? Math.sign(actor.x - from.x) : 0;
+    const dy = from ? Math.sign(actor.y - from.y) : 0;
+    const n = Math.hypot(dx, dy) || 1;
+    this.corpses.push({ actor, age: 0, facing: dx < 0 ? "left" : dx > 0 ? "right" : (this.monsterFacing.get(actor.id) ?? "down"), dx: dx / n, dy: dy / n });
   }
 
   /** Un grand sprite qui se défait pixel par pixel : `fall` (les os s'écroulent et rebondissent), `rise` (la lumière monte). */
@@ -2246,6 +2298,30 @@ export class Renderer {
    * doigts s'arrêtent (`ZOOM_SETTLE_MS`), et les cases ne sont redessinées qu'une fois.
    */
   draw(game: Game, progress: number, dt: number, ghosts: readonly Actor[] = [], aimRange: number | null = null, aimTarget: Actor | null = null): void {
+    this.shakeAge += dt;
+    const k = this.shakeAmp > 0 && this.shakeAge < SHAKE_MS ? 1 - this.shakeAge / SHAKE_MS : 0;
+    if (k <= 0) {
+      this.shakeAmp = 0;
+      this.drawZoomed(game, progress, dt, ghosts, aimRange, aimTarget);
+      return;
+    }
+    // Secousse : quelques pixels, de plus en plus faibles ; le fond est repeint d'abord (pas de bord fantôme).
+    const amp = this.shakeAmp * k * k * Math.max(3, this.tile * 0.1);
+    const sx = Math.round(Math.sin(this.shakeAge * 0.09) * amp);
+    const sy = Math.round(Math.cos(this.shakeAge * 0.071) * amp * 0.6);
+    const { ctx } = this;
+    ctx.fillStyle = COLORS.background;
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.save();
+    ctx.translate(sx, sy);
+    try {
+      this.drawZoomed(game, progress, dt, ghosts, aimRange, aimTarget);
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  private drawZoomed(game: Game, progress: number, dt: number, ghosts: readonly Actor[], aimRange: number | null, aimTarget: Actor | null): void {
     const cap = this.columns > DEZOOM_COLUMNS ? 1.25 : Infinity;
     if (cap !== zoomCap) {
       zoomCap = cap;
@@ -2328,7 +2404,9 @@ export class Renderer {
     // Vacillement des torches : deux ondes lentes superposées.
     // Section 2 (Thomas, 2026-11-14 : « une lumière plus lente et plus statique, là tout clignote ») : les champignons
     // respirent doucement (une lente onde de 6 secondes, ±3 %) au lieu de vaciller comme des flammes.
-    const flicker = game.look() === "ossuaire" ? 1 : game.look() === "champi" ? 0.92 + 0.03 * Math.sin(this.time / 950) : 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
+    const calm = game.look() === "ossuaire" ? 1 : game.look() === "champi" ? 0.92 + 0.03 * Math.sin(this.time / 950) : 0.85 + 0.1 * Math.sin(this.time / 110) + 0.05 * Math.sin(this.time / 37);
+    // Quelque chose approche dans le noir (Thomas, 2026-11-26) : la flamme se trouble, par à-coups.
+    const flicker = this.unease > 0.01 ? calm * (1 - this.unease * (0.1 + 0.09 * Math.sin(this.time / 41) * Math.sin(this.time / 173))) : calm;
     // Section 3, l'Ossuaire (Thomas, 2026-11-19) : la lune seule, en paliers nets ; l'ombre presque noire ailleurs.
     const oss = game.look() === "ossuaire";
 
@@ -2648,31 +2726,17 @@ export class Renderer {
 
     // Corps des monstres vaincus : étendus, puis effacés.
     this.drawCrumbles(ox, oy, this.lastDt);
+    // Armes tombées des monstres vaincus : elles restent quelques tours.
+    this.droppedWeapons = this.droppedWeapons.filter((w) => w.depth === game.depth && game.turn < w.until);
+    for (const w of this.droppedWeapons) if (game.isVisible(w.x, w.y)) this.drawDroppedWeapon(w, ox, oy);
     for (const c of this.corpses) {
       if (!game.isVisible(c.actor.x, c.actor.y)) continue;
       ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
-      if (c.actor.defId === "tisseuse") {
-        const art = BOSS.tisseuse_dead;
-        this.drawBig(art.rows, art.palette, ox + (c.actor.x + 1) * tile, oy + (c.actor.y + 1) * tile, false);
-        ctx.globalAlpha = 1;
-        continue;
-      }
-      const spider = c.actor.defId === "araignee";
-      const champiDead = MOBS_SET[c.actor.defId];
-      if (champiDead) {
-        // Le sporelin ne laisse que sa peau vide ; l'envahi brûlé, sa version calcinée.
-        this.drawMonsterSprite(champiDead.frames.dead, ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false, champiDead.palette);
-        ctx.globalAlpha = 1;
-        continue;
-      }
-      this.drawMonsterSprite(
-        spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
-        ox + (c.actor.x + 0.5) * tile,
-        oy + (c.actor.y + 0.5) * tile,
-        c.facing === "left",
-        false,
-        spider ? ARAIGNEE.dead.palette : c.actor.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE,
-      );
+      const fall = 1 - Math.pow(1 - Math.min(1, c.age / 220), 3);
+      ctx.save();
+      ctx.translate(c.dx * fall * tile * 0.28, c.dy * fall * tile * 0.28);
+      this.drawCorpse(c, ox, oy);
+      ctx.restore();
       ctx.globalAlpha = 1;
     }
     // Monstres en vue : leur sprite (le Schrat), ou un losange de la couleur de leur fiche s'ils n'en ont pas encore.
@@ -2686,6 +2750,7 @@ export class Renderer {
     // Un monstre qui glisse (potion glissante) reste dessiné pendant toute sa glissade, même s'il sort de la vue.
     const seen = [...game.visibleMonsters(), ...ghosts];
     for (const s of this.slides) if (game.monsters.includes(s.actor) && !seen.includes(s.actor)) seen.push(s.actor);
+    this.drawTorchShadows(game, seen, shown, ox, oy, flicker);
     for (const m of seen) {
       const p = shown(m);
       const cx = ox + (p.x + 0.5) * tile;
@@ -3277,8 +3342,211 @@ export class Renderer {
       ctx.fillText(tr(f.text), fx, fy);
     }
     ctx.globalAlpha = 1;
+    this.drawThought(hero, ox, oy, dt);
     this.drawWaves(ox, oy, this.lastDt);
     this.drawBossBar(game);
+  }
+
+  /** Le corps d'un monstre vaincu (sa case ; le décalage « dans le sens du coup » est déjà posé). */
+  private drawCorpse(c: { actor: Actor; facing: Facing }, ox: number, oy: number): void {
+    const { tile } = this;
+    if (c.actor.defId === "tisseuse") {
+      const art = BOSS.tisseuse_dead;
+      this.drawBig(art.rows, art.palette, ox + (c.actor.x + 1) * tile, oy + (c.actor.y + 1) * tile, false);
+      return;
+    }
+    const spider = c.actor.defId === "araignee";
+    const champiDead = MOBS_SET[c.actor.defId];
+    if (champiDead) {
+      // Le sporelin ne laisse que sa peau vide ; l'envahi brûlé, sa version calcinée.
+      this.drawMonsterSprite(champiDead.frames.dead, ox + (c.actor.x + 0.5) * tile, oy + (c.actor.y + 0.5) * tile, c.facing === "left", false, champiDead.palette);
+      return;
+    }
+    this.drawMonsterSprite(
+      spider ? ARAIGNEE.dead.rows : SCHRAT.dead[0],
+      ox + (c.actor.x + 0.5) * tile,
+      oy + (c.actor.y + 0.5) * tile,
+      c.facing === "left",
+      false,
+      spider ? ARAIGNEE.dead.palette : c.actor.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE,
+    );
+  }
+
+  /** La bulle de pensée du héros : un nuage clair, trois petites bulles vers sa tête, le texte en italique. */
+  private drawThought(hero: Point, ox: number, oy: number, dt: number): void {
+    this.thoughts = this.thoughts.filter((t) => (t.age += dt) < THOUGHT_MS);
+    const t = this.thoughts[0];
+    if (!t) return;
+    const { ctx, tile } = this;
+    const k = t.age / THOUGHT_MS;
+    const alpha = k < 0.08 ? k / 0.08 : k > 0.85 ? (1 - k) / 0.15 : 1;
+    const text = tr(t.text);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `italic ${Math.round(Math.max(13, tile * 0.36))}px "VT323", "Courier New", monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const w = Math.min(ctx.measureText(text).width + tile * 0.5, this.width - 16);
+    const h = tile * 0.6;
+    const hx = ox + (hero.x + 0.5) * tile;
+    const cx = Math.max(8 + w / 2, Math.min(this.width - 8 - w / 2, hx + tile * 0.4));
+    const cy = oy + (hero.y - 1.25) * tile - (k < 0.08 ? (1 - k / 0.08) * tile * 0.2 : 0);
+    ctx.fillStyle = "rgba(244,236,214,0.94)";
+    ctx.strokeStyle = "#3a2c18";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h), h / 2);
+    ctx.fill();
+    ctx.stroke();
+    for (const [f, r] of [[0.55, 0.09], [0.78, 0.06]] as const) {
+      ctx.beginPath();
+      ctx.arc(hx + tile * 0.25 * (1 - f), cy + h / 2 + f * tile * 0.45, tile * r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#3a2c18";
+    ctx.fillText(text, cx, cy + 1, w - tile * 0.3);
+    ctx.restore();
+  }
+
+  /**
+   * OMBRES PORTÉES (Thomas, 2026-11-26 : « la lumière raconte ») : un monstre dans la lumière d'une torche ou d'un feu
+   * de camp projette une ombre allongée à l'opposé de la flamme ; plus il en est près, plus elle est nette et courte.
+   */
+  private drawTorchShadows(game: Game, seen: readonly Actor[], shown: (a: Actor) => Point, ox: number, oy: number, flicker: number): void {
+    if (game.look() === "ossuaire" || seen.length === 0) return;
+    const { ctx, tile } = this;
+    const fires: Point[] = [];
+    for (const t of game.torches) if (t.lit !== false) fires.push({ x: t.x + 0.5 + t.faceX * 0.4, y: t.y + 0.5 + t.faceY * 0.4, ...(t.area ? { area: t.area } : {}) } as Point);
+    for (const f of game.furnitureList()) if (f.kind === "feuCamp") fires.push({ x: f.x + 0.5, y: f.y + 0.5 });
+    if (fires.length === 0) return;
+    ctx.save();
+    for (const m of seen) {
+      if ((m.size ?? 1) > 1 || game.isInert(m)) continue;
+      const p = shown(m);
+      const mx = p.x + 0.5;
+      const my = p.y + 0.5;
+      let best: Point | null = null;
+      let bestD = 6;
+      for (const f of fires) {
+        const area = (f as Point & { area?: { x: number; y: number; w: number; h: number } }).area;
+        if (area && (m.x < area.x || m.x >= area.x + area.w || m.y < area.y || m.y >= area.y + area.h)) continue;
+        const d = Math.hypot(mx - f.x, my - f.y);
+        if (d < bestD && d > 0.3) {
+          bestD = d;
+          best = f;
+        }
+      }
+      if (!best) continue;
+      const ang = Math.atan2(my - best.y, mx - best.x);
+      const len = tile * (0.35 + bestD * 0.12);
+      ctx.globalAlpha = Math.max(0, 0.34 * (1 - bestD / 6)) * flicker;
+      ctx.fillStyle = "#000000";
+      ctx.translate(ox + mx * tile, oy + (my + 0.32) * tile);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.ellipse(len * 0.55, 0, len * 0.65, tile * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+    }
+    ctx.restore();
+  }
+
+  /** Feu de camp : un cercle de pierres, des bûches, des flammes qui dansent et une lueur chaude autour. */
+  private drawCampfire(cx: number, cy: number, visible: boolean): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    const t = this.time;
+    ctx.save();
+    if (visible) {
+      const r = tile * (1.9 + 0.12 * Math.sin(t / 90) + 0.06 * Math.sin(t / 31));
+      const g = ctx.createRadialGradient(cx, cy, tile * 0.1, cx, cy, r);
+      g.addColorStop(0, "rgba(255,170,70,0.42)");
+      g.addColorStop(1, "rgba(255,120,40,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    } else ctx.globalAlpha = 0.45;
+    // Pierres.
+    const stones: [number, number][] = [[-6, 3], [-3, 5], [1, 5], [5, 3], [6, 0], [-6, 0], [-4, -3], [4, -3]];
+    for (const [sx, sy] of stones) {
+      ctx.fillStyle = "#5a5450";
+      ctx.fillRect(cx + (sx - 1.5) * u, cy + (sy - 1) * u, 3 * u, 2 * u);
+      ctx.fillStyle = "#3a3634";
+      ctx.fillRect(cx + (sx - 1.5) * u, cy + sy * u, 3 * u, 1 * u);
+    }
+    // Bûches croisées.
+    ctx.fillStyle = "#5a3418";
+    ctx.fillRect(cx - 4 * u, cy + 1 * u, 8 * u, 2 * u);
+    ctx.fillStyle = "#3a2010";
+    ctx.fillRect(cx - 1 * u, cy - 1 * u, 2 * u, 5 * u);
+    if (!visible) {
+      ctx.restore();
+      return;
+    }
+    // Braises et flammes (3 langues qui montent et retombent).
+    ctx.fillStyle = "#ff5a1a";
+    ctx.fillRect(cx - 3 * u, cy, 6 * u, 1 * u);
+    for (let i = 0; i < 3; i++) {
+      const ph = t / (140 + i * 37) + i * 2.1;
+      const h = (5 + 3 * Math.sin(ph)) * u;
+      const x = cx + (i - 1) * 2.2 * u + Math.sin(ph * 1.7) * 0.6 * u;
+      ctx.fillStyle = "#ff8a1e";
+      ctx.fillRect(Math.round(x - 1.5 * u), Math.round(cy - h), Math.ceil(3 * u), Math.ceil(h));
+      ctx.fillStyle = "#ffd75e";
+      ctx.fillRect(Math.round(x - 0.7 * u), Math.round(cy - h * 0.7), Math.ceil(1.4 * u), Math.ceil(h * 0.7));
+    }
+    // Une étincelle qui monte de temps en temps.
+    const sp = (t / 700) % 1;
+    ctx.globalAlpha = 1 - sp;
+    ctx.fillStyle = "#ffe9a0";
+    ctx.fillRect(Math.round(cx + Math.sin(t / 300) * 3 * u), Math.round(cy - (6 + sp * 14) * u), Math.ceil(u), Math.ceil(u));
+    ctx.restore();
+  }
+
+  /** Une arme au sol (dague, arc, fronde, os) : quelques traits de pixels, tournés au hasard. */
+  private drawDroppedWeapon(w: { x: number; y: number; kind: string; angle: number }, ox: number, oy: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    ctx.save();
+    ctx.translate(ox + (w.x + 0.5) * tile, oy + (w.y + 0.62) * tile);
+    ctx.rotate(w.angle);
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(-6 * u, 0, 12 * u, 2 * u);
+    if (w.kind === "lame") {
+      ctx.fillStyle = "#c8ccd4";
+      ctx.fillRect(-1 * u, -1 * u, 8 * u, 2 * u);
+      ctx.fillStyle = "#8a8e98";
+      ctx.fillRect(-1 * u, 0, 8 * u, 1 * u);
+      ctx.fillStyle = "#b08a3a";
+      ctx.fillRect(-2 * u, -2 * u, 1 * u, 4 * u);
+      ctx.fillStyle = "#5a3a1c";
+      ctx.fillRect(-5 * u, -1 * u, 3 * u, 2 * u);
+    } else if (w.kind === "arc") {
+      ctx.strokeStyle = "#7a4a22";
+      ctx.lineWidth = 1.5 * u;
+      ctx.beginPath();
+      ctx.arc(0, 4 * u, 6 * u, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+      ctx.strokeStyle = "#d8d0b8";
+      ctx.lineWidth = 0.6 * u;
+      ctx.beginPath();
+      ctx.moveTo(-5.4 * u, 1.4 * u);
+      ctx.lineTo(5.4 * u, 1.4 * u);
+      ctx.stroke();
+    } else if (w.kind === "fronde") {
+      ctx.fillStyle = "#6a4a2a";
+      ctx.fillRect(-5 * u, 0, 4 * u, 1 * u);
+      ctx.fillRect(1 * u, 0, 4 * u, 1 * u);
+      ctx.fillStyle = "#8a6a3a";
+      ctx.fillRect(-1 * u, -1 * u, 2 * u, 2 * u);
+    } else {
+      ctx.fillStyle = "#e4dcc4";
+      ctx.fillRect(-4 * u, -0.5 * u, 8 * u, 1.5 * u);
+      ctx.fillRect(-5 * u, -1.5 * u, 2 * u, 3 * u);
+      ctx.fillRect(3 * u, -1.5 * u, 2 * u, 3 * u);
+    }
+    ctx.restore();
   }
 
   /**
@@ -3613,6 +3881,10 @@ export class Renderer {
         ctx.fillStyle = "#ffe9b0";
         ctx.fillText(tr("Proposition n° 2"), cx, cy - tile * 0.95);
         ctx.restore();
+        continue;
+      }
+      if (f.kind === "feuCamp") {
+        this.drawCampfire(ox + (f.x + 0.5) * tile, oy + (f.y + 0.5) * tile, visible);
         continue;
       }
       // Un escalier dessiné en meuble (ossuaire, scellés) reste visible une fois découvert (Thomas, 2026-11-25).

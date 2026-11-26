@@ -282,7 +282,8 @@ export type GameEvent =
   /** L'investissement chez Krik (quête 03) : rendu à l'étage suivant, ou perdu. */
   | { type: "krikReturn"; amount: number }
   /** Tâche de quête : donnée, rendue au PNJ, ratée (on est descendu sans revenir) ou perdue (le PNJ s'est enfui). */
-  | { type: "quest"; what: "start" | "complete" | "fail" | "lost"; id: QuestTaskId; gold?: number }
+  /** `park` : on quitte l'étage de la quête, elle attend (`depth`) ; `resume` : de retour, elle reprend. */
+  | { type: "quest"; what: "start" | "complete" | "fail" | "lost" | "park" | "resume"; id: QuestTaskId; gold?: number; depth?: number }
   /** L'alerte de l'étage redescend d'un palier. */
   | { type: "alarmDown"; stage: number }
   | { type: "levelup"; level: number }

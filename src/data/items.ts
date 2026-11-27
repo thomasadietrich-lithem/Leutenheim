@@ -39,7 +39,7 @@ export interface ItemDef {
    * choisir une armure plus légère ») : section 1 cuir (limite) / cloutée (serein) ; section 2 cloutée / cotte de mailles ;
    * section 3 cotte de mailles / harnois (−4, Thomas 2026-11-27 : l'écart y était le plus faible), l'obsidienne au-dessus.
    */
-  reduction?: number;
+  reduction?: number; // amorti MOYEN : chaque coup, un tirage de reduction − 1 à reduction + 1
   /** Casques : classe d'armure ajoutée à celle de l'armure. */
   acBonus?: number;
   /** Armes à distance : portée en cases et munition consommée. */

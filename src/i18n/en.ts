@@ -2692,4 +2692,7 @@ export const EN: Record<string, string> = {
   "Amorti": "Soak",
   "-{0} par coup": "-{0} per hit",
   "amorti {0}": "soak {0}",
+  "Amorti {0}": "Soaked {0}",
+  "{0} à {1} par coup": "{0} to {1} per hit",
+  "amorti {0} à {1}": "soak {0} to {1}",
 };

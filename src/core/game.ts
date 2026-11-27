@@ -38,7 +38,7 @@ import { previousGrave, HeroGrave } from "./grave";
 import { Motif, placeGrounds, placeMotifs } from "../world/grounds";
 import { GameMap, Point, Tile } from "../world/map";
 import { canStep, distanceField, findPath, isChokepoint } from "../world/pathfinding";
-import { rollAttack } from "./combat";
+import { AttackResult, rollAttack } from "./combat";
 import { rollDice } from "./dice";
 import { DoorAction, GameEvent, ShootRefusal } from "./events";
 import { bytesToText, clone, SAVE_VERSION, SaveData, SavedFloor, textToBytes } from "./save";
@@ -1588,7 +1588,7 @@ export class Game {
   private monsterStrikes(m: Actor): void {
     this.faceToward(m, this.hero);
     const result = rollAttack(this.rng, m, { armorClass: this.hero.armorClass + this.guardBonus() + this.undeadWard(m) });
-    result.damage = this.absorb(result.damage);
+    this.soakHit(result);
     this.events.push({ type: "attack", attacker: m, target: this.hero, result });
     if (result.damage > 0) this.bleed(this.hero, m);
     this.hurtHero(result.damage, this.killerName(m));
@@ -1677,7 +1677,7 @@ export class Game {
       // Dans le puits (Thomas, 2026-11-19 : « beaucoup trop simple ») : un éclair de lune sur le héros, s'il est en vue.
       if (!lost && (this.turn + m.id) % RULES.priestessBoltEvery === 0 && hasLineOfSight(this.map, m, this.hero)) {
         const result = rollAttack(this.rng, { attackBonus: 8, damage: { count: 2, sides: 6, bonus: 4 } }, { armorClass: this.hero.armorClass + this.stanceBonus() });
-        result.damage = this.absorb(result.damage);
+        this.soakHit(result);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true });
         if (result.damage > 0) this.stopTravel();
         if (result.damage > 0) this.bleed(this.hero, m);
@@ -1967,7 +1967,7 @@ export class Game {
       const mouth = { x: m.x + 1, y: m.y + 1 };
       if (this.waveReaches(mouth, this.hero) && !this.fogBetween(mouth, this.hero)) {
         const result = rollAttack(this.rng, { attackBonus: RULES.carillonSpitBonus, damage: RULES.carillonSpitDamage }, this.hero);
-        result.damage = this.absorb(result.damage);
+        this.soakHit(result);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true, ink: true });
         if (result.damage > 0) this.stopTravel();
         if (result.hit) {
@@ -4828,16 +4828,34 @@ export class Game {
     return ok.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] ?? null;
   }
 
-  /** Dégâts retirés à chaque coup par l'armure portée. */
+  /** Amorti moyen de l'armure portée (dégâts retirés à chaque coup). */
   armorReduction(): number {
     const armor = this.equipment.armor;
     return (armor && (ITEMS[armor.defId] as ItemDef).reduction) || 0;
   }
 
+  /** Coup d'un monstre qui touche le héros : l'armure l'amortit, puis la voie bleue ; ce que l'armure a retenu est noté. */
+  private soakHit(result: AttackResult): void {
+    const before = result.damage;
+    result.damage = this.absorb(result.damage);
+    if (this.lastSoak > 0 && before > 0) result.soaked = this.lastSoak;
+  }
+
+  /** Ce que l'armure a retenu au dernier coup amorti. */
+  private lastSoak = 0;
+
   /** Encaisseur (voie bleue, Rang II) : moins de dégâts à chaque coup reçu, jamais moins de 1. */
   private absorb(damage: number): number {
-    // L'armure portée amortit chaque coup (Thomas, 2026-11-27), jamais en dessous de 1.
-    if (damage > 0) damage = Math.max(1, damage - this.armorReduction());
+    // AMORTI AU DÉ (Thomas, 2026-11-27 : « un système amorti de x à y dégâts ? » « ok ») : l'armure retient au hasard
+    // entre son amorti −1 et +1 (cloutée 0 à 2, cotte 1 à 3, harnois et obsidienne 3 à 5), jamais en dessous de 1 dégât.
+    this.lastSoak = 0;
+    const soak = this.armorReduction();
+    if (damage > 0 && soak > 0) {
+      const roll = this.rng.int(soak - 1, soak + 1);
+      const after = Math.max(1, damage - roll);
+      this.lastSoak = damage - after;
+      damage = after;
+    }
     // Bastion (voie bleue, Rang III) : les dégâts reçus sont divisés par deux.
     if (damage > 0 && this.bastionActive()) damage = Math.ceil(damage / 2);
     // Affaibli (Thomas, 2026-11-18 : la voie bleue battait le Carillon deux fois plus souvent que la rouge) : -1 aux
@@ -12484,7 +12502,7 @@ export class Game {
         const soapy = (m.soapy ?? 0) > 0 || (m.cowed ?? 0) > 0;
         // Garde (voie bleue, Rang II) : +CA quand deux ennemis ou plus le touchent.
         const result = rollAttack(this.rng, m, { armorClass: this.hero.armorClass + this.guardBonus() + this.undeadWard(m) }, ambush && !soapy ? "advantage" : soapy && !ambush ? "disadvantage" : "normal");
-        result.damage = this.absorb(result.damage);
+        this.soakHit(result);
         if (m.bather && result.hit && this.rng.chance(RULES.towelBlindChance)) {
           // Un coup de serviette dans la figure : le prochain coup du héros a le désavantage.
           this.towelBlind = 1;
@@ -12617,7 +12635,7 @@ export class Game {
     const covered = this.hasCover(hero) && !this.inReach(m, hero);
     const cowed = (m.cowed ?? 0) > 0;
     const result = rollAttack(this.rng, { attackBonus: sling.attackBonus, damage: sling.damage }, { armorClass: hero.armorClass + this.stanceBonus() + this.undeadWard(m) }, covered || cowed ? "disadvantage" : "normal");
-    result.damage = this.absorb(result.damage);
+    this.soakHit(result);
     this.events.push({ type: "attack", attacker: m, target: hero, result, ranged: true });
     if (result.damage > 0) this.stopTravel();
     if (result.damage > 0) this.bleed(hero, m);

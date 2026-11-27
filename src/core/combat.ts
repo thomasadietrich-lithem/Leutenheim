@@ -19,6 +19,8 @@ export interface AttackResult {
   damageRoll?: { dice: Dice; faces: number[]; rolled: number };
   /** Le d20 enchanté a changé un 1 en 20. */
   enchanted?: boolean;
+  /** Coup reçu par le héros : dégâts retenus par son armure (amorti tiré au dé). */
+  soaked?: number;
 }
 
 /**

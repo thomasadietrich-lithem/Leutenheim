@@ -801,6 +801,8 @@ function reveal(e: GameEvent): void {
       r.critical ? "#ffd75e" : r.hit ? (foe ? "#ff6b7a" : "#ffffff") : blocked ? "#9fc8ff" : "#a8a2c0",
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
+    // L'armure a retenu une partie du coup : on le montre (bleu, au-dessus des dégâts).
+    if (foe && r.hit && r.soaked) renderer.addFloatingText(e.target.x, e.target.y, `Amorti ${r.soaked}`, "#9fc8ff");
     if (r.hit) lastBlowFrom.set(e.target.id, { x: e.attacker.x, y: e.attacker.y });
     if (!foe && r.hit && !e.ranged) fight.melee = true;
     // Critique du héros : l'image s'arrête un dixième de seconde. Gros coup encaissé : l'écran tremble.
@@ -2988,7 +2990,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
   if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
-  if (def.reduction) rows.push(["Amorti", `-${def.reduction} par coup`]);
+  if (def.reduction) rows.push(["Amorti", `${Math.max(0, def.reduction - 1)} à ${def.reduction + 1} par coup`]);
   if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
   if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
   const stats = el("div", "item-card-stats");
@@ -3014,7 +3016,7 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
-  if (def.reduction) bits.push(`-${def.reduction} par coup`);
+  if (def.reduction) bits.push(`amorti ${Math.max(0, def.reduction - 1)} à ${def.reduction + 1}`);
   if (def.acBonus) bits.push(`+${def.acBonus} CA`);
   if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
   if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
@@ -3848,7 +3850,7 @@ function renderCharacter(): void {
     row("Discrétion", signedBonus(game.stealthBonus())),
     row("Attaque", signedBonus(game.hero.attackBonus)),
     row("Classe d'armure", String(game.hero.armorClass), undefined, true),
-    row("Amorti", game.armorReduction() > 0 ? `-${game.armorReduction()} par coup` : "aucun"),
+    row("Amorti", game.armorReduction() > 0 ? `${Math.max(0, game.armorReduction() - 1)} à ${game.armorReduction() + 1} par coup` : "aucun"),
   );
   $("char-stats").replaceChildren(grid);
 

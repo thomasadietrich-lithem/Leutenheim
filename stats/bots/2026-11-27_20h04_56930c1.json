@@ -1,0 +1,483 @@
+{
+ "date": "2026-11-27T20:04:17.279Z",
+ "commit": "56930c1",
+ "runs": 150,
+ "race": "humain",
+ "note": "ESSAI armures : amorti par coup (cloutée 1, cotte 2, harnois 3, obsidienne 3) ; dégâts des monstres +1 en section 2, +2 en section 3",
+ "levels": {
+  "debutant": {
+   "floor": 2.8,
+   "deathFloor1": 14,
+   "reach": {
+    "2": 85,
+    "3": 59,
+    "4": 25,
+    "5": 9
+   },
+   "boss": 0,
+   "dead": 97,
+   "heroLevel": 1.6,
+   "turns": 221.8,
+   "gold": 3.7,
+   "kills": 6.7,
+   "questsStarted": 0.6,
+   "questsDone": 0,
+   "questsFailed": 0.4,
+   "causes": {
+    "un Kobold": 96,
+    "une Araignée": 21,
+    "la Tisseuse": 12,
+    "un Kobold frondeur": 14,
+    "le poison": 1,
+    "un piège à pointes": 1
+   },
+   "blocked": 3,
+   "blockedRuns": [
+    {
+     "seed": 2828,
+     "end": "bloqué",
+     "floor": 1,
+     "turn": 39,
+     "hp": "8/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3434,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "2/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 10706,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 54,
+     "hp": "8/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 142,
+     "hp": "7/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14847,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 98,
+     "hp": "12/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "moyen": {
+   "floor": 3.3,
+   "deathFloor1": 15,
+   "reach": {
+    "2": 85,
+    "3": 67,
+    "4": 46,
+    "5": 31
+   },
+   "boss": 0,
+   "dead": 96,
+   "heroLevel": 2.5,
+   "turns": 427.1,
+   "gold": 30.2,
+   "kills": 14.3,
+   "questsStarted": 0.7,
+   "questsDone": 0.4,
+   "questsFailed": 0.2,
+   "causes": {
+    "un Kobold": 60,
+    "la Tisseuse": 40,
+    "une Araignée": 23,
+    "le poison": 4,
+    "un Kobold frondeur": 16,
+    "un piège à pointes": 1
+   },
+   "blocked": 4,
+   "blockedRuns": [
+    {
+     "seed": 3434,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "12/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 5252,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 277,
+     "hp": "9/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 10706,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 173,
+     "hp": "6/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 12928,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 435,
+     "hp": "11/20",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 13837,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 253,
+     "hp": "9/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 14847,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 185,
+     "hp": "9/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "maitrise": {
+   "floor": 4,
+   "deathFloor1": 8,
+   "reach": {
+    "2": 89,
+    "3": 79,
+    "4": 63,
+    "5": 54
+   },
+   "boss": 14,
+   "dead": 88,
+   "heroLevel": 4.2,
+   "turns": 1429.2,
+   "gold": 51.4,
+   "kills": 40.1,
+   "questsStarted": 1,
+   "questsDone": 0.7,
+   "questsFailed": 0.3,
+   "causes": {
+    "le poison": 13,
+    "une Araignée": 32,
+    "la Tisseuse": 37,
+    "un Kobold": 32,
+    "un Kobold envahi": 5,
+    "un Kobold frondeur": 10,
+    "un Sporelin": 2,
+    "un Myconide": 1
+   },
+   "blocked": 12,
+   "blockedRuns": [
+    {
+     "seed": 909,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 485,
+     "hp": "14/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3333,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 677,
+     "hp": "12/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3434,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "12/12",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 3939,
+     "end": "bloqué",
+     "floor": 7,
+     "turn": 1381,
+     "hp": "12/24",
+     "cause": "combat qui n'avance pas",
+     "detail": "Sporelin (4 cases, 8 PV)"
+    },
+    {
+     "seed": 4141,
+     "end": "limite de tours",
+     "floor": 4,
+     "turn": 8000,
+     "hp": "14/20",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 4646,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "8/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 4848,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 1162,
+     "hp": "15/20",
+     "cause": "combat qui n'avance pas",
+     "detail": "Sporelin (3 cases, 8 PV)"
+    },
+    {
+     "seed": 5252,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 480,
+     "hp": "12/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 6464,
+     "end": "limite de tours",
+     "floor": 2,
+     "turn": 8000,
+     "hp": "8/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 7878,
+     "end": "bloqué",
+     "floor": 6,
+     "turn": 1049,
+     "hp": "10/20",
+     "cause": "combat qui n'avance pas",
+     "detail": "Sporelin (3 cases, 8 PV)"
+    },
+    {
+     "seed": 8080,
+     "end": "bloqué",
+     "floor": 3,
+     "turn": 525,
+     "hp": "13/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 8181,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "6/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    },
+    {
+     "seed": 8484,
+     "end": "limite de tours",
+     "floor": 1,
+     "turn": 8000,
+     "hp": "10/12",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 9898,
+     "end": "limite de tours",
+     "floor": 3,
+     "turn": 8000,
+     "hp": "12/12",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10403,
+     "end": "limite de tours",
+     "floor": 2,
+     "turn": 8000,
+     "hp": "12/16",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 10706,
+     "end": "bloqué",
+     "floor": 2,
+     "turn": 248,
+     "hp": "11/12",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 11110,
+     "end": "limite de tours",
+     "floor": 2,
+     "turn": 8000,
+     "hp": "9/12",
+     "cause": "escalier connu, mais il n'y va pas",
+     "detail": ""
+    },
+    {
+     "seed": 12221,
+     "end": "bloqué",
+     "floor": 4,
+     "turn": 789,
+     "hp": "14/16",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": ""
+    }
+   ]
+  },
+  "expert": {
+   "floor": 8,
+   "deathFloor1": 3,
+   "reach": {
+    "2": 97,
+    "3": 94,
+    "4": 93,
+    "5": 91,
+    "6": 89,
+    "7": 71,
+    "8": 60,
+    "9": 35,
+    "10": 23,
+    "11": 17,
+    "12": 14,
+    "13": 8,
+    "14": 5,
+    "15": 4
+   },
+   "boss": 89,
+   "dead": 94,
+   "heroLevel": 8.3,
+   "turns": 2839,
+   "gold": 242.1,
+   "kills": 109.6,
+   "questsStarted": 1.5,
+   "questsDone": 1.2,
+   "questsFailed": 0.3,
+   "causes": {
+    "un Kobold frondeur": 3,
+    "un Myconide": 31,
+    "un Kobold envahi": 20,
+    "le poison": 28,
+    "un Kobold cueilleur": 4,
+    "l'encre du Carillon": 2,
+    "un Kobold": 8,
+    "l'onde du Carillon": 2,
+    "une Araignée": 4,
+    "un Sporelin": 17,
+    "un Crâne lunaire": 10,
+    "un Acolyte de la Lune pâle": 1,
+    "un Squelette": 3,
+    "un Squelette archer": 1,
+    "la Tisseuse": 1,
+    "un Rat d'ossuaire": 1,
+    "le crachat du Carillon": 4,
+    "la Grande Prêtresse": 1
+   },
+   "blocked": 3,
+   "blockedRuns": [
+    {
+     "seed": 4848,
+     "end": "bloqué",
+     "floor": 12,
+     "turn": 5582,
+     "hp": "24/40",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": "",
+     "last": "attendre"
+    },
+    {
+     "seed": 7575,
+     "end": "limite de tours",
+     "floor": 11,
+     "turn": 40000,
+     "hp": "27/40",
+     "cause": "combat qui n'avance pas",
+     "detail": "Rat d'ossuaire (4 cases, 4 PV), Rat d'ossuaire (5 cases, 7 PV)",
+     "last": "descendre"
+    },
+    {
+     "seed": 9595,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 6731,
+     "hp": "22/36",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": "",
+     "last": "attendre"
+    },
+    {
+     "seed": 13433,
+     "end": "bloqué",
+     "floor": 11,
+     "turn": 4946,
+     "hp": "23/36",
+     "cause": "exploration arrêtée (il reste de l'inconnu)",
+     "detail": "",
+     "last": "attendre"
+    }
+   ],
+   "boss2": 17,
+   "boss3": 3,
+   "stuck": 3,
+   "armorClass": 17.1,
+   "searches": 41.5,
+   "chests": 7,
+   "doors": 8.6,
+   "bought": 3.2,
+   "sold": 6,
+   "potions": 6.4,
+   "pushes": 6.4,
+   "shots": 83.9,
+   "deathFloors": {
+    "1": 3,
+    "2": 3,
+    "3": 1,
+    "4": 2,
+    "5": 2,
+    "6": 18,
+    "7": 11,
+    "8": 25,
+    "9": 12,
+    "10": 5,
+    "11": 1,
+    "12": 5,
+    "13": 3,
+    "14": 1,
+    "15": 1
+   }
+  }
+ }
+}

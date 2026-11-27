@@ -33,6 +33,13 @@ export interface ItemDef {
   damage?: Dice;
   /** Armures : classe d'armure une fois portée (10 sans armure). */
   armorClass?: number;
+  /**
+   * Armures : dégâts retirés à chaque coup reçu d'un monstre (jamais moins de 1). PROGRESSION (Thomas, 2026-11-27 :
+   * « une armure principale par section pour être limite, et une pour être serein » ; « il ne doit jamais être logique de
+   * choisir une armure plus légère ») : section 1 cuir (limite) / cloutée (serein) ; section 2 cloutée / cotte de mailles ;
+   * section 3 cotte de mailles / harnois, l'obsidienne au-dessus.
+   */
+  reduction?: number;
   /** Casques : classe d'armure ajoutée à celle de l'armure. */
   acBonus?: number;
   /** Armes à distance : portée en cases et munition consommée. */
@@ -456,6 +463,7 @@ export const ITEMS = {
     rarity: "rare",
     level: 11,
     armorClass: 18,
+    reduction: 3,
   },
   casque_obsidienne: {
     id: "casque_obsidienne",
@@ -516,13 +524,14 @@ export const ITEMS = {
     id: "armure_cloutee",
     name: "Cuir clouté",
     kind: "armor",
-    description: "Du cuir épais renforcé de rivets d'acier. Solide sans faire de bruit.",
+    description: "Du cuir épais renforcé de rivets d'acier. Solide : elle amortit un peu chaque coup.",
     w: 2,
     h: 2,
     maxStack: 1,
     rarity: "uncommon",
     level: 2,
     armorClass: 14,
+    reduction: 1,
   },
   // Casques (Thomas, 2026-11-11 ; planche art/objets_v4.png) : ils s'ajoutent à l'armure.
   casque_cuir: {
@@ -567,7 +576,7 @@ export const ITEMS = {
     id: "harnois",
     name: "Harnois",
     kind: "armor",
-    description: "Des plaques d'acier qui couvrent tout le corps. Presque rien ne passe, mais on l'entend venir de loin.",
+    description: "Des plaques d'acier qui couvrent tout le corps. Presque rien ne passe, et ce qui passe est bien amorti.",
     w: 2,
     h: 2,
     maxStack: 1,
@@ -575,12 +584,13 @@ export const ITEMS = {
     // Thomas, 2026-11-15 : niveau 10 (5 avant).
     level: 10,
     armorClass: 17,
+    reduction: 3,
   },
   cotte_mailles: {
     id: "cotte_mailles",
     name: "Cotte de mailles",
     kind: "armor",
-    description: "Des anneaux de fer rivetés. Lourde et sûre, mais elle cliquette : on se cache moins bien.",
+    description: "Des anneaux de fer rivetés. Lourde et sûre : les coups qui passent perdent de leur mordant.",
     w: 2,
     h: 2,
     maxStack: 1,
@@ -588,6 +598,7 @@ export const ITEMS = {
     // Thomas, 2026-11-15 : niveau 6 (3 avant).
     level: 6,
     armorClass: 16,
+    reduction: 2,
   },
   armure_cuir: {
     id: "armure_cuir",

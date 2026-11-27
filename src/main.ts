@@ -2951,6 +2951,9 @@ function compareNode(def: ItemDef): HTMLElement | null {
   } else if (slot === "armor" || slot === "hat") {
     const delta = slot === "armor" ? (def.armorClass ?? UNARMORED_AC) - (other?.armorClass ?? UNARMORED_AC) : (def.acBonus ?? 0) - (other?.acBonus ?? 0);
     chips.push({ icon: "armor", delta, text: delta === 0 ? "même CA" : `${fmt(delta)} CA` });
+    // Amorti par coup (Thomas, 2026-11-27) : seulement s'il change.
+    const soak = slot === "armor" ? (def.reduction ?? 0) - (other?.reduction ?? 0) : 0;
+    if (soak !== 0) chips.push({ icon: "armor", delta: soak, text: `amorti ${fmt(soak)}` });
   } else {
     const delta = (def.attackBonus ?? 0) - (other?.attackBonus ?? 0);
     const range = (def.range ?? 0) - (other?.range ?? 0);
@@ -2985,6 +2988,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
   if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
+  if (def.reduction) rows.push(["Amorti", `-${def.reduction} par coup`]);
   if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
   if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
   const stats = el("div", "item-card-stats");
@@ -3010,6 +3014,7 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
+  if (def.reduction) bits.push(`-${def.reduction} par coup`);
   if (def.acBonus) bits.push(`+${def.acBonus} CA`);
   if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
   if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
@@ -3843,6 +3848,7 @@ function renderCharacter(): void {
     row("Discrétion", signedBonus(game.stealthBonus())),
     row("Attaque", signedBonus(game.hero.attackBonus)),
     row("Classe d'armure", String(game.hero.armorClass), undefined, true),
+    row("Amorti", game.armorReduction() > 0 ? `-${game.armorReduction()} par coup` : "aucun"),
   );
   $("char-stats").replaceChildren(grid);
 

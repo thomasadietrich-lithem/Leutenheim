@@ -1676,7 +1676,7 @@ export class Game {
     if (m.aloft) {
       // Dans le puits (Thomas, 2026-11-19 : « beaucoup trop simple ») : un éclair de lune sur le héros, s'il est en vue.
       if (!lost && (this.turn + m.id) % RULES.priestessBoltEvery === 0 && hasLineOfSight(this.map, m, this.hero)) {
-        const result = rollAttack(this.rng, { attackBonus: 8, damage: { count: 2, sides: 6, bonus: 2 } }, { armorClass: this.hero.armorClass + this.stanceBonus() });
+        const result = rollAttack(this.rng, { attackBonus: 8, damage: { count: 2, sides: 6, bonus: 4 } }, { armorClass: this.hero.armorClass + this.stanceBonus() });
         result.damage = this.absorb(result.damage);
         this.events.push({ type: "attack", attacker: m, target: this.hero, result, ranged: true });
         if (result.damage > 0) this.stopTravel();
@@ -4828,8 +4828,16 @@ export class Game {
     return ok.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] ?? null;
   }
 
+  /** Dégâts retirés à chaque coup par l'armure portée. */
+  armorReduction(): number {
+    const armor = this.equipment.armor;
+    return (armor && (ITEMS[armor.defId] as ItemDef).reduction) || 0;
+  }
+
   /** Encaisseur (voie bleue, Rang II) : moins de dégâts à chaque coup reçu, jamais moins de 1. */
   private absorb(damage: number): number {
+    // L'armure portée amortit chaque coup (Thomas, 2026-11-27), jamais en dessous de 1.
+    if (damage > 0) damage = Math.max(1, damage - this.armorReduction());
     // Bastion (voie bleue, Rang III) : les dégâts reçus sont divisés par deux.
     if (damage > 0 && this.bastionActive()) damage = Math.ceil(damage / 2);
     // Affaibli (Thomas, 2026-11-18 : la voie bleue battait le Carillon deux fois plus souvent que la rouge) : -1 aux

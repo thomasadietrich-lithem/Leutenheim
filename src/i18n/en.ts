@@ -2686,4 +2686,10 @@ export const EN: Record<string, string> = {
   "« Pour réveiller le gardien de la crypte : d'abord le cierge du milieu, puis celui de droite, celui de gauche en dernier. »": "“To wake the crypt's guardian: first the middle candle, then the right one, the left one last.”",
   "« Pour réveiller le gardien de la crypte : d'abord le cierge de droite, puis celui du milieu, celui de gauche en dernier. »": "“To wake the crypt's guardian: first the right candle, then the middle one, the left one last.”",
   "Bloqué !": "Blocked!",
+  "Du cuir épais renforcé de rivets d'acier. Solide : elle amortit un peu chaque coup.": "Thick leather reinforced with steel rivets. Sturdy: it softens every blow a little.",
+  "Des plaques d'acier qui couvrent tout le corps. Presque rien ne passe, et ce qui passe est bien amorti.": "Steel plates covering the whole body. Almost nothing gets through, and what does is well cushioned.",
+  "Des anneaux de fer rivetés. Lourde et sûre : les coups qui passent perdent de leur mordant.": "Riveted iron rings. Heavy and safe: the blows that get through lose their bite.",
+  "Amorti": "Soak",
+  "-{0} par coup": "-{0} per hit",
+  "amorti {0}": "soak {0}",
 };

@@ -141,3 +141,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-26_08h34 | b12ca1a | 34.8 | 34.8 | 31.8 | 29.5 | 16.7 | 26.7 | 1.27 | 0.28 | lot du 26/11 : salles spéciales en essai, Tisseuse, géant animé |
 | 2026-11-26_08h34 | b12ca1a | 31.2 | 29.3 | 31 | 38.6 | 16.7 | 24 | 1.01 | 0.85 | lot du 26/11 (re-mesure) |
 | 2026-11-26_09h05 | 3b39f8c | 30.4 | 33.2 | 34.2 | 31 | 16.7 | 30.5 | 0.91 | 0.43 | immersion (secousse, ombres, feu de camp, pensées), salles spéciales dans le donjon, quêtes d'étage, menu, casque poulet |
+| 2026-11-27_20h10 | 56930c1 | 28.5 | 24.9 | 24.5 | 26.9 | 16.7 | 19.1 | 0.8 | 0.3 | essai armures (amorti par coup) |

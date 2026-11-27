@@ -791,11 +791,14 @@ function reveal(e: GameEvent): void {
     const dropped = r.rolls.length === 2 ? r.rolls[0] + r.rolls[1] - r.d20 : undefined;
     landDie(r.d20, r.critical ? "crit" : r.hit ? "hit" : "miss", foe, dropped);
     logRoll(e);
+    // « BLOQUÉ ! » (Thomas, 2026-11-27 : « l'intérêt de la CA ? ») : le coup d'un monstre qui aurait touché un héros sans
+    // armure (CA 10) mais que sa CA a arrêté : on le dit, pour que l'armure se sente.
+    const blocked = foe && !r.hit && r.d20 !== 1 && r.total >= UNARMORED_AC;
     renderer.addFloatingText(
       e.target.x,
       e.target.y,
-      r.hit ? `-${r.damage}` : "Raté",
-      r.critical ? "#ffd75e" : r.hit ? (foe ? "#ff6b7a" : "#ffffff") : "#a8a2c0",
+      r.hit ? `-${r.damage}` : blocked ? "Bloqué !" : "Raté",
+      r.critical ? "#ffd75e" : r.hit ? (foe ? "#ff6b7a" : "#ffffff") : blocked ? "#9fc8ff" : "#a8a2c0",
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
     if (r.hit) lastBlowFrom.set(e.target.id, { x: e.attacker.x, y: e.attacker.y });
@@ -805,7 +808,7 @@ function reveal(e: GameEvent): void {
     if (foe && r.hit && r.damage >= Math.max(3, game.hero.maxHp * 0.2)) renderer.shake(r.critical ? 1.3 : 1);
     else if (foe && r.critical) renderer.shake(0.7);
     // Raté de peu, au contact : la lame ricoche sur l'armure (étincelles, tintement).
-    const deflected = !r.hit && r.d20 !== 1 && r.total >= r.targetAc - 3 && !e.ranged;
+    const deflected = blocked || (!r.hit && r.d20 !== 1 && r.total >= r.targetAc - 3 && !e.ranged);
     if (deflected) renderer.addSparks(e.target.x, e.target.y, e.attacker.x, e.attacker.y);
     if (!foe && r.hit) renderer.monsterHurt(e.target.id);
     if (r.hit && r.damage > 0) {

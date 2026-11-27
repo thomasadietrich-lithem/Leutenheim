@@ -2685,4 +2685,5 @@ export const EN: Record<string, string> = {
   "« Pour réveiller le gardien de la crypte : d'abord le cierge du milieu, puis celui de gauche, celui de droite en dernier. »": "“To wake the crypt's guardian: first the middle candle, then the left one, the right one last.”",
   "« Pour réveiller le gardien de la crypte : d'abord le cierge du milieu, puis celui de droite, celui de gauche en dernier. »": "“To wake the crypt's guardian: first the middle candle, then the right one, the left one last.”",
   "« Pour réveiller le gardien de la crypte : d'abord le cierge de droite, puis celui du milieu, celui de gauche en dernier. »": "“To wake the crypt's guardian: first the right candle, then the middle one, the left one last.”",
+  "Bloqué !": "Blocked!",
 };

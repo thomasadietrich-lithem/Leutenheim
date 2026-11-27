@@ -32,7 +32,7 @@ export const TEST_KITS: Record<KitTier, TestKit> = {
     bag: "sac_toile",
     ammo: [[["fleche", 10]], [["fleche", 6], ["javeline", 3]]],
     food: [[["pomme", 3]], [["pomme", 1], ["cuisse_poulet", 1]]],
-    potions: { count: 1, from: ["potion_feu", "potion_vitesse", "potion_poison", "potion_fumee"] },
+    potions: { count: 1, from: ["potion_feu", "potion_vitesse", "potion_poison", "potion_brouillard"] },
   },
   moyen: {
     melee: ["epee_longue", "lance", "masse", "couteau_boucher"],

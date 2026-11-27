@@ -2214,9 +2214,10 @@ test("salle d'essai v21 : HUB, six directions, tout accessible, écriteaux, armu
     assert.ok((game as unknown as { current: { counter?: unknown } }).current.counter, "Kobold qui compte");
     assert.ok(game.merchant(), "Colporteur");
     // Chaque objet (hors objets de quête) est dans l'armurerie, dans une zone.
+    // La fiole de fumée n'est plus donnée nulle part (remplacée par le brouillard, Thomas 2026-11-27) : pas dans l'armurerie.
     const areas = game.areas();
     for (const id of Object.keys(ITEMS)) {
-      if (["sac_pommes", "magot_krik", "robe", "clef", "clef_argent", "marmite", "louche", "corde", "poule_or", "gobelet"].includes(id)) continue;
+      if (["sac_pommes", "magot_krik", "robe", "clef", "clef_argent", "marmite", "louche", "corde", "poule_or", "gobelet", "potion_fumee"].includes(id)) continue;
       assert.ok(game.ground.some((g) => g.item === id && areas.some((a) => g.x >= a.x && g.x < a.x + a.w && g.y >= a.y && g.y < a.y + a.h)), `${id} hors des zones`);
     }
     // Écriteaux : sur un mur, et un par salle nommée.

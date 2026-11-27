@@ -2695,4 +2695,10 @@ export const EN: Record<string, string> = {
   "Amorti {0}": "Soaked {0}",
   "{0} à {1} par coup": "{0} to {1} per hit",
   "amorti {0} à {1}": "soak {0} to {1}",
+  "Absorbé {0}": "Absorbed {0}",
+  "Absorption": "Absorption",
+  "absorbe {0} à {1}": "absorbs {0} to {1}",
+  "absorbe {0}": "absorbs {0}",
+  "« Tiens, pour toi : des fioles de brouillard. Volées. »": "“Here, for you: fog flasks. Stolen.”",
+  "({0} potions de brouillard dans le sac.)": "({0} fog potions in your bag.)",
 };

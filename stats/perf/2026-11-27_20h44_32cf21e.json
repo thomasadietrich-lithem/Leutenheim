@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-27T20:44:31.207Z",
+ "commit": "32cf21e",
+ "note": "pixels nets (finesse = densité ÷ entier : 1,5 en densité 3), dézoom sans canevas recréé pendant le geste ; la mesure se fait désormais en salle d'essai section 1 (avant : menu ouvert) — NOUVELLE RÉFÉRENCE",
+ "logic": {
+  "tickMs": 2.61,
+  "lightMs": 0.93,
+  "visionMs": 0.35
+ },
+ "scenes": {
+  "immobile": {
+   "n": 99,
+   "avg": 24.9,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 40,
+   "js": 10
+  },
+  "marche": {
+   "n": 197,
+   "avg": 25.5,
+   "p95": 33.4,
+   "max": 66.7,
+   "fps": 39,
+   "js": 11
+  },
+  "retour": {
+   "n": 191,
+   "avg": 26.2,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 38,
+   "js": 12
+  },
+  "zoom": {
+   "n": 127,
+   "avg": 19.6,
+   "p95": 33.4,
+   "max": 66.7,
+   "fps": 51,
+   "js": 20
+  },
+  "combat": {
+   "n": 230,
+   "avg": 18,
+   "p95": 16.8,
+   "max": 183.3,
+   "fps": 56,
+   "js": 22
+  },
+  "donjon": {
+   "n": 275,
+   "avg": 18,
+   "p95": 33.3,
+   "max": 83.3,
+   "fps": 56,
+   "js": 20
+  }
+ },
+ "errors": []
+}

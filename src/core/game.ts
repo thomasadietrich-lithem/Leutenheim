@@ -5059,6 +5059,8 @@ export class Game {
   deathCause: string | null = null;
   /** La tombe du héros de la partie d'avant, à poser sur son étage (Thomas, 2026-11-24). Lue à la création. */
   graveFrom: HeroGrave | null = previousGrave();
+  /** La tombe du héros précédent est posée dans cette partie (l'interface peut l'oublier). */
+  graveLaid = false;
 
   /**
    * Le héros vient de mourir : ce qu'on garde pour la partie suivante (l'étage, l'objet le plus rare qu'il portait,
@@ -5097,6 +5099,7 @@ export class Game {
     if (cells.length === 0) return;
     const at = cells[rng.int(0, cells.length - 1)];
     state.furniture.push({ x: at.x, y: at.y, kind: "tombeHeros", loot: g.item, epitaph: { who: g.who, level: g.level, cause: g.cause } });
+    this.graveLaid = true;
     state.map.set(at.x, at.y, Tile.Furniture);
   }
 
@@ -8815,12 +8818,13 @@ export class Game {
           }
         }
         if (test()) {
-          toBag("potion_fumee", KRIK.smokeFlasks);
+          // Brouillard au lieu de fumée (Thomas, 2026-11-27 : « remplacer la potion de fumée par des potions de brouillard »).
+          toBag("potion_brouillard", KRIK.smokeFlasks);
           return end([
             "Vous lui montrez : on pointe le doigt ailleurs, on crie « Là-bas ! », on file.",
             "« Là-bas ! … Ça marche ! Même sur moi ! »",
-            `« Tiens, pour toi : des fioles de fumée. Volées. »`,
-            `(${KRIK.smokeFlasks} fioles de fumée dans le sac.)`,
+            `« Tiens, pour toi : des fioles de brouillard. Volées. »`,
+            `(${KRIK.smokeFlasks} potions de brouillard dans le sac.)`,
           ]);
         }
         this.callFoes(g, "schrat", KRIK.pursuers);
@@ -8856,7 +8860,7 @@ export class Game {
         return end(["« HÉ ! IL EST LÀ ! » crie-t-on. Krik détale.", "Un Kobold vous jette une bourse : « La prime. Merci, l'humain. »", "(Krik s'en souviendra.)"]);
       case "discount": {
         pay(KRIK.discountPrice);
-        const pool: ItemId[] = ["pomme", "torche", "potion_vitesse", "potion_fumee"];
+        const pool: ItemId[] = ["pomme", "torche", "potion_vitesse", "potion_brouillard"];
         const item = pool[this.rng.int(0, pool.length - 1)];
         toBag(item);
         return end(["« Prix cassé. Comme l'objet. Non : l'objet va bien. Je crois. »", `(${ITEMS[item].name}.)`]);
@@ -11960,7 +11964,10 @@ export class Game {
       this.events.push({ type: "burst", x: monster.x, y: monster.y });
     }
     // Kobold cueilleur : sa hotte tombe, avec des morilles.
-    if (sdef?.dropsMorels) this.dropItem(monster.x, monster.y, "morille", this.rng.int(sdef.dropsMorels[0], sdef.dropsMorels[1]));
+    if (sdef?.dropsMorels) {
+      const morels = this.rng.int(sdef.dropsMorels[0], sdef.dropsMorels[1]);
+      if (morels > 0) this.dropItem(monster.x, monster.y, "morille", morels);
+    }
     this.events.push({ type: "death", actor: monster, fire: (monster.burning ?? 0) > 0 || undefined, unaware: (byHero && monster.struckUnaware) || undefined });
     // Butin : de l'expérience à coup sûr, parfois quelques pièces qui tombent au sol.
     const def = MONSTERS[monster.defId as keyof typeof MONSTERS];
@@ -12028,9 +12035,7 @@ export class Game {
 
     /** Avance d'une case ; renvoie faux si la flèche heurte un obstacle (et calcule alors le rebond). */
     const fly = (c: Point): boolean => {
-      // Les flèches passent au-dessus des plantations (Thomas, 2026-11-25), de l'eau profonde et du trou aux poulets.
-      const low = this.map.get(c.x, c.y) === Tile.Furniture && /^(soil|morelRow|trouPoulets|eauProfonde)/.test(this.furnitureAt(c.x, c.y)?.kind ?? "");
-      if (!low && (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y))) {
+      if (this.stopsShot(c)) {
         const f = this.furnitureAt(c.x, c.y);
         if (f && (f.kind === "cible" || f.kind === "cibleBleue" || (f.kind.startsWith("cibleNoire") && (ITEMS[ammo] as ItemDef).ricochet))) {
           struck = f;
@@ -12617,7 +12622,7 @@ export class Game {
       // Acculé : au contact il se défend à la dague, sinon il tire quand même.
       if (this.inReach(m, hero)) return false;
     }
-    if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.isVisible(m.x, m.y) || this.fogBetween(m, hero)) return false;
+    if (distance > sling.range || !hasLineOfSight(this.map, m, hero) || !this.shotClear(m, hero) || !this.isVisible(m.x, m.y) || this.fogBetween(m, hero)) return false;
     this.faceToward(m, hero);
     // Un autre monstre sur la trajectoire (Thomas, 2026-11-12) : c'est lui qui prend la pierre, et il peut le prendre mal.
     const inTheWay = this.lineCells(m, hero).map((c) => this.monsterAt(c.x, c.y)).find((o) => o && o !== m && !o.boss);
@@ -12642,6 +12647,25 @@ export class Game {
     this.raiseAlarm(RULES.alarmCombat, hero);
     this.hurtHero(result.damage, this.killerName(m));
     return true;
+  }
+
+  /**
+   * Une case arrête-t-elle un projectile (flèche, pierre, javeline) ? Les murs, portes fermées et meubles hauts, oui ;
+   * les meubles bas (plantations, eau profonde, trou aux poulets, Thomas 2026-11-25) non : on tire par-dessus.
+   */
+  private stopsShot(c: Point): boolean {
+    const low = this.map.get(c.x, c.y) === Tile.Furniture && /^(soil|morelRow|trouPoulets|eauProfonde)/.test(this.furnitureAt(c.x, c.y)?.kind ?? "");
+    return !low && (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y));
+  }
+
+  /**
+   * TIRS SYMÉTRIQUES (Thomas, 2026-11-27 : « derrière certains objets, on peut me tirer dessus, mais pas moi ») : un
+   * monstre ne tire que si la ligne est dégagée DANS LES DEUX SENS, selon la même règle que les flèches du héros
+   * (`stopsShot`). Sinon il se déplace pour trouver un angle.
+   */
+  private shotClear(a: Point, b: Point): boolean {
+    const free = (from: Point, to: Point) => lineBetween(from, to).every((c) => (c.x === to.x && c.y === to.y) || !this.stopsShot(c));
+    return free(a, b) && free(b, a);
   }
 
   /** Les cases traversées en ligne droite de `a` à `b`, sans les deux bouts (tracé de Bresenham). */

@@ -19,7 +19,7 @@ export const KRIK = {
   keptMagot: 15,
   /** Menace ratée : il crie (+10 d'alerte) et un Kobold frondeur accourt. */
   shoutAlarm: 10,
-  /** Diversion réussie : des fioles de fumée. */
+  /** Diversion réussie : des fioles de brouillard (avant : de fumée). */
   smokeFlasks: 2,
   /** Diversion ratée : ses poursuivants arrivent (Kobolds alertés). */
   pursuers: 2,

@@ -511,11 +511,11 @@ export function playExpert(seed: number, maxTurns = 24000, opts: ExpertOptions =
       }
     }
     // Fumée : mal en point et cerné, ceux qui sont tout près perdent la trace (et se font frapper par surprise).
-    if (hp() < 0.5 && hasItem(game, "potion_fumee") !== null) {
+    if (hp() < 0.5 && hasItem(game, "potion_brouillard") !== null) {
       const close = alerted.filter((o) => !o.boss && gapBetween(o, hero) <= 1);
       if (close.length >= 2) {
         const c = close[0];
-        const uid = throwable("potion_fumee", c.x, c.y);
+        const uid = throwable("potion_brouillard", c.x, c.y);
         if (uid !== null && game.throwPotion(uid, c.x, c.y)) return (mem.potions++, true);
       }
     }

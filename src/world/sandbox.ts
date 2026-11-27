@@ -468,7 +468,7 @@ function addArmory(
   zone(X(109), Y(23), 6, "Armures", "#8fa3b8", [["tunique", 1], ["robe", 1], ["armure_cuir", 1], ["armure_cloutee", 1], ["cotte_mailles", 1], ["harnois", 1]]);
   zone(X(116), Y(23), 5, "Casques", "#a77a52", [["casque_cuir", 1], ["casque_maille", 1], ["casque_poulet", 1]], 2);
   zone(X(97), Y(27), 11, "Potions", "#b05cc9", [
-    ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_fumee", 2], ["potion_brouillard", 2],
+    ["potion_jouvence", 2], ["potion_poison", 2], ["potion_vitesse", 2], ["potion_feu", 2], ["potion_brouillard", 2],
     ["potion_oursin", 2], ["potion_pierre", 2], ["potion_discorde", 2], ["potion_geant", 2], ["potion_glissante", 2],
   ]);
   zone(X(110), Y(27), 5, "Munitions", "#7fae5a", [["fleche", 6], ["fleche_poison", 6], ["fleche_ricochet", 6], ["fleche_recul", 6], ["javeline", 4]], 1);

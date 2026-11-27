@@ -18,7 +18,6 @@ import { ITEMS, ItemDef, ItemId, KIND_LABELS, RARITY_COLORS, RARITY_LABELS, Slot
 import { MONSTERS, MonsterDef } from "./data/monsters";
 import { RACES, RaceDef } from "./data/races";
 import { RULES } from "./data/rules";
-import { THOUGHTS, THOUGHT_GAP_MS, THOUGHT_SLEEPERS, THOUGHT_WIPE } from "./data/thoughts";
 import { MERCHANT } from "./data/merchant";
 import { Actor } from "./entities/actor";
 import { bindInput } from "./input/pointer";
@@ -420,7 +419,8 @@ function newRun(sandbox = false, testRun = false): void {
   setPreviousGrave(grave);
   const next = new Game(Math.floor(Math.random() * 0xffffffff), chosenRace, chosenClass, undefined, sandbox);
   setPreviousGrave(null);
-  if (grave) writeGrave(null);
+  // La tombe reste gardée tant qu'elle n'est pas posée dans la partie (étage pas encore atteint) : voir `graveLaid`.
+  graveCleared = false;
   deadView(false);
   // SECTION : ALL (Thomas, 2026-11-14) : une vraie partie, avec les outils d'essai et le téléporteur d'étage.
   next.testRun = testRun;
@@ -453,7 +453,6 @@ function applyCarillonMode(): void {
 
 function setupRun(next: Game, lines: string[] | null): void {
   game = next;
-  thoughtRooms.clear();
   fight.on = false;
   lastBlowFrom.clear();
   applyCarillonMode();
@@ -721,8 +720,8 @@ function landDie(value: number, outcome: "hit" | "miss" | "crit", foe: boolean, 
 /** Le résultat d'un événement est montré : texte, son, effets. */
 /**
  * L'AMBIANCE, à chaque image (Thomas, 2026-11-26) : gouttes et vent (écho des grandes salles), ronflements des
- * dormeurs proches, la flamme qui se trouble quand un monstre approche hors de vue, la fanfare après un combat dur,
- * la lame essuyée, et les pensées du héros en entrant dans un lieu marquant.
+ * dormeurs proches, la flamme qui se trouble quand un monstre approche hors de vue, la fanfare après un combat dur.
+ * Retirés le 2026-11-27 (Thomas) : la lame essuyée, les bulles de pensée, l'arme qui reste au sol.
  */
 function immersion(dt: number): void {
   if (!started || game.over) {
@@ -765,23 +764,26 @@ function immersion(dt: number): void {
       fight.on = false;
       const lost = fight.hpAtStart - fight.lowest;
       if (fight.kills >= 1 && (lost >= hero.maxHp * 0.4 || fight.lowest <= hero.maxHp * 0.3 || fight.kills >= 4)) sfx.play("victory");
-      if (fight.kills >= 1 && fight.melee && game.weapon("melee")) renderer.addFloatingText(hero.x, hero.y, THOUGHT_WIPE, "#cfc6ae");
     }
   }
-  // Une pensée en entrant pour la première fois dans une salle marquante.
-  if (room < 0 || !idle || performance.now() - thoughtAt < THOUGHT_GAP_MS) return;
-  const key = `${game.depth}:${room}`;
-  if (thoughtRooms.has(key)) return;
-  thoughtRooms.add(key);
-  const r = game.rooms[room];
-  const kinds = new Set(game.furnitureList().filter((f) => f.x >= r.x - 1 && f.x <= r.x + r.w && f.y >= r.y - 1 && f.y <= r.y + r.h).map((f) => f.kind));
-  const text = THOUGHTS.find((t) => t.kinds.some((k) => kinds.has(k)))?.text ?? (sleeper <= 7 && !foes ? THOUGHT_SLEEPERS : null);
-  if (!text) return;
-  thoughtAt = performance.now();
-  renderer.addThought(text);
+}
+
+/** Fin du vol de l'objet lancé en cours (horloge `performance.now()`) : rien de ce qu'il provoque ne se montre avant. */
+let landAt = 0;
+/** Les événements qui lancent quelque chose (ils se montrent tout de suite : c'est le vol). */
+function startsThrow(e: GameEvent): boolean {
+  return e.type === "potionThrown" || e.type === "torchThrown" || e.type === "shatter" || (e.type === "bomb" && e.what === "thrown") || e.type === "holy";
 }
 
 function reveal(e: GameEvent): void {
+  // EFFETS À L'IMPACT (Thomas, 2026-11-27 : « potion de gel : gelé avant de toucher ; les torches aussi ») : tant que
+  // l'objet lancé vole, tout ce qui suit (gel, brûlure, dégâts, mort, réponse des monstres) attend qu'il tombe, dans
+  // l'ordre.
+  if (startsThrow(e)) landAt = performance.now() + THROW_LAND_MS;
+  else if (performance.now() < landAt) {
+    window.setTimeout(() => reveal(e), landAt - performance.now() + 1);
+    return;
+  }
   const line = describe(e, { depth: game.depth, doorHopeless: game.doorOptions().length === 0, sees: (a) => game.isVisible(a.x, a.y) });
   if (line) logLines.push(line);
   if (e.type === "attack") {
@@ -802,7 +804,7 @@ function reveal(e: GameEvent): void {
     );
     if (foe) shownHp = Math.max(0, shownHp - r.damage);
     // L'armure a retenu une partie du coup : on le montre (bleu, au-dessus des dégâts).
-    if (foe && r.hit && r.soaked) renderer.addFloatingText(e.target.x, e.target.y, `Amorti ${r.soaked}`, "#9fc8ff");
+    if (foe && r.hit && r.soaked) renderer.addFloatingText(e.target.x, e.target.y, `Absorbé ${r.soaked}`, "#9fc8ff");
     if (r.hit) lastBlowFrom.set(e.target.id, { x: e.attacker.x, y: e.attacker.y });
     if (!foe && r.hit && !e.ranged) fight.melee = true;
     // Critique du héros : l'image s'arrête un dixième de seconde. Gros coup encaissé : l'écran tremble.
@@ -1238,6 +1240,7 @@ function reveal(e: GameEvent): void {
       renderer.heroFalls();
       // Sa tombe attendra la partie suivante, à l'étage où il est tombé (Thomas, 2026-11-24).
       const g = game.heroGrave();
+      graveBefore = readGrave();
       if (g) writeGrave(g);
       showDeath();
       over.hidden = false;
@@ -1246,8 +1249,6 @@ function reveal(e: GameEvent): void {
       ghosts = ghosts.filter((g) => g !== e.actor);
       renderer.monsterDies(e.actor, lastBlowFrom.get(e.actor.id));
       lastBlowFrom.delete(e.actor.id);
-      const dropped = MONSTER_WEAPON[e.actor.defId];
-      if (dropped && !e.fire) renderer.dropWeapon(e.actor.x, e.actor.y, dropped, game.turn + 8, game.depth);
       if (fight.on) fight.kills++;
       lastKill = { x: e.actor.x + ((e.actor.size ?? 1) - 1) / 2, y: e.actor.y + ((e.actor.size ?? 1) - 1) / 2 };
       sfx.play("kill");
@@ -1311,11 +1312,9 @@ function reveal(e: GameEvent): void {
       sfx.play(e.doused ? "splash" : "whoosh");
     }, THROW_LAND_MS);
   } else if (e.type === "fire") {
-    // Après l'éclatement de la fiole.
-    window.setTimeout(() => {
-      renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
-      sfx.play("break");
-    }, THROW_LAND_MS);
+    // Après l'éclatement de la fiole (l'attente est faite plus haut : rien ne se montre avant l'impact).
+    renderer.addFloatingText(e.x, e.y, "Feu !", "#ff9a3a");
+    sfx.play("break");
   } else if (e.type === "burn") {
     if (e.actor.kind === "hero") {
       renderer.heroHurt();
@@ -1623,20 +1622,7 @@ const HIT_STOP_MS = 110;
 let hitStop = 0;
 const lastBlowFrom = new Map<number, { x: number; y: number }>();
 let fight: { on: boolean; hpAtStart: number; lowest: number; kills: number; melee: boolean; calmMs: number } = { on: false, hpAtStart: 0, lowest: 0, kills: 0, melee: false, calmMs: 0 };
-const thoughtRooms = new Set<string>();
-let thoughtAt = -Infinity;
 let snoreDebt = 0;
-/** L'arme qu'un monstre laisse tomber en mourant (dessin au sol pendant quelques tours). */
-const MONSTER_WEAPON: Partial<Record<string, "lame" | "arc" | "fronde" | "os">> = {
-  schrat: "lame",
-  frondeur: "fronde",
-  squelette: "os",
-  squeletteArcher: "arc",
-  acolyte: "lame",
-  fidele: "lame",
-  gisantEveille: "lame",
-  cueilleur: "lame",
-};
 /** Points d'XP encore en vol (billes bleues pas arrivées) : la jauge ne les compte qu'à leur arrivée (Thomas, 2026-11-12). */
 let xpInFlight = 0;
 
@@ -1768,7 +1754,9 @@ function showDeath(): void {
     back.type = "button";
     back.addEventListener("click", () => {
       if (!game.revive()) return;
-      writeGrave(null);
+      // Il n'est pas mort : la tombe d'avant (pas encore croisée) reste en attente (Thomas, 2026-11-27 : « je n'ai pas
+      // croisé de tombe »).
+      writeGrave(graveBefore);
       deadView(false);
       stats.track("revive", { depth: game.depth, level: game.level, turn: game.turn, test: game.sandbox || game.testRun });
       renderer.heroRises();
@@ -1786,6 +1774,18 @@ function showDeath(): void {
 }
 
 const GRAVE_KEY = "leutenheim.grave";
+/** La tombe en attente avant la dernière mort (rendue si le héros revit). */
+let graveBefore: HeroGrave | null = null;
+/** La tombe en attente a été posée dans cette partie : on l'oublie (une seule fois par partie). */
+let graveCleared = false;
+/** À chaque tour : une fois la tombe posée sur son étage, elle quitte la mémoire. */
+function settleGrave(): void {
+  if (graveCleared || !game.graveLaid) return;
+  graveCleared = true;
+  const g = readGrave();
+  if (g && game.over) return;
+  writeGrave(null);
+}
 function readGrave(): HeroGrave | null {
   try {
     const g = JSON.parse(localStorage.getItem(GRAVE_KEY) ?? "null") as HeroGrave | null;
@@ -2001,6 +2001,11 @@ function advanceCues(dt: number): void {
 
 function collectEvents(): void {
   trackEvents(game.events);
+  settleGrave();
+  // Le lancer d'abord : ce qu'il provoque (gel, feu…) est parfois noté avant lui par le moteur ; à l'écran, la fiole
+  // part d'abord, le reste attend qu'elle tombe.
+  const first = game.events.findIndex(startsThrow);
+  if (first > 0) game.events.unshift(...game.events.splice(first, 1));
   for (const e of game.events) {
     if (e.type === "death" && e.actor.kind === "monster") ghosts.push(e.actor);
     // Glissade : le monstre reste à son point de départ jusqu'à ce que la glissade soit montrée (après le dé).
@@ -2955,7 +2960,7 @@ function compareNode(def: ItemDef): HTMLElement | null {
     chips.push({ icon: "armor", delta, text: delta === 0 ? "même CA" : `${fmt(delta)} CA` });
     // Amorti par coup (Thomas, 2026-11-27) : seulement s'il change.
     const soak = slot === "armor" ? (def.reduction ?? 0) - (other?.reduction ?? 0) : 0;
-    if (soak !== 0) chips.push({ icon: "armor", delta: soak, text: `amorti ${fmt(soak)}` });
+    if (soak !== 0) chips.push({ icon: "armor", delta: soak, text: `absorbe ${fmt(soak)}` });
   } else {
     const delta = (def.attackBonus ?? 0) - (other?.attackBonus ?? 0);
     const range = (def.range ?? 0) - (other?.range ?? 0);
@@ -2990,7 +2995,7 @@ function itemCard(def: ItemDef, count = 1, note = ""): HTMLElement {
   if (def.lightTurns) rows.push(["Lumière", `${def.lightTurns} tours`]);
   if (def.level) rows.push(["Niveau", `${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`]);
   if (def.armorClass) rows.push(["Armure", `CA ${def.armorClass}`]);
-  if (def.reduction) rows.push(["Amorti", `${Math.max(0, def.reduction - 1)} à ${def.reduction + 1} par coup`]);
+  if (def.reduction) rows.push(["Absorption", `${Math.max(0, def.reduction - 1)} à ${def.reduction + 1} par coup`]);
   if (def.acBonus) rows.push(["Armure", `+${def.acBonus} CA`]);
   if (def.kind !== "gold") rows.push(["Place", `${def.w} × ${def.h}`]);
   const stats = el("div", "item-card-stats");
@@ -3016,7 +3021,7 @@ function miniCard(def: ItemDef, count: number, note: string): HTMLElement {
   if (def.stunOn) bits.push(`assomme sur ${def.stunOn}+`);
   if (def.range) bits.push(`portée ${def.range}`);
   if (def.armorClass) bits.push(`CA ${def.armorClass}`);
-  if (def.reduction) bits.push(`amorti ${Math.max(0, def.reduction - 1)} à ${def.reduction + 1}`);
+  if (def.reduction) bits.push(`absorbe ${Math.max(0, def.reduction - 1)} à ${def.reduction + 1}`);
   if (def.acBonus) bits.push(`+${def.acBonus} CA`);
   if (def.bagCols) bits.push(`${def.bagCols} × ${def.bagRows} cases`);
   if (def.level) bits.push(`Lv${def.level}${game.tooLow(def) ? " (trop bas)" : ""}`);
@@ -3850,7 +3855,7 @@ function renderCharacter(): void {
     row("Discrétion", signedBonus(game.stealthBonus())),
     row("Attaque", signedBonus(game.hero.attackBonus)),
     row("Classe d'armure", String(game.hero.armorClass), undefined, true),
-    row("Amorti", game.armorReduction() > 0 ? `${Math.max(0, game.armorReduction() - 1)} à ${game.armorReduction() + 1} par coup` : "aucun"),
+    row("Absorption", game.armorReduction() > 0 ? `${Math.max(0, game.armorReduction() - 1)} à ${game.armorReduction() + 1} par coup` : "aucun"),
   );
   $("char-stats").replaceChildren(grid);
 

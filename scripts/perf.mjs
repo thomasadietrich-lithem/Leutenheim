@@ -67,6 +67,10 @@ await cdp.send("Performance.enable");
 await page.goto("file://" + path.join(root, "demo/index.html"));
 await page.waitForTimeout(500);
 await page.click("#menu-sandbox");
+// Depuis le 2026-11-14, « Salle d'essai » ouvre un choix de section : sans ce clic, la mesure se faisait menu ouvert
+// (corrigé le 2026-11-27 ; les chiffres d'avant ne se comparent plus tout à fait).
+await page.waitForTimeout(300);
+if (await page.isVisible("#essai-s1")) await page.click("#essai-s1");
 await page.waitForTimeout(1200);
 
 // Le calcul d'un tour et de la lumière, sans ralentissement (pour repérer un calcul devenu lourd).
@@ -103,6 +107,39 @@ async function scene(name, action, ms) {
 await scene("immobile", async () => {}, 2500);
 await scene("marche", () => page.evaluate(() => window.leutenheim.game().setDestination(180, 45, true)), 5000);
 await scene("retour", () => page.evaluate(() => window.leutenheim.game().setDestination(99, 45, true)), 5000);
+// PIXELS NETS (Thomas, 2026-11-27 : « flou, hésitation sur la rangée de pixels en bord de case, chute d'images au
+// dézoom ; on a déjà rencontré ces bugs : cimenter durablement ») : à la vue normale et dézoomée, l'écran doit agrandir
+// le canevas d'un facteur ENTIER, chaque case doit faire un nombre entier de pixels du canevas, et le canevas ne doit
+// jamais être recréé pendant un geste de zoom (seulement après).
+const crisp = [];
+async function checkCrisp(label) {
+  await page.waitForTimeout(400);
+  const d = await page.evaluate(() => window.leutenheim.renderer().displayInfo());
+  const ratio = d.dpr / d.scale;
+  const tilePx = d.tile * d.scale;
+  if (Math.abs(ratio - Math.round(ratio)) > 0.01) crisp.push(`${label} : l'écran agrandit le canevas ×${ratio.toFixed(2)} (pas un entier)`);
+  if (Math.abs(tilePx - Math.round(tilePx)) > 0.01) crisp.push(`${label} : une case fait ${tilePx.toFixed(2)} pixels (pas un entier)`);
+  return d;
+}
+await checkCrisp("vue normale");
+{
+  const before = (await page.evaluate(() => window.leutenheim.renderer().displayInfo())).resizes;
+  for (let k = 0; k < 8; k++) {
+    await page.mouse.move(206, 400);
+    await page.mouse.wheel(0, 120);
+    await page.waitForTimeout(40);
+  }
+  const during = (await page.evaluate(() => window.leutenheim.renderer().displayInfo())).resizes;
+  if (during !== before) crisp.push(`dézoom : le canevas a été recréé ${during - before} fois PENDANT le geste`);
+  const d = await checkCrisp("vue dézoomée");
+  if (d.columns <= 18) crisp.push(`dézoom : seulement ${d.columns.toFixed(1)} colonnes (le contrôle n'a pas dézoomé assez)`);
+  for (let k = 0; k < 8; k++) {
+    await page.mouse.move(206, 400);
+    await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(40);
+  }
+  await checkCrisp("retour à la vue normale");
+}
 await scene("zoom", async () => {
   for (let k = 0; k < 10; k++) {
     await page.mouse.move(206, 400);
@@ -180,6 +217,10 @@ if (save) {
   const s = scenes;
   fs.appendFileSync(hist, `| ${stamp} | ${commit} | ${s.immobile.avg} | ${s.marche.avg} | ${s.retour.avg} | ${s.zoom.avg} | ${s.combat.avg} | ${s.donjon?.avg ?? ""} | ${logic.tickMs} | ${logic.lightMs} | ${note} |\n`);
 }
+if (crisp.length) {
+  console.log("\nPIXELS NETS : ÉCHEC\n- " + crisp.join("\n- "));
+  worse.push("pixels nets");
+} else console.log("Pixels nets : vue normale et dézoomée, agrandissement entier, cases entières, pas de canevas recréé pendant le zoom.");
 if (worse.length) {
   console.log("\nRÉGRESSION (plus lent de 40 % ou plus que le passage précédent) :\n- " + worse.join("\n- "));
   process.exit(1);

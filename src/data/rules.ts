@@ -221,7 +221,8 @@ export const RULES = {
   /** Ce que donnent les provisions, par section (tiré au hasard dans la liste ; un doublon pèse double). */
   foodRationTable: [
     ["pomme", "pomme", "cuisse_poulet"],
-    ["morille", "cuisse_poulet", "pomme"],
+    // Section 2 un peu plus maigre (Thomas, 2026-11-27) : avant morille, cuisse, pomme.
+    ["morille", "pomme", "pomme"],
     ["tourte_fossoyeur", "tourte_fossoyeur", "cuisse_poulet"],
   ],
   /** Boss de la section 3 (C) : la Prêtresse appelle la lune tous les N tours (annoncé), chante tous les N tours ;

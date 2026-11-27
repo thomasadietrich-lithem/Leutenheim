@@ -509,7 +509,7 @@ for (const pre of ["gut", "bgut"]) {
 
 /** Meuble peint avec le sol (tapis, toile, rigole) : il prend exactement la lumière de sa case. */
 /** Les potions qu'un alambic peut distiller (une couleur chacune). */
-export const ALEMBIC_POTIONS = ["potion_feu", "potion_poison", "potion_vitesse", "potion_jouvence", "potion_brouillard", "potion_oursin", "potion_pierre", "potion_discorde", "potion_geant", "potion_glissante", "potion_fumee"] as const;
+export const ALEMBIC_POTIONS = ["potion_feu", "potion_poison", "potion_vitesse", "potion_jouvence", "potion_brouillard", "potion_oursin", "potion_pierre", "potion_discorde", "potion_geant", "potion_glissante"] as const;
 
 export function isFlat(kind: string): boolean {
   return !!FURNITURE_KINDS[kind]?.flat;

@@ -219,7 +219,8 @@ export const MONSTERS = {
     blood: "yellow",
     sporeProof: true,
     alarmOnNotice: 10,
-    dropsMorels: [1, 2],
+    // Moins de nourriture au début de la section 2 (Thomas, 2026-11-27 : « encore un peu trop ») : 0 ou 1 (avant 1 ou 2).
+    dropsMorels: [0, 1],
   },
   envahi: {
     id: "envahi",

@@ -139,7 +139,6 @@ const HURT_MS = 260;
 const GET_UP_MS = 320;
 const CORPSE_MS = 1400;
 const SHAKE_MS = 320;
-const THOUGHT_MS = 2600;
 type Facing = "down" | "up" | "left" | "right";
 
 /** Un coup porté de (fromX, fromY) vers (x, y). */
@@ -191,7 +190,22 @@ interface FloatingText {
  * chaque image ; à 2, c'est 2,25 fois moins, sans différence visible pour du pixel art.
  */
 export function screenScale(): number {
-  return frameScale ?? Math.min(maxScale, zoomCap, window.devicePixelRatio || 1);
+  return frameScale ?? crispScale(Math.min(maxScale, zoomCap));
+}
+
+/**
+ * PIXELS NETS (Thomas, 2026-11-27 : « chute d'images au dézoom, flou, hésitation sur la rangée de pixels en bord de
+ * case ; on a déjà rencontré ces bugs, il faut cimenter durablement ») : le canevas est agrandi par le navigateur
+ * (`image-rendering: pixelated`) du rapport densité de l'écran ÷ finesse. Si ce rapport n'est pas un NOMBRE ENTIER
+ * (densité 3 et finesse 2 → ×1,5 ; densité 2 et finesse 1,25 → ×1,6), certaines rangées de pixels sont doublées et pas
+ * d'autres : la carte paraît floue et ses bords de case hésitent d'un pixel quand la vue glisse. La finesse est donc
+ * toujours la densité divisée par un entier, la plus grande qui ne dépasse pas `limit` (densité 3 → 1,5 ; 2 → 2 ou 1).
+ * Vérifié par `scripts/perf.mjs` (contrôle « pixels nets ») à chaque publication.
+ */
+export function crispScale(limit: number): number {
+  const d = window.devicePixelRatio || 1;
+  if (d <= limit) return d;
+  return d / Math.ceil(d / limit - 1e-6);
 }
 /**
  * Vue dézoomée (Thomas, 2026-11-24 : « au dézoom, sur un étage chargé, chutes d'images ») : les cases sont petites, on
@@ -344,14 +358,10 @@ export class Renderer {
   /** Monstres vaincus : leur corps reste un instant au sol avant de s'effacer. */
   private corpses: { actor: Actor; age: number; facing: Facing; dx: number; dy: number }[] = [];
   /**
-   * IMMERSION (Thomas, 2026-11-26) : l'écran tremble sous un gros coup (`shake`), le héros pense tout haut en entrant
-   * dans un lieu marquant (`thoughts`), l'arme d'un monstre vaincu reste au sol quelques tours (`droppedWeapons`), et
-   * la flamme vacille quand quelque chose approche dans le noir (`unease`, 0 à 1, posé par main.ts).
+   * IMMERSION (Thomas, 2026-11-26) : l'écran tremble sous un gros coup (`shake`), et la flamme vacille quand quelque chose approche dans le noir (`unease`, 0 à 1, posé par main.ts).
    */
   private shakeAmp = 0;
   private shakeAge = 0;
-  private thoughts: { text: string; age: number }[] = [];
-  private droppedWeapons: { x: number; y: number; kind: "lame" | "arc" | "fronde" | "os"; until: number; angle: number; depth: number }[] = [];
   unease = 0;
   private heroDown = false;
   /** Le héros était retenu au sol à l'image précédente ; jusqu'à quand il montre l'image « se relève ». */
@@ -366,7 +376,17 @@ export class Renderer {
     this.resize();
   }
 
+  /** Nombre de fois où le canevas a été recréé (contrôle « pixels nets » de scripts/perf.mjs). */
+  resizes = 0;
+
+  /** Pour le contrôle « pixels nets » : densité de l'écran, finesse du canevas, taille d'une case, colonnes. */
+  displayInfo(): { dpr: number; scale: number; tile: number; columns: number; resizes: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return { dpr: window.devicePixelRatio || 1, scale: this.canvas.width / rect.width, tile: this.tile, columns: this.columns, resizes: this.resizes };
+  }
+
   resize(): void {
+    this.resizes++;
     const rect = this.canvas.getBoundingClientRect();
     const dpr = screenScale();
     this.width = rect.width;
@@ -406,9 +426,11 @@ export class Renderer {
    * presque pas ; le texte flottant devient un peu moins net. Renvoie faux si on est déjà au plus bas.
    */
   lowerQuality(): boolean {
-    const now = Math.min(maxScale, window.devicePixelRatio || 1);
+    const now = crispScale(maxScale);
     if (now <= 1) return false;
-    maxScale = Math.max(1, now - 0.5);
+    // Un cran plus bas qui reste net (densité ÷ entier).
+    maxScale = Math.max(1, now - 0.01);
+    if (crispScale(maxScale) === now) return false;
     this.resize();
     return true;
   }
@@ -461,7 +483,6 @@ export class Renderer {
     this.camX = game.hero.x;
     this.camY = game.hero.y;
     this.floats = [];
-    this.thoughts = [];
     this.shakeAmp = 0;
     this.cellCache.clear();
     this.chunkCache.clear();
@@ -498,11 +519,6 @@ export class Renderer {
     }
   }
 
-  /** Une pensée du héros, dans une bulle au-dessus de sa tête (deux secondes et demie). */
-  addThought(text: string): void {
-    this.thoughts = [{ text, age: 0 }];
-  }
-
   /** Coup qui ricoche sur une armure : des étincelles jaillissent, côté attaquant. */
   addSparks(x: number, y: number, fromX: number, fromY: number): void {
     const bx = Math.sign(fromX - x) * 0.3;
@@ -516,12 +532,6 @@ export class Renderer {
         color: ["#fff6d0", "#ffd75e", "#ff9a30"][i % 3], age: 0, life: 160 + Math.random() * 120,
       });
     }
-  }
-
-  /** L'arme d'un monstre vaincu reste au sol jusqu'au tour `until` (dessinée sous les personnages). */
-  dropWeapon(x: number, y: number, kind: "lame" | "arc" | "fronde" | "os", until: number, depth: number): void {
-    this.droppedWeapons = this.droppedWeapons.filter((w) => w.depth === depth && !(w.x === x && w.y === y));
-    this.droppedWeapons.push({ x, y, kind, until, angle: (Math.random() - 0.5) * 1.6 + (Math.random() < 0.5 ? 0 : Math.PI), depth });
   }
 
   /** Un monstre vient d'être blessé : il s'éclaire un instant. */
@@ -1578,7 +1588,7 @@ export class Renderer {
     const frames = SCHRAT.walkDown;
     const rows = frames[Math.floor(Math.abs(this.time) / 300) % frames.length];
     this.drawMonsterSprite(rows, cx, cy, Math.floor(this.time / 900) % 2 === 0, false, KRIK_PALETTE);
-    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("potion_fumee"), ICON_PALETTE);
+    if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows("potion_brouillard"), ICON_PALETTE);
   }
 
   /** La statue creuse dont Gluck a parlé : un éclat doré scintille dans sa fissure, pour qu'on la repère. */
@@ -2322,7 +2332,11 @@ export class Renderer {
   }
 
   private drawZoomed(game: Game, progress: number, dt: number, ghosts: readonly Actor[], aimRange: number | null, aimTarget: Actor | null): void {
-    const cap = this.columns > DEZOOM_COLUMNS ? 1.25 : Infinity;
+    // Finesse réduite en vue dézoomée, changée seulement une fois le geste fini (un changement en plein pincement
+    // recréait le canevas et vidait les blocs gardés en mémoire : chute d'images), avec une marge pour ne pas
+    // basculer sans cesse autour du seuil.
+    const settled = performance.now() - this.zoomAt > ZOOM_SETTLE_MS;
+    const cap = !settled ? zoomCap : this.columns > DEZOOM_COLUMNS ? 1.25 : this.columns < DEZOOM_COLUMNS - 2 ? Infinity : zoomCap;
     if (cap !== zoomCap) {
       zoomCap = cap;
       frameScale = null;
@@ -2726,9 +2740,6 @@ export class Renderer {
 
     // Corps des monstres vaincus : étendus, puis effacés.
     this.drawCrumbles(ox, oy, this.lastDt);
-    // Armes tombées des monstres vaincus : elles restent quelques tours.
-    this.droppedWeapons = this.droppedWeapons.filter((w) => w.depth === game.depth && game.turn < w.until);
-    for (const w of this.droppedWeapons) if (game.isVisible(w.x, w.y)) this.drawDroppedWeapon(w, ox, oy);
     for (const c of this.corpses) {
       if (!game.isVisible(c.actor.x, c.actor.y)) continue;
       ctx.globalAlpha = Math.min(1, 2 * (1 - c.age / CORPSE_MS));
@@ -2753,6 +2764,9 @@ export class Renderer {
     this.drawTorchShadows(game, seen, shown, ox, oy, flicker);
     for (const m of seen) {
       const p = shown(m);
+      // Un objet lancé vole encore vers lui : ni gel, ni pierre, ni feu, ni bulles d'état avant l'impact (Thomas, 2026-11-27).
+      const held = this.isHeld(m.x, m.y);
+      const stone = !!m.petrified && !held;
       const cx = ox + (p.x + 0.5) * tile;
       const cy = oy + (p.y + 0.5) * tile;
       const r = tile * 0.36;
@@ -2786,7 +2800,7 @@ export class Renderer {
           ctx.fillStyle = "rgba(255,255,255,0.18)";
           ctx.fillRect(ox + p.x * tile, oy + p.y * tile, tile * 3, tile * 3);
         }
-        this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y - 0.6) * tile, false);
+        if (!held) this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y - 0.6) * tile, false);
         continue;
       }
       if (m.defId === "pretresse") {
@@ -2808,7 +2822,7 @@ export class Renderer {
           ctx.ellipse(cx, cy + tile * 0.36, tile * 0.45, tile * 0.16, 0, 0, Math.PI * 2);
           ctx.stroke();
         }
-        if (m.petrified) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
+        if (stone) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
         // Plus petite (Thomas, 2026-11-21 : « elle se superpose au mob, le sprite semble trop grand ») : ×0,7, environ une
         // case de large et une case et demie de haut.
         this.drawBig(art.rows, art.palette, cx, oy + p.y * tile - lift, game.hero.x < m.x, 0.7);
@@ -2817,16 +2831,16 @@ export class Renderer {
           ctx.fillStyle = "rgba(255,255,255,0.2)";
           ctx.fillRect(cx - tile * 0.55, oy + (p.y - 0.5) * tile - lift, tile * 1.1, tile * 1.5);
         }
-        this.drawStatusBubbles(m, cx, oy + (p.y - 0.8) * tile - lift, !!m.burning);
+        if (!held) this.drawStatusBubbles(m, cx, oy + (p.y - 0.8) * tile - lift, !!m.burning);
         continue;
       }
       // Un boss gelé ou pétrifié se voit (Thomas, 2026-11-21) : bleu glacé ou gris, comme les autres monstres.
-      if (m.boss && m.petrified) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
+      if (m.boss && stone) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
       if (m.boss && m.defId === "carillon") {
         this.drawCarillon(m, ox + (p.x + 1.5) * tile, oy + p.y * tile, game.heroEdgeShown(m));
         this.ctx.filter = "none";
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
-        this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y + 0.2) * tile, burning);
+        if (!held) this.drawStatusBubbles(m, ox + (p.x + 1.5) * tile, oy + (p.y + 0.2) * tile, burning);
         continue;
       }
       if (m.boss) {
@@ -2834,8 +2848,8 @@ export class Renderer {
         this.drawQueen(m, ox + (p.x + 1) * tile, oy + (p.y + 1) * tile, progress, game.heroEdgeShown(m));
         this.ctx.filter = "none";
         const burning = !!m.burning || cellsOf(m).some((c) => game.isBurning(c.x, c.y));
-        if (m.burning && !burning) this.drawFlames(ox + p.x * tile + tile / 2, oy + p.y * tile + tile / 2, m.id, 1.2);
-        this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
+        if (m.burning && !burning && !held) this.drawFlames(ox + p.x * tile + tile / 2, oy + p.y * tile + tile / 2, m.id, 1.2);
+        if (!held) this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
       if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || m.defId === "reflet" || MOBS_SET[m.defId]) {
@@ -2850,7 +2864,7 @@ export class Renderer {
         }
         // Pétrifié : gris, et figé (l'horloge de son animation s'arrête).
         const now = this.time;
-        if (m.petrified) {
+        if (stone) {
           // Gelé (potion de gel) : bleu glacé ; pétrifié : gris.
           this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
           if (!this.stoneAt.has(m.id)) this.stoneAt.set(m.id, now);
@@ -2860,8 +2874,8 @@ export class Renderer {
         this.time = now;
         this.ctx.filter = "none";
         const burning = !!m.burning || game.isBurning(m.x, m.y);
-        if (m.burning && !game.isBurning(m.x, m.y)) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
-        this.drawStatusBubbles(m, cx, cy, burning);
+        if (m.burning && !game.isBurning(m.x, m.y) && !held) this.drawFlames(cx - tile / 2, cy - tile / 2, m.id, 0.9, 3);
+        if (!held) this.drawStatusBubbles(m, cx, cy, burning);
       } else {
       ctx.fillStyle = MONSTERS[m.defId as keyof typeof MONSTERS]?.color ?? "#c04040";
       ctx.beginPath();
@@ -2884,7 +2898,7 @@ export class Renderer {
         ctx.font = `${Math.round(tile * 0.55)}px "VT323", "Courier New", monospace`;
         ctx.fillText(m.asleep ? "z" : "?", cx + tile * 0.3, cy - tile * 0.3);
       }
-      if (m.hp < m.maxHp) {
+      if (m.hp < m.maxHp && !held) {
         ctx.fillStyle = COLORS.hpBack;
         ctx.fillRect(cx - tile * 0.35, cy - tile * 0.48, tile * 0.7, tile * 0.08);
         ctx.fillStyle = COLORS.hpFill;
@@ -3342,7 +3356,6 @@ export class Renderer {
       ctx.fillText(tr(f.text), fx, fy);
     }
     ctx.globalAlpha = 1;
-    this.drawThought(hero, ox, oy, dt);
     this.drawWaves(ox, oy, this.lastDt);
     this.drawBossBar(game);
   }
@@ -3370,43 +3383,6 @@ export class Renderer {
       false,
       spider ? ARAIGNEE.dead.palette : c.actor.defId === "frondeur" ? FRONDEUR_PALETTE : SCHRAT_PALETTE,
     );
-  }
-
-  /** La bulle de pensée du héros : un nuage clair, trois petites bulles vers sa tête, le texte en italique. */
-  private drawThought(hero: Point, ox: number, oy: number, dt: number): void {
-    this.thoughts = this.thoughts.filter((t) => (t.age += dt) < THOUGHT_MS);
-    const t = this.thoughts[0];
-    if (!t) return;
-    const { ctx, tile } = this;
-    const k = t.age / THOUGHT_MS;
-    const alpha = k < 0.08 ? k / 0.08 : k > 0.85 ? (1 - k) / 0.15 : 1;
-    const text = tr(t.text);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = `italic ${Math.round(Math.max(13, tile * 0.36))}px "VT323", "Courier New", monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const w = Math.min(ctx.measureText(text).width + tile * 0.5, this.width - 16);
-    const h = tile * 0.6;
-    const hx = ox + (hero.x + 0.5) * tile;
-    const cx = Math.max(8 + w / 2, Math.min(this.width - 8 - w / 2, hx + tile * 0.4));
-    const cy = oy + (hero.y - 1.25) * tile - (k < 0.08 ? (1 - k / 0.08) * tile * 0.2 : 0);
-    ctx.fillStyle = "rgba(244,236,214,0.94)";
-    ctx.strokeStyle = "#3a2c18";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h), h / 2);
-    ctx.fill();
-    ctx.stroke();
-    for (const [f, r] of [[0.55, 0.09], [0.78, 0.06]] as const) {
-      ctx.beginPath();
-      ctx.arc(hx + tile * 0.25 * (1 - f), cy + h / 2 + f * tile * 0.45, tile * r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.fillStyle = "#3a2c18";
-    ctx.fillText(text, cx, cy + 1, w - tile * 0.3);
-    ctx.restore();
   }
 
   /**
@@ -3504,50 +3480,6 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Une arme au sol (dague, arc, fronde, os) : quelques traits de pixels, tournés au hasard. */
-  private drawDroppedWeapon(w: { x: number; y: number; kind: string; angle: number }, ox: number, oy: number): void {
-    const { ctx, tile } = this;
-    const u = tile / 16;
-    ctx.save();
-    ctx.translate(ox + (w.x + 0.5) * tile, oy + (w.y + 0.62) * tile);
-    ctx.rotate(w.angle);
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.fillRect(-6 * u, 0, 12 * u, 2 * u);
-    if (w.kind === "lame") {
-      ctx.fillStyle = "#c8ccd4";
-      ctx.fillRect(-1 * u, -1 * u, 8 * u, 2 * u);
-      ctx.fillStyle = "#8a8e98";
-      ctx.fillRect(-1 * u, 0, 8 * u, 1 * u);
-      ctx.fillStyle = "#b08a3a";
-      ctx.fillRect(-2 * u, -2 * u, 1 * u, 4 * u);
-      ctx.fillStyle = "#5a3a1c";
-      ctx.fillRect(-5 * u, -1 * u, 3 * u, 2 * u);
-    } else if (w.kind === "arc") {
-      ctx.strokeStyle = "#7a4a22";
-      ctx.lineWidth = 1.5 * u;
-      ctx.beginPath();
-      ctx.arc(0, 4 * u, 6 * u, Math.PI * 1.15, Math.PI * 1.85);
-      ctx.stroke();
-      ctx.strokeStyle = "#d8d0b8";
-      ctx.lineWidth = 0.6 * u;
-      ctx.beginPath();
-      ctx.moveTo(-5.4 * u, 1.4 * u);
-      ctx.lineTo(5.4 * u, 1.4 * u);
-      ctx.stroke();
-    } else if (w.kind === "fronde") {
-      ctx.fillStyle = "#6a4a2a";
-      ctx.fillRect(-5 * u, 0, 4 * u, 1 * u);
-      ctx.fillRect(1 * u, 0, 4 * u, 1 * u);
-      ctx.fillStyle = "#8a6a3a";
-      ctx.fillRect(-1 * u, -1 * u, 2 * u, 2 * u);
-    } else {
-      ctx.fillStyle = "#e4dcc4";
-      ctx.fillRect(-4 * u, -0.5 * u, 8 * u, 1.5 * u);
-      ctx.fillRect(-5 * u, -1.5 * u, 2 * u, 3 * u);
-      ctx.fillRect(3 * u, -1.5 * u, 2 * u, 3 * u);
-    }
-    ctx.restore();
-  }
 
   /**
    * Le dessin d'une case, depuis le cache, refait d'abord s'il a changé. `final` : faux s'il montre encore l'ancien

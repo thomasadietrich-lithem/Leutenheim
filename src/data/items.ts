@@ -37,7 +37,7 @@ export interface ItemDef {
    * Armures : dégâts retirés à chaque coup reçu d'un monstre (jamais moins de 1). PROGRESSION (Thomas, 2026-11-27 :
    * « une armure principale par section pour être limite, et une pour être serein » ; « il ne doit jamais être logique de
    * choisir une armure plus légère ») : section 1 cuir (limite) / cloutée (serein) ; section 2 cloutée / cotte de mailles ;
-   * section 3 cotte de mailles / harnois, l'obsidienne au-dessus.
+   * section 3 cotte de mailles / harnois (−4, Thomas 2026-11-27 : l'écart y était le plus faible), l'obsidienne au-dessus.
    */
   reduction?: number;
   /** Casques : classe d'armure ajoutée à celle de l'armure. */
@@ -463,7 +463,7 @@ export const ITEMS = {
     rarity: "rare",
     level: 11,
     armorClass: 18,
-    reduction: 3,
+    reduction: 4,
   },
   casque_obsidienne: {
     id: "casque_obsidienne",
@@ -584,7 +584,7 @@ export const ITEMS = {
     // Thomas, 2026-11-15 : niveau 10 (5 avant).
     level: 10,
     armorClass: 17,
-    reduction: 3,
+    reduction: 4,
   },
   cotte_mailles: {
     id: "cotte_mailles",

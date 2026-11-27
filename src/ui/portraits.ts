@@ -1,4 +1,5 @@
 /** Portraits de l'encyclopédie : les vrais sprites du jeu, figés sur une image. */
+import { NUIT } from "../render/sprites/nuit";
 import { buildIcon } from "./icons";
 import { SCHRAT, SCHRAT_PALETTE } from "../render/sprites/schrat";
 import { ARAIGNEE } from "../render/sprites/araignee";
@@ -40,6 +41,9 @@ const PORTRAITS: Record<string, Pic> = {
   "n:vernis": { rows: EXPO.vernis.rows, palette: EXPO.vernis.palette },
   "n:maestro": { rows: SCHRAT.idleDown[0], palette: MAESTRO_PALETTE },
   "n:plumeau": { rows: SECRET.plumeau0.rows, palette: SECRET.plumeau0.palette },
+  "n:fossoyeur": NUIT.pelleCreuse0,
+  "n:bandelette": NUIT.bandelette0,
+  "n:boletus": NUIT.boletus0,
   "n:osselet": { rows: MOBS_OSS.conservateur.frames.idleDown0, palette: MOBS_OSS.conservateur.palette },
   "n:clavicule": { rows: CHAPELLE.clavicule0.rows, palette: CHAPELLE.clavicule0.palette },
   "n:colporteur": { rows: MARCHAND.front, palette: MARCHAND_PALETTE },

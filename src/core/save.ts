@@ -82,6 +82,10 @@ export interface SavedFloor {
   plumeau?: import("./floor").GluckSpot;
   clavicule?: import("./floor").GluckSpot;
   osselet?: import("./floor").GluckSpot;
+  fossoyeur?: import("./floor").GluckSpot;
+  bandelette?: import("./floor").GluckSpot;
+  boletus?: import("./floor").GluckSpot;
+  ball?: import("./floor").FloorState["ball"];
   restful?: boolean;
   nights?: { x: number; y: number; turns: number; hero?: boolean }[];
   moonFlashes?: { x: number; y: number; turns: number }[];
@@ -137,6 +141,11 @@ export interface SaveData {
   plumeau?: { met: number };
   clavicule?: { met: number };
   osselet?: { met: number };
+  fossoyeur?: { met: number };
+  bandelette?: { met: number };
+  boletus?: { met: number };
+  /** Embaumé par Dame Bandelette : le prochain coup mortel laisse à 1 PV (une fois). */
+  embalmed?: boolean;
   fifrelin?: { met: number };
   /** La tâche de quête en cours (absente des anciennes sauvegardes). */
   quest?: QuestTask | null;

@@ -155,6 +155,12 @@ export interface FloorState {
   clavicule?: GluckSpot;
   /** Section 3 : Maître Osselet, le conservateur du musée. */
   osselet?: GluckSpot;
+  /** Nuit du 27-28/11 : Pelle-Creuse (cimetière), Dame Bandelette (embaumement), section 3 ; Boletus (cuisine aux spores), section 2. */
+  fossoyeur?: GluckSpot;
+  bandelette?: GluckSpot;
+  boletus?: GluckSpot;
+  /** Le bal macabre (section 3) : la salle, le centre de la piste, les places des danseurs ; `stopped` : la musique s'est tue. */
+  ball?: { room: number; center: Point; ring: Point[]; stopped?: boolean };
   /** Section 3 : bénédiction du repos (les squelettes abattus ne se relèvent plus sur l'étage) ; nuits (potion de nuit). */
   restful?: boolean;
   nights?: { x: number; y: number; turns: number; hero?: boolean }[];

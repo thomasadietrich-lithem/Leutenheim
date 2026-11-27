@@ -118,7 +118,7 @@ export interface RunStats extends EndInfo {
  * Les réponses qui donnent une tâche que les bots savent faire (voir src/data/quests.ts). Les missions des zones
  * spéciales (quêtes v3 : tapisserie, tonneau creux, cierges…) ne sont pas encore apprises (2026-11-14).
  */
-const TASK_CHOICES: Record<NpcId, string[]> = { gluck: ["deal"], soeur: ["punish"], krik: [], grum: [], fifrelin: [], morillon: [], vernis: ["poulet"], maestro: ["partition"], plumeau: ["clef"], clavicule: ["cranes"], osselet: ["corne"] };
+const TASK_CHOICES: Record<NpcId, string[]> = { gluck: ["deal"], soeur: ["punish"], krik: [], grum: [], fifrelin: [], morillon: [], vernis: ["poulet"], maestro: ["partition"], plumeau: ["clef"], clavicule: ["cranes"], osselet: ["corne"], fossoyeur: ["ossements"], bandelette: ["vases"], boletus: ["champis"] };
 
 /** Une conversation entière : on choisit, jusqu'à la fin de la scène. */
 function talk(game: Game, id: NpcId, level: Level, rnd: () => number): void {

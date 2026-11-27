@@ -24,6 +24,18 @@ const ICONS: Record<string, (r: Rect) => void> = {
     r(4, 2, 6, 2, "B"); r(3, 4, 8, 5, "B"); r(4, 4, 1, 1, "b"); r(7, 5, 1, 1, "b"); r(5, 7, 1, 1, "b"); r(9, 6, 1, 1, "b"); r(4, 3, 2, 1, "W");
     r(6, 9, 2, 6, "W"); r(5, 14, 4, 1, "w"); r(12, 3, 2, 2, "S"); r(11, 5, 4, 3, "S"); r(12, 5, 1, 1, "W");
   },
+  fossoyeur(r) {
+    // La pelle et une croix de tombe.
+    r(9, 1, 2, 9, "B"); r(7, 9, 6, 5, "S"); r(7, 9, 6, 1, "W"); r(2, 3, 2, 9, "s"); r(0, 5, 6, 2, "s");
+  },
+  bandelette(r) {
+    // Un vase canope à tête de chacal.
+    r(5, 1, 6, 4, "K"); r(5, 0, 2, 2, "K"); r(9, 0, 2, 2, "K"); r(4, 5, 8, 9, "Y"); r(4, 5, 1, 9, "W"); r(5, 8, 6, 1, "y"); r(5, 11, 6, 1, "y");
+  },
+  boletus(r) {
+    // Une toque et une louche.
+    r(4, 1, 8, 5, "W"); r(3, 5, 10, 2, "W"); r(4, 7, 8, 1, "S"); r(11, 8, 1, 6, "B"); r(9, 13, 4, 2, "S");
+  },
   osselet(r) {
     // La corne du tricératops et le monocle.
     for (let i = 0; i < 8; i++) r(2 + i, 12 - i, 3, 2, i < 6 ? "W" : "w");

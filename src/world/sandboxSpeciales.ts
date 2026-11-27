@@ -5,6 +5,10 @@ import type { LightSource } from "./fov";
 import { GameMap, Tile } from "./map";
 import type { Room } from "./generator";
 import type { SandboxFloor, SandboxMonster, SandboxSign } from "./sandbox";
+import type { Floor } from "./generator";
+import type { RoomTheme } from "./furnish";
+import { Rng } from "../core/rng";
+import { furnishBall, furnishCemetery, furnishEmbalming, furnishSporeKitchen } from "./nuit";
 
 /**
  * ZONE D'ESSAI DES SALLES SPÉCIALES (Thomas, 2026-11-26 : « implémente les salles spéciales en test ») : un HUB (de l'or
@@ -75,11 +79,31 @@ export function buildSandboxSpeciales(): SandboxFloor {
   put(crypt.x + 1, crypt.y - 1, "afficheTexte", { note: "« Pour réveiller le gardien de la crypte : d'abord le cierge de droite, puis celui de gauche, celui du milieu en dernier. »" });
   const cryptState: NonNullable<FloorState["crypt"]> = { candles, order: [2, 0, 1], lit: [], sarco };
 
+  // ---------- NUIT DU 27-28/11 : sous le couloir, le cimetière, l'embaumement, le bal macabre, la cuisine aux spores ----------
+  const themes: RoomTheme[] = [];
+  const night = ["7. Cimetière (Pelle-Creuse)", "8. Embaumement (Dame Bandelette)", "9. Bal macabre", "10. Cuisine aux spores (Boletus)"];
+  const below: Room[] = night.map((n, i) => {
+    const r: Room = { x: 19 + i * 15, y: 22, w: i === 2 ? 9 : 11, h: 7 };
+    addRoom(r, undefined);
+    signs.push({ x: r.x + Math.floor(r.w / 2), y: r.y + r.h, text: n });
+    map.set(r.x + 4, 21, Tile.DoorClosed);
+    return r;
+  });
+  const fl: Floor = { map, rooms, start, stairs, torches, specials: [] };
+  const nrng = new Rng(0x9a17);
+  if (furnishCemetery(fl, below[0], nrng, furniture)) themes.push({ room: rooms.indexOf(below[0]), id: "cimetiere" });
+  if (furnishEmbalming(fl, below[1], nrng, furniture)) themes.push({ room: rooms.indexOf(below[1]), id: "embaumement" });
+  const ball = furnishBall(fl, below[2], nrng, furniture);
+  if (ball) themes.push({ room: rooms.indexOf(below[2]), id: "bal" });
+  if (furnishSporeKitchen(fl, below[3], nrng, furniture)) themes.push({ room: rooms.indexOf(below[3]), id: "cuisineSpores" });
+  for (const r of below) torches.push({ x: r.x + 2, y: r.y + r.h, radius: 6, faceX: 0, faceY: -1, area: { x: r.x, y: r.y, w: r.w, h: r.h } });
+  ground.push({ x: 13, y: 22, item: "pelle", count: 1 }, { x: 11, y: 22, item: "soupe_boletus", count: 1 });
+
   return {
     map,
     rooms,
     furniture,
-    themes: [],
+    themes,
     motifs: [],
     start,
     merchant: { x: 14, y: 17, home: hub },
@@ -96,5 +120,7 @@ export function buildSandboxSpeciales(): SandboxFloor {
     hub: hubIndex,
     plain: true,
     crypt: cryptState,
+    ball: ball ? { room: rooms.indexOf(below[2]), ...ball } : undefined,
+    nightNpcs: true,
   };
 }

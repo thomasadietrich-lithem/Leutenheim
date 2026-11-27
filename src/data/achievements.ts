@@ -1,3 +1,4 @@
+import type { NpcId } from "../core/game";
 /**
  * MUR DE SUCCÈS (Thomas, 2026-11-14 : « design un mur de succès » → maquette art/succes_v1.html, « Fonce »).
  * Chaque succès a trois rangs : cuivre, argent, or. Toutes les parties s'additionnent (salle d'essai exclue).
@@ -33,7 +34,7 @@ export interface AchievementDef {
   /** « count » : un total qui monte ; « best » : le meilleur résultat d'une partie ; « low » : le plus petit (tours). */
   kind: "count" | "best" | "low";
   /** Un succès de quête : le PNJ (les missions différentes réussies comptent). */
-  npc?: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet";
+  npc?: NpcId;
   /** Un succès de classe : seule cette classe le fait avancer. */
   cls?: "guerrier" | "assassin" | "magicien";
 }
@@ -68,6 +69,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "vernis", name: "Vernis", group: "quetes", what: "Réussir les missions de Vernis : retrouver le Grand Poulet d'Or, poser sur le socle, voler une pomme dorée.", tiers: [1, 2, 3], kind: "count", npc: "vernis" },
   { id: "plumeau", name: "Plumeau", group: "quetes", what: "Aider Plumeau : la clef du geôlier, briser sa chaîne, lui lire le registre.", tiers: [1, 2, 3], kind: "count", npc: "plumeau" },
   { id: "clavicule", name: "Sœur Clavicule", group: "quetes", what: "Aider Sœur Clavicule : briser des crânes, rallumer ses cierges, lui parler de sa sœur, obtenir sa bénédiction.", tiers: [1, 2, 4], kind: "count", npc: "clavicule" },
+  { id: "fossoyeur", name: "Pelle-Creuse", group: "quetes", what: "Aider Pelle-Creuse : rapporter ses trois os, apprendre à creuser une tombe.", tiers: [1, 2, 3], kind: "count", npc: "fossoyeur" },
+  { id: "bandelette", name: "Dame Bandelette", group: "quetes", what: "Aider Dame Bandelette : retrouver ses vases, se faire embaumer, obtenir son remède.", tiers: [1, 2, 3], kind: "count", npc: "bandelette" },
+  { id: "boletus", name: "Boletus", group: "quetes", what: "Aider Boletus : cueillir ses trois lueurs, goûter sa soupe.", tiers: [1, 2, 3], kind: "count", npc: "boletus" },
   { id: "osselet", name: "Maître Osselet", group: "quetes", what: "Aider Maître Osselet : retrouver la corne, lire l'écriteau, toucher le tricératops sans se faire gronder.", tiers: [1, 2, 3], kind: "count", npc: "osselet" },
   { id: "maestro", name: "Mélomane", group: "quetes", what: "Rendre sa partition au Maestro, puis faire chanter le diapason.", tiers: [1, 5, 15], kind: "count" },
   { id: "chapardeur", name: "Chapardeur", group: "quetes", what: "Voler sans être pris : pommes dorées de l'exposition, canard du bain.", tiers: [1, 5, 15], kind: "count" },

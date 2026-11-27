@@ -5,6 +5,7 @@ import { Floor, Room } from "./generator";
 import { GameMap, Point, Tile } from "./map";
 import { isChokepoint } from "./pathfinding";
 import { carvePocket } from "./secretRoom";
+import { furnishSporeKitchen } from "./nuit";
 
 /**
  * Un meuble : `x`, `y` = sa case en haut à gauche ; il couvre `FURNITURE_KINDS[kind].w × h` cases. Ceux qui bloquent
@@ -258,7 +259,8 @@ export function furnishFloor(floor: Floor, seed: number, depth = 1, bell = false
   const furniture: Furniture[] = [];
   const themes: RoomTheme[] = [];
   // Section 2 (Thomas, 2026-11-14) : ses propres salles à thème, la champignonnière de morilles et l'atelier de sculpture.
-  const pool = section >= 1 ? ["morilles", "sculpture", "expo", "concert"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
+  // La cuisine aux spores de Boletus (Thomas, 2026-11-27) rejoint la section 2.
+  const pool = section >= 1 ? ["morilles", "sculpture", "expo", "concert", "cuisineSpores"] : ["dortoir", "cuisine", "priere", "torture", "forge", "alchimiste", "ferme", "prison"];
   for (const chance of section >= 1 ? RULES.themedRoomChancesS2 : RULES.themedRoomChances) {
     if (!rng.chance(chance) || pool.length === 0) break;
     // Section 2 : la champignonnière d'abord (salle de la quête de Morillon), puis au hasard l'atelier, le hall
@@ -345,7 +347,7 @@ export function singleDoor(floor: Floor, room: Room): boolean {
 }
 
 /** Taille minimale de chaque salle à thème. */
-const MIN_SIZE: Record<string, [number, number]> = { expo: [7, 6], concert: [7, 6], morilles: [7, 6], sculpture: [6, 6], dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
+const MIN_SIZE: Record<string, [number, number]> = { cuisineSpores: [6, 5], expo: [7, 6], concert: [7, 6], morilles: [7, 6], sculpture: [6, 6], dortoir: [6, 5], cuisine: [7, 5], priere: [7, 7], torture: [6, 5], forge: [7, 5], alchimiste: [7, 6], ferme: [8, 7], prison: [7, 6] };
 function fits(id: string, room: Room): boolean {
   return room.w >= MIN_SIZE[id][0] && room.h >= MIN_SIZE[id][1];
 }
@@ -364,13 +366,14 @@ const FURNISHERS: Record<string, Furnisher> = {
   sculpture: furnishSculpture,
   expo: furnishExpo,
   concert: furnishConcert,
+  cuisineSpores: furnishSporeKitchen,
 };
 
 /**
  * Outil commun des salles à thème : pose un meuble s'il tient dans la salle, sur des cases libres, loin des ouvertures
  * s'il bloque, et sans rien rendre inaccessible ; `undo` retire tout ce qui a été posé (la salle ne convient pas).
  */
-function roomPlacer(floor: Floor, room: Room) {
+export function roomPlacer(floor: Floor, room: Room) {
   const { map } = floor;
   const inside = (x: number, y: number) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
   const special = (x: number, y: number) =>

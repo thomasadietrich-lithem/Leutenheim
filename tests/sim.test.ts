@@ -2217,7 +2217,7 @@ test("salle d'essai v21 : HUB, six directions, tout accessible, écriteaux, armu
     // La fiole de fumée n'est plus donnée nulle part (remplacée par le brouillard, Thomas 2026-11-27) : pas dans l'armurerie.
     const areas = game.areas();
     for (const id of Object.keys(ITEMS)) {
-      if (["sac_pommes", "magot_krik", "robe", "clef", "clef_argent", "marmite", "louche", "corde", "poule_or", "gobelet", "potion_fumee"].includes(id)) continue;
+      if (["sac_pommes", "magot_krik", "robe", "clef", "clef_argent", "marmite", "louche", "corde", "poule_or", "gobelet", "potion_fumee", "os_crane", "os_femur", "os_main", "vase_chacal", "vase_faucon", "vase_babouin", "vase_serpent", "champi_azur", "champi_rubis", "champi_dore", "pelle", "soupe_boletus"].includes(id)) continue;
       assert.ok(game.ground.some((g) => g.item === id && areas.some((a) => g.x >= a.x && g.x < a.x + a.w && g.y >= a.y && g.y < a.y + a.h)), `${id} hors des zones`);
     }
     // Écriteaux : sur un mur, et un par salle nommée.
@@ -3910,7 +3910,7 @@ test("Ossuaire (section 3) : ses monstres seulement, sans PNJ, piège, salle sp�
       assert.equal(cur.look, "ossuaire");
       assert.ok(game.monsters.every((m) => ["rat", "squelette", "squeletteArcher", "craneLunaire", "acolyte", "gisantEveille"].includes(m.defId)), "seulement les monstres de l'ossuaire");
       if (depth === 11) assert.ok(game.monsters.every((m) => m.defId === "rat" || m.defId === "squelette"), "étage 11 : rats et squelettes");
-      assert.ok((cur.themes as { id: string }[]).every((t) => t.id === "chapelle" || t.id === "musee"), "aucune salle à thème des sections du dessus (la chapelle des os et le musée seulement)");
+      assert.ok((cur.themes as { id: string }[]).every((t) => ["chapelle", "musee", "cimetiere", "embaumement", "bal"].includes(t.id)), "aucune salle à thème des sections du dessus (celles de l'ossuaire seulement)");
       if ((cur.themes as { id: string }[]).some((t) => t.id === "musee")) {
         assert.ok(cur.furniture.some((f) => f.kind === "expoTrike"), "le tricératops du musée");
         // Un seul PNJ de quête par étage (Thomas, 2026-11-21) : Maître Osselet, ou Sœur Clavicule si la chapelle a gagné.
@@ -5346,7 +5346,7 @@ test("section 2 : champignonnière de morilles (4 à 6 rangs, caillebotis, étag
       game.teleport(d);
       const st = (game as unknown as { current: { themes: { room: number; id: string }[] } }).current;
       for (const t of st.themes) {
-        assert.ok(["morilles", "sculpture", "expo", "concert", "bain"].includes(t.id), `salle de la section 1 en section 2 : ${t.id}`);
+        assert.ok(["morilles", "sculpture", "expo", "concert", "bain", "cuisineSpores"].includes(t.id), `salle de la section 1 en section 2 : ${t.id}`);
         const r = game.rooms[t.room];
         const inside = game.furnitureList().filter((f) => f.x >= r.x && f.x < r.x + r.w && f.y >= r.y && f.y < r.y + r.h);
         if (t.id === "morilles") {
@@ -7763,4 +7763,37 @@ test("salles spéciales dans le donjon (Thomas, 2026-11-26) : une par section, j
     assert.equal(new Set(kinds).size, kinds.length, "jamais deux fois la même salle dans une partie");
   }
   assert.ok(found >= tries * 0.8, `placées : ${found} sur ${tries}`);
+});
+
+test("Nuit du 27-28/11 : Pelle-Creuse, Dame Bandelette, Boletus et leurs quêtes ; le bal macabre s'arrête quand on frappe un danseur", () => {
+  setSandboxSection(4);
+  try {
+    const game = new Game(5, undefined, undefined, undefined, true);
+    for (const id of ["fossoyeur", "bandelette", "boletus"] as const) assert.ok(game.npc(id), `${id} dans sa salle`);
+    // Pelle-Creuse : la quête pose les trois os sur l'étage.
+    const g = game.npc("fossoyeur")!;
+    game.hero.x = g.x;
+    game.hero.y = g.y + 1;
+    game.npcScene("fossoyeur");
+    game.npcChoose("fossoyeur", "ossements");
+    assert.equal(game.quest?.id, "fossoyeur_ossements");
+    for (const item of ["os_crane", "os_femur", "os_main"]) assert.ok(game.ground.some((o) => o.item === item), `${item} posé sur l'étage`);
+    for (const item of ["os_crane", "os_femur", "os_main"] as const) game.inventory.add(item, 1);
+    assert.ok(game.questDone());
+    game.npcChoose("fossoyeur", "turnin");
+    assert.equal(game.quest, null);
+    // Le bal : des danseurs ; un coup porté arrête la musique, tous se tournent vers le héros.
+    const dancers = game.monsters.filter((m) => m.dance !== undefined);
+    assert.ok(dancers.length >= 4, `${dancers.length} danseurs`);
+    (game as unknown as { struckByHero(m: unknown, hit: boolean): void }).struckByHero(dancers[0], true);
+    assert.ok(game.monsters.every((m) => m.dance === undefined), "plus personne ne danse");
+    assert.ok(dancers.every((m) => m.alerted), "tous alertés");
+    // Embaumé : le premier coup mortel laisse à 1 PV.
+    game.embalmed = true;
+    (game as unknown as { hurtHero(d: number): void }).hurtHero(999);
+    assert.equal(game.hero.hp, 1);
+    assert.ok(!game.over && !game.embalmed);
+  } finally {
+    setSandboxSection(1);
+  }
 });

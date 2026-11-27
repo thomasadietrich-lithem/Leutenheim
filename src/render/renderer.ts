@@ -67,6 +67,7 @@ import { CULTE } from "./sprites/culte";
 import { AFFICHES as AFFICHE_ART } from "./sprites/affiches";
 import { TOMBE } from "./sprites/tombe";
 import { SPECIALES } from "./sprites/speciales";
+import { NUIT } from "./sprites/nuit";
 /** Le héros tombé reste couché ce temps-là avant de devenir une tombe. */
 const HERO_TOMB_MS = 1400;
 import { CONCERT } from "./sprites/concert";
@@ -1470,7 +1471,7 @@ export class Renderer {
    * Vernis (hall d'exposition), le Maestro (salle de concert), Plumeau (prison) : un PNJ simple, son dessin, et une bulle
    * quand le héros approche (Thomas, 2026-11-18).
    */
-  private drawSimpleNpc(game: Game, id: "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet", ox: number, oy: number): void {
+  private drawSimpleNpc(game: Game, id: "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet" | "fossoyeur" | "bandelette" | "boletus", ox: number, oy: number): void {
     const g = game.npc(id);
     if (!g || !game.npcShown(g.x, g.y)) return;
     const { tile } = this;
@@ -1479,6 +1480,15 @@ export class Renderer {
     const cy = Math.round(oy + (at.y + 0.5) * tile);
     const hero = game.hero;
     const flip = hero.x < g.x;
+    // Nuit du 27-28/11 : Pelle-Creuse, Dame Bandelette, Boletus (2 images chacun) ; dans leur bulle, ce qu'ils cherchent.
+    if (id === "fossoyeur" || id === "bandelette" || id === "boletus") {
+      const key = id === "fossoyeur" ? "pelleCreuse" : id;
+      const art = NUIT[`${key}${Math.floor(Math.abs(this.time) / 650) % 2}`];
+      this.drawMonsterSprite(art.rows, cx, cy, flip, true, art.palette);
+      const want = id === "fossoyeur" ? "os_crane" : id === "bandelette" ? "vase_chacal" : "champi_azur";
+      if (Math.max(Math.abs(hero.x - g.x), Math.abs(hero.y - g.y)) <= 6) this.drawNpcBubble(cx, cy, itemIconRows(want), ICON_PALETTE);
+      return;
+    }
     if (id === "vernis") this.drawMonsterSprite(EXPO.vernis.rows, cx, cy, flip, true, EXPO.vernis.palette);
     else if (id === "maestro") {
       const frames = SCHRAT.idleDown;
@@ -2908,7 +2918,7 @@ export class Renderer {
         // « z » : il dort. « ? » : il se promène sans avoir remarqué le héros.
         ctx.fillStyle = "#ffffff";
         ctx.font = `${Math.round(tile * 0.55)}px "VT323", "Courier New", monospace`;
-        ctx.fillText(m.asleep ? "z" : "?", cx + tile * 0.3, cy - tile * 0.3);
+        ctx.fillText(m.asleep ? "z" : m.dance !== undefined ? "♪" : "?", cx + tile * 0.3, cy - tile * 0.3);
       }
       if (m.hp < m.maxHp && !held) {
         ctx.fillStyle = COLORS.hpBack;
@@ -2979,6 +2989,9 @@ export class Renderer {
     this.drawSimpleNpc(game, "plumeau", ox, oy);
     this.drawSimpleNpc(game, "clavicule", ox, oy);
     this.drawSimpleNpc(game, "osselet", ox, oy);
+    this.drawSimpleNpc(game, "fossoyeur", ox, oy);
+    this.drawSimpleNpc(game, "bandelette", ox, oy);
+    this.drawSimpleNpc(game, "boletus", ox, oy);
     this.drawFifrelin(game, ox, oy);
     this.drawCourier(game, ox, oy, progress);
     this.drawGoldHen(game, ox, oy, progress);
@@ -3852,7 +3865,7 @@ export class Renderer {
       // presque pas d'ombre sur lui, même dans le noir d'une salle vue.
       if (f.kind === "mycCurtain") dark = Math.min(dark, visible ? 0.08 : 0.3);
       // Meubles animés (bougie de la table, jambon qui se balance, robinet qui goutte, corde, candélabre) : 3 images.
-      const animated = (f.kind.startsWith("table") && !SPECIALES[f.kind]) || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
+      const animated = (f.kind.startsWith("table") && !SPECIALES[f.kind] && !NUIT[f.kind]) || (!DORTOIR[f.kind] && !TRAINARDS[f.kind] && !SALLES[f.kind] && !!SALLES[`${f.kind}0`]);
       // Panier à fruits : son dessin montre les pommes qui restent dedans (0 à 3).
       const apples = f.kind === "basket" ? game.ground.filter((g) => g.x === f.x && g.y === f.y && g.item === "pomme").reduce((n, g) => n + g.count, 0) : 0;
       // Cloche d'alarme : elle se balance (à gauche, à droite) pendant un peu plus d'une seconde après le coup.
@@ -3878,8 +3891,10 @@ export class Renderer {
       // Alambic (pièces secrètes) : la couleur de sa potion, braises et bulles (2 images) ; vide une fois la fiole tirée.
       const alembicName = f.kind === "alambic" ? (f.drained ? "alambicVide" : `alambic${(f.potion ?? "potion_feu").split("_")[1].replace(/^./, (c) => c.toUpperCase())}${visible ? Math.floor(this.time / 300 + f.x) % 2 : 0}`) : null;
       const snowName = f.kind === "bonhomme" && f.drained ? "bonhommeNu" : null;
-      const name = snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
-      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? TOMBE[name] ?? SPECIALES[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
+      // La marmite de Boletus bouillonne (2 images).
+      const potName = f.kind === "marmiteSpores" ? `marmiteSpores${visible ? Math.floor(this.time / 320 + f.x) % 2 : 0}` : null;
+      const name = potName ?? snowName ?? alembicName ?? zoneName ?? plateName ?? bathName ?? (f.kind === "statue" && f.hinted ? "statueCracked" : f.kind === "basket" ? `basket${Math.min(3, apples)}` : f.kind === "bell" ? (swing ? `bell${swing}` : "bell") : animated ? `${f.kind}${visible ? (frame + f.x) % 3 : 0}` : f.kind);
+      const art0 = (f.kind === "sealedStairs" ? sealedStairsArt(game) : f.kind === "souche" ? { rows: CARILLON.souche, palette: CARILLON_PALETTE } : undefined) ?? DORTOIR[name] ?? TRAINARDS[name] ?? SALLES[name] ?? CLOCHE[name] ?? STATUES[name] ?? BAIN[name] ?? ASSIETTE[name] ?? ZONES[name] ?? SECRET[name] ?? CHAMPI[name] ?? CHAMPI_SALLES[name] ?? ALAMBIC[name] ?? NEIGE[name] ?? CULTE[name] ?? AFFICHE_ART[name] ?? TOMBE[name] ?? SPECIALES[name] ?? NUIT[name] ?? EXPO[name] ?? CONCERT[name] ?? TRAINARDS2[name] ?? VESSES[name] ?? OSSUAIRE[name] ?? CHAPELLE[name] ?? PRETRESSE[name] ?? MUSEE[name] ?? ENIGME[name] ?? (isFlat(f.kind) ? undefined : FERME[name]);
       // Le canard volé (Thomas, 2026-11-18) : la baignoire sans lui (mousse à sa place).
       const art = art0 && f.kind === "tub" && game.bath()?.duckTaken ? { rows: art0.rows, palette: { ...art0.palette, d: "#e8ecf4", g: "#e8ecf4" } } : art0;
       if (!art) continue;

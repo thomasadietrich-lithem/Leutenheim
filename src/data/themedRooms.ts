@@ -147,6 +147,23 @@ export const FURNITURE_KINDS: Record<string, { blocks: boolean; w: number; h: nu
   barrel: { blocks: true, w: 1, h: 1, burns: true },
   // Feu de camp des Kobolds (Thomas, 2026-11-26 : « les monstres vivent ») : ils dorment autour, en section 1.
   feuCamp: { blocks: true, w: 1, h: 1, burns: false },
+  // Nuit du 27-28/11 (art/nuit_v1.png) : cimetière intérieur, salle d'embaumement, bal macabre (section 3), cuisine aux
+  // spores (section 2).
+  tombeCroix: { blocks: true, w: 1, h: 1, burns: false },
+  tombeDalle: { blocks: true, w: 1, h: 1, burns: false },
+  tombeFraiche: { blocks: true, w: 1, h: 1, burns: false },
+  tombeCreusee: { blocks: true, w: 1, h: 1, burns: false },
+  pelleFichee: { blocks: true, w: 1, h: 1, burns: true },
+  brouetteOs: { blocks: true, w: 2, h: 1, burns: true },
+  tableEmbaume: { blocks: true, w: 2, h: 1, burns: false },
+  etagereBocaux: { blocks: true, w: 2, h: 1, burns: true },
+  sarcoDebout: { blocks: true, w: 1, h: 1, burns: false },
+  sarcoDeboutOuvert: { blocks: true, w: 1, h: 1, burns: false },
+  sechoirBandelettes: { blocks: true, w: 1, h: 1, burns: true },
+  orgueBal: { blocks: true, w: 2, h: 1, burns: true },
+  marmiteSpores: { blocks: true, w: 1, h: 1, burns: false },
+  etagereChampi: { blocks: true, w: 2, h: 1, burns: true },
+  tableChampi: { blocks: true, w: 2, h: 1, burns: true },
   crate: { blocks: true, w: 1, h: 1, burns: true },
   crateStack: { blocks: true, w: 1, h: 1, burns: true },
   // Cloche d'alarme sur son support de bois (Thomas, 2026-11-12) : la sonner fait monter l'alerte, et on se moque de vous.

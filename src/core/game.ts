@@ -17,6 +17,7 @@ import { GRUM, GRUM_OPENING } from "../data/grum";
 import { MORILLON, MORILLON_OPENING } from "../data/morillon";
 import { MAESTRO, PLUMEAU, VERNIS } from "../data/npcsS2";
 import { CLAVICULE, OSSELET } from "../data/npcsS3";
+import { BANDELETTE, BOLETUS, FOSSOYEUR } from "../data/npcsNuit";
 import { FIFRELIN, FIFRELIN_OPENING } from "../data/fifrelin";
 import { Actor } from "../entities/actor";
 import { BagItem, Inventory } from "../items/inventory";
@@ -105,12 +106,12 @@ export interface GluckMemory {
 // Section 2 (Thomas, 2026-11-14) : les champignons lumineux éclairent leur salle (C).
 const CANDLE_LIGHT: Record<string, number> = { chandelierArgent: 3, chandelierMusee: 3, chandelierExpo: 3, table: 2, lowTable: 3, candelA: 2, candelB: 3, candelC: 3, grimoire: 2, champiGeant: 4, champiGrappe: 3, champiCorail: 2 };
 
-export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet";
-export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet"];
+export type NpcId = "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet" | "fossoyeur" | "bandelette" | "boletus";
+export const NPC_IDS: readonly NpcId[] = ["gluck", "soeur", "krik", "grum", "fifrelin", "morillon", "vernis", "maestro", "plumeau", "clavicule", "osselet", "fossoyeur", "bandelette", "boletus"];
 /** Ceux qu'on croise au hasard ; Grum, lui, vit dans la ferme. */
 /** Ce que le rat d'ossuaire dévore au sol. */
 /** Les objets des salles spéciales (2026-11-26) : on les touche, à côté, pour s'en servir. */
-const SPECIAL_FEATURES: ReadonlySet<string> = new Set(["puitsVoeux", "autelPoulet", "autelPouletVide", "miroir", "miroirBrise", "champiFestin", "champiFestinMange", "tableCarte", "tableCarteLue", "ciergeCrypte", "ciergeCrypteAllume"]);
+const SPECIAL_FEATURES: ReadonlySet<string> = new Set(["puitsVoeux", "autelPoulet", "autelPouletVide", "miroir", "miroirBrise", "champiFestin", "champiFestinMange", "tableCarte", "tableCarteLue", "ciergeCrypte", "ciergeCrypteAllume", "tombeFraiche", "tombeCreusee"]);
 const RAT_FOOD: ReadonlySet<string> = new Set(["omelette", "pomme", "cuisse_poulet", "escalope", "morille", "pain_elfique", "carotte_magique", "pomme_doree_expo", "tourte_fossoyeur", "pomme_pourrie"]);
 const ROAMING_NPCS: readonly NpcId[] = ["gluck", "soeur", "krik", "fifrelin"];
 
@@ -236,6 +237,11 @@ export class Game {
   /** Section 3 : Sœur Clavicule (chapelle des os). */
   claviculeMemory: { met: number } = { met: 0 };
   osseletMemory: { met: number } = { met: 0 };
+  fossoyeurMemory: { met: number } = { met: 0 };
+  bandeletteMemory: { met: number } = { met: 0 };
+  boletusMemory: { met: number } = { met: 0 };
+  /** Embaumé par Dame Bandelette : le prochain coup mortel laisse le héros à 1 PV (une fois). */
+  embalmed = false;
   /** Bénédictions de Sœur Osseuse (quête 02) : Protection (tours), Clarté et Malédiction des Kobolds (l'étage où elles
    *  valent), Chance (1 naturels encore à relancer). */
   protectTurns = 0;
@@ -604,6 +610,12 @@ export class Game {
       if (sandboxFloor?.secretRoom) state.secretRoom = JSON.parse(JSON.stringify(sandboxFloor.secretRoom));
       if (sandboxFloor?.enigmas) state.enigmas = JSON.parse(JSON.stringify(sandboxFloor.enigmas));
       if (sandboxFloor?.crypt) state.crypt = JSON.parse(JSON.stringify(sandboxFloor.crypt));
+      if (sandboxFloor?.ball) state.ball = JSON.parse(JSON.stringify(sandboxFloor.ball));
+      if (sandboxFloor?.nightNpcs) {
+        state.fossoyeur = this.placeInTheme(state, "cimetiere", new Rng(this.runSeed ^ 0xf055)) ?? undefined;
+        state.bandelette = this.placeInTheme(state, "embaumement", new Rng(this.runSeed ^ 0xba7d)) ?? undefined;
+        state.boletus = this.placeInTheme(state, "cuisineSpores", new Rng(this.runSeed ^ 0xb017)) ?? undefined;
+      }
       if (!sandboxFloor && !bossFloor) {
         const srng = new Rng(seed ^ 0x5ec7e7);
         if (srng.chance(RULES.secretRoomChance)) {
@@ -633,6 +645,13 @@ export class Game {
           // Clavicule, le Conservateur).
           if (special.chapel !== undefined) state.themes = [...(state.themes ?? []), { room: special.chapel, id: "chapelle" } as (typeof state.themes)[number]];
           if (special.museum !== undefined) state.themes = [...(state.themes ?? []), { room: special.museum, id: "musee" } as (typeof state.themes)[number]];
+          // Nuit du 27-28/11 : le cimetière (Pelle-Creuse), l'embaumement (Dame Bandelette), le bal macabre.
+          if (special.cemetery !== undefined) state.themes = [...(state.themes ?? []), { room: special.cemetery, id: "cimetiere" } as (typeof state.themes)[number]];
+          if (special.embalming !== undefined) state.themes = [...(state.themes ?? []), { room: special.embalming, id: "embaumement" } as (typeof state.themes)[number]];
+          if (special.ball) {
+            state.themes = [...(state.themes ?? []), { room: special.ball.room, id: "bal" } as (typeof state.themes)[number]];
+            state.ball = special.ball;
+          }
           state.torches = floor.torches;
         }
         // Section 2 : la salle secrète se cache derrière un RIDEAU DE MYCÉLIUM (Thomas, 2026-11-14), plus de creux au mur.
@@ -771,6 +790,7 @@ export class Game {
     }
     if (fresh && !state.boss && !this.sandbox && depth <= RULES.floorsPerSection) this.placeCampfire(state, depth);
     if (fresh && !state.boss && !this.sandbox) this.placeSpecialRoom(state, depth);
+    if (fresh && state.ball) this.placeDancers(state);
     if (fresh && !state.boss && !this.sandbox && !this.testRun && this.graveFrom && this.graveFrom.depth === depth) this.placeGrave(state, this.graveFrom);
     for (const m of this.monsters) {
       m.fromX = m.x;
@@ -784,7 +804,7 @@ export class Game {
   private spawnMonsters(rooms: Room[]): void {
     const spawns = spawnsForDepth(this.depth);
     const totalWeight = spawns.entries.reduce((sum, e) => sum + e.weight, 0);
-    const quiet = new Set((this.current.themes ?? []).filter((t) => t.id === "chapelle" || t.id === "musee").map((t) => rooms[t.room]));
+    const quiet = new Set((this.current.themes ?? []).filter((t) => ["chapelle", "musee", "cimetiere", "embaumement", "bal", "cuisineSpores"].includes(t.id)).map((t) => rooms[t.room]));
     rooms.slice(1).forEach((room) => {
       // La chapelle des os : personne n'y entre.
       if (quiet.has(room)) return;
@@ -922,6 +942,8 @@ export class Game {
 
   /** Coup du héros qui porte (épée, tir) : le gisant couché se lève, l'acolyte qui chante se tait, sonné. */
   private struckByHero(m: Actor, hit: boolean): void {
+    // Un danseur du bal macabre attaqué : la musique s'arrête.
+    if (m.dance !== undefined) this.stopBall("struck");
     // LA TISSEUSE TOUCHÉE S'ÉVEILLE (Thomas, 2026-11-26 : « on pouvait la taper avant de lancer le combat, surtout avec
     // l'elfe ») : coup ou flèche, même de loin, elle sait d'où ça vient et y va.
     if (m.boss && m.defId === "tisseuse" && !this.peaceful) {
@@ -2971,6 +2993,9 @@ export class Game {
     // Un bruit localisé se voit à l'écran (des ondes qui partent de l'endroit).
     if (at) this.events.push({ type: "noise", x: at.x, y: at.y, points });
     if (at) this.hushMushrooms(at);
+    // Un bruit près du bal macabre arrête la musique.
+    const ball = state.ball;
+    if (at && ball && !ball.stopped && points >= 2 && Math.max(Math.abs(at.x - ball.center.x), Math.abs(at.y - ball.center.y)) <= 6) this.stopBall("noise");
     state.alarm = Math.min(100, state.alarm + points);
     while (state.alarmStage < RULES.alarmStages.length && state.alarm >= RULES.alarmStages[state.alarmStage]) {
       state.alarmStage++;
@@ -4030,6 +4055,10 @@ export class Game {
         plumeau: f.plumeau,
         clavicule: f.clavicule,
         osselet: f.osselet,
+        fossoyeur: f.fossoyeur,
+        bandelette: f.bandelette,
+        boletus: f.boletus,
+        ball: f.ball,
         restful: f.restful,
         nights: f.nights,
         moonFlashes: f.moonFlashes,
@@ -4082,6 +4111,10 @@ export class Game {
       plumeau: this.plumeauMemory,
       clavicule: this.claviculeMemory,
       osselet: this.osseletMemory,
+      fossoyeur: this.fossoyeurMemory,
+      bandelette: this.bandeletteMemory,
+      boletus: this.boletusMemory,
+      embalmed: this.embalmed,
       quest: this.quest,
       parkedQuests: this.parkedQuests,
       specialSections: this.specialSections,
@@ -4177,6 +4210,10 @@ export class Game {
         plumeau: f.plumeau,
         clavicule: f.clavicule,
         osselet: f.osselet,
+        fossoyeur: f.fossoyeur,
+        bandelette: f.bandelette,
+        boletus: f.boletus,
+        ball: f.ball,
         restful: f.restful,
         nights: f.nights,
         moonFlashes: f.moonFlashes,
@@ -4237,6 +4274,10 @@ export class Game {
     game.plumeauMemory = saved.plumeau ?? { met: 0 };
     game.claviculeMemory = saved.clavicule ?? { met: 0 };
     game.osseletMemory = saved.osselet ?? { met: 0 };
+    game.fossoyeurMemory = saved.fossoyeur ?? { met: 0 };
+    game.bandeletteMemory = saved.bandelette ?? { met: 0 };
+    game.boletusMemory = saved.boletus ?? { met: 0 };
+    game.embalmed = !!saved.embalmed;
     game.quest = saved.quest && QUEST_TASKS[saved.quest.id] ? saved.quest : null;
     game.parkedQuests = (saved.parkedQuests ?? []).filter((q) => !!QUEST_TASKS[q.id]);
     game.specialSections = saved.specialSections ?? [];
@@ -5418,6 +5459,28 @@ export class Game {
         this.events.push({ type: "special", what: "map", ...at });
         return;
       }
+      case "tombeFraiche": {
+        // Creuser une tombe fraîche (cimetière de Pelle-Creuse) : un objet, ou un mort qui se lève. Bruyant.
+        f.kind = "tombeCreusee";
+        this.map.touch(f.x, f.y);
+        this.raiseAlarm(FOSSOYEUR.digAlarm, at);
+        if (this.rng.chance(FOSSOYEUR.digLootChance)) {
+          const l = this.floorLoot();
+          drop(l.item, l.count);
+          this.events.push({ type: "special", what: "dig", ...at, item: l.item });
+          return;
+        }
+        const spot = this.nearFree(at);
+        if (spot) {
+          const m = this.newMonster(MONSTERS.squelette, spot.x, spot.y, false);
+          m.alerted = true;
+          m.fromX = m.x;
+          m.fromY = m.y;
+          this.monsters.push(m);
+        }
+        this.events.push({ type: "special", what: "digWake", ...at });
+        return;
+      }
       case "ciergeCrypte": {
         const c = this.current.crypt;
         if (!c || c.done) return used();
@@ -5484,6 +5547,13 @@ export class Game {
     for (let d = first; d < first + RULES.floorsPerSection; d++) usedInSection += this.floorPerks[d]?.lastStand ?? 0;
     const usedInRun = Object.values(this.floorPerks).reduce((n, p) => n + (p.lastStand ?? 0), 0);
     const spent = rampart >= 2 ? usedInSection >= 1 : usedInRun >= 1;
+    // Embaumé par Dame Bandelette (nuit du 27-28/11) : le premier coup mortel laisse à 1 PV, une seule fois.
+    if (this.hero.hp - damage <= 0 && this.embalmed) {
+      this.embalmed = false;
+      this.hero.hp = 1;
+      this.events.push({ type: "lastStand" });
+      return;
+    }
     if (this.hero.hp - damage <= 0 && rampart > 0 && !spent) {
       this.perks().lastStand++;
       this.hero.hp = Math.min(this.hero.maxHp, rampart >= 2 ? 5 : 1);
@@ -6856,7 +6926,7 @@ export class Game {
     this.npcsFlee();
     this.counterChatter();
     // Salle d'essai : Gluck et Sœur Osseuse reviennent quelques tours après être partis, pour montrer la scène suivante.
-    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule, this.current.osselet]) {
+    for (const gk of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule, this.current.osselet, this.current.fossoyeur, this.current.bandelette, this.current.boletus]) {
       if (gk && gk.gone && gk.backAt !== undefined && this.turn >= gk.backAt && !this.actorAt(gk.x, gk.y)) {
         Object.assign(gk, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false });
       }
@@ -7528,9 +7598,15 @@ export class Game {
       if ((state.themes ?? []).some((t) => t.id === "musee") && this.osseletMemory.met < 1) {
         options.push(() => (state.osselet = this.placeInTheme(state, "musee", new Rng(floorSeed(this.runSeed, depth) ^ 0x05e1)) ?? undefined));
       }
+      if ((state.themes ?? []).some((t) => t.id === "cimetiere") && this.fossoyeurMemory.met < 1) {
+        options.push(() => (state.fossoyeur = this.placeInTheme(state, "cimetiere", new Rng(floorSeed(this.runSeed, depth) ^ 0xf055)) ?? undefined));
+      }
+      if ((state.themes ?? []).some((t) => t.id === "embaumement") && this.bandeletteMemory.met < 1) {
+        options.push(() => (state.bandelette = this.placeInTheme(state, "embaumement", new Rng(floorSeed(this.runSeed, depth) ^ 0xba7d)) ?? undefined));
+      }
       for (const { o } of options.map((o) => ({ o, k: npcPick.next() })).sort((a, b) => a.k - b.k)) {
         o();
-        if (state.clavicule || state.osselet) break;
+        if (state.clavicule || state.osselet || state.fossoyeur || state.bandelette) break;
       }
       return;
     }
@@ -7542,13 +7618,14 @@ export class Game {
       // Vernis dans son hall d'exposition, le Maestro dans sa salle de concert (Thomas, 2026-11-18).
       if (this.vernisMemory.met < 1 || this.sandbox) options.push(() => (state.vernis = this.placeInTheme(state, "expo", new Rng(floorSeed(this.runSeed, depth) ^ 0x7e41)) ?? undefined));
       if (this.maestroMemory.met < 1 || this.sandbox) options.push(() => (state.maestro = this.placeInTheme(state, "concert", new Rng(floorSeed(this.runSeed, depth) ^ 0x3a57)) ?? undefined));
+      if (this.boletusMemory.met < 1 || this.sandbox) options.push(() => (state.boletus = this.placeInTheme(state, "cuisineSpores", new Rng(floorSeed(this.runSeed, depth) ^ 0xb017)) ?? undefined));
       if (this.sandbox) for (const place of options) place();
       else {
         // On ne garde que ceux dont la salle existe : on essaie dans un ordre tiré au sort, le premier placé gagne.
         const order = options.map((o) => ({ o, k: npcPick.next() })).sort((a, b) => a.k - b.k);
         for (const { o } of order) {
           o();
-          if (state.morillon || state.vernis || state.maestro) break;
+          if (state.morillon || state.vernis || state.maestro || state.boletus) break;
         }
       }
       return;
@@ -7598,7 +7675,7 @@ export class Game {
 
   /** Combien de fois on peut croiser ce PNJ dans une partie. */
   npcMax(id: NpcId): number {
-    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : id === "clavicule" ? CLAVICULE.maxEncounters : id === "osselet" ? 1 : id === "vernis" || id === "maestro" || id === "plumeau" ? 1 : KRIK.maxEncounters;
+    return id === "gluck" ? GLUCK.maxEncounters : id === "soeur" ? SOEUR.maxEncounters : id === "grum" ? GRUM.maxEncounters : id === "fifrelin" ? FIFRELIN.maxEncounters : id === "morillon" ? MORILLON.maxEncounters : id === "clavicule" ? CLAVICULE.maxEncounters : id === "osselet" || id === "fossoyeur" || id === "bandelette" || id === "boletus" ? 1 : id === "vernis" || id === "maestro" || id === "plumeau" ? 1 : KRIK.maxEncounters;
   }
 
   /** Avec Gluck, une statue CREUSE sur l'étage : rien ne la distingue des autres tant qu'il n'en a pas parlé. */
@@ -7609,7 +7686,7 @@ export class Game {
     // Ni sur un PNJ ni juste à côté (il ne doit pas se retrouver coincé dans un goulet), ni sur un objet, un monstre, un
     // motif au sol ou une flaque.
     const avoid = (x: number, y: number) =>
-      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
+      [state.gluck, state.soeur, state.krik, state.grum, state.fifrelin, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.fossoyeur, state.bandelette, state.boletus, state.merchant].some((p) => p && Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) ||
       state.ground.some((g) => g.x === x && g.y === y) ||
       this.monsters.some((m) => m.x === x && m.y === y) ||
       (state.motifs ?? []).some((m) => x >= m.x && x <= m.x + 1 && y >= m.y && y <= m.y + 1);
@@ -7665,9 +7742,12 @@ export class Game {
     this.plumeauMemory = { met: 0 };
     this.claviculeMemory = { met: 0 };
     this.osseletMemory = { met: 0 };
+    this.fossoyeurMemory = { met: 0 };
+    this.bandeletteMemory = { met: 0 };
+    this.boletusMemory = { met: 0 };
     this.fifrelinMemory = { met: 0 };
     this.quest = null;
-    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule, this.current.osselet]) {
+    for (const g of [this.current.gluck, this.current.soeur, this.current.krik, this.current.grum, this.current.fifrelin, this.current.morillon, this.current.vernis, this.current.maestro, this.current.plumeau, this.current.clavicule, this.current.osselet, this.current.fossoyeur, this.current.bandelette, this.current.boletus]) {
       if (!g) continue;
       Object.assign(g, { gone: false, backAt: undefined, opened: false, intro: undefined, pending: undefined, pendingLines: undefined, haggled: false, drumDone: false, drops: 0, gold: 0 });
     }
@@ -7696,7 +7776,7 @@ export class Game {
       !(state.krik && state.krik.x === x && state.krik.y === y) &&
       !(state.grum && state.grum.x === x && state.grum.y === y) &&
       !(state.morillon && state.morillon.x === x && state.morillon.y === y) &&
-      ![state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet].some((p) => p && p.x === x && p.y === y) &&
+      ![state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.fossoyeur, state.bandelette, state.boletus].some((p) => p && p.x === x && p.y === y) &&
       !(state.fifrelin && state.fifrelin.x === x && state.fifrelin.y === y) &&
       ![state.chicken, state.farmChicken].some((c) => c && !c.done && c.x === x && c.y === y)
     );
@@ -7887,7 +7967,7 @@ export class Game {
 
   /** Ce que ce PNJ sait du héros dans cette partie. */
   npcMemory(id: NpcId): { met: number } {
-    return id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : id === "vernis" ? this.vernisMemory : id === "maestro" ? this.maestroMemory : id === "plumeau" ? this.plumeauMemory : id === "clavicule" ? this.claviculeMemory : id === "osselet" ? this.osseletMemory : this.krikMemory;
+    return id === "fossoyeur" ? this.fossoyeurMemory : id === "bandelette" ? this.bandeletteMemory : id === "boletus" ? this.boletusMemory : id === "gluck" ? this.gluckMemory : id === "soeur" ? this.soeurMemory : id === "grum" ? this.grumMemory : id === "fifrelin" ? this.fifrelinMemory : id === "morillon" ? this.morillonMemory : id === "vernis" ? this.vernisMemory : id === "maestro" ? this.maestroMemory : id === "plumeau" ? this.plumeauMemory : id === "clavicule" ? this.claviculeMemory : id === "osselet" ? this.osseletMemory : this.krikMemory;
   }
 
   /** Peut-on parler à ce PNJ maintenant ? À côté de lui, et pas en plein combat. */
@@ -7921,12 +8001,12 @@ export class Game {
   /** La scène du PNJ, et le choix du joueur : on passe la main à Gluck ou à Sœur Osseuse. */
   npcScene(id: NpcId): { lines: string[]; choices: GluckChoice[] } {
     if (this.questWith(id)) return this.questScene(id);
-    return id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : id === "vernis" ? this.vernisScene() : id === "maestro" ? this.maestroScene() : id === "plumeau" ? this.plumeauScene() : id === "clavicule" ? this.claviculeScene() : id === "osselet" ? this.osseletScene() : this.krikScene();
+    return id === "fossoyeur" || id === "bandelette" || id === "boletus" ? this.nightScene(id) : id === "gluck" ? this.gluckScene() : id === "soeur" ? this.soeurScene() : id === "grum" ? this.grumScene() : id === "fifrelin" ? this.fifrelinScene() : id === "morillon" ? this.morillonScene() : id === "vernis" ? this.vernisScene() : id === "maestro" ? this.maestroScene() : id === "plumeau" ? this.plumeauScene() : id === "clavicule" ? this.claviculeScene() : id === "osselet" ? this.osseletScene() : this.krikScene();
   }
 
   npcChoose(id: NpcId, choice: string): GluckResult {
     if (this.questWith(id)) return this.questChoose(id, choice);
-    return id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : id === "vernis" ? this.vernisChoose(choice) : id === "maestro" ? this.maestroChoose(choice) : id === "plumeau" ? this.plumeauChoose(choice) : id === "clavicule" ? this.claviculeChoose(choice) : id === "osselet" ? this.osseletChoose(choice) : this.krikChoose(choice);
+    return id === "fossoyeur" || id === "bandelette" || id === "boletus" ? this.nightChoose(id, choice) : id === "gluck" ? this.gluckChoose(choice) : id === "soeur" ? this.soeurChoose(choice) : id === "grum" ? this.grumChoose(choice) : id === "fifrelin" ? this.fifrelinChoose(choice) : id === "morillon" ? this.morillonChoose(choice) : id === "vernis" ? this.vernisChoose(choice) : id === "maestro" ? this.maestroChoose(choice) : id === "plumeau" ? this.plumeauChoose(choice) : id === "clavicule" ? this.claviculeChoose(choice) : id === "osselet" ? this.osseletChoose(choice) : this.krikChoose(choice);
   }
 
   /**
@@ -9089,6 +9169,16 @@ export class Game {
       case "osselet_corne":
         leaves("massue_os", 1);
         break;
+      case "fossoyeur_ossements":
+        leaves("pelle", 1);
+        break;
+      case "bandelette_canopes":
+        this.embalmed = true;
+        this.events.push({ type: "feat", npc: "bandelette", id: "bandelette_embaume" });
+        break;
+      case "boletus_lueurs":
+        leaves("soupe_boletus", 2);
+        break;
       case "clavicule_cierges":
         leaves("potion_nuit", 1);
         break;
@@ -10080,7 +10170,7 @@ export class Game {
       state.traps.some((t) => t.x === x && t.y === y) ||
       state.ground.some((o) => o.x === x && o.y === y) ||
       state.monsters.some((m) => m.x === x && m.y === y) ||
-      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.merchant].some((p) => p && p.x === x && p.y === y));
+      ([state.gluck, state.soeur, state.krik, state.grum, state.morillon, state.vernis, state.maestro, state.plumeau, state.clavicule, state.osselet, state.fossoyeur, state.bandelette, state.boletus, state.merchant].some((p) => p && p.x === x && p.y === y));
     const before = reachable(map, state.start);
     const spots: Point[] = [];
     for (let ry = room.y + 1; ry + 5 <= room.y + room.h - 1; ry++) for (let rx = room.x + 1; rx + 4 <= room.x + room.w - 2; rx++) spots.push({ x: rx, y: ry });
@@ -10313,6 +10403,163 @@ export class Game {
   }
 
   // ---------- Section 3 (2026-11-19) : Maître Osselet, le conservateur du musée ----------
+
+  // ---------- PNJ de la nuit du 27-28/11 : Pelle-Creuse, Dame Bandelette (section 3), Boletus (section 2) ----------
+
+  /** Leur salle : le cimetière, l'embaumement, la cuisine aux spores. */
+  private nightHome(id: "fossoyeur" | "bandelette" | "boletus"): string {
+    return id === "fossoyeur" ? "cimetiere" : id === "bandelette" ? "embaumement" : "cuisineSpores";
+  }
+
+  nightScene(id: "fossoyeur" | "bandelette" | "boletus"): { lines: string[]; choices: GluckChoice[] } {
+    const g = this.npc(id);
+    if (!g) return { lines: [], choices: [] };
+    if (this.quest && QUEST_TASKS[this.quest.id].npc === id) return this.questScene(id);
+    g.opened = true;
+    const home = this.npcInTheme(g, this.nightHome(id));
+    const busy = this.quest ? "Une autre tâche en cours" : undefined;
+    if (id === "fossoyeur") {
+      return {
+        lines: home ? FOSSOYEUR.opening : FOSSOYEUR.away,
+        choices: [
+          { id: "ossements", label: "« Je vous rapporte vos os »", off: busy },
+          { id: "conseil", label: "« Comment creuser une tombe ? »", off: g.drumDone ? "Déjà demandé" : undefined },
+          { id: "leave", label: "Le laisser à ses tombes" },
+        ],
+      };
+    }
+    if (id === "bandelette") {
+      return {
+        lines: home ? BANDELETTE.opening : BANDELETTE.away,
+        choices: [
+          { id: "vases", label: "« Je retrouve vos vases »", off: busy },
+          { id: "remede", label: "Lui demander un remède", stat: "charisme", dc: BANDELETTE.remedyDc, off: g.haggled ? "Déjà demandé" : undefined },
+          { id: "leave", label: "Prendre congé (lentement)" },
+        ],
+      };
+    }
+    return {
+      lines: home ? BOLETUS.opening : BOLETUS.away,
+      choices: [
+        { id: "champis", label: "« Je vous cueille vos lueurs »", off: busy },
+        { id: "gouter", label: "Goûter la soupe", off: !home ? "La marmite est à la cuisine" : g.drumDone ? "Déjà goûtée" : undefined },
+        { id: "leave", label: "« Bon appétit »" },
+      ],
+    };
+  }
+
+  nightChoose(id: "fossoyeur" | "bandelette" | "boletus", choiceId: string): GluckResult {
+    const g = this.npc(id);
+    if (!g || !this.canTalk(id)) return { lines: [], done: true };
+    if (this.quest && QUEST_TASKS[this.quest.id].npc === id) return this.questChoose(id, choiceId);
+    const choice = this.nightScene(id).choices.find((c) => c.id === choiceId);
+    if (!choice || choice.off) return { lines: [], done: false };
+    const task = (quest: QuestTaskId, line: string): GluckResult => (this.giveTask(quest) ? { lines: [line], done: true } : { lines: [], done: false });
+    switch (choiceId) {
+      case "leave":
+        return {
+          lines: [id === "fossoyeur" ? "« Marchez doucement : il y a du monde sous vos pieds. »" : id === "bandelette" ? "« Au revoir… Revenez… dans un siècle… ou deux. »" : "« Revenez quand vous voulez ! La marmite ne s'éteint jamais. »"],
+          done: true,
+        };
+      case "ossements":
+        return task("fossoyeur_ossements", "« Ils brillent sur votre carte. Les os de mes clients ne savent pas se cacher. »");
+      case "vases":
+        return task("bandelette_canopes", "« Merci… Prenez… votre temps. Moi… j'ai… tout le mien. »");
+      case "champis":
+        return task("boletus_lueurs", "« Elles brillent, vous les verrez de loin. Pas trop de lumière dessus, elles sont timides. »");
+      case "conseil":
+        g.drumDone = true;
+        this.events.push({ type: "feat", npc: "fossoyeur", id: "fossoyeur_conseil" });
+        return { lines: ["« Une tombe fraîche, la terre est meuble : on la touche, on creuse. »", "« Parfois on trouve un trésor. Parfois le client n'est pas d'accord. »"], done: false };
+      case "remede": {
+        const roll = this.dialogueRoll(choice.stat!, GLUCK.dc[choice.dc!]);
+        g.haggled = true;
+        if (!roll.success) return { lines: ["« Un remède… ? Je n'embaume… que les morts… Revenez… morts. »"], roll, done: false };
+        this.hero.hp = this.hero.maxHp;
+        this.events.push({ type: "feat", npc: "bandelette", id: "bandelette_remede" });
+        return { lines: ["(Elle vous enduit d'un baume qui sent la myrrhe et la poussière.)", "« Voilà… Comme neuf… Enfin… comme vivant. » (Tous vos PV.)"], roll, done: false };
+      }
+      case "gouter": {
+        g.drumDone = true;
+        if (this.rng.chance(0.5)) {
+          this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + BOLETUS.tasteHeal);
+          this.events.push({ type: "feat", npc: "boletus", id: "boletus_gouter" });
+          return { lines: ["(Épais, chaud, ça pique un peu. Vous vous sentez mieux.)", `« Alors ? ALORS ? » (+${BOLETUS.tasteHeal} PV)`], done: false };
+        }
+        this.hero.stuck = Math.max(this.hero.stuck ?? 0, 1);
+        return { lines: ["(Une bouffée de spores vous monte au nez. Vous bâillez… et vous vous endormez debout, un instant.)", "« Ah. Trop de vesse-de-loup. Je note. »"], done: false };
+      }
+      default:
+        return { lines: [], done: false };
+    }
+  }
+
+  /**
+   * LE BAL MACABRE (nuit du 27-28/11) : 4 à 6 squelettes dansent en rond sur la piste. Ils ne voient pas le héros tant
+   * que la musique joue ; un bruit dans la salle ou à côté, un coup porté à l'un d'eux, ou un héros pris à rôder entre
+   * eux (jet de discrétion), et la musique s'arrête : tous attaquent. Un objet rare attend au milieu de la piste.
+   */
+  private placeDancers(state: FloorState): void {
+    const ball = state.ball;
+    if (!ball || ball.stopped) return;
+    const rng = new Rng((this.runSeed ^ 0xba11) + this.depth * 131);
+    const n = rng.int(4, 6);
+    const step = ball.ring.length / n;
+    for (let k = 0; k < n; k++) {
+      const i = Math.floor(k * step) % ball.ring.length;
+      const c = ball.ring[i];
+      if (state.monsters.some((m) => occupies(m, c.x, c.y))) continue;
+      const m = this.newMonster(MONSTERS.squelette, c.x, c.y, false);
+      m.dance = i;
+      m.alerted = false;
+      state.monsters.push(m);
+    }
+    const pool = lootPool(this.depth, (k) => k !== "gold" && k !== "gem", "rare");
+    if (pool.length > 0 && !state.ground.some((g) => g.x === ball.center.x && g.y === ball.center.y)) state.ground.push({ x: ball.center.x, y: ball.center.y, item: pool[rng.int(0, pool.length - 1)], count: 1 });
+  }
+
+  /** Un pas de danse : chacun passe à la place suivante de l'anneau (si elle est libre). */
+  private danceStep(m: Actor): void {
+    const ball = this.current.ball;
+    if (!ball || ball.stopped) {
+      m.dance = undefined;
+      return;
+    }
+    // Le héros rôde entre les danseurs (à une case de l'un d'eux) : un jet de discrétion par tour, sinon la musique s'arrête.
+    const near = gapBetween(m, this.hero) <= 1;
+    if (near && this.danceCheckedOn !== this.turn) {
+      this.danceCheckedOn = this.turn;
+      const d20 = this.rng.int(1, 20);
+      if (d20 === 1 || (d20 !== 20 && d20 + this.stealthBonus() < RULES.ballStealthDc)) return this.stopBall("seen");
+    }
+    const next = (m.dance! + 1) % ball.ring.length;
+    const c = ball.ring[next];
+    if (this.map.isWalkable(c.x, c.y) && !this.actorAt(c.x, c.y)) {
+      m.fromX = m.x;
+      m.fromY = m.y;
+      this.faceToward(m, c);
+      m.x = c.x;
+      m.y = c.y;
+      m.dance = next;
+    }
+  }
+
+  private danceCheckedOn = -1;
+
+  /** La musique s'arrête : tous les danseurs se tournent vers le héros. */
+  private stopBall(why: "seen" | "noise" | "struck"): void {
+    const ball = this.current.ball;
+    if (!ball || ball.stopped) return;
+    ball.stopped = true;
+    for (const m of this.monsters) {
+      if (m.dance === undefined) continue;
+      m.dance = undefined;
+      m.alerted = true;
+      m.asleep = false;
+      this.faceToward(m, this.hero);
+    }
+    this.events.push({ type: "ball", what: why, x: ball.center.x, y: ball.center.y });
+  }
 
   osseletScene(): { lines: string[]; choices: GluckChoice[] } {
     const g = this.npc("osselet");
@@ -11114,6 +11361,11 @@ export class Game {
     for (const m of this.monsters) {
       if (m.deaf || m.petrified || m.alerted) continue;
       const d = Math.max(Math.abs(m.x - at.x), Math.abs(m.y - at.y));
+      // Un danseur du bal qui entend le combat : c'est tout le bal qui s'arrête.
+      if (m.dance !== undefined) {
+        if (d <= RULES.combatWakeRadius) this.stopBall("noise");
+        continue;
+      }
       if (d > RULES.combatWakeRadius || (!m.asleep && (d > RULES.combatHearRadius || !hasLineOfSight(this.map, m, at)))) continue;
       if (m.arena && m.arena !== "duel") continue;
       m.asleep = false;
@@ -12323,6 +12575,11 @@ export class Game {
       }
       if (m.effigy) {
         this.effigyWakes(m);
+        continue;
+      }
+      // Bal macabre : il danse tant que la musique joue.
+      if (m.dance !== undefined && !m.alerted) {
+        this.danceStep(m);
         continue;
       }
       if (m.prone) {

@@ -1,3 +1,4 @@
+import type { NpcId } from "../core/game";
 /**
  * Tâches des quêtes (Thomas, 2026-11-12 : « une logique de task dans les quêtes, pas juste un dialogue ; les quêtes
  * génèrent des objectifs en fonction des choix de dialogue ; les objectifs ne sont pas accessibles avant la quête ;
@@ -42,10 +43,13 @@ export type QuestTaskId =
   | "plumeau_clef"
   | "clavicule_cranes"
   | "osselet_corne"
+  | "fossoyeur_ossements"
+  | "bandelette_canopes"
+  | "boletus_lueurs"
   | "clavicule_cierges";
 
 export interface QuestTaskDef {
-  npc: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet";
+  npc: NpcId;
   /** Quête « kill » : ce qui compte (les Kobolds par défaut ; les squelettes brisés pour Sœur Clavicule). */
   targets?: "squelettes";
   /** kill : vaincre ; fetch : rapporter ; statue : briser ; smoke : enfumer ; enter : entrer dans la zone ; count : un
@@ -293,6 +297,37 @@ export const QUEST_TASKS: Record<QuestTaskId, QuestTaskDef> = {
     failed: "Plumeau reste enchaîné à son mur.",
   },
   // Section 3, la chapelle des os (Thomas, 2026-11-19 : « Ok ») : Sœur Clavicule.
+  // Nuit du 27-28/11 (claude/BRIEF_SECTION4_ET_S3.md).
+  fossoyeur_ossements: {
+    npc: "fossoyeur",
+    kind: "collect",
+    items: ["os_crane", "os_femur", "os_main"],
+    goal: "Rapporter les trois os volés {0}/{1}",
+    back: "Rendre les os à Pelle-Creuse",
+    waiting: "« Un crâne d'abbé, un fémur de chevalier, une main de nonne. Le culte les a semés dans l'étage. »",
+    thanks: ["« Mes clients ! Au complet ! Ils vont enfin dormir. »", "(Il recloue les trois tombes en sifflotant.)", "« Tenez, ma vieille pelle. Elle a enterré plus de morts que la peste. »"],
+    failed: "Les tombes de Pelle-Creuse restent incomplètes.",
+  },
+  bandelette_canopes: {
+    npc: "bandelette",
+    kind: "collect",
+    items: ["vase_chacal", "vase_faucon", "vase_babouin", "vase_serpent"],
+    goal: "Retrouver les vases canopes {0}/{1}",
+    back: "Rendre les vases à Dame Bandelette",
+    waiting: "« Chacal… faucon… babouin… serpent… Ils brillent… sur votre carte… je crois. »",
+    thanks: ["« Mes vases… Tous les quatre… »", "(Elle les aligne sur l'étagère, très, très lentement.)", "« Approchez… Je vais vous… embaumer. Un peu. Juste… assez. » (Le prochain coup mortel vous laissera à 1 PV.)"],
+    failed: "Les vases de Dame Bandelette restent perdus.",
+  },
+  boletus_lueurs: {
+    npc: "boletus",
+    kind: "collect",
+    items: ["champi_azur", "champi_rubis", "champi_dore"],
+    goal: "Cueillir les trois lueurs {0}/{1}",
+    back: "Rapporter les lueurs à Boletus",
+    waiting: "« L'azur, le rubis, le doré. Elles luisent : on les voit de loin. »",
+    thanks: ["« Parfait ! Dans la marmite ! »", "(Ça bouillonne, ça siffle, ça sent la forêt après la pluie.)", "« Deux bols de soupe de la lune, pour la route. »"],
+    failed: "La soupe de Boletus attendra.",
+  },
   osselet_corne: {
     npc: "osselet",
     kind: "fetch",

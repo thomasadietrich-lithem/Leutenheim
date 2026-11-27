@@ -2,6 +2,7 @@ import { Rng } from "../core/rng";
 import { RULES } from "../data/rules";
 import { FURNITURE_KINDS } from "../data/themedRooms";
 import { besideOpening, blocksPassage, Furniture, freeCell } from "./furnish";
+import { furnishBall, furnishCemetery, furnishEmbalming } from "./nuit";
 import { Floor, Room } from "./generator";
 import { Point, Tile } from "./map";
 
@@ -191,7 +192,7 @@ function roomOneBlock(floor: Floor, room: Room): boolean {
   return seen.size === cells.length;
 }
 
-export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = [], forceSpecial: false | "chapel" | "museum" = false): { chapel?: number; museum?: number } {
+export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng, blocked: Set<string> = new Set(), avoidRooms: number[] = [], forceSpecial: false | "chapel" | "museum" = false): { chapel?: number; museum?: number; cemetery?: number; embalming?: number; ball?: { room: number; center: Point; ring: Point[] } } {
   const { map, rooms, start } = floor;
   // Plus de torche ni de cheminée : la lune seule éclaire.
   floor.torches.splice(0, floor.torches.length);
@@ -283,11 +284,38 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
     }
   }
 
+  // ---------- Nuit du 27-28/11 : le cimetière intérieur, la salle d'embaumement, le bal macabre ----------
+  // Avec leur propre hasard, un de chaque au plus, dans des salles libres assez grandes.
+  const nrng = new Rng((rng.int(0, 0x7fffffff) ^ 0x2a7e11) >>> 0);
+  const taken = new Set<number>([startRoom, stairsRoom, ...(chapel !== undefined ? [chapel] : []), ...(museum !== undefined ? [museum] : []), ...avoidRooms]);
+  const pickRoom = (minW: number, minH: number, furnish: (room: Room) => boolean): number | undefined => {
+    const fits = rooms.map((_, i) => i).filter((i) => i !== 0 && !taken.has(i) && rooms[i].w >= minW && rooms[i].h >= minH);
+    for (let k = fits.length - 1; k > 0; k--) {
+      const j = nrng.int(0, k);
+      [fits[k], fits[j]] = [fits[j], fits[k]];
+    }
+    for (const i of fits) {
+      if (furnish(rooms[i])) {
+        taken.add(i);
+        return i;
+      }
+    }
+    return undefined;
+  };
+  const cemetery = nrng.chance(RULES.cemeteryChance) ? pickRoom(7, 5, (r) => furnishCemetery(floor, r, nrng, furniture)) : undefined;
+  const embalming = nrng.chance(RULES.embalmingChance) ? pickRoom(6, 5, (r) => furnishEmbalming(floor, r, nrng, furniture)) : undefined;
+  let ball: { room: number; center: Point; ring: Point[] } | undefined;
+  if (nrng.chance(RULES.ballChance)) {
+    let got: { center: Point; ring: Point[] } | null = null;
+    const index = pickRoom(7, 7, (r) => (got = furnishBall(floor, r, nrng, furniture)) !== null);
+    if (index !== undefined && got) ball = { room: index, ...(got as { center: Point; ring: Point[] }) };
+  }
+
   // ---------- Mobilier ----------
   const count = new Map<string, number>();
   rooms.forEach((room, index) => {
     // Ni mobilier dans une salle à énigme (avoidRooms).
-    if (index === startRoom || index === chapel || index === museum || avoidRooms.includes(index) || room.w < 4 || room.h < 3) return;
+    if (index === startRoom || index === chapel || index === museum || index === cemetery || index === embalming || index === ball?.room || avoidRooms.includes(index) || room.w < 4 || room.h < 3) return;
     for (let k = rng.int(1, room.w * room.h >= 30 ? 3 : 2); k > 0; k--) {
       const choices = PIECES.filter((p) => (count.get(p.kind) ?? 0) < (p.max ?? 99));
       let pick = rng.next() * choices.reduce((s, p) => s + p.weight, 0);
@@ -295,7 +323,7 @@ export function decorateOssuaire(floor: Floor, furniture: Furniture[], rng: Rng,
       if (placePiece(floor, furniture, rng, room, piece.kind, piece.wall)) count.set(piece.kind, (count.get(piece.kind) ?? 0) + 1);
     }
   });
-  return { chapel, museum };
+  return { chapel, museum, cemetery, embalming, ball };
 }
 
 function placePiece(floor: Floor, furniture: Furniture[], rng: Rng, room: Room, kind: string, wall: boolean): boolean {

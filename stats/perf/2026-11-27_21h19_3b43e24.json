@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-27T21:19:55.587Z",
+ "commit": "3b43e24",
+ "note": "nuit : cimetière, embaumement, bal macabre, cuisine aux spores, 3 PNJ",
+ "logic": {
+  "tickMs": 4.17,
+  "lightMs": 1.91,
+  "visionMs": 0.65
+ },
+ "scenes": {
+  "immobile": {
+   "n": 64,
+   "avg": 38.3,
+   "p95": 66.7,
+   "max": 133.4,
+   "fps": 26,
+   "js": 21
+  },
+  "marche": {
+   "n": 176,
+   "avg": 28.4,
+   "p95": 49.9,
+   "max": 50.1,
+   "fps": 35,
+   "js": 9
+  },
+  "retour": {
+   "n": 193,
+   "avg": 25.8,
+   "p95": 33.4,
+   "max": 50,
+   "fps": 39,
+   "js": 7
+  },
+  "zoom": {
+   "n": 119,
+   "avg": 22.8,
+   "p95": 50,
+   "max": 116.8,
+   "fps": 44,
+   "js": 31
+  },
+  "combat": {
+   "n": 228,
+   "avg": 18.1,
+   "p95": 16.8,
+   "max": 166.6,
+   "fps": 55,
+   "js": 22
+  },
+  "donjon": {
+   "n": 286,
+   "avg": 17.4,
+   "p95": 16.7,
+   "max": 83.4,
+   "fps": 58,
+   "js": 19
+  }
+ },
+ "errors": []
+}

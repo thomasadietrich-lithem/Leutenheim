@@ -1,3 +1,4 @@
+import type { NpcId } from "./game";
 import type { QuestTaskId } from "../data/quests";
 import { AttackResult } from "./combat";
 import { Actor } from "../entities/actor";
@@ -63,7 +64,7 @@ export type GameEvent =
   | { type: "blessEnd" }
   /** Gluck : le héros arrive à côté de lui (la conversation s'ouvre), ou il s'en va. */
   /** Gluck : la conversation s'ouvre, ou il part (« Pouf ! », petit nuage) en laissant tomber ses pommes autour de lui. */
-  | { type: "npc"; who: "gluck" | "soeur" | "krik" | "grum" | "fifrelin" | "morillon" | "vernis" | "maestro" | "plumeau" | "clavicule" | "osselet"; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
+  | { type: "npc"; who: NpcId; what: "talk" | "leave"; fled?: "fire" | "gas"; gold?: number; x?: number; y?: number; drops?: { item: ItemId; x: number; y: number; count: number }[] }
   /** Une statue : on la regarde (`look`), ou on frappe la statue creuse (jet de force ; réussi : elle s'effondre). */
   | { type: "statue"; x: number; y: number; look?: boolean; grille?: boolean; d20?: number; bonus?: number; total?: number; success?: boolean }
   /** Chance (Sœur Osseuse) : un 1 naturel du héros est relancé. */
@@ -139,7 +140,7 @@ export type GameEvent =
   /** Le bras du Colosse balaie le héros : repoussé, à terre. */
   | { type: "swept"; fromX: number; fromY: number; x: number; y: number }
   /** Les salles spéciales (2026-11-26) : ce qui s'y passe (puits, autel, miroir, festin, carte, crypte). */
-  | { type: "special"; what: "wellPoor" | "wellNothing" | "wellItem" | "wellBless" | "wellRare" | "altarNoFood" | "altar" | "altarRare" | "mirror" | "feast" | "feastWake" | "map" | "candle" | "cryptWrong" | "cryptOpen" | "used"; x: number; y: number; d20?: number; item?: ItemId }
+  | { type: "special"; what: "wellPoor" | "wellNothing" | "wellItem" | "wellBless" | "wellRare" | "altarNoFood" | "altar" | "altarRare" | "mirror" | "feast" | "feastWake" | "map" | "candle" | "cryptWrong" | "cryptOpen" | "used" | "dig" | "digWake"; x: number; y: number; d20?: number; item?: ItemId }
   /** On lit une affiche du culte du poulet. */
   | { type: "affiche"; text: string }
   /** L'armure du Guerrier réveille un dormeur tout près. */
@@ -236,7 +237,9 @@ export type GameEvent =
   /** Le squelette à butin, fouillé : l'or, et parfois un objet. */
   | { type: "skeleton"; x: number; y: number; gold: number; item?: ItemId }
   /** Une mission réussie hors tâche (succès de quête) : Plumeau libéré par la force, registre lu ; pomme dorée volée. */
-  | { type: "feat"; npc: "plumeau" | "vernis" | "clavicule" | "osselet" | "morillon"; id: string }
+  /** Bal macabre : la musique s'arrête (le héros est vu, un bruit, un coup porté). */
+  | { type: "ball"; what: "seen" | "noise" | "struck"; x: number; y: number }
+  | { type: "feat"; npc: "plumeau" | "vernis" | "clavicule" | "osselet" | "morillon" | "fossoyeur" | "bandelette" | "boletus"; id: string }
   /** Artefacts qui s'utilisent : faux mur peint (puis effacé), diapason qui vibre. */
   | { type: "artifact"; what: "paint" | "unpaint" | "fork"; x?: number; y?: number; traps?: number; secret?: boolean }
   /** Rang II des voies (2026-11-17) : riposte, tourbillon (ennemis touchés), charge, cri de guerre (ennemis touchés, fuyards). */

@@ -80,6 +80,9 @@ export interface SandboxFloor extends Floor {
   enigmas?: import("../core/floor").Enigma[];
   /** La crypte aux trois cierges (zone d'essai des salles spéciales). */
   crypt?: import("../core/floor").FloorState["crypt"];
+  /** Nuit du 27-28/11 : le bal macabre de la zone d'essai, et les PNJ à poser dans leurs salles à thème. */
+  ball?: import("../core/floor").FloorState["ball"];
+  nightNpcs?: boolean;
   /** Sans les trucs fun de la section 1 (porte du compteur, poulet, ferme) ni PNJ. */
   plain?: boolean;
 }

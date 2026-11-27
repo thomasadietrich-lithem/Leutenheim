@@ -194,6 +194,12 @@ export const RULES = {
   effigyRestTurns: 3,
   /** La chapelle des os (salle spéciale de la section 3) : chance par étage (C). */
   chapelChance: 0.6,
+  /** Ossuaire, nuit du 27-28/11 : chance par étage du cimetière intérieur, de la salle d'embaumement, du bal macabre. */
+  cemeteryChance: 0.45,
+  embalmingChance: 0.45,
+  ballChance: 0.35,
+  /** Bal macabre : jet de discrétion (d20 + discrétion) pour rôder entre les danseurs sans être vu. */
+  ballStealthDc: 11,
   /** Le musée (salle spéciale de la section 3) : chance par étage (C). */
   museumChance: 0.9,
   /** Potion de gel (Thomas, 2026-11-19, C) : tours de gel, et le givre au sol. */

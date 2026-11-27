@@ -1,4 +1,5 @@
 import { CHAMPI_TUNE } from "./render/champiTune";
+import { NUIT } from "./render/sprites/nuit";
 import { medalLine, onEvents, playUnlock, renderWall, splitMedal, type Unlock } from "./ui/achievements";
 import { medal } from "./ui/medals";
 import { portrait } from "./ui/portraits";
@@ -1134,13 +1135,22 @@ function reveal(e: GameEvent): void {
       cryptWrong: "Les cierges s'éteignent d'un coup… et quelque chose sort du sarcophage !",
       cryptOpen: `Le sarcophage s'ouvre dans un grondement : ${name}.`,
       used: "Il n'y a plus rien à en tirer.",
+      dig: `Vous creusez la tombe fraîche… et trouvez : ${name}.`,
+      digWake: "Vous creusez la tombe fraîche… le client n'est pas d'accord : il se lève !",
     };
     if (e.d20 !== undefined) landDie(e.d20, e.what === "wellNothing" || e.what === "feastWake" ? "miss" : "hit", false);
     logLines.push(lines[e.what]);
     renderLog();
-    if (e.what === "mirror" || e.what === "cryptWrong") sfx.play("break");
+    if (e.what === "mirror" || e.what === "cryptWrong" || e.what === "digWake") sfx.play("break");
+    else if (e.what === "dig") sfx.play("coin");
     else if (e.what === "wellBless" || e.what === "altar" || e.what === "altarRare" || e.what === "cryptOpen" || e.what === "wellRare") sfx.play("unlock");
     else sfx.play("click");
+  } else if (e.type === "ball") {
+    // Le bal macabre s'arrête (nuit du 27-28/11).
+    renderer.addFloatingText(e.x, e.y, "La musique s'arrête !", "#bfe0ff");
+    logLines.push(e.what === "seen" ? "Un danseur vous a vu : la musique s'arrête net. Toutes les têtes se tournent vers vous." : e.what === "struck" ? "Vous frappez un danseur : la musique s'arrête. Le bal se tourne vers vous." : "Un bruit : la musique s'arrête. Le bal se tourne vers vous.");
+    renderLog();
+    sfx.play("bell");
   } else if (e.type === "webSpit") {
     renderer.addFloatingText(e.x, e.y, "Englué !", "#e8e4d8");
     sfx.play("slide");
@@ -2803,9 +2813,12 @@ function openTalk(who: NpcId): void {
   talkLater = [];
   $("talk").hidden = false;
   $("talk").scrollTop = 0;
-  $("talk-name").textContent = tr(who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : who === "vernis" ? "Vernis" : who === "maestro" ? "Le Maestro" : who === "plumeau" ? "Plumeau" : who === "clavicule" ? "Sœur Clavicule" : who === "osselet" ? "Maître Osselet" : "Krik");
+  $("talk-name").textContent = tr(who === "fossoyeur" ? "Pelle-Creuse" : who === "bandelette" ? "Dame Bandelette" : who === "boletus" ? "Boletus" : who === "gluck" ? "Gluck" : who === "soeur" ? "Sœur Osseuse" : who === "grum" ? "Grum" : who === "fifrelin" ? "Fifrelin" : who === "morillon" ? "Morillon" : who === "vernis" ? "Vernis" : who === "maestro" ? "Le Maestro" : who === "plumeau" ? "Plumeau" : who === "clavicule" ? "Sœur Clavicule" : who === "osselet" ? "Maître Osselet" : "Krik");
+  const nightFace = who === "fossoyeur" ? NUIT.pelleCreuse0 : who === "bandelette" ? NUIT.bandelette0 : who === "boletus" ? NUIT.boletus0 : null;
   $("talk-face").replaceChildren(
-    who === "gluck"
+    nightFace
+      ? buildIcon(nightFace.rows, nightFace.palette)
+      : who === "gluck"
       ? buildIcon(SCHRAT.idleDown[0], GLUCK_PALETTE)
       : who === "soeur"
         ? buildIcon(SOEUR_SPRITE[0], SOEUR_PALETTE)

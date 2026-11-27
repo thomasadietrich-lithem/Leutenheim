@@ -198,6 +198,11 @@ export const RULES = {
   cemeteryChance: 0.45,
   embalmingChance: 0.45,
   ballChance: 0.35,
+  /** Section 4, le Gouffre : part des PV max perdue en tombant dans le vide ; la Vespère fuit une torche à N cases,
+   *  et repart N tours dans le noir après avoir mordu. */
+  chasmFallShare: 0.3,
+  vespereTorchFear: 2,
+  vespereRetreat: 2,
   /** Bal macabre : jet de discrétion (d20 + discrétion) pour rôder entre les danseurs sans être vu. */
   ballStealthDc: 11,
   /** Le musée (salle spéciale de la section 3) : chance par étage (C). */

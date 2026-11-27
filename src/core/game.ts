@@ -611,6 +611,8 @@ export class Game {
       if (sandboxFloor?.enigmas) state.enigmas = JSON.parse(JSON.stringify(sandboxFloor.enigmas));
       if (sandboxFloor?.crypt) state.crypt = JSON.parse(JSON.stringify(sandboxFloor.crypt));
       if (sandboxFloor?.ball) state.ball = JSON.parse(JSON.stringify(sandboxFloor.ball));
+      if (sandboxFloor?.gaps) state.gaps = { ...sandboxFloor.gaps };
+      if (sandboxFloor?.rotten) state.rotten = { ...sandboxFloor.rotten };
       if (sandboxFloor?.nightNpcs) {
         state.fossoyeur = this.placeInTheme(state, "cimetiere", new Rng(this.runSeed ^ 0xf055)) ?? undefined;
         state.bandelette = this.placeInTheme(state, "embaumement", new Rng(this.runSeed ^ 0xba7d)) ?? undefined;
@@ -3970,7 +3972,7 @@ export class Game {
     if (!state.boss) unblockStairs(state);
     // Torches dans les couloirs (Thomas, 2026-11-17) : une torche posée sur le mur d'une salle, quand un couloir a été
     // creusé ensuite à travers ce mur, restait accrochée… au sol du couloir. On ne garde que celles qui sont sur un mur.
-    if (state.torches.some((t) => state.map.get(t.x, t.y) !== Tile.Wall)) state.torches = state.torches.filter((t) => state.map.get(t.x, t.y) === Tile.Wall);
+    if (state.torches.some((t) => !t.lantern && state.map.get(t.x, t.y) !== Tile.Wall)) state.torches = state.torches.filter((t) => t.lantern || state.map.get(t.x, t.y) === Tile.Wall);
     // Anciennes parties : le coffre de l'alcôve de la nichée disparaît (il bloquait le retour par l'escalier).
     if (state.boss && (state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.Chest || state.map.get(state.boss.chest.x, state.boss.chest.y) === Tile.ChestOpen)) state.map.set(state.boss.chest.x, state.boss.chest.y, Tile.Floor);
     // Première arrivée au premier étage d'une nouvelle section : le texte d'arrivée (Thomas, 2026-11-15).
@@ -4059,6 +4061,8 @@ export class Game {
         bandelette: f.bandelette,
         boletus: f.boletus,
         ball: f.ball,
+        gaps: f.gaps,
+        rotten: f.rotten,
         restful: f.restful,
         nights: f.nights,
         moonFlashes: f.moonFlashes,
@@ -4214,6 +4218,8 @@ export class Game {
         bandelette: f.bandelette,
         boletus: f.boletus,
         ball: f.ball,
+        gaps: f.gaps,
+        rotten: f.rotten,
         restful: f.restful,
         nights: f.nights,
         moonFlashes: f.moonFlashes,
@@ -5321,6 +5327,114 @@ export class Game {
       this.specialSections.push(section);
       return;
     }
+  }
+
+  // ---------- Section 4, le Gouffre : passerelles, trouées, planches pourries, chute dans le vide ----------
+
+  /** Une trouée dans la rambarde de cette passerelle : on peut y pousser (et y être poussé) dans le vide. */
+  railGap(x: number, y: number): boolean {
+    return !!this.current.gaps?.[`${x},${y}`];
+  }
+
+  /** Une planche pourrie qu'on a repérée (elle a craqué) : dessinée plus sombre, fendue. */
+  rottenPlank(x: number, y: number): boolean {
+    return (this.current.rotten?.[`${x},${y}`] ?? -1) >= 2;
+  }
+
+  /** Le héros pose le pied sur une planche pourrie : elle craque (une première fois), puis cède (la seconde). */
+  private plankStep(): void {
+    const key = `${this.hero.x},${this.hero.y}`;
+    const r = this.current.rotten;
+    if (!r || r[key] === undefined || this.map.get(this.hero.x, this.hero.y) !== Tile.Bridge) return;
+    if (r[key] < 2) {
+      r[key] = 2;
+      this.map.touch(this.hero.x, this.hero.y);
+      this.events.push({ type: "chasm", what: "creak", x: this.hero.x, y: this.hero.y });
+      this.raiseAlarm(2, { x: this.hero.x, y: this.hero.y });
+      return;
+    }
+    delete r[key];
+    this.map.set(this.hero.x, this.hero.y, Tile.Chasm);
+    this.heroFallsIntoChasm();
+  }
+
+  /**
+   * CHUTE DANS LE VIDE (Thomas, 2026-11-27 : « on tombe à l'étage du dessous et on perd 30 % de sa vie ») : le héros perd
+   * 30 % de ses PV max (pas en dessous de 1) et se retrouve plus bas. Dans la zone d'essai, il n'y a pas d'étage du
+   * dessous : il reprend pied à l'entrée.
+   */
+  private heroFallsIntoChasm(): void {
+    const loss = Math.ceil(this.hero.maxHp * RULES.chasmFallShare);
+    const at = { x: this.hero.x, y: this.hero.y };
+    this.events.push({ type: "chasm", what: "hero", x: at.x, y: at.y, damage: loss });
+    this.hero.hp = Math.max(1, this.hero.hp - loss);
+    this.path = [];
+    const back = this.current.start;
+    this.hero.x = this.hero.fromX = back.x;
+    this.hero.y = this.hero.fromY = back.y;
+    this.updateVision();
+  }
+
+  /**
+   * Un VOLANT (la Vespère) : il passe au-dessus du vide comme au-dessus du sol. Il fond sur le héros, mord, et repart
+   * aussitôt dans le noir ; une torche tenue allumée le tient à distance (2 cases). Rien ne le pousse.
+   */
+  private flyerAct(m: Actor): void {
+    const hero = this.hero;
+    if (m.stunned) {
+      m.stunned--;
+      return;
+    }
+    const d = gapBetween(m, hero);
+    const def = MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef;
+    const free = (x: number, y: number) => {
+      const t = this.map.get(x, y);
+      return this.map.inBounds(x, y) && (t === Tile.Chasm || this.map.isWalkable(x, y)) && t !== Tile.DoorClosed && !this.actorAt(x, y) && !(hero.x === x && hero.y === y);
+    };
+    const stepBy = (score: (x: number, y: number) => number) => {
+      let best: Point | null = null;
+      let bestScore = Infinity;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const x = m.x + dx;
+        const y = m.y + dy;
+        if (!free(x, y)) continue;
+        const s = score(x, y) + (this.map.get(x, y) === Tile.Chasm ? -0.1 : 0);
+        if (s < bestScore) {
+          bestScore = s;
+          best = { x, y };
+        }
+      }
+      if (!best) return;
+      m.fromX = m.x;
+      m.fromY = m.y;
+      this.faceToward(m, best);
+      m.x = best.x;
+      m.y = best.y;
+    };
+    if (!m.alerted) {
+      if (d <= def.vision && this.isVisible(m.x, m.y) && hasLineOfSight(this.map, m, hero) && this.rng.chance(def.noticeChance)) {
+        m.alerted = true;
+        m.asleep = false;
+        this.faceToward(m, hero);
+        this.events.push({ type: "noticed", actor: m });
+        return;
+      }
+      if (!m.asleep && this.rng.chance(0.5)) stepBy(() => this.rng.next());
+      return;
+    }
+    const scared = this.torchLit() && d <= RULES.vespereTorchFear;
+    if ((m.fleeTurns ?? 0) > 0 || scared) {
+      if (m.fleeTurns) m.fleeTurns--;
+      stepBy((x, y) => -Math.max(Math.abs(x - hero.x), Math.abs(y - hero.y)));
+      return;
+    }
+    if (d <= 1) {
+      this.faceToward(m, hero);
+      this.monsterStrikes(m);
+      m.fleeTurns = RULES.vespereRetreat;
+      return;
+    }
+    stepBy((x, y) => Math.max(Math.abs(x - hero.x), Math.abs(y - hero.y)));
   }
 
   /** Le trou aux poulets de l'étage, s'il y en a un. */
@@ -6827,6 +6941,8 @@ export class Game {
         if (this.over) return true;
         this.enterWeb();
         this.crunch();
+        this.plankStep();
+        if (this.over) return true;
         this.iceSlide(left);
         if (this.over) return true;
         this.openNiche();
@@ -7056,6 +7172,19 @@ export class Game {
       for (let k = 0; k < distance; k++) {
         const to = { x: m.x + dx, y: m.y + dy };
         const t = this.map.get(to.x, to.y);
+        // LE VIDE (section 4) : sans cordage entre lui et le vide (bord d'un îlot, trouée d'une passerelle), il y tombe.
+        if (t === Tile.Chasm && !m.boss && !(MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.flies) {
+          if (this.map.get(m.x, m.y) !== Tile.Bridge || this.railGap(m.x, m.y)) {
+            m.x = to.x;
+            m.y = to.y;
+            this.events.push({ type: "chasm", what: "monster", actor: m, x: to.x, y: to.y });
+            m.hp = 0;
+            m.heroHurt = true;
+            moved = true;
+            break;
+          }
+          break;
+        }
         const solid = !this.map.isWalkable(to.x, to.y) || t === Tile.DoorClosed;
         if (!solid && !this.actorAt(to.x, to.y) && canStep(this.map, m.x, m.y, dx, dy)) {
           m.x = to.x;
@@ -11478,7 +11607,7 @@ export class Game {
   }
 
   /** Quelle salle d'essai (section 1 ou 2), choisie au menu avant de créer la partie. */
-  readonly sandboxSection: 1 | 2 | 3 | 4 = sandboxSection();
+  readonly sandboxSection: 1 | 2 | 3 | 4 | 5 = sandboxSection();
 
   /** Le décor de l'étage : « champi » (section 2, la champignonnière) ou celui de la section 1. */
   look(): "s1" | "champi" | "ossuaire" {
@@ -12577,6 +12706,13 @@ export class Game {
         this.effigyWakes(m);
         continue;
       }
+      // Section 4 : les volants passent au-dessus du vide.
+      if ((MONSTERS[m.defId as keyof typeof MONSTERS] as MonsterDef | undefined)?.flies) {
+        if (m.petrified) {
+          if (--m.petrified === 0) this.thaw(m);
+        } else this.flyerAct(m);
+        continue;
+      }
       // Bal macabre : il danse tant que la musique joue.
       if (m.dance !== undefined && !m.alerted) {
         this.danceStep(m);
@@ -12909,6 +13045,8 @@ export class Game {
    * les meubles bas (plantations, eau profonde, trou aux poulets, Thomas 2026-11-25) non : on tire par-dessus.
    */
   private stopsShot(c: Point): boolean {
+    // Le vide (section 4) : une flèche passe au-dessus.
+    if (this.map.get(c.x, c.y) === Tile.Chasm) return false;
     const low = this.map.get(c.x, c.y) === Tile.Furniture && /^(soil|morelRow|trouPoulets|eauProfonde)/.test(this.furnitureAt(c.x, c.y)?.kind ?? "");
     return !low && (!this.map.isWalkable(c.x, c.y) || this.map.blocksSight(c.x, c.y));
   }

@@ -8,6 +8,8 @@ export interface LightSource extends Point {
   faceY: number;
   /** Une cheminée plutôt qu'une torche. Éteinte (`lit: false`), elle n'éclaire pas. */
   hearth?: boolean;
+  /** Lanterne sur poteau (section 4, le Gouffre) : posée au sol, sans mur ; elle éclaire tout autour. */
+  lantern?: boolean;
   lit?: boolean;
   /** La salle de la torche : elle n'éclaire qu'elle (et ses murs), jamais de l'autre côté d'un mur ou d'une porte. */
   area?: { x: number; y: number; w: number; h: number };

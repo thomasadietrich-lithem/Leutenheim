@@ -159,6 +159,9 @@ export interface FloorState {
   fossoyeur?: GluckSpot;
   bandelette?: GluckSpot;
   boletus?: GluckSpot;
+  /** Section 4, le Gouffre : les trouées des rambardes (« x,y ») ; les planches pourries (« x,y » → 0 intacte d'aspect, 2 a craqué). */
+  gaps?: Record<string, true>;
+  rotten?: Record<string, number>;
   /** Le bal macabre (section 3) : la salle, le centre de la piste, les places des danseurs ; `stopped` : la musique s'est tue. */
   ball?: { room: number; center: Point; ring: Point[]; stopped?: boolean };
   /** Section 3 : bénédiction du repos (les squelettes abattus ne se relèvent plus sur l'étage) ; nuits (potion de nuit). */

@@ -144,3 +144,4 @@ Image moyenne en ms (processeur ×4, 412 × 915, densité 3, salle d'essai) ; pl
 | 2026-11-27_20h10 | 56930c1 | 28.5 | 24.9 | 24.5 | 26.9 | 16.7 | 19.1 | 0.8 | 0.3 | essai armures (amorti par coup) |
 | 2026-11-27_20h44 | 32cf21e | 24.9 | 25.5 | 26.2 | 19.6 | 18 | 18 | 2.61 | 0.93 | pixels nets (finesse = densité ÷ entier : 1,5 en densité 3), dézoom sans canevas recréé pendant le geste ; la mesure se fait désormais en salle d'essai section 1 (avant : menu ouvert) — NOUVELLE RÉFÉRENCE |
 | 2026-11-27_21h19 | 3b43e24 | 38.3 | 28.4 | 25.8 | 22.8 | 18.1 | 17.4 | 4.17 | 1.91 | nuit : cimetière, embaumement, bal macabre, cuisine aux spores, 3 PNJ |
+| 2026-11-27_21h30 | a65849c | 34.3 | 37.5 | 32.7 | 20 | 21.4 | 21.2 | 4.01 | 1.1 | section 4 (zone d'essai) : vide, passerelles, trouées, planches pourries, Vespère |

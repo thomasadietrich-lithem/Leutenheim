@@ -7797,3 +7797,46 @@ test("Nuit du 27-28/11 : Pelle-Creuse, Dame Bandelette, Boletus et leurs quêtes
     setSandboxSection(1);
   }
 });
+
+test("Section 4, le Gouffre (zone d'essai, 2026-11-27) : pousser dans le vide par une trouée, planche pourrie qui craque puis cède, la Vespère vole au-dessus du vide", () => {
+  setSandboxSection(5);
+  try {
+    const game = new Game(5, undefined, undefined, undefined, true);
+    // Un Kobold sur la trouée (31, 12), poussé vers l'ouest : il tombe dans le vide.
+    const k = game.monsters.find((m) => m.defId === "schrat")!;
+    assert.ok(k, "un Kobold");
+    k.x = k.fromX = 31;
+    k.y = k.fromY = 12;
+    game.hero.x = game.hero.fromX = 32;
+    game.hero.y = game.hero.fromY = 12;
+    game.map.set(32, 12, Tile.Bridge);
+    k.hp = 50;
+    const g = game as unknown as { resolvePush(m: unknown): void; pushBonus(): number };
+    for (let i = 0; i < 20 && game.monsters.includes(k); i++) g.resolvePush(k);
+    assert.ok(!game.monsters.includes(k), "tombé dans le vide");
+    // Une Vespère peut se trouver au-dessus du vide.
+    const v = game.monsters.find((m) => m.defId === "vespere")!;
+    assert.ok(v && game.map.get(v.x, v.y) === Tile.Chasm, "la Vespère vole au-dessus du vide");
+    // Planche pourrie en (42, 21) : un pas la fait craquer, le second la fait céder (chute : -30 % des PV, retour à l'entrée).
+    game.peaceful = true;
+    game.hero.x = game.hero.fromX = 41;
+    game.hero.y = game.hero.fromY = 21;
+    (game as unknown as { updateVision(): void }).updateVision();
+    const step = (x: number) => {
+      assert.ok(game.setDestination(x, 21, true), `aller en ${x}`);
+      for (let i = 0; i < 6 && game.path.length > 0; i++) game.tick();
+    };
+    step(42);
+    assert.ok(game.events.some((e) => e.type === "chasm" && e.what === "creak"), "elle craque");
+    assert.equal(game.map.get(42, 21), Tile.Bridge);
+    step(43);
+    const hp = game.hero.hp;
+    game.events.length = 0;
+    step(42);
+    assert.ok(game.events.some((e) => e.type === "chasm" && e.what === "hero"), "elle cède");
+    // (De retour à l'entrée, la zone d'essai se remet à neuf : la planche est de nouveau là, pour réessayer.)
+    assert.ok(game.hero.hp < hp && game.hero.hp >= 1, "des PV perdus");
+  } finally {
+    setSandboxSection(1);
+  }
+});

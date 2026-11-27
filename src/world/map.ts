@@ -22,6 +22,13 @@ export const Tile = {
   Gravel: 13,
   /** Flaque d'eau : on y marche ; le feu n'y prend pas, on s'y éteint. */
   Water: 14,
+  /**
+   * SECTION 4, LE GOUFFRE (Thomas, 2026-11-27) : le VIDE entre les îlots. On n'y marche pas, la vue passe au-dessus ;
+   * ce qui y tombe (poussé par une trouée de la rambarde, planche qui cède) tombe à l'étage du dessous.
+   */
+  Chasm: 15,
+  /** Passerelle de planches suspendue au-dessus du vide, bordée de cordages (sauf aux trouées). On y marche. */
+  Bridge: 16,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -82,7 +89,7 @@ export class GameMap {
   /** On peut y marcher. Une porte fermée s'ouvre en y entrant ; une porte verrouillée bloque. */
   isWalkable(x: number, y: number): boolean {
     const t = this.get(x, y);
-    return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar && t !== Tile.Furniture;
+    return t !== Tile.Wall && t !== Tile.DoorLocked && t !== Tile.Pillar && t !== Tile.Furniture && t !== Tile.Chasm;
   }
 
   /** Bloque la vue et la lumière : murs et portes non ouvertes. */

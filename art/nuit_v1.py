@@ -276,7 +276,25 @@ def myconid_chef(frame=0):
     return s.done()
 
 
+# ---------------- Section 4 : la Vespère (chauve-souris géante) ----------------
+
+def vespere(frame=0):
+    """Ailes hautes (0) ou basses (1) ; corps brun-violet, oreilles pointues, yeux rouges, crocs."""
+    s = Sprite(20, 16)
+    body, wing, wing_d = "spore_d", "coat_l", "coat"
+    s.r(8, 5, 4, 7, body).r(8, 4, 1, 2, body).r(11, 4, 1, 2, body).p(9, 7, "red").p(10, 7, "red").p(9, 10, "bone").p(10, 10, "bone")
+    if frame == 0:
+        s.r(1, 2, 7, 2, wing).r(2, 4, 6, 2, wing).r(4, 6, 4, 2, wing_d).r(12, 2, 7, 2, wing).r(12, 4, 6, 2, wing).r(12, 6, 4, 2, wing_d)
+        s.p(1, 1, wing_d).p(18, 1, wing_d)
+    else:
+        s.r(1, 8, 7, 2, wing).r(2, 6, 6, 2, wing).r(4, 10, 3, 2, wing_d).r(12, 8, 7, 2, wing).r(12, 6, 6, 2, wing).r(13, 10, 3, 2, wing_d)
+        s.p(1, 10, wing_d).p(18, 10, wing_d)
+    s.r(9, 12, 1, 2, body).r(10, 12, 1, 2, body)
+    return s.done()
+
+
 SPRITES = {
+    "vespere0": vespere, "vespere1": lambda: vespere(1),
     "tombeCroix": tomb_cross, "tombeDalle": tomb_slab, "tombeFraiche": tomb_fresh, "tombeCreusee": lambda: tomb_fresh(True),
     "pelleFichee": shovel_planted, "brouetteOs": barrow,
     "pelleCreuse0": gravedigger, "pelleCreuse1": lambda: gravedigger(1),

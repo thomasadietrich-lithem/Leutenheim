@@ -1,0 +1,61 @@
+{
+ "date": "2026-11-27T21:30:03.011Z",
+ "commit": "a65849c",
+ "note": "section 4 (zone d'essai) : vide, passerelles, trouées, planches pourries, Vespère",
+ "logic": {
+  "tickMs": 4.01,
+  "lightMs": 1.1,
+  "visionMs": 0.36
+ },
+ "scenes": {
+  "immobile": {
+   "n": 71,
+   "avg": 34.3,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 29,
+   "js": 13
+  },
+  "marche": {
+   "n": 133,
+   "avg": 37.5,
+   "p95": 66.7,
+   "max": 116.6,
+   "fps": 27,
+   "js": 13
+  },
+  "retour": {
+   "n": 153,
+   "avg": 32.7,
+   "p95": 50,
+   "max": 50.1,
+   "fps": 31,
+   "js": 9
+  },
+  "zoom": {
+   "n": 125,
+   "avg": 20,
+   "p95": 33.4,
+   "max": 33.4,
+   "fps": 50,
+   "js": 16
+  },
+  "combat": {
+   "n": 202,
+   "avg": 21.4,
+   "p95": 33.4,
+   "max": 316.7,
+   "fps": 47,
+   "js": 32
+  },
+  "donjon": {
+   "n": 233,
+   "avg": 21.2,
+   "p95": 33.4,
+   "max": 183.3,
+   "fps": 47,
+   "js": 24
+  }
+ },
+ "errors": []
+}

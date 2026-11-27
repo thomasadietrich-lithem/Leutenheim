@@ -1145,6 +1145,23 @@ function reveal(e: GameEvent): void {
     else if (e.what === "dig") sfx.play("coin");
     else if (e.what === "wellBless" || e.what === "altar" || e.what === "altarRare" || e.what === "cryptOpen" || e.what === "wellRare") sfx.play("unlock");
     else sfx.play("click");
+  } else if (e.type === "chasm") {
+    // Section 4, le Gouffre (2026-11-27).
+    if (e.what === "monster" && e.actor) {
+      renderer.addFloatingText(e.x, e.y, "Dans le vide !", "#bfe0ff");
+      logLines.push(`${e.actor.name} bascule dans le vide… On ne l'entend même pas toucher le fond.`);
+      sfx.play("whoosh");
+    } else if (e.what === "creak") {
+      renderer.addFloatingText(e.x, e.y, "Craaac…", "#c8a870");
+      logLines.push("La planche craque sous votre pied. Elle ne tiendra pas une seconde fois.");
+      sfx.play("thud");
+    } else {
+      renderer.addFloatingText(e.x, e.y, "La planche cède !", "#ff9a7a");
+      logLines.push(`La planche cède : vous tombez dans le vide… et vous rattrapez plus loin, meurtri (-${e.damage ?? 0} PV).`);
+      renderer.shake(1.2);
+      sfx.play("hurt");
+    }
+    renderLog();
   } else if (e.type === "ball") {
     // Le bal macabre s'arrête (nuit du 27-28/11).
     renderer.addFloatingText(e.x, e.y, "La musique s'arrête !", "#bfe0ff");
@@ -4539,6 +4556,13 @@ if (!PUBLIC_BUILD) {
   // Zone d'essai des salles à énigme (Thomas, 2026-11-21).
   button("essai-enigme", () => {
     setSandboxSection(3);
+    newRun(true);
+    started = true;
+    showScreen(null);
+  });
+  // Zone d'essai de la section 4, le Gouffre (Thomas, 2026-11-27).
+  button("essai-gouffre", () => {
+    setSandboxSection(5);
     newRun(true);
     started = true;
     showScreen(null);

@@ -69,6 +69,9 @@ export class TilePainter {
 
   /** Le dessin d'une case : sol, mur, colonne, porte, escalier, coffre… (sans ombre ni lumière). */
   paintCell(game: Game, t: Tile, x: number, y: number, sx: number, sy: number): void {
+    // Section 4, le Gouffre : le vide, et les passerelles au-dessus.
+    if (t === Tile.Chasm) return this.drawChasm(game, x, y, sx, sy);
+    if (t === Tile.Bridge) return this.drawBridge(game, x, y, sx, sy);
     // Colonne : dessinée comme un bloc de mur (voir `walls.ts`).
     const wall = t === Tile.Wall || t === Tile.Pillar;
     if (wall) this.drawWall(game, x, y, sx, sy);
@@ -77,6 +80,107 @@ export class TilePainter {
       this.drawRugs(game, x, y, sx, sy);
     }
     this.drawFeature(game, t, x, y, sx, sy);
+  }
+
+  /**
+   * LE VIDE (section 4) : noir profond, une brume bleutée qui monte du fond par endroits, de rares poussières ; au bord
+   * d'un îlot, la roche plonge (une lèvre de pierre en haut de la case, côté sol).
+   */
+  drawChasm(game: Game, x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    ctx.fillStyle = "#06060c";
+    ctx.fillRect(sx, sy, tile, tile);
+    const n = noise(x, y, 41);
+    ctx.fillStyle = `rgba(90,110,150,${(0.05 + 0.08 * n).toFixed(3)})`;
+    ctx.fillRect(sx, sy + tile * (0.3 + 0.3 * noise(x, y, 7)), tile, tile * 0.25);
+    if (noise(x, y, 13) > 0.7) {
+      ctx.fillStyle = "rgba(160,180,220,0.35)";
+      ctx.fillRect(Math.round(sx + 3 * u + 8 * u * noise(x, y, 3)), Math.round(sy + 4 * u + 8 * u * noise(x, y, 5)), Math.ceil(u), Math.ceil(u));
+    }
+    // La paroi de l'îlot au-dessus : la roche tombe dans le noir.
+    const above = game.map.get(x, y - 1);
+    if (above === Tile.Floor || above === Tile.Gravel || above === Tile.Water || above === Tile.Furniture || above === Tile.StairsDown || above === Tile.StairsUp || above === Tile.Chest) {
+      ctx.fillStyle = "#3a3440";
+      ctx.fillRect(sx, sy, tile, 5 * u);
+      ctx.fillStyle = "#26222c";
+      ctx.fillRect(sx, sy + 5 * u, tile, 3 * u);
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = "#4e4856";
+        ctx.fillRect(Math.round(sx + (i * 4 + 1) * u + 2 * u * noise(x, i, 9)), sy + u, Math.ceil(2 * u), Math.ceil(u));
+      }
+    }
+  }
+
+  /**
+   * PASSERELLE (section 4) : le vide dessous, des planches en travers du chemin, deux cordages tendus le long des bords
+   * qui donnent sur le vide (pas aux TROUÉES, où la corde pend, rompue) ; une planche POURRIE est plus sombre, fendue.
+   */
+  drawBridge(game: Game, x: number, y: number, sx: number, sy: number): void {
+    const { ctx, tile } = this;
+    const u = tile / 16;
+    this.drawChasm(game, x, y, sx, sy);
+    const open = (dx: number, dy: number) => {
+      const t = game.map.get(x + dx, y + dy);
+      return t !== Tile.Chasm && t !== Tile.Wall;
+    };
+    // Sens des planches : en travers d'un chemin horizontal (planches verticales) ou vertical (horizontales).
+    const horizontal = (open(-1, 0) || open(1, 0)) && !(open(0, -1) || open(0, 1));
+    const rotten = game.rottenPlank(x, y);
+    const wood = rotten ? ["#4a3420", "#3a2818", "#2a1c10"] : ["#8a6a3a", "#6a4a2a", "#4a3420"];
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = wood[i % 2];
+      if (horizontal) ctx.fillRect(sx + i * 4 * u, sy + 2 * u, 3.5 * u, 12 * u);
+      else ctx.fillRect(sx + 2 * u, sy + i * 4 * u, 12 * u, 3.5 * u);
+    }
+    ctx.fillStyle = wood[2];
+    if (horizontal) {
+      ctx.fillRect(sx, sy + 2 * u, tile, u);
+      ctx.fillRect(sx, sy + 13 * u, tile, u);
+    } else {
+      ctx.fillRect(sx + 2 * u, sy, u, tile);
+      ctx.fillRect(sx + 13 * u, sy, u, tile);
+    }
+    if (rotten) {
+      ctx.fillStyle = "#120d08";
+      if (horizontal) ctx.fillRect(sx + 6 * u, sy + 4 * u, u, 8 * u);
+      else ctx.fillRect(sx + 4 * u, sy + 6 * u, 8 * u, u);
+    }
+    // Cordages : sur chaque bord qui donne sur le vide.
+    const gap = game.railGap(x, y);
+    const rope = (x0: number, y0: number, w: number, h: number) => {
+      ctx.fillStyle = "#c8a870";
+      ctx.fillRect(sx + x0 * u, sy + y0 * u, w * u, h * u);
+      ctx.fillStyle = "#8a6a3a";
+      if (w > h) ctx.fillRect(sx + x0 * u, sy + (y0 + h) * u, w * u, u * 0.6);
+      else ctx.fillRect(sx + (x0 + w) * u, sy + y0 * u, u * 0.6, h * u);
+    };
+    const edges: [number, number, () => void][] = [
+      [0, -1, () => rope(0, 1, 16, 1)],
+      [0, 1, () => rope(0, 14, 16, 1)],
+      [-1, 0, () => rope(1, 0, 1, 16)],
+      [1, 0, () => rope(14, 0, 1, 16)],
+    ];
+    for (const [dx, dy, draw] of edges) {
+      if (game.map.get(x + dx, y + dy) !== Tile.Chasm) continue;
+      if (gap) {
+        // Trouée : la corde rompue pend, deux bouts effilochés.
+        ctx.fillStyle = "#c8a870";
+        if (dy !== 0) {
+          ctx.fillRect(sx, sy + (dy < 0 ? 1 : 14) * u, 4 * u, u);
+          ctx.fillRect(sx + 12 * u, sy + (dy < 0 ? 1 : 14) * u, 4 * u, u);
+          ctx.fillRect(sx + 3 * u, sy + (dy < 0 ? 2 : 15) * u, u, 3 * u);
+        } else {
+          ctx.fillRect(sx + (dx < 0 ? 1 : 14) * u, sy, u, 4 * u);
+          ctx.fillRect(sx + (dx < 0 ? 1 : 14) * u, sy + 12 * u, u, 4 * u);
+        }
+        continue;
+      }
+      draw();
+    }
+    // Poteaux aux coins quand les deux bords sont sur le vide.
+    ctx.fillStyle = "#5a3a1c";
+    if (game.map.get(x, y - 1) === Tile.Chasm && game.map.get(x - 1, y) === Tile.Chasm) ctx.fillRect(sx, sy, 3 * u, 3 * u);
   }
 
   /**

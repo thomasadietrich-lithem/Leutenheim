@@ -86,6 +86,8 @@ export interface SavedFloor {
   bandelette?: import("./floor").GluckSpot;
   boletus?: import("./floor").GluckSpot;
   ball?: import("./floor").FloorState["ball"];
+  gaps?: Record<string, true>;
+  rotten?: Record<string, number>;
   restful?: boolean;
   nights?: { x: number; y: number; turns: number; hero?: boolean }[];
   moonFlashes?: { x: number; y: number; turns: number }[];
@@ -172,7 +174,7 @@ export interface SaveData {
   /** Salle d'essai : version de son plan (une sauvegarde d'un ancien plan est ignorée). */
   sandboxLayout?: number;
   /** Salle d'essai : section 1 ou 2 (Thomas, 2026-11-14). */
-  sandboxSection?: 1 | 2 | 3 | 4;
+  sandboxSection?: 1 | 2 | 3 | 4 | 5;
   /** Partie d'essai « toutes les sections » (Thomas, 2026-11-14). */
   testRun?: boolean;
   clock?: number;

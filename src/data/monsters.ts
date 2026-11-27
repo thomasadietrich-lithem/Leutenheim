@@ -52,6 +52,8 @@ export interface MonsterDef {
   fireWeak?: boolean;
   /** À sa mort, il laisse tomber sa hotte : des morilles (le Kobold cueilleur). */
   dropsMorels?: [number, number];
+  /** Volant (section 4, la Vespère) : il passe au-dessus du vide ; rien ne le pousse ; il mord puis repart dans le noir. */
+  flies?: boolean;
   /** Ne bouge ni n'agit jamais, ne se pousse pas (le battant du Carillon). */
   inert?: boolean;
   // ---- Section 3, l'Ossuaire (Thomas, 2026-11-19 : « Ok fonce » ; `claude/MONSTRES_S3.md`) ----
@@ -312,6 +314,26 @@ export const MONSTERS = {
     sling: { range: 7, attackBonus: 7, damage: { count: 1, sides: 8, bonus: 4 }, keep: 3 },
   },
   // Thomas, 2026-11-19 : « un mob qui charge et tire un rayon de quelque chose » : un crâne qui flotte dans une flamme pâle.
+  // SECTION 4, LE GOUFFRE (Thomas, 2026-11-27 ; claude/BRIEF_SECTION4_ET_S3.md) : la VESPÈRE, chauve-souris géante.
+  vespere: {
+    id: "vespere",
+    name: "Vespère",
+    family: "gouffre",
+    description: "Une chauve-souris grande comme un chien. Elle surgit du vide, mord en piqué et repart aussitôt dans le noir. Une torche allumée la tient à distance ; à l'arc, on la touche même au-dessus du vide. Rien ne la pousse.",
+    hp: 10,
+    armorClass: 14,
+    attackBonus: 6,
+    damage: { count: 1, sides: 6, bonus: 3 },
+    vision: 8,
+    xpMin: 4,
+    xpMax: 6,
+    goldChance: 0,
+    goldMax: 0,
+    noticeChance: 0.6,
+    color: "#6a5a8a",
+    blood: "red",
+    flies: true,
+  },
   craneLunaire: {
     id: "craneLunaire",
     name: "Crâne lunaire",

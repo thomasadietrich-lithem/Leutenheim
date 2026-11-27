@@ -2496,6 +2496,11 @@ export class Renderer {
         }
         const t = game.map.get(x, y);
         const wall = t === Tile.Wall || t === Tile.Pillar;
+        // Le vide (section 4) ne prend pas la lumière : il reste noir, seule la brume s'y devine.
+        if (t === Tile.Chasm) {
+          veil("rgba(4,4,10,0.55)", this.snap(sx), this.snap(sy), this.snap(sx + tile) - this.snap(sx), this.snap(sy + tile) - this.snap(sy));
+          continue;
+        }
         // Les voiles sont calés sur les pixels entiers : deux cases voisines ne laissent ni jour ni recouvrement.
         const rx = this.snap(sx);
         const ry = this.snap(sy);
@@ -2874,7 +2879,25 @@ export class Renderer {
         if (!held) this.drawStatusBubbles(m, ox + (p.x + 1) * tile, oy + (p.y + 0.6) * tile, burning);
         continue;
       }
-      if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || m.defId === "reflet" || MOBS_SET[m.defId]) {
+      // Section 4 : la Vespère bat des ailes et flotte (une ombre légère au sol, sauf au-dessus du vide).
+      if (m.defId === "vespere") {
+        const art = NUIT[`vespere${Math.floor(Math.abs(this.time) / 140) % 2}`];
+        const bob = Math.sin(this.time / 220 + m.id) * tile * 0.06;
+        if (game.map.get(m.x, m.y) !== Tile.Chasm) {
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + tile * 0.38, tile * 0.3, tile * 0.08, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (stone) this.ctx.filter = m.frozen ? "grayscale(1) sepia(1) hue-rotate(170deg) saturate(2.5) brightness(1.2)" : "grayscale(1) brightness(1.1)";
+        this.drawMonsterSprite(art.rows, cx, cy - tile * 0.15 + bob, game.hero.x < m.x, true, art.palette);
+        this.ctx.filter = "none";
+        if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
+          ctx.fillStyle = "rgba(255,255,255,0.2)";
+          ctx.fillRect(cx - tile * 0.5, cy - tile * 0.6, tile, tile * 0.9);
+        }
+        if (!held) this.drawStatusBubbles(m, cx, cy - tile * 0.2, !!m.burning);
+      } else if (m.defId === "schrat" || m.defId === "araignee" || m.defId === "frondeur" || m.defId === "reflet" || MOBS_SET[m.defId]) {
         const advantage = game.heroEdgeShown(m);
         if (advantage) {
           // Liseré doré qui palpite au sol : le héros aurait l'avantage en l'attaquant maintenant.

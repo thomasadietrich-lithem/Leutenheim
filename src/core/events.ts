@@ -237,6 +237,8 @@ export type GameEvent =
   /** Le squelette à butin, fouillé : l'or, et parfois un objet. */
   | { type: "skeleton"; x: number; y: number; gold: number; item?: ItemId }
   /** Une mission réussie hors tâche (succès de quête) : Plumeau libéré par la force, registre lu ; pomme dorée volée. */
+  /** Section 4 : un monstre poussé dans le vide, une planche qui craque, le héros qui tombe (`damage`). */
+  | { type: "chasm"; what: "monster" | "creak" | "hero"; actor?: Actor; x: number; y: number; damage?: number }
   /** Bal macabre : la musique s'arrête (le héros est vu, un bruit, un coup porté). */
   | { type: "ball"; what: "seen" | "noise" | "struck"; x: number; y: number }
   | { type: "feat"; npc: "plumeau" | "vernis" | "clavicule" | "osselet" | "morillon" | "fossoyeur" | "bandelette" | "boletus"; id: string }

@@ -275,8 +275,6 @@ export class Game {
   private ripostedOn = -9;
   /** Le coup en cours part avec le désavantage (riposte au rang 1). */
   private clumsyStrike = false;
-  /** Tour du dernier coup amorti par Encaisseur (un seul par tour). */
-  private absorbedOn = -9;
   /** Bastion (voie bleue, Rang III) : actif jusqu'à ce tour compris. */
   bastionUntil = -1;
   /** Frénésie (voie rouge, Rang III) : coups qui portent d'affilée, et le tour du dernier. */
@@ -4834,6 +4832,11 @@ export class Game {
     return (armor && (ITEMS[armor.defId] as ItemDef).reduction) || 0;
   }
 
+  /** Absorption moyenne du héros : son armure, plus l'Encaisseur (voie bleue). */
+  absorption(): number {
+    return this.armorReduction() + this.rank("encaisseur");
+  }
+
   /** Coup d'un monstre qui touche le héros : l'armure l'amortit, puis la voie bleue ; ce que l'armure a retenu est noté. */
   private soakHit(result: AttackResult): void {
     const before = result.damage;
@@ -4848,24 +4851,19 @@ export class Game {
   private absorb(damage: number): number {
     // AMORTI AU DÉ (Thomas, 2026-11-27 : « un système amorti de x à y dégâts ? » « ok ») : l'armure retient au hasard
     // entre son amorti −1 et +1 (cloutée 0 à 2, cotte 1 à 3, harnois et obsidienne 3 à 5), jamais en dessous de 1 dégât.
+    // ENCAISSEUR (voie bleue, Thomas 2026-11-27 : « ajuste les sorts bleus en lien avec la CA et les dommages ») : il
+    // s'ajoute à l'absorption de l'armure, à CHAQUE coup (+1, puis +2) ; avant : −1 sur un seul coup par tour.
     this.lastSoak = 0;
-    const soak = this.armorReduction();
+    const soak = this.armorReduction() + this.rank("encaisseur");
     if (damage > 0 && soak > 0) {
-      const roll = this.rng.int(soak - 1, soak + 1);
+      const roll = this.rng.int(Math.max(0, soak - 1), soak + 1);
       const after = Math.max(1, damage - roll);
       this.lastSoak = damage - after;
       damage = after;
     }
     // Bastion (voie bleue, Rang III) : les dégâts reçus sont divisés par deux.
     if (damage > 0 && this.bastionActive()) damage = Math.ceil(damage / 2);
-    // Affaibli (Thomas, 2026-11-18 : la voie bleue battait le Carillon deux fois plus souvent que la rouge) : -1 aux
-    // deux rangs ; au rang 1 seulement sur les coups de 3 dégâts ou plus, au rang 2 sur tous (jamais moins de 1).
-    // Un seul coup amorti par tour (Thomas, 2026-11-20) : contre un groupe, les coups suivants passent entiers.
-    const r = this.rank("encaisseur");
-    if (r === 0 || damage <= 0 || this.absorbedOn === this.turn) return damage;
-    const less = r === 1 ? (damage >= 3 ? damage - 1 : damage) : Math.max(1, damage - 1);
-    if (less < damage) this.absorbedOn = this.turn;
-    return less;
+    return damage;
   }
 
   /** Riposte (voie bleue, Rang II) : un ennemi au contact rate le héros, il frappe aussitôt (une fois par tour). */

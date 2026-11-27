@@ -2701,4 +2701,8 @@ export const EN: Record<string, string> = {
   "absorbe {0}": "absorbs {0}",
   "« Tiens, pour toi : des fioles de brouillard. Volées. »": "“Here, for you: fog flasks. Stolen.”",
   "({0} potions de brouillard dans le sac.)": "({0} fog potions in your bag.)",
+  "Sur le dos !": "On her back!",
+  "Sonnée": "Stunned",
+  "+1 à l'absorption de votre armure, à chaque coup": "+1 to your armour's absorption, on every hit",
+  "+2 à l'absorption de votre armure, à chaque coup": "+2 to your armour's absorption, on every hit",
 };

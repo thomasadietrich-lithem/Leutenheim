@@ -1077,6 +1077,13 @@ function reveal(e: GameEvent): void {
       renderer.addFloatingText(game.hero.x, game.hero.y, `+${e.gold} or`, "#ffd75e");
       sfx.play("coin");
     }
+  } else if (e.type === "boss" && e.what === "fallen") {
+    // Sur le dos (Thomas, 2026-11-27 : « le sprite de la Tisseuse s'est retourné au lancer d'une torche », on la croyait
+    // morte) : on le dit, ça tremble, et des étoiles tournent au-dessus d'elle tant qu'elle est sonnée.
+    renderer.addFloatingText(e.x + 1, e.y, "Sur le dos !", "#ffd75e");
+    renderer.addFloatingText(e.x + 1, e.y, "Sonnée", "#ffd75e");
+    renderer.shake(0.8);
+    sfx.play("heavy");
   } else if (e.type === "boss" && e.what === "eat") {
     // Elle se soigne : des croix de santé montent d'elle (Thomas, 2026-11-14).
     const queen = game.monsters.find((m) => m.boss);
@@ -3855,7 +3862,7 @@ function renderCharacter(): void {
     row("Discrétion", signedBonus(game.stealthBonus())),
     row("Attaque", signedBonus(game.hero.attackBonus)),
     row("Classe d'armure", String(game.hero.armorClass), undefined, true),
-    row("Absorption", game.armorReduction() > 0 ? `${Math.max(0, game.armorReduction() - 1)} à ${game.armorReduction() + 1} par coup` : "aucun"),
+    row("Absorption", game.absorption() > 0 ? `${Math.max(0, game.absorption() - 1)} à ${game.absorption() + 1} par coup` : "aucun"),
   );
   $("char-stats").replaceChildren(grid);
 

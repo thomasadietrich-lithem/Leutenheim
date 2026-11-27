@@ -2642,17 +2642,19 @@ test("Rang II : encaisseur, riposte, garde (bleue) ; cri de guerre et tourbillon
   const { game, m } = foeAt(1);
   game.voie = "blue";
   game.ranks = { second_souffle: 1, encaisseur: 2, riposte: 1, garde: 1 };
-  const soak = (d: number, fresh = true) => {
-    if (fresh) (game as unknown as { absorbedOn: number }).absorbedOn = -9;
-    return (game as unknown as { absorb(d: number): number }).absorb(d);
-  };
-  assert.equal(soak(5), 4, "rang 2 : -1");
-  assert.equal(soak(5, false), 5, "un seul coup amorti par tour");
-  assert.equal(soak(2), 1, "rang 2 : même les petits coups");
-  assert.equal(soak(1), 1, "au moins 1");
+  // Encaisseur (2026-11-27) : il s'ajoute à l'absorption de l'armure, à chaque coup (rang 2 : 1 à 3, sans armure).
+  const soak = (d: number) => (game as unknown as { absorb(d: number): number }).absorb(d);
+  game.equipment.armor = null;
+  for (let k = 0; k < 30; k++) {
+    const left = soak(8);
+    assert.ok(left >= 5 && left <= 7, `rang 2 : 1 à 3 absorbés (${left})`);
+  }
+  for (let k = 0; k < 10; k++) assert.equal(soak(1), 1, "au moins 1");
   game.ranks = { second_souffle: 1, encaisseur: 1, riposte: 1, garde: 1 };
-  assert.equal(soak(5), 4, "rang 1 : -1 sur un gros coup");
-  assert.equal(soak(2), 2, "rang 1 : rien sur un petit coup");
+  for (let k = 0; k < 30; k++) {
+    const left = soak(8);
+    assert.ok(left >= 6 && left <= 8, `rang 1 : 0 à 2 absorbés (${left})`);
+  }
   assert.equal(game.guardBonus(), 0, "un seul ennemi");
   m.alerted = true;
   // Riposte : une seule par tour.

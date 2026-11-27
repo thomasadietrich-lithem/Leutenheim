@@ -1746,6 +1746,18 @@ export class Renderer {
     const art = BOSS[`tisseuse_${name}`];
     const facing = m.facing ?? "down";
     this.drawBig(art.rows, art.palette, cx, cy, facing === "left");
+    // Sonnée sur le dos : trois étoiles tournent au-dessus d'elle (on voit qu'elle n'est pas morte).
+    if (fallen) {
+      for (let k = 0; k < 3; k++) {
+        const a = this.time / 260 + (k * Math.PI * 2) / 3;
+        const sx = cx + Math.cos(a) * tile * 0.7;
+        const sy = cy - tile * 0.95 + Math.sin(a) * tile * 0.18;
+        const s = Math.max(2, Math.round(tile * 0.08));
+        ctx.fillStyle = "#ffd75e";
+        ctx.fillRect(Math.round(sx - s / 2), Math.round(sy - s * 1.5), s, s * 3);
+        ctx.fillRect(Math.round(sx - s * 1.5), Math.round(sy - s / 2), s * 3, s);
+      }
+    }
     // Touchée : un bref voile blanc.
     if ((this.monsterHurtAge.get(m.id) ?? Infinity) < HURT_MS) {
       ctx.fillStyle = "rgba(255,255,255,0.18)";

@@ -80,7 +80,7 @@ export const PATHS: Record<PathId, PathDef> = {
     tier2: [
       { id: "riposte", name: "Riposte", ranks: ["Un ennemi au contact vous rate : vous ripostez, avec le désavantage (une fois tous les trois tours)", "La riposte frappe normalement"] },
       { id: "garde", name: "Garde", ranks: ["+2 à la classe d'armure quand deux ennemis ou plus vous touchent", "+3 à la classe d'armure quand deux ennemis ou plus vous touchent"] },
-      { id: "encaisseur", name: "Encaisseur", ranks: ["-1 dégât sur le premier coup de 3 dégâts ou plus, chaque tour", "-1 dégât sur le premier coup reçu, chaque tour (au moins 1)"] },
+      { id: "encaisseur", name: "Encaisseur", ranks: ["+1 à l'absorption de votre armure, à chaque coup", "+2 à l'absorption de votre armure, à chaque coup"] },
     ],
     tier3: [
       { id: "bastion", name: "Bastion", ranks: ["Une fois par étage, 3 tours : dégâts reçus divisés par deux, et qui vous touche au contact recule d'une case", "Dure 4 tours"] },
